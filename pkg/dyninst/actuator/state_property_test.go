@@ -10,6 +10,7 @@ package actuator
 import (
 	"bytes"
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -21,8 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
 // TestStateMachineProperties tests the state machine properties using
@@ -56,7 +57,7 @@ func TestStateMachineProperties(t *testing.T) {
 
 	for i := 0; i < numRuns; i++ {
 		seed := baseSeed + int64(i)
-		t.Run(fmt.Sprintf("seed=%d", seed), func(t *testing.T) {
+		if !t.Run(fmt.Sprintf("seed=%d", seed), func(t *testing.T) {
 			t.Logf("using seed: %d", seed)
 			// Run the test twice to ensure the output is deterministic.
 			firstRun := runStateMachinePropertyTest(t, seed)
@@ -67,9 +68,12 @@ func TestStateMachineProperties(t *testing.T) {
 			if !bytes.Equal(firstRun, secondRun) {
 				require.Equal(
 					t, string(firstRun), string(secondRun),
-					"property test output should be deterministic")
+					"property test output should be deterministic",
+				)
 			}
-		})
+		}) {
+			t.FailNow()
+		}
 	}
 }
 
@@ -137,7 +141,7 @@ func runStateMachinePropertyTest(t *testing.T, seed int64) []byte {
 		// Generate and log event output using shared infrastructure.
 		yamlEv := wrapEventForYAML(ev)
 		eventNode := &yaml.Node{}
-		eventNode.Encode(yamlEv)
+		require.NoError(t, eventNode.Encode(yamlEv))
 		output := generateEventOutput(t, eventNode, *effects, before, pts.sm)
 		if eventCount > 0 {
 			outputBuf.WriteString("---\n")
@@ -211,18 +215,26 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 			processID := ProcessID{PID: int32(pts.processIDCounter)}
 
 			numProbes := pts.rng.Intn(3) + 1 // 1-3 probes
-			var probes []config.Probe
+			var probes []ir.ProbeDefinition
 			for j := 0; j < numProbes; j++ {
-				probes = append(probes, &config.LogProbe{
-					ID: fmt.Sprintf(
-						"probe_%d_%d", pts.processIDCounter, j,
-					),
-					Version:  pts.rng.Intn(5) + 1,
-					Where:    &config.Where{MethodName: "main"},
-					Tags:     []string{"test"},
-					Language: "go",
-					Template: "test log message",
-				})
+				probe := &rcjson.LogProbe{
+					LogProbeCommon: rcjson.LogProbeCommon{
+						ProbeCommon: rcjson.ProbeCommon{
+							ID: fmt.Sprintf(
+								"probe_%d_%d", pts.processIDCounter, j,
+							),
+							Version:  pts.rng.Intn(5) + 1,
+							Where:    &rcjson.Where{MethodName: "main"},
+							Tags:     []string{"test"},
+							Language: "go",
+						},
+						Template: "test log message",
+						Segments: []json.RawMessage{
+							json.RawMessage(`"test log message"`),
+						},
+					},
+				}
+				probes = append(probes, probe)
 			}
 
 			updates = append(updates, ProcessUpdate{
@@ -243,22 +255,27 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 				// Generate different probes (different count and/or different
 				// versions/IDs).
 				numProbes := pts.rng.Intn(4) // 0-3 probes, 0 means removal
-				var probes []config.Probe
+				var probes []ir.ProbeDefinition
 				for j := 0; j < numProbes; j++ {
-					probes = append(probes, &config.LogProbe{
-						ID: fmt.Sprintf(
-							"probe_%d_%d_updated", processID.PID, j,
-						),
-						Version:  pts.rng.Intn(5) + 1,
-						Where:    &config.Where{MethodName: "main"},
-						Tags:     []string{"test", "updated"},
-						Language: "go",
-						Template: "updated test log message",
-					})
+					probe := &rcjson.SnapshotProbe{
+						LogProbeCommon: rcjson.LogProbeCommon{
+							ProbeCommon: rcjson.ProbeCommon{
+								ID: fmt.Sprintf(
+									"probe_%d_%d_updated", processID.PID, j,
+								),
+								Version: pts.rng.Intn(5) + 1,
+								Where:   &rcjson.Where{MethodName: "main"},
+								Tags:    []string{"test", "updated"},
+
+								Language: "go",
+							},
+						},
+					}
+					probes = append(probes, probe)
 				}
 
 				updates = append(updates, ProcessUpdate{
-					ProcessID:  processID,
+					ProcessID:  processID.ProcessID,
 					Executable: existingProcess.executable,
 					Probes:     probes,
 				})
@@ -269,7 +286,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 			existingProcesses := pts.existingProcesses()
 			if len(existingProcesses) > 0 {
 				toRemove := existingProcesses[pts.rng.Intn(len(existingProcesses))]
-				removals = append(removals, toRemove)
+				removals = append(removals, toRemove.ProcessID)
 			}
 		}
 	}
@@ -280,13 +297,16 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 	}
 }
 
-func (pts *propertyTestState) existingProcesses() []ProcessID {
-	existingProcesses := make([]ProcessID, 0, len(pts.sm.processes))
-	for pid := range pts.sm.processes {
-		existingProcesses = append(existingProcesses, pid)
+func (pts *propertyTestState) existingProcesses() []processKey {
+	existingProcesses := make([]processKey, 0, len(pts.sm.processes))
+	for key := range pts.sm.processes {
+		existingProcesses = append(existingProcesses, key)
 	}
-	slices.SortFunc(existingProcesses, func(a, b ProcessID) int {
-		return cmp.Compare(a.PID, b.PID)
+	slices.SortFunc(existingProcesses, func(a, b processKey) int {
+		return cmp.Or(
+			cmp.Compare(a.tenantID, b.tenantID),
+			cmp.Compare(a.PID, b.PID),
+		)
 	})
 	return existingProcesses
 }
@@ -308,27 +328,12 @@ func (pts *propertyTestState) completeRandomEffect() event {
 
 	switch eff := effect.(type) {
 
-	case effectSpawnEBPFCompilation:
-		if success {
-			return eventProgramCompiled{
-				programID: eff.programID,
-				compiledProgram: &CompiledProgram{
-					IR: &ir.Program{ID: eff.programID},
-				},
-			}
-		} else {
-			return eventProgramCompilationFailed{
-				programID: eff.programID,
-				err:       fmt.Errorf("mock compilation failure"),
-			}
-		}
-
 	case effectSpawnBpfLoading:
 		if success {
 			return eventProgramLoaded{
 				programID: eff.programID,
-				loadedProgram: &loadedProgram{
-					id: eff.programID,
+				loaded: &loadedProgram{
+					ir: &ir.Program{ID: eff.programID},
 				},
 			}
 		} else {
@@ -342,7 +347,7 @@ func (pts *propertyTestState) completeRandomEffect() event {
 		if success {
 			return eventProgramAttached{
 				program: &attachedProgram{
-					progID: eff.programID,
+					ir:     &ir.Program{ID: eff.programID},
 					procID: eff.processID,
 				},
 			}
@@ -359,13 +364,11 @@ func (pts *propertyTestState) completeRandomEffect() event {
 			programID: eff.programID,
 			processID: eff.processID,
 		}
+	case effectUnloadProgram:
+		return eventProgramUnloaded{
+			programID: eff.programID,
+		}
 
-	// Register/unregister effects are fire-and-forget, they don't generate
-	// events.
-	case effectRegisterProgramWithDispatcher,
-		effectUnregisterProgramWithDispatcher:
-		// These don't generate completion events, so generate a different event.
-		return nil
 	default:
 		panic(fmt.Sprintf("unknown effect: %T", eff))
 	}

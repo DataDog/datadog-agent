@@ -1,0 +1,3 @@
+features:
+  - |
+    Added support in DDOT for the `datadogexporter.proxy_url` configuration option. This allows users to specify proxy settings for DDOT with the collector configuration.

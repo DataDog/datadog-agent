@@ -6,7 +6,6 @@
 package udp
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"net"
 	"net/netip"
 	"testing"
@@ -17,6 +16,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
 )
 

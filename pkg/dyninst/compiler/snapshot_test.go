@@ -10,19 +10,18 @@ package compiler
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 var rewriteFromEnv = func() bool {
@@ -54,23 +53,32 @@ func runTest(
 	caseName string,
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
-	probesCfgs := testprogs.MustGetProbeCfgs(t, caseName)
-	elfFile, err := safeelf.Open(binPath)
+	probeDefs := testprogs.MustGetProbeDefinitions(t, caseName)
+	obj, err := object.OpenElfFile(binPath)
 	require.NoError(t, err)
-	obj, err := object.NewElfObject(elfFile)
+	defer func() { _ = obj.Close() }()
+	ir, err := irgen.GenerateIR(1, obj, probeDefs)
 	require.NoError(t, err)
-	defer func() { require.NoError(t, elfFile.Close()) }()
-	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
-	require.NoError(t, err)
+	require.Empty(t, ir.Issues)
 
-	program, err := sm.GenerateProgram(ir)
+	program, err := GenerateProgram(ir)
 	require.NoError(t, err)
 
 	var out bytes.Buffer
-	_, err = codegen.GenerateCCode(program, &out)
+	out.WriteString("// Stack machine code\n")
+	metadata, err := GenerateCode(program, &DebugSerializer{Out: &out})
 	require.NoError(t, err)
 
-	outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".c")
+	sort.Slice(program.Types, func(i, j int) bool {
+		return program.Types[i].GetID() < program.Types[j].GetID()
+	})
+	out.WriteString("// Types\n")
+	for _, t := range program.Types {
+		out.WriteString(fmt.Sprintf("ID: %d Len: %d Enqueue: %d\n",
+			t.GetID(), t.GetByteSize(), metadata.FunctionLoc[ProcessType{Type: t}]))
+	}
+
+	outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".sm.txt")
 	if *rewrite {
 		tmpFile, err := os.CreateTemp(snapshotDir, "sm.c")
 		require.NoError(t, err)

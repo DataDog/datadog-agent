@@ -42,7 +42,7 @@ func TestNewSenderWorkerDistribution(t *testing.T) {
 			// Setup
 			config := configmock.New(t)
 			destinations := &client.Destinations{}
-			destFactory := func() *client.Destinations { return destinations }
+			destFactory := func(_ string) *client.Destinations { return destinations }
 			bufferSize := 100
 			pipelineMonitor := metrics.NewNoopPipelineMonitor("test")
 

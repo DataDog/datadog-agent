@@ -13,6 +13,7 @@ import (
 	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -268,7 +269,7 @@ func formatRouteIdx(v *network.Via, routes map[network.Via]RouteIdx) int32 {
 func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamicTags map[string]struct{}) ([]uint32, uint32) {
 	var checksum uint32
 
-	staticTags := network.GetStaticTags(c.StaticTags)
+	staticTags := tls.GetStaticTags(c.StaticTags)
 	tagsIdx := make([]uint32, 0, len(staticTags)+len(connDynamicTags)+len(c.Tags))
 
 	for _, tag := range staticTags {

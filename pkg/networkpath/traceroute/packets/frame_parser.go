@@ -147,7 +147,6 @@ func (p *FrameParser) GetIPPair() (IPPair, error) {
 	case layers.LayerTypeIPv6:
 		return getIPv6Pair(&p.IP6), nil
 	default:
-		// TODO IPv6
 		return IPPair{}, fmt.Errorf("GetIPPair: unexpected IP layer type %s", p.Layers[0])
 	}
 }

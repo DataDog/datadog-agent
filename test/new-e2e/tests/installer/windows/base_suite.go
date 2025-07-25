@@ -22,6 +22,8 @@ import (
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"os"
+
+	"github.com/stretchr/testify/suite"
 )
 
 // BaseSuite the base suite for all installer tests on Windows (install script, MSI, exe etc...).
@@ -79,7 +81,7 @@ func (s *BaseSuite) SetInstaller(impl DatadogInstallerRunner) {
 // so that it could be shared by multiple suites, but for now it exists only
 // on the Windows Datadog installer `BaseSuite` object.
 func (s *BaseSuite) Require() *suiteasserts.SuiteAssertions {
-	return suiteasserts.New(s.BaseSuite.Require(), s)
+	return suiteasserts.New(s, s.BaseSuite.Require())
 }
 
 // CurrentAgentVersion the version of the Agent in the current pipeline
@@ -167,8 +169,11 @@ func (s *BaseSuite) createStableAgent() {
 	}
 	// else, use the defaults (last stable release)
 
-	agentVersion := "7.66.0-devel"
-	agentVersionPackage := "7.66.0-devel.git.488.1ddea94.pipeline.62296915-1"
+	// TODO: update to last stable when there is one
+	agentVersion := "7.68.0-rc.5"
+	agentVersionPackage := "7.68.0-rc.5-1"
+	agentRegistry := consts.BetaS3OCIRegistry
+	agentMSIURL := "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.68.0-rc.5.msi"
 	// Allow override of version and version package via environment variables
 	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
 		agentVersion = val
@@ -180,18 +185,16 @@ func (s *BaseSuite) createStableAgent() {
 	// Get previous version OCI package
 	previousOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
-		// TODO: update to last stable when there is one
 		WithVersion(agentVersionPackage),
-		WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+		WithRegistry(agentRegistry),
 		WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
 	// Get previous version MSI package
 	previousMSI, err := windowsagent.NewPackage(
-		// TODO: update to last stable when there is one
 		windowsagent.WithVersion(agentVersionPackage),
-		windowsagent.WithURL("https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.66.0-devel.git.488.1ddea94.pipeline.62296915.msi"),
+		windowsagent.WithURL(agentMSIURL),
 		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
@@ -243,6 +246,63 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 
 	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
 	s.installScriptImpl = NewDatadogInstallScript(s.Env())
+
+	// clear the event logs before each test
+	for _, logName := range []string{"System", "Application"} {
+		s.T().Logf("Clearing %s event log", logName)
+		err := windowscommon.ClearEventLog(s.Env().RemoteHost, logName)
+		s.Require().NoError(err, "should clear %s event log", logName)
+	}
+
+}
+
+// AfterTest collects the event logs and agent logs after each test
+// NOTE: AfterTest is not called after subtests
+func (s *BaseSuite) AfterTest(suiteName, testName string) {
+	if afterTest, ok := any(&s.BaseSuite).(suite.AfterTest); ok {
+		afterTest.AfterTest(suiteName, testName)
+	}
+
+	if s.T().Failed() {
+		// If the test failed, export the event logs for debugging
+		vm := s.Env().RemoteHost
+		for _, logName := range []string{"System", "Application"} {
+			// collect the full event log as an evtx file
+			s.T().Logf("Exporting %s event log", logName)
+			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
+			err := windowscommon.ExportEventLog(vm, logName, outputPath)
+			s.Assert().NoError(err, "should export %s event log", logName)
+			// Log errors and warnings to the screen for easy access
+			out, err := windowscommon.GetEventLogErrorsAndWarnings(vm, logName)
+			if s.Assert().NoError(err, "should get errors and warnings from %s event log", logName) && out != "" {
+				s.T().Logf("Errors and warnings from %s event log:\n%s", logName, out)
+			}
+		}
+		// collect agent logs
+		s.collectAgentLogs()
+	}
+}
+
+func (s *BaseSuite) collectAgentLogs() {
+	host := s.Env().RemoteHost
+
+	s.T().Logf("Collecting agent logs")
+	logsFolder, err := host.GetLogsFolder()
+	if !s.Assert().NoError(err, "should get logs folder") {
+		return
+	}
+	entries, err := host.ReadDir(logsFolder)
+	if !s.Assert().NoError(err, "should read log folder") {
+		return
+	}
+	for _, entry := range entries {
+		s.T().Logf("Found log file: %s", entry.Name())
+		err = host.GetFile(
+			filepath.Join(logsFolder, entry.Name()),
+			filepath.Join(s.SessionOutputDir(), entry.Name()),
+		)
+		s.Assert().NoError(err, "should download %s", entry.Name())
+	}
 }
 
 // SetCatalogWithCustomPackage sets the catalog with a custom package
@@ -287,9 +347,8 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 
 	// Act
 	s.WaitForDaemonToStop(func() {
-		_, _ = s.startExperimentPreviousVersion()
-		// TODO: after stable is 7.68, we can check for error
-		// s.Require().NoError(err, "daemon should stop cleanly")
+		_, err := s.startExperimentPreviousVersion()
+		s.Require().NoError(err, "daemon should stop cleanly")
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// Assert

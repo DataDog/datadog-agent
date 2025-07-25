@@ -238,6 +238,51 @@ network_devices:
 	assert.Equal(t, trapsCfg.StopTimeout, 0)
 }
 
+type containerConfig struct {
+	Network      string                   `mapstructure:"network_address"`
+	Port         uint16                   `mapstructure:"port"`
+	InnerConfigs map[string][]innerConfig `mapstructure:"interface_configs"`
+}
+
+type innerConfig struct {
+	Name  string `mapstructure:"name"`
+	Speed int    `mapstructure:"speed"`
+}
+
+func TestUnmarshalNestedConfig(t *testing.T) {
+	confYaml := `
+container_config:
+  network_address: 127.0.0.1
+  port: 1337
+  interface_configs:
+    first:
+      - name: cat
+        speed: 4
+      - name: dog
+        speed: 5
+    second:
+      - name: eel
+        speed: 2
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var cfg = containerConfig{}
+	err := unmarshalKeyReflection(mockConfig, "container_config", &cfg)
+	assert.NoError(t, err)
+
+	assert.Equal(t, cfg.Network, "127.0.0.1")
+	assert.Equal(t, cfg.Port, uint16(1337))
+	assert.Equal(t, len(cfg.InnerConfigs), 2)
+	assert.Equal(t, len(cfg.InnerConfigs["first"]), 2)
+	assert.Equal(t, cfg.InnerConfigs["first"][0].Name, "cat")
+	assert.Equal(t, cfg.InnerConfigs["first"][0].Speed, 4)
+	assert.Equal(t, cfg.InnerConfigs["first"][1].Name, "dog")
+	assert.Equal(t, cfg.InnerConfigs["first"][1].Speed, 5)
+	assert.Equal(t, len(cfg.InnerConfigs["second"]), 1)
+	assert.Equal(t, cfg.InnerConfigs["second"][0].Name, "eel")
+	assert.Equal(t, cfg.InnerConfigs["second"][0].Speed, 2)
+}
+
 type endpoint struct {
 	Name   string `yaml:"name"`
 	APIKey string `yaml:"apikey"`

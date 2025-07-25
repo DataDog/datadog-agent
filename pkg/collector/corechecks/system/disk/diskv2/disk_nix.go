@@ -293,8 +293,8 @@ func (r *rootFsDeviceFinder) askProcPartitions() (string, error) {
 		if len(fields) < 4 {
 			continue
 		}
-		maj, err1 := strconv.Atoi(fields[0])
-		min, err2 := strconv.Atoi(fields[1])
+		maj, err1 := strconv.ParseUint(fields[0], 10, 32)
+		min, err2 := strconv.ParseUint(fields[1], 10, 32)
 		if err1 != nil || err2 != nil {
 			continue
 		}

@@ -1836,7 +1836,7 @@ func httpSupported() bool {
 }
 
 func isPrebuilt(cfg *config.Config) bool {
-	if cfg.EnableRuntimeCompiler || cfg.EnableCORE {
+	if cfg.EnableRuntimeCompiler || cfg.EnableCORE || cfg.EnableEbpfless {
 		return false
 	}
 	return true
@@ -3105,4 +3105,5 @@ func (s *TracerSuite) TestTCPSynRst() {
 	assert.NotEqual(t, network.UNKNOWN, conn.Direction)
 
 	assert.Equal(t, uint32(1), conn.TCPFailures[uint16(unix.ECONNREFUSED)])
+	assert.Equal(t, uint16(1), conn.Monotonic.TCPClosed)
 }

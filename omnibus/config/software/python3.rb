@@ -32,7 +32,7 @@ build do
 
     if mac_os_x?
       python_configure_options.push("--enable-ipv6",
-                            "--with-universal-archs=intel",
+                            "--with-universal-archs=#{arm_target? ? "universal2" : "intel"}",
                             "--enable-shared")
     elsif linux_target?
       python_configure_options.push("--enable-shared",
@@ -70,7 +70,6 @@ build do
   else
     dependency "vc_redist_14"
 
-    vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
     ###############################
     # Setup openssl dependency... #
     ###############################

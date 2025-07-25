@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -531,11 +532,11 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, contai
 }
 
 type procGroup struct {
-	key         string
+	key         types.ResourceType
 	containerID utils.ContainerID
 }
 
-func groupProcesses(procs []*process.Process, getKey func(*process.Process) (string, bool)) map[procGroup]*process.Process {
+func groupProcesses(procs []*process.Process, getKey func(*process.Process) (types.ResourceType, bool)) map[procGroup]*process.Process {
 	groups := make(map[procGroup]*process.Process)
 	for _, proc := range procs {
 		key, ok := getKey(proc)

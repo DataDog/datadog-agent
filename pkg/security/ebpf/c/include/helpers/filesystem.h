@@ -191,6 +191,7 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
 
     if (is_overlayfs(dentry)) {
         set_overlayfs_inode(dentry, file);
+        set_overlayfs_nlink(dentry, file);
     }
 }
 

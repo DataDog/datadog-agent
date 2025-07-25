@@ -24,13 +24,13 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
@@ -782,7 +782,7 @@ func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]m
 		// We might not have postgres stats, and it might be the expected case (to capture 0).
 		currentStats := postgresProtocolStats.(map[postgres.Key]*postgres.RequestStat)
 		for key, stats := range currentStats {
-			hasTLSTag := stats.StaticTags&network.ConnTagGo != 0
+			hasTLSTag := stats.StaticTags&ebpftls.ConnTagGo != 0
 			if hasTLSTag != tls {
 				continue
 			}

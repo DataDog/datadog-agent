@@ -141,15 +141,6 @@ func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
 	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
 	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
 
-	// throw some complex scrubbing patterns
-	conf.ConfigPath = "/config/with/aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb/inside/path"
-	conf.DefaultEnv = "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb-suffix"
-	conf.DDAgentBin = "/usr/bin/agent-aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"
-	conf.GlobalTags = map[string]string{
-		"simple_api_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
-		"url_with_key":   "https://api.example.com/token/aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb/endpoint",
-	}
-
 	// creating in-memory auth artifacts
 	conf.AuthToken = "fake-auth-token"
 	// If a serverConfig is provided, we need to add the server's certificate to the client config
@@ -461,43 +452,8 @@ func TestInfoConfig(t *testing.T) {
 	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
 	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
 
-	conf.DefaultEnv = "env-\"***************************abbbb\"-suffix"
-	conf.ConfigPath = "/config/with/***************************abbbb/inside/path"
-	conf.DDAgentBin = "/usr/bin/agent-\"***************************abbbb\""
-	conf.GlobalTags = map[string]string{
-		"simple_api_key": "***************************abbbb",
-		"url_with_key":   "https://api.example.com/token/***************************abbbb/endpoint",
-	}
-
 	conf.ContainerTags = nil
 	conf.ContainerIDFromOriginInfo = nil
-
-	// After YAML round-trip, nil slices and maps become empty collections
-	// Update expected config to match YAML behavior
-	conf.ExtraAggregators = []string{}
-	conf.PeerTags = []string{}
-	conf.ReplaceTags = []*config.ReplaceRule{}
-	conf.RequireTags = []*config.Tag{}
-	conf.RejectTags = []*config.Tag{}
-	conf.RequireTagsRegex = []*config.TagRegex{}
-	conf.RejectTagsRegex = []*config.TagRegex{}
-
-	// Initialize empty maps/slices in nested structs
-	conf.OpenLineageProxy.AdditionalEndpoints = map[string][]string{}
-	conf.OTLPReceiver.SpanNameRemappings = map[string]string{}
-
-	// Obfuscation config empty slices
-	conf.Obfuscation.ES.KeepValues = []string{}
-	conf.Obfuscation.ES.ObfuscateSQLValues = []string{}
-	conf.Obfuscation.OpenSearch.KeepValues = []string{}
-	conf.Obfuscation.OpenSearch.ObfuscateSQLValues = []string{}
-	conf.Obfuscation.Mongo.KeepValues = []string{}
-	conf.Obfuscation.Mongo.ObfuscateSQLValues = []string{}
-	conf.Obfuscation.SQLExecPlan.KeepValues = []string{}
-	conf.Obfuscation.SQLExecPlan.ObfuscateSQLValues = []string{}
-	conf.Obfuscation.SQLExecPlanNormalize.KeepValues = []string{}
-	conf.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = []string{}
-	conf.Obfuscation.CreditCards.KeepValues = []string{}
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
 }

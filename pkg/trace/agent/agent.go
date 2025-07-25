@@ -118,6 +118,11 @@ type Agent struct {
 	// subsequent SpanModifier calls.
 	SpanModifier SpanModifier
 
+	// TracerPayloadModifier will be called on all tracer payloads early on in
+	// their processing. In particular this happens before trace chunks are
+	// meaningfully filtered or modified.
+	TracerPayloadModifier TracerPayloadModifier
+
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
 
@@ -136,6 +141,12 @@ type Agent struct {
 // processed by the agent.
 type SpanModifier interface {
 	ModifySpan(*pb.TraceChunk, *pb.Span)
+}
+
+// TracerPayloadModifier is an interface that allows tracer implementations to
+// modify a TracerPayload as it is processed in the Agent's Process method.
+type TracerPayloadModifier interface {
+	Modify(*pb.TracerPayload)
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -339,6 +350,10 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 	}
 
+	if a.TracerPayloadModifier != nil {
+		a.TracerPayloadModifier.Modify(p.TracerPayload)
+	}
+
 	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	a.discardSpans(p)
@@ -474,6 +489,7 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTa
 		AppVersion:             p.TracerPayload.AppVersion,
 		TracerEnv:              p.TracerPayload.Env,
 		TracerHostname:         p.TracerPayload.Hostname,
+		Lang:                   p.TracerPayload.LanguageName,
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
 		GitCommitSha:           version.GetGitCommitShaFromTrace(root, chunk),
 	}

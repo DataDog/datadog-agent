@@ -7,6 +7,7 @@
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - !reference [.docker_pull_winbuildimage_instrumented]
     # Previously this job required only 8Gb of memory but since Go 1.20 it requires more to avoid being OOM killed.
     # Each Windows VM has 32Gb of memory and contains 3 runners that can run one job at a time each (so a maximum of 3 simultaneous jobs per VM).
     # Windows jobs are using either 8Gb or 16Gb of memory so we can limit memory to 16Gb on this job because even if we decided to limit to 10Gb for instance,

@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/shirou/gopsutil/v4/process"
 	"gopkg.in/yaml.v3"
@@ -54,14 +55,14 @@ type loader struct {
 // The knowledge of each components specificities is based on the
 // k8s_types_generator.go utility that encodes every relevant flags
 // specificities (see types_generated.go).
-func LoadConfiguration(ctx context.Context, hostroot string) (string, *K8sNodeConfig) {
+func LoadConfiguration(ctx context.Context, hostroot string) (types.ResourceType, *K8sNodeConfig) {
 	l := &loader{hostroot: hostroot}
 	return l.load(ctx, l.loadProcesses)
 }
 
 // NOTE(jinroh): the reason we rely on the loadProcesses argument is to simplify
 // our testing to mock the process table. see loader_test.go
-func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *K8sNodeConfig) {
+func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (types.ResourceType, *K8sNodeConfig) {
 	node := K8sNodeConfig{Version: version}
 
 	node.KubeletService = l.loadServiceFileMeta([]string{
@@ -120,21 +121,21 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 		}
 	}
 
-	resourceType := "kubernetes_worker_node"
+	resourceType := types.ResourceTypeKubernetesWorkerNode
 	if managedEnv := node.ManagedEnvironment; managedEnv != nil {
 		switch managedEnv.Name {
 		case "eks":
-			resourceType = "aws_eks_worker_node"
+			resourceType = types.ResourceTypeAwsEksWorkerNode
 		case "gke":
-			resourceType = "gcp_gke_worker_node"
+			resourceType = types.ResourceTypeGcpGkeWorkerNode
 		case "aks":
-			resourceType = "azure_aks_worker_node"
+			resourceType = types.ResourceTypeAzureAksWorkerNode
 		}
 	} else if node.Components.KubeApiserver != nil ||
 		node.Components.Etcd != nil ||
 		node.Components.KubeControllerManager != nil ||
 		node.Components.KubeScheduler != nil {
-		resourceType = "kubernetes_master_node"
+		resourceType = types.ResourceTypeKubernetesMasterNode
 	}
 
 	return resourceType, &node

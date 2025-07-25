@@ -35,12 +35,12 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -141,7 +141,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -203,7 +203,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -398,7 +398,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -528,7 +528,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -595,7 +595,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1357,7 +1357,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1438,7 +1438,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1512,7 +1512,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1624,7 +1624,7 @@ func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map
 			if statusCode == 0 {
 				statusCode = 200
 			}
-			hasTag := stat.Data[statusCode].StaticTags == network.ConnTagGo
+			hasTag := stat.Data[statusCode].StaticTags == ebpftls.ConnTagGo
 			if hasTag != isTLS {
 				continue
 			}

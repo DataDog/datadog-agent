@@ -484,10 +484,11 @@ func (s *server) stop(context.Context) error {
 	if !s.IsRunning() {
 		return nil
 	}
-	close(s.stopChan)
 	for _, l := range s.listeners {
 		l.Stop()
 	}
+	close(s.stopChan)
+
 	if s.Statistics != nil {
 		s.Statistics.Stop()
 	}

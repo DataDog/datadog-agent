@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 func TestEventStringer(t *testing.T) {
@@ -25,19 +27,6 @@ func TestEventStringer(t *testing.T) {
 				removed: []ProcessID{{PID: 2}},
 			},
 			wantStr: "eventProcessesUpdated{updated: 1, removed: 1}",
-		},
-		{
-			ev: eventProgramCompiled{
-				programID: 1,
-			},
-			wantStr: "eventProgramCompiled{programID: 1}",
-		},
-		{
-			ev: eventProgramCompilationFailed{
-				programID: 1,
-				err:       errors.New("compile error"),
-			},
-			wantStr: `eventProgramCompilationFailed{programID: 1, err: compile error}`,
 		},
 		{
 			ev: eventProgramLoaded{
@@ -55,7 +44,7 @@ func TestEventStringer(t *testing.T) {
 		{
 			ev: eventProgramAttached{
 				program: &attachedProgram{
-					progID: 1,
+					ir:     &ir.Program{ID: 1},
 					procID: ProcessID{PID: 100},
 				},
 			},

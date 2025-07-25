@@ -7,8 +7,6 @@
 
 package ir
 
-import "github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
-
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
 // identify messages from this program as they are communicated over the ring
 // buffer.
@@ -40,6 +38,8 @@ type Program struct {
 	Types map[TypeID]Type
 	// MaxTypeID is the maximum type ID that has been assigned.
 	MaxTypeID TypeID
+	// Issues is a list of probes that could not be created.
+	Issues []ProbeIssue
 }
 
 // Subprogram represents a function or method in the program.
@@ -85,39 +85,16 @@ type Variable struct {
 	IsReturn bool
 }
 
-// Location is the location of a parameter or variable in the subprogram.
-type Location struct {
-	// PCRange is the range of PC values that will be probed.
-	Range PCRange
-	// The locations of the pieces of the parameter or variable.
-	Pieces []locexpr.LocationPiece
-}
-
 // PCRange is the range of PC values that will be probed.
 type PCRange = [2]uint64
 
 // Probe represents a probe from the config as it applies to the program.
 type Probe struct {
-	// The config UUID of the probe.
-	ID string
-	// The kind of the probe.
-	Kind ProbeKind
-	// The version of the probe.
-	Version int
-	// Tags that are passed through the probe.
-	Tags []string
+	ProbeDefinition
 	// The subprogram to which the probe is attached.
 	Subprogram *Subprogram
 	// The events that trigger the probe.
 	Events []*Event
-	// Whether the probe should capture a snapshot of the state of the program.
-	Snapshot bool
-	// ThrottlePeriodMs is the resolution of the throttler.
-	ThrottlePeriodMs uint32
-	// ThrottleBudget is the amount of events that can be emitted per ThrottlePeriodMs.
-	ThrottleBudget int64
-	// PointerChasingDepth is the depth of pointer chasing to perform.
-	PointerChasingLimit uint32
 	// TODO: Add template support:
 	//	TemplateSegments []TemplateSegment
 }
@@ -130,7 +107,15 @@ type Event struct {
 	// The datatype of the event.
 	Type *EventRootType
 	// The PC values at which the event should be injected.
-	InjectionPCs []uint64
+	InjectionPoints []InjectionPoint
 	// The condition that must be met for the event to be injected.
 	Condition *Expression
+}
+
+// InjectionPoint is a point at which an event should be injected.
+type InjectionPoint struct {
+	// The PC value at which the event should be injected.
+	PC uint64
+	// Whether the function at that PC is frameless.
+	Frameless bool
 }

@@ -1,0 +1,64 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testStruct",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testStruct",
+          "location": {
+            "method": "main.testStruct"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "main.aStruct",
+                "fields": {
+                  "aBool": {
+                    "type": "bool",
+                    "value": "true"
+                  },
+                  "aString": {
+                    "type": "string",
+                    "value": "one"
+                  },
+                  "aNumber": {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  "nested": {
+                    "type": "main.nestedStruct",
+                    "fields": {
+                      "anotherInt": {
+                        "type": "int",
+                        "value": "3"
+                      },
+                      "anotherString": {
+                        "type": "string",
+                        "value": "four"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

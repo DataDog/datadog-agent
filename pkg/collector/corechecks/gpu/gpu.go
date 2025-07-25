@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -25,12 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
-	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -42,6 +43,9 @@ const (
 	metricNameMemoryUsage = gpuMetricsNs + "memory.usage"
 	metricNameMemoryLimit = gpuMetricsNs + "memory.limit"
 )
+
+// logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
+var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
@@ -58,9 +62,10 @@ type Check struct {
 }
 
 type checkTelemetry struct {
-	metricsSent     telemetry.Counter
-	collectorErrors telemetry.Counter
-	activeMetrics   telemetry.Gauge
+	metricsSent      telemetry.Counter
+	duplicateMetrics telemetry.Counter
+	collectorErrors  telemetry.Counter
+	activeMetrics    telemetry.Gauge
 }
 
 // Factory creates a new check factory
@@ -84,9 +89,10 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
-		metricsSent:     tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
-		collectorErrors: tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
-		activeMetrics:   tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		metricsSent:      tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
+		collectorErrors:  tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		activeMetrics:    tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		duplicateMetrics: tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 	}
 }
 
@@ -129,7 +135,7 @@ func (c *Check) ensureInitCollectors() error {
 	}
 
 	if err := c.ensureInitDeviceCache(); err != nil {
-		return err
+		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
 	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{DeviceCache: c.deviceCache})
@@ -159,6 +165,10 @@ func (c *Check) Run() error {
 	}
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
+
+	if err := c.ensureInitDeviceCache(); err != nil {
+		return fmt.Errorf("failed to initialize device cache: %w", err)
+	}
 
 	// build the mapping of GPU devices -> containers to allow tagging device
 	// metrics with the tags of containers that are using them
@@ -306,7 +316,9 @@ func (c *Check) getProcessTagsForKey(key model.StatsKey) []string {
 		fmt.Sprintf("pid:%d", key.PID),
 	}
 
-	tags = append(tags, c.getContainerTags(key.ContainerID)...)
+	if key.ContainerID != "" {
+		tags = append(tags, c.getContainerTags(key.ContainerID)...)
+	}
 
 	return tags
 }
@@ -314,7 +326,10 @@ func (c *Check) getProcessTagsForKey(key model.StatsKey) []string {
 func (c *Check) getContainerTags(containerID string) []string {
 	// Container ID tag will be added or not depending on the tagger configuration
 	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
-	containerTags, err := c.tagger.Tag(containerEntityID, taggertypes.ChecksConfigCardinality)
+
+	// we use orchestrator cardinality here to ensure we get the pod_name tag
+	// ref: https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags
+	containerTags, err := c.tagger.Tag(containerEntityID, taggertypes.OrchestratorCardinality)
 	if err != nil {
 		log.Errorf("Error collecting container tags for container %s: %s", containerID, err)
 	}
@@ -323,17 +338,21 @@ func (c *Check) getContainerTags(containerID string) []string {
 }
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
-	containers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
+	wmetaContainers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
 		return len(cont.ResolvedAllocatedResources) > 0
 	})
 
 	gpuToContainers := make(map[string][]*workloadmeta.Container)
 
-	for _, container := range containers {
-		for _, resource := range container.ResolvedAllocatedResources {
-			if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
-				gpuToContainers[resource.ID] = append(gpuToContainers[resource.ID], container)
-			}
+	for _, container := range wmetaContainers {
+		containerDevices, err := containers.MatchContainerDevices(container, c.deviceCache.All())
+		if err != nil && logLimitCheck.ShouldLog() {
+			log.Warnf("error matching container devices: %s. Will continue with the available devices", err)
+		}
+
+		// despite an error, we still might have some devices assigned to the container
+		for _, device := range containerDevices {
+			gpuToContainers[device.GetDeviceInfo().UUID] = append(gpuToContainers[device.GetDeviceInfo().UUID], container)
 		}
 	}
 
@@ -346,6 +365,8 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
 	}
 
+	perDeviceMetrics := make(map[string][]nvidia.Metric)
+
 	var multiErr error
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
@@ -355,32 +376,44 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 			multiErr = multierror.Append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
 		}
 
+		if len(metrics) > 0 {
+			perDeviceMetrics[collector.DeviceUUID()] = append(perDeviceMetrics[collector.DeviceUUID()], metrics...)
+		}
+
+		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
+	}
+
+	for deviceUUID, metrics := range perDeviceMetrics {
+		deduplicatedMetrics := nvidia.RemoveDuplicateMetrics(metrics)
+		c.telemetry.duplicateMetrics.Add(float64(len(metrics)-len(deduplicatedMetrics)), deviceUUID)
+
 		var extraTags []string
-		for _, container := range gpuToContainersMap[collector.DeviceUUID()] {
+		for _, container := range gpuToContainersMap[deviceUUID] {
 			entityID := taggertypes.NewEntityID(taggertypes.ContainerID, container.EntityID.ID)
-			tags, err := c.tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
+
+			// we use orchestrator cardinality here to ensure we get the pod_name tag
+			// ref: https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags
+			tags, err := c.tagger.Tag(entityID, taggertypes.OrchestratorCardinality)
 			if err != nil {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", collector.DeviceUUID(), err))
+				multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", deviceUUID, err))
 				continue
 			}
 
 			extraTags = append(extraTags, tags...)
 		}
 
-		for _, metric := range metrics {
+		for _, metric := range deduplicatedMetrics {
 			metricName := gpuMetricsNs + metric.Name
 			switch metric.Type {
 			case ddmetrics.CountType:
-				snd.Count(metricName, metric.Value, "", append(c.deviceTags[collector.DeviceUUID()], extraTags...))
+				snd.Count(metricName, metric.Value, "", append(c.deviceTags[deviceUUID], extraTags...))
 			case ddmetrics.GaugeType:
-				snd.Gauge(metricName, metric.Value, "", append(c.deviceTags[collector.DeviceUUID()], extraTags...))
+				snd.Gauge(metricName, metric.Value, "", append(c.deviceTags[deviceUUID], extraTags...))
 			default:
 				multiErr = multierror.Append(multiErr, fmt.Errorf("unsupported metric type %s for metric %s", metric.Type, metricName))
 				continue
 			}
 		}
-
-		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
 	return multiErr

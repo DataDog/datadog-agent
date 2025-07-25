@@ -59,6 +59,62 @@ instances:
     #
     # days_critical: 7
 
+    ## @param enable_crl_monitoring - boolean - optional - default: false
+    ## Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in `certificate_store`.
+    #
+    # enable_crl_monitoring: false
+
+    ## @param crl_days_warning - integer - optional - default: 0
+    ## Number of days before CRL expiration from which the service check
+    ## `windows_certificate.crl_expiration` begins emitting WARNING.
+    ## If the CRLs in the store are updated automatically, set to 0 to avoid getting WARNING alerts.
+    ## If the CRLs are updated manually, set to the number days beforehand that you would like to receive a WARNING.
+    #
+    # crl_days_warning: 0
+
+    ## Configure Certificate Chain and Certificate Chain Policy validation
+    #
+    # cert_chain_validation:
+      
+      ## @param enabled - boolean - optional - default: false
+      ## Set to `true` to enable certificate chain validation.
+      #
+      # enabled: false
+
+      ## @param policy_validation_flags - list of strings - optional
+      ## A list of certificate chain policy validation flags to ignore during validation.
+      ## These flags allow you to suppress specific validation errors that may not be relevant
+      ## to your environment or use case. Available flags include:
+      ##
+      ## Time-related flags:
+      ## - `CERT_CHAIN_POLICY_IGNORE_NOT_TIME_VALID_FLAG`: Ignore certificates that are not yet valid or have expired
+      ## - `CERT_CHAIN_POLICY_IGNORE_CTL_NOT_TIME_VALID_FLAG`: Ignore Certificate Trust Lists (CTLs) that are not time valid
+      ## - `CERT_CHAIN_POLICY_IGNORE_NOT_TIME_NESTED_FLAG`: Ignore certificates in the chain that are not time nested
+      ## - `CERT_CHAIN_POLICY_IGNORE_ALL_NOT_TIME_VALID_FLAGS`: Ignore all time-related validation errors
+      ##
+      ## Constraint and usage flags:
+      ## - `CERT_CHAIN_POLICY_IGNORE_INVALID_BASIC_CONSTRAINTS_FLAG`: Ignore invalid basic constraints
+      ## - `CERT_CHAIN_POLICY_ALLOW_UNKNOWN_CA_FLAG`: Allow unknown Certificate Authorities
+      ## - `CERT_CHAIN_POLICY_IGNORE_WRONG_USAGE_FLAG`: Ignore wrong usage errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_INVALID_NAME_FLAG`: Ignore invalid name errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_INVALID_POLICY_FLAG`: Ignore invalid policy errors
+      ##
+      ## Revocation-related flags:
+      ## - `CERT_CHAIN_POLICY_IGNORE_END_REV_UNKNOWN_FLAG`: Ignore end entity certificate revocation unknown errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_CTL_SIGNER_REV_UNKNOWN_FLAG`: Ignore CTL signer revocation unknown errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_CA_REV_UNKNOWN_FLAG`: Ignore CA certificate revocation unknown errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_ROOT_REV_UNKNOWN_FLAG`: Ignore root certificate revocation unknown errors
+      ## - `CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS`: Ignore all revocation unknown errors
+      ##
+      ## For detailed documentation, see the following resources:
+      ##   - https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-cert_chain_policy_para
+      ##   - https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certverifycertificatechainpolicy
+      ##
+      ## Example: To ignore time validation and revocation unknown errors:
+      ## policy_validation_flags:
+      ##   - "CERT_CHAIN_POLICY_IGNORE_ALL_NOT_TIME_VALID_FLAGS"
+      ##   - "CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS"
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##

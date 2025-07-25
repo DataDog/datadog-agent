@@ -28,20 +28,29 @@ func (a *idAllocator[I]) next() I {
 }
 
 type typeCatalog struct {
-	ptrSize          uint8
-	dwarf            *dwarf.Data
-	idAlloc          idAllocator[ir.TypeID]
-	typesByDwarfType map[dwarf.Offset]ir.TypeID
-	typesByID        map[ir.TypeID]ir.Type
+	maxDynamicTypeSize uint32
+	maxHashBucketsSize uint32
+	ptrSize            uint8
+	dwarf              *dwarf.Data
+	idAlloc            idAllocator[ir.TypeID]
+	typesByDwarfType   map[dwarf.Offset]ir.TypeID
+	typesByID          map[ir.TypeID]ir.Type
 }
 
-func newTypeCatalog(dwarfData *dwarf.Data, ptrSize uint8) *typeCatalog {
+func newTypeCatalog(
+	dwarfData *dwarf.Data,
+	ptrSize uint8,
+	maxDynamicTypeSize uint32,
+	maxHashBucketsSize uint32,
+) *typeCatalog {
 	return &typeCatalog{
-		ptrSize:          ptrSize,
-		dwarf:            dwarfData,
-		idAlloc:          idAllocator[ir.TypeID]{},
-		typesByDwarfType: make(map[dwarf.Offset]ir.TypeID),
-		typesByID:        make(map[ir.TypeID]ir.Type),
+		maxDynamicTypeSize: maxDynamicTypeSize,
+		maxHashBucketsSize: maxHashBucketsSize,
+		ptrSize:            ptrSize,
+		dwarf:              dwarfData,
+		idAlloc:            idAllocator[ir.TypeID]{},
+		typesByDwarfType:   make(map[dwarf.Offset]ir.TypeID),
+		typesByID:          make(map[ir.TypeID]ir.Type),
 	}
 }
 
@@ -223,6 +232,9 @@ func (c *typeCatalog) buildType(
 		if entry.Children {
 			return nil, fmt.Errorf("unexpected children for pointer type")
 		}
+		if common.ByteSize == 0 {
+			common.ByteSize = uint32(c.ptrSize)
+		}
 		pointeeOffset, hasPointee, err := maybeGetAttr[dwarf.Offset](
 			entry, dwarf.AttrType,
 		)
@@ -235,15 +247,20 @@ func (c *typeCatalog) buildType(
 			if err != nil {
 				return nil, err
 			}
+			return &ir.PointerType{
+				TypeCommon:       common,
+				GoTypeAttributes: goAttrs,
+				Pointee:          pointee,
+			}, nil
 		}
-		if common.ByteSize == 0 {
-			common.ByteSize = uint32(c.ptrSize)
-		}
-		return &ir.PointerType{
+		// unsafe.Pointer is a special case where the type is represented
+		// in DWARF as a PointerType, but without a pointee or specified Go kind.
+		goAttrs.GoKind = reflect.UnsafePointer
+		return &ir.VoidPointerType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
-			Pointee:          pointee,
 		}, nil
+
 	case dwarf.TagStructType:
 		if !entry.Children {
 			return nil, fmt.Errorf("structure type has no children")
@@ -287,6 +304,7 @@ func (c *typeCatalog) buildType(
 					underlyingType,
 				)
 			}
+			common.ByteSize = underlyingStructure.GetByteSize()
 			switch name := underlyingStructure.GetName(); name {
 			case "runtime.eface":
 				return &ir.GoEmptyInterfaceType{

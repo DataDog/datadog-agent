@@ -162,15 +162,18 @@ type PolicyMetadata struct {
 // RuleState defines a loaded rule
 // easyjson:json
 type RuleState struct {
-	ID          string            `json:"id"`
-	Version     string            `json:"version,omitempty"`
-	Expression  string            `json:"expression"`
-	Status      string            `json:"status"`
-	Message     string            `json:"message,omitempty"`
-	Tags        map[string]string `json:"tags,omitempty"`
-	ProductTags []string          `json:"product_tags,omitempty"`
-	Actions     []RuleAction      `json:"actions,omitempty"`
-	ModifiedBy  []*PolicyMetadata `json:"modified_by,omitempty"`
+	ID                     string            `json:"id"`
+	Version                string            `json:"version,omitempty"`
+	Expression             string            `json:"expression"`
+	Status                 string            `json:"status"`
+	Message                string            `json:"message,omitempty"`
+	FilterType             string            `json:"filter_type,omitempty"`
+	AgentVersionConstraint string            `json:"agent_version,omitempty"`
+	Filters                []string          `json:"filters,omitempty"`
+	Tags                   map[string]string `json:"tags,omitempty"`
+	ProductTags            []string          `json:"product_tags,omitempty"`
+	Actions                []RuleAction      `json:"actions,omitempty"`
+	ModifiedBy             []*PolicyMetadata `json:"modified_by,omitempty"`
 }
 
 // PolicyStatus defines the status of a policy
@@ -179,8 +182,14 @@ type PolicyStatus string
 const (
 	// PolicyStatusLoaded indicates that the policy was loaded successfully
 	PolicyStatusLoaded PolicyStatus = "loaded"
-	// PolicyStatusPartiallyLoaded indicates that the policy was loaded with some errors
+	// PolicyStatusPartiallyFiltered indicates that some rules in the policy were filtered out
+	PolicyStatusPartiallyFiltered PolicyStatus = "partially_filtered"
+	// PolicyStatusPartiallyLoaded indicates that some rules in the policy couldn't be loaded
 	PolicyStatusPartiallyLoaded PolicyStatus = "partially_loaded"
+	// PolicyStatusFullyRejected indicates that all rules in the policy couldn't be loaded
+	PolicyStatusFullyRejected PolicyStatus = "fully_rejected"
+	// PolicyStatusFullyFiltered indicates that all rules in the policy were filtered out
+	PolicyStatusFullyFiltered PolicyStatus = "fully_filtered"
 	// PolicyStatusError indicates that the policy was not loaded due to an error
 	PolicyStatusError PolicyStatus = "error"
 )
@@ -297,13 +306,15 @@ func NewPolicyState(name, source, version string, status PolicyStatus, message s
 // RuleStateFromRule returns a rule state based on the given rule
 func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status string, message string) *RuleState {
 	ruleState := &RuleState{
-		ID:          rule.Def.ID,
-		Version:     rule.Policy.Version,
-		Expression:  rule.Def.Expression,
-		Status:      status,
-		Message:     message,
-		Tags:        rule.Def.Tags,
-		ProductTags: rule.Def.ProductTags,
+		ID:                     rule.Def.ID,
+		Version:                rule.Policy.Version,
+		Expression:             rule.Def.Expression,
+		Status:                 status,
+		Message:                message,
+		Tags:                   rule.Def.Tags,
+		ProductTags:            rule.Def.ProductTags,
+		AgentVersionConstraint: rule.Def.AgentVersionConstraint,
+		Filters:                rule.Def.Filters,
 	}
 
 	for _, action := range rule.Actions {
@@ -359,27 +370,35 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 		ruleState.ModifiedBy = append(ruleState.ModifiedBy, NewPolicyMetadata(pInfo.Name, pInfo.Source, pInfo.Version))
 	}
 
+	if !rule.Accepted {
+		ruleState.FilterType = string(rule.FilterType)
+		switch rule.FilterType {
+		case rules.FilterTypeRuleID:
+			ruleState.Message = "rule ID was filtered out"
+		case rules.FilterTypeAgentVersion:
+			ruleState.Message = "this agent version doesn't support this rule"
+		case rules.FilterTypeRuleFilter:
+			ruleState.Message = "none of the rule filters matched the host or configuration of this agent"
+		}
+	}
+
 	return ruleState
 }
 
 // NewPoliciesState returns the states of policies and rules
-func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalPolicies bool) []*PolicyState {
+func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err *multierror.Error, includeInternalPolicies bool) []*PolicyState {
 	mp := make(map[string]*PolicyState)
 
 	var policyState *PolicyState
 	var exists bool
 
 	for _, rule := range rs.GetRules() {
-		for _, pInfo := range rule.UsedBy {
-			if pInfo.IsInternal && !includeInternalPolicies {
-				continue
-			}
-
+		for pInfo := range rule.Policies(includeInternalPolicies) {
 			if policyState, exists = mp[pInfo.Name]; !exists {
 				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusLoaded, "")
 				mp[pInfo.Name] = policyState
 			}
-			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, &pInfo, "loaded", ""))
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, pInfo, "loaded", ""))
 		}
 	}
 
@@ -387,18 +406,17 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-				if rerr.Rule.Policy.IsInternal && !includeInternalPolicies {
-					continue
+				for pInfo := range rerr.Rule.Policies(includeInternalPolicies) {
+					policyName := pInfo.Name
+					if policyState, exists = mp[policyName]; !exists {
+						// if the policy is not in the map, this means that no rule from this policy was loaded successfully
+						policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusFullyRejected, "")
+						mp[policyName] = policyState
+					} else if policyState.Status == PolicyStatusLoaded {
+						policyState.Status = PolicyStatusPartiallyLoaded
+					}
+					policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, pInfo, string(rerr.Type()), rerr.Err.Error()))
 				}
-				policyName := rerr.Rule.Policy.Name
-
-				if policyState, exists = mp[policyName]; !exists {
-					policyState = NewPolicyState(rerr.Rule.Policy.Name, rerr.Rule.Policy.Source, rerr.Rule.Policy.Version, PolicyStatusPartiallyLoaded, "")
-					mp[policyName] = policyState
-				} else {
-					policyState.Status = PolicyStatusPartiallyLoaded // set the policy status as partially loaded to indicate that some rules could not be loaded
-				}
-				policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, &rerr.Rule.Policy, string(rerr.Type()), rerr.Err.Error()))
 			} else if pErr, ok := err.(*rules.ErrPolicyLoad); ok {
 				policyName := pErr.Name
 				if policyState, exists = mp[policyName]; !exists {
@@ -410,6 +428,20 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 					}
 				}
 			}
+		}
+	}
+
+	for _, rule := range filteredRules {
+		for pInfo := range rule.Policies(includeInternalPolicies) {
+			policyName := pInfo.Name
+			if policyState, exists = mp[policyName]; !exists {
+				// if the policy is not in the map, this means that no rule from this policy was loaded successfully
+				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusFullyFiltered, "")
+				mp[policyName] = policyState
+			} else if policyState.Status == PolicyStatusLoaded {
+				policyState.Status = PolicyStatusPartiallyFiltered
+			}
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule, pInfo, "filtered", ""))
 		}
 	}
 

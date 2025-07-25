@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,7 +31,7 @@ func newJmxScheduler() *JmxScheduler {
 // Schedule implements Scheduler#Schedule.
 func (s *JmxScheduler) Schedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !config.IsCheckConfig() || config.HasFilter(containers.MetricsFilter) {
+		if !config.IsCheckConfig() || config.HasFilter(workloadfilter.MetricsFilter) {
 			continue
 		}
 

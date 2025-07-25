@@ -4,7 +4,7 @@ import yaml
 from invoke import Context, Exit, task
 
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag, update_gitlab_config, update_test_infra_def
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 
 
 @task(
@@ -15,19 +15,27 @@ from tasks.libs.common.color import color_message
         "list_images": "List all available images",
     }
 )
-def update(_: Context, tag: str = "", images: str = "", test: bool = True, list_images: bool = False):
+def update(
+    _: Context, tag: str = "", images: str = "", test: bool = True, list_images: bool = False, windows: bool = False
+):
     """
     Update local files to use a new version of dedicated images from agent-buildimages
     Use --no-test to commit without the _test_only suffixes
     Use --list-images to list all available images
+    Use --windows to update windows images
     """
+    generate_windows_images = 'win' in images.casefold() or windows
     if list_images:
         print("List of available images:")
         modified = update_gitlab_config(".gitlab-ci.yml", "", update=False)
     else:
         print("Updating images:")
-        modified = update_gitlab_config(".gitlab-ci.yml", tag, images, test=test)
+        modified = update_gitlab_config(".gitlab-ci.yml", tag, images, test=test, windows=generate_windows_images)
     print(f"  {', '.join(modified)}")
+    if not generate_windows_images:
+        print(
+            f"[{color_message('WARNING', Color.ORANGE)}] - Windows images are not updated by default, use --windows/-w to update them"
+        )
 
 
 @task(

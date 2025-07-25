@@ -490,10 +490,23 @@ class TestFilterVariables(unittest.TestCase):
         variables = {
             'CI_IMAGE_AGENT': 'tintin',
             'CI_IMAGE_AGENT_SUFFIX': '',
+            'CI_IMAGE_AGENT_WIN': 'milou',
+            'CI_IMAGE_AGENT_WIN_SUFFIX': '',
             'OTHER_VARIABLE_SUFFIX': '',
             'OTHER_VARIABLE': 'lampion',
         }
         self.assertEqual(list(find_buildimages(variables)), ['CI_IMAGE_AGENT'])
+
+    def test_no_windows(self):
+        variables = {
+            'CI_IMAGE_AGENT': 'tintin',
+            'CI_IMAGE_AGENT_SUFFIX': '',
+            'CI_IMAGE_AGENT_WIN': 'milou',
+            'CI_IMAGE_AGENT_WIN_SUFFIX': '',
+            'OTHER_VARIABLE_SUFFIX': '',
+            'OTHER_VARIABLE': 'lampion',
+        }
+        self.assertEqual(list(find_buildimages(variables, windows=True)), ['CI_IMAGE_AGENT', 'CI_IMAGE_AGENT_WIN'])
 
     def test_one_image(self):
         variables = {
@@ -652,7 +665,12 @@ class TestUpdateGitlabConfig(unittest.TestCase):
         self.assertEqual(
             len(
                 update_gitlab_config(
-                    "tasks/unit_tests/testdata/variables.yml", tag="gru", images="", test=False, update=False
+                    "tasks/unit_tests/testdata/variables.yml",
+                    tag="gru",
+                    images="",
+                    test=False,
+                    update=False,
+                    windows=True,
                 )
             ),
             14,

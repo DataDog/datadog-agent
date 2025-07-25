@@ -367,6 +367,12 @@ func (j *JMXFetch) Start(manage bool) error {
 		fmt.Sprintf("SESSION_TOKEN=%s", j.ipcComp.GetAuthToken()),
 	)
 
+	// append JAVA_TOOL_OPTIONS to cmd Env
+	javaToolOptions := pkgconfigsetup.Datadog().GetString("jmx_java_tool_options")
+	if len(javaToolOptions) > 0 {
+		j.cmd.Env = append(j.cmd.Env, fmt.Sprintf("JAVA_TOOL_OPTIONS=%s", javaToolOptions))
+	}
+
 	// forward the standard output to the Agent logger
 	stdout, err := j.cmd.StdoutPipe()
 	if err != nil {

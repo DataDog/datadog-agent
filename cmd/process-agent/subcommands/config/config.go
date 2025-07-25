@@ -87,7 +87,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
 					process.Bundle(),
-					ipcfx.ModuleReadWrite(),
+					ipcfx.ModuleReadOnly(),
 				)
 			},
 		},

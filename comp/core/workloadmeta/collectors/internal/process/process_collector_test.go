@@ -11,6 +11,7 @@ package process
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -74,6 +75,7 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}, sy
 		fx.Replace(config.MockParams{Overrides: sysProbeConfigOverrides}),
 	))
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, mockConfig, mockSystemProbeConfig)
+	processCollector.sysProbeClient = &http.Client{}
 
 	return collectorTest{&processCollector, mockProbe, mockConfig, mockSystemProbeConfig, mockClock, mockStore, mockContainerProvider}
 }
@@ -219,7 +221,7 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 			// by default disabled
 			c.collector.containerProvider = c.mockContainerProvider
 			c.collector.store = c.mockStore
-			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
 			go c.collector.stream(ctx)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
@@ -306,7 +308,7 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 			// by default disabled
 			c.collector.containerProvider = c.mockContainerProvider
 			c.collector.store = c.mockStore
-			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
 			go c.collector.stream(ctx)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
@@ -415,7 +417,7 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 			// by default disabled
 			c.collector.containerProvider = c.mockContainerProvider
 			c.collector.store = c.mockStore
-			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
 			go c.collector.stream(ctx)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
@@ -583,7 +585,7 @@ func TestProcessLifecycleCollection(t *testing.T) {
 			// by default disabled
 			c.collector.containerProvider = c.mockContainerProvider
 			c.collector.store = c.mockStore
-			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
 			go c.collector.stream(ctx)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectA, nil).Times(1)

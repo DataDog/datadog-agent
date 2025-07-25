@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/common/container_publish_job_templates.yml
-
 #
 # DCA image tagging & manifest publication
 #
@@ -10,134 +7,48 @@ include:
 .deploy_containers-dca-base:
   extends: .docker_publish_job_definition
   stage: deploy_dca
-  needs:
-    - job: "docker_build_cluster_agent_amd64"
-      artifacts: false
-    - job: "docker_build_cluster_agent_arm64"
-      artifacts: false
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - if [[ "$CLUSTER_AGENT_REPOSITORY" == "" ]]; then export CLUSTER_AGENT_REPOSITORY="cluster-agent"; fi
-    - export IMG_BASE_SRC="${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_BASE_SRC="${SRC_DCA}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
     - export IMG_DESTINATIONS="${CLUSTER_AGENT_REPOSITORY}:${VERSION}"
-
-.deploy_mutable_dca_tags-base:
-  extends: .docker_publish_job_definition
-  stage: deploy_dca
-  dependencies: []
-  before_script:
-    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
-    - export IMG_TAG_REFERENCE=${CLUSTER_AGENT_REPOSITORY}:${VERSION}
 
 deploy_containers-dca:
   extends: .deploy_containers-dca-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
+  needs: []
 
-deploy_containers-dca-rc:
-  extends: .deploy_mutable_dca_tags-base
-  rules: !reference [.on_deploy_rc]
-  needs:
-    - job: deploy_containers-dca
-      artifacts: false
-  variables:
-    IMG_NEW_TAGS: rc
-
-deploy_containers-dca-latest:
-  extends: .deploy_mutable_dca_tags-base
-  rules: !reference [.on_deploy_manual_final]
-  needs:
-    - job: deploy_containers-dca
-      artifacts: false
-  variables:
-    IMG_NEW_TAGS: latest
+deploy_containers-dca_internal-rc:
+  extends: .deploy_containers-dca-base
+  rules: !reference [.on_deploy_internal_rc]
+  needs: []
 
 deploy_containers-dca_internal:
   extends: .deploy_containers-dca-base
   rules: !reference [.on_deploy_internal_manual_final]
 
-deploy_containers-dca_internal-rc:
-  extends: .deploy_mutable_dca_tags-base
-  rules: !reference [.on_deploy_internal_rc]
-  needs:
-    - job: deploy_containers-dca_internal
-      artifacts: false
-  variables:
-    IMG_NEW_TAGS: rc
-
-deploy_containers-dca_internal-latest:
-  extends: .deploy_mutable_dca_tags-base
-  rules: !reference [.on_deploy_internal_manual_final]
-  needs:
-    - job: deploy_containers-dca_internal
-      artifacts: false
-  variables:
-    IMG_NEW_TAGS: latest
-
 # Fips flavor
 .deploy_containers-dca-fips-base:
   extends: .docker_publish_job_definition
   stage: deploy_dca
-  needs:
-    - job: "docker_build_cluster_agent_fips_amd64"
-      artifacts: false
-    - job: "docker_build_cluster_agent_fips_arm64"
-      artifacts: false
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - if [[ "$CLUSTER_AGENT_REPOSITORY" == "" ]]; then export CLUSTER_AGENT_REPOSITORY="cluster-agent"; fi
-    - export IMG_BASE_SRC="${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_BASE_SRC="${SRC_DCA}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_SOURCES="${IMG_BASE_SRC}-fips-amd64,${IMG_BASE_SRC}-fips-arm64"
     - export IMG_DESTINATIONS="${CLUSTER_AGENT_REPOSITORY}:${VERSION}-fips"
-
-.deploy_mutable_dca_tags-fips-base:
-  extends: .docker_publish_job_definition
-  stage: deploy_dca
-  dependencies: []
-  before_script:
-    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
-    - export IMG_TAG_REFERENCE=${CLUSTER_AGENT_REPOSITORY}:${VERSION}-fips
 
 deploy_containers-dca-fips:
   extends: .deploy_containers-dca-fips-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
+  needs: []
 
-deploy_containers-dca-fips-latest:
-  extends: .deploy_mutable_dca_tags-fips-base
-  rules: !reference [.on_deploy_manual_final]
-  needs:
-    - job: deploy_containers-dca-fips
-      artifacts: false
-  variables:
-    IMG_NEW_TAGS: latest-fips
-
-deploy_containers-dca-fips-rc:
-  extends: .deploy_mutable_dca_tags-fips-base
-  rules: !reference [.on_deploy_rc]
-  needs:
-    - job: deploy_containers-dca-fips
-      artifacts: false
-  variables:
-    IMG_NEW_TAGS: rc-fips
+deploy_containers-dca-fips_internal-rc:
+  extends: .deploy_containers-dca-fips-base
+  rules: !reference [.on_deploy_internal_rc]
+  needs: []
 
 deploy_containers-dca-fips_internal:
   extends: .deploy_containers-dca-fips-base
   rules: !reference [.on_deploy_internal_manual_final]
-
-deploy_containers-dca-fips_internal-rc:
-  extends: .deploy_mutable_dca_tags-fips-base
-  rules: !reference [.on_deploy_internal_rc]
-  needs:
-    - job: deploy_containers-dca-fips_internal
-      artifacts: false
-  variables:
-    IMG_NEW_TAGS: rc-fips
-
-deploy_containers-dca-fips_internal-latest:
-  extends: .deploy_mutable_dca_tags-fips-base
-  rules: !reference [.on_deploy_internal_manual_final]
-  needs:
-    - job: deploy_containers-dca-fips_internal
-      artifacts: false
-  variables:
-    IMG_NEW_TAGS: latest-fips

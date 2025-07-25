@@ -32,16 +32,13 @@
 
 /LICENSE*                               # do not notify anyone
 
-# Todo: is this file still needed?
-/Makefile.trace                         @DataDog/agent-delivery
-
 /mkdocs.yml                             @DataDog/agent-devx
-/release.json                           @DataDog/agent-delivery @DataDog/agent-integrations
+/release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
 /renovate.json                          @DataDog/agent-devx
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
 /generate_tools.go                      @DataDog/agent-devx
-/service.datadog.yaml                   @DataDog/agent-delivery
+/service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
 
 /modules.yml                            @DataDog/agent-runtimes
@@ -88,6 +85,7 @@
 /.gitlab/pkg_metrics/*                               @DataDog/agent-devx
 /.gitlab/post_rc_build/*                             @DataDog/agent-devx
 /.gitlab/setup/*                                     @DataDog/agent-devx
+/.gitlab/trigger_distribution/*                      @DataDog/agent-delivery
 /.gitlab/trigger_release/*                           @DataDog/agent-devx @DataDog/agent-delivery
 
 /.gitlab/binary_build/cws_instrumentation.yml        @DataDog/agent-devx @DataDog/agent-security
@@ -274,9 +272,6 @@
 /go.mod                                 # do not notify anyone
 /go.sum                                 # do not notify anyone
 
-
-/Makefile.trace                         @DataDog/agent-apm
-
 /omnibus/                               @DataDog/agent-build
 /omnibus/package-scripts/agent-rpm/     @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-deb/     @DataDog/agent-build @DataDog/fleet
@@ -287,7 +282,6 @@
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-build
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
-/omnibus/config/software/sds.rb                           @DataDog/agent-log-pipelines
 /omnibus/config/software/snmp-traps.rb                    @DataDog/ndm-core
 /omnibus/config/templates/init-scripts-agent/             @DataDog/agent-build @DataDog/fleet
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
@@ -332,6 +326,7 @@
 /comp/core/status @DataDog/agent-configuration
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
+/comp/core/workloadfilter @DataDog/container-platform
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
@@ -344,10 +339,12 @@
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
 /comp/autoscaling/datadogclient @DataDog/container-integrations
+/comp/connectivitychecker @DataDog/fleet
 /comp/etw @DataDog/windows-agent
 /comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
+/comp/networkdeviceconfig @DataDog/network-device-monitoring
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
@@ -517,7 +514,7 @@
 /pkg/util/prometheus                    @DataDog/container-integrations
 /pkg/util/quantile/                     @DataDog/opentelemetry-agent
 /pkg/util/tags/                         @DataDog/container-platform
-/pkg/util/trivy/                        @DataDog/container-integrations @DataDog/agent-security
+/pkg/util/trivy/                        @DataDog/agent-security @DataDog/container-integrations
 /pkg/util/uuid/                         @DataDog/agent-runtimes
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-platform
@@ -592,6 +589,7 @@
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
 /pkg/databasemonitoring                 @DataDog/database-monitoring
+/pkg/datastreams                        @DataDog/data-streams-monitoring
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/ndm-core
@@ -683,6 +681,7 @@
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-platform            @DataDog/container-ecosystems @DataDog/agent-delivery @DataDog/agent-devx
+/test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines

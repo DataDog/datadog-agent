@@ -22,6 +22,7 @@ func main() {
 	intArrayArg([3]int{1, 2, 3})
 	stringSliceArg([]string{"a", "b", "c"})
 	stringArrayArg([3]string{"a", "b", "c"})
+	stringArrayArgFrameless([3]string{"foo", "bar", "baz"})
 	inlined(1)
 	// Passing inlined function as an argument forces out-of-line instantation.
 	funcArg(inlined)
@@ -34,6 +35,7 @@ func main() {
 	ptr4 := &ptr3
 	ptr5 := &ptr4
 	PointerChainArg(ptr5)
+	PointerSmallChainArg(ptr2)
 }
 
 //go:noinline
@@ -64,6 +66,10 @@ func stringSliceArg(s []string) {
 //go:noinline
 func stringArrayArg(s [3]string) {
 	fmt.Println(s)
+}
+
+//go:noinline
+func stringArrayArgFrameless(s [3]string) {
 }
 
 func inlined(x int) {
@@ -102,5 +108,9 @@ func bigMapArg(m map[string]bigStruct) {
 }
 
 func PointerChainArg(ptr *****int) {
+	fmt.Println(ptr)
+}
+
+func PointerSmallChainArg(ptr **int) {
 	fmt.Println(ptr)
 }

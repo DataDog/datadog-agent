@@ -8,12 +8,12 @@ package nodetreemodel
 
 import (
 	"bytes"
-	"fmt"
 	"maps"
 	"slices"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -120,8 +120,6 @@ func TestCompareAllSettingsWithoutDefault(t *testing.T) {
 	assert.NoError(t, err)
 	yamlText := string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
-
-	fmt.Printf("%s\n", ntmConf.Stringify("root"))
 
 	expectedYaml = `additional_endpoints:
   "0": apple
@@ -420,4 +418,47 @@ apm_config:
 	assert.True(t, viperConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
 	assert.True(t, ntmConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
 
+}
+
+func TestCompareConflictDataType(t *testing.T) {
+	var yamlPayload = `
+a: orange
+c: 1234
+`
+	viperConf, ntmConf := constructBothConfigs(yamlPayload, true, func(cfg model.Setup) {
+		cfg.SetDefault("a", "apple")
+		cfg.SetDefault("c.d", true)
+	})
+
+	cvalue := viperConf.Get("c")
+	assert.Equal(t, cvalue, 1234)
+
+	dvalue := viperConf.Get("c.d")
+	assert.Equal(t, dvalue, nil)
+
+	// NOTE: Behavior difference, but it requires an error in the config
+	cvalue = ntmConf.Get("c")
+	assert.Equal(t, cvalue, map[string]interface{}{"d": true})
+
+	dvalue = ntmConf.Get("c.d")
+	assert.Equal(t, dvalue, true)
+}
+
+func TestCompareTimeDuration(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.SetDefault("provider.interval", 5*time.Second)
+		cfg.SetDefault("lookup_timeout", 30*time.Millisecond)
+	})
+	assert.Equal(t, 5*time.Second, viperConf.GetDuration("provider.interval"))
+	assert.Equal(t, 5*time.Second, ntmConf.GetDuration("provider.interval"))
+
+	assert.Equal(t, 30*time.Millisecond, viperConf.GetDuration("lookup_timeout"))
+	assert.Equal(t, 30*time.Millisecond, ntmConf.GetDuration("lookup_timeout"))
+
+	// refuse to convert time.Duration to int64
+	assert.Equal(t, int64(0), viperConf.GetInt64("lookup_timeout"))
+	assert.Equal(t, int64(0), ntmConf.GetInt64("lookup_timeout"))
+
+	assert.Equal(t, 30*time.Millisecond, viperConf.Get("lookup_timeout"))
+	assert.Equal(t, 30*time.Millisecond, ntmConf.Get("lookup_timeout"))
 }

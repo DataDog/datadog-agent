@@ -498,8 +498,8 @@ api_key:
 #
 # gce_metadata_timeout: 1000
 
-## @param collect_gpu_tags - boolean - optional - default: false
-## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: false
+## @param collect_gpu_tags - boolean - optional - default: true
+## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: true
 ## Collect GPU related host tags
 #
 # collect_gpu_tags: false
@@ -597,7 +597,6 @@ api_key:
 
 
 ## @param fips - custom object - optional
-## [BETA] Enter specific configurations for using the FIPS proxy.
 ## Uncomment this parameter and the one below to enable them.
 #
 # fips:
@@ -882,7 +881,8 @@ api_key:
 ## @env DD_SECRET_BACKEND_CONFIG - map - optional
 ## This feature is in preview.
 ##
-## The section contains information required to resolved secrets.
+## The section contains configuration required by `secret_backend_type` to resolve secrets.
+## The necessary configuration depends upon which type is used.
 ## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_config:
@@ -895,7 +895,7 @@ api_key:
 ##
 ## This option take precedence over `secret_backend_type`.
 ##
-## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_command: <COMMAND_PATH>
 
@@ -1026,7 +1026,7 @@ api_key:
   ## @env DD_LOGS_CONFIG_FORCE_USE_HTTP - boolean - optional - default: false
   ## By default, the Agent sends logs in HTTPS batches to port 443 if HTTPS connectivity can
   ## be established at Agent startup, and falls back to TCP otherwise. Set this parameter to `true` to
-  ## always send logs with HTTPS (recommended).
+  ## always send logs via HTTP protocol (recommended).
   ## Warning: force_use_http means HTTP over TCP, not HTTP over HTTPS. Please use logs_no_ssl for HTTP over HTTPS.
   #
   # force_use_http: true
@@ -1036,9 +1036,14 @@ api_key:
   ## The transport type to use for sending logs. Possible values are "auto" or "http1".
   # http_protocol: auto
 
+  ## @param http_timeout - integer - optional - default: 10
+  ## @env DD_LOGS_CONFIG_HTTP_TIMEOUT - integer - optional - default: 10
+  ## The HTTP timeout to use for sending logs, in seconds.
+  # http_timeout: 10
+
   ## @param force_use_tcp - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false
-  ## By default, logs are sent through HTTPS if possible, set this parameter
+  ## By default, logs are sent via HTTP protocol if possible, set this parameter
   ## to `true` to always send logs via TCP. If `force_use_http` is set to `true`, this parameter
   ## is ignored.
   #
@@ -1046,7 +1051,7 @@ api_key:
 
   ## @param use_compression - boolean - optional - default: true
   ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: true
-  ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
+  ## This parameter is available when sending logs via HTTP protocol. If enabled, the Agent
   ## compresses logs before sending them.
   #
   # use_compression: true
@@ -1064,6 +1069,12 @@ api_key:
   ## The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
+
+  ## @param close_timeout - integer - optional - default: 60
+  ## @env DD_LOGS_CONFIG_CLOSE_TIMEOUT - integer - optional - default: 60
+  ## The maximum number of seconds the Agent spends reading from a file after it has been rotated.
+  #
+  # close_timeout: 60
 
   ## @param open_files_limit - integer - optional - default: 500
   ## @env DD_LOGS_CONFIG_OPEN_FILES_LIMIT - integer - optional - default: 500
@@ -2596,6 +2607,13 @@ api_key:
 #
 # jmx_telemetry_enabled: false
 
+## @param jmx_java_tool_options - string - optional
+## @env DD_JMX_JAVA_TOOL_OPTIONS - string - optional
+## If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
+## set in the check templates. If that is the case, force custom jars here.
+#
+# jmx_java_tool_options: -javaagent:/path/to/agent.jar -XX:+UseG1GC
+
 {{ end -}}
 {{- if .Logging }}
 
@@ -3056,12 +3074,18 @@ api_key:
   # extra_tags:
   #   - <TAG_KEY>:<TAG_VALUE>
 
-  ## @param advanced_dispatching_enabled - boolean - optional - default: false
-  ## @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: false
+  ## @param advanced_dispatching_enabled - boolean - optional - default: true
+  ## @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: true
   ## If advanced_dispatching_enabled is true the leader cluster-agent collects stats
   ## from the cluster level check runners to optimize the check dispatching logic.
   #
-  # advanced_dispatching_enabled: false
+  # advanced_dispatching_enabled: true
+
+  ## @param rebalance_with_utilization - boolean - optional - default: true
+  ## @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: true
+  ## If rebalance_with_utilization is true, the cluster-agent will rebalance cluster checks using node utilization.
+  #
+  # rebalance_with_utilization: true
 
   ## @param clc_runners_port - integer - optional - default: 5005
   ## @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005
@@ -3588,14 +3612,6 @@ api_key:
 ## Set a custom Client key file path.
 #
 # kubelet_client_key: <CLIENT_KEY_FILE_PATH>
-
-## @param kubelet_wait_on_missing_container - integer - optional - default: 0
-## @env DD_KUBELET_WAIT_ON_MISSING_CONTAINER - integer - optional - default: 0
-## On some kubelet versions, containers can take up to a second to
-## register in the podlist. This option allows to wait for up to a given
-## number of seconds (in 250ms chunks) when a container does not exist in the podlist.
-#
-# kubelet_wait_on_missing_container: 0
 
 ## @param kubelet_cache_pods_duration - integer - optional - default: 5
 ## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 5
@@ -4783,10 +4799,10 @@ api_key:
 ##
 ## Settings can be configured via environment variables or the application_monitoring.yaml file.
 ## Configuration precedence (highest to lowest priority):
-##   1. Fleet-managed config file 
+##   1. Fleet-managed config file
 ##      (etc/datadog-agent/managed/datadog-agent/stable/application_monitoring.yaml)
 ##   2. Environment variables
-##   3. Local config file 
+##   3. Local config file
 ##      (etc/datadog-agent/application_monitoring.yaml)
 # apm_configuration_rules:
 

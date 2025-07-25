@@ -17,6 +17,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/cpu"
 
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -59,6 +60,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		gpuSubscriber:       gpuSubscriber,
 		statsd:              statsd,
 		grpcServerTLSConfig: grpcServerTLSConfig,
+		clock:               clock.New(),
 	}
 
 	return check
@@ -87,7 +89,12 @@ type ProcessCheck struct {
 	// determine if zombies process will be collected
 	ignoreZombieProcesses bool
 
+	// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+	// that determines if linux process collection will use WLM
+	useWLMProcessCollection bool
+
 	hostInfo                   *HostInfo
+	clock                      clock.Clock
 	lastCPUTime                cpu.TimesStat
 	lastProcs                  map[int32]*procutil.Process
 	lastRun                    time.Time
@@ -191,6 +198,10 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 		p.extractors = append(p.extractors, p.workloadMetaExtractor)
 	}
+
+	// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+	p.useWLMProcessCollection = p.useWLMCollection()
+
 	return nil
 }
 
@@ -234,7 +245,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return nil, errEmptyCPUTime
 	}
 
-	procs, err := p.probe.ProcessesByPID(time.Now(), true)
+	procs, err := p.processesByPID(true)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +308,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, time.Now())
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -314,7 +325,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -469,6 +480,7 @@ func fmtProcesses(
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
 	pidToGPUTags map[int32][]string,
+	now time.Time,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
@@ -489,7 +501,7 @@ func fmtProcesses(
 			CreateTime:             fp.Stats.CreateTime,
 			OpenFdCount:            fp.Stats.OpenFdCount,
 			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
-			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
+			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, now, lastRun),
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
@@ -525,7 +537,7 @@ func formatCommand(fp *procutil.Process) *model.Command {
 	}
 }
 
-func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
+func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, now time.Time, before time.Time) *model.IOStat {
 	if fp.IORateStat != nil {
 		return formatIORates(fp.IORateStat)
 	}
@@ -534,7 +546,7 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 		return &model.IOStat{}
 	}
 
-	diff := time.Now().Unix() - before.Unix()
+	diff := now.Unix() - before.Unix()
 	if before.IsZero() || diff <= 0 {
 		return &model.IOStat{}
 	}

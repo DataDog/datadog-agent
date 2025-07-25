@@ -33,6 +33,8 @@ const (
 	ProductContainerAutoscalingSettings = "CONTAINER_AUTOSCALING_SETTINGS"
 	// ProductContainerAutoscalingValues receives values for container autoscaling
 	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
+	// ProductDataStreamsLiveMessages is to capture messages from Kafka
+	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 )
 
 // ProductListToString converts a product list to string list

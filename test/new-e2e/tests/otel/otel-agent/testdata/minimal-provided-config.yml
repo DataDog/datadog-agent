@@ -58,7 +58,6 @@ exporters:
     sending_queue:
       batch:
       block_on_overflow: false
-      blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
@@ -87,8 +86,24 @@ processors:
 receivers:
   otlp:
     protocols:
-      grpc: {}
-      http: {}
+      grpc: 
+        endpoint: 0.0.0.0:4317
+        keepalive:
+          enforcement_policy: {}
+          server_parameters: {}
+        read_buffer_size: 524288
+        transport: tcp
+      http:
+        cors: {}
+        endpoint: 0.0.0.0:4318
+        idle_timeout: 0s
+        logs_url_path: /v1/logs
+        metrics_url_path: /v1/metrics
+        read_header_timeout: 0s
+        response_headers: {}
+        tls: null
+        traces_url_path: /v1/traces
+        write_timeout: 0s
 service:
   pipelines:
     logs:

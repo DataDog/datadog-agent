@@ -23,3 +23,8 @@ func RegisterWith(_ autodiscovery.Component) {}
 
 // StopJmxfetch does nothing when the agent does not ship jmx
 func StopJmxfetch() {}
+
+// GetIntegrations returns an empty result when the agent does not ship jmx
+func GetIntegrations() (map[string]interface{}, error) {
+	return map[string]interface{}{}, nil
+}

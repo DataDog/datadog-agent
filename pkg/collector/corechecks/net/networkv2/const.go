@@ -5,7 +5,7 @@
 
 //go:build !darwin && !windows
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 var (
@@ -270,6 +270,18 @@ var (
 )
 
 var (
+	enaMetricPrefix = "aws.ec2."
+	enaMetricNames  = []string{
+		"bw_in_allowance_exceeded",
+		"bw_out_allowance_exceeded",
+		"conntrack_allowance_exceeded",
+		"linklocal_allowance_exceeded",
+		"pps_allowance_exceeded",
+		"conntrack_allowance_available",
+	}
+)
+
+var (
 	protocolsMetricsMapping = map[string]map[string]string{
 		"Ip": {
 			"InReceives":      "system.net.ip.in_receives",
@@ -349,11 +361,12 @@ var (
 			"FIN-WAIT-1": "closing",
 			"FIN-WAIT-2": "closing",
 			"TIME-WAIT":  "time_wait",
-			"UNCONN":     "closing",
 			"CLOSE-WAIT": "closing",
 			"LAST-ACK":   "closing",
 			"LISTEN":     "listening",
 			"CLOSING":    "closing",
+			"UNCONN":     "closing",
+			"NONE":       "connections", // sole UDP mapping
 		},
 		"netstat": {
 			"ESTABLISHED": "established",
@@ -367,11 +380,8 @@ var (
 			"LAST_ACK":    "closing",
 			"LISTEN":      "listening",
 			"CLOSING":     "closing",
+			"NONE":        "connections", // sole UDP mapping
 		},
-	}
-
-	udpStateMetricsSuffixMapping = map[string]string{
-		"NONE": "connections",
 	}
 
 	procfsSubdirectories = []string{"netstat", "snmp"}

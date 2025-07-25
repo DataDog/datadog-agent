@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"slices"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/common"

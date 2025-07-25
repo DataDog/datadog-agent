@@ -88,7 +88,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 				BPFFilter: "tcp dst port 6666 and tcp[tcpflags] == tcp-syn",
 			},
 		}
-		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", rawpacket.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
+		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
 	})
 
 	t.Run("syn-port-std-limit-ko", func(t *testing.T) {
@@ -148,7 +148,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 		opts := rawpacket.DefaultProgOpts()
 		opts.NopInstLen = opts.MaxProgSize - 50
 
-		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", rawpacket.TCActUnspec, 2, opts, true)
+		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", probes.TCActUnspec, 2, opts, true)
 	})
 
 	t.Run("syn-port-multi-syntax-err", func(t *testing.T) {
@@ -199,7 +199,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 				BPFFilter: "tcp[((tcp[12] & 0xf0) >> 2):4] = 0x7f454c46",
 			},
 		}
-		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", rawpacket.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
+		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
 	})
 
 	t.Run("tcp-bpfdoor-magic-number", func(t *testing.T) {

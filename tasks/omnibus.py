@@ -59,7 +59,8 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         # make sure bundle install starts from a clean state
         try:
             os.remove("Gemfile.lock")
-        except Exception:
+        except FileNotFoundError:
+            # It's okay if the file doesn't exist - we just want to ensure it's not there
             pass
 
         cmd = "bundle install"
@@ -108,8 +109,7 @@ def get_omnibus_env(
             env[key] = value
 
     if sys.platform == 'darwin':
-        # Target MacOS 10.12
-        env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
+        env['MACOSX_DEPLOYMENT_TARGET'] = '11.0' if os.uname().machine == "arm64" else '10.12'
 
     if skip_sign:
         env['SKIP_SIGN_MAC'] = 'true'
@@ -262,7 +262,7 @@ def build(
     remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
     use_remote_cache = use_omnibus_git_cache and remote_cache_name is not None
     cache_state = None
-    aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
+    aws_cmd = "aws.exe" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
         # the git repository itself will be located in a subfolder that replicates
@@ -428,7 +428,7 @@ def build_repackaged_agent(ctx, log_level="info"):
     # The assumption here is that only nightlies from master are pushed to the nightly repository
     # and that simply picking up the highest pipeline ID will give us what we want without having to query Gitlab.
     packages_url = f"https://apt.datad0g.com/dists/nightly/7/binary-{architecture}/Packages"
-    with requests.get(packages_url, stream=True) as response:
+    with requests.get(packages_url, stream=True, timeout=10) as response:
         response.raise_for_status()
         lines = response.iter_lines(decode_unicode=True)
 

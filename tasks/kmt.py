@@ -45,7 +45,7 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_get_stack_or_exit, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
@@ -70,6 +70,7 @@ from tasks.system_probe import (
     TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
     check_for_ninja,
+    compute_go_parallelism,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
     get_sysprobe_test_buildtags,
@@ -112,11 +113,6 @@ CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
 LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
-@task
-def create_stack(ctx, stack=None):
-    stacks.create_stack(ctx, stack)
-
-
 @task(
     help={
         "vms": "Comma separated List of VMs to setup. Each definition must contain the following elemets (recipe, architecture, version).",
@@ -138,10 +134,10 @@ def gen_config(
     stack: str | None = None,
     vms: str = "",
     sets: str = "",
-    init_stack=False,
+    init_stack=True,
     vcpu: str | None = None,
     memory: str | None = None,
-    new=False,
+    new=True,
     ci=False,
     arch: str = "",
     output_file: str = "vmconfig.json",
@@ -219,7 +215,7 @@ def gen_config_from_ci_pipeline(
     kmt_pipeline.retrieve_jobs()
 
     for job in kmt_pipeline.setup_jobs:
-        if (vcpu is None or memory is None) and job.status == "success":
+        if (vcpu is None or memory is None) and job.status == GitlabJobStatus.SUCCESS:
             info(f"[+] retrieving vmconfig from job {job.name}")
             for vmset in job.vmconfig["vmsets"]:
                 memory_list = vmset.get("memory", [])
@@ -236,7 +232,7 @@ def gen_config_from_ci_pipeline(
     failed_tests: set[str] = set()
     successful_tests: set[str] = set()
     for test_job in kmt_pipeline.test_jobs:
-        if test_job.status == "failed" and job.component == vmconfig_template:
+        if test_job.status == GitlabJobStatus.FAILED and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = "local"
@@ -312,9 +308,7 @@ def launch_stack(
     provision_microvms: bool = True,
     provision_script: str | None = None,
 ):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
     stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
     if provision_script is not None:
@@ -328,9 +322,7 @@ def provision_stack(
     stack: str | None = None,
     ssh_key: str | None = None,
 ):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
@@ -397,9 +389,12 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
 
-    info("[+] Kernel matrix testing system initialized successfully")
     if not skip_ssh_setup:
         config_ssh_key(ctx)
+
+    info(
+        "[+] Kernel matrix testing system initialized successfully. Refer to https://github.com/DataDog/datadog-agent/blob/main/tasks/kernel_matrix_testing/README.md for next steps."
+    )
 
 
 @task
@@ -586,11 +581,13 @@ def is_root():
     return os.getuid() == 0
 
 
-def ninja_define_rules(nw: NinjaWriter):
-    # go build does not seem to be designed to run concurrently on the same
-    # source files. To make go build work with ninja we create a pool to force
-    # only a single instance of go to be running.
-    nw.pool(name="gobuild", depth=1)
+def ninja_define_rules(
+    nw: NinjaWriter,
+    debug: bool = False,
+    ci: bool = False,
+):
+    go_parallelism = compute_go_parallelism(debug=debug, ci=ci)
+    nw.pool(name="gobuild", depth=go_parallelism)
 
     nw.rule(
         name="gotestsuite",
@@ -755,7 +752,7 @@ def kmt_secagent_prepare(
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file)
 
-        ninja_define_rules(nw)
+        ninja_define_rules(nw, debug=verbose, ci=ci)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(
             nw,
@@ -1034,7 +1031,7 @@ def kmt_sysprobe_prepare(
             env_str += f"{key}='{new_val}' "
         env_str = env_str.rstrip()
 
-        ninja_define_rules(nw)
+        ninja_define_rules(nw, debug=True, ci=ci)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
         ninja_add_dyninst_test_programs(
@@ -1345,10 +1342,7 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
             stacks.create_stack(ctx, stack)
         return stack
 
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
     return stack
 
 
@@ -1431,10 +1425,7 @@ def build(
 
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
 
     ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
@@ -1788,8 +1779,8 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
     kmt_pipeline = KMTPipeline(pipeline)
     kmt_pipeline.retrieve_jobs()
 
-    failed_setup_jobs = [j for j in kmt_pipeline.setup_jobs if j.status == "failed"]
-    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == "failed"]
+    failed_setup_jobs = [j for j in kmt_pipeline.setup_jobs if j.status == GitlabJobStatus.FAILED]
+    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == GitlabJobStatus.FAILED]
     failreasons: dict[str, str] = {}
     ok = "✅"
     testfail = "❌"
@@ -2027,10 +2018,7 @@ def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None)
 
 @task
 def show_last_test_results(ctx: Context, stack: str | None = None):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
@@ -2350,6 +2338,9 @@ def download_complexity_data(
     gitlab = get_gitlab_repo()
     dest_path = Path(dest_path)
     deps: list[JobDependency] = []
+
+    # Ensure the destination path exists
+    dest_path.mkdir(parents=True, exist_ok=True)
 
     if not download_all_jobs:
         print("Parsing .gitlab-ci.yml file to understand the dependencies for notify_ebpf_complexity_changes")

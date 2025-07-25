@@ -12,31 +12,34 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-// Actuator manages dynamic instrumentation for processes.  It coordinates IR
+// Actuator manages dynamic instrumentation for processes. It coordinates IR
 // generation, eBPF compilation, program loading, and attachment.
+//
+// The Actuator is multi-tenant: regardless of the number of tenants, we want
+// to have a single instance of the Actuator to coordinate resource usage.
 type Actuator struct {
-	configuration
+	mu struct {
+		sync.Mutex
+		maxTenantID tenantID
+		tenants     map[tenantID]*Tenant
+		sinks       map[ir.ProgramID]Sink
+	}
+	loader Loader
 
 	// Channel for sending events to the state machine processing goroutine
 	// This is send-only from the perspective of external API.
 	events chan<- event
-
-	// Pre-created ringbuffer for collecting probe output
-	ringbufMap    *ebpf.Map
-	ringbufReader *ringbuf.Reader
 
 	// Shutdown controls
 	wg sync.WaitGroup
@@ -48,48 +51,48 @@ type Actuator struct {
 	shutdownErr error
 }
 
+// Tenant is a tenant of the Actuator.
+type Tenant struct {
+	name        string
+	id          tenantID
+	a           *Actuator
+	reporter    Reporter
+	irGenerator IRGenerator
+}
+
+// NewTenant creates a new tenant of the Actuator.
+func (a *Actuator) NewTenant(
+	name string, reporter Reporter, irGenerator IRGenerator,
+) *Tenant {
+	t := &Tenant{
+		a:           a,
+		name:        name,
+		reporter:    reporter,
+		irGenerator: irGenerator,
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mu.maxTenantID++
+	t.id = a.mu.maxTenantID
+	a.mu.tenants[t.id] = t
+	return t
+}
+
 // NewActuator creates a new Actuator instance.
-func NewActuator(
-	options ...Option,
-) (*Actuator, error) {
-	settings := defaultSettings
-	for _, option := range options {
-		option.apply(&settings)
-	}
-
-	// Pre-create the ringbuffer that will be shared across all BPF programs.
-	ringbufMap, err := ebpf.NewMap(&ebpf.MapSpec{
-		Name:       compiler.RingbufMapName,
-		Type:       ebpf.RingBuf,
-		MaxEntries: uint32(settings.ringBufSize),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ringbuffer map: %w", err)
-	}
-	ringbufReader, err := ringbuf.NewReader(ringbufMap)
-	if err != nil {
-		if mapCloseErr := ringbufMap.Close(); mapCloseErr != nil {
-			err = fmt.Errorf(
-				"%w (also failed to close ringbuffer map %w)", err, mapCloseErr,
-			)
-		}
-		return nil, fmt.Errorf("failed to create ringbuffer reader: %w", err)
-	}
-
-	shutdownCh := make(chan struct{})
+func NewActuator(loader Loader) *Actuator {
+	shuttingDownCh := make(chan struct{})
 	eventCh := make(chan event)
 	a := &Actuator{
-		configuration: settings,
-		events:        eventCh,
-		ringbufMap:    ringbufMap,
-		ringbufReader: ringbufReader,
-		shuttingDown:  shutdownCh,
+		events:       eventCh,
+		shuttingDown: shuttingDownCh,
+		loader:       loader,
 	}
-
+	a.mu.sinks = make(map[ir.ProgramID]Sink)
+	a.mu.tenants = make(map[tenantID]*Tenant)
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		a.runEventProcessor(eventCh, shutdownCh)
+		a.runEventProcessor(eventCh, shuttingDownCh)
 	}()
 	a.wg.Add(1)
 	go func() {
@@ -97,65 +100,95 @@ func NewActuator(
 		_ = a.runDispatcher()
 	}()
 
-	return a, nil
+	return a
 }
 
 // runDispatcher runs in a separate goroutine and processes messages from the
 // ringbuffer and to hand them to the dispatcher.
-func (a *Actuator) runDispatcher() (err error) {
+func (a *Actuator) runDispatcher() (retErr error) {
 	defer func() {
-		if err != nil {
-			go a.shutdown(fmt.Errorf("error in dispatcher: %w", err))
+		if retErr != nil {
+			go a.shutdown(fmt.Errorf("error in dispatcher: %w", retErr))
 		}
 	}()
-	for {
+	reader := a.loader.OutputReader()
+	inShutdown := func() bool {
 		select {
 		case <-a.shuttingDown:
-			return
+			return true
 		default:
+			return false
 		}
-
+	}
+	for {
+		if inShutdown() {
+			return nil
+		}
 		rec := recordPool.Get().(*ringbuf.Record)
-		if err := a.ringbufReader.ReadInto(rec); err != nil {
+		if err := reader.ReadInto(rec); err != nil {
 			if errors.Is(err, ringbuf.ErrFlushed) {
 				continue
 			}
-			return err
+			return fmt.Errorf("error reading message: %w", err)
 		}
-		message := Message{rec: rec}
-		err = a.sink.HandleMessage(message)
+
 		// TODO: Improve error handling here.
 		//
 		// Perhaps we want to find a way to only partially fail. Alternatively,
 		// this interface should not be delivering errors at all.
-		if err != nil {
-			select {
-			case <-a.shuttingDown:
-				recordPool.Put(rec)
-				return
-			default:
-				log.Errorf("Error handling message: %v", err)
-				go a.shutdown(fmt.Errorf("error handling message: %w", err))
-				return
-			}
+		if err := a.handleMessage(Message{
+			rec: rec,
+		}); err != nil && !inShutdown() {
+			log.Errorf("error handling message: %v", err)
+			return fmt.Errorf("error handling message: %w", err)
 		}
 	}
 }
 
+func (a *Actuator) handleMessage(rec Message) error {
+	defer rec.Release()
+
+	ev := rec.Event()
+	evHeader, err := ev.Header()
+	if err != nil {
+		return fmt.Errorf("error getting event header: %w", err)
+	}
+
+	progID := ir.ProgramID(evHeader.Prog_id)
+	sink, ok := a.getSink(progID)
+	if !ok {
+		return fmt.Errorf("no sink for program %d", progID)
+	}
+	if err := sink.HandleEvent(ev); err != nil {
+		return fmt.Errorf("error handling event: %w", err)
+	}
+	return nil
+}
+
+func (a *Actuator) getSink(progID ir.ProgramID) (Sink, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	sink, ok := a.mu.sinks[progID]
+	return sink, ok
+}
+
 // HandleUpdate processes an update to process instrumentation configuration.
 // This is the single public API for updating the actuator state.
-func (a *Actuator) HandleUpdate(update ProcessesUpdate) {
-	log.Debugf("sending update: %v", update)
+func (t *Tenant) HandleUpdate(update ProcessesUpdate) {
+	if log.ShouldLog(log.TraceLvl) {
+		logUpdate := update
+		log.Tracef("sending update: %v", &logUpdate)
+	}
 
-	// Make sure we don't send the update event if we're shutting down.
 	select {
-	case <-a.shuttingDown:
+	case <-t.a.shuttingDown: // prioritize shutdown
 	default:
 		select {
-		case <-a.shuttingDown:
-		case a.events <- eventProcessesUpdated{
-			updated: update.Processes,
-			removed: update.Removals,
+		case <-t.a.shuttingDown:
+		case t.a.events <- eventProcessesUpdated{
+			tenantID: t.id,
+			updated:  update.Processes,
+			removed:  update.Removals,
 		}:
 		}
 	}
@@ -163,19 +196,21 @@ func (a *Actuator) HandleUpdate(update ProcessesUpdate) {
 
 // runEventProcessor runs in a separate goroutine and processes events sequentially
 // to maintain state machine consistency. Only this goroutine accesses state.
-func (a *Actuator) runEventProcessor(eventCh <-chan event, shuttingDownCh chan<- struct{}) {
-	defer a.ringbufReader.Flush()
+func (a *Actuator) runEventProcessor(
+	eventCh <-chan event, shuttingDownCh chan<- struct{},
+) {
+	defer a.loader.OutputReader().Flush()
 	state := newState()
 	for !state.isShutdown() {
 		event := <-eventCh
 		if _, isShutdown := event.(eventShutdown); isShutdown {
-			log.Debugf("Received shutdown event")
+			log.Debugf("received shutdown event")
 			close(shuttingDownCh)
 		}
-		log.Debugf("event: %v", event)
+		log.Tracef("event: %v", event)
 		err := handleEvent(state, (*effects)(a), event)
 		if err != nil {
-			log.Errorf("Error handling event %T: %v", event, err)
+			log.Errorf("error handling event %T: %v", event, err)
 
 			// Trigger shutdown on error. Cannot run directly on this goroutine
 			// because it will deadlock. Note that if we're already shutting
@@ -196,161 +231,173 @@ type effects Actuator
 
 var _ effectHandler = (*effects)(nil)
 
-// compileProgram starts eBPF compilation for an IR program in a background
-// goroutine.
-func (a *effects) compileProgram(
+// loadProgram starts BPF program loading in a background goroutine.
+func (a *effects) loadProgram(
+	tenantID tenantID,
 	programID ir.ProgramID,
 	executable Executable,
-	probes []config.Probe,
+	processID ProcessID,
+	probes []ir.ProbeDefinition,
 ) {
+	tenant := a.getTenant(tenantID)
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-
-		compiled, err := compileProgram(
-			programID, executable, probes, a.configuration.codegenWriter,
-		)
+		ir, err := generateIR(tenant.irGenerator, programID, executable, probes)
+		if err == nil && len(ir.Probes) == 0 {
+			err = &NoSuccessfulProbesError{Issues: ir.Issues}
+		}
 		if err != nil {
-			err = fmt.Errorf("failed to compile eBPF program: %w", err)
-			a.sendEvent(eventProgramCompilationFailed{
+			tenant.reporter.ReportIRGenFailed(processID, err, probes)
+			a.sendEvent(eventProgramLoadingFailed{
 				programID: programID,
 				err:       err,
 			})
 			return
 		}
-		a.compiledCallback(compiled)
-		a.sendEvent(eventProgramCompiled{
-			programID:       programID,
-			compiledProgram: compiled,
+		loaded, err := loadProgram(a.loader, ir)
+		if err != nil {
+			tenant.reporter.ReportLoadingFailed(processID, ir, err)
+			a.sendEvent(eventProgramLoadingFailed{
+				programID: ir.ID,
+				err:       err,
+			})
+			return
+		}
+		sink, err := tenant.reporter.ReportLoaded(processID, executable, ir)
+		if err != nil {
+			loaded.Close()
+			a.sendEvent(eventProgramLoadingFailed{
+				programID: ir.ID,
+				err:       err,
+			})
+			return
+		}
+		a.setSink(ir.ID, sink)
+		a.sendEvent(eventProgramLoaded{
+			programID: ir.ID,
+			loaded: &loadedProgram{
+				program:  *loaded,
+				ir:       ir,
+				tenantID: tenantID,
+			},
 		})
 	}()
 }
 
-func compileProgram(
-	programID ir.ProgramID,
-	exe Executable,
-	probes []config.Probe,
-	cwf CodegenWriterFactory,
-) (*CompiledProgram, error) {
-
-	elfFile, err := safeelf.Open(exe.Path)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to open executable %s: %w", exe.Path, err,
-		)
-	}
-	defer elfFile.Close()
-
-	objFile, err := object.NewElfObject(elfFile)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to create object interface for %s: %w", exe.Path, err,
-		)
-	}
-
-	irProgram, err := irgen.GenerateIR(programID, objFile, probes)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to generate IR for %s: %w", exe.Path, err,
-		)
-	}
-
-	// Compile the IR to eBPF
-	extraCodeSink := cwf(irProgram)
-	compiled, err := compiler.CompileBPFProgram(
-		irProgram, extraCodeSink,
-	)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to compile eBPF program: %w", err,
-		)
-	}
-
-	return &CompiledProgram{
-		IR:          irProgram,
-		Probes:      probes,
-		CompiledBPF: compiled,
-	}, nil
+func (a *effects) getTenant(tenantID tenantID) *Tenant {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.mu.tenants[tenantID]
 }
 
-// loadProgram starts BPF program loading in a background goroutine.
-func (a *effects) loadProgram(compiled *CompiledProgram) {
+func (a *effects) setSink(progID ir.ProgramID, sink Sink) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mu.sinks[progID] = sink
+}
+
+// clearSink removes a sink from the map if present.
+func (a *effects) clearSink(progID ir.ProgramID) {
+	a.mu.Lock()
+	delete(a.mu.sinks, progID)
+	a.mu.Unlock()
+}
+
+// unloadProgram performs the cleanup of a loaded program asynchronously and
+// notifies the state-machine once it is complete.
+func (a *effects) unloadProgram(lp *loadedProgram) {
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
 
-		loaded, err := loadProgram(a.ringbufMap, compiled)
-		if err != nil {
-			a.sendEvent(eventProgramCompilationFailed{
-				programID: compiled.IR.ID,
-				err:       fmt.Errorf("failed to load collection spec: %w", err),
-			})
-		} else {
-			a.sendEvent(eventProgramLoaded{
-				programID:     compiled.IR.ID,
-				loadedProgram: loaded,
-			})
+		// Close kernel program & links.
+		lp.program.Close()
+
+		// TODO: We should flush the ringbuffer here to make sure
+		// that there are no events that haven't been processed that
+		// could possibly be affected by closing the sink.
+
+		// Close sink and unregister it so the dispatcher stops using it.
+		if lp.sink != nil {
+			lp.sink.Close()
+			a.clearSink(lp.ir.ID)
 		}
+
+		// Notify state-machine that unloading is finished.
+		a.sendEvent(eventProgramUnloaded{programID: lp.ir.ID})
 	}()
 }
 
+func generateIR(
+	irGenerator IRGenerator,
+	programID ir.ProgramID,
+	executable Executable,
+	probes []ir.ProbeDefinition,
+) (*ir.Program, error) {
+	elfFile, err := object.OpenElfFile(executable.Path)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to read object file for %s: %w", executable.Path, err,
+		)
+	}
+	defer elfFile.Close()
+
+	ir, err := irGenerator.GenerateIR(programID, elfFile, probes)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to generate IR for %s: %w", executable.Path, err,
+		)
+	}
+
+	return ir, nil
+}
+
 func loadProgram(
-	sharedRingbufMap *ebpf.Map,
-	compiled *CompiledProgram,
-) (*loadedProgram, error) {
-	spec, err := ebpf.LoadCollectionSpecFromReader(compiled.CompiledBPF.Obj)
+	loader Loader,
+	ir *ir.Program,
+) (*loader.Program, error) {
+	program, err := compiler.GenerateProgram(ir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load collection spec: %w", err)
+		return nil, fmt.Errorf("failed to generate program: %w", err)
 	}
-
-	ringbufMapSpec, ok := spec.Maps[compiler.RingbufMapName]
-	if !ok {
-		return nil, fmt.Errorf("ringbuffer map not found in collection spec")
-	}
-	ringbufMapSpec.MaxEntries = defaultRingbufSize
-
-	mapReplacements := map[string]*ebpf.Map{
-		compiler.RingbufMapName: sharedRingbufMap,
-	}
-
-	opts := ebpf.CollectionOptions{
-		MapReplacements: mapReplacements,
-	}
-	bpfCollection, err := ebpf.NewCollectionWithOptions(spec, opts)
+	loaded, err := loader.Load(program)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create BPF collection: %w", err)
+		return nil, fmt.Errorf("failed to load program: %w", err)
 	}
-
-	bpfProg, ok := bpfCollection.Programs[compiled.CompiledBPF.ProgramName]
-	if !ok {
-		return nil, fmt.Errorf("BPF program %s not found in collection", compiled.CompiledBPF.ProgramName)
-	}
-
-	return &loadedProgram{
-		id:           compiled.IR.ID,
-		collection:   bpfCollection,
-		program:      bpfProg,
-		attachpoints: compiled.CompiledBPF.Attachpoints,
-	}, nil
+	return loaded, nil
 }
 
 // attachToProcess attaches a loaded program to a specific process.
 func (a *effects) attachToProcess(
 	loaded *loadedProgram, executable Executable, processID ProcessID,
 ) {
+	tenant := a.getTenant(loaded.tenantID)
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
 
 		attached, err := attachToProcess(
-			loaded, executable, processID, a.reporter,
+			tenant.id, loaded, executable, processID,
 		)
 		if err != nil {
+			tenant.reporter.ReportAttachingFailed(processID, loaded.ir, err)
 			a.sendEvent(eventProgramAttachingFailed{
-				programID: loaded.id,
+				programID: loaded.ir.ID,
 				err:       fmt.Errorf("failed to attach to process: %w", err),
 			})
 		} else {
+			// Tell the reporter we've attached the probes.
+			//
+			// Note: there's something perhaps off about performing this call
+			// here is that the state machine will not have been updated yet to
+			// reflect that the probes are attached.
+			//
+			// At the time of writing, that external state was not exposed
+			// anywhere, and does not have any visible impact on the API, but
+			// it's still a bit of a smell. It's not clear, however, that this
+			// callback ought to be called on the state machine goroutine.
+			tenant.reporter.ReportAttached(processID, loaded.ir)
 			a.sendEvent(eventProgramAttached{
 				program: attached,
 			})
@@ -359,11 +406,12 @@ func (a *effects) attachToProcess(
 }
 
 func attachToProcess(
+	tenantID tenantID,
 	loaded *loadedProgram,
 	executable Executable,
 	processID ProcessID,
-	reporter Reporter,
 ) (*attachedProgram, error) {
+
 	// A silly thing here is that it's going to call, under the hood,
 	// safeelf.Open twice: once for the link package and once for finding the
 	// text section offset to translate the attachpoints.
@@ -386,12 +434,12 @@ func attachToProcess(
 		return nil, fmt.Errorf("failed to get text section: %w", err)
 	}
 
-	attached := make([]link.Link, 0, len(loaded.attachpoints))
-	for _, attachpoint := range loaded.attachpoints {
+	attached := make([]link.Link, 0, len(loaded.program.Attachpoints))
+	for _, attachpoint := range loaded.program.Attachpoints {
 		addr := attachpoint.PC - textSection.Addr + textSection.Offset
 		l, err := linkExe.Uprobe(
 			"",
-			loaded.program,
+			loaded.program.BpfProgram,
 			&link.UprobeOptions{
 				PID:     int(processID.PID),
 				Address: addr,
@@ -411,44 +459,21 @@ func attachToProcess(
 		attached = append(attached, l)
 	}
 
-	// Tell the reporter we've attached the probes.
-	//
-	// Note: there's something perhaps off about performing this call here is
-	// that the state machine will not have been updated yet to reflect that the
-	// probes are attached.
-	//
-	// At the time of writing, that external state was not exposed anywhere, and
-	// does not have any visible impact on the API, but it's still a bit of a
-	// smell. It's not, however, clear that this callback ought to be called on
-	// the state machine goroutine.
-	reporter.ReportAttached(processID, loaded.probes)
-
 	return &attachedProgram{
-		progID:         loaded.id,
+		tenantID:       tenantID,
 		procID:         processID,
+		ir:             loaded.ir,
 		executableLink: linkExe,
 		attachedLinks:  attached,
-		probes:         loaded.probes,
 	}, nil
-}
-
-// registerProgramWithDispatcher registers a program with the event dispatcher.
-func (a *effects) registerProgramWithDispatcher(irProgram *ir.Program) {
-	a.sink.RegisterProgram(irProgram)
-}
-
-// unregisterProgramWithDispatcher unregisters a program from the event dispatcher.
-//
-// TODO: We need to do something to make sure all messages that have already
-// been produced are processed before the program is unregistered. This will
-// involve coordinating some flushing with the dispatcher goroutine.
-func (a *effects) unregisterProgramWithDispatcher(programID ir.ProgramID) {
-	a.sink.UnregisterProgram(programID)
 }
 
 // detachFromProcess detaches a program from a process.
 func (a *effects) detachFromProcess(ap *attachedProgram) {
+	tenant := a.getTenant(ap.tenantID)
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
 		for _, link := range ap.attachedLinks {
 			if err := link.Close(); err != nil {
 				// What else is there to do if this fails?
@@ -459,12 +484,10 @@ func (a *effects) detachFromProcess(ap *attachedProgram) {
 			}
 		}
 
-		if a.reporter != nil {
-			a.reporter.ReportDetached(ap.procID, ap.probes)
-		}
+		tenant.reporter.ReportDetached(ap.procID, ap.ir)
 
 		a.sendEvent(eventProgramDetached{
-			programID: ap.progID,
+			programID: ap.ir.ID,
 			processID: ap.procID,
 		})
 	}()
@@ -480,6 +503,12 @@ func (a *Actuator) Shutdown() error {
 
 func (a *Actuator) shutdown(err error) {
 	a.shutdownOnce.Do(func() {
+		defer log.Debugf("actuator shut down")
+		if err != nil {
+			log.Warnf("shutting down actuator due to error: %v", err)
+		} else {
+			log.Debugf("shutting down actuator")
+		}
 		a.events <- eventShutdown{}
 		a.shutdownErr = err
 
@@ -487,11 +516,8 @@ func (a *Actuator) shutdown(err error) {
 		a.wg.Wait()
 
 		// Close resources
-		if err := a.ringbufReader.Close(); err != nil {
+		if err := a.loader.Close(); err != nil {
 			log.Errorf("Error closing ringbuffer reader: %v", err)
-		}
-		if err := a.ringbufMap.Close(); err != nil {
-			log.Errorf("Error closing ringbuffer map: %v", err)
 		}
 	})
 }

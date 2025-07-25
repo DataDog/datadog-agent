@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	complianceutils "github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
@@ -97,7 +98,7 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 
 func loadRun(_ log.Component, _ config.Component, loadArgs *loadCliParams) error {
 	hostroot := os.Getenv("HOST_ROOT")
-	var resourceType string
+	var resourceType types.ResourceType
 	var resource interface{}
 	ctx := context.Background()
 	switch loadArgs.confType {

@@ -1,17 +1,32 @@
 #ifndef __CONTEXT_H__
 #define __CONTEXT_H__
 
-// Must precede asm/ptrace.h
-#include "kconfig.h"
-
-#include <asm/ptrace.h>
 #include "bpf_tracing.h"
 #include "types.h"
 #include "queue.h"
 #include "scratch.h"
 
+typedef uint32_t type_t;
+
+typedef struct frame_data {
+  uint16_t stack_idx;
+  uint64_t cfa;
+} frame_data_t;
+
+typedef struct resolved_go_interface {
+  target_ptr_t addr;
+  uint64_t go_runtime_type;
+} resolved_go_interface_t;
+
+typedef struct resolved_go_any_type {
+  resolved_go_interface_t i;
+  type_t type;
+  bool has_info;
+  type_info_t info;
+} resolved_go_any_type_t;
+
 typedef struct pointers_queue_item {
-  data_item_header_t di;
+  di_data_item_header_t di;
   uint32_t ttl;
   uint32_t __padding[3];
 } pointers_queue_item_t;
@@ -65,7 +80,7 @@ typedef struct stack_machine {
   uint64_t value_0;
   resolved_go_any_type_t resolved_0, resolved_1;
   buf_offset_t buf_offset_0, buf_offset_1;
-  data_item_header_t di_0;
+  di_data_item_header_t di_0;
 } stack_machine_t;
 
 struct {

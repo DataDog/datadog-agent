@@ -38,17 +38,18 @@
       -e AGENT_FLAVOR=${AGENT_FLAVOR}
       -e OMNIBUS_RUBY_VERSION="${OMNIBUS_RUBY_VERSION}"
       -e PYTHONUTF8=1
+      -e E2E_COVERAGE_PIPELINE=${E2E_COVERAGE_PIPELINE}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - get-childitem omnibus\pkg
+    - get-childitem omnibus\pkg\pipeline-$CI_PIPELINE_ID
     - !reference [.upload_sbom_artifacts_windows]
   after_script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
 
 .windows_main_agent_base:
   extends: .windows_msi_base
@@ -75,7 +76,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
   timeout: 2h
 
 
-# cloudfoundry IoT build for Windows
+# azure-app-services build for Windows
 windows_zip_agent_binaries_x64-a7:
   stage: package_build
   rules:
@@ -117,9 +118,9 @@ windows_zip_agent_binaries_x64-a7:
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - get-childitem omnibus\pkg
+    - get-childitem omnibus\pkg\pipeline-$CI_PIPELINE_ID
     - !reference [.upload_sbom_artifacts_windows]
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID

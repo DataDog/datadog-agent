@@ -118,7 +118,7 @@ func (s *Setup) Run() (err error) {
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
 	}
-	// TODO(WINA-1431): This is being overwritten by the MSI on Windows
+
 	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-script-%s", s.flavor))
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)

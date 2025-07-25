@@ -31,6 +31,7 @@
 '@datadog/container-experiences': '#process-agent-ops'
 '@datadog/container-platform': '#container-platform'
 '@datadog/database-monitoring': '#database-monitoring'
+'@datadog/data-streams-monitoring': '#data-streams-monitoring'
 '@datadog/debugger': '#debugger-ops-prod'
 '@datadog/debugger-go': '#dynamic-instrumentation-go'
 '@datadog/documentation': DEFAULT_SLACK_CHANNEL
@@ -41,7 +42,7 @@
 '@datadog/ndm-core': '#ndm-core'
 '@datadog/ndm-integrations': '#ndm-integrations'
 '@datadog/network-device-monitoring': '#network-device-monitoring'
-'@datadog/networks': '#network-performance-monitoring'
+'@datadog/networks': '#cloud-network-monitoring'
 '@datadog/opentelemetry': '#opentelemetry-ops'
 '@datadog/opentelemetry-agent': '#opentelemetry-agent-ops'
 '@datadog/remote-config': '#remote-config-platform'

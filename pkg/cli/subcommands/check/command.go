@@ -48,6 +48,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
@@ -172,6 +173,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				grpcNonefx.Module(),
 				fx.Supply(context.Background()),
 				dualTaggerfx.Module(common.DualTaggerParams()),
+				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
 				inventorychecksimpl.Module(),
@@ -202,7 +204,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				getPlatformModules(),
 				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
 				haagentfx.Module(),
-				ipcfx.ModuleReadWrite(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}

@@ -36,6 +36,8 @@ var validProducts = map[string]struct{}{
 	ProductHaAgent:                      {},
 	ProductNDMDeviceProfilesCustom:      {},
 	ProductMetricControl:                {},
+	ProductDataStreamsLiveMessages:      {},
+	ProductLiveDebuggingSymbolDB:        {},
 }
 
 const (
@@ -83,6 +85,9 @@ const (
 	ProductSDSAgentConfig = "SDS_AGENT_CONFIG"
 	// ProductLiveDebugging is the dynamic instrumentation product
 	ProductLiveDebugging = "LIVE_DEBUGGING"
+	// ProductLiveDebuggingSymbolDB is used by the live debugging product for
+	// selecting processes to upload symbols to the symbol database.
+	ProductLiveDebuggingSymbolDB = "LIVE_DEBUGGING_SYMBOL_DB"
 	// ProductContainerAutoscalingSettings receives definition of container autoscaling
 	ProductContainerAutoscalingSettings = "CONTAINER_AUTOSCALING_SETTINGS"
 	// ProductContainerAutoscalingValues receives values for container autoscaling
@@ -99,4 +104,6 @@ const (
 	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
 	// ProductMetricControl receives configuration for the metrics control.
 	ProductMetricControl = "METRIC_CONTROL"
+	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
+	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 )

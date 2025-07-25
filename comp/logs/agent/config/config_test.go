@@ -523,48 +523,78 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
-	suite.config.SetWithoutSource("api_key", "123")
-	suite.config.SetWithoutSource("compliance_config.endpoints.logs_dd_url", "my-proxy:443")
+	expectedHost := "my-proxy"
+	expectedPort := 8888
 
-	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
-	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
+	setupAndBuildEndpoints := func(url string, connectivity HTTPConnectivity) (*Endpoints, error) {
+		suite.config.SetWithoutSource("api_key", "123")
+		suite.config.SetWithoutSource("compliance_config.endpoints.logs_dd_url", url)
+		logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 
-	suite.Nil(err)
-
-	main := Endpoint{
-		apiKey:                 atomic.NewString("123"),
-		configSettingPath:      "api_key",
-		isAdditionalEndpoint:   false,
-		additionalEndpointsIdx: 0,
-		Host:                   "my-proxy",
-		Port:                   443,
-		useSSL:                 true,
-		UseCompression:         true,
-		CompressionLevel:       ZstdCompressionLevel,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
-		Version:                EPIntakeVersion2,
-		TrackType:              "test-track",
-		Protocol:               "test-proto",
-		Origin:                 "test-source",
-		isReliable:             true,
+		return BuildEndpointsWithConfig(suite.config, logsConfig, "default-intake.mydomain.", connectivity, "test-track", "test-proto", "test-source")
 	}
 
-	expectedEndpoints := &Endpoints{
-		UseHTTP:                true,
-		BatchWait:              pkgconfigsetup.DefaultBatchWait * time.Second,
-		Main:                   main,
-		Endpoints:              []Endpoint{main},
-		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+	testCases := []struct {
+		name         string
+		ddURL        string
+		connectivity HTTPConnectivity
+		useSSL       bool
+		useHTTP      bool
+	}{
+		{
+			name:         "basic host:port format",
+			ddURL:        "my-proxy:8888",
+			connectivity: HTTPConnectivitySuccess,
+			useSSL:       true,
+			useHTTP:      true,
+		},
+		{
+			name:         "http scheme with path",
+			ddURL:        "http://my-proxy:8888/logs/intake",
+			connectivity: HTTPConnectivitySuccess,
+			useSSL:       false,
+			useHTTP:      true,
+		},
+		{
+			name:         "https scheme with path",
+			ddURL:        "https://my-proxy:8888/logs/intake",
+			connectivity: HTTPConnectivitySuccess,
+			useSSL:       true,
+			useHTTP:      true,
+		},
+		{
+			name:         "basic host:port format with connectivity failure",
+			ddURL:        "my-proxy:8888",
+			connectivity: HTTPConnectivityFailure,
+			useSSL:       true,
+			useHTTP:      false,
+		},
+		{
+			name:         "http scheme with connectivity failure",
+			ddURL:        "http://my-proxy:8888",
+			connectivity: HTTPConnectivityFailure,
+			useSSL:       false,
+			useHTTP:      true,
+		},
+		{
+			name:         "https scheme with connectivity failure",
+			ddURL:        "https://my-proxy:8888",
+			connectivity: HTTPConnectivityFailure,
+			useSSL:       true,
+			useHTTP:      true,
+		},
 	}
 
-	suite.Nil(err)
-	suite.compareEndpoints(expectedEndpoints, endpoints)
+	for _, testCase := range testCases {
+		suite.Run(testCase.name, func() {
+			endpoints, err := setupAndBuildEndpoints(testCase.ddURL, testCase.connectivity)
+			suite.Nil(err)
+			suite.Equal(testCase.useHTTP, endpoints.UseHTTP)
+			suite.Equal(expectedHost, endpoints.Main.Host)
+			suite.Equal(expectedPort, endpoints.Main.Port)
+			suite.Equal(testCase.useSSL, endpoints.Main.useSSL)
+		})
+	}
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {

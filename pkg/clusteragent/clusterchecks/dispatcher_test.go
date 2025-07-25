@@ -212,6 +212,22 @@ func TestDescheduleRescheduleSameNode(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestGetNodeTypeCounts(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	// Register 2 CLC runners and 3 node agents
+	dispatcher.processNodeStatus("runner1", "10.0.0.10", types.NodeStatus{LastChange: 1, NodeType: types.NodeTypeCLCRunner})
+	dispatcher.processNodeStatus("runner2", "10.0.0.11", types.NodeStatus{LastChange: 2, NodeType: types.NodeTypeCLCRunner})
+	dispatcher.processNodeStatus("agent1", "10.0.0.20", types.NodeStatus{LastChange: 3, NodeType: types.NodeTypeNodeAgent})
+	dispatcher.processNodeStatus("agent2", "10.0.0.21", types.NodeStatus{LastChange: 4, NodeType: types.NodeTypeNodeAgent})
+	dispatcher.processNodeStatus("agent3", "10.0.0.22", types.NodeStatus{LastChange: 5, NodeType: types.NodeTypeNodeAgent})
+
+	clcRunnerCount, nodeAgentCount := dispatcher.store.CountNodeTypes()
+	assert.Equal(t, 2, clcRunnerCount)
+	assert.Equal(t, 3, nodeAgentCount)
+}
+
 func TestProcessNodeStatus(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
@@ -509,11 +525,13 @@ func TestPatchConfiguration(t *testing.T) {
 	initialDigest := checkConfig.Digest()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetGlobalTags([]string{"kube_cluster_name:testing"}, []string{}, []string{}, []string{})
+
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
-	dispatcher := newDispatcher(fakeTagger)
 
+	dispatcher := newDispatcher(fakeTagger)
 	out, err := dispatcher.patchConfiguration(checkConfig)
 	assert.NoError(t, err)
 
@@ -547,11 +565,13 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 	}
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetGlobalTags([]string{"kube_cluster_name:testing"}, []string{}, []string{}, []string{})
+
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
-	dispatcher := newDispatcher(fakeTagger)
 
+	dispatcher := newDispatcher(fakeTagger)
 	out, err := dispatcher.patchEndpointsConfiguration(checkConfig)
 	assert.NoError(t, err)
 
@@ -577,12 +597,12 @@ func TestExtraTags(t *testing.T) {
 		tagNameConfig     string
 		expected          []string
 	}{
-		{nil, "testing", "cluster_name", []string{"cluster_name:testing", "kube_cluster_name:testing"}},
-		{nil, "mycluster", "custom_name", []string{"custom_name:mycluster", "kube_cluster_name:mycluster"}},
+		{nil, "testing", "cluster_name", []string{"cluster_name:testing"}},
+		{nil, "mycluster", "custom_name", []string{"custom_name:mycluster"}},
 		{nil, "", "cluster_name", []string{}},
-		{nil, "testing", "", []string{"kube_cluster_name:testing"}},
+		{nil, "testing", "", []string{}},
 		{[]string{"one", "two"}, "", "", []string{"one", "two"}},
-		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster", "kube_cluster_name:mycluster"}},
+		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster"}},
 	} {
 		t.Run("", func(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)

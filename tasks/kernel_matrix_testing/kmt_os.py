@@ -74,7 +74,14 @@ class Linux:
 
     @staticmethod
     def assert_user_in_docker_group(ctx):
-        ctx.run("cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep 'docker:' | cut -d ':' -f 3)")
+        ret = ctx.run(
+            "cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep 'docker:' | cut -d ':' -f 3)",
+            warn=True,
+        )
+        if ret is None or not ret.ok:
+            raise Exit(
+                f"User '{getpass.getuser()}' is not in docker group. Please resolve this https://docs.docker.com/engine/install/linux-postinstall/"
+            )
 
     @staticmethod
     def init_local(ctx):
@@ -86,6 +93,8 @@ class Linux:
         )
         ctx.run(f"{sudo} sed --in-place 's/#user = \"root\"/user = \"{user}\"/' {Linux.qemu_conf}")
         ctx.run(f"{sudo} sed --in-place 's/#group = \"root\"/group = \"kvm\"/' {Linux.qemu_conf}")
+
+        ctx.run(f"sudo mkdir -p {Linux.shared_dir}")
 
         with open("/etc/exports") as f:
             if "/opt/kernel-version-testing 100.0.0.0/8(ro,no_root_squash,no_subtree_check)" not in f.read():

@@ -12,11 +12,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"syscall"
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
 // yamlEvent represents an event that can be marshaled to and unmarshaled from
@@ -31,8 +33,8 @@ func wrapEventForYAML(ev event) yamlEvent {
 }
 
 // MarshalYAML implements custom YAML marshaling for events.
-func (ye yamlEvent) MarshalYAML() (interface{}, error) {
-	encodeNodeTag := func(tag string, data interface{}) (*yaml.Node, error) {
+func (ye yamlEvent) MarshalYAML() (rv any, err error) {
+	encodeNodeTag := func(tag string, data any) (*yaml.Node, error) {
 		node := &yaml.Node{}
 		err := node.Encode(data)
 		if err != nil {
@@ -53,9 +55,12 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 		}
 
 		eventData := struct {
-			Updated []processUpdateYaml `yaml:"updated,omitempty"`
-			Removed []int               `yaml:"removed,omitempty"`
-		}{}
+			TenantID tenantID            `yaml:"tenant_id,omitempty"`
+			Updated  []processUpdateYaml `yaml:"updated,omitempty"`
+			Removed  []int               `yaml:"removed,omitempty"`
+		}{
+			TenantID: ev.tenantID,
+		}
 
 		// Convert updated processes
 		for _, proc := range ev.updated {
@@ -88,17 +93,6 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 
 		return encodeNodeTag("!processes-updated", eventData)
 
-	case eventProgramCompiled:
-		return encodeNodeTag("!compiled", map[string]int{
-			"program_id": int(ev.programID),
-		})
-
-	case eventProgramCompilationFailed:
-		return encodeNodeTag("!compilation-failed", map[string]any{
-			"program_id": int(ev.programID),
-			"error":      ev.err.Error(),
-		})
-
 	case eventProgramLoaded:
 		return encodeNodeTag("!loaded", map[string]int{
 			"program_id": int(ev.programID),
@@ -112,7 +106,7 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 
 	case eventProgramAttached:
 		return encodeNodeTag("!attached", map[string]int{
-			"program_id": int(ev.program.progID),
+			"program_id": int(ev.program.ir.ID),
 			"process_id": int(ev.program.procID.PID),
 		})
 
@@ -127,6 +121,11 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 		return encodeNodeTag("!detached", map[string]int{
 			"program_id": int(ev.programID),
 			"process_id": int(ev.processID.PID),
+		})
+
+	case eventProgramUnloaded:
+		return encodeNodeTag("!unloaded", map[string]int{
+			"program_id": int(ev.programID),
 		})
 
 	case eventShutdown:
@@ -165,8 +164,9 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		var eventData struct {
-			Updated []processUpdateYaml `yaml:"updated,omitempty"`
-			Removed []int               `yaml:"removed,omitempty"`
+			TenantID tenantID            `yaml:"tenant_id,omitempty"`
+			Updated  []processUpdateYaml `yaml:"updated,omitempty"`
+			Removed  []int               `yaml:"removed,omitempty"`
 		}
 		if err := node.Decode(&eventData); err != nil {
 			return fmt.Errorf("failed to decode processes-updated event: %w", err)
@@ -175,30 +175,29 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		// Convert updated processes
 		var updated []ProcessUpdate
 		for _, proc := range eventData.Updated {
-			var probes []config.Probe
+			var probes []ir.ProbeDefinition
 			for _, p := range proc.Probes {
-				// Convert string type to config.Type
 				probeJSON, err := json.Marshal(p)
 				if err != nil {
 					return fmt.Errorf("failed to marshal probe: %w", err)
 				}
-				probe, err := config.UnmarshalProbe(probeJSON)
+				rcProbe, err := rcjson.UnmarshalProbe(probeJSON)
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal probe: %w", err)
 				}
-				probes = append(probes, probe)
+				probes = append(probes, rcProbe)
 			}
 
 			updated = append(updated, ProcessUpdate{
 				ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
 				Executable: Executable{
 					Path: proc.Executable.Path,
-					Key: FileKey{
-						FileHandle: FileHandle{
+					Key: procmon.FileKey{
+						FileHandle: procmon.FileHandle{
 							Dev: proc.Executable.Key.FileHandle.Dev,
 							Ino: proc.Executable.Key.FileHandle.Ino,
 						},
-						FileCookie: FileCookie{
+						LastModified: syscall.Timespec{
 							Sec:  proc.Executable.Key.FileCookie.Sec,
 							Nsec: proc.Executable.Key.FileCookie.Nsec,
 						},
@@ -215,35 +214,9 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		ye.event = eventProcessesUpdated{
-			updated: updated,
-			removed: removedProcessIDs,
-		}
-
-	case "compiled":
-		var eventData struct {
-			ProgramID int `yaml:"program_id"`
-		}
-		if err := node.Decode(&eventData); err != nil {
-			return fmt.Errorf("failed to decode compiled event: %w", err)
-		}
-		ye.event = eventProgramCompiled{
-			programID: ir.ProgramID(eventData.ProgramID),
-			compiledProgram: &CompiledProgram{
-				IR: &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
-			},
-		}
-
-	case "compilation-failed":
-		var eventData struct {
-			ProgramID int    `yaml:"program_id"`
-			Error     string `yaml:"error"`
-		}
-		if err := node.Decode(&eventData); err != nil {
-			return fmt.Errorf("failed to decode compilation-failed event: %w", err)
-		}
-		ye.event = eventProgramCompilationFailed{
-			programID: ir.ProgramID(eventData.ProgramID),
-			err:       errors.New(eventData.Error),
+			tenantID: eventData.TenantID,
+			updated:  updated,
+			removed:  removedProcessIDs,
 		}
 
 	case "loaded":
@@ -255,8 +228,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramLoaded{
 			programID: ir.ProgramID(eventData.ProgramID),
-			loadedProgram: &loadedProgram{
-				id: ir.ProgramID(eventData.ProgramID),
+			loaded: &loadedProgram{
+				ir: &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
 			},
 		}
 
@@ -283,7 +256,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramAttached{
 			program: &attachedProgram{
-				progID: ir.ProgramID(eventData.ProgramID),
+				ir:     &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
 				procID: ProcessID{PID: int32(eventData.ProcessID)},
 			},
 		}
@@ -314,6 +287,17 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		ye.event = eventProgramDetached{
 			programID: ir.ProgramID(eventData.ProgramID),
 			processID: ProcessID{PID: int32(eventData.ProcessID)},
+		}
+
+	case "unloaded":
+		var eventData struct {
+			ProgramID int `yaml:"program_id"`
+		}
+		if err := node.Decode(&eventData); err != nil {
+			return fmt.Errorf("failed to decode unloaded event: %w", err)
+		}
+		ye.event = eventProgramUnloaded{
+			programID: ir.ProgramID(eventData.ProgramID),
 		}
 
 	case "shutdown":

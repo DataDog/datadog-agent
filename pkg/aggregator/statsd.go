@@ -6,21 +6,29 @@
 package aggregator
 
 import (
+	"context"
 	"os"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewStatsdDirect creates a direct interface to the dogstatsd demultiplexer, but exposing the statsd.ClientInterface
-func NewStatsdDirect(demux DemultiplexerWithAggregator) (ddgostatsd.ClientInterface, error) {
+func NewStatsdDirect(demux DemultiplexerWithAggregator, hostnameComp hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 	eventsChan, serviceCheckChan := demux.GetEventsAndServiceChecksChannels()
+	hostname, err := hostnameComp.Get(context.TODO())
+	if err != nil {
+		log.Warnf("error getting hostname for statsd direct client: %s", err)
+		hostname = ""
+	}
 	return &statsdDirect{
 		demux:            demux,
 		eventsChan:       eventsChan,
@@ -29,6 +37,7 @@ func NewStatsdDirect(demux DemultiplexerWithAggregator) (ddgostatsd.ClientInterf
 			LocalData:     origindetection.LocalData{ProcessID: uint32(os.Getpid())},
 			ProductOrigin: origindetection.ProductOriginDogStatsD,
 		},
+		hostname: hostname,
 	}, nil
 }
 
@@ -39,6 +48,7 @@ type statsdDirect struct {
 	eventsChan       chan []*event.Event
 	serviceCheckChan chan []*servicecheck.ServiceCheck
 	origin           taggertypes.OriginInfo
+	hostname         string
 }
 
 func (s statsdDirect) Gauge(name string, value float64, tags []string, rate float64) error {
@@ -47,6 +57,7 @@ func (s statsdDirect) Gauge(name string, value float64, tags []string, rate floa
 		Value:      value,
 		Mtype:      metrics.GaugeType,
 		Tags:       tags,
+		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
 		OriginInfo: s.origin,
@@ -60,6 +71,7 @@ func (s statsdDirect) GaugeWithTimestamp(name string, value float64, tags []stri
 		Value:      value,
 		Mtype:      metrics.GaugeType,
 		Tags:       tags,
+		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(timestamp.Unix()),
 		OriginInfo: s.origin,
@@ -73,6 +85,7 @@ func (s statsdDirect) Count(name string, value int64, tags []string, rate float6
 		Value:      float64(value),
 		Mtype:      metrics.CountType,
 		Tags:       tags,
+		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
 		OriginInfo: s.origin,
@@ -86,6 +99,7 @@ func (s statsdDirect) CountWithTimestamp(name string, value int64, tags []string
 		Value:      float64(value),
 		Mtype:      metrics.CountType,
 		Tags:       tags,
+		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(timestamp.Unix()),
 		OriginInfo: s.origin,
@@ -99,6 +113,7 @@ func (s statsdDirect) Histogram(name string, value float64, tags []string, rate 
 		Value:      value,
 		Mtype:      metrics.HistogramType,
 		Tags:       tags,
+		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
 		OriginInfo: s.origin,
@@ -112,6 +127,7 @@ func (s statsdDirect) Distribution(name string, value float64, tags []string, ra
 		Value:      value,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
+		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
 		OriginInfo: s.origin,
@@ -133,6 +149,7 @@ func (s statsdDirect) Set(name string, value string, tags []string, rate float64
 		RawValue:   value,
 		Mtype:      metrics.SetType,
 		Tags:       tags,
+		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
 		OriginInfo: s.origin,
@@ -150,6 +167,7 @@ func (s statsdDirect) TimeInMilliseconds(name string, value float64, tags []stri
 		Value:      value,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
+		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
 		OriginInfo: s.origin,
