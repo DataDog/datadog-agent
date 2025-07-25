@@ -82,7 +82,6 @@ var windowsFiles = []string{
 	"counter_strings.txt",
 	"servicestatus.json",
 	"datadog.reg",
-	"agent_user_info.json",
 }
 
 // linuxFiles contains files that are specific to Linux
