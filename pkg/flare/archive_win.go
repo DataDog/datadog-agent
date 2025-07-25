@@ -279,57 +279,13 @@ func getEventLogConfig(fb flaretypes.FlareBuilder) error {
 
 }
 
-func getDDUserGroupsAndRightsStatus(fb flaretypes.FlareBuilder) error {
-	return fb.AddFileFromFunc(
-		"agent_user_info.json",
-		func() ([]byte, error) {
-			// Get user groups and rights status
-			var hasDesiredGroups, hasDesiredRights bool
-			var groupsErr, rightsErr error
-
-			// We don't use/report actualGroups or actualRights in this flare function
-			_, hasDesiredGroups, groupsErr = winutil.DoesAgentUserHaveDesiredGroups()
-			_, hasDesiredRights, rightsErr = winutil.DoesAgentUserHaveDesiredRights()
-
-			// Helper function to convert bool + error to simple status
-			getStatusString := func(hasDesired bool, err error) string {
-				if err != nil {
-					return "ERROR"
-				}
-				if hasDesired {
-					return "YES"
-				}
-				return "NO"
-			}
-
-			// Simple result structure - just YES/NO
-			result := map[string]interface{}{
-				"hasDesiredGroups": hasDesiredGroups,
-				"hasDesiredRights": hasDesiredRights,
-				"groupsStatus":     getStatusString(hasDesiredGroups, groupsErr),
-				"rightsStatus":     getStatusString(hasDesiredRights, rightsErr),
-			}
-
-			// Marshal to JSON
-			ddUserStatusJSON, err := json.MarshalIndent(result, "", "  ")
-			if err != nil {
-				log.Warnf("Error marshaling DDAgent user status to JSON %v", err)
-				return nil, err
-			}
-
-			return ddUserStatusJSON, nil
-		},
-	)
-}
-
 func getWindowsData(fb flaretypes.FlareBuilder) error {
-	getTypeperfData(fb)                //nolint:errcheck
-	getLodctrOutput(fb)                //nolint:errcheck
-	getCounterStrings(fb)              //nolint:errcheck
-	getWindowsEventLogs(fb)            //nolint:errcheck
-	getServiceStatus(fb)               //nolint:errcheck
-	getDatadogRegistry(fb)             //nolint:errcheck
-	getEventLogConfig(fb)              //nolint:errcheck
-	getDDUserGroupsAndRightsStatus(fb) //nolint:errcheck
+	getTypeperfData(fb)     //nolint:errcheck
+	getLodctrOutput(fb)     //nolint:errcheck
+	getCounterStrings(fb)   //nolint:errcheck
+	getWindowsEventLogs(fb) //nolint:errcheck
+	getServiceStatus(fb)    //nolint:errcheck
+	getDatadogRegistry(fb)  //nolint:errcheck
+	getEventLogConfig(fb)   //nolint:errcheck
 	return nil
 }
