@@ -7,9 +7,7 @@
 #                                                                        #
 ##########################################################################
 
-INSTALL_DIR=/opt/datadog-agent
-
 # Run the postinst. See pkg/fleet/installer/packages/datadog_agent_ddot_linux.go
-${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent-ddot rpm || true
+datadog-installer postinst datadog-agent-ddot rpm || true
 
 exit 0

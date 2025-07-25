@@ -7,8 +7,6 @@
 #                                                                        #
 ##########################################################################
 
-INSTALL_DIR=/opt/datadog-agent
-
 # If we are inside the Docker container, do nothing
 if [ -n "$DOCKER_DD_AGENT" ]; then
     echo "Installation from docker-dd-agent, nothing to do in postinst"
@@ -16,6 +14,6 @@ if [ -n "$DOCKER_DD_AGENT" ]; then
 fi
 
 # Run the postinst. See pkg/fleet/installer/packages/datadog_agent_ddot_linux.go
-${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent-ddot deb || true
+datadog-installer postinst datadog-agent-ddot deb || true
 
 exit 0
