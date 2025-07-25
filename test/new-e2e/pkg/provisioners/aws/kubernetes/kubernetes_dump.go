@@ -325,9 +325,9 @@ func dumpK8sClusterState(ctx context.Context, kubeconfig *clientcmdapi.Config, o
 					fmt.Fprintf(out, "Failed to get logs: %v\n", err)
 					continue
 				}
-				defer logs.Close()
 
 				_, err = io.Copy(out, logs)
+				logs.Close()
 				if err != nil {
 					fmt.Fprintf(out, "Failed to copy logs: %v\n", err)
 					continue
