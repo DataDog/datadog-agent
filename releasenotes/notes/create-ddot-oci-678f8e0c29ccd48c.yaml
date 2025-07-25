@@ -8,5 +8,4 @@
 ---
 features:
   - |
-    Added support for building, packaging, and installing ddot as an OCI package. The project can now
-    be installed using the image.
+    Added support for building, packaging, and installing the Datadog Distribution of Open Telemetry Collector (DDOT) as an OCI package. The project can now be installed using the Datadog Installer.
