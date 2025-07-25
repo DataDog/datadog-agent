@@ -7,6 +7,7 @@ package testsuite
 
 import (
 	_ "embed"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -81,27 +82,27 @@ func TestTracesV1(t *testing.T) {
 		})
 	})
 
-	// 	t.Run("ignore_resources", func(t *testing.T) {
-	// 		if err := r.RunAgent([]byte(`apm_config:
-	//   ignore_resources: ["GET /healthcheck/11"]`)); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		defer r.KillAgent()
+	t.Run("ignore_resources", func(t *testing.T) {
+		if err := r.RunAgent([]byte(`apm_config: ignore_resources: ["GET /healthcheck/11"]`)); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
 
-	// 		p := testutil.GeneratePayload(5, &testutil.TraceConfig{
-	// 			MinSpans: 5,
-	// 			Keep:     true,
-	// 		}, nil)
-	// 		for _, span := range p[2] {
-	// 			span.Resource = "GET /healthcheck/11"
-	// 		}
-	// 		if err := r.Post(p); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-	// 			payloadsEqual(t, slices.Delete(p, 2, 3), v)
-	// 		})
-	// 	})
+		p := testutil.GeneratePayloadV1(5, &testutil.TraceConfig{
+			MinSpans: 5,
+			Keep:     true,
+		}, nil)
+		for _, span := range p.Chunks[2].Spans {
+			span.SetResource("GET /healthcheck/11")
+		}
+		if err := r.PostV1(p); err != nil {
+			t.Fatal(err)
+		}
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
+			p.Chunks = slices.Delete(p.Chunks, 2, 3)
+			payloadsEqualV1(t, p, v)
+		})
+	})
 
 	// 	t.Run("filter_tags", func(t *testing.T) {
 	// 		if err := r.RunAgent([]byte(`apm_config:
@@ -187,72 +188,6 @@ func TestTracesV1(t *testing.T) {
 			}
 		})
 	})
-
-	// 	t.Run("normalize, obfuscate, sqllexer", func(t *testing.T) {
-	// 		if err := r.RunAgent([]byte("apm_config:\r\n  features:[\"sqllexer\"]\r\n")); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		defer r.KillAgent()
-
-	// 		p := testutil.GeneratePayload(1, &testutil.TraceConfig{
-	// 			MinSpans: 4,
-	// 			Keep:     true,
-	// 		}, nil)
-	// 		for _, span := range p[0] {
-	// 			span.Service = strings.Repeat("a", 200) // Too long
-	// 			span.Name = strings.Repeat("b", 200)    // Too long
-	// 		}
-	// 		p[0][0].Type = "sql"
-	// 		p[0][0].Resource = "SELECT secret FROM users WHERE id = 123"
-	// 		if err := r.Post(p); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-	// 			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", v.TracerPayloads[0].Chunks[0].Spans[0].Resource)
-	// 			for _, s := range v.TracerPayloads[0].Chunks[0].Spans {
-	// 				assert.Len(t, s.Service, 100)
-	// 				assert.Len(t, s.Name, 100)
-	// 			}
-	// 		})
-	// 	})
-
-	// 	t.Run("probabilistic", func(t *testing.T) {
-	// 		if err := r.RunAgent([]byte("apm_config:\r\n  probabilistic_sampler:\r\n    enabled: true\r\n    sampling_percentage: 100\r\n")); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		defer r.KillAgent()
-
-	// 		p := testutil.GeneratePayload(2, &testutil.TraceConfig{
-	// 			MinSpans: 3,
-	// 			Keep:     true,
-	// 		}, nil)
-	// 		if err := r.Post(p); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-	// 			payloadsEqual(t, p, v)
-	// 		})
-	// 	})
-
-	// 	t.Run("ruby-span-events", func(t *testing.T) {
-	// 		if err := r.RunAgent([]byte("apm_config:\r\n  env: my-env")); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		defer r.KillAgent()
-
-	//		if err := r.PostBinary("/v0.4/traces", rubySpanEventsPayload); err != nil {
-	//			t.Fatal(err)
-	//		}
-	//		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-	//			assert.Len(t, v.TracerPayloads[0].Chunks[0].Spans[0].SpanEvents, 1)
-	//			spanEvent := v.TracerPayloads[0].Chunks[0].Spans[0].SpanEvents[0]
-	//			assert.Equal(t, "event-name", spanEvent.Name)
-	//			assert.NotZero(t, spanEvent.TimeUnixNano)
-	//			assert.Len(t, spanEvent.Attributes, 1)
-	//			assert.Equal(t, pb.AttributeAnyValue_AttributeAnyValueType(0), spanEvent.Attributes["key"].Type)
-	//			assert.Equal(t, "value", spanEvent.Attributes["key"].StringValue)
-	//		})
-	//	})
 }
 
 // payloadsEqual validates that the traces in from are the same as the ones in to.
@@ -264,7 +199,6 @@ func payloadsEqualV1(t *testing.T, from *idx.InternalTracerPayload, to *pb.Agent
 	if want := len(from.Chunks); want != got {
 		t.Fatalf("Expected %d traces, got %d", want, got)
 	}
-	// TODO check other fields
 
 	var found int
 	for _, t1 := range from.Chunks {
