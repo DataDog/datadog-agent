@@ -322,17 +322,17 @@ func (s *TimeSampler) dumpContexts(dest io.Writer) error {
 	return s.contextResolver.dumpContexts(dest)
 }
 
-
 // FIMXE find a better place for this
 type fmtWrapper []unique.Handle[string]
+
 func (fw fmtWrapper) Format(f fmt.State, c rune) {
 	buf := []byte{}
 	for i, h := range fw {
 		if i > 0 {
-			f.Write([]byte(", "))
+			_ = f.Write([]byte(", "))
 		}
 		buf = buf[:0]
 		buf = strconv.AppendQuoteToASCII(buf, h.Value())
-		f.Write(buf)
+		_ = f.Write(buf)
 	}
 }
