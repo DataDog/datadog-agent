@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Symbols models the symbols from a binary that get exported to SymDB.
@@ -43,6 +45,40 @@ type Package struct {
 	// receiver Type.
 	Functions []Function
 	Types     []Type
+}
+
+// PackageStats represents statistics about the symbols collected for a package.
+type PackageStats struct {
+	// NumTypes is the number of types in this package represented in the
+	// collected symbols.
+	NumTypes int
+	// NumFunctions is the number of functions in this package represented in
+	// the collected symbols.
+	NumFunctions int
+	// NumSourceFiles is the number of source files that contain functions in
+	// this package.
+	NumSourceFiles int
+}
+
+func (s PackageStats) String() string {
+	return fmt.Sprintf("Types: %d, Functions: %d, Source files: %d",
+		s.NumTypes, s.NumFunctions, s.NumSourceFiles)
+}
+
+// Stats computes statistics about the package's symbols.
+func (p Package) Stats() PackageStats {
+	var res PackageStats
+	res.NumTypes += len(p.Types)
+	res.NumFunctions += len(p.Functions)
+	for _, f := range p.Functions {
+		sourceFiles := make(map[string]struct{}) // Keep track of unique source files.
+		_, ok := sourceFiles[f.File]
+		if !ok {
+			sourceFiles[f.File] = struct{}{}
+			res.NumSourceFiles++
+		}
+	}
+	return res
 }
 
 // Type describes a Go type for SymDB.
@@ -730,6 +766,7 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 		return Package{}, errors.New("compile unit without name")
 	}
 	res.Name = name
+	start := time.Now()
 
 	cuLineReader, err := b.dwarfData.LineReader(entry)
 	if err != nil {
@@ -785,6 +822,12 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 	for i, t := range b.types.packages[res.Name] {
 		res.Types[i] = *t
 	}
+
+	duration := time.Since(start)
+	if duration > 5*time.Second {
+		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats())
+	}
+
 	return res, nil
 }
 
