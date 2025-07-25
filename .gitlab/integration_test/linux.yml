@@ -29,7 +29,7 @@ agent_integration_tests:
 
 docker_integration_tests:
   extends: .integration_tests_deb
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   # This job is not stable yet because of rate limit issues and micro vms beta status.
   allow_failure: true
   script:
