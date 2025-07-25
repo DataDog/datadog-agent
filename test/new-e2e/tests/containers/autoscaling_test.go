@@ -7,13 +7,15 @@ package containers
 
 import (
 	"context"
-	localkubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/local/kubernetes"
-	"testing"
-	"time"
-
+	"encoding/json"
+	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/local/kubernetes"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -24,9 +26,19 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+	"google.golang.org/protobuf/proto"
+)
+
+const (
+	deploymentName = "test-autoscaling-deployment"
+	namespace      = "workload-autoscaling"
+	autoscalerName = "test-autoscaler"
 )
 
 type autoscalingSuite struct {
@@ -38,13 +50,78 @@ type kindAutoscalingSuite struct {
 	autoscalingSuite
 }
 
+// createAutoscalerRemoteConfigPayload creates a protobuf LatestConfigsResponse with autoscaling settings
+func createAutoscalerRemoteConfigPayload(namespace, name, deploymentName string) ([]byte, error) {
+	// Create the autoscaling settings JSON payload
+	autoscalerSpec := &datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+			Name:       deploymentName,
+		},
+		Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+		Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+			{
+				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+					Name: "cpu",
+					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+						Utilization: pointer.Ptr(int32(50)),
+					},
+				},
+			},
+		},
+	}
+
+	settingsList := &model.AutoscalingSettingsList{
+		Settings: []model.AutoscalingSettings{
+			{
+				Namespace: namespace,
+				Name:      name,
+				Specs: &model.AutoscalingSpecs{
+					V1Alpha2: autoscalerSpec,
+				},
+			},
+		},
+	}
+
+	settingsJSON, err := json.Marshal(settingsList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal autoscaling settings: %w", err)
+	}
+
+	// Create the protobuf response with the JSON payload
+	response := &pbgo.LatestConfigsResponse{
+		TargetFiles: []*pbgo.File{
+			{
+				Path: "datadog/2/CONTAINER_AUTOSCALING_SETTINGS/test-config/config",
+				Raw:  settingsJSON,
+			},
+		},
+	}
+
+	return proto.Marshal(response)
+}
+
 func TestEKSAutoscalingSuite(t *testing.T) {
+	// Use proper Helm values structure to enable remote configuration
 	helmValues := `
+remoteConfiguration:
+  enabled: true
+datadog:
+  autoscaling:
+    workload:
+      enabled: true
 clusterAgent:
-    envDict:
-        DD_AUTOSCALING_WORKLOAD_ENABLED: "true"
-        DD_REMOTE_CONFIGURATION_ENABLED: "true"
+  admissionController:
+    remoteInstrumentation:
+      enabled: true
+  envDict:
+    DD_REMOTE_CONFIGURATION_NO_TLS: "true"
+    DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: "5s"
 `
+
 	e2e.Run(t, &kindAutoscalingSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(
 		localkubernetes.WithAgentOptions(
 			kubernetesagentparams.WithDualShipping(),
@@ -61,20 +138,76 @@ clusterAgent:
 	//		kubernetesagentparams.WithDualShipping(),
 	//		kubernetesagentparams.WithHelmValues(helmValues),
 	//	),
+	//
 	//)))
 }
 
 func (suite *kindAutoscalingSuite) SetupSuite() {
 	suite.autoscalingSuite.SetupSuite()
-	suite.Fakeintake = suite.Env().FakeIntake.Client()
+}
+
+func (suite *autoscalingSuite) SetupSuite() {
+	suite.BaseSuite.SetupSuite()
+}
+
+// configureFakeIntakeForAutoscaling sets up FakeIntake override for remote config autoscaling
+func (suite *autoscalingSuite) configureFakeIntakeForAutoscaling() {
+	// Create remote config payload for autoscaling settings
+	payloadBytes, err := createAutoscalerRemoteConfigPayload(namespace, autoscalerName, deploymentName)
+	if err != nil {
+		suite.T().Fatalf("Failed to create remote config payload: %v", err)
+	}
+
+	// Log payload size for debugging
+	suite.T().Logf("Created remote config payload: %d bytes", len(payloadBytes))
+
+	// Override FakeIntake to provide remote config
+	suite.Env().FakeIntake.Client().ConfigureOverride(api.ResponseOverride{
+		Endpoint:    "/api/v0.1/configurations",
+		StatusCode:  200,
+		ContentType: "application/x-protobuf",
+		Body:        payloadBytes, // Use raw protobuf bytes, not base64 encoded
+	})
+
+	suite.T().Logf("Configured FakeIntake override for endpoint: /api/v0.1/configurations")
 }
 
 func (suite *autoscalingSuite) TestAutoscalingRecommendations() {
-	ctx := context.Background()
+	// Get FakeIntake URL for remote config configuration
+	fakeIntakeURL := suite.Env().FakeIntake.URL
 
-	deploymentName := "test-autoscaling-deployment"
-	namespace := "workload-autoscaling"
-	autoscalerName := "test-autoscaler"
+	suite.Assert().NotEmpty(fakeIntakeURL)
+
+	// Recreate entire environment with FakeIntake URL using UpdateEnv correctly
+	suite.UpdateEnv(localkubernetes.Provisioner(
+		localkubernetes.WithAgentOptions(
+			kubernetesagentparams.WithDualShipping(),
+			kubernetesagentparams.WithHelmValues(fmt.Sprintf(`
+remoteConfiguration:
+  enabled: true
+datadog:
+  autoscaling:
+    workload:
+      enabled: true
+clusterAgent:
+  admissionController:
+    remoteInstrumentation:
+      enabled: true
+  envDict:
+    DD_REMOTE_CONFIGURATION_NO_TLS: "true"
+    DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: "5s"
+    DD_REMOTE_CONFIGURATION_RC_DD_URL: "%s"
+    DD_LOG_LEVEL: "debug"
+`, fakeIntakeURL)),
+		),
+	))
+
+	// Configure FakeIntake override after UpdateEnv recreates the environment
+	suite.configureFakeIntakeForAutoscaling()
+
+	// Now use suite.Env().KubernetesCluster which points to the reconstructed cluster agent
+
+	ctx := context.Background()
 
 	dynamicClient, err := dynamic.NewForConfig(suite.Env().KubernetesCluster.KubernetesClient.K8sConfig)
 	suite.Require().NoError(err)
@@ -163,42 +296,44 @@ func (suite *autoscalingSuite) TestAutoscalingRecommendations() {
 		assert.Equal(c, int32(1), dep.Status.ReadyReplicas, "Deployment should have 1 ready replica")
 	}, 2*time.Minute, 10*time.Second, "Deployment should be ready")
 
-	autoscaler := &datadoghq.DatadogPodAutoscaler{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "DatadogPodAutoscaler",
-			APIVersion: "datadoghq.com/v1alpha2",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      autoscalerName,
-			Namespace: namespace,
-		},
-		Spec: datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: autoscalingv2.CrossVersionObjectReference{
-				APIVersion: "apps/v1",
-				Kind:       "Deployment",
-				Name:       deploymentName,
-			},
-			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
-			Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
-				{
-					Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
-					PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
-						Name: "cpu",
-						Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
-							Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
-							Utilization: pointer.Ptr(int32(50)),
-						},
-					},
-				},
-			},
-		},
-	}
+	//autoscaler := &datadoghq.DatadogPodAutoscaler{
+	//	TypeMeta: metav1.TypeMeta{
+	//		Kind:       "DatadogPodAutoscaler",
+	//		APIVersion: "datadoghq.com/v1alpha2",
+	//	},
+	//	ObjectMeta: metav1.ObjectMeta{
+	//		Name:      autoscalerName,
+	//		Namespace: namespace,
+	//	},
+	//	Spec: datadoghq.DatadogPodAutoscalerSpec{
+	//		TargetRef: autoscalingv2.CrossVersionObjectReference{
+	//			APIVersion: "apps/v1",
+	//			Kind:       "Deployment",
+	//			Name:       deploymentName,
+	//		},
+	//		Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+	//		Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+	//			{
+	//				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+	//				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+	//					Name: "cpu",
+	//					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+	//						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+	//						Utilization: pointer.Ptr(int32(50)),
+	//					},
+	//				},
+	//			},
+	//		},
+	//	},
+	//}
 
-	unstructuredAutoscaler, err := convertDatadogPodAutoscalerToUnstructured(autoscaler)
-	suite.Require().NoError(err)
+	//unstructuredAutoscaler, err := convertDatadogPodAutoscalerToUnstructured(autoscaler)
+	//suite.Require().NoError(err)
+	//
+	//_, err = dynamicClient.Resource(DatadogPodAutoscalerGVR).Namespace(namespace).Create(ctx, unstructuredAutoscaler, metav1.CreateOptions{})
+	//suite.Require().NoError(err)
 
-	_, err = dynamicClient.Resource(DatadogPodAutoscalerGVR).Namespace(namespace).Create(ctx, unstructuredAutoscaler, metav1.CreateOptions{})
-	suite.Require().NoError(err)
+	_ = false
 
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		autoscaler, err := dynamicClient.Resource(DatadogPodAutoscalerGVR).Namespace(namespace).Get(ctx, autoscalerName, metav1.GetOptions{})
@@ -248,7 +383,7 @@ func (suite *autoscalingSuite) TestAutoscalingRecommendations() {
 
 	typedAutoscaler.Status.CurrentReplicas = pointer.Ptr(int32(2))
 
-	unstructuredAutoscaler, err = convertDatadogPodAutoscalerToUnstructured(&typedAutoscaler)
+	unstructuredAutoscaler, err := convertDatadogPodAutoscalerToUnstructured(&typedAutoscaler)
 	suite.Require().NoError(err)
 
 	_, err = dynamicClient.Resource(DatadogPodAutoscalerGVR).Namespace(namespace).UpdateStatus(ctx, unstructuredAutoscaler, metav1.UpdateOptions{})
