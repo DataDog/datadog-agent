@@ -971,3 +971,21 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event,
 	}
 	return e.FilterInstructions
 }
+
+// ResolveCapabilitiesAttempted resolves the accumulated attempted capabilities of a capabilities event
+func (fh *EBPFFieldHandlers) ResolveCapabilitiesAttempted(evt *model.Event, ce *model.CapabilitiesEvent) int {
+	attemptedCapabilities := int(ce.Attempted)
+	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
+		attemptedCapabilities |= int(pce.CapsAttempted)
+	}
+	return attemptedCapabilities
+}
+
+// ResolveCapabilitiesUsed resolves the accumulated used capabilities of a capabilities event
+func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model.CapabilitiesEvent) int {
+	usedCapabilities := int(ce.Used)
+	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
+		usedCapabilities |= int(pce.CapsUsed)
+	}
+	return usedCapabilities
+}
