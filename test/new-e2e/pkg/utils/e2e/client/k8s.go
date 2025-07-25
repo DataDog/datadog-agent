@@ -37,8 +37,11 @@ func NewKubernetesClient(config *rest.Config) (*KubernetesClient, error) {
 	}, nil
 }
 
+// PodExecOption is a function that can be used to modify the PodExecOptions
+type PodExecOption func(*corev1.PodExecOptions)
+
 // PodExec execs into a given namespace/pod and returns the output for the given command
-func (k *KubernetesClient) PodExec(namespace, pod, container string, cmd []string) (stdout, stderr string, err error) {
+func (k *KubernetesClient) PodExec(namespace, pod, container string, cmd []string, podOptions ...PodExecOption) (stdout, stderr string, err error) {
 	req := k.K8sClient.CoreV1().RESTClient().Post().Resource("pods").Namespace(namespace).Name(pod).SubResource("exec")
 	option := &corev1.PodExecOptions{
 		Stdin:     false,
@@ -47,6 +50,10 @@ func (k *KubernetesClient) PodExec(namespace, pod, container string, cmd []strin
 		TTY:       false,
 		Container: container,
 		Command:   cmd,
+	}
+
+	for _, podOption := range podOptions {
+		podOption(option)
 	}
 
 	req.VersionedParams(

@@ -344,7 +344,8 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 
 	stackNameSuffix, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackNameSuffix, "")
 	if err != nil {
-		fmt.Printf("unable to get stack name suffix: %v\n", err)
+		fmt.Printf("unable to get stack name suffix, ignoring stack name suffix: %v\n", err)
+		stackNameSuffix = ""
 	}
 	if bs.params.stackName == "" {
 		sType := reflect.TypeOf(self).Elem()
