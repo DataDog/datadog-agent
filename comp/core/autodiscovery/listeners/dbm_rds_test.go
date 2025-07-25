@@ -34,8 +34,8 @@ func TestDBMRdsListener(t *testing.T) {
 			config: map[string]interface{}{
 				"discovery_interval": 1,
 				"query_timeout":      1,
-				"region":            "us-east-1",
-				"tags":              []string{defaultADTag},
+				"region":             "us-east-1",
+				"tags":               []string{defaultADTag},
 				"dbm_tag":            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
@@ -53,8 +53,8 @@ func TestDBMRdsListener(t *testing.T) {
 			name: "GetRdsInstancesFromTags error produces no services",
 			config: map[string]interface{}{
 				"discovery_interval": 1,
-				"region":            "us-east-1",
-				"tags":              []string{defaultADTag},
+				"region":             "us-east-1",
+				"tags":               []string{defaultADTag},
 				"dbm_tag":            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
@@ -68,8 +68,8 @@ func TestDBMRdsListener(t *testing.T) {
 			name: "single endpoint discovered and created",
 			config: map[string]interface{}{
 				"discovery_interval": 1,
-				"region":            "us-east-1",
-				"tags":              []string{defaultADTag},
+				"region":             "us-east-1",
+				"tags":               []string{defaultADTag},
 				"dbm_tag":            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 1,
@@ -108,8 +108,8 @@ func TestDBMRdsListener(t *testing.T) {
 			name: "multiple instances discovered and created",
 			config: map[string]interface{}{
 				"discovery_interval": 1,
-				"region":            "us-east-1",
-				"tags":              []string{defaultADTag},
+				"region":             "us-east-1",
+				"tags":               []string{defaultADTag},
 				"dbm_tag":            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 1,

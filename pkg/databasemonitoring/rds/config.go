@@ -19,12 +19,12 @@ type AutodiscoveryConfig struct {
 
 // Config represents the configuration for auto-discovering database clusters
 type Config struct {
-	Enabled           bool `json:"enabled"`
-	DiscoveryInterval int  `json:"discovery_interval"`
-	QueryTimeout      int  `json:"query_timeout"`
+	Enabled           bool     `json:"enabled"`
+	DiscoveryInterval int      `json:"discovery_interval"`
+	QueryTimeout      int      `json:"query_timeout"`
 	Tags              []string `json:"tags"`
-	DbmTag            string `json:"dbm_tag"`
-	Region            string `json:"region"` // auto-discovered from instance metadata
+	DbmTag            string   `json:"dbm_tag"`
+	Region            string   `json:"region"` // auto-discovered from instance metadata
 }
 
 // NewRdsAutodiscoveryConfig parses configuration and returns a built Config

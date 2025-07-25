@@ -9,8 +9,8 @@ package listeners
 
 import (
 	"context"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 	"sync"
