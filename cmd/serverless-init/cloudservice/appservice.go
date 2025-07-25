@@ -7,6 +7,7 @@
 package cloudservice
 
 import (
+	"fmt"
 	"maps"
 	"os"
 
@@ -62,6 +63,11 @@ func (a *AppService) GetPrefix() string {
 // Init is empty for AppService
 func (a *AppService) Init() error {
 	return nil
+}
+
+// GetStartMetricName returns the metric name for container start (coldstart) events
+func (a *AppService) GetStartMetricName() string {
+	return fmt.Sprintf("%s.enhanced.cold_start", a.GetPrefix())
 }
 
 func isAppService() bool {

@@ -139,6 +139,11 @@ func (c *ContainerApp) Init() error {
 	return nil
 }
 
+// GetStartMetricName returns the metric name for container start (coldstart) events
+func (c *ContainerApp) GetStartMetricName() string {
+	return fmt.Sprintf("%s.enhanced.cold_start", c.GetPrefix())
+}
+
 func isContainerAppService() bool {
 	_, exists := os.LookupEnv(ContainerAppNameEnvVar)
 	return exists

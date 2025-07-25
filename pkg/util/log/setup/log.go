@@ -109,7 +109,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	log.SetupLogger(loggerInterface, seelogLogLevel)
 
 	// Registering a callback in case of "log_level" update
-	cfg.OnUpdate(func(setting string, oldValue, newValue any, _ uint64) {
+	cfg.OnUpdate(func(setting string, _ pkgconfigmodel.Source, oldValue, newValue any, _ uint64) {
 		if setting != "log_level" || oldValue == newValue {
 			return
 		}

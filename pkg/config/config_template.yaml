@@ -3074,12 +3074,18 @@ api_key:
   # extra_tags:
   #   - <TAG_KEY>:<TAG_VALUE>
 
-  ## @param advanced_dispatching_enabled - boolean - optional - default: false
-  ## @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: false
+  ## @param advanced_dispatching_enabled - boolean - optional - default: true
+  ## @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: true
   ## If advanced_dispatching_enabled is true the leader cluster-agent collects stats
   ## from the cluster level check runners to optimize the check dispatching logic.
   #
-  # advanced_dispatching_enabled: false
+  # advanced_dispatching_enabled: true
+
+  ## @param rebalance_with_utilization - boolean - optional - default: true
+  ## @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: true
+  ## If rebalance_with_utilization is true, the cluster-agent will rebalance cluster checks using node utilization.
+  #
+  # rebalance_with_utilization: true
 
   ## @param clc_runners_port - integer - optional - default: 5005
   ## @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005
