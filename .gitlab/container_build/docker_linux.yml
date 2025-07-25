@@ -88,6 +88,17 @@
       if [[ "$FLATTEN_IMAGE" == "true" ]]; then
         crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
       fi
+    # Calculate the on disk and on wire size of the image
+    - |
+      ON_DISK_SIZE=$(crane export ${TARGET_TAG} | wc -c)
+      echo "On disk size: $ON_DISK_SIZE"
+      ON_WIRE_SIZE=$(crane pull ${TARGET_TAG} | wc -c)
+      echo "On wire size: $ON_WIRE_SIZE"
+      echo "{\"image_tag\":\"${TARGET_TAG}\",\"on_disk_size\":\"${ON_DISK_SIZE}\",\"on_wire_size\":\"${ON_WIRE_SIZE}\"}" > ${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH.json
+  artifacts:
+    paths:
+      - ${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH.json
+    expire_in: 1 week
   # Workaround for temporary network failures
   retry: 2
   timeout: 30m
