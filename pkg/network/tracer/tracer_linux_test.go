@@ -3107,3 +3107,182 @@ func (s *TracerSuite) TestTCPSynRst() {
 	assert.Equal(t, uint32(1), conn.TCPFailures[uint16(unix.ECONNREFUSED)])
 	assert.Equal(t, uint16(1), conn.Monotonic.TCPClosed)
 }
+
+func (s *TracerSuite) TestPlaintextClassification() {
+	t := s.T()
+	cfg := testConfig()
+
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+
+	tr := setupTracer(t, cfg)
+
+	// Test plaintext HTTP traffic
+	t.Run("PlaintextHTTP", func(t *testing.T) {
+		if ebpftest.GetBuildMode() == ebpftest.Fentry {
+			t.Skip("protocol classification not supported for fentry tracer")
+		}
+		t.Cleanup(func() {
+			tr.RemoveClient(clientID)
+			_ = tr.Pause()
+		})
+
+		// Set up a simple HTTP server
+		srv := usmtestutil.NewTCPServer("localhost:0", func(conn net.Conn) {
+			defer conn.Close()
+			tracertestutil.SetTestDeadline(conn)
+			buf := make([]byte, 1024)
+			_, err := conn.Read(buf)
+			if err != nil {
+				if err != io.EOF {
+					t.Logf("Failed to read data: %v\n", err)
+				}
+				return
+			}
+			// Send a simple HTTP response
+			response := "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nHello"
+			_, err = conn.Write([]byte(response))
+			if err != nil {
+				t.Logf("Failed to write response: %v\n", err)
+			}
+		}, false)
+		done := make(chan struct{})
+		require.NoError(t, srv.Run(done))
+		t.Cleanup(func() { close(done) })
+
+		waitForTracer(t, tr, srv.Address())
+
+		tr.RemoveClient(clientID)
+		require.NoError(t, tr.RegisterClient(clientID))
+		require.NoError(t, tr.Resume(), "enable probes - before post tracer")
+
+		// Get the port assigned to the server
+		addr := srv.Address()
+		_, portStr, err := net.SplitHostPort(addr)
+		require.NoError(t, err)
+		portInt, err := strconv.Atoi(portStr)
+		require.NoError(t, err)
+		port := uint16(portInt)
+
+		// Make a plaintext HTTP request
+		conn, err := tracertestutil.DialTCP("tcp", addr)
+		require.NoError(t, err)
+		defer conn.Close()
+		tracertestutil.SetTestDeadline(conn)
+
+		// Send HTTP request
+		request := "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+		_, err = conn.Write([]byte(request))
+		require.NoError(t, err)
+
+		// Read response
+		buf := make([]byte, 1024)
+		_, err = conn.Read(buf)
+		require.NoError(t, err)
+
+		require.NoError(t, tr.Pause(), "disable probes - after post tracer")
+
+		// Verify plaintext encryption layer is detected along with HTTP application layer
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			payload, cleanup := getConnections(ct, tr)
+			defer cleanup()
+
+			var found bool
+			for _, c := range payload.Conns {
+				if c.DPort == port {
+					// Should have plaintext encryption layer
+					assert.True(ct, c.ProtocolStack.Encryption == protocols.Plaintext, "expected plaintext encryption layer, got %v", c.ProtocolStack.Encryption)
+					// Should also have HTTP application layer
+					assert.True(ct, c.ProtocolStack.Application == protocols.HTTP, "expected HTTP application layer, got %v", c.ProtocolStack.Application)
+					// Should not have TLS
+					assert.False(ct, c.ProtocolStack.Contains(protocols.TLS), "unexpected TLS protocol")
+					found = true
+					break
+				}
+			}
+			require.True(ct, found, "couldn't find connection matching: dst port %v", port)
+		}, 3*time.Second, 100*time.Millisecond, "couldn't find plaintext HTTP connection")
+	})
+
+	// Test plaintext non-HTTP traffic
+	t.Run("PlaintextTCP", func(t *testing.T) {
+		if ebpftest.GetBuildMode() == ebpftest.Fentry {
+			t.Skip("protocol classification not supported for fentry tracer")
+		}
+		t.Cleanup(func() {
+			tr.RemoveClient(clientID)
+			_ = tr.Pause()
+		})
+		tr.RemoveClient(clientID)
+		require.NoError(t, tr.RegisterClient(clientID))
+		require.NoError(t, tr.Resume(), "enable probes - before post tracer")
+
+		// Set up a simple TCP server that sends non-HTTP data
+		srv := usmtestutil.NewTCPServer("localhost:0", func(conn net.Conn) {
+			defer conn.Close()
+			tracertestutil.SetTestDeadline(conn)
+			buf := make([]byte, 1024)
+			_, err := conn.Read(buf)
+			if err != nil {
+				if err != io.EOF {
+					t.Logf("Failed to read data: %v\n", err)
+				}
+				return
+			}
+			// Send some arbitrary non-HTTP data
+			_, err = conn.Write([]byte("some arbitrary non-HTTP data"))
+			if err != nil {
+				t.Logf("Failed to write response: %v\n", err)
+			}
+		}, false)
+		done := make(chan struct{})
+		require.NoError(t, srv.Run(done))
+		t.Cleanup(func() { close(done) })
+
+		// Get the port assigned to the server
+		addr := srv.Address()
+		_, portStr, err := net.SplitHostPort(addr)
+		require.NoError(t, err)
+		portInt, err := strconv.Atoi(portStr)
+		require.NoError(t, err)
+		port := uint16(portInt)
+
+		// Make a plaintext TCP connection
+		conn, err := tracertestutil.DialTCP("tcp", addr)
+		require.NoError(t, err)
+		defer conn.Close()
+		tracertestutil.SetTestDeadline(conn)
+
+		// Send arbitrary data
+		_, err = conn.Write([]byte("some test data that is not HTTP or TLS"))
+		require.NoError(t, err)
+
+		// Read response
+		buf := make([]byte, 1024)
+		_, err = conn.Read(buf)
+		require.NoError(t, err)
+
+		require.NoError(t, tr.Pause(), "disable probes - after post tracer")
+
+		// Verify plaintext encryption layer is detected
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			payload, cleanup := getConnections(ct, tr)
+			defer cleanup()
+			var found bool
+			for _, c := range payload.Conns {
+				if c.DPort == port {
+					// Should have plaintext encryption layer
+					assert.True(ct, c.ProtocolStack.Encryption == protocols.Plaintext, "expected plaintext encryption layer, got %v", c.ProtocolStack.Encryption)
+					// Should not have any application layer protocol (since it's not HTTP/etc)
+					assert.Equal(ct, protocols.Unknown, c.ProtocolStack.Application, "expected no application layer protocol, got %v", c.ProtocolStack.Application)
+					// Should not have TLS
+					assert.False(ct, c.ProtocolStack.Contains(protocols.TLS), "unexpected TLS protocol")
+					found = true
+					break
+				}
+			}
+			require.True(ct, found, "couldn't find connection matching: dst port %v", port)
+		}, 3*time.Second, 100*time.Millisecond, "couldn't find plaintext TCP connection")
+	})
+}

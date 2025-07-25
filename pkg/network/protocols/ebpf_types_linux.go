@@ -80,6 +80,8 @@ const (
 
 	ebpfTLS ebpfProtocolType = 0x8001
 
+	ebpfPlaintext ebpfProtocolType = 0x8002
+
 	ebpfMongo ebpfProtocolType = 0x4004
 
 	ebpfPostgres ebpfProtocolType = 0x4005
