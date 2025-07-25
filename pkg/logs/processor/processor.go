@@ -82,7 +82,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 }
 
 // onLogsFailoverSettingChanged is called when any config value changes
-func (p *Processor) onLogsFailoverSettingChanged(setting string, _, _ any, _ uint64) {
+func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64) {
 	// Only update if the changed setting affects failover configuration
 	failoverSettingChanged := setting == "multi_region_failover.failover_logs" || setting == "multi_region_failover.logs_allowlist"
 	if failoverSettingChanged {
@@ -153,7 +153,10 @@ func (p *Processor) run() {
 
 	for {
 		select {
-		case msg := <-p.inputChan:
+		case msg, ok := <-p.inputChan:
+			if !ok {
+				return
+			}
 			p.processMessage(msg)
 			p.mu.Lock() // block here if we're trying to flush synchronously
 			//nolint:staticcheck

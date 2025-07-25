@@ -248,7 +248,7 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 // flushBuffer sends all the messages that are stored in the buffer and forwards them
 // to the next stage of the pipeline.
 func (s *batchStrategy) flushBuffer(b *batch, outputChan chan *message.Payload) {
-	if b.buffer.IsEmpty() {
+	if b == nil || b.buffer.IsEmpty() {
 		return
 	}
 
