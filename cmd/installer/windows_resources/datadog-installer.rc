@@ -3,7 +3,7 @@
 #define APP_MANIFEST 1
 
 
-//APP_MANIFEST RT_MANIFEST datadog-installer.exe.manifest
+//APP_MANIFEST RT_MANIFEST agent.exe.manifest
 
 #define MAIN_ICON 1
 
