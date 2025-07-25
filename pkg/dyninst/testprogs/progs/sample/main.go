@@ -11,6 +11,8 @@ import (
 	"os"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib"
 )
 
 func main() {
@@ -37,4 +39,5 @@ func main() {
 	executeInterfaceFuncs()
 	go returnGoroutineId()
 
+	lib.Foo()
 }
