@@ -3,8 +3,10 @@ import unittest
 from unittest.mock import ANY, MagicMock, patch
 
 from invoke import Context, MockContext, Result
+from invoke.exceptions import Exit
 
-from tasks.quality_gates import display_pr_comment, generate_new_quality_gate_config
+from tasks.libs.package.size import InfraError
+from tasks.quality_gates import display_pr_comment, generate_new_quality_gate_config, parse_and_trigger_gates
 from tasks.static_quality_gates.lib.docker_agent_lib import calculate_image_on_disk_size
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
 
@@ -16,6 +18,30 @@ class MockMetricHandler:
 
 
 class TestQualityGatesConfigUpdate(unittest.TestCase):
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+            'CI_COMMIT_REF_SLUG': 'pikachu',
+            'BUCKET_BRANCH': 'main',
+        },
+    )
+    @patch("builtins.__import__")
+    def test_parse_and_trigger_gates_infra_error(self, mock_import):
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"restart\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+            }
+        )
+        mock_quality_gates_module = MagicMock()
+        mock_quality_gates_module.some_gate_high.entrypoint.side_effect = InfraError("Test infra error message")
+        mock_import.return_value = mock_quality_gates_module
+        with self.assertRaises(Exit) as cm:
+            parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
+            assert "Test infra error message" in str(cm.exception)
+
     def test_one_gate_update(self):
         with open("tasks/unit_tests/testdata/quality_gate_config_test.yml") as f:
             new_config, saved_amount = generate_new_quality_gate_config(
@@ -33,6 +59,12 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                             "max_on_wire_size": 5000000,
                             "current_on_disk_size": 4000000,
                             "max_on_disk_size": 5000000,
+                        },
+                        "static_quality_gate_docker_agent_amd64": {
+                            "current_on_wire_size": 50000000,
+                            "max_on_wire_size": 100000000,
+                            "current_on_disk_size": 50000000,
+                            "max_on_disk_size": 100000000,
                         },
                     }
                 ),
@@ -71,6 +103,14 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                             "relative_on_disk_size": 242424,
                             "current_on_disk_size": 4000000,
                             "max_on_disk_size": 5000000,
+                        },
+                        "static_quality_gate_docker_agent_amd64": {
+                            "relative_on_wire_size": 424242,
+                            "current_on_wire_size": 50000000,
+                            "max_on_wire_size": 100000000,
+                            "current_on_disk_size": 50000000,
+                            "relative_on_disk_size": 242424,
+                            "max_on_disk_size": 100000000,
                         },
                     }
                 ),
@@ -233,6 +273,32 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             title='Static quality checks',
             body='❌ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n### Error\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|❌|gateA|DataNotFound|DataNotFound|DataNotFound|DataNotFound|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n\n</details>\n\nStatic quality gates prevent the PR to merge! \nTo understand the size increase caused by this PR, feel free to use the [debug_static_quality_gates](https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000) manual gitlab job to compare what this PR introduced for a specific gate.\nUsage:\n- Run the manual job with the following Key / Value pair as CI/CD variable on the gitlab UI. Example for amd64 deb packages\nKey: `GATE_NAME`, Value: `static_quality_gate_agent_deb_amd64`\n\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n\n\n',
         )
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+            'CI_COMMIT_REF_SLUG': 'pikachu',
+            'CI_COMMIT_SHORT_SHA': '1234567890',
+            'BUCKET_BRANCH': 'nightly',
+        },
+    )
+    @patch("tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
+    @patch("tasks.static_quality_gates.static_quality_gate_docker_agent_amd64.entrypoint")
+    def test_nightly_run(self, mock_generic_docker_agent_quality_gate):
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"restart\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done"),
+            }
+        )
+
+        with self.assertRaises(Exit):
+            parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
+        # This way we ensure that the nightly condition has been met
+        assert mock_generic_docker_agent_quality_gate.call_args[1]["nightly"]
 
 
 class DynamicMockContext:

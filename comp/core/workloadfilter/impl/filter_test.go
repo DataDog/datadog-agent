@@ -357,6 +357,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("sbom.container_image.enabled", true)
 			mockConfig.SetWithoutSource("sbom.container_image.container_include", tt.include)
 			mockConfig.SetWithoutSource("sbom.container_image.container_exclude", tt.exclude)
 			mockConfig.SetWithoutSource("sbom.container_image.exclude_pause_container", tt.pauseCtn)

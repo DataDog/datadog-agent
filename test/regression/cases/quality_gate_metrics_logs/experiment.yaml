@@ -1,0 +1,55 @@
+optimization_goal: memory
+erratic: false
+
+target:
+  name: datadog-agent
+  cpu_allotment: 4
+  memory_allotment: 5 GiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-regression
+
+  profiling_environment:
+    DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+    DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLED: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+    DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+    DD_PROFILING_WAIT_PROFILE: true
+
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:uds_dogstatsd_to_api_cpu
+
+checks:
+  - name: memory_usage
+    description: "Memory usage quality gate. This puts a bound on the total collector memory usage."
+    bounds:
+      series: total_pss_bytes
+      upper_bound: 5 GiB
+
+  - name: cpu_usage
+    description: "CPU usage quality gate. This puts a bound on the total average collector millicore usage."
+    bounds:
+      series: avg(total_cpu_usage_millicores)
+      upper_bound: 4000
+
+  - name: intake_connections
+    description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."
+    bounds:
+      series: "connection.current"
+      upper_bound: 6
+
+  - name: lost_bytes
+    description: "Allowable bytes not processed by Agent"
+    bounds:
+      series: lost_bytes
+      upper_bound: 0KiB
+
+report_links:
+  - text: "bounds checks dashboard"
+    link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"

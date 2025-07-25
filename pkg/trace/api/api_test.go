@@ -248,6 +248,18 @@ func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
+func TestTracesDecodeSlowDecodeInvalid(t *testing.T) {
+	r := newTestReceiverFromConfig(newTestReceiverConfig())
+	r.Start()
+	defer r.Stop()
+	data := []byte("\x96\x90\xdd\x01\x7D\x78\x3F")
+	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
 func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
 	cfg := newTestReceiverConfig()

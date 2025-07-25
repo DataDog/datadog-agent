@@ -416,6 +416,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "cgroup_write.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "cgroup_write.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -671,6 +682,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "chdir.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "chdir.file.filesystem":
@@ -961,6 +983,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "chmod.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Chmod.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "chmod.file.filesystem":
@@ -1281,6 +1314,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveChownUID(ev, &ev.Chown)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chown.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Chown.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2134,6 +2178,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exec.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -2592,6 +2650,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "exec.interpreter.file.filesystem":
@@ -3329,6 +3401,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exit.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exit.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3699,6 +3785,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "exit.interpreter.file.filesystem":
@@ -4235,6 +4335,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "link.file.destination.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Link.Target)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "link.file.destination.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -4465,6 +4576,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Link.Target.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Link.Source)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4782,6 +4904,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "load_module.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "load_module.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -5083,6 +5216,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "mkdir.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Mkdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "mkdir.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -5360,6 +5504,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "mmap.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.MMap.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "mmap.file.filesystem":
@@ -6404,6 +6559,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "open.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "open.file.filesystem":
@@ -7496,6 +7662,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.file.extension":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileExtension(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileExtension(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -8343,6 +8541,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.interpreter.file.extension":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileExtension(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileExtension(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -9613,6 +9843,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -9983,6 +10227,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "process.interpreter.file.filesystem":
@@ -10663,6 +10921,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -11111,6 +11386,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.interpreter.file.filesystem":
@@ -12407,6 +12699,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.file.extension":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileExtension(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileExtension(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -13254,6 +13578,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.extension":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileExtension(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileExtension(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -14524,6 +14880,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.PTrace.Tracee.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -14894,6 +15264,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.interpreter.file.filesystem":
@@ -15574,6 +15958,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -16022,6 +16423,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.filesystem":
@@ -16673,6 +17091,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "removexattr.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.RemoveXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "removexattr.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -16941,6 +17370,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "rename.file.destination.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Rename.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "rename.file.destination.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -17171,6 +17611,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Rename.New.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Rename.Old)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -17453,6 +17904,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "rmdir.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Rmdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "rmdir.file.filesystem":
@@ -18522,6 +18984,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.file.extension":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileExtension(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileExtension(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -19369,6 +19863,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.extension":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileExtension(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileExtension(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -20639,6 +21165,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -21009,6 +21549,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.interpreter.file.filesystem":
@@ -21689,6 +22243,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -22137,6 +22708,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.interpreter.file.filesystem":
@@ -22959,6 +23547,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveXAttrNamespace(ev, &ev.SetXAttr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setxattr.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.SetXAttr.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -23888,6 +24487,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.file.extension":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileExtension(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileExtension(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -24735,6 +25366,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.extension":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileExtension(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileExtension(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -26005,6 +26668,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Signal.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -26375,6 +27052,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.interpreter.file.filesystem":
@@ -27055,6 +27746,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Signal.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -27503,6 +28211,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.interpreter.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.interpreter.file.filesystem":
@@ -28143,6 +28868,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "splice.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Splice.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "splice.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -28510,6 +29246,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "unlink.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Unlink.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "unlink.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -28833,6 +29580,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "utimes.file.extension":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Utimes.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "utimes.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -29124,6 +29882,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"cgroup.manager",
 		"cgroup.version",
 		"cgroup_write.file.change_time",
+		"cgroup_write.file.extension",
 		"cgroup_write.file.filesystem",
 		"cgroup_write.file.gid",
 		"cgroup_write.file.group",
@@ -29147,6 +29906,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"cgroup_write.file.user",
 		"cgroup_write.pid",
 		"chdir.file.change_time",
+		"chdir.file.extension",
 		"chdir.file.filesystem",
 		"chdir.file.gid",
 		"chdir.file.group",
@@ -29173,6 +29933,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"chmod.file.change_time",
 		"chmod.file.destination.mode",
 		"chmod.file.destination.rights",
+		"chmod.file.extension",
 		"chmod.file.filesystem",
 		"chmod.file.gid",
 		"chmod.file.group",
@@ -29202,6 +29963,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.file.destination.group",
 		"chown.file.destination.uid",
 		"chown.file.destination.user",
+		"chown.file.extension",
 		"chown.file.filesystem",
 		"chown.file.gid",
 		"chown.file.group",
@@ -29278,6 +30040,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.euid",
 		"exec.euser",
 		"exec.file.change_time",
+		"exec.file.extension",
 		"exec.file.filesystem",
 		"exec.file.gid",
 		"exec.file.group",
@@ -29314,6 +30077,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.gid",
 		"exec.group",
 		"exec.interpreter.file.change_time",
+		"exec.interpreter.file.extension",
 		"exec.interpreter.file.filesystem",
 		"exec.interpreter.file.gid",
 		"exec.interpreter.file.group",
@@ -29375,6 +30139,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.euid",
 		"exit.euser",
 		"exit.file.change_time",
+		"exit.file.extension",
 		"exit.file.filesystem",
 		"exit.file.gid",
 		"exit.file.group",
@@ -29403,6 +30168,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.gid",
 		"exit.group",
 		"exit.interpreter.file.change_time",
+		"exit.interpreter.file.extension",
 		"exit.interpreter.file.filesystem",
 		"exit.interpreter.file.gid",
 		"exit.interpreter.file.group",
@@ -29446,6 +30212,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"imds.user_agent",
 		"link.file.change_time",
 		"link.file.destination.change_time",
+		"link.file.destination.extension",
 		"link.file.destination.filesystem",
 		"link.file.destination.gid",
 		"link.file.destination.group",
@@ -29467,6 +30234,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.destination.rights",
 		"link.file.destination.uid",
 		"link.file.destination.user",
+		"link.file.extension",
 		"link.file.filesystem",
 		"link.file.gid",
 		"link.file.group",
@@ -29495,6 +30263,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"load_module.args_truncated",
 		"load_module.argv",
 		"load_module.file.change_time",
+		"load_module.file.extension",
 		"load_module.file.filesystem",
 		"load_module.file.gid",
 		"load_module.file.group",
@@ -29522,6 +30291,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"mkdir.file.change_time",
 		"mkdir.file.destination.mode",
 		"mkdir.file.destination.rights",
+		"mkdir.file.extension",
 		"mkdir.file.filesystem",
 		"mkdir.file.gid",
 		"mkdir.file.group",
@@ -29547,6 +30317,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"mkdir.syscall.mode",
 		"mkdir.syscall.path",
 		"mmap.file.change_time",
+		"mmap.file.extension",
 		"mmap.file.filesystem",
 		"mmap.file.gid",
 		"mmap.file.group",
@@ -29624,6 +30395,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ondemand.name",
 		"open.file.change_time",
 		"open.file.destination.mode",
+		"open.file.extension",
 		"open.file.filesystem",
 		"open.file.gid",
 		"open.file.group",
@@ -29688,6 +30460,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.euid",
 		"process.ancestors.euser",
 		"process.ancestors.file.change_time",
+		"process.ancestors.file.extension",
 		"process.ancestors.file.filesystem",
 		"process.ancestors.file.gid",
 		"process.ancestors.file.group",
@@ -29716,6 +30489,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.gid",
 		"process.ancestors.group",
 		"process.ancestors.interpreter.file.change_time",
+		"process.ancestors.interpreter.file.extension",
 		"process.ancestors.interpreter.file.filesystem",
 		"process.ancestors.interpreter.file.gid",
 		"process.ancestors.interpreter.file.group",
@@ -29775,6 +30549,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.euid",
 		"process.euser",
 		"process.file.change_time",
+		"process.file.extension",
 		"process.file.filesystem",
 		"process.file.gid",
 		"process.file.group",
@@ -29803,6 +30578,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.gid",
 		"process.group",
 		"process.interpreter.file.change_time",
+		"process.interpreter.file.extension",
 		"process.interpreter.file.filesystem",
 		"process.interpreter.file.gid",
 		"process.interpreter.file.group",
@@ -29852,6 +30628,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.euid",
 		"process.parent.euser",
 		"process.parent.file.change_time",
+		"process.parent.file.extension",
 		"process.parent.file.filesystem",
 		"process.parent.file.gid",
 		"process.parent.file.group",
@@ -29880,6 +30657,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.gid",
 		"process.parent.group",
 		"process.parent.interpreter.file.change_time",
+		"process.parent.interpreter.file.extension",
 		"process.parent.interpreter.file.filesystem",
 		"process.parent.interpreter.file.gid",
 		"process.parent.interpreter.file.group",
@@ -29949,6 +30727,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.euid",
 		"ptrace.tracee.ancestors.euser",
 		"ptrace.tracee.ancestors.file.change_time",
+		"ptrace.tracee.ancestors.file.extension",
 		"ptrace.tracee.ancestors.file.filesystem",
 		"ptrace.tracee.ancestors.file.gid",
 		"ptrace.tracee.ancestors.file.group",
@@ -29977,6 +30756,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.gid",
 		"ptrace.tracee.ancestors.group",
 		"ptrace.tracee.ancestors.interpreter.file.change_time",
+		"ptrace.tracee.ancestors.interpreter.file.extension",
 		"ptrace.tracee.ancestors.interpreter.file.filesystem",
 		"ptrace.tracee.ancestors.interpreter.file.gid",
 		"ptrace.tracee.ancestors.interpreter.file.group",
@@ -30036,6 +30816,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.euid",
 		"ptrace.tracee.euser",
 		"ptrace.tracee.file.change_time",
+		"ptrace.tracee.file.extension",
 		"ptrace.tracee.file.filesystem",
 		"ptrace.tracee.file.gid",
 		"ptrace.tracee.file.group",
@@ -30064,6 +30845,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.gid",
 		"ptrace.tracee.group",
 		"ptrace.tracee.interpreter.file.change_time",
+		"ptrace.tracee.interpreter.file.extension",
 		"ptrace.tracee.interpreter.file.filesystem",
 		"ptrace.tracee.interpreter.file.gid",
 		"ptrace.tracee.interpreter.file.group",
@@ -30113,6 +30895,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.euid",
 		"ptrace.tracee.parent.euser",
 		"ptrace.tracee.parent.file.change_time",
+		"ptrace.tracee.parent.file.extension",
 		"ptrace.tracee.parent.file.filesystem",
 		"ptrace.tracee.parent.file.gid",
 		"ptrace.tracee.parent.file.group",
@@ -30141,6 +30924,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.gid",
 		"ptrace.tracee.parent.group",
 		"ptrace.tracee.parent.interpreter.file.change_time",
+		"ptrace.tracee.parent.interpreter.file.extension",
 		"ptrace.tracee.parent.interpreter.file.filesystem",
 		"ptrace.tracee.parent.interpreter.file.gid",
 		"ptrace.tracee.parent.interpreter.file.group",
@@ -30186,6 +30970,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"removexattr.file.change_time",
 		"removexattr.file.destination.name",
 		"removexattr.file.destination.namespace",
+		"removexattr.file.extension",
 		"removexattr.file.filesystem",
 		"removexattr.file.gid",
 		"removexattr.file.group",
@@ -30210,6 +30995,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"removexattr.retval",
 		"rename.file.change_time",
 		"rename.file.destination.change_time",
+		"rename.file.destination.extension",
 		"rename.file.destination.filesystem",
 		"rename.file.destination.gid",
 		"rename.file.destination.group",
@@ -30231,6 +31017,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.destination.rights",
 		"rename.file.destination.uid",
 		"rename.file.destination.user",
+		"rename.file.extension",
 		"rename.file.filesystem",
 		"rename.file.gid",
 		"rename.file.group",
@@ -30256,6 +31043,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.syscall.destination.path",
 		"rename.syscall.path",
 		"rmdir.file.change_time",
+		"rmdir.file.extension",
 		"rmdir.file.filesystem",
 		"rmdir.file.gid",
 		"rmdir.file.group",
@@ -30318,6 +31106,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.euid",
 		"setrlimit.target.ancestors.euser",
 		"setrlimit.target.ancestors.file.change_time",
+		"setrlimit.target.ancestors.file.extension",
 		"setrlimit.target.ancestors.file.filesystem",
 		"setrlimit.target.ancestors.file.gid",
 		"setrlimit.target.ancestors.file.group",
@@ -30346,6 +31135,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.gid",
 		"setrlimit.target.ancestors.group",
 		"setrlimit.target.ancestors.interpreter.file.change_time",
+		"setrlimit.target.ancestors.interpreter.file.extension",
 		"setrlimit.target.ancestors.interpreter.file.filesystem",
 		"setrlimit.target.ancestors.interpreter.file.gid",
 		"setrlimit.target.ancestors.interpreter.file.group",
@@ -30405,6 +31195,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.euid",
 		"setrlimit.target.euser",
 		"setrlimit.target.file.change_time",
+		"setrlimit.target.file.extension",
 		"setrlimit.target.file.filesystem",
 		"setrlimit.target.file.gid",
 		"setrlimit.target.file.group",
@@ -30433,6 +31224,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.gid",
 		"setrlimit.target.group",
 		"setrlimit.target.interpreter.file.change_time",
+		"setrlimit.target.interpreter.file.extension",
 		"setrlimit.target.interpreter.file.filesystem",
 		"setrlimit.target.interpreter.file.gid",
 		"setrlimit.target.interpreter.file.group",
@@ -30482,6 +31274,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.euid",
 		"setrlimit.target.parent.euser",
 		"setrlimit.target.parent.file.change_time",
+		"setrlimit.target.parent.file.extension",
 		"setrlimit.target.parent.file.filesystem",
 		"setrlimit.target.parent.file.gid",
 		"setrlimit.target.parent.file.group",
@@ -30510,6 +31303,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.gid",
 		"setrlimit.target.parent.group",
 		"setrlimit.target.parent.interpreter.file.change_time",
+		"setrlimit.target.parent.interpreter.file.extension",
 		"setrlimit.target.parent.interpreter.file.filesystem",
 		"setrlimit.target.parent.interpreter.file.gid",
 		"setrlimit.target.parent.interpreter.file.group",
@@ -30571,6 +31365,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setxattr.file.change_time",
 		"setxattr.file.destination.name",
 		"setxattr.file.destination.namespace",
+		"setxattr.file.extension",
 		"setxattr.file.filesystem",
 		"setxattr.file.gid",
 		"setxattr.file.group",
@@ -30620,6 +31415,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.euid",
 		"signal.target.ancestors.euser",
 		"signal.target.ancestors.file.change_time",
+		"signal.target.ancestors.file.extension",
 		"signal.target.ancestors.file.filesystem",
 		"signal.target.ancestors.file.gid",
 		"signal.target.ancestors.file.group",
@@ -30648,6 +31444,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.gid",
 		"signal.target.ancestors.group",
 		"signal.target.ancestors.interpreter.file.change_time",
+		"signal.target.ancestors.interpreter.file.extension",
 		"signal.target.ancestors.interpreter.file.filesystem",
 		"signal.target.ancestors.interpreter.file.gid",
 		"signal.target.ancestors.interpreter.file.group",
@@ -30707,6 +31504,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.euid",
 		"signal.target.euser",
 		"signal.target.file.change_time",
+		"signal.target.file.extension",
 		"signal.target.file.filesystem",
 		"signal.target.file.gid",
 		"signal.target.file.group",
@@ -30735,6 +31533,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.gid",
 		"signal.target.group",
 		"signal.target.interpreter.file.change_time",
+		"signal.target.interpreter.file.extension",
 		"signal.target.interpreter.file.filesystem",
 		"signal.target.interpreter.file.gid",
 		"signal.target.interpreter.file.group",
@@ -30784,6 +31583,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.euid",
 		"signal.target.parent.euser",
 		"signal.target.parent.file.change_time",
+		"signal.target.parent.file.extension",
 		"signal.target.parent.file.filesystem",
 		"signal.target.parent.file.gid",
 		"signal.target.parent.file.group",
@@ -30812,6 +31612,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.gid",
 		"signal.target.parent.group",
 		"signal.target.parent.interpreter.file.change_time",
+		"signal.target.parent.interpreter.file.extension",
 		"signal.target.parent.interpreter.file.filesystem",
 		"signal.target.parent.interpreter.file.gid",
 		"signal.target.parent.interpreter.file.group",
@@ -30856,6 +31657,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.user_session.k8s_username",
 		"signal.type",
 		"splice.file.change_time",
+		"splice.file.extension",
 		"splice.file.filesystem",
 		"splice.file.gid",
 		"splice.file.group",
@@ -30889,6 +31691,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"sysctl.value",
 		"sysctl.value_truncated",
 		"unlink.file.change_time",
+		"unlink.file.extension",
 		"unlink.file.filesystem",
 		"unlink.file.gid",
 		"unlink.file.group",
@@ -30918,6 +31721,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"unload_module.name",
 		"unload_module.retval",
 		"utimes.file.change_time",
+		"utimes.file.extension",
 		"utimes.file.filesystem",
 		"utimes.file.gid",
 		"utimes.file.group",
@@ -30942,16 +31746,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.retval",
 		"utimes.syscall.path",
 	}
-}
-func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
-	m := &Model{}
-	evaluator, err := m.GetEvaluator(field, "", 0)
-	if err != nil {
-		return nil, err
-	}
-	ctx := eval.NewContext(ev)
-	value := evaluator.Eval(ctx)
-	return value, nil
 }
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
 	switch field {
@@ -31013,6 +31807,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "cgroup_write.file.change_time":
 		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.extension":
+		return "cgroup_write", reflect.String, "string", nil
 	case "cgroup_write.file.filesystem":
 		return "cgroup_write", reflect.String, "string", nil
 	case "cgroup_write.file.gid":
@@ -31059,6 +31855,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "cgroup_write", reflect.Int, "int", nil
 	case "chdir.file.change_time":
 		return "chdir", reflect.Int, "int", nil
+	case "chdir.file.extension":
+		return "chdir", reflect.String, "string", nil
 	case "chdir.file.filesystem":
 		return "chdir", reflect.String, "string", nil
 	case "chdir.file.gid":
@@ -31111,6 +31909,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "chmod", reflect.Int, "int", nil
 	case "chmod.file.destination.rights":
 		return "chmod", reflect.Int, "int", nil
+	case "chmod.file.extension":
+		return "chmod", reflect.String, "string", nil
 	case "chmod.file.filesystem":
 		return "chmod", reflect.String, "string", nil
 	case "chmod.file.gid":
@@ -31168,6 +31968,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "chown.file.destination.uid":
 		return "chown", reflect.Int, "int", nil
 	case "chown.file.destination.user":
+		return "chown", reflect.String, "string", nil
+	case "chown.file.extension":
 		return "chown", reflect.String, "string", nil
 	case "chown.file.filesystem":
 		return "chown", reflect.String, "string", nil
@@ -31321,6 +32123,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.String, "string", nil
 	case "exec.file.change_time":
 		return "exec", reflect.Int, "int", nil
+	case "exec.file.extension":
+		return "exec", reflect.String, "string", nil
 	case "exec.file.filesystem":
 		return "exec", reflect.String, "string", nil
 	case "exec.file.gid":
@@ -31393,6 +32197,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.String, "string", nil
 	case "exec.interpreter.file.change_time":
 		return "exec", reflect.Int, "int", nil
+	case "exec.interpreter.file.extension":
+		return "exec", reflect.String, "string", nil
 	case "exec.interpreter.file.filesystem":
 		return "exec", reflect.String, "string", nil
 	case "exec.interpreter.file.gid":
@@ -31515,6 +32321,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.String, "string", nil
 	case "exit.file.change_time":
 		return "exit", reflect.Int, "int", nil
+	case "exit.file.extension":
+		return "exit", reflect.String, "string", nil
 	case "exit.file.filesystem":
 		return "exit", reflect.String, "string", nil
 	case "exit.file.gid":
@@ -31571,6 +32379,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.String, "string", nil
 	case "exit.interpreter.file.change_time":
 		return "exit", reflect.Int, "int", nil
+	case "exit.interpreter.file.extension":
+		return "exit", reflect.String, "string", nil
 	case "exit.interpreter.file.filesystem":
 		return "exit", reflect.String, "string", nil
 	case "exit.interpreter.file.gid":
@@ -31657,6 +32467,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "link", reflect.Int, "int", nil
 	case "link.file.destination.change_time":
 		return "link", reflect.Int, "int", nil
+	case "link.file.destination.extension":
+		return "link", reflect.String, "string", nil
 	case "link.file.destination.filesystem":
 		return "link", reflect.String, "string", nil
 	case "link.file.destination.gid":
@@ -31698,6 +32510,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "link.file.destination.uid":
 		return "link", reflect.Int, "int", nil
 	case "link.file.destination.user":
+		return "link", reflect.String, "string", nil
+	case "link.file.extension":
 		return "link", reflect.String, "string", nil
 	case "link.file.filesystem":
 		return "link", reflect.String, "string", nil
@@ -31755,6 +32569,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "load_module", reflect.String, "string", nil
 	case "load_module.file.change_time":
 		return "load_module", reflect.Int, "int", nil
+	case "load_module.file.extension":
+		return "load_module", reflect.String, "string", nil
 	case "load_module.file.filesystem":
 		return "load_module", reflect.String, "string", nil
 	case "load_module.file.gid":
@@ -31809,6 +32625,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mkdir", reflect.Int, "int", nil
 	case "mkdir.file.destination.rights":
 		return "mkdir", reflect.Int, "int", nil
+	case "mkdir.file.extension":
+		return "mkdir", reflect.String, "string", nil
 	case "mkdir.file.filesystem":
 		return "mkdir", reflect.String, "string", nil
 	case "mkdir.file.gid":
@@ -31859,6 +32677,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mkdir", reflect.String, "string", nil
 	case "mmap.file.change_time":
 		return "mmap", reflect.Int, "int", nil
+	case "mmap.file.extension":
+		return "mmap", reflect.String, "string", nil
 	case "mmap.file.filesystem":
 		return "mmap", reflect.String, "string", nil
 	case "mmap.file.gid":
@@ -32013,6 +32833,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "open", reflect.Int, "int", nil
 	case "open.file.destination.mode":
 		return "open", reflect.Int, "int", nil
+	case "open.file.extension":
+		return "open", reflect.String, "string", nil
 	case "open.file.filesystem":
 		return "open", reflect.String, "string", nil
 	case "open.file.gid":
@@ -32141,6 +32963,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.ancestors.file.change_time":
 		return "", reflect.Int, "int", nil
+	case "process.ancestors.file.extension":
+		return "", reflect.String, "string", nil
 	case "process.ancestors.file.filesystem":
 		return "", reflect.String, "string", nil
 	case "process.ancestors.file.gid":
@@ -32197,6 +33021,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.ancestors.interpreter.file.change_time":
 		return "", reflect.Int, "int", nil
+	case "process.ancestors.interpreter.file.extension":
+		return "", reflect.String, "string", nil
 	case "process.ancestors.interpreter.file.filesystem":
 		return "", reflect.String, "string", nil
 	case "process.ancestors.interpreter.file.gid":
@@ -32315,6 +33141,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.file.change_time":
 		return "", reflect.Int, "int", nil
+	case "process.file.extension":
+		return "", reflect.String, "string", nil
 	case "process.file.filesystem":
 		return "", reflect.String, "string", nil
 	case "process.file.gid":
@@ -32371,6 +33199,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.interpreter.file.change_time":
 		return "", reflect.Int, "int", nil
+	case "process.interpreter.file.extension":
+		return "", reflect.String, "string", nil
 	case "process.interpreter.file.filesystem":
 		return "", reflect.String, "string", nil
 	case "process.interpreter.file.gid":
@@ -32469,6 +33299,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.parent.file.change_time":
 		return "", reflect.Int, "int", nil
+	case "process.parent.file.extension":
+		return "", reflect.String, "string", nil
 	case "process.parent.file.filesystem":
 		return "", reflect.String, "string", nil
 	case "process.parent.file.gid":
@@ -32525,6 +33357,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.parent.interpreter.file.change_time":
 		return "", reflect.Int, "int", nil
+	case "process.parent.interpreter.file.extension":
+		return "", reflect.String, "string", nil
 	case "process.parent.interpreter.file.filesystem":
 		return "", reflect.String, "string", nil
 	case "process.parent.interpreter.file.gid":
@@ -32663,6 +33497,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.file.change_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.ancestors.file.extension":
+		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.file.filesystem":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.file.gid":
@@ -32719,6 +33555,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.interpreter.file.change_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.ancestors.interpreter.file.extension":
+		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
@@ -32837,6 +33675,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.file.change_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.file.extension":
+		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.file.filesystem":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.file.gid":
@@ -32893,6 +33733,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.interpreter.file.change_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.interpreter.file.extension":
+		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.interpreter.file.filesystem":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.interpreter.file.gid":
@@ -32991,6 +33833,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.file.change_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.parent.file.extension":
+		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.file.filesystem":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.file.gid":
@@ -33047,6 +33891,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.interpreter.file.change_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.parent.interpreter.file.extension":
+		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.interpreter.file.filesystem":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.interpreter.file.gid":
@@ -33137,6 +33983,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "removexattr", reflect.String, "string", nil
 	case "removexattr.file.destination.namespace":
 		return "removexattr", reflect.String, "string", nil
+	case "removexattr.file.extension":
+		return "removexattr", reflect.String, "string", nil
 	case "removexattr.file.filesystem":
 		return "removexattr", reflect.String, "string", nil
 	case "removexattr.file.gid":
@@ -33185,6 +34033,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rename", reflect.Int, "int", nil
 	case "rename.file.destination.change_time":
 		return "rename", reflect.Int, "int", nil
+	case "rename.file.destination.extension":
+		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.filesystem":
 		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.gid":
@@ -33226,6 +34076,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "rename.file.destination.uid":
 		return "rename", reflect.Int, "int", nil
 	case "rename.file.destination.user":
+		return "rename", reflect.String, "string", nil
+	case "rename.file.extension":
 		return "rename", reflect.String, "string", nil
 	case "rename.file.filesystem":
 		return "rename", reflect.String, "string", nil
@@ -33277,6 +34129,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rename", reflect.String, "string", nil
 	case "rmdir.file.change_time":
 		return "rmdir", reflect.Int, "int", nil
+	case "rmdir.file.extension":
+		return "rmdir", reflect.String, "string", nil
 	case "rmdir.file.filesystem":
 		return "rmdir", reflect.String, "string", nil
 	case "rmdir.file.gid":
@@ -33401,6 +34255,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.file.change_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.extension":
+		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.file.filesystem":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.file.gid":
@@ -33457,6 +34313,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.interpreter.file.change_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.extension":
+		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.interpreter.file.filesystem":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.interpreter.file.gid":
@@ -33575,6 +34433,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.file.change_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.extension":
+		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.file.filesystem":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.file.gid":
@@ -33631,6 +34491,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.interpreter.file.change_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.extension":
+		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.interpreter.file.filesystem":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.interpreter.file.gid":
@@ -33729,6 +34591,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.file.change_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.extension":
+		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.file.filesystem":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.file.gid":
@@ -33785,6 +34649,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.interpreter.file.change_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.extension":
+		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.interpreter.file.filesystem":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.interpreter.file.gid":
@@ -33907,6 +34773,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setxattr", reflect.String, "string", nil
 	case "setxattr.file.destination.namespace":
 		return "setxattr", reflect.String, "string", nil
+	case "setxattr.file.extension":
+		return "setxattr", reflect.String, "string", nil
 	case "setxattr.file.filesystem":
 		return "setxattr", reflect.String, "string", nil
 	case "setxattr.file.gid":
@@ -34005,6 +34873,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.file.change_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.ancestors.file.extension":
+		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.file.filesystem":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.file.gid":
@@ -34061,6 +34931,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.interpreter.file.change_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.ancestors.interpreter.file.extension":
+		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.interpreter.file.filesystem":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.interpreter.file.gid":
@@ -34179,6 +35051,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.file.change_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.file.extension":
+		return "signal", reflect.String, "string", nil
 	case "signal.target.file.filesystem":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.file.gid":
@@ -34235,6 +35109,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.interpreter.file.change_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.interpreter.file.extension":
+		return "signal", reflect.String, "string", nil
 	case "signal.target.interpreter.file.filesystem":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.interpreter.file.gid":
@@ -34333,6 +35209,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.file.change_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.parent.file.extension":
+		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.file.filesystem":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.file.gid":
@@ -34389,6 +35267,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.interpreter.file.change_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.parent.interpreter.file.extension":
+		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.interpreter.file.filesystem":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.interpreter.file.gid":
@@ -34477,6 +35357,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", nil
 	case "splice.file.change_time":
 		return "splice", reflect.Int, "int", nil
+	case "splice.file.extension":
+		return "splice", reflect.String, "string", nil
 	case "splice.file.filesystem":
 		return "splice", reflect.String, "string", nil
 	case "splice.file.gid":
@@ -34543,6 +35425,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "sysctl", reflect.Bool, "bool", nil
 	case "unlink.file.change_time":
 		return "unlink", reflect.Int, "int", nil
+	case "unlink.file.extension":
+		return "unlink", reflect.String, "string", nil
 	case "unlink.file.filesystem":
 		return "unlink", reflect.String, "string", nil
 	case "unlink.file.gid":
@@ -34601,6 +35485,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "unload_module", reflect.Int, "int", nil
 	case "utimes.file.change_time":
 		return "utimes", reflect.Int, "int", nil
+	case "utimes.file.extension":
+		return "utimes", reflect.String, "string", nil
 	case "utimes.file.filesystem":
 		return "utimes", reflect.String, "string", nil
 	case "utimes.file.gid":
@@ -34649,20 +35535,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "utimes", reflect.String, "string", nil
 	}
 	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
-}
-func (ev *Event) initProcess() {
-	if ev.BaseEvent.ProcessContext == nil {
-		ev.BaseEvent.ProcessContext = &ProcessContext{}
-	}
-	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-	}
-	if ev.BaseEvent.ProcessContext.Parent == nil {
-		ev.BaseEvent.ProcessContext.Parent = &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process
-	}
-	if ev.Exec.Process == nil {
-		ev.Exec.Process = &Process{}
-	}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
@@ -34767,6 +35639,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setIntFieldValue("cgroup.version", &ev.CGroupContext.CGroupVersion, value)
 	case "cgroup_write.file.change_time":
 		return ev.setUint64FieldValue("cgroup_write.file.change_time", &ev.CgroupWrite.File.FileFields.CTime, value)
+	case "cgroup_write.file.extension":
+		return ev.setStringFieldValue("cgroup_write.file.extension", &ev.CgroupWrite.File.Extension, value)
 	case "cgroup_write.file.filesystem":
 		return ev.setStringFieldValue("cgroup_write.file.filesystem", &ev.CgroupWrite.File.Filesystem, value)
 	case "cgroup_write.file.gid":
@@ -34813,6 +35687,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("cgroup_write.pid", &ev.CgroupWrite.Pid, value)
 	case "chdir.file.change_time":
 		return ev.setUint64FieldValue("chdir.file.change_time", &ev.Chdir.File.FileFields.CTime, value)
+	case "chdir.file.extension":
+		return ev.setStringFieldValue("chdir.file.extension", &ev.Chdir.File.Extension, value)
 	case "chdir.file.filesystem":
 		return ev.setStringFieldValue("chdir.file.filesystem", &ev.Chdir.File.Filesystem, value)
 	case "chdir.file.gid":
@@ -34865,6 +35741,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("chmod.file.destination.mode", &ev.Chmod.Mode, value)
 	case "chmod.file.destination.rights":
 		return ev.setUint32FieldValue("chmod.file.destination.rights", &ev.Chmod.Mode, value)
+	case "chmod.file.extension":
+		return ev.setStringFieldValue("chmod.file.extension", &ev.Chmod.File.Extension, value)
 	case "chmod.file.filesystem":
 		return ev.setStringFieldValue("chmod.file.filesystem", &ev.Chmod.File.Filesystem, value)
 	case "chmod.file.gid":
@@ -34923,6 +35801,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setInt64FieldValue("chown.file.destination.uid", &ev.Chown.UID, value)
 	case "chown.file.destination.user":
 		return ev.setStringFieldValue("chown.file.destination.user", &ev.Chown.User, value)
+	case "chown.file.extension":
+		return ev.setStringFieldValue("chown.file.extension", &ev.Chown.File.Extension, value)
 	case "chown.file.filesystem":
 		return ev.setStringFieldValue("chown.file.filesystem", &ev.Chown.File.Filesystem, value)
 	case "chown.file.gid":
@@ -35110,6 +35990,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("exec.euser", &ev.Exec.Process.Credentials.EUser, value)
 	case "exec.file.change_time":
 		return ev.setUint64FieldValue("exec.file.change_time", &ev.Exec.Process.FileEvent.FileFields.CTime, value)
+	case "exec.file.extension":
+		return ev.setStringFieldValue("exec.file.extension", &ev.Exec.Process.FileEvent.Extension, value)
 	case "exec.file.filesystem":
 		return ev.setStringFieldValue("exec.file.filesystem", &ev.Exec.Process.FileEvent.Filesystem, value)
 	case "exec.file.gid":
@@ -35186,6 +36068,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("exec.interpreter.file.change_time", &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "exec.interpreter.file.extension":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("exec.interpreter.file.extension", &ev.Exec.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "exec.interpreter.file.filesystem":
 		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.filesystem", value)
 		if err != nil || !cont {
@@ -35469,6 +36357,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Exit.Process = &Process{}
 		}
 		return ev.setUint64FieldValue("exit.file.change_time", &ev.Exit.Process.FileEvent.FileFields.CTime, value)
+	case "exit.file.extension":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setStringFieldValue("exit.file.extension", &ev.Exit.Process.FileEvent.Extension, value)
 	case "exit.file.filesystem":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -35613,6 +36506,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("exit.interpreter.file.change_time", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "exit.interpreter.file.extension":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("exit.interpreter.file.extension", &ev.Exit.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "exit.interpreter.file.filesystem":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -35874,6 +36776,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("link.file.change_time", &ev.Link.Source.FileFields.CTime, value)
 	case "link.file.destination.change_time":
 		return ev.setUint64FieldValue("link.file.destination.change_time", &ev.Link.Target.FileFields.CTime, value)
+	case "link.file.destination.extension":
+		return ev.setStringFieldValue("link.file.destination.extension", &ev.Link.Target.Extension, value)
 	case "link.file.destination.filesystem":
 		return ev.setStringFieldValue("link.file.destination.filesystem", &ev.Link.Target.Filesystem, value)
 	case "link.file.destination.gid":
@@ -35916,6 +36820,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("link.file.destination.uid", &ev.Link.Target.FileFields.UID, value)
 	case "link.file.destination.user":
 		return ev.setStringFieldValue("link.file.destination.user", &ev.Link.Target.FileFields.User, value)
+	case "link.file.extension":
+		return ev.setStringFieldValue("link.file.extension", &ev.Link.Source.Extension, value)
 	case "link.file.filesystem":
 		return ev.setStringFieldValue("link.file.filesystem", &ev.Link.Source.Filesystem, value)
 	case "link.file.gid":
@@ -35972,6 +36878,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringArrayFieldValue("load_module.argv", &ev.LoadModule.Argv, value)
 	case "load_module.file.change_time":
 		return ev.setUint64FieldValue("load_module.file.change_time", &ev.LoadModule.File.FileFields.CTime, value)
+	case "load_module.file.extension":
+		return ev.setStringFieldValue("load_module.file.extension", &ev.LoadModule.File.Extension, value)
 	case "load_module.file.filesystem":
 		return ev.setStringFieldValue("load_module.file.filesystem", &ev.LoadModule.File.Filesystem, value)
 	case "load_module.file.gid":
@@ -36026,6 +36934,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("mkdir.file.destination.mode", &ev.Mkdir.Mode, value)
 	case "mkdir.file.destination.rights":
 		return ev.setUint32FieldValue("mkdir.file.destination.rights", &ev.Mkdir.Mode, value)
+	case "mkdir.file.extension":
+		return ev.setStringFieldValue("mkdir.file.extension", &ev.Mkdir.File.Extension, value)
 	case "mkdir.file.filesystem":
 		return ev.setStringFieldValue("mkdir.file.filesystem", &ev.Mkdir.File.Filesystem, value)
 	case "mkdir.file.gid":
@@ -36076,6 +36986,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("mkdir.syscall.path", &ev.Mkdir.SyscallContext.StrArg1, value)
 	case "mmap.file.change_time":
 		return ev.setUint64FieldValue("mmap.file.change_time", &ev.MMap.File.FileFields.CTime, value)
+	case "mmap.file.extension":
+		return ev.setStringFieldValue("mmap.file.extension", &ev.MMap.File.Extension, value)
 	case "mmap.file.filesystem":
 		return ev.setStringFieldValue("mmap.file.filesystem", &ev.MMap.File.Filesystem, value)
 	case "mmap.file.gid":
@@ -36289,6 +37201,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("open.file.change_time", &ev.Open.File.FileFields.CTime, value)
 	case "open.file.destination.mode":
 		return ev.setUint32FieldValue("open.file.destination.mode", &ev.Open.Mode, value)
+	case "open.file.extension":
+		return ev.setStringFieldValue("open.file.extension", &ev.Open.File.Extension, value)
 	case "open.file.filesystem":
 		return ev.setStringFieldValue("open.file.filesystem", &ev.Open.File.Filesystem, value)
 	case "open.file.gid":
@@ -36437,6 +37351,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.ancestors.euser", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser, value)
 	case "process.ancestors.file.change_time":
 		return ev.setUint64FieldValue("process.ancestors.file.change_time", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime, value)
+	case "process.ancestors.file.extension":
+		return ev.setStringFieldValue("process.ancestors.file.extension", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Extension, value)
 	case "process.ancestors.file.filesystem":
 		return ev.setStringFieldValue("process.ancestors.file.filesystem", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem, value)
 	case "process.ancestors.file.gid":
@@ -36497,6 +37413,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("process.ancestors.interpreter.file.change_time", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "process.ancestors.interpreter.file.extension":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.ancestors.interpreter.file.extension", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "process.ancestors.interpreter.file.filesystem":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.filesystem", value)
 		if err != nil || !cont {
@@ -36701,6 +37623,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.euser", &ev.BaseEvent.ProcessContext.Process.Credentials.EUser, value)
 	case "process.file.change_time":
 		return ev.setUint64FieldValue("process.file.change_time", &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.CTime, value)
+	case "process.file.extension":
+		return ev.setStringFieldValue("process.file.extension", &ev.BaseEvent.ProcessContext.Process.FileEvent.Extension, value)
 	case "process.file.filesystem":
 		return ev.setStringFieldValue("process.file.filesystem", &ev.BaseEvent.ProcessContext.Process.FileEvent.Filesystem, value)
 	case "process.file.gid":
@@ -36761,6 +37685,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("process.interpreter.file.change_time", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "process.interpreter.file.extension":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.interpreter.file.extension", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "process.interpreter.file.filesystem":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.filesystem", value)
 		if err != nil || !cont {
@@ -36945,6 +37875,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.parent.euser", &ev.BaseEvent.ProcessContext.Parent.Credentials.EUser, value)
 	case "process.parent.file.change_time":
 		return ev.setUint64FieldValue("process.parent.file.change_time", &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.CTime, value)
+	case "process.parent.file.extension":
+		return ev.setStringFieldValue("process.parent.file.extension", &ev.BaseEvent.ProcessContext.Parent.FileEvent.Extension, value)
 	case "process.parent.file.filesystem":
 		return ev.setStringFieldValue("process.parent.file.filesystem", &ev.BaseEvent.ProcessContext.Parent.FileEvent.Filesystem, value)
 	case "process.parent.file.gid":
@@ -37005,6 +37937,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("process.parent.interpreter.file.change_time", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "process.parent.interpreter.file.extension":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.parent.interpreter.file.extension", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Extension, value)
 	case "process.parent.interpreter.file.filesystem":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.filesystem", value)
 		if err != nil || !cont {
@@ -37379,6 +38317,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.ancestors.file.change_time", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime, value)
+	case "ptrace.tracee.ancestors.file.extension":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.file.extension", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Extension, value)
 	case "ptrace.tracee.ancestors.file.filesystem":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -37607,6 +38553,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.ancestors.interpreter.file.change_time", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "ptrace.tracee.ancestors.interpreter.file.extension":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.interpreter.file.extension", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -38090,6 +39048,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.file.change_time", &ev.PTrace.Tracee.Process.FileEvent.FileFields.CTime, value)
+	case "ptrace.tracee.file.extension":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.file.extension", &ev.PTrace.Tracee.Process.FileEvent.Extension, value)
 	case "ptrace.tracee.file.filesystem":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -38234,6 +39197,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.interpreter.file.change_time", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "ptrace.tracee.interpreter.file.extension":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.interpreter.file.extension", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "ptrace.tracee.interpreter.file.filesystem":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -38640,6 +39612,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.parent.file.change_time", &ev.PTrace.Tracee.Parent.FileEvent.FileFields.CTime, value)
+	case "ptrace.tracee.parent.file.extension":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.file.extension", &ev.PTrace.Tracee.Parent.FileEvent.Extension, value)
 	case "ptrace.tracee.parent.file.filesystem":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -38868,6 +39848,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.parent.interpreter.file.change_time", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "ptrace.tracee.parent.interpreter.file.extension":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.interpreter.file.extension", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Extension, value)
 	case "ptrace.tracee.parent.interpreter.file.filesystem":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39259,6 +40251,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("removexattr.file.destination.name", &ev.RemoveXAttr.Name, value)
 	case "removexattr.file.destination.namespace":
 		return ev.setStringFieldValue("removexattr.file.destination.namespace", &ev.RemoveXAttr.Namespace, value)
+	case "removexattr.file.extension":
+		return ev.setStringFieldValue("removexattr.file.extension", &ev.RemoveXAttr.File.Extension, value)
 	case "removexattr.file.filesystem":
 		return ev.setStringFieldValue("removexattr.file.filesystem", &ev.RemoveXAttr.File.Filesystem, value)
 	case "removexattr.file.gid":
@@ -39307,6 +40301,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("rename.file.change_time", &ev.Rename.Old.FileFields.CTime, value)
 	case "rename.file.destination.change_time":
 		return ev.setUint64FieldValue("rename.file.destination.change_time", &ev.Rename.New.FileFields.CTime, value)
+	case "rename.file.destination.extension":
+		return ev.setStringFieldValue("rename.file.destination.extension", &ev.Rename.New.Extension, value)
 	case "rename.file.destination.filesystem":
 		return ev.setStringFieldValue("rename.file.destination.filesystem", &ev.Rename.New.Filesystem, value)
 	case "rename.file.destination.gid":
@@ -39349,6 +40345,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("rename.file.destination.uid", &ev.Rename.New.FileFields.UID, value)
 	case "rename.file.destination.user":
 		return ev.setStringFieldValue("rename.file.destination.user", &ev.Rename.New.FileFields.User, value)
+	case "rename.file.extension":
+		return ev.setStringFieldValue("rename.file.extension", &ev.Rename.Old.Extension, value)
 	case "rename.file.filesystem":
 		return ev.setStringFieldValue("rename.file.filesystem", &ev.Rename.Old.Filesystem, value)
 	case "rename.file.gid":
@@ -39399,6 +40397,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("rename.syscall.path", &ev.Rename.SyscallContext.StrArg1, value)
 	case "rmdir.file.change_time":
 		return ev.setUint64FieldValue("rmdir.file.change_time", &ev.Rmdir.File.FileFields.CTime, value)
+	case "rmdir.file.extension":
+		return ev.setStringFieldValue("rmdir.file.extension", &ev.Rmdir.File.Extension, value)
 	case "rmdir.file.filesystem":
 		return ev.setStringFieldValue("rmdir.file.filesystem", &ev.Rmdir.File.Filesystem, value)
 	case "rmdir.file.gid":
@@ -39683,6 +40683,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.ancestors.file.change_time", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime, value)
+	case "setrlimit.target.ancestors.file.extension":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.file.extension", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.Extension, value)
 	case "setrlimit.target.ancestors.file.filesystem":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -39911,6 +40919,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("setrlimit.target.ancestors.interpreter.file.change_time", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "setrlimit.target.ancestors.interpreter.file.extension":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.interpreter.file.extension", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "setrlimit.target.ancestors.interpreter.file.filesystem":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -40394,6 +41414,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.file.change_time", &ev.Setrlimit.Target.Process.FileEvent.FileFields.CTime, value)
+	case "setrlimit.target.file.extension":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.file.extension", &ev.Setrlimit.Target.Process.FileEvent.Extension, value)
 	case "setrlimit.target.file.filesystem":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -40538,6 +41563,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("setrlimit.target.interpreter.file.change_time", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "setrlimit.target.interpreter.file.extension":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.interpreter.file.extension", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "setrlimit.target.interpreter.file.filesystem":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -40944,6 +41978,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.parent.file.change_time", &ev.Setrlimit.Target.Parent.FileEvent.FileFields.CTime, value)
+	case "setrlimit.target.parent.file.extension":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.file.extension", &ev.Setrlimit.Target.Parent.FileEvent.Extension, value)
 	case "setrlimit.target.parent.file.filesystem":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41172,6 +42214,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("setrlimit.target.parent.interpreter.file.change_time", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "setrlimit.target.parent.interpreter.file.extension":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.interpreter.file.extension", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.Extension, value)
 	case "setrlimit.target.parent.interpreter.file.filesystem":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41595,6 +42649,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("setxattr.file.destination.name", &ev.SetXAttr.Name, value)
 	case "setxattr.file.destination.namespace":
 		return ev.setStringFieldValue("setxattr.file.destination.namespace", &ev.SetXAttr.Namespace, value)
+	case "setxattr.file.extension":
+		return ev.setStringFieldValue("setxattr.file.extension", &ev.SetXAttr.File.Extension, value)
 	case "setxattr.file.filesystem":
 		return ev.setStringFieldValue("setxattr.file.filesystem", &ev.SetXAttr.File.Filesystem, value)
 	case "setxattr.file.gid":
@@ -41853,6 +42909,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint64FieldValue("signal.target.ancestors.file.change_time", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime, value)
+	case "signal.target.ancestors.file.extension":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.file.extension", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Extension, value)
 	case "signal.target.ancestors.file.filesystem":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -42081,6 +43145,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("signal.target.ancestors.interpreter.file.change_time", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "signal.target.ancestors.interpreter.file.extension":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.interpreter.file.extension", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "signal.target.ancestors.interpreter.file.filesystem":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -42564,6 +43640,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setUint64FieldValue("signal.target.file.change_time", &ev.Signal.Target.Process.FileEvent.FileFields.CTime, value)
+	case "signal.target.file.extension":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.file.extension", &ev.Signal.Target.Process.FileEvent.Extension, value)
 	case "signal.target.file.filesystem":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -42708,6 +43789,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("signal.target.interpreter.file.change_time", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "signal.target.interpreter.file.extension":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.interpreter.file.extension", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "signal.target.interpreter.file.filesystem":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -43114,6 +44204,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setUint64FieldValue("signal.target.parent.file.change_time", &ev.Signal.Target.Parent.FileEvent.FileFields.CTime, value)
+	case "signal.target.parent.file.extension":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.file.extension", &ev.Signal.Target.Parent.FileEvent.Extension, value)
 	case "signal.target.parent.file.filesystem":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -43342,6 +44440,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("signal.target.parent.interpreter.file.change_time", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.CTime, value)
+	case "signal.target.parent.interpreter.file.extension":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.extension", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.parent.interpreter.file.extension", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.Extension, value)
 	case "signal.target.parent.interpreter.file.filesystem":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -43731,6 +44841,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("signal.type", &ev.Signal.Type, value)
 	case "splice.file.change_time":
 		return ev.setUint64FieldValue("splice.file.change_time", &ev.Splice.File.FileFields.CTime, value)
+	case "splice.file.extension":
+		return ev.setStringFieldValue("splice.file.extension", &ev.Splice.File.Extension, value)
 	case "splice.file.filesystem":
 		return ev.setStringFieldValue("splice.file.filesystem", &ev.Splice.File.Filesystem, value)
 	case "splice.file.gid":
@@ -43797,6 +44909,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("sysctl.value_truncated", &ev.SysCtl.ValueTruncated, value)
 	case "unlink.file.change_time":
 		return ev.setUint64FieldValue("unlink.file.change_time", &ev.Unlink.File.FileFields.CTime, value)
+	case "unlink.file.extension":
+		return ev.setStringFieldValue("unlink.file.extension", &ev.Unlink.File.Extension, value)
 	case "unlink.file.filesystem":
 		return ev.setStringFieldValue("unlink.file.filesystem", &ev.Unlink.File.Filesystem, value)
 	case "unlink.file.gid":
@@ -43855,6 +44969,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setInt64FieldValue("unload_module.retval", &ev.UnloadModule.SyscallEvent.Retval, value)
 	case "utimes.file.change_time":
 		return ev.setUint64FieldValue("utimes.file.change_time", &ev.Utimes.File.FileFields.CTime, value)
+	case "utimes.file.extension":
+		return ev.setStringFieldValue("utimes.file.extension", &ev.Utimes.File.Extension, value)
 	case "utimes.file.filesystem":
 		return ev.setStringFieldValue("utimes.file.filesystem", &ev.Utimes.File.Filesystem, value)
 	case "utimes.file.gid":

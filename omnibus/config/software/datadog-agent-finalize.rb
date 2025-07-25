@@ -133,6 +133,14 @@ build do
             # removing the info folder to reduce package size by ~4MB
             delete "#{install_dir}/embedded/share/info"
 
+            # remove some debug ebpf object files to reduce the size of the package
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/shared-libraries-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/shared-libraries-debug.o"
+
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
             #    https://github.com/pypa/manylinux/issues/119
@@ -179,14 +187,21 @@ build do
             if code_signing_identity
                 # Sometimes the timestamp service is not available, so we retry
                 codesign = "../tools/ci/retry.sh codesign"
+                app = "'#{install_dir}/Datadog Agent.app'"
 
-                # Codesign all Mach-O binaries leveraging parallelism (~280 binaries out of ~28000 files)
+                # Codesign ~480 files (out of ~28000)
                 command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
                     set -euo pipefail
-                    find #{install_dir} -type f -print0 |
-                        xargs -0 -n1000 -P#{workers} file -n --mime-type |
-                        awk -F: '$0 ~ /[^)]:[[:space:]]*application\\/x-mach-binary/ { printf "%s%c", $1, 0 }' |
-                        xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
+                    (
+                        # Gather all executables, whether binaries or scripts
+                        find #{install_dir} -path #{app} -prune -o -type f -perm +111 -print0
+                        # Gather non executable Mach-O binaries leveraging parallelism
+                        find #{install_dir} -path #{app} -prune -o -type f ! -perm +111 -print0 |
+                            xargs -0 -n1000 -P#{workers} file -n --mime-type |
+                            awk -F: '/[^)]:[[:space:]]*application\\/x-mach-binary/ { printf "%s%c", $1, 0 }'
+                        # Add .app bundle at once to avoid corruption from partial parallel signing of its content
+                        printf '%s\\0' #{app}
+                    ) | xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
                 SH
             end
         end

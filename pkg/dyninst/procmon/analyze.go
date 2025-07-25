@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"iter"
 	"os"
 	"path"
@@ -43,6 +44,13 @@ type ContainerResolver interface {
 	GetContainerContext(pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error)
 }
 
+func errIsInteresting(err error) bool {
+	return err != nil &&
+		!errors.Is(err, fs.ErrNotExist) &&
+		!errors.Is(err, fs.ErrPermission) &&
+		!errors.Is(err, syscall.ESRCH)
+}
+
 // analyzeProcess performs light analysis of the process and its binary
 // to determine if it's interesting, and what its executable is.
 func analyzeProcess(
@@ -52,7 +60,7 @@ func analyzeProcess(
 	executableAnalyzer executableAnalyzer,
 ) (processAnalysis, error) {
 	maybeWrapErr := func(msg string, err error) error {
-		if err == nil || errors.Is(err, os.ErrNotExist) {
+		if !errIsInteresting(err) {
 			return nil
 		}
 		pid, msg, err := pid, msg, err
@@ -68,7 +76,7 @@ func analyzeProcess(
 	}
 
 	exeFile, err := os.Open(exePath)
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) {
 		// Try to open the exe under the proc root which can work when the
 		// file exists inside a container.
 		exePath = path.Join(
@@ -82,6 +90,9 @@ func analyzeProcess(
 				pid, exePath,
 			)
 		}
+		// Overwrite the error with the new one. This might mean that we don't
+		// see the original error, but we know it's not interesting so we
+		// wouldn't see it anyway.
 		exeFile, err = os.Open(exePath)
 	}
 	if err != nil {
@@ -174,7 +185,7 @@ func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 
 	f, err := os.Open(procEnv)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if os.IsNotExist(err) || errors.Is(err, syscall.ESRCH) {
 			return ddEnvVars{}, nil
 		}
 		return ddEnvVars{}, fmt.Errorf(

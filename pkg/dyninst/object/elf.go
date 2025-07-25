@@ -9,16 +9,17 @@ package object
 
 import (
 	"bytes"
-	"compress/zlib"
 	"debug/dwarf"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"syscall"
 	"unsafe"
 
 	dlvdwarf "github.com/go-delve/delve/pkg/dwarf"
+	"github.com/klauspost/compress/zlib"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
@@ -43,12 +44,9 @@ type ElfFile struct {
 	Underlying *MMappingElfFile
 
 	dwarfSections *DebugSections
-	dwarfData     *dwarf.Data
+	dwarfData     dwarf.Data
 	architecture  bininspect.GoArch
-
-	// Maps the compile unit entry offset to the version of the DWARF spec
-	// that was used to parse it.
-	unitVersions map[dwarf.Offset]uint8
+	reader        loclist.Reader
 }
 
 // TextSectionHeader implements File.
@@ -67,36 +65,40 @@ func (e *ElfFile) Architecture() Architecture {
 }
 
 // DwarfData implements File.
+//
+// Note that the returned dwarf.Data is not usable after the ElfFile is closed.
 func (e *ElfFile) DwarfData() *dwarf.Data {
-	return e.dwarfData
+	// By making the dwarf.Data part of the ElfFile struct, we can ensure
+	// that the ElfFile is not finalized while the dwarf.Data is in use.
+	return &e.dwarfData
 }
 
 // DwarfSections implements File.
+//
+// Note that the returned DebugSections are not usable after the ElfFile is
+// closed.
 func (e *ElfFile) DwarfSections() *DebugSections {
 	return e.dwarfSections
 }
 
 // LoclistReader implements File.
-func (e *ElfFile) LoclistReader() (*loclist.Reader, error) {
-	// Loclists replace Loc in DWARF 5. Here we do not need to recognize the version,
-	// just pick the section that exists.
-	var data []byte
-	if e.dwarfSections.LocLists != nil {
-		data = e.dwarfSections.LocLists
-	} else if e.dwarfSections.Loc != nil {
-		data = e.dwarfSections.Loc
-	} else {
-		return nil, fmt.Errorf("no loc/loclist section found")
-	}
-
-	return loclist.NewReader(data, e.dwarfSections.Addr, uint8(e.architecture.PointerSize()), func(unit *dwarf.Entry) (uint8, bool) {
-		unitVersion, ok := e.unitVersions[unit.Offset]
-		return unitVersion, ok
-	}), nil
+//
+// Note that the returned loclist.Reader is not usable after the ElfFile is
+// closed.
+func (e *ElfFile) LoclistReader() *loclist.Reader {
+	return &e.reader
 }
 
 // Close implements File.
+//
+// Note that various items returned from methods on the ElfFile are not usable
+// after the ElfFile is closed.
 func (e *ElfFile) Close() error {
+	for _, s := range e.dwarfSections.sections() {
+		if s != nil {
+			s.Close()
+		}
+	}
 	return e.Underlying.Close()
 }
 
@@ -154,18 +156,19 @@ func newElfObject(mmf *MMappingElfFile) (_ *ElfFile, retErr error) {
 	if err != nil {
 		return nil, err
 	}
-	if ds.Info == nil {
+	info := ds.Info()
+	if info == nil {
 		return nil, fmt.Errorf("no .debug_info section found")
 	}
 	d, err := ds.loadDwarfData()
 	if err != nil {
 		return nil, err
 	}
-	_, _, dwarfVersion, byteOrder := dlvdwarf.ReadDwarfLengthVersion(ds.Info)
+	_, _, dwarfVersion, byteOrder := dlvdwarf.ReadDwarfLengthVersion(info)
 	if byteOrder != binary.LittleEndian {
 		return nil, fmt.Errorf("unexpected DWARF byte order: %v", byteOrder)
 	}
-	unitVersions := dlvdwarf.ReadUnitVersions(ds.Info)
+	unitVersions := dlvdwarf.ReadUnitVersions(ds.Info())
 	if dwarfVersion >= 5 {
 		// Delve unit offset calculations are 1 byte off.
 		// If tests fail, and following code now handles DWARF5, just remove this adjustment:
@@ -176,12 +179,19 @@ func newElfObject(mmf *MMappingElfFile) (_ *ElfFile, retErr error) {
 		}
 		unitVersions = uv
 	}
+	reader := loclist.MakeReader(
+		ds.Loc(),
+		ds.LocLists(),
+		ds.Addr(),
+		uint8(arch.PointerSize()),
+		unitVersions,
+	)
 	return &ElfFile{
 		Underlying:    mmf,
 		dwarfSections: ds,
-		dwarfData:     d,
+		dwarfData:     *d,
 		architecture:  arch,
-		unitVersions:  unitVersions,
+		reader:        reader,
 	}, nil
 }
 
@@ -192,7 +202,7 @@ func newElfObject(mmf *MMappingElfFile) (_ *ElfFile, retErr error) {
 // which could be used to load the section into a file we then mmap or something
 // like that.
 
-func loadDebugSections(mef *MMappingElfFile) (*DebugSections, error) {
+func loadDebugSections(mef *MMappingElfFile) (_ *DebugSections, retErr error) {
 	dwarfSuffix := func(s *safeelf.Section) string {
 		const debug = ".debug_"
 		const zdebug = ".zdebug_"
@@ -208,6 +218,16 @@ func loadDebugSections(mef *MMappingElfFile) (*DebugSections, error) {
 	// There are many DWARf sections, but these are the ones
 	// the debug/dwarf package started with.
 	var ds DebugSections
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		for _, s := range ds.sections() {
+			if s != nil {
+				_ = s.Close()
+			}
+		}
+	}()
 	for _, s := range mef.Elf.Sections {
 		suffix := dwarfSuffix(s)
 		if suffix == "" {
@@ -263,7 +283,7 @@ type compressedFileRange struct {
 	uncompressedLength int64
 }
 
-func (r compressedFileRange) data(mef *MMappingElfFile) ([]byte, error) {
+func (r compressedFileRange) data(mef *MMappingElfFile) (_ *MMappedData, retErr error) {
 	// We don't want to let an invalid section header cause us to load
 	// too much data into memory.
 	const maxSectionSize = 512 << 20 // 512MiB
@@ -277,12 +297,11 @@ func (r compressedFileRange) data(mef *MMappingElfFile) ([]byte, error) {
 		)
 	}
 
-	var reader io.Reader
 	switch r.format {
 	case compressionFormatUnknown:
 		return nil, fmt.Errorf("unknown compression format")
 	case compressionFormatNone:
-		reader = io.NewSectionReader(mef.f, int64(r.offset), int64(r.compressedLength))
+		return mef.mmap(uint64(r.offset), uint64(r.uncompressedLength))
 	case compressionFormatZlib:
 		md, err := mef.mmap(uint64(r.offset), uint64(r.compressedLength))
 		if err != nil {
@@ -293,15 +312,30 @@ func (r compressedFileRange) data(mef *MMappingElfFile) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create zlib reader: %w", err)
 		}
-		reader = zrd
-	}
+		mapped, err := syscall.Mmap(
+			0, // fd
+			0, // offset
+			int(r.uncompressedLength),
+			syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_GROWSUP,
+			syscall.MAP_PRIVATE|syscall.MAP_ANONYMOUS,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to mmap section: %w", err)
+		}
+		defer func() {
+			if retErr != nil {
+				_ = syscall.Munmap(mapped)
+			}
+		}()
+		if _, err := io.ReadFull(zrd, mapped); err != nil {
+			return nil, fmt.Errorf("failed to read section data: %w", err)
+		}
 
-	data := make([]byte, r.uncompressedLength)
-	_, err := io.ReadFull(reader, data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read section data: %w", err)
+		return newMMappedData(mapped, mapped), nil
+
+	default:
+		return nil, fmt.Errorf("unknown compression format: %d", r.format)
 	}
-	return data, nil
 }
 
 func sectionData(

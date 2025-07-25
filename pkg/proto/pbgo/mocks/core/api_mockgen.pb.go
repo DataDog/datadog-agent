@@ -299,6 +299,26 @@ func (mr *MockAgentSecureClientMockRecorder) RegisterRemoteAgent(ctx, in interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureClient)(nil).RegisterRemoteAgent), varargs...)
 }
 
+// ResetConfigState mocks base method.
+func (m *MockAgentSecureClient) ResetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*core.ResetStateConfigResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ResetConfigState", varargs...)
+	ret0, _ := ret[0].(*core.ResetStateConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResetConfigState indicates an expected call of ResetConfigState.
+func (mr *MockAgentSecureClientMockRecorder) ResetConfigState(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetConfigState", reflect.TypeOf((*MockAgentSecureClient)(nil).ResetConfigState), varargs...)
+}
+
 // TaggerFetchEntity mocks base method.
 func (m *MockAgentSecureClient) TaggerFetchEntity(ctx context.Context, in *core.FetchEntityRequest, opts ...grpc.CallOption) (*core.FetchEntityResponse, error) {
 	m.ctrl.T.Helper()
@@ -903,6 +923,21 @@ func (m *MockAgentSecureServer) RegisterRemoteAgent(arg0 context.Context, arg1 *
 func (mr *MockAgentSecureServerMockRecorder) RegisterRemoteAgent(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureServer)(nil).RegisterRemoteAgent), arg0, arg1)
+}
+
+// ResetConfigState mocks base method.
+func (m *MockAgentSecureServer) ResetConfigState(arg0 context.Context, arg1 *empty.Empty) (*core.ResetStateConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetConfigState", arg0, arg1)
+	ret0, _ := ret[0].(*core.ResetStateConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResetConfigState indicates an expected call of ResetConfigState.
+func (mr *MockAgentSecureServerMockRecorder) ResetConfigState(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetConfigState", reflect.TypeOf((*MockAgentSecureServer)(nil).ResetConfigState), arg0, arg1)
 }
 
 // TaggerFetchEntity mocks base method.
