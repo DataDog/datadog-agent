@@ -12,10 +12,8 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"runtime/pprof"
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,69 +29,12 @@ var (
 	binExtension = ""
 )
 
-func build(_ *testing.M, outBin, pkg string) {
-	_, err := exec.Command("go", "build", "-o", outBin+binExtension, pkg).Output()
+func build(outTarget, pkg string) {
+	output, err := exec.Command("go", "build", "-o", outTarget, pkg).CombinedOutput()
 	if err != nil {
-		fmt.Printf("Could not compile test secretBackendCommand: %s", err)
+		fmt.Printf("Could not compile secret backend binary: %s\n%s", err, output)
 		os.Exit(1)
 	}
-}
-
-func TestMain(m *testing.M) {
-	// TODO: remove once the issue is resolved
-	//
-	// This test has an issue on Windows where it can block entirely and timeout after 4 minutes
-	// (while the go test timeout is 3 minutes), and in that case it doesn't print stack traces.
-	//
-	// As a workaround, we explicitly write routine stack traces in an artifact if the test
-	// is not finished after 2 minutes.
-	if _, ok := os.LookupEnv("CI_PIPELINE_ID"); ok && runtime.GOOS == "windows" {
-		done := make(chan struct{}, 1)
-		defer func() {
-			done <- struct{}{}
-		}()
-		go func() {
-			select {
-			case <-done:
-			case <-time.After(2 * time.Minute):
-				// files junit-*.tgz are automatically considered as artifacts
-				file, err := os.OpenFile(`C:\mnt\junit-TestExecCommandError.tgz`, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "could not write stack traces: %v", err)
-					return
-				}
-				defer file.Close()
-				fmt.Fprintf(file, "test will timeout, printing goroutine stack traces:\n")
-				pprof.Lookup("goroutine").WriteTo(file, 2)
-			}
-		}()
-	}
-
-	testCheckRightsStub()
-
-	if runtime.GOOS == "windows" {
-		binExtension = ".exe"
-	}
-
-	// We rely on Go for the test executable since it's the only common
-	// tool we're sure to have on Windows, OSX and Linux.
-	build(m, "./test/argument/argument", "./test/argument")
-	build(m, "./test/error/error", "./test/error")
-	build(m, "./test/input/input", "./test/input")
-	build(m, "./test/response_too_long/response_too_long", "./test/response_too_long")
-	build(m, "./test/simple/simple", "./test/simple")
-	build(m, "./test/timeout/timeout", "./test/timeout")
-
-	res := m.Run()
-
-	os.Remove("test/argument/argument" + binExtension)
-	os.Remove("test/error/error" + binExtension)
-	os.Remove("test/input/input" + binExtension)
-	os.Remove("test/response_too_long/response_too_long" + binExtension)
-	os.Remove("test/simple/simple" + binExtension)
-	os.Remove("test/timeout/timeout" + binExtension)
-
-	os.Exit(res)
 }
 
 func TestLimitBuffer(t *testing.T) {
@@ -118,73 +59,86 @@ func TestLimitBuffer(t *testing.T) {
 	assert.Equal(t, []byte("012ab"), lb.buf.Bytes())
 }
 
+// getBackendCommandBinary either selects a prebuilt binary, or compiles one from
+// source, then sets the proper permissions on it
+func getBackendCommandBinary(t *testing.T) (string, func()) {
+	platform := fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH)
+	targetBin := fmt.Sprintf("test/prebuilt/%s/test_command", platform)
+	if runtime.GOOS == "windows" {
+		targetBin = targetBin + ".exe"
+	}
+	if _, err := os.Stat(targetBin); err == nil {
+		t.Logf("using prebuilt secret backend binary '%s'", targetBin)
+		_ = os.Chmod(targetBin, 0500)
+		return targetBin, func() {}
+	}
+
+	outFile, err := os.CreateTemp("", "test_command_"+platform)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetBin = outFile.Name()
+	if runtime.GOOS == "windows" {
+		targetBin = targetBin + ".exe"
+	}
+	outFile.Close()
+	cleanup := func() {
+		os.Remove(targetBin)
+	}
+
+	t.Logf("compiling secret backend binary '%s'", targetBin)
+	build(targetBin, "./test/src/test_command")
+	_ = os.Chmod(targetBin, 0500)
+
+	return targetBin, cleanup
+}
+
 func TestExecCommandError(t *testing.T) {
-	inputPayload := "{\"version\": \"" + secrets.PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
+	inputPayload := "{\"version\": \"1.0\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+
+	backendCommandBin, cleanup := getBackendCommandBinary(t)
+	defer cleanup()
 
 	t.Run("Empty secretBackendCommand", func(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
 		_, err := resolver.execCommand(inputPayload)
+		// Error because resolver was not configured and has no command
 		require.NotNil(t, err)
 	})
 
 	t.Run("timeout", func(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
-		resolver.backendCommand = "./test/timeout/timeout" + binExtension
-		setCorrectRight(resolver.backendCommand)
-		resolver.backendTimeout = 1
+		// The "timeout" arg makes the command sleep for 2 second, it should timeout
+		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin, Arguments: []string{"timeout"}, Timeout: 1})
 		_, err := resolver.execCommand(inputPayload)
 		require.NotNil(t, err)
-		require.Equal(t, "error while running './test/timeout/timeout"+binExtension+"': command timeout", err.Error())
+		require.Equal(t, "error while running '"+backendCommandBin+"': command timeout", err.Error())
 	})
 
 	t.Run("No Error", func(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
-		resolver.Configure(secrets.ConfigParams{Command: "./test/simple/simple" + binExtension})
-		setCorrectRight(resolver.backendCommand)
+		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin})
 		resp, err := resolver.execCommand(inputPayload)
 		require.NoError(t, err)
-		require.Equal(t, []byte("{\"handle1\":{\"value\":\"simple_password\"}}"), resp)
+		require.Equal(t, "{\"sec1\":{\"value\":\"arg_password\"}}", string(resp))
 	})
 
 	t.Run("Error returned", func(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
-		resolver.backendCommand = "./test/error/error" + binExtension
-		setCorrectRight(resolver.backendCommand)
+		// This "error" arg makes the command return an erroneous exit code
+		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin, Arguments: []string{"error"}})
 		_, err := resolver.execCommand(inputPayload)
 		require.NotNil(t, err)
-	})
-
-	t.Run("argument", func(t *testing.T) {
-		resolver := newEnabledSecretResolver(tel)
-		resolver.Configure(secrets.ConfigParams{Command: "./test/argument/argument" + binExtension})
-		setCorrectRight(resolver.backendCommand)
-		resolver.backendArguments = []string{"arg1"}
-		_, err := resolver.execCommand(inputPayload)
-		require.NotNil(t, err)
-		resolver.backendArguments = []string{"arg1", "arg2"}
-		resp, err := resolver.execCommand(inputPayload)
-		require.NoError(t, err)
-		require.Equal(t, []byte("{\"handle1\":{\"value\":\"arg_password\"}}"), resp)
-	})
-
-	t.Run("input", func(t *testing.T) {
-		resolver := newEnabledSecretResolver(tel)
-		resolver.Configure(secrets.ConfigParams{Command: "./test/input/input" + binExtension})
-		setCorrectRight(resolver.backendCommand)
-		resp, err := resolver.execCommand(inputPayload)
-		require.NoError(t, err)
-		require.Equal(t, []byte("{\"handle1\":{\"value\":\"input_password\"}}"), resp)
 	})
 
 	t.Run("buffer limit", func(t *testing.T) {
 		resolver := newEnabledSecretResolver(tel)
-		resolver.Configure(secrets.ConfigParams{Command: "./test/response_too_long/response_too_long" + binExtension})
-		setCorrectRight(resolver.backendCommand)
-		resolver.responseMaxSize = 20
+		// This "response_too_long" arg makes the command return too long of a response
+		resolver.Configure(secrets.ConfigParams{Command: backendCommandBin, Arguments: []string{"response_too_long"}, MaxSize: 20})
 		_, err := resolver.execCommand(inputPayload)
 		require.NotNil(t, err)
-		assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())
+		assert.Equal(t, "error while running '"+backendCommandBin+"': command output was too long: exceeded 20 bytes", err.Error())
 	})
 }
 
