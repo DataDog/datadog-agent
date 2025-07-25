@@ -471,24 +471,28 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
-	// Set env variables
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-	}
-
-	envContent := fmt.Sprintf(`DD_API_KEY=%s
-		DD_SITE=datadoghq.com
-		DD_OTELCOLLECTOR_ENABLED=true
-		`, apiKey)
-
-	s.host.Run(fmt.Sprintf(`printf "%s" | sudo tee /etc/datadog-agent/environment > /dev/null`, envContent))
-
 	// Install ddot
 	s.host.Run(fmt.Sprintf("sudo datadog-installer install oci://installtesting.datad0g.com/ddot-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
 	s.host.Run("sudo cp /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml")
+
+	// Check if datadog.yaml exists, if not return an error
+	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
+
+	// Enable ddot configuration in core
+	s.host.Run("sudo sh -c \"printf 'otelcollector:\\n  enabled: true\\n' >> /etc/datadog-agent/datadog.yaml\"")
+
+	// Substitute API & site into otel-config.yaml
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		apiKey = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	}
+	site := os.Getenv("DD_SITE")
+	if site == "" {
+		site = "datadoghq.com"
+	}
+	s.host.Run(fmt.Sprintf("sudo sh -c \"sed -i -e 's/\\${env:DD_API_KEY}/%s/' -e 's/\\${env:DD_SITE}/%s/' /etc/datadog-agent/otel-config.yaml\"", apiKey, site))
 
 	// Start ddot service
 	s.host.Run("sudo systemctl start datadog-agent-ddot.service")
