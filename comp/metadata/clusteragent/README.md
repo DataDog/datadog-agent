@@ -29,6 +29,7 @@ source_local_configuration - string: the Cluster-Agent configuration synchronize
 - `agent_startup_time_ms` - int: the startup time of the agent in milliseconds.
 - `cluster_id_error` - string: any error related to the cluster ID.
 - feature_*` - various types: various feature flags and their statuses.
+- `helm_values` - string: the helm values if the Cluster-Agent was installed through the Datadog Helm Chart. Only populated if the Helm backend is a configmap (default)
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
