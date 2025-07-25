@@ -521,28 +521,28 @@ func TestRecurrentSeries(t *testing.T) {
 
 	start := time.Now()
 
-	expectedSeries := []*metrics.Serie{&metrics.Serie{
+	expectedSeries := []*metrics.Serie{{
 		Name:           "some.metric.1",
 		Points:         []metrics.Point{{Value: 21, Ts: float64(start.Unix())}},
 		Tags:           tagset.CompositeTagsFromSlice([]string{"tag:1", "tag:2"}),
 		Host:           demux.Aggregator().hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
-	}, &metrics.Serie{
+	}, {
 		Name:           "some.metric.2",
 		Points:         []metrics.Point{{Value: 22, Ts: float64(start.Unix())}},
 		Tags:           tagset.CompositeTagsFromSlice([]string(nil)),
 		Host:           "non default host",
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "non default SourceTypeName",
-	}, &metrics.Serie{
+	}, {
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
 		Tags:           tagset.CompositeTagsFromSlice(versionTags()),
 		Host:           demux.Aggregator().hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
-	}, &metrics.Serie{
+	}, {
 		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
 		Host:           demux.Aggregator().hostname,

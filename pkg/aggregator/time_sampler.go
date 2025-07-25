@@ -102,7 +102,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 		}
 		// Add sample to bucket
 		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil, pkgconfigsetup.Datadog()); err != nil {
-			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
+			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%v': %s", s.id, metricSample.Name, metricSample.Host, fmtWrapper(metricSample.Tags), err)
 		}
 	}
 }
@@ -276,7 +276,7 @@ func (s *TimeSampler) flushContextMetrics(contextMetricsFlusher *metrics.Context
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 			continue
 		}
-		log.Infof("No value returned for dogstatsd metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags(), err)
+		log.Infof("No value returned for dogstatsd metric '%s' on host '%s' and tags '%v': %s", context.Name, context.Host, fmtWrapper(context.Tags()), err)
 	}
 }
 
@@ -320,4 +320,19 @@ func (s *TimeSampler) sendTelemetry(timestamp float64, series metrics.SerieSink)
 
 func (s *TimeSampler) dumpContexts(dest io.Writer) error {
 	return s.contextResolver.dumpContexts(dest)
+}
+
+
+// FIMXE find a better place for this
+type fmtWrapper []unique.Handle[string]
+func (fw fmtWrapper) Format(f fmt.State, c rune) {
+	buf := []byte{}
+	for i, h := range fw {
+		if i > 0 {
+			f.Write([]byte(", "))
+		}
+		buf = buf[:0]
+		buf = strconv.AppendQuoteToASCII(buf, h.Value())
+		f.Write(buf)
+	}
 }

@@ -118,6 +118,7 @@ func (t CompositeTags) Len() int {
 	return len(t.tags1) + len(t.tags2) + len(t.tags3)
 }
 
+// ToSlice returns a new slice representing all strings in this instance
 func (t CompositeTags) ToSlice() []string {
 	tags := []string{}
 	t.ForEach(func(s string) { tags = append(tags, s) })
