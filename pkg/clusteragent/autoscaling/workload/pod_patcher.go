@@ -103,25 +103,7 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	// K8s guarantees that the name for an init container or normal container are unique among all containers.
 	// It means that dispatching recommendations just by container names is sufficient
 	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
-		for i := range pod.Spec.Containers {
-			cont := &pod.Spec.Containers[i]
-			if cont.Name == reco.Name {
-				patched = patchContainerResources(reco, cont) || patched
-				break
-			}
-		}
-
-		// recommendation can be also applied to sidecar containers
-		// kubernetes implements sidecar containers as a special case of init containers (see https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/)
-		for i := range pod.Spec.InitContainers {
-			cont := &pod.Spec.InitContainers[i]
-			// sidecar container by definition is an init container with `restartPolicy: Always`
-			isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
-			if cont.Name == reco.Name && isInitSidecarContainer {
-				patched = patchContainerResources(reco, cont) || patched
-				break
-			}
-		}
+		patched = patchPod(reco, pod) || patched
 	}
 
 	return patched, nil
@@ -227,4 +209,26 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 		}
 	}
 	return patched
+}
+
+func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
+	for i := range pod.Spec.Containers {
+		cont := &pod.Spec.Containers[i]
+		if cont.Name == reco.Name {
+			return patchContainerResources(reco, cont)
+		}
+	}
+
+	// recommendation can be also applied to sidecar containers
+	// kubernetes implements sidecar containers as a special case of init containers (see https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/)
+	for i := range pod.Spec.InitContainers {
+		cont := &pod.Spec.InitContainers[i]
+		// sidecar container by definition is an init container with `restartPolicy: Always`
+		isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
+		if cont.Name == reco.Name && isInitSidecarContainer {
+			return patchContainerResources(reco, cont)
+		}
+	}
+
+	return false
 }

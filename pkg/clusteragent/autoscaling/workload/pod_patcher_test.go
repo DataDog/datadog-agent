@@ -806,3 +806,243 @@ func TestFindAutoscaler(t *testing.T) {
 		})
 	}
 }
+
+func TestPatchContainerResources(t *testing.T) {
+	tests := []struct {
+		name             string
+		recommendation   datadoghqcommon.DatadogPodAutoscalerContainerResources
+		container        *corev1.Container
+		expectedPatched  bool
+		expectedLimits   corev1.ResourceList
+		expectedRequests corev1.ResourceList
+	}{
+		{
+			name: "container with no existing resources gets recommendations applied",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")},
+				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+			},
+			container: &corev1.Container{
+				Name:      "test-container",
+				Resources: corev1.ResourceRequirements{},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m"), "memory": resource.MustParse("512Mi")},
+			expectedRequests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
+		},
+		{
+			name: "container with different resources gets updated",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("800m")},
+				Requests: corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+			},
+			container: &corev1.Container{
+				Name: "test-container",
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+					Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+				},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("800m")},
+			expectedRequests: corev1.ResourceList{"memory": resource.MustParse("512Mi")},
+		},
+		{
+			name: "container with same resources as recommendation returns no patch",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "test-container",
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+				Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+			},
+			container: &corev1.Container{
+				Name: "test-container",
+				Resources: corev1.ResourceRequirements{
+					Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+					Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+				},
+			},
+			expectedPatched:  false,
+			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+			expectedRequests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			containerCopy := tt.container.DeepCopy()
+
+			patched := patchContainerResources(tt.recommendation, containerCopy)
+
+			assert.Equal(t, tt.expectedPatched, patched, "patchContainerResources should return expected patch status")
+			assert.Equal(t, tt.expectedLimits, containerCopy.Resources.Limits, "Container limits should match expected values")
+			assert.Equal(t, tt.expectedRequests, containerCopy.Resources.Requests, "Container requests should match expected values")
+		})
+	}
+}
+
+func TestPatchPod(t *testing.T) {
+	tests := []struct {
+		name             string
+		recommendation   datadoghqcommon.DatadogPodAutoscalerContainerResources
+		pod              *corev1.Pod
+		expectedPatched  bool
+		expectedLimits   corev1.ResourceList
+		expectedRequests corev1.ResourceList
+	}{
+		{
+			name: "patch regular container with matching name",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "app-container",
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+				Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+			},
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "app-container",
+							Resources: corev1.ResourceRequirements{
+								Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+								Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+							},
+						},
+						{
+							Name: "sidecar-container",
+							Resources: corev1.ResourceRequirements{
+								Limits:   corev1.ResourceList{"cpu": resource.MustParse("100m")},
+								Requests: corev1.ResourceList{"memory": resource.MustParse("64Mi")},
+							},
+						},
+					},
+				},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+			expectedRequests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+		},
+		{
+			name: "patch init sidecar container with restartPolicy Always",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "init-sidecar",
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("300m")},
+				Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+			},
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "app-container",
+							Resources: corev1.ResourceRequirements{
+								Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+								Requests: corev1.ResourceList{"memory": resource.MustParse("64Mi")},
+							},
+						},
+					},
+					InitContainers: []corev1.Container{
+						{
+							Name:          "init-sidecar",
+							RestartPolicy: pointer.Ptr(corev1.ContainerRestartPolicyAlways),
+							Resources: corev1.ResourceRequirements{
+								Limits:   corev1.ResourceList{"cpu": resource.MustParse("100m")},
+								Requests: corev1.ResourceList{"memory": resource.MustParse("64Mi")},
+							},
+						},
+					},
+				},
+			},
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("300m")},
+			expectedRequests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+		},
+		{
+			name: "regular init container is ignored",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "init-container",
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("300m")},
+				Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+			},
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "app-container",
+							Resources: corev1.ResourceRequirements{
+								Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+								Requests: corev1.ResourceList{"memory": resource.MustParse("64Mi")},
+							},
+						},
+					},
+					InitContainers: []corev1.Container{
+						{
+							Name: "init-container",
+							Resources: corev1.ResourceRequirements{
+								Limits:   corev1.ResourceList{"cpu": resource.MustParse("100m")},
+								Requests: corev1.ResourceList{"memory": resource.MustParse("64Mi")},
+							},
+						},
+					},
+				},
+			},
+			expectedPatched: false,
+		},
+		{
+			name: "no matching container name returns false",
+			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "non-existent-container",
+				Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+				Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+			},
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "app-container",
+							Resources: corev1.ResourceRequirements{
+								Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+								Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+							},
+						},
+					},
+				},
+			},
+			expectedPatched: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			podCopy := tt.pod.DeepCopy()
+
+			patched := patchPod(tt.recommendation, podCopy)
+
+			assert.Equal(t, tt.expectedPatched, patched, "patchPod should return expected patch status")
+
+			if tt.expectedPatched {
+				var foundContainer *corev1.Container
+				for i := range podCopy.Spec.Containers {
+					if podCopy.Spec.Containers[i].Name == tt.recommendation.Name {
+						foundContainer = &podCopy.Spec.Containers[i]
+						break
+					}
+				}
+
+				if foundContainer == nil {
+					for i := range podCopy.Spec.InitContainers {
+						cont := &podCopy.Spec.InitContainers[i]
+						isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
+						if cont.Name == tt.recommendation.Name && isInitSidecarContainer {
+							foundContainer = cont
+							break
+						}
+					}
+				}
+
+				require.NotNil(t, foundContainer, "Should have found the patched container")
+				assert.Equal(t, tt.expectedLimits, foundContainer.Resources.Limits, "Container limits should match expected values")
+				assert.Equal(t, tt.expectedRequests, foundContainer.Resources.Requests, "Container requests should match expected values")
+			}
+		})
+	}
+}
