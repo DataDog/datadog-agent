@@ -325,7 +325,7 @@ func (s *TimeSampler) dumpContexts(dest io.Writer) error {
 // FIMXE find a better place for this
 type fmtWrapper []unique.Handle[string]
 
-func (fw fmtWrapper) Format(f fmt.State, c rune) {
+func (fw fmtWrapper) Format(f fmt.State, _ rune) {
 	buf := []byte{}
 	for i, h := range fw {
 		if i > 0 {
