@@ -130,6 +130,12 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 	programName := "LegacyContainerSBOMProgram"
 	var initErrors []error
 
+	if !config.GetBool("sbom.enabled") && !config.GetBool("sbom.container_image.enabled") && !config.GetBool("sbom.container.enabled") {
+		return program.CELProgram{
+			Name: programName,
+		}
+	}
+
 	excludeList := config.GetStringSlice("sbom.container_image.container_exclude")
 	if config.GetBool("sbom.container_image.exclude_pause_container") {
 		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)

@@ -34,6 +34,7 @@ func TestElfObject(t *testing.T) {
 		require.NoError(t, err)
 		// Assert that some symbol we expect to exist is in there.
 		const targetFunction = "main.main"
+		defer func() { require.NoError(t, obj.Close()) }()
 		findTargetSubprogram(t, obj.DwarfData(), targetFunction)
 	}
 }

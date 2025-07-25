@@ -174,7 +174,9 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 		Comment:     lastHistory.Comment,
 		Created:     created,
 		Author:      lastHistory.Author,
-		Config: &container.Config{
+		ContainerConfig: &container.Config{
+			// Ignore deprecation warning
+			//nolint:staticcheck
 			User:         imgConfig.Config.User,
 			ExposedPorts: portSet,
 			Env:          imgConfig.Config.Env,
