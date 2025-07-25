@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
 
 // SpanConfig defines the configuration for generating spans.
@@ -155,5 +156,152 @@ func GenerateSpan(c *SpanConfig) *pb.Span {
 			Attributes:   nil,
 		})
 	}
+	return s
+}
+
+// GeneratePayload generates a new payload.
+// The last span of a generated trace is the "root" of that trace
+func GeneratePayloadV1(n int, tc *TraceConfig, sc *SpanConfig) *idx.InternalTracerPayload {
+	if n == 0 {
+		return &idx.InternalTracerPayload{}
+	}
+	strings := idx.NewStringTable()
+	out := make([]*idx.InternalTraceChunk, 0, n)
+	for i := 0; i < n; i++ {
+		out = append(out, GenerateTraceV1(strings, tc, sc))
+	}
+	payload := &idx.InternalTracerPayload{
+		Strings:    strings,
+		Chunks:     out,
+		Attributes: make(map[uint32]*idx.AnyValue),
+	}
+	payload.SetLanguageName("go")
+	payload.SetLanguageVersion("1.20.0")
+	payload.SetTracerVersion("0.2.0")
+	return payload
+}
+
+// GenerateTrace generates a valid trace using the given config.
+func GenerateTraceV1(strings *idx.StringTable, tc *TraceConfig, sc *SpanConfig) *idx.InternalTraceChunk {
+	if tc == nil {
+		tc = &TraceConfig{}
+	}
+	if sc == nil {
+		sc = &SpanConfig{}
+	}
+	if tc.MinSpans == 0 {
+		tc.MinSpans = 1
+	}
+	if tc.MaxSpans < tc.MinSpans {
+		tc.MaxSpans = tc.MinSpans
+	}
+	n := tc.MinSpans
+	if tc.MaxSpans > tc.MinSpans {
+		n += rand.Intn(tc.MaxSpans - tc.MinSpans)
+	}
+	priority := 0
+	if tc.Keep {
+		priority = 2
+	}
+	chunk := idx.NewInternalTraceChunk(
+		strings,
+		int32(priority),
+		"someorigin",
+		make(map[uint32]*idx.AnyValue),
+		make([]*idx.InternalSpan, 0, n),
+		false,
+		make([]byte, 16),
+		"-4",
+	)
+	chunk.Spans = make([]*idx.InternalSpan, 0, n)
+	var (
+		maxd uint64
+		root *idx.InternalSpan
+	)
+	for i := 0; i < n; i++ {
+		s := GenerateSpanV1(strings, sc)
+		if s.Duration() > maxd {
+			root = s
+			maxd = s.Duration()
+		}
+		chunk.Spans = append(chunk.Spans, s)
+	}
+	for _, span := range chunk.Spans {
+		if span == root {
+			continue
+		}
+		span.SetParentID(root.SpanID())
+		span.SetStart(root.Start() + uint64(rand.Int63n(int64(root.Duration()-span.Duration()))))
+	}
+	return chunk
+}
+
+// GenerateSpan generates a random root span with all fields filled in.
+func GenerateSpanV1(strings *idx.StringTable, c *SpanConfig) *idx.InternalSpan {
+	id := uint64(rand.Int63())
+	duration := 1 + rand.Int63n(1_000_000_000) // between 1ns and 1s
+	pickString := func(all []string) string { return all[rand.Intn(len(all))] }
+	events := make([]*idx.SpanEvent, 0, c.NumSpanEvents)
+	for range c.NumSpanEvents {
+		events = append(events, &idx.SpanEvent{
+			Time:       uint64(time.Now().UnixNano() - duration),
+			NameRef:    strings.Add(pickString(names)),
+			Attributes: make(map[uint32]*idx.AnyValue),
+		})
+	}
+	s := idx.NewInternalSpan(strings, &idx.Span{
+		ServiceRef:   strings.Add(pickString(services)),
+		NameRef:      strings.Add(pickString(names)),
+		ResourceRef:  strings.Add(pickString(resources)),
+		SpanID:       id,
+		ParentID:     0,
+		Start:        uint64(time.Now().UnixNano() - duration),
+		Duration:     uint64(duration),
+		Error:        rand.Intn(2) == 1,
+		Attributes:   make(map[uint32]*idx.AnyValue),
+		TypeRef:      strings.Add(pickString(types)),
+		EnvRef:       strings.Add(pickString(envs)),
+		VersionRef:   strings.Add(pickString(versions)),
+		ComponentRef: strings.Add(pickString(components)),
+		Kind:         idx.SpanKind_SPAN_KIND_UNSPECIFIED,
+	})
+	ntags := c.MinTags
+	if c.MaxTags > c.MinTags {
+		ntags += rand.Intn(c.MaxTags - c.MinTags)
+	}
+	if ntags == 0 {
+		// no tags needed
+		return s
+	}
+	nmetrics := 0
+	if ntags > 4 {
+		// make 25% of tags Metrics when we have more than 4
+		nmetrics = ntags / 4
+	}
+	// ensure we have enough to pick from
+	if nmetrics > len(spanMetrics) {
+		nmetrics = len(spanMetrics)
+	}
+	nmeta := min(ntags-nmetrics, len(metas))
+	for i := 0; i < nmeta; i++ {
+		for k := range metas {
+			if _, ok := s.GetAttributeAsString(k); ok {
+				continue
+			}
+			s.SetStringAttribute(k, pickString(metas[k]))
+			break
+		}
+	}
+	for i := 0; i < nmetrics; i++ {
+		for {
+			k := pickString(spanMetrics)
+			if _, ok := s.GetAttributeAsFloat64(k); ok {
+				continue
+			}
+			s.SetFloat64Attribute(k, rand.Float64())
+			break
+		}
+	}
+
 	return s
 }

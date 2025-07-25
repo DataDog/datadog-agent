@@ -18,6 +18,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
 
 // ErrNotStarted is returned when attempting to operate an unstarted Runner.
@@ -182,6 +183,32 @@ func (s *Runner) Post(traceList pb.Traces) error {
 		return err
 	}
 	req.Header.Set("X-Datadog-Trace-Count", strconv.Itoa(len(traceList)))
+	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set("Content-Length", strconv.Itoa(len(bts)))
+
+	return s.doRequest(req)
+}
+
+// Post posts the given list of traces to the trace agent. Before posting, agent must
+// be started. You can start an agent using RunAgent.
+func (s *Runner) PostV1(tracerPayload *idx.InternalTracerPayload) error {
+	if s.agent == nil {
+		return ErrNotStarted
+	}
+	if s.agent.PID() == 0 {
+		return errors.New("post: trace-agent not running")
+	}
+
+	bts, err := tracerPayload.MarshalMsg(nil)
+	if err != nil {
+		return err
+	}
+	addr := fmt.Sprintf("http://%s/v1.0/traces", s.agent.Addr())
+	req, err := http.NewRequest("POST", addr, bytes.NewReader(bts))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Datadog-Trace-Count", strconv.Itoa(len(tracerPayload.Chunks)))
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", strconv.Itoa(len(bts)))
 
