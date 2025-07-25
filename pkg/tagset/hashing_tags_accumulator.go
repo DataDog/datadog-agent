@@ -34,6 +34,7 @@ func NewHashingTagsAccumulatorWithTags(tags []unique.Handle[string]) *HashingTag
 	return tb
 }
 
+// Append adds a list of strings to the accumulator, interning and hashing them at the same time
 func (h *HashingTagsAccumulator) Append(tags ...string) {
 	for _, t := range tags {
 		h.data = append(h.data, unique.Make(t))
@@ -47,6 +48,7 @@ func (h *HashingTagsAccumulator) AppendHashed(src HashedTags) {
 	h.hash = append(h.hash, src.hash...)
 }
 
+// AppendUnique adds a list of interned strings to the accumulator, hashing them at the same time
 func (h *HashingTagsAccumulator) AppendUnique(tags []unique.Handle[string]) {
 	for _, t := range tags {
 		h.data = append(h.data, t)

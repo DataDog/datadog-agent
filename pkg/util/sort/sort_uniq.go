@@ -42,6 +42,7 @@ func uniqSorted[T comparable](elements []T) []T {
 	return elements[:j+1]
 }
 
+// UniqInPlace2 sorts and deduplicates a list of interned strings
 func UniqInPlace2(elements []unique.Handle[string]) []unique.Handle[string] {
 	if len(elements) < 2 {
 		return elements
