@@ -313,37 +313,59 @@ func copyLeaf(target reflect.Value, input nodetreemodel.LeafNode, _ *featureSet)
 	if input == nil {
 		return fmt.Errorf("input value is not a scalar")
 	}
+
+	// If types already match, just copy directly
+	inVal := input.Get()
+	if inVal != nil && target.Type() == reflect.ValueOf(inVal).Type() {
+		target.Set(reflect.ValueOf(inVal))
+		return nil
+	}
+
 	switch target.Kind() {
 	case reflect.Bool:
-		v, err := cast.ToBoolE(input.Get())
+		v, err := cast.ToBoolE(inVal)
 		if err != nil {
-			return fmt.Errorf("could not convert %#v to bool", input.Get())
+			return fmt.Errorf("could not convert %#v to bool", inVal)
 		}
 		target.SetBool(v)
 		return nil
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		v, err := cast.ToIntE(input.Get())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+		v, err := cast.ToIntE(inVal)
 		if err != nil {
 			return err
 		}
 		target.SetInt(int64(v))
 		return nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		v, err := cast.ToIntE(input.Get())
+	case reflect.Int64:
+		v, err := cast.ToInt64E(inVal)
+		if err != nil {
+			return err
+		}
+		target.SetInt(int64(v))
+		return nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		v, err := cast.ToUintE(inVal)
+		if err != nil {
+			return err
+		}
+		target.SetUint(uint64(v))
+		return nil
+	case reflect.Uint64:
+		v, err := cast.ToUint64E(inVal)
 		if err != nil {
 			return err
 		}
 		target.SetUint(uint64(v))
 		return nil
 	case reflect.Float32, reflect.Float64:
-		v, err := cast.ToFloat64E(input.Get())
+		v, err := cast.ToFloat64E(inVal)
 		if err != nil {
 			return err
 		}
 		target.SetFloat(float64(v))
 		return nil
 	case reflect.String:
-		v, err := cast.ToStringE(input.Get())
+		v, err := cast.ToStringE(inVal)
 		if err != nil {
 			return err
 		}
