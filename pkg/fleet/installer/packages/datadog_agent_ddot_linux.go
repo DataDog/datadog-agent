@@ -29,6 +29,7 @@ var (
 	// ddotConfigPermissions are the ownerships and modes that are enforced on the DDOT configuration files
 	ddotConfigPermissions = file.Permissions{
 		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
+		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
 	}
 
 	// ddotPackagePermissions are the ownerships and modes that are enforced on the DDOT package files
@@ -77,6 +78,11 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 		span.Finish(err)
 	}()
 
+	// Copy example config to default path
+	if err = paths.CopyFile("/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent/otel-config.yaml"); err != nil {
+		return fmt.Errorf("could not copy otel-config.yaml.example file: %s", err)
+	}
+
 	// Ensure the dd-agent user and group exist
 	if err = user.EnsureAgentUserAndGroup(ctx, "/opt/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
@@ -90,11 +96,6 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	// Set DDOT config permissions
 	if err = ddotConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
-	}
-
-	// Copy example config to default path
-	if err = paths.CopyFile("/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent/otel-config.yaml"); err != nil {
-		return fmt.Errorf("could not copy otel-config.yaml.example file: %s", err)
 	}
 
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
