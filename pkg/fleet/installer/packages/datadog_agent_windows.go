@@ -319,7 +319,7 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 }
 
 func installAgentPackage(ctx context.Context, env *env.Env, target string, args []string, logFileName string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "install_agent")
+	span, ctx := telemetry.StartSpanFromContext(ctx, "install_agent")
 	defer func() { span.Finish(err) }()
 
 	rootPath := ""
@@ -373,7 +373,7 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 
 func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 	if msi.IsProductInstalled(product) {
-		span, _ := telemetry.StartSpanFromContext(ctx, "remove_agent")
+		span, ctx := telemetry.StartSpanFromContext(ctx, "remove_agent")
 		defer func() {
 			if err != nil {
 				// removal failed, this should rarely happen.
