@@ -388,9 +388,8 @@ DATADOG_AGENT_RTLOADER_API void set_submit_metric_cb(rtloader_t *, cb_submit_met
 DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_metric_cb(cb_submit_metric_t);
 
 // function used by shared library checks
-DATADOG_AGENT_RTLOADER_API void submit_metric(char *, const metric_type_t,
-                                              char *, const double, char **,
-                                              char *, const bool);
+DATADOG_AGENT_RTLOADER_API void submit_metric(char *, const metric_type_t, char *, const double, char **, char *,
+                                              const bool);
 
 /*! \fn void set_submit_service_check_cb(rtloader_t *, cb_submit_service_check_t)
     \brief Sets the submit service_check callback to be used by rtloader for service_check

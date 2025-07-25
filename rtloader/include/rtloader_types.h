@@ -95,7 +95,7 @@ typedef struct pymem_stats_s {
  */
 
 // shared library function type that returns the payload
-typedef void (run_check_t)(char *);
+typedef void(run_check_t)(char *);
 
 // shared library handles struct to pass it to the go check
 typedef struct shared_library_handle_s {

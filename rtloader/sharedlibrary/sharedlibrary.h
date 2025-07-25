@@ -11,7 +11,7 @@
 
 #include <rtloader.h>
 
-class SharedLibrary: public RtLoader
+class SharedLibrary : public RtLoader
 {
 public:
     SharedLibrary();

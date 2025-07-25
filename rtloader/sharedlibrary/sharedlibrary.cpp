@@ -6,8 +6,8 @@
 
 #include "sharedlibrary.h"
 
-SharedLibrary::SharedLibrary():
-    RtLoader(nullptr) 
+SharedLibrary::SharedLibrary()
+    : RtLoader(nullptr)
 {
 }
 

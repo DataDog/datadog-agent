@@ -202,7 +202,7 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
         *error = strdupe(err_msg.str().c_str());
         return shared_library_handle_t{ NULL, NULL };
     }
-    
+
     return shared_library_handle_t{ lib_handle, run_handle };
 }
 
@@ -481,11 +481,10 @@ void set_aggregator_submit_metric_cb(cb_submit_metric_t cb)
     submit_metric_cb = cb;
 }
 
-void submit_metric(char *checkID, const metric_type_t metricType,
-                                            char *metricName, const double value, char **tags,
-                                            char *hostname, const bool flushFirstValue)
+void submit_metric(char *checkID, const metric_type_t metricType, char *metricName, const double value, char **tags,
+                   char *hostname, const bool flushFirstValue)
 {
-    submit_metric_cb(checkID, metricType, metricName, value, tags, hostname, flushFirstValue);             
+    submit_metric_cb(checkID, metricType, metricName, value, tags, hostname, flushFirstValue);
 }
 
 void set_submit_service_check_cb(rtloader_t *rtloader, cb_submit_service_check_t cb)
@@ -498,7 +497,7 @@ void set_aggregator_submit_service_check_cb(cb_submit_service_check_t cb)
     submit_service_check_cb = cb;
 }
 
-void submit_service_check(char * checkID, char * name, int status, char ** tags, char * hostname, char * message)
+void submit_service_check(char *checkID, char *name, int status, char **tags, char *hostname, char *message)
 {
     submit_service_check_cb(checkID, name, status, tags, hostname, message);
 }
