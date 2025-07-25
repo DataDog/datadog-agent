@@ -401,6 +401,106 @@ func TestConfigsForPod(t *testing.T) {
 			},
 		},
 		{
+			name:    "multi containers, none match the port in the annotation",
+			check:   types.DefaultPrometheusCheck,
+			version: 2,
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name: "foo-pod",
+					Annotations: map[string]string{
+						"prometheus.io/scrape": "true",
+						"prometheus.io/port":   "9999",
+					},
+				},
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{
+						{
+							Name: "foo-ctr1",
+							Ports: []kubelet.ContainerPortSpec{
+								{
+									ContainerPort: 8080, // Doesn't match
+								},
+							},
+						},
+						{
+							Name: "foo-ctr2",
+							Ports: []kubelet.ContainerPortSpec{
+								{
+									ContainerPort: 8081, // Doesn't match
+								},
+							},
+						},
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr1",
+							ID:   "foo-ctr1-id",
+						},
+						{
+							Name: "foo-ctr2",
+							ID:   "foo-ctr2-id",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr1",
+							ID:   "foo-ctr1-id",
+						},
+						{
+							Name: "foo-ctr2",
+							ID:   "foo-ctr2-id",
+						},
+					},
+				},
+			},
+			// No containers match the port in the annotation so don't generate
+			// configs for them
+			want: nil,
+		},
+		{
+			name:    "invalid port in annotation",
+			check:   types.DefaultPrometheusCheck,
+			version: 2,
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name: "foo-pod",
+					Annotations: map[string]string{
+						"prometheus.io/scrape": "true",
+						"prometheus.io/port":   "invalid",
+					},
+				},
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{
+						{
+							Name: "foo-ctr1",
+							Ports: []kubelet.ContainerPortSpec{
+								{
+									ContainerPort: 8080, // Doesn't match
+								},
+							},
+						},
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr1",
+							ID:   "foo-ctr1-id",
+						},
+						{
+							Name: "foo-ctr2",
+							ID:   "foo-ctr2-id",
+						},
+					},
+				},
+			},
+			// Don't generate any configs with an invalid port, the check will
+			// fail
+			want: nil,
+		},
+		{
 			name: "container name mismatch",
 			check: &types.PrometheusCheck{
 				AD: &types.ADConfig{

@@ -29,18 +29,22 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Co
 	instances, found := buildInstances(pc, pod.Metadata.Annotations, namespacedName)
 	if found {
 		// If `prometheus.io/port` annotation has been provided, let’s keep only the container that declares this port.
-		var containerUsingThePort string
-		if portFromAnnotationString, portFromAnnotationFound := pod.Metadata.Annotations[types.PrometheusPortAnnotation]; portFromAnnotationFound {
-			if portFromAnnotation, err := strconv.Atoi(portFromAnnotationString); err == nil {
-			containerFound:
-				for _, containerSpec := range pod.Spec.Containers {
-					for _, port := range containerSpec.Ports {
-						if port.ContainerPort == portFromAnnotation {
-							containerUsingThePort = containerSpec.Name
-							break containerFound
-						}
-					}
-				}
+		portAnnotationString, hasPortAnnotation := pod.Metadata.Annotations[types.PrometheusPortAnnotation]
+		var containerWithPortInAnnotation string
+
+		if hasPortAnnotation {
+			portNumber, err := strconv.Atoi(portAnnotationString)
+			if err != nil {
+				log.Debugf("Port in annotation '%s' is not an integer", portAnnotationString)
+				// Don't return configs with an invalid port
+				return configs
+			}
+
+			containerWithPortInAnnotation = findContainerWithPort(pod.Spec.Containers, portNumber)
+
+			// If port annotation exists but no container matches, return empty
+			if containerWithPortInAnnotation == "" {
+				return configs
 			}
 		}
 
@@ -49,9 +53,11 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Co
 				log.Debugf("Container '%s' doesn't match the AD configuration 'kubernetes_container_names', ignoring it", containerStatus.Name)
 				continue
 			}
-			if containerUsingThePort != "" && containerStatus.Name != containerUsingThePort {
+
+			if hasPortAnnotation && containerStatus.Name != containerWithPortInAnnotation {
 				continue
 			}
+
 			configs = append(configs, integration.Config{
 				Name:          openmetricsCheckName,
 				InitConfig:    integration.Data(openmetricsInitConfig),
@@ -67,4 +73,16 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Co
 	// TODO: Support AD matching based on label selectors
 
 	return configs
+}
+
+// findContainerWithPort returns the name of the container that exposes the given port, or empty string if none found
+func findContainerWithPort(containers []kubelet.ContainerSpec, targetPort int) string {
+	for _, containerSpec := range containers {
+		for _, port := range containerSpec.Ports {
+			if port.ContainerPort == targetPort {
+				return containerSpec.Name
+			}
+		}
+	}
+	return ""
 }
