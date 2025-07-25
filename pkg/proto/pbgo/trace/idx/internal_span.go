@@ -195,12 +195,26 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	}
 }
 
+func (tp *InternalTracerPayload) SetAttributes(attributes map[uint32]*AnyValue) {
+	tp.Attributes = attributes
+}
+
 func (tp *InternalTracerPayload) Hostname() string {
 	return tp.Strings.Get(tp.hostnameRef)
 }
 
+func (tp *InternalTracerPayload) SetHostname(hostname string) {
+	tp.Strings.DecrementReference(tp.hostnameRef)
+	tp.hostnameRef = tp.Strings.Add(hostname)
+}
+
 func (tp *InternalTracerPayload) AppVersion() string {
 	return tp.Strings.Get(tp.appVersionRef)
+}
+
+func (tp *InternalTracerPayload) SetAppVersion(version string) {
+	tp.Strings.DecrementReference(tp.appVersionRef)
+	tp.appVersionRef = tp.Strings.Add(version)
 }
 
 func (tp *InternalTracerPayload) LanguageName() string {
@@ -249,6 +263,15 @@ func (tp *InternalTracerPayload) Env() string {
 func (tp *InternalTracerPayload) SetEnv(env string) {
 	tp.Strings.DecrementReference(tp.envRef)
 	tp.envRef = tp.Strings.Add(env)
+}
+
+func (tp *InternalTracerPayload) RuntimeID() string {
+	return tp.Strings.Get(tp.runtimeIDRef)
+}
+
+func (tp *InternalTracerPayload) SetRuntimeID(runtimeID string) {
+	tp.Strings.DecrementReference(tp.runtimeIDRef)
+	tp.runtimeIDRef = tp.Strings.Add(runtimeID)
 }
 
 // RemoveChunk removes a chunk by its index.
