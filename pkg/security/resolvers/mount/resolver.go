@@ -10,6 +10,9 @@ package mount
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"path"
 	"path/filepath"
 	"slices"
@@ -97,6 +100,7 @@ type ResolverOpts struct {
 // Resolver represents a cache for mountpoints and the corresponding file systems
 type Resolver struct {
 	opts            ResolverOpts
+	dentryResolver  *dentry.Resolver
 	cgroupsResolver *cgroup.Resolver
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
@@ -158,7 +162,7 @@ func (mr *Resolver) syncPid(pid uint32) error {
 		}
 
 		m := newMountFromMountInfo(mnt)
-		mr.insert(m, pid)
+		mr.insert(m, pid, false)
 	}
 
 	return nil
@@ -184,6 +188,56 @@ func (mr *Resolver) syncCache(mountID uint32, pids []uint32) error {
 
 const openQueuePreAllocSize = 32 // should be enough to handle most of in queue mounts waiting to be deleted
 
+func (mr *Resolver) insertMoved(mount *model.Mount) {
+	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, true)
+	oldPath, _, _, _ := mr._getMountPath(mount.MountID, 0, 0, map[uint32]bool{})
+
+	mr.insert(mount, 0, true)
+
+	insertedMount, ok := mr.mounts.Get(mount.MountID)
+	if !ok {
+		seclog.Errorf("Tried to move a mountpoint that didn't exist in our database")
+		return
+	}
+
+	insertedMount.MountPointStr, _ = mr.dentryResolver.Resolve(insertedMount.ParentPathKey, true)
+	insertedMount.MountPointStr, _, _, _ = mr._getMountPath(insertedMount.MountID, 0, 0, map[uint32]bool{})
+
+	var allChildren []*model.Mount
+	mr.getAllChildrenRecursive(mount, &allChildren)
+
+	changePrefix := func(s, oldPrefix, newPrefix string) string {
+		if strings.HasPrefix(s, oldPrefix) {
+			return newPrefix + s[len(oldPrefix):]
+		}
+		return s
+	}
+
+	for _, child := range allChildren {
+		if child.MountID == mount.MountID {
+			continue
+		}
+		currentChildPath, _, _, _ := mr._getMountPath(child.MountID, 0, 0, map[uint32]bool{})
+
+		child.MountPointStr = changePrefix(currentChildPath, oldPath, insertedMount.MountPointStr)
+		if oldPath == child.MountPointStr {
+			seclog.Errorf("Error replacing mountpoint string for %s", child.MountPointStr)
+		}
+	}
+}
+
+func (mr *Resolver) getAllChildrenRecursive(mount *model.Mount, children *[]*model.Mount) {
+	*children = append(*children, mount)
+
+	for _, mountid := range mount.Children {
+		mount, ok := mr.mounts.Get(mountid)
+		if ok {
+			mr.getAllChildrenRecursive(mount, children)
+		} else {
+			fmt.Println("Could not find mountid", mountid)
+		}
+	}
+}
 func (mr *Resolver) delete(mount *model.Mount) {
 	now := time.Now()
 
@@ -206,6 +260,16 @@ func (mr *Resolver) delete(mount *model.Mount) {
 }
 
 func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
+	parent, exists := mr.mounts.Get(curr.MountID)
+	if exists {
+		for i := 0; i != len(curr.Children); i++ {
+			if curr.Children[i] == curr.MountID {
+				parent.Children = append(parent.Children[:i], parent.Children[i+1:]...)
+				break
+			}
+		}
+	}
+
 	mr.mounts.Remove(curr.MountID)
 	mr.pidToMounts.RemoveKey2(curr.MountID)
 
@@ -256,7 +320,21 @@ func (mr *Resolver) Insert(m model.Mount, pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mr.insert(&m, pid)
+	mr.insert(&m, pid, false)
+
+	return nil
+}
+
+// Insert a moved mount point
+func (mr *Resolver) InsertMoved(m model.Mount) error {
+	if m.MountID == 0 {
+		return ErrMountUndefined
+	}
+
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+
+	mr.insertMoved(&m)
 
 	return nil
 }
@@ -281,13 +359,17 @@ func (mr *Resolver) DelPid(pid uint32) {
 	mr.pidToMounts.RemoveKey1(pid)
 }
 
-func (mr *Resolver) insert(m *model.Mount, pid uint32) {
+func (mr *Resolver) insert(m *model.Mount, pid uint32, moved bool) {
 	// umount the previous one if exists
 	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
-		// put the prev entry and the all the children in the redemption list
-		mr.delete(prev)
-		// force a finalize on the entry itself as it will be overridden by the new one
-		mr.finalize(prev)
+		m.Children = prev.Children
+
+		if !moved {
+			// put the prev entry and the all the children in the redemption list
+			mr.delete(prev)
+			// force a finalize on the entry itself as it will be overridden by the new one
+			mr.finalize(prev)
+		}
 	} else if _, ok := mr.redemption.Get(m.MountID); ok {
 		// this will call the eviction function that will call the finalize
 		mr.redemption.Remove(m.MountID)
@@ -303,8 +385,21 @@ func (mr *Resolver) insert(m *model.Mount, pid uint32) {
 		mr.minMountID = m.MountID
 	}
 
-	mr.mounts.Add(m.MountID, m)
+	parent, ok := mr.mounts.Get(m.ParentPathKey.MountID)
+	if ok {
+		exists := false
+		for _, mntid := range parent.Children {
+			if mntid == m.MountID {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			parent.Children = append(parent.Children, m.MountID)
+		}
+	}
 
+	mr.mounts.Add(m.MountID, m)
 	mr.updatePidMapping(m, pid)
 }
 
@@ -628,7 +723,7 @@ const (
 )
 
 // NewResolver instantiates a new mount resolver
-func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Resolver, opts ResolverOpts) (*Resolver, error) {
+func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Resolver, dentryResolver *dentry.Resolver, opts ResolverOpts) (*Resolver, error) {
 	mounts, err := simplelru.NewLRU[uint32, *model.Mount](mountsLimit, nil)
 	if err != nil {
 		return nil, err
@@ -646,6 +741,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		lock:            sync.RWMutex{},
 		mounts:          mounts,
 		pidToMounts:     pidToMounts,
+		dentryResolver:  dentryResolver,
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
 		cacheMissStats:  atomic.NewInt64(0),
