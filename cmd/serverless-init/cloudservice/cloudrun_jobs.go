@@ -93,14 +93,14 @@ func (c *CloudRunJobs) GetSource() metrics.MetricSource {
 
 // Init records the start time for CloudRunJobs
 func (c *CloudRunJobs) Init() error {
-	c.startTime = time.Now()
+	c.startTime = time.Now().UTC()
 	return nil
 }
 
 // Shutdown submits the task duration metric for CloudRunJobs
 func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent) {
 	metricName := fmt.Sprintf("%s.enhanced.task.duration", c.GetPrefix())
-	duration := float64(time.Since(c.startTime).Milliseconds())
+	duration := float64(time.Now().UTC().Sub(c.startTime).Milliseconds())
 	metric.Add(metricName, duration, c.GetSource(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 }
 
