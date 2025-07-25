@@ -253,7 +253,7 @@ func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 	}
 
 	for i := range cases {
-		actual, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		actual, _, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline, nil)
 		suite.Equal(cases[i].parsedCmdline, actual)
 	}
 }
@@ -276,7 +276,7 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 	}
 
 	for i := range cases {
-		actual, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline)
+		actual, _, _ := orchestratorCfg.Scrubber.ScrubSimpleCommand(cases[i].cmdline, nil)
 		suite.Equal(cases[i].parsedCmdline, actual)
 	}
 }
