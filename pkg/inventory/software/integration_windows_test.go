@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winsoftware
+package software
 
 import (
 	"bytes"
@@ -25,7 +25,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 	}
 
 	// Filter only MSI packages
-	filterMsi := func(software *SoftwareEntry) bool {
+	filterMsi := func(software *Entry) bool {
 		return strings.Contains(software.Source, "msi")
 	}
 
@@ -34,7 +34,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		cmd      string
-		filterFn func(software *SoftwareEntry) bool
+		filterFn func(software *Entry) bool
 	}{
 		{
 			name: "Test against Get-Package with Programs provider",
@@ -79,7 +79,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			require.NoError(t, err, "PowerShell command failed: %s", stderr.String())
 
 			// Parse CSV output into a nested map: name -> []SoftwareEntry
-			psInventory := make(map[string][]SoftwareEntry)
+			psInventory := make(map[string][]Entry)
 
 			// Create a new reader with UTF-8 BOM handling
 			csvBytes := stdout.Bytes()
@@ -99,16 +99,16 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					productCode := records[i][2]
 
 					if _, exists := psInventory[name]; !exists {
-						psInventory[name] = []SoftwareEntry{{
+						psInventory[name] = []Entry{{
 							DisplayName: name,
 							Version:     version,
-							Properties:  map[string]string{"ProductCode": productCode},
+							ProductCode: productCode,
 						}}
 					} else {
-						psInventory[name] = append(psInventory[name], SoftwareEntry{
+						psInventory[name] = append(psInventory[name], Entry{
 							DisplayName: name,
 							Version:     version,
-							Properties:  map[string]string{"ProductCode": productCode},
+							ProductCode: productCode,
 						})
 					}
 				}
@@ -133,14 +133,14 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			// Build comparable nested map from our inventory
 			// Map: name -> []SoftwareEntry
 			// This allows us to compare versions and sources efficiently
-			ourSoftwareMap := make(map[string][]*SoftwareEntry)
+			ourSoftwareMap := make(map[string][]*Entry)
 			for _, software := range ourInventory {
 				if tt.filterFn != nil && !tt.filterFn(software) {
 					continue // Skip if filter function is provided and returns false
 				}
 
 				if _, exists := ourSoftwareMap[software.DisplayName]; !exists {
-					ourSoftwareMap[software.DisplayName] = []*SoftwareEntry{software}
+					ourSoftwareMap[software.DisplayName] = []*Entry{software}
 				} else {
 					ourSoftwareMap[software.DisplayName] = append(ourSoftwareMap[software.DisplayName], software)
 				}
@@ -158,7 +158,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					for _, psEntry := range psVersions {
 						missingFromOurs = append(missingFromOurs,
 							fmt.Sprintf("%s (ProductCode: %s, Version: %s)",
-								name, psEntry.Properties[msiProductCode], psEntry.Version))
+								name, psEntry.ProductCode, psEntry.Version))
 					}
 					continue
 				}
@@ -175,7 +175,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					if !found {
 						missingFromOurs = append(missingFromOurs,
 							fmt.Sprintf("%s (ProductCode: %s, Version: %s)",
-								name, psEntry.Properties[msiProductCode], psEntry.Version))
+								name, psEntry.ProductCode, psEntry.Version))
 					}
 				}
 			}
@@ -188,7 +188,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					for _, entry := range ourVersions {
 						extraInOurs = append(extraInOurs,
 							fmt.Sprintf("%s (ProductCode: %s, Version: %s, Source: %s)",
-								name, entry.Properties[msiProductCode], entry.Version, entry.Source))
+								name, entry.ProductCode, entry.Version, entry.Source))
 					}
 					continue
 				}
@@ -206,7 +206,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					if !found {
 						extraInOurs = append(extraInOurs,
 							fmt.Sprintf("%s (ProductCode: %s, Version: %s, Source: %s)",
-								name, entry.Properties[msiProductCode], entry.Version, entry.Source))
+								name, entry.ProductCode, entry.Version, entry.Source))
 					}
 				}
 			}

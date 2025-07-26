@@ -1,0 +1,31 @@
+<div class="stat">
+  <span class="stat_title">Software Inventory Metadata</span>
+  <div class="stat_data inventory-scrollbox" style="max-height: 400px; overflow-y: auto;">
+    {{- $swMap := index . "software_inventory_metadata" }}
+    {{- if not $swMap }}
+      <div style="font-weight: bold; padding: 1em;">No software inventory metadata - is System Probe running?</div>
+    {{- else }}
+      {{- range $, $meta := $swMap }}
+        <details>
+          <summary>
+          {{- if $meta.DisplayName }}{{ $meta.DisplayName }}{{ if $meta.Version }} {{ $meta.Version }}{{ end }}{{- else }}{{ $meta.ProductCode }}{{- end }}
+          {{- if contains $meta.Status "broken" }}
+            <span class="source-bubble broken">broken</span>
+          {{- end }}
+          </summary>
+          <ul style="margin:1em 0; padding-left:2em;">
+            {{- if $meta.DisplayName }}<li><strong>Display Name:</strong> {{ $meta.DisplayName }}</li>{{- end }}
+            {{- if $meta.Version }}<li><strong>Version:</strong> {{ $meta.Version }}</li>{{- end }}
+            {{- if $meta.InstallDate }}<li><strong>Install Date:</strong> {{ $meta.InstallDate }}</li>{{- end }}
+            {{- if $meta.Publisher }}<li><strong>Publisher:</strong> {{ $meta.Publisher }}</li>{{- end }}
+            {{- if $meta.ProductCode }}<li><strong>Product code:</strong> {{ $meta.ProductCode }}</li>{{- end }}
+            {{- if $meta.Source }}<li><strong>Source:</strong> {{ $meta.Source }}</li>{{- end }}
+            {{- if $meta.Status }}<li><strong>Status:</strong> {{ $meta.Status }}</li>{{- end }}
+            {{- if $meta.UserSID }}<li><strong>User SID:</strong> {{ $meta.UserSID }}</li>{{- end }}
+            <li><strong>64-bit:</strong> {{ $meta.Is64Bit }}</li>
+          </ul>
+        </details>
+      {{- end }}
+    {{- end }}
+  </div>
+</div>
