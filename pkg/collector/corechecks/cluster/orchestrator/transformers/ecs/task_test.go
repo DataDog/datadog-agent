@@ -144,7 +144,6 @@ func TestExtractECSTask(t *testing.T) {
 		ServiceName:     "redis",
 		PullStartedAt:   now.Unix(),
 		Limits:          map[string]float64{"CPU": 1, "Memory": 2048},
-		Tags:            []string{},
 		EcsTags: []string{
 			"ecs.cluster:ecs-cluster",
 			"region:us-east-1",

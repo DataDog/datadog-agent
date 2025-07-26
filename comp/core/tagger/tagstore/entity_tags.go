@@ -84,18 +84,16 @@ func (e *EntityTagsWithMultipleSources) getEntityID() types.EntityID {
 func (e *EntityTagsWithMultipleSources) toEntity() types.Entity {
 	e.computeCache()
 
-	cachedAll := e.cachedAll.Get()
-	cachedOrchestrator := e.cachedOrchestrator.Get()
-	cachedLow := e.cachedLow.Get()
+	allTags := e.cachedAll.Get()
 
 	return types.Entity{
 		ID:           e.entityID,
 		StandardTags: e.getStandard(),
 		// cachedAll contains low, orchestrator and high cardinality tags, in this order.
 		// cachedOrchestrator and cachedLow are subslices of cachedAll, starting at index 0.
-		HighCardinalityTags:         cachedAll[len(cachedOrchestrator):],
-		OrchestratorCardinalityTags: cachedOrchestrator[len(cachedLow):],
-		LowCardinalityTags:          cachedLow,
+		HighCardinalityTags:         allTags[e.cachedOrchestrator.Len():],
+		OrchestratorCardinalityTags: allTags[e.cachedLow.Len():e.cachedOrchestrator.Len()],
+		LowCardinalityTags:          allTags[:e.cachedLow.Len()],
 	}
 }
 
@@ -173,7 +171,7 @@ func (e *EntityTagsWithMultipleSources) computeCache() {
 	tags := append(tagList[types.LowCardinality], tagList[types.OrchestratorCardinality]...)
 	tags = append(tags, tagList[types.HighCardinality]...)
 
-	cached := tagset.NewHashedTagsFromSlice(tags)
+	cached := tagset.NewHashedTagsFromStringSlice(tags)
 
 	lowCardTags := len(tagList[types.LowCardinality])
 	orchCardTags := len(tagList[types.OrchestratorCardinality])
@@ -283,17 +281,14 @@ func (e *EntityTagsWithSingleSource) getEntityID() types.EntityID {
 
 func (e *EntityTagsWithSingleSource) toEntity() types.Entity {
 	cachedAll := e.cachedAll.Get()
-	cachedOrchestrator := e.cachedOrchestrator.Get()
-	cachedLow := e.cachedLow.Get()
-
 	return types.Entity{
 		ID:           e.entityID,
 		StandardTags: e.getStandard(),
 		// cachedAll contains low, orchestrator and high cardinality tags, in this order.
 		// cachedOrchestrator and cachedLow are subslices of cachedAll, starting at index 0.
-		HighCardinalityTags:         cachedAll[len(cachedOrchestrator):],
-		OrchestratorCardinalityTags: cachedOrchestrator[len(cachedLow):],
-		LowCardinalityTags:          cachedLow,
+		HighCardinalityTags:         cachedAll[e.cachedOrchestrator.Len():],
+		OrchestratorCardinalityTags: cachedAll[e.cachedLow.Len():e.cachedOrchestrator.Len()],
+		LowCardinalityTags:          cachedAll[:e.cachedLow.Len()],
 	}
 }
 
@@ -320,10 +315,12 @@ func (e *EntityTagsWithSingleSource) tagsForSource(source string) *sourceTags {
 		return nil
 	}
 
+	allTags := e.cachedAll.Get()
+
 	return &sourceTags{
-		lowCardTags:          e.cachedLow.Get(),
-		orchestratorCardTags: e.cachedAll.Slice(e.cachedLow.Len(), e.cachedOrchestrator.Len()).Get(),
-		highCardTags:         e.cachedAll.Slice(e.cachedOrchestrator.Len(), e.cachedAll.Len()).Get(),
+		lowCardTags:          allTags[:e.cachedLow.Len()],
+		orchestratorCardTags: allTags[e.cachedLow.Len():e.cachedOrchestrator.Len()],
+		highCardTags:         allTags[e.cachedOrchestrator.Len():],
 		standardTags:         e.standardTags,
 		expiryDate:           e.expiryDate,
 	}
@@ -346,7 +343,7 @@ func (e *EntityTagsWithSingleSource) setTagsForSource(source string, tags source
 	all = append(all, tags.orchestratorCardTags...)
 	all = append(all, tags.highCardTags...)
 
-	cached := tagset.NewHashedTagsFromSlice(all)
+	cached := tagset.NewHashedTagsFromStringSlice(all)
 
 	e.cachedAll = cached
 	e.cachedLow = cached.Slice(0, len(tags.lowCardTags))

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestCollisions(t *testing.T) {
@@ -36,7 +37,7 @@ func TestCollisions(t *testing.T) {
 		assert.Len(parts, 2, "Format is: metric_name,tag1 tag2 tag3")
 		metricName := parts[0]
 		tagList := parts[1]
-		tags := strings.Split(tagList, " ")
+		tags := utilstrings.ToUnique(strings.Split(tagList, " "))
 		ck := generator.Generate(metricName, host, tagset.NewHashingTagsAccumulatorWithTags(tags))
 		if v, exists := cache[ck]; exists {
 			assert.Fail("A collision happened:", v, "and", line)

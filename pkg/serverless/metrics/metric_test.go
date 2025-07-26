@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestMain(m *testing.M) {
@@ -149,7 +150,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			n := rand.Intn(10)
 			time.Sleep(time.Duration(n) * time.Microsecond)
-			go SendTimeoutEnhancedMetric([]string{"tag0:value0", "tag1:value1"}, metricAgent.Demux)
+			go SendTimeoutEnhancedMetric(utilstrings.ToUnique([]string{"tag0:value0", "tag1:value1"}), metricAgent.Demux)
 		}
 	}()
 

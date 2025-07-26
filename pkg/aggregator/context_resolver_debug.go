@@ -25,15 +25,26 @@ type ContextDebugRepr struct {
 
 func (cr *contextResolver) dumpContexts(dest io.Writer) error {
 	enc := json.NewEncoder(dest)
+	taggerTags := []string{}
+	metricTags := []string{}
 
 	for _, e := range cr.contextsByKey {
 		c := e.context
+		taggerTags := taggerTags[:0]
+		for _, t := range c.taggerTags.Tags() {
+			taggerTags = append(taggerTags, t.Value())
+		}
+		metricTags := metricTags[:0]
+		for _, t := range c.metricTags.Tags() {
+			metricTags = append(metricTags, t.Value())
+		}
+
 		err := enc.Encode(ContextDebugRepr{
 			Name:       c.Name,
 			Host:       c.Host,
 			Type:       c.mtype.String(),
-			TaggerTags: c.taggerTags.Tags(),
-			MetricTags: c.metricTags.Tags(),
+			TaggerTags: taggerTags,
+			MetricTags: metricTags,
 			NoIndex:    c.noIndex,
 			Source:     c.source,
 		})
