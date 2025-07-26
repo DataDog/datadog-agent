@@ -1,10 +1,10 @@
 [
   {
-    "service": "simple",
+    "service": "sample",
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.mapArg",
+      "method": "main.testMapStringToSlice",
       "version": 0,
       "thread_id": 0,
       "thread_name": ""
@@ -16,28 +16,38 @@
         "language": "go",
         "stack": "[stack-unredact-me]",
         "probe": {
-          "id": "mapArg",
+          "id": "testMapStringToSlice",
           "location": {
-            "method": "main.mapArg"
+            "method": "main.testMapStringToSlice"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
               "m": {
-                "type": "map[string]int",
+                "type": "map[string][]string",
                 "entries": [
                   [
                     {
                       "type": "string",
-                      "value": "a"
+                      "value": "foo"
                     },
                     {
-                      "type": "int",
-                      "value": "1"
+                      "type": "[]string",
+                      "elements": [
+                        {
+                          "type": "string",
+                          "value": "one"
+                        },
+                        {
+                          "type": "string",
+                          "value": "two"
+                        }
+                      ]
                     }
                   ]
-                ]
+                ],
+                "notCapturedReason": "depth"
               }
             }
           }

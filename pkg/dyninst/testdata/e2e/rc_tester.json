@@ -100,7 +100,8 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "entries": [],
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -128,11 +129,11 @@
                   },
                   "Form": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "PostForm": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "MultipartForm": {
                     "type": "*mime/multipart.Form",
@@ -140,7 +141,7 @@
                   },
                   "Trailer": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "RemoteAddr": {
                     "type": "string",
@@ -220,7 +221,7 @@
                   },
                   "otherValues": {
                     "type": "map[string]string",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   }
                 }
               }
@@ -368,7 +369,8 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "entries": [],
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -396,11 +398,11 @@
                   },
                   "Form": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "PostForm": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "MultipartForm": {
                     "type": "*mime/multipart.Form",
@@ -408,7 +410,7 @@
                   },
                   "Trailer": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "RemoteAddr": {
                     "type": "string",
@@ -488,7 +490,7 @@
                   },
                   "otherValues": {
                     "type": "map[string]string",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   }
                 }
               }
@@ -636,7 +638,8 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "entries": [],
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -664,11 +667,11 @@
                   },
                   "Form": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "PostForm": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "MultipartForm": {
                     "type": "*mime/multipart.Form",
@@ -676,7 +679,7 @@
                   },
                   "Trailer": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "RemoteAddr": {
                     "type": "string",
@@ -746,7 +749,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0000\u0000(\u0000\u0000\u0000\u0000\u0000\u0000\u0000)\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000p\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0000\u0000/\u0000\u0000\u0000\u0000\u0000\u0000\u00000\u0000\u0000\u0000\u0000\u0000\u0000\u0000p\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0000\u0000(\u0000\u0000\u0000\u0000\u0000\u0000\u0000)\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000p\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0000\u0000/\u0000\u0000\u0000\u0000\u0000\u0000\u00000\u0000\u0000\u0000\u0000\u0000\u0000\u0000p\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0000\u0000(\u0000\u0000\u0000\u0000\u0000\u0000\u0000)\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000p\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
                       }
                     }
                   },
@@ -756,7 +759,7 @@
                   },
                   "otherValues": {
                     "type": "map[string]string",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   }
                 }
               }
