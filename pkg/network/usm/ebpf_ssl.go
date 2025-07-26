@@ -19,6 +19,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -454,6 +455,17 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		return nil, nil
 	}
 
+	// Check for kernel bug that causes segfaults with uretprobes and seccomp
+	hasUretprobeBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
+	if err != nil {
+		log.Errorf("failed to check for uretprobe syscall seccomp bug: %v", err)
+		return nil, err
+	}
+	if hasUretprobeBug {
+		log.Warn("native TLS monitoring disabled due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
+		return nil, nil
+	}
+
 	procRoot := kernel.ProcFSRoot()
 
 	rules := []*uprobes.AttachRule{
@@ -493,7 +505,6 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		attacherConfig.OnSyncCallback = o.cleanupDeadPids
 	}
 
-	var err error
 	o.attacher, err = uprobes.NewUprobeAttacher(consts.USMModuleName, UsmTLSAttacherName, attacherConfig, m, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, monitor.GetProcessMonitor())
 	if err != nil {
 		return nil, fmt.Errorf("error initializing uprobes attacher: %s", err)

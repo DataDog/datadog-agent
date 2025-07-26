@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,6 +45,17 @@ func TLSSupported(c *config.Config) bool {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
 		log.Warn("could not determine the current kernel version. https monitoring disabled.")
+		return false
+	}
+
+	// Check for kernel bug that causes segfaults with uretprobes and seccomp
+	hasUretprobeBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
+	if err != nil {
+		log.Errorf("failed to check for uretprobe syscall seccomp bug: %v", err)
+		return false
+	}
+	if hasUretprobeBug {
+		log.Warn("TLS monitoring disabled due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
 		return false
 	}
 
