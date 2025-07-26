@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -26,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,6 +46,7 @@ type processor struct {
 	cfg                   config.Component
 	queue                 chan *model.SBOMEntity
 	workloadmetaStore     workloadmeta.Component
+	filterStore           workloadfilter.Component
 	tagger                tagger.Component
 	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
@@ -57,7 +59,7 @@ type processor struct {
 	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, tagger tagger.Component, cfg config.Component, maxNbItem int, maxRetentionTime time.Duration, hostHeartbeatValidity time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workloadfilter.Component, sender sender.Sender, tagger tagger.Component, cfg config.Component, maxNbItem int, maxRetentionTime time.Duration, hostHeartbeatValidity time.Duration) (*processor, error) {
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -91,6 +93,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 			log.Debugf("SBOM event sent with %d entities", len(entities))
 		}),
 		workloadmetaStore:     workloadmetaStore,
+		filterStore:           filterStore,
 		tagger:                tagger,
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
@@ -107,7 +110,7 @@ func isProcfsSBOMEnabled(cfg config.Component) bool {
 	return cfg.GetBool("sbom.container.enabled") && fargate.IsFargateInstance()
 }
 
-func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBundle, containerFilter *containers.Filter) {
+func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBundle) {
 	evBundle.Acknowledge()
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
@@ -130,7 +133,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 	for _, event := range imageEvents {
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
-			if containerFilter.IsExcluded(nil, "", event.Entity.(*workloadmeta.ContainerImageMetadata).Name, "") {
+			if p.filterStore.IsContainerExcluded(workloadfilter.CreateContainerImage(event.Entity.(*workloadmeta.ContainerImageMetadata).Name), [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.LegacyContainerSBOM)}}) {
 				continue
 			}
 
@@ -149,7 +152,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			container := event.Entity.(*workloadmeta.Container)
 			p.registerContainer(container)
 
-			if containerFilter.IsExcluded(nil, container.Name, container.Image.Name, "") {
+			if p.filterStore.IsContainerExcluded(workloadmetafilter.CreateContainer(container, nil), [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.LegacyContainerSBOM)}}) {
 				continue
 			}
 

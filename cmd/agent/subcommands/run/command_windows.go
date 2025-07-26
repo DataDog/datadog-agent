@@ -57,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -105,6 +106,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			server dogstatsdServer.Component,
 			_ replay.Component,
 			wmeta workloadmeta.Component,
+			filterStore workloadfilter.Component,
 			taggerComp tagger.Component,
 			ac autodiscovery.Component,
 			rcclient rcclient.Component,
@@ -148,6 +150,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				sysprobeconfig,
 				server,
 				wmeta,
+				filterStore,
 				taggerComp,
 				ac,
 				rcclient,
