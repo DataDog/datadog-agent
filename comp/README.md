@@ -767,6 +767,12 @@ Package notableevents provides a component that monitors notable system events a
 
 Package publishermetadatacache provides a cache for Windows Event Log publisher metadata handles
 
+### [comp/privateactionrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner)
+
+*Datadog Team*: action-platform
+
+Package privateactionrunner allows you to //TODO
+
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
 *Datadog Team*: ndm-integrations

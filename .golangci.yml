@@ -16,6 +16,7 @@ issues:
     - pkg/security/utils/lru
     - pkg/template
     - tasks/unit_tests/testdata/components_src
+    - pkg/privateactionrunner/bundles
 
   exclude:
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go

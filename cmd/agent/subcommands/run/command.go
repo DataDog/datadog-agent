@@ -37,6 +37,7 @@ import (
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
@@ -540,6 +541,7 @@ func getSharedFxOption() fx.Option {
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
 		tracetelemetryfx.Module(),
+		privateactionrunnerfx.Module(),
 	)
 }
 
