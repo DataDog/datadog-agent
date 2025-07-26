@@ -151,13 +151,14 @@ type snmpDockerSuite struct {
 
 // TestSnmpSuite runs the snmp e2e suite
 func TestSnmpSuite(t *testing.T) {
-	t.Skip("Skipping test until we can fix the flakiness")
+	//t.Skip("Skipping test until we can fix the flakiness")
 	e2e.Run(t, &snmpDockerSuite{}, e2e.WithProvisioner(snmpDockerProvisioner()))
 }
 
 // TestSnmp tests that the snmpsim container is running and that the agent container
 // is sending snmp metrics to the fakeintake
 func (s *snmpDockerSuite) TestSnmp() {
+	s.T().Skip("Skipping test until we can fix the flakiness")
 	fakeintake := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		metrics, err := fakeintake.GetMetricNames()
@@ -167,6 +168,7 @@ func (s *snmpDockerSuite) TestSnmp() {
 }
 
 func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
+	s.T().Skip("Skipping test until we can fix the flakiness")
 	fakeintake := s.Env().FakeIntake.Client()
 	var initialMetrics []*aggregator.MetricSeries
 	var err error
@@ -198,4 +200,92 @@ func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 
 	require.Zero(s.T(), metrics[0].Points[0].Value)
 	require.ElementsMatch(s.T(), tags, initialTags)
+}
+
+func (s *snmpDockerSuite) TestSnmpAutodiscovery() {
+	remoteHost := s.Env().RemoteHost
+	agent := s.Env().Agent
+	fakeIntake := s.Env().FakeIntake.Client()
+
+	// Create SNMP autodiscovery config targeting our network
+	agentConfig := `
+network_devices:
+  autodiscovery:
+    configs:
+      - network_address: 192.168.100.0/28
+        community_string: cisco-nexus
+        port: 1161
+        ignored_ip_addresses:
+          - 192.168.100.1
+      - network_address: 192.168.101.0/28
+        community_string: cisco-nexus
+        port: 1161
+        ignored_ip_addresses:
+          - 192.168.101.1
+`
+
+	// Write config and restart the agent
+	configPath := "/tmp/autodiscovery_datadog.yaml"
+	_, err := remoteHost.Execute(fmt.Sprintf("echo '%s' > %s", agentConfig, configPath))
+	require.NoError(s.T(), err)
+
+	// Copy config to agent container
+	_, err = remoteHost.Execute(fmt.Sprintf(
+		"docker cp %s %s:/etc/datadog-agent/datadog.yaml",
+		configPath, agent.ContainerName))
+	require.NoError(s.T(), err)
+
+	// Restart the agent to pick up new config
+	_, err = remoteHost.Execute(fmt.Sprintf("docker restart %s", agent.ContainerName))
+	require.NoError(s.T(), err)
+
+	_, err = remoteHost.Execute(fmt.Sprintf(
+		"docker exec %s bash -c 'apt-get update && apt-get install -y iputils-ping'",
+		agent.ContainerName))
+	if err != nil {
+		s.T().Fatalf("Failed to install ping utility: %v", err)
+	}
+
+	// Test network connectivity to the target IP
+	s.T().Logf("Testing connectivity to 192.168.100.2 from agent container...")
+	pingResult, err := remoteHost.Execute(fmt.Sprintf(
+		"docker exec %s ping -c 3 192.168.100.2",
+		agent.ContainerName))
+	if err != nil {
+		s.T().Logf("Ping failed: %v", err)
+	} else {
+		s.T().Logf("Ping result:\n%s", pingResult)
+	}
+
+	_, err = remoteHost.Execute(fmt.Sprintf(
+		"docker exec %s bash -c 'apt-get update && apt-get install -y snmp'",
+		agent.ContainerName))
+	if err != nil {
+		s.T().Fatalf("Failed to install snmp utility: %v", err)
+	}
+
+	snmpResult, err := remoteHost.Execute(fmt.Sprintf(
+		"docker exec %s snmpwalk -v 2c -c ciscso-nexus 192.168.100.2:1161",
+		agent.ContainerName))
+	if err != nil {
+		s.T().Logf("Failed to run snmpwalk: %v", err)
+	}
+	s.T().Logf("SNMP result:\n%s", snmpResult)
+	time.Sleep(50 * time.Second)
+	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
+		output := agent.Client.Status()
+		s.T().Logf("Agent status: %s", output.Content)
+
+		deviceMetrics, err := fakeIntake.FilterMetrics("snmp.devices_monitored")
+		assert.NoError(t, err)
+		assert.NotEmpty(t, deviceMetrics, "No SNMP devices_monitored metric found")
+
+		if len(deviceMetrics) > 0 && len(deviceMetrics[0].Points) > 0 {
+			devicesMonitored := deviceMetrics[0].Points[0].Value
+			assert.Equal(t, float64(1), devicesMonitored,
+				"Expected exactly 1 monitored device, got %.0f (deduplication not working)",
+				devicesMonitored)
+		}
+	}, 2*time.Minute, 5*time.Second)
+
 }
