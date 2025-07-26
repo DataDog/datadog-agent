@@ -203,6 +203,9 @@ type BaseSuite[Env any] struct {
 	initOnly      bool
 	teardownOnly  bool
 
+	coverage       bool
+	coverageOutDir string
+
 	outputDir string
 }
 
@@ -309,7 +312,6 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	for _, o := range options {
 		o(&bs.params)
 	}
-
 	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
 	if err == nil {
 		bs.initOnly = initOnly
@@ -328,9 +330,23 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		bs.params.skipDeleteOnFailure, _ = runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	}
 
+	coverage, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.CoveragePipeline, false)
+	if err == nil {
+		bs.coverage = coverage
+	}
+
+	coverageOutDir, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.CoverageOutDir, "")
+	if err == nil && coverageOutDir != "" {
+		bs.coverageOutDir = coverageOutDir
+	} else {
+		bs.coverage = false
+		fmt.Println("WARNING: Coverage pipeline is enabled but coverage out dir is not set, skipping coverage")
+	}
+
 	stackNameSuffix, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackNameSuffix, "")
 	if err != nil {
-		bs.T().Fatalf("unable to get stack name suffix: %v", err)
+		fmt.Printf("unable to get stack name suffix, ignoring stack name suffix: %v\n", err)
+		stackNameSuffix = ""
 	}
 	if bs.params.stackName == "" {
 		sType := reflect.TypeOf(self).Elem()
@@ -675,6 +691,13 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	if bs.initOnly {
 		bs.T().Logf("INIT_ONLY is set, skipping deletion")
 		return
+	}
+
+	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok && bs.coverage {
+		err := coverageEnv.Coverage(bs.coverageOutDir)
+		if err != nil {
+			bs.T().Logf("WARNING: Coverage failed: %v", err)
+		}
 	}
 
 	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {
