@@ -7,8 +7,9 @@ package remoteagentregistry
 
 // RegisteredAgent contains the information about a registered remote agent
 type RegisteredAgent struct {
-	DisplayName  string
-	LastSeenUnix int64
+	DisplayName          string
+	SanatizedDisplayName string
+	LastSeenUnix         int64
 }
 
 // StatusSection is a map of key-value pairs that represent a section of the status data
