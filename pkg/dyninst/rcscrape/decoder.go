@@ -128,8 +128,8 @@ func newDecoder(
 		stringDataType     *ir.GoStringDataType
 		strField, lenField *ir.Field
 	)
-	for i := range stringHeaderType.Fields {
-		f := &stringHeaderType.Fields[i]
+	for i := range stringHeaderType.RawFields {
+		f := &stringHeaderType.RawFields[i]
 		switch f.Name {
 		case "str":
 			stringDataPtrType, ok := f.Type.(*ir.PointerType)

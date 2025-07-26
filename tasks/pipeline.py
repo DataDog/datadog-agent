@@ -457,8 +457,8 @@ def changelog(ctx, new_commit_sha):
     empty_changelog_msg = "No new System Probe related commits in this release :cricket:"
     no_commits_msg = "No new commits in this release :cricket:"
     slack_message = (
-        "The nightly deployment is rolling out to Staging :siren: \n"
-        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+        f"The nightly deployment is rolling out to Staging :siren: \n"
+        f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
     )
 
     if old_commit_sha == new_commit_sha:
@@ -747,7 +747,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
             print('You might want to run these commands to restore the current state:')
             print('\n'.join(restore_commands))
 
-            exit(1)
+            raise Exit(code=1)
 
     # Show links
     repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
@@ -856,24 +856,26 @@ def compare_to_itself(ctx):
     for attempt in range(max_attempts):
         print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created {attempt + 1}/{max_attempts}")
         time.sleep(30)
-        pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
-        for pipeline in pipelines:
+        for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
             commit = agent.commits.get(pipeline.sha)
             if commit.author_name == BOT_NAME and commit.title == "Commit to compare to itself":
                 if pipeline.status == "skipped":
                     # DDCI: we need to trigger the pipeline
                     print(f"Triggering the CI execution for {new_branch}")
                     trigger_agent_pipeline(repo=agent, ref=new_branch)
-                    continue
                 else:
                     compare_to_pipeline = pipeline
                     print(f"Test pipeline found: {pipeline.web_url}")
+                # Either we found the pipeline or we need to wait for it to be created
+                # In both cases we can skip the loop
+                break
         if compare_to_pipeline:
             break
         if attempt == max_attempts - 1:
-            # Clean up the branch and possible pipelines
-            for pipeline in pipelines:
+            print("Cleaning up the pipelines")
+            for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
                 cancel_pipeline(pipeline)
+            print("Cleaning up git")
             ctx.run(f"git checkout {current_branch}", hide=True)
             ctx.run(f"git branch -D {new_branch}", hide=True)
             ctx.run(f"git push origin :{new_branch}", hide=True)
@@ -887,9 +889,8 @@ def compare_to_itself(ctx):
         else:
             print(f"Pipeline correctly created, {color_message('congrats', Color.GREEN)}")
     finally:
-        # Clean up
         print("Cleaning up the pipelines")
-        for pipeline in pipelines:
+        for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
             cancel_pipeline(pipeline)
         print("Cleaning up git")
         ctx.run(f"git checkout {current_branch}", hide=True)

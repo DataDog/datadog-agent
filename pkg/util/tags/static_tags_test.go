@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 func TestStaticTags(t *testing.T) {
@@ -93,12 +94,25 @@ func TestStaticTagsSlice(t *testing.T) {
 	})
 }
 
-func TestExtraGlobalEnvTags(t *testing.T) {
+func TestClusterAgentGlobalTags(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+	clustername.ResetClusterName()
 	mockConfig := configmock.New(t)
+
+	// Agent tags config
 	mockConfig.SetWithoutSource("tags", []string{"some:tag", "nocolon"})
 	mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag", "missingcolon"})
 	mockConfig.SetWithoutSource("cluster_checks.extra_tags", []string{"cluster:tag", "nocolon"})
 	mockConfig.SetWithoutSource("orchestrator_explorer.extra_tags", []string{"orch:tag", "missingcolon"})
+
+	// Custom cluster name tag
+	clusterName := "custom-name"
+	mockConfig.SetWithoutSource("hostname", "hostname-from-configuration")
+	mockConfig.SetWithoutSource("cluster_name", clusterName)
+
+	// Orch cluster ID tag
+	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
 
 	recordFlavor := flavor.GetFlavor()
 	defer func() {
@@ -107,18 +121,20 @@ func TestExtraGlobalEnvTags(t *testing.T) {
 
 	t.Run("Agent extraGlobalTags", func(t *testing.T) {
 		flavor.SetFlavor(flavor.DefaultAgent)
-		globalTags := GetGlobalEnvTags(mockConfig)
+		globalTags := GetClusterAgentStaticTags(mockConfig)
 		assert.Equal(t, map[string][]string(nil), globalTags)
 	})
 
 	t.Run("ClusterAgent extraGlobalTags", func(t *testing.T) {
 		flavor.SetFlavor(flavor.ClusterAgent)
-		globalTags := GetGlobalEnvTags(mockConfig)
+		globalTags := GetClusterAgentStaticTags(mockConfig)
 		assert.Equal(t, map[string][]string{
-			"some":    {"tag"},
-			"extra":   {"tag"},
-			"cluster": {"tag"},
-			"orch":    {"tag"},
+			"some":              {"tag"},
+			"extra":             {"tag"},
+			"cluster":           {"tag"},
+			"orch":              {"tag"},
+			"orch_cluster_id":   {clusterID},
+			"kube_cluster_name": {clusterName},
 		}, globalTags)
 	})
 }

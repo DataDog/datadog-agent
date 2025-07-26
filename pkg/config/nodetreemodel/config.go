@@ -146,7 +146,7 @@ func (c *ntmConfig) processNotifications() {
 	for notification := range c.notificationChannel {
 		// notifying all receivers about the updated setting
 		for _, receiver := range notification.Receivers {
-			receiver(notification.Key, notification.PreviousValue, notification.NewValue, notification.SequenceID)
+			receiver(notification.Key, notification.Source, notification.PreviousValue, notification.NewValue, notification.SequenceID)
 		}
 	}
 }
@@ -160,13 +160,14 @@ func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
-func (c *ntmConfig) sendNotification(key string, oldValue, newValue interface{}, sequenceID uint64) {
+func (c *ntmConfig) sendNotification(key string, source model.Source, oldValue, newValue interface{}, sequenceID uint64) {
 	if len(c.notificationReceivers) == 0 {
 		return
 	}
 
 	notification := model.ConfigChangeNotification{
 		Key:           key,
+		Source:        source,
 		PreviousValue: oldValue,
 		NewValue:      newValue,
 		SequenceID:    sequenceID,
@@ -255,7 +256,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	c.sequenceID++
-	c.sendNotification(key, previousValue, newValue, c.sequenceID)
+	c.sendNotification(key, source, previousValue, newValue, c.sequenceID)
 
 }
 
@@ -368,7 +369,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	c.sequenceID++
-	c.sendNotification(key, previousValue, newValue, c.sequenceID)
+	c.sendNotification(key, source, previousValue, newValue, c.sequenceID)
 
 }
 

@@ -621,7 +621,7 @@ func (b *SymDBBuilder) exploreSubprogram(
 		return earlyExit()
 	}
 
-	funcName, err := parseFuncName(funcQualifiedName)
+	parseRes, err := parseFuncName(funcQualifiedName)
 	if err != nil {
 		// Note that we do not return an error here; we simply ignore the
 		// function so that we don't choke on weird function names that we
@@ -629,12 +629,10 @@ func (b *SymDBBuilder) exploreSubprogram(
 		// TODO: log the error, but don't spam the logs.
 		return earlyExit()
 	}
-	if funcName.Empty() {
+	if parseRes.failureReason != parseFuncNameFailureReasonUndefined {
 		return earlyExit()
 	}
-	if funcName.GenericFunction {
-		return earlyExit()
-	}
+	funcName := parseRes.funcName
 
 	lowpc, ok := subprogEntry.Val(dwarf.AttrLowpc).(uint64)
 	if !ok {

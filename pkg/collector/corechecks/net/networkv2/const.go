@@ -270,6 +270,18 @@ var (
 )
 
 var (
+	enaMetricPrefix = "aws.ec2."
+	enaMetricNames  = []string{
+		"bw_in_allowance_exceeded",
+		"bw_out_allowance_exceeded",
+		"conntrack_allowance_exceeded",
+		"linklocal_allowance_exceeded",
+		"pps_allowance_exceeded",
+		"conntrack_allowance_available",
+	}
+)
+
+var (
 	protocolsMetricsMapping = map[string]map[string]string{
 		"Ip": {
 			"InReceives":      "system.net.ip.in_receives",

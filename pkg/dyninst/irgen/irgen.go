@@ -621,13 +621,13 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 }
 
 func field(st *ir.StructureType, name string) (*ir.Field, error) {
-	offset := slices.IndexFunc(st.Fields, func(f ir.Field) bool {
+	offset := slices.IndexFunc(st.RawFields, func(f ir.Field) bool {
 		return f.Name == name
 	})
 	if offset == -1 {
 		return nil, fmt.Errorf("type %q has no %s field", st.Name, name)
 	}
-	return &st.Fields[offset], nil
+	return &st.RawFields[offset], nil
 }
 
 func fieldType[T ir.Type](st *ir.StructureType, name string) (T, error) {

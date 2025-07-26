@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const (
@@ -57,6 +58,12 @@ type PlatformProbe interface {
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ containerutils.ContainerID) []string
 	EnableEnforcement(bool)
+}
+
+var probeTelemetry = struct {
+	totalVariables telemetry.Gauge
+}{
+	totalVariables: metrics.NewITGauge(metrics.MetricSECLTotalVariables, []string{"type", "scope"}, "Number of instantiated variables"),
 }
 
 // EventConsumer defines a probe event consumer
@@ -398,6 +405,7 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
 	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
+	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
 
 	eventCtor := func() eval.Event {
 		return p.PlatformProbe.NewEvent()

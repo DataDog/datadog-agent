@@ -382,7 +382,7 @@ Types:
       ByteSize: 16
       GoRuntimeType: 41376
       GoKind: 24
-      Fields:
+      RawFields:
         - Name: str
           Offset: 0
           Type: 44 PointerType *string.str
@@ -409,7 +409,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 37696
       GoKind: 23
-      Fields:
+      RawFields:
         - Name: array
           Offset: 0
           Type: 6 PointerType *int
@@ -435,7 +435,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 37952
       GoKind: 23
-      Fields:
+      RawFields:
         - Name: array
           Offset: 0
           Type: 13 PointerType *string
@@ -479,7 +479,7 @@ Types:
       Name: map<string,int>
       ByteSize: 48
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 18 BaseType uint64
@@ -533,7 +533,7 @@ Types:
       Name: table<string,int>
       ByteSize: 32
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 23 BaseType uint16
@@ -563,7 +563,7 @@ Types:
       Name: groupReference<string,int>
       ByteSize: 16
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: data
           Offset: 0
           Type: 25 PointerType *noalg.map.group[string]int
@@ -583,7 +583,7 @@ Types:
       ByteSize: 200
       GoRuntimeType: 74656
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: ctrl
           Offset: 0
           Type: 18 BaseType uint64
@@ -605,7 +605,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 74528
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: key
           Offset: 0
           Type: 7 GoStringHeaderType string
@@ -629,7 +629,7 @@ Types:
       Name: map<string,main.bigStruct>
       ByteSize: 48
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 18 BaseType uint64
@@ -671,7 +671,7 @@ Types:
       Name: table<string,main.bigStruct>
       ByteSize: 32
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 23 BaseType uint16
@@ -695,7 +695,7 @@ Types:
       Name: groupReference<string,main.bigStruct>
       ByteSize: 16
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: data
           Offset: 0
           Type: 36 PointerType *noalg.map.group[string]main.bigStruct
@@ -715,7 +715,7 @@ Types:
       ByteSize: 200
       GoRuntimeType: 74912
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: ctrl
           Offset: 0
           Type: 18 BaseType uint64
@@ -737,7 +737,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 74784
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: key
           Offset: 0
           Type: 7 GoStringHeaderType string
@@ -757,7 +757,7 @@ Types:
       ByteSize: 184
       GoRuntimeType: 119744
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: Field1
           Offset: 0
           Type: 1 BaseType int

@@ -274,7 +274,7 @@ func (c *typeCatalog) buildType(
 		return &ir.StructureType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
-			Fields:           fields,
+			RawFields:        fields,
 		}, nil
 	case dwarf.TagTypedef:
 		getUnderlyingType := func() (ir.Type, error) {

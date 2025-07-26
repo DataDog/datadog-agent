@@ -208,14 +208,14 @@ func TestNotification(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
 	notifications1 := make(chan string, 3)
-	config.OnUpdate(func(key string, _, _ any, _ uint64) {
+	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64) {
 		notifications1 <- key
 	})
 
 	config.Set("foo", "bar", model.SourceFile)
 
 	notifications2 := make(chan string, 2)
-	config.OnUpdate(func(key string, _, _ any, _ uint64) {
+	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64) {
 		notifications2 <- key
 	})
 
@@ -249,7 +249,7 @@ func TestNotificationNoChange(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	updatedKeyCB1 := []string{}
 	notifications := make(chan string, 10)
-	config.OnUpdate(func(key string, _, newValue any, _ uint64) {
+	config.OnUpdate(func(key string, _ model.Source, _, newValue any, _ uint64) {
 		notifications <- key + ":" + newValue.(string)
 	})
 
@@ -421,7 +421,7 @@ func TestListenersUnsetForSource(t *testing.T) {
 	logLevels := []string{}
 	notifications := make(chan string, 10)
 
-	config.OnUpdate(func(_ string, _, next any, _ uint64) {
+	config.OnUpdate(func(_ string, _ model.Source, _, next any, _ uint64) {
 		nextString := next.(string)
 		notifications <- nextString
 	})

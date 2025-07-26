@@ -114,20 +114,20 @@ func newDecoderType(
 ) (decoderType, error) {
 	switch s := irType.(type) {
 	case *ir.GoSwissMapHeaderType:
-		dirPtrField, err := getFieldByName(s.Fields, "dirPtr")
+		dirPtrField, err := getFieldByName(s.RawFields, "dirPtr")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
 		dirPtrOffset := dirPtrField.Offset
 		dirPtrSize := dirPtrField.Type.GetByteSize()
-		dirLenField, err := getFieldByName(s.Fields, "dirLen")
+		dirLenField, err := getFieldByName(s.RawFields, "dirLen")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
 		dirLenOffset := dirLenField.Offset
 		dirLenSize := dirLenField.Type.GetByteSize()
 
-		slotsField, err := getFieldByName(s.GroupType.Fields, "slots")
+		slotsField, err := getFieldByName(s.GroupType.RawFields, "slots")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
@@ -135,7 +135,7 @@ func newDecoderType(
 		if !ok {
 			return nil, errors.New("type map slot field not found in types: " + s.GroupType.Name)
 		}
-		ctrlField, err := getFieldByName(s.GroupType.Fields, "ctrl")
+		ctrlField, err := getFieldByName(s.GroupType.RawFields, "ctrl")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
@@ -149,21 +149,21 @@ func newDecoderType(
 		if !ok {
 			return nil, errors.New("type map entry array element is not a structure type: " + entryArray.Element.GetName())
 		}
-		keyField, err := getFieldByName(noalgstructType.Fields, "key")
+		keyField, err := getFieldByName(noalgstructType.RawFields, "key")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
 		if keyField == nil {
 			return nil, errors.New("type map entry array element has no key field: " + entryArray.Element.GetName())
 		}
-		elem, err := getFieldByName(noalgstructType.Fields, "elem")
+		elem, err := getFieldByName(noalgstructType.RawFields, "elem")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
 
 		tableType := s.TablePtrSliceType.Element.(*ir.PointerType)
 		tableStructType := tableType.Pointee.(*ir.StructureType)
-		groupField, err := getFieldByName(tableStructType.Fields, "groups")
+		groupField, err := getFieldByName(tableStructType.RawFields, "groups")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
@@ -173,7 +173,7 @@ func newDecoderType(
 		}
 		groupFieldOffset := groupField.Offset
 		groupFieldSize := groupField.Type.GetByteSize()
-		dataField, err := getFieldByName(groupType.Fields, "data")
+		dataField, err := getFieldByName(groupType.RawFields, "data")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
@@ -218,11 +218,11 @@ func newDecoderType(
 	case *ir.GoSliceDataType:
 		return (*goSliceDataType)(s), nil
 	case *ir.GoStringHeaderType:
-		strField, err := getFieldByName(s.Fields, "str")
+		strField, err := getFieldByName(s.RawFields, "str")
 		if err != nil {
 			return nil, fmt.Errorf("malformed string header type: %w", err)
 		}
-		lenField, err := getFieldByName(s.Fields, "len")
+		lenField, err := getFieldByName(s.RawFields, "len")
 		if err != nil {
 			return nil, fmt.Errorf("malformed string header type: %w", err)
 		}
@@ -640,7 +640,7 @@ func (s *structureType) encodeValueFields(
 		jsontext.BeginObject); err != nil {
 		return err
 	}
-	for _, field := range s.Fields {
+	for _, field := range s.RawFields {
 		if err = writeTokens(enc, jsontext.String(field.Name)); err != nil {
 			return err
 		}

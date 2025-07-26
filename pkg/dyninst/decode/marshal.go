@@ -273,6 +273,7 @@ func (d *Decoder) encodeSwissMapTables(
 				someDataNotCapture = true
 				log.Tracef("error encoding swiss map group: %v", err)
 				continue
+
 			}
 		}
 	}

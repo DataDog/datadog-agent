@@ -128,8 +128,8 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/tklauser/go-sysconf v0.3.14 // indirect
-	github.com/tklauser/numcpus v0.9.0 // indirect
+	github.com/tklauser/go-sysconf v0.3.15 // indirect
+	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.35.0 // indirect
@@ -186,7 +186,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.129.0 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v0.129.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.129.0 // indirect
-	sigs.k8s.io/yaml v1.4.0 // indirect
+	sigs.k8s.io/yaml v1.5.0 // indirect
 )
 
 require (
@@ -229,6 +229,7 @@ require (
 	go.opentelemetry.io/collector/consumer/consumererror v0.129.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.129.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.3 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 )

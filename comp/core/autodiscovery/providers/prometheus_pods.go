@@ -9,6 +9,9 @@ package providers
 
 import (
 	"context"
+	"fmt"
+	"maps"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
@@ -23,8 +26,10 @@ import (
 // PrometheusPodsConfigProvider implements the ConfigProvider interface for prometheus pods.
 type PrometheusPodsConfigProvider struct {
 	kubelet kubelet.KubeUtilInterface
+	checks  []*types.PrometheusCheck
 
-	checks []*types.PrometheusCheck
+	configErrorsMu sync.RWMutex
+	configErrors   map[string]providerTypes.ErrorMsgSet
 }
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
@@ -36,7 +41,8 @@ func NewPrometheusPodsConfigProvider(*pkgconfigsetup.ConfigurationProviders, *te
 	}
 
 	p := &PrometheusPodsConfigProvider{
-		checks: checks,
+		checks:       checks,
+		configErrors: make(map[string]providerTypes.ErrorMsgSet),
 	}
 	return p, nil
 }
@@ -71,16 +77,40 @@ func (p *PrometheusPodsConfigProvider) IsUpToDate(_ context.Context) (bool, erro
 
 // parsePodlist searches for pods that match the AD configuration
 func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelet.Pod) []integration.Config {
+	p.configErrorsMu.Lock()
+	defer p.configErrorsMu.Unlock()
+
+	// Reset configErrors
+	p.configErrors = make(map[string]providerTypes.ErrorMsgSet)
+
 	var configs []integration.Config
+
 	for _, pod := range podlist {
 		for _, check := range p.checks {
-			configs = append(configs, utils.ConfigsForPod(check, pod)...)
+			podConfigs, err := utils.ConfigsForPod(check, pod)
+			if err != nil {
+				p.configErrors[podIDForErrMsg(pod)] = providerTypes.ErrorMsgSet{
+					err.Error(): struct{}{},
+				}
+			} else {
+				configs = append(configs, podConfigs...)
+			}
 		}
 	}
+
 	return configs
 }
 
-// GetConfigErrors is not implemented for the PrometheusPodsConfigProvider
+// GetConfigErrors returns the configuration errors
 func (p *PrometheusPodsConfigProvider) GetConfigErrors() map[string]providerTypes.ErrorMsgSet {
-	return make(map[string]providerTypes.ErrorMsgSet)
+	p.configErrorsMu.RLock()
+	defer p.configErrorsMu.RUnlock()
+
+	errors := make(map[string]providerTypes.ErrorMsgSet, len(p.configErrors))
+	maps.Copy(errors, p.configErrors)
+	return errors
+}
+
+func podIDForErrMsg(pod *kubelet.Pod) string {
+	return fmt.Sprintf("%s/%s (%s)", pod.Metadata.Namespace, pod.Metadata.Name, pod.Metadata.UID)
 }

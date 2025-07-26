@@ -473,3 +473,23 @@ const GetLinkStatusMetrics = `
         ]
     ]
 }`
+
+// GetTunnelMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SYSTEM
+const GetTunnelMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+			"test-branch-2B,10.1.1.1",
+            "test-branch-2B",
+            "10.1.1.1",
+            "10.2.2.2",
+            "vpn-profile-1",
+            67890.0,
+            12345.0
+        ]
+    ]
+}`

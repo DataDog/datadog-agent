@@ -92,9 +92,20 @@ func NewModule(
 
 	m.close.unsubscribeExec = subscriber.SubscribeExec(procMon.NotifyExec)
 	m.close.unsubscribeExit = subscriber.SubscribeExit(procMon.NotifyExit)
+	const syncInterval = 30 * time.Second
 	go func() {
-		if err := subscriber.Sync(); err != nil {
-			log.Errorf("error syncing process monitor: %v", err)
+		timer := time.NewTimer(0) // sync immediately on startup
+		defer timer.Stop()
+		for {
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := subscriber.Sync(); err != nil {
+				log.Errorf("error syncing process monitor: %v", err)
+			}
+			timer.Reset(jitter(syncInterval, 0.2))
 		}
 	}()
 	// This is arbitrary. It's fast enough to not be a major source of

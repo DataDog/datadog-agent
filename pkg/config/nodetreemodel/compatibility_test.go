@@ -9,10 +9,13 @@ package nodetreemodel
 import (
 	"bytes"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -441,4 +444,105 @@ c: 1234
 
 	dvalue = ntmConf.Get("c.d")
 	assert.Equal(t, dvalue, true)
+}
+
+func TestCompareTimeDuration(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.SetDefault("provider.interval", 5*time.Second)
+		cfg.SetDefault("lookup_timeout", 30*time.Millisecond)
+	})
+	assert.Equal(t, 5*time.Second, viperConf.GetDuration("provider.interval"))
+	assert.Equal(t, 5*time.Second, ntmConf.GetDuration("provider.interval"))
+
+	assert.Equal(t, 30*time.Millisecond, viperConf.GetDuration("lookup_timeout"))
+	assert.Equal(t, 30*time.Millisecond, ntmConf.GetDuration("lookup_timeout"))
+
+	// refuse to convert time.Duration to int64
+	assert.Equal(t, int64(0), viperConf.GetInt64("lookup_timeout"))
+	assert.Equal(t, int64(0), ntmConf.GetInt64("lookup_timeout"))
+
+	assert.Equal(t, 30*time.Millisecond, viperConf.Get("lookup_timeout"))
+	assert.Equal(t, 30*time.Millisecond, ntmConf.Get("lookup_timeout"))
+}
+
+func TestReadConfigReset(t *testing.T) {
+	initialYAML := `port: 1234`
+	overrideYAML := `host: localhost`
+
+	viperConf, ntmConf := constructBothConfigs(initialYAML, true, func(cfg model.Setup) {
+		cfg.SetKnown("port")
+		cfg.SetKnown("host")
+	})
+
+	assert.Equal(t, 1234, viperConf.GetInt("port"))
+	assert.Equal(t, 1234, ntmConf.GetInt("port"))
+	assert.False(t, viperConf.IsSet("host"))
+	assert.False(t, ntmConf.IsSet("host"))
+
+	// Now use ReadConfig to reset with only "host"
+	viperConf.SetConfigType("yaml")
+	err := viperConf.ReadConfig(bytes.NewBuffer([]byte(overrideYAML)))
+	assert.NoError(t, err)
+
+	ntmConf.SetConfigType("yaml")
+	err = ntmConf.ReadConfig(bytes.NewBuffer([]byte(overrideYAML)))
+	assert.NoError(t, err)
+
+	// After ReadConfig, "port" should be gone, "host" should be set
+	assert.False(t, viperConf.IsSet("port"), "viper should have cleared previous config")
+	assert.False(t, ntmConf.IsSet("port"), "ntm should have cleared previous config")
+
+	assert.Equal(t, "localhost", viperConf.GetString("host"))
+	assert.Equal(t, "localhost", ntmConf.GetString("host"))
+}
+
+func TestReadInConfigResetsPreviousConfig(t *testing.T) {
+	tempDir := t.TempDir()
+
+	configA := `port: 8123`
+	configAPath := filepath.Join(tempDir, "configA.yaml")
+	err := os.WriteFile(configAPath, []byte(configA), 0o644)
+	assert.NoError(t, err)
+
+	configB := `host: localhost`
+	configBPath := filepath.Join(tempDir, "configB.yaml")
+	err = os.WriteFile(configBPath, []byte(configB), 0o644)
+	assert.NoError(t, err)
+
+	// Set up Viper and NTM with configA loaded via ReadInConfig
+	viperConf := viperconfig.NewViperConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	ntmConf := NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+
+	viperConf.SetTestOnlyDynamicSchema(true)
+	ntmConf.SetTestOnlyDynamicSchema(true)
+	viperConf.SetConfigFile(configAPath)
+	ntmConf.SetConfigFile(configAPath)
+
+	viperConf.BuildSchema()
+	ntmConf.BuildSchema()
+
+	err = viperConf.ReadInConfig()
+	assert.NoError(t, err)
+	err = ntmConf.ReadInConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, 8123, viperConf.GetInt("port"))
+	assert.Equal(t, 8123, ntmConf.GetInt("port"))
+	assert.False(t, viperConf.IsSet("host"))
+	assert.False(t, ntmConf.IsSet("host"))
+
+	// Update config file to configB (overwrites configA)
+	viperConf.SetConfigFile(configBPath)
+	ntmConf.SetConfigFile(configBPath)
+
+	err = viperConf.ReadInConfig()
+	assert.NoError(t, err)
+	err = ntmConf.ReadInConfig()
+	assert.NoError(t, err)
+
+	assert.False(t, viperConf.IsSet("port"), "viper should have cleared previous config")
+	assert.False(t, ntmConf.IsSet("port"), "ntm should have cleared previous config")
+	// "host" should now be available
+	assert.Equal(t, "localhost", viperConf.GetString("host"))
+	assert.Equal(t, "localhost", ntmConf.GetString("host"))
 }

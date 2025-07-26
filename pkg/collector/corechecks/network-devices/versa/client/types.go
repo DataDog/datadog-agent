@@ -440,3 +440,14 @@ type LinkStatusMetrics struct {
 	AccessCircuit string
 	Availability  float64
 }
+
+// TunnelMetrics represents the columns to parse from the TunnelMetricsResponse
+type TunnelMetrics struct {
+	DrillKey    string
+	Appliance   string
+	LocalIP     string
+	RemoteIP    string
+	VpnProfName string
+	VolumeRx    float64
+	VolumeTx    float64
+}

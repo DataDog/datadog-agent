@@ -69,8 +69,11 @@ type ProcessMonitor struct {
 	resolver           ContainerResolver
 	executableAnalyzer executableAnalyzer
 
-	eventsCh chan event
-	doneCh   chan struct{}
+	mu struct {
+		sync.Mutex
+		state    state
+		shutdown bool
+	}
 
 	wg           sync.WaitGroup
 	shutdownOnce sync.Once
@@ -84,12 +87,12 @@ func NewProcessMonitor(h Handler) *ProcessMonitor {
 
 // NotifyExec is a callback to notify the monitor that a process has started.
 func (pm *ProcessMonitor) NotifyExec(pid uint32) {
-	pm.sendEvent(&processEvent{kind: processEventKindExec, pid: pid})
+	pm.handleProcessEvent(processEvent{kind: processEventKindExec, pid: pid})
 }
 
 // NotifyExit is a callback to notify the monitor that a process has exited.
 func (pm *ProcessMonitor) NotifyExit(pid uint32) {
-	pm.sendEvent(&processEvent{kind: processEventKindExit, pid: pid})
+	pm.handleProcessEvent(processEvent{kind: processEventKindExit, pid: pid})
 }
 
 // cacheSize is the size of the cache for the executable analyzer.
@@ -119,31 +122,31 @@ func newProcessMonitor(
 		handler:            h,
 		procfsRoot:         procFS,
 		resolver:           resolver,
-		eventsCh:           make(chan event, 128),
-		doneCh:             make(chan struct{}),
 		executableAnalyzer: makeExecutableAnalyzer(cacheSize),
 	}
-
-	pm.wg.Add(1)
-	go func() {
-		defer pm.wg.Done()
-		run(pm.eventsCh, pm.doneCh, pm)
-	}()
+	pm.mu.state = makeState()
 
 	return pm
 }
 
-// sendEvent attempts to send an event to the state machine unless we're
-// already shutting down.
-func (pm *ProcessMonitor) sendEvent(ev event) {
-	select {
-	case <-pm.doneCh:
-	default:
-		select {
-		case pm.eventsCh <- ev:
-		case <-pm.doneCh:
-		}
+func (pm *ProcessMonitor) handleProcessEvent(ev processEvent) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if pm.mu.shutdown {
+		return
 	}
+	pm.mu.state.handleProcessEvent(ev)
+	pm.mu.state.analyzeOrReport(pm)
+}
+
+func (pm *ProcessMonitor) handleAnalysisResult(ev analysisResult) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if pm.mu.shutdown {
+		return
+	}
+	pm.mu.state.handleAnalysisResult(ev)
+	pm.mu.state.analyzeOrReport(pm)
 }
 
 // Close requests an orderly shutdown and waits for completion.
@@ -151,9 +154,15 @@ func (pm *ProcessMonitor) Close() {
 	pm.shutdownOnce.Do(func() {
 		log.Debugf("closing process monitor")
 		defer log.Debugf("process monitor closed")
-		close(pm.doneCh)
+		pm.markShutdown()
 		pm.wg.Wait()
 	})
+}
+
+func (pm *ProcessMonitor) markShutdown() {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.mu.shutdown = true
 }
 
 // analysisFailureLogLimiter is used to limit the rate of logging analysis
@@ -186,7 +195,7 @@ func (pm *ProcessMonitor) analyzeProcess(pid uint32) {
 				log.Infof("failed to analyze process %d: %v", pid, err)
 			}
 		}
-		pm.sendEvent(&analysisResult{
+		pm.handleAnalysisResult(analysisResult{
 			pid:             pid,
 			err:             err,
 			processAnalysis: pa,
@@ -200,15 +209,3 @@ func (pm *ProcessMonitor) reportProcessesUpdate(u ProcessesUpdate) {
 
 // Ensure ProcessMonitor implements smEffects.
 var _ effects = (*ProcessMonitor)(nil)
-
-func run(eventsCh <-chan event, doneCh <-chan struct{}, eff effects) {
-	state := newState()
-	for {
-		select {
-		case ev := <-eventsCh:
-			state.handle(ev, eff)
-		case <-doneCh:
-			return
-		}
-	}
-}

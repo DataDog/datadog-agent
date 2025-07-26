@@ -31,10 +31,10 @@ func main() {
 	executePointerFuncs()
 	executeComplexFuncs()
 
-	// unsupported for MVP, should not cause crashes
+	// unsupported for MVP, should not cause failures
+	executeEsoteric()
 	executeGenericFuncs()
 	executeMapFuncs()
 	executeInterfaceFuncs()
 	go returnGoroutineId()
-
 }

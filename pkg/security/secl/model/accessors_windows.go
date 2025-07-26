@@ -2321,16 +2321,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"write.file.path.length",
 	}
 }
-func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
-	m := &Model{}
-	evaluator, err := m.GetEvaluator(field, "", 0)
-	if err != nil {
-		return nil, err
-	}
-	ctx := eval.NewContext(ev)
-	value := evaluator.Eval(ctx)
-	return value, nil
-}
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
 	switch field {
 	case "change_permission.new_sd":
@@ -2659,20 +2649,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "write", reflect.Int, "int", nil
 	}
 	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
-}
-func (ev *Event) initProcess() {
-	if ev.BaseEvent.ProcessContext == nil {
-		ev.BaseEvent.ProcessContext = &ProcessContext{}
-	}
-	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-	}
-	if ev.BaseEvent.ProcessContext.Parent == nil {
-		ev.BaseEvent.ProcessContext.Parent = &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process
-	}
-	if ev.Exec.Process == nil {
-		ev.Exec.Process = &Process{}
-	}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {

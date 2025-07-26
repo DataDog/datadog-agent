@@ -228,7 +228,7 @@ var (
 	stringType = &ir.GoStringHeaderType{
 		StructureType: &ir.StructureType{
 			TypeCommon: ir.TypeCommon{ID: 4, Name: "string", ByteSize: 16},
-			Fields: []ir.Field{
+			RawFields: []ir.Field{
 				{Name: "str", Offset: 0, Type: strDataPointerType},
 				{Name: "len", Offset: 8, Type: intType},
 			},

@@ -124,11 +124,12 @@ type Proxy struct {
 // NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
 // configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
 // 'NotificationReceiver' should not be blocking.
-type NotificationReceiver func(setting string, oldValue, newValue any, sequenceID uint64)
+type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
 
 // ConfigChangeNotification stores the information about a change in the configuration and is sent to the listeners.
 type ConfigChangeNotification struct {
 	Key           string
+	Source        Source
 	PreviousValue interface{}
 	NewValue      interface{}
 	SequenceID    uint64

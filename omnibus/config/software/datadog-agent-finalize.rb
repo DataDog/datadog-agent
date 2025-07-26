@@ -133,6 +133,14 @@ build do
             # removing the info folder to reduce package size by ~4MB
             delete "#{install_dir}/embedded/share/info"
 
+            # remove some debug ebpf object files to reduce the size of the package
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/shared-libraries-debug.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/shared-libraries-debug.o"
+
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
             #    https://github.com/pypa/manylinux/issues/119

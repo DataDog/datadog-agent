@@ -501,7 +501,7 @@ network_devices:
 	/////////////////
 	// legacy configs
 	/////////////////
-	configmock.NewFromYAML(t, `
+	corecfg := configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     allowed_failures: 15
@@ -526,6 +526,8 @@ network_devices:
 	assert.Equal(t, "legacyCommunityString", legacyConfig.Community)
 	assert.Equal(t, "legacySnmpVersion", legacyConfig.Version)
 	assert.Equal(t, "127.2.0.0/30", legacyConfig.Network)
+	warnings := corecfg.Warnings()
+	assert.Equal(t, 0, warnings.Count())
 }
 
 func Test_NamespaceConfig(t *testing.T) {

@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -61,6 +60,18 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		log.Debugf("Adding global tags to cluster check dispatcher: %v", d.extraTags)
 	}
 
+	// Support for deprecated cluster_name tag
+	// To add global tags to the DCA, use the tagger
+	hname, _ := hostname.Get(context.TODO())
+	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
+	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
+	if clusterTagValue != "" {
+		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
+			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
+		}
+	}
+
 	excludedChecks := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks")
 	// This option will almost always be empty
 	if len(excludedChecks) > 0 {
@@ -80,22 +91,6 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	}
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
-
-	hname, _ := hostname.Get(context.TODO())
-	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
-	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
-	if clusterTagValue != "" {
-		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
-			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
-			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
-		}
-		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
-	}
-
-	clusterIDTagValue, _ := clustername.GetClusterID()
-	if clusterIDTagValue != "" {
-		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
-	}
 
 	d.advancedDispatching = pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !d.advancedDispatching {
