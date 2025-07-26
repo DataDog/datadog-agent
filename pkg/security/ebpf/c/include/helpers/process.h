@@ -162,4 +162,9 @@ bool __attribute__((always_inline)) is_current_kworker_dying() {
     return comm[0] == 'k' && comm[1] == 'w' && comm[2] == 'o' && comm[3] == 'r' && comm[4] == 'k' && comm[5] == 'e' && comm[6] == 'r' && comm[7] == '/' && comm[8] == 'd' && comm[9] == 'y' && comm[10] == 'i' && comm[11] == 'n' && comm[12] == 'g';
 }
 
+u64 __attribute__((always_inline)) get_cgroup_id(u32 tgid) {
+    struct proc_cache_t *entry = get_proc_cache(tgid);
+    return entry ? entry->container.cgroup_context.cgroup_file.ino : 0;
+}
+
 #endif
