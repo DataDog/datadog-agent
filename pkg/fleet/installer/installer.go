@@ -61,7 +61,9 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error
+	InstallConfigExperiment(
+		ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string,
+	) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -494,7 +496,9 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
+func (i *installerImpl) InstallConfigExperiment(
+	ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string,
+) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -508,7 +512,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	defer os.RemoveAll(tmpDir)
 
 	// Merge config files
-	mergedConfigs, err := mergeConfigs(rawConfigs)
+	mergedConfigs, err := mergeConfigs(version, rawConfigs, configOrder)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrConfigMergeFailed,
@@ -970,7 +974,7 @@ func ensureRepositoriesExist() error {
 // The input is a slice of bytes, which is the JSON-encoded contents of the
 // remote-config config files. The JSON is expected to be an array of objects,
 // each with a `path` and `contents` field.
-func mergeConfigs(rawConfigs [][]byte) (map[string]configFile, error) {
+func mergeConfigs(version string, rawConfigs [][]byte, configOrder []string) (map[string]configFile, error) {
 	mergedFiles := make(map[string]configFile)
 	for _, rawConfig := range rawConfigs {
 		var configFiles []configFile
@@ -995,5 +999,41 @@ func mergeConfigs(rawConfigs [][]byte) (map[string]configFile, error) {
 			}
 		}
 	}
+
+	if len(configOrder) == 0 {
+		// Early return if no config order is provided
+		return mergedFiles, nil
+	}
+
+	// Inject fleet_layers into datadog.yaml
+	datadogConfig := make(map[string]interface{})
+	datadogFile, ok := mergedFiles["/datadog.yaml"]
+	if ok {
+		err := json.Unmarshal(datadogFile.Contents, &datadogConfig)
+		if err != nil {
+			return nil, fmt.Errorf("could not unmarshal datadog.yaml contents: %w", err)
+		}
+	} else {
+		datadogFile = configFile{
+			Path:     "/datadog.yaml",
+			Action:   configFileActionAdd,
+			Contents: json.RawMessage(`{"fleet_layers": []]}`),
+		}
+	}
+
+	// Add fleet_layers configuration
+	datadogConfig["fleet_layers"] = configOrder
+	datadogConfig["config_id"] = version
+
+	// Marshal back to JSON
+	updatedContents, err := json.Marshal(datadogConfig)
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal updated datadog.yaml contents: %w", err)
+	}
+
+	// Update the file with new contents
+	datadogFile.Contents = updatedContents
+	mergedFiles["/datadog.yaml"] = datadogFile
+
 	return mergedFiles, nil
 }

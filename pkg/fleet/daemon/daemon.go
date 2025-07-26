@@ -463,7 +463,7 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, vers
 		}
 		serializedConfigs = append(serializedConfigs, serializedConfig)
 	}
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigs)
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigs, configOrder)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
