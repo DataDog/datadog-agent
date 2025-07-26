@@ -11,6 +11,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
+	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -38,12 +39,14 @@ func (c *ContainersTelemetry) ListRunningContainers() []*workloadmeta.Container 
 // This function is critical for CWS/CSPM metering. Please tread carefully.
 func (c *ContainersTelemetry) ReportContainers(metricName string) {
 	containers := c.ListRunningContainers()
+	containerFilters, _ := utils.NewContainerFilter()
 
 	for _, container := range containers {
 		// ignore DD agent containers
 		value := container.EnvVars["DOCKER_DD_AGENT"]
 		value = strings.ToLower(value)
-		if value == "yes" || value == "true" {
+		if (value == "yes" || value == "true") ||
+			(containerFilters != nil && containerFilters.IsExcluded(nil, "", container.Image.Name, "")) {
 			log.Debugf("ignoring container: name=%s id=%s image_id=%s", container.Name, container.ID, container.Image.ID)
 			continue
 		}
