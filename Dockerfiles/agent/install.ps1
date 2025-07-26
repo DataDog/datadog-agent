@@ -92,3 +92,18 @@ install_method:
   tool_version: docker-win-$env:INSTALL_INFO
   installer_version: docker-win-$env:INSTALL_INFO
 "@ > C:/ProgramData/Datadog/install_info
+
+# After this script is executed sometimes
+# the WMI database is approximately 25 MB
+# bigger than otherwise which leads to
+# a failing static quality gate.
+# This is a workaround to clean up the
+# WMI database and reduce the image size.
+# It is ignored for non-core base images.
+try {
+    wevtutil cl 'Microsoft-Windows-WMI-Activity/Operational' -ErrorAction SilentlyContinue
+    wevtutil cl 'Microsoft-Windows-WMI-Activity/Trace' -ErrorAction SilentlyContinue
+    winmgmt /salvagerepository | Out-Null
+} catch {
+    # Silently continue if WMI cleanup fails
+}
