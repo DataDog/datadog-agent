@@ -61,3 +61,18 @@ func TestParserECSAgentVersion(t *testing.T) {
 		require.Equal(t, testCase.expected, version)
 	}
 }
+
+func TestBuildClusterARN(t *testing.T) {
+	arn := BuildClusterARN("cluster-name", "123456789012", "us-east-1")
+	require.Equal(t, "arn:aws:ecs:us-east-1:123456789012:cluster/cluster-name", arn)
+}
+
+func TestBuildServiceARN(t *testing.T) {
+	arn := BuildServiceARN("cluster-name", "service-name", "123456789012", "us-east-1")
+	require.Equal(t, "arn:aws:ecs:us-east-1:123456789012:service/cluster-name/service-name", arn)
+}
+
+func TestBuildTaskDefinitionARN(t *testing.T) {
+	arn := BuildTaskDefinitionARN("123456789012", "family-name", "us-east-1", "1")
+	require.Equal(t, "arn:aws:ecs:us-east-1:123456789012:task-definition/family-name:1", arn)
+}

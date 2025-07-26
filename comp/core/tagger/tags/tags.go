@@ -142,8 +142,12 @@ const (
 	EcsContainerName = "ecs_container_name"
 	// EcsClusterName is the tag for the ECS cluster name
 	EcsClusterName = "ecs_cluster_name"
+	// EcsClusterARN is the tag for the ECS cluster ARN (Amazon Resource Name)
+	EcsClusterARN = "cluster_arn"
 	// EcsServiceName is the tag for the ECS service name
 	EcsServiceName = "ecs_service"
+	// EcsServiceARN is the tag for the ECS service ARN (Amazon Resource Name)
+	EcsServiceARN = "service_arn"
 	// AwsAccount is the tag for ECS account id
 	AwsAccount = "aws_account"
 
@@ -199,6 +203,8 @@ const (
 	TaskARN = "task_arn"
 	// MesosTask is the tag for the Mesos task
 	MesosTask = "mesos_task"
+	// TaskDefinitionARN is the tag for the task definition ARN (Amazon Resource Name)
+	TaskDefinitionARN = "task_definition_arn"
 
 	// HIGH CARDINALITY
 
