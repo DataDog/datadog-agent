@@ -40,6 +40,10 @@ typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 */
 DATADOG_AGENT_RTLOADER_API rtloader_t *make3(const char *python_home, const char *python_exe, char **error);
 
+DATADOG_AGENT_RTLOADER_API shared_library_handle_t load_shared_library(const char *lib_name, const char **error);
+
+DATADOG_AGENT_RTLOADER_API void run_shared_library(char *checkID, run_check_t *run_function, const char **error);
+
 // HELPERS
 /*! \fn void set_memory_tracker_cb(cb_memory_tracker_t)
     \brief Sets a callback to be used by rtloader for some memory allocation book-keeping.
@@ -379,6 +383,14 @@ DATADOG_AGENT_RTLOADER_API char *get_interpreter_memory_usage(rtloader_t *);
 */
 DATADOG_AGENT_RTLOADER_API void set_submit_metric_cb(rtloader_t *, cb_submit_metric_t);
 
+// same submit_metric callback as above, but stored as a global variable in the C++ API
+// the callback above is stored in RtLoader::Three, which is Python specific
+DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_metric_cb(cb_submit_metric_t);
+
+// function used by shared library checks
+DATADOG_AGENT_RTLOADER_API void submit_metric(char *, const metric_type_t, char *, const double, char **, char *,
+                                              const bool);
+
 /*! \fn void set_submit_service_check_cb(rtloader_t *, cb_submit_service_check_t)
     \brief Sets the submit service_check callback to be used by rtloader for service_check
     submission.
@@ -388,6 +400,13 @@ DATADOG_AGENT_RTLOADER_API void set_submit_metric_cb(rtloader_t *, cb_submit_met
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_submit_service_check_cb(rtloader_t *, cb_submit_service_check_t);
+
+// same submit_service_check callback as above, but stored as a global variable in the C++ API
+// the callback above is stored in RtLoader::Three, which is Python specific
+DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_service_check_cb(cb_submit_service_check_t);
+
+// function used by shared library checks
+DATADOG_AGENT_RTLOADER_API void submit_service_check(char *, char *, int, char **, char *, char *);
 
 /*! \fn void set_submit_event_cb(rtloader_t *, cb_submit_event_t)
     \brief Sets the submit event callback to be used by rtloader for event submission.
