@@ -62,6 +62,7 @@ enum event_type
     EVENT_SETSOCKOPT,
     EVENT_FSMOUNT,
     EVENT_OPEN_TREE,
+    EVENT_CAPABILITIES_USAGE,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

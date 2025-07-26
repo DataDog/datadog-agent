@@ -34,17 +34,18 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 
 	ppan := adproto.ProcessActivityNodeFromVTPool()
 	*ppan = adproto.ProcessActivityNode{
-		Process:        processNodeToProto(&pan.Process),
-		GenerationType: adproto.GenerationType(pan.GenerationType),
-		MatchedRules:   make([]*adproto.MatchedRule, 0, len(pan.MatchedRules)),
-		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
-		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
-		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
-		ImdsEvents:     make([]*adproto.IMDSNode, 0, len(pan.IMDSEvents)),
-		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
-		NodeBase:       nodeBaseToProto(&pan.NodeBase),
-		SyscallNodes:   make([]*adproto.SyscallNode, 0, len(pan.Syscalls)),
-		NetworkDevices: make([]*adproto.NetworkDeviceNode, 0, len(pan.NetworkDevices)),
+		Process:         processNodeToProto(&pan.Process),
+		GenerationType:  adproto.GenerationType(pan.GenerationType),
+		MatchedRules:    make([]*adproto.MatchedRule, 0, len(pan.MatchedRules)),
+		Children:        make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
+		Files:           make([]*adproto.FileActivityNode, 0, len(pan.Files)),
+		DnsNames:        make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
+		ImdsEvents:      make([]*adproto.IMDSNode, 0, len(pan.IMDSEvents)),
+		Sockets:         make([]*adproto.SocketNode, 0, len(pan.Sockets)),
+		NodeBase:        nodeBaseToProto(&pan.NodeBase),
+		SyscallNodes:    make([]*adproto.SyscallNode, 0, len(pan.Syscalls)),
+		NetworkDevices:  make([]*adproto.NetworkDeviceNode, 0, len(pan.NetworkDevices)),
+		CapabilityNodes: make([]*adproto.CapabilityNode, 0, len(pan.Capabilities)),
 	}
 
 	for _, rule := range pan.MatchedRules {
@@ -77,6 +78,10 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 
 	for _, networkDevice := range pan.NetworkDevices {
 		ppan.NetworkDevices = append(ppan.NetworkDevices, networkDeviceToProto(networkDevice))
+	}
+
+	for _, capNode := range pan.Capabilities {
+		ppan.CapabilityNodes = append(ppan.CapabilityNodes, capabilityNodeToProto(capNode))
 	}
 
 	return ppan
@@ -444,4 +449,16 @@ func nodeBaseToProto(nb *NodeBase) *adproto.NodeBase {
 	}
 
 	return pnb
+}
+
+func capabilityNodeToProto(cap *CapabilityNode) *adproto.CapabilityNode {
+	if cap == nil {
+		return nil
+	}
+
+	return &adproto.CapabilityNode{
+		NodeBase:   nodeBaseToProto(&cap.NodeBase),
+		Capability: cap.Capability,
+		IsCapable:  cap.Capable,
+	}
 }

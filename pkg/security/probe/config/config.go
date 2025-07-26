@@ -173,6 +173,11 @@ type Config struct {
 
 	// SpanTrackingCacheSize is the size of the span tracking cache
 	SpanTrackingCacheSize int
+
+	// CapabilitiesUsageMonitoringEnabled defines if capabilities usage monitoring should be enabled
+	CapabilitiesUsageMonitoringEnabled bool
+	// CapabilitiesUsageMonitoringPeriod defines the period at which capabilities usage events should be reported back to userspace
+	CapabilitiesUsageMonitoringPeriod time.Duration
 }
 
 // NewConfig returns a new Config object
@@ -231,6 +236,10 @@ func NewConfig() (*Config, error) {
 		// span tracking
 		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
 		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
+
+		// Process capabilities usage monitoring
+		CapabilitiesUsageMonitoringEnabled: getBool("capabilities_usage_monitoring.enabled"),
+		CapabilitiesUsageMonitoringPeriod:  getDuration("capabilities_usage_monitoring.period"),
 	}
 
 	if err := c.sanitize(); err != nil {
