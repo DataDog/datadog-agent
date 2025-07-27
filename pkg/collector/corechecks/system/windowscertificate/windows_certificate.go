@@ -148,7 +148,7 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 
 	schemaString, err := createConfigSchema()
 	if err != nil {
-		return fmt.Errorf("failed to create config validationschema: %s", err)
+		return fmt.Errorf("failed to create config validation schema: %s", err)
 	}
 
 	schemaLoader := gojsonschema.NewBytesLoader(schemaString)
@@ -272,7 +272,7 @@ func (w *WinCertChk) Run() error {
 			if cert.TrustStatusError != 0 {
 				log.Debugf("Certificate %s has trust status error: %d", cert.Certificate.Subject.String(), cert.TrustStatusError)
 				trustStatusErrors := getCertChainTrustStatusErrors(cert.TrustStatusError)
-				message := fmt.Sprintf("Certificate Validaiton failed. The certificates in the certificate chain have the following errors: %s", strings.Join(trustStatusErrors, ", "))
+				message := fmt.Sprintf("Certificate Validation failed. The certificates in the certificate chain have the following errors: %s", strings.Join(trustStatusErrors, ", "))
 				if cert.ChainPolicyError != 0 {
 					chainPolicyError := getCertChainPolicyErrors(cert.ChainPolicyError)
 					message = fmt.Sprintf("%s, %s", message, chainPolicyError)
