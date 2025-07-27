@@ -99,14 +99,19 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, ev *model.Event) bool {
 		return false
 	}
 
-	// only open and exec events are supported
 	var fileEvent *model.FileEvent
+
+	// TODO(lebauce): replace this switch/case by a generated function GetFileField
 	switch eventType {
 	case model.FileOpenEventType:
 		fileEvent = &ev.Open.File
 	case model.ExecEventType:
 		fileEvent = &ev.Exec.FileEvent
 	default:
+		fileEvent = &ev.ProcessCacheEntry.FileEvent
+	}
+
+	if fileEvent.IsFileless() {
 		return false
 	}
 
