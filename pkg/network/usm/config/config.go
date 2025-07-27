@@ -48,6 +48,22 @@ func TLSSupported(c *config.Config) bool {
 		return false
 	}
 
+	if runningOnARM() {
+		return kversion >= kernel.VersionCode(5, 5, 0) && (c.EnableRuntimeCompiler || c.EnableCORE)
+	}
+
+	return kversion >= MinimumKernelVersion
+}
+
+// UretprobeTLSSupported returns true if TLS monitoring using uretprobes is supported.
+// This includes general TLS platform support plus checking for the kernel bug that
+// causes segfaults with uretprobes and seccomp filters
+func UretprobeTLSSupported(c *config.Config) bool {
+	// First check general TLS platform support
+	if !TLSSupported(c) {
+		return false
+	}
+
 	// Check for kernel bug that causes segfaults with uretprobes and seccomp
 	hasUretprobeBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
 	if err != nil {
@@ -55,15 +71,11 @@ func TLSSupported(c *config.Config) bool {
 		return false
 	}
 	if hasUretprobeBug {
-		log.Warn("TLS monitoring disabled due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
+		log.Warn("uretprobe-based TLS monitoring disabled due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
 		return false
 	}
 
-	if runningOnARM() {
-		return kversion >= kernel.VersionCode(5, 5, 0) && (c.EnableRuntimeCompiler || c.EnableCORE)
-	}
-
-	return kversion >= MinimumKernelVersion
+	return true
 }
 
 var (

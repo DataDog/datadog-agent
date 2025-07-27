@@ -17,7 +17,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -151,18 +150,7 @@ type istioMonitor struct {
 var _ protocols.Protocol = (*istioMonitor)(nil)
 
 func newIstioMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableIstioMonitoring || !usmconfig.TLSSupported(c) {
-		return nil, nil
-	}
-
-	// Check for kernel bug that causes segfaults with uretprobes and seccomp
-	hasUretprobeBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
-	if err != nil {
-		log.Errorf("failed to check for uretprobe syscall seccomp bug: %v", err)
-		return nil, err
-	}
-	if hasUretprobeBug {
-		log.Warn("Istio monitoring disabled due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
+	if !c.EnableIstioMonitoring || !usmconfig.UretprobeTLSSupported(c) {
 		return nil, nil
 	}
 
