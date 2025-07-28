@@ -249,6 +249,7 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		}
 
 		ra.agentMap[agentID] = newEntry
+		entry = newEntry
 	}
 	entry.displayName = registration.DisplayName
 	entry.sanatizedDisplayName = sanatizeString(registration.DisplayName)
