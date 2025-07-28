@@ -34,18 +34,6 @@ func TestConnectEvent(t *testing.T) {
 			ID:         "test_connect_af_inet",
 			Expression: `connect.addr.family == AF_INET && process.file.name == "syscall_tester"`,
 		},
-		{
-			ID:         "test_connect_af_inet_io_uring",
-			Expression: `connect.addr.port == 4242 && connect.addr.family == AF_INET && process.file.name == "testsuite"`,
-		},
-		{
-			ID:         "test_connect_af_inet6",
-			Expression: `connect.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
-		},
-		{
-			ID:         "test_connect_nonblocking_socket",
-			Expression: `connect.addr.port == 443 && process.file.name == "testsuite"`,
-		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -85,6 +73,22 @@ func TestConnectEvent(t *testing.T) {
 			test.validateConnectSchema(t, event)
 		})
 	})
+}
+func TestConnectEventIO(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_connect_af_inet_io_uring",
+			Expression: `connect.addr.port == 4242 && connect.addr.family == AF_INET && process.file.name == "testsuite"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
 
 	t.Run("io-uring-connect-af-inet-any-tcp-success", func(t *testing.T) {
 		SkipIfNotAvailable(t)
@@ -155,6 +159,26 @@ func TestConnectEvent(t *testing.T) {
 			test.validateConnectSchema(t, event)
 		})
 	})
+}
+func TestConnectEventinetAnyUDP(t *testing.T) {
+	SkipIfNotAvailable(t)
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_connect_af_inet",
+			Expression: `connect.addr.family == AF_INET && process.file.name == "syscall_tester"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("connect-af-inet-any-udp-success", func(t *testing.T) {
 		conn, err := net.ListenPacket("udp", ":4242")
@@ -178,6 +202,26 @@ func TestConnectEvent(t *testing.T) {
 			test.validateConnectSchema(t, event)
 		})
 	})
+}
+func TestConnectEventinetAnyTCP6(t *testing.T) {
+	SkipIfNotAvailable(t)
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_connect_af_inet6",
+			Expression: `connect.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("connect-af-inet6-any-tcp-success", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
@@ -207,6 +251,26 @@ func TestConnectEvent(t *testing.T) {
 			test.validateConnectSchema(t, event)
 		})
 	})
+}
+func TestConnectEventinetAnyUDP6(t *testing.T) {
+	SkipIfNotAvailable(t)
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_connect_af_inet6",
+			Expression: `connect.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("connect-af-inet6-any-udp-success", func(t *testing.T) {
 		if !nettest.SupportsIPv6() {
@@ -234,6 +298,21 @@ func TestConnectEvent(t *testing.T) {
 			test.validateConnectSchema(t, event)
 		})
 	})
+}
+func TestConnectEventinetNonBlocking(t *testing.T) {
+	SkipIfNotAvailable(t)
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_connect_nonblocking_socket",
+			Expression: `connect.addr.port == 443 && process.file.name == "testsuite"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
 
 	t.Run("connect-non-blocking-socket", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
