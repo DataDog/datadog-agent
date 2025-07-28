@@ -71,7 +71,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	"github.com/DataDog/datadog-agent/comp/metadata/softwareinventory/def"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/metadata/softwareinventory/fx"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
