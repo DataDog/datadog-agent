@@ -12,10 +12,10 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
@@ -32,8 +32,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 		2,
 		2,
 		"test",
-		config.NewMockEndpoint(),
-		compressionfx.NewMockCompressor(),
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
 		"test")
 	s.Start()
@@ -74,10 +73,10 @@ func TestBatchStrategyOverflowsOnTooLargeMessage(t *testing.T) {
 		2,
 		2,
 		"test",
-		config.NewMockEndpoint(),
-		compressionfx.NewMockCompressor(),
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
 		"test")
+
 	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
@@ -121,8 +120,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		100,
 		"test",
 		clk,
-		config.NewMockEndpoint(),
-		compressionfx.NewMockCompressor(),
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
 		"test")
 	s.Start()
@@ -159,8 +157,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 		2,
 		"test",
 		clk,
-		config.NewMockEndpoint(),
-		compressionfx.NewMockCompressor(),
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
 		"test")
 	s.Start()
@@ -195,8 +192,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		2,
 		2,
 		"test",
-		config.NewMockEndpoint(),
-		compressionfx.NewMockCompressor(),
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
 		"test")
 	s.Start()
@@ -230,8 +226,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 		100,
 		100,
 		"test",
-		config.NewMockEndpoint(),
-		compressionfx.NewMockCompressor(),
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
 		"test")
 	strategy.Start()
@@ -290,8 +285,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 		100,
 		100,
 		"test",
-		config.NewMockEndpoint(),
-		compressionfx.NewMockCompressor(),
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
 		"test")
 	strategy.Start()
@@ -353,8 +347,7 @@ func TestBatchMRFPayloads(t *testing.T) {
 		batchSize,
 		contentSize,
 		"test",
-		config.NewMockEndpoint(),
-		compressionfx.NewMockCompressor(),
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
 		"test")
 	strategy.Start()
@@ -385,8 +378,7 @@ func TestMainAndMrfPayloads(t *testing.T) {
 		batchSize,
 		contentSize,
 		"test",
-		config.NewMockEndpoint(),
-		compressionfx.NewMockCompressor(),
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
 		metrics.NewNoopPipelineMonitor(""),
 		"test")
 	strategy.Start()

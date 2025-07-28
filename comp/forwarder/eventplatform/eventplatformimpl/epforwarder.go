@@ -468,8 +468,7 @@ func newHTTPPassthroughPipeline(
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,
 			desc.eventType,
-			endpoints.Main,
-			compressor,
+			encoder,
 			pipelineMonitor,
 			"0",
 		)

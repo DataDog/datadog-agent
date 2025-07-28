@@ -13,12 +13,10 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	compressionCommon "github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,11 +26,11 @@ var (
 
 // batch holds all the state for a batch.
 type batch struct {
-	buffer         *MessageBuffer
-	serializer     Serializer
-	compressor     compressionCommon.StreamCompressor
-	writeCounter   *writerCounter
-	encodedPayload *bytes.Buffer
+	buffer           *MessageBuffer
+	serializer       Serializer
+	streamCompressor compression.StreamCompressor
+	writeCounter     *writerCounter
+	encodedPayload   *bytes.Buffer
 }
 
 // batchStrategy contains all the logic to send logs in batch.
@@ -50,7 +48,7 @@ type batchStrategy struct {
 	mrfBatch       *batch
 	maxBatchSize   int
 	maxContentSize int
-	encoder        compressionCommon.Compressor
+	compression    compression.Compressor
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -68,12 +66,11 @@ func NewBatchStrategy(
 	maxBatchSize int,
 	maxContentSize int,
 	pipelineName string,
-	useCompressionEndpoint config.Endpoint,
-	compressor logscompression.Component,
+	compression compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor,
 	instanceID string,
 ) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), useCompressionEndpoint, compressor, pipelineMonitor, instanceID)
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor, instanceID)
 }
 
 func newBatchStrategyWithClock(
@@ -86,17 +83,10 @@ func newBatchStrategyWithClock(
 	maxContentSize int,
 	pipelineName string,
 	clock clock.Clock,
-	useCompressionEndpoint config.Endpoint,
-	compressor logscompression.Component,
+	compression compression.Compressor,
 	pipelineMonitor metrics.PipelineMonitor,
 	instanceID string,
 ) Strategy {
-
-	var encoder compressionCommon.Compressor
-	encoder = compressor.NewCompressor(compressionCommon.NoneKind, 0)
-	if useCompressionEndpoint.UseCompression {
-		encoder = compressor.NewCompressor(useCompressionEndpoint.CompressionKind, useCompressionEndpoint.CompressionLevel)
-	}
 
 	bs := &batchStrategy{
 		inputChan:       inputChan,
@@ -104,6 +94,7 @@ func newBatchStrategyWithClock(
 		flushChan:       flushChan,
 		serverlessMeta:  serverlessMeta,
 		batchWait:       batchWait,
+		compression:     compression,
 		stopChan:        make(chan struct{}),
 		pipelineName:    pipelineName,
 		clock:           clock,
@@ -111,7 +102,6 @@ func newBatchStrategyWithClock(
 		utilization:     pipelineMonitor.MakeUtilizationMonitor(metrics.StrategyTlmName, instanceID),
 		maxBatchSize:    maxBatchSize,
 		maxContentSize:  maxContentSize,
-		encoder:         encoder,
 		instanceID:      instanceID,
 	}
 
@@ -122,17 +112,17 @@ func newBatchStrategyWithClock(
 
 func (s *batchStrategy) MakeBatch() *batch {
 	var encodedPayload bytes.Buffer
-	compressor := s.encoder.NewStreamCompressor(&encodedPayload)
+	compressor := s.compression.NewStreamCompressor(&encodedPayload)
 	wc := newWriterWithCounter(compressor)
 	buffer := NewMessageBuffer(s.maxBatchSize, s.maxContentSize)
 	serializer := NewArraySerializer()
 
 	b := &batch{
-		buffer:         buffer,
-		serializer:     serializer,
-		compressor:     compressor,
-		writeCounter:   wc,
-		encodedPayload: &encodedPayload,
+		buffer:           buffer,
+		serializer:       serializer,
+		streamCompressor: compressor,
+		writeCounter:     wc,
+		encodedPayload:   &encodedPayload,
 	}
 	return b
 }
@@ -273,7 +263,7 @@ func (s *batchStrategy) flushBuffer(b *batch, outputChan chan *message.Payload) 
 func (s *batchStrategy) sendMessages(b *batch, messagesMetadata []*message.MessageMetadata, outputChan chan *message.Payload) {
 	defer s.resetBatch(b)
 
-	if err := b.compressor.Close(); err != nil {
+	if err := b.streamCompressor.Close(); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
 		s.utilization.Stop()
 		return
@@ -290,7 +280,7 @@ func (s *batchStrategy) sendMessages(b *batch, messagesMetadata []*message.Messa
 		s.serverlessMeta.Unlock()
 	}
 
-	p := message.NewPayload(messagesMetadata, b.encodedPayload.Bytes(), s.encoder.ContentEncoding(), unencodedSize)
+	p := message.NewPayload(messagesMetadata, b.encodedPayload.Bytes(), s.compression.ContentEncoding(), unencodedSize)
 
 	s.utilization.Stop()
 	outputChan <- p
