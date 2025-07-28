@@ -90,11 +90,10 @@ func TestStatefulSetRolloutFactory_getRolloutDuration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			client := fake.NewSimpleClientset(tt.revisions...)
 			factory := &statefulSetRolloutFactory{
-				client: client,
-				cache:  newRolloutCache(30 * time.Second),
+				hybridProvider: newHybridRolloutProvider(client, 30*time.Second),
 			}
 
-			result := factory.getRolloutDuration(tt.statefulSet)
+			result := factory.hybridProvider.getStatefulSetRolloutDuration(tt.statefulSet)
 
 			if tt.expectZero {
 				assert.Equal(t, float64(0), result)
@@ -143,8 +142,7 @@ func TestStatefulSetRolloutFactory_Caching(t *testing.T) {
 
 	client := fake.NewSimpleClientset(revision)
 	factory := &statefulSetRolloutFactory{
-		client: client,
-		cache:  newRolloutCache(30 * time.Second),
+		hybridProvider: newHybridRolloutProvider(client, 30*time.Second),
 	}
 
 	statefulSet := &appsv1.StatefulSet{
@@ -159,13 +157,13 @@ func TestStatefulSetRolloutFactory_Caching(t *testing.T) {
 	}
 
 	// First call should trigger API call
-	result1 := factory.getRolloutDuration(statefulSet)
+	result1 := factory.hybridProvider.getStatefulSetRolloutDuration(statefulSet)
 	assert.InDelta(t, 300.0, result1, 10.0) // ~5 minutes
 
 	// Second call should use cache (verify by checking it's the same exact value)
-	result2 := factory.getRolloutDuration(statefulSet)
+	result2 := factory.hybridProvider.getStatefulSetRolloutDuration(statefulSet)
 	assert.Equal(t, result1, result2)
 
 	// Cache should have one entry
-	assert.Equal(t, 1, factory.cache.size())
+	assert.Equal(t, 1, factory.hybridProvider.cache.size())
 }

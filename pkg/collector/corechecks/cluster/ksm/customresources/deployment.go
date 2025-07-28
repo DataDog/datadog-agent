@@ -9,12 +9,10 @@ package customresources
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -26,20 +24,17 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewDeploymentRolloutFactory returns a new Deployment rollout factory that provides rollout duration metrics
 func NewDeploymentRolloutFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &deploymentRolloutFactory{
-		client: client.Cl,
-		cache:  newRolloutCache(30 * time.Second), // 30 second TTL
+		hybridProvider: newHybridRolloutProvider(client.Cl, 30*time.Second),
 	}
 }
 
 type deploymentRolloutFactory struct {
-	client kubernetes.Interface
-	cache  *rolloutCache
+	hybridProvider *hybridRolloutProvider
 }
 
 func (f *deploymentRolloutFactory) Name() string {
@@ -47,7 +42,7 @@ func (f *deploymentRolloutFactory) Name() string {
 }
 
 func (f *deploymentRolloutFactory) CreateClient(_ *rest.Config) (interface{}, error) {
-	return f.client, nil
+	return f.hybridProvider.client, nil
 }
 
 func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
@@ -64,7 +59,7 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 						{
 							LabelKeys:   []string{"namespace", "deployment"},
 							LabelValues: []string{d.Namespace, d.Name},
-							Value:       f.getRolloutDuration(d),
+							Value:       f.hybridProvider.getDeploymentRolloutDuration(d),
 						},
 					},
 				}
@@ -91,78 +86,6 @@ func (f *deploymentRolloutFactory) ListWatch(customResourceClient interface{}, n
 	}
 }
 
-// getRolloutDuration calculates the duration of an ongoing rollout with caching
-func (f *deploymentRolloutFactory) getRolloutDuration(d *appsv1.Deployment) float64 {
-	// Check if there's a rollout in progress by comparing generation
-	if d.Generation == d.Status.ObservedGeneration {
-		// No rollout in progress
-		return 0
-	}
-
-	// Generate cache key including generation to invalidate cache when generation changes
-	cacheKey := fmt.Sprintf("deployment:%s/%s:%d", d.Namespace, d.Name, d.Generation)
-
-	// Check cache first
-	if cachedDuration, found := f.cache.get(cacheKey); found {
-		return cachedDuration
-	}
-
-	// Cache miss - calculate duration via API call
-	duration := f.calculateRolloutDurationFromAPI(d)
-	
-	// Cache the result (even if it's 0, to avoid repeated failed API calls)
-	f.cache.set(cacheKey, duration)
-	
-	return duration
-}
-
-// calculateRolloutDurationFromAPI performs the actual API call to calculate rollout duration
-func (f *deploymentRolloutFactory) calculateRolloutDurationFromAPI(d *appsv1.Deployment) float64 {
-	// Find the newest ReplicaSet for this deployment to get the rollout start time
-	replicaSets, err := f.client.AppsV1().ReplicaSets(d.Namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: labels.Set(d.Spec.Selector.MatchLabels).AsSelector().String(),
-	})
-	if err != nil {
-		log.Debugf("Failed to list ReplicaSets for Deployment %s/%s: %v", d.Namespace, d.Name, err)
-		return 0
-	}
-
-	var newestRS *appsv1.ReplicaSet
-	var newestTime time.Time
-
-	// Find the newest ReplicaSet
-	for i := range replicaSets.Items {
-		rs := &replicaSets.Items[i]
-		
-		// Check if this ReplicaSet is owned by our Deployment
-		if !isOwnedByDeployment(rs, d) {
-			continue
-		}
-
-		if rs.CreationTimestamp.Time.After(newestTime) {
-			newestTime = rs.CreationTimestamp.Time
-			newestRS = rs
-		}
-	}
-
-	if newestRS == nil || newestTime.IsZero() {
-		return 0
-	}
-
-	// Calculate duration since the newest ReplicaSet was created
-	duration := time.Since(newestTime)
-	return duration.Seconds()
-}
-
-// isOwnedByDeployment checks if a ReplicaSet is owned by the given Deployment
-func isOwnedByDeployment(rs *appsv1.ReplicaSet, d *appsv1.Deployment) bool {
-	for _, owner := range rs.OwnerReferences {
-		if owner.Kind == "Deployment" && owner.Name == d.Name && owner.UID == d.UID {
-			return true
-		}
-	}
-	return false
-}
 
 // wrapDeploymentFunc wraps a function that takes a Deployment and returns a metric Family
 func wrapDeploymentFunc(f func(*appsv1.Deployment) *metric.Family) func(interface{}) *metric.Family {

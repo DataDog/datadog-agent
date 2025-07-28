@@ -9,7 +9,6 @@ package customresources
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -25,20 +24,17 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewStatefulSetRolloutFactory returns a new StatefulSet rollout factory that provides rollout duration metrics
 func NewStatefulSetRolloutFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &statefulSetRolloutFactory{
-		client: client.Cl,
-		cache:  newRolloutCache(30 * time.Second), // 30 second TTL
+		hybridProvider: newHybridRolloutProvider(client.Cl, 30*time.Second),
 	}
 }
 
 type statefulSetRolloutFactory struct {
-	client kubernetes.Interface
-	cache  *rolloutCache
+	hybridProvider *hybridRolloutProvider
 }
 
 func (f *statefulSetRolloutFactory) Name() string {
@@ -46,7 +42,7 @@ func (f *statefulSetRolloutFactory) Name() string {
 }
 
 func (f *statefulSetRolloutFactory) CreateClient(_ *rest.Config) (interface{}, error) {
-	return f.client, nil
+	return f.hybridProvider.client, nil
 }
 
 func (f *statefulSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
@@ -63,7 +59,7 @@ func (f *statefulSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyG
 						{
 							LabelKeys:   []string{"namespace", "statefulset"},
 							LabelValues: []string{s.Namespace, s.Name},
-							Value:       f.getRolloutDuration(s),
+							Value:       f.hybridProvider.getStatefulSetRolloutDuration(s),
 						},
 					},
 				}
@@ -90,60 +86,6 @@ func (f *statefulSetRolloutFactory) ListWatch(customResourceClient interface{}, 
 	}
 }
 
-// getRolloutDuration calculates the duration of an ongoing rollout with caching
-func (f *statefulSetRolloutFactory) getRolloutDuration(s *appsv1.StatefulSet) float64 {
-	// Check if there's a rollout in progress
-	if s.Status.CurrentRevision == s.Status.UpdateRevision {
-		// No rollout in progress
-		return 0
-	}
-
-	// There's a generation mismatch, we need to find the ControllerRevision timestamp
-	// for the current update revision
-	if s.Status.UpdateRevision == "" {
-		// No update revision available
-		return 0
-	}
-
-	// Generate cache key
-	cacheKey := fmt.Sprintf("statefulset:%s/%s:%s", s.Namespace, s.Name, s.Status.UpdateRevision)
-
-	// Check cache first
-	if cachedDuration, found := f.cache.get(cacheKey); found {
-		return cachedDuration
-	}
-
-	// Cache miss - calculate duration via API call
-	duration := f.calculateRolloutDurationFromAPI(s)
-	
-	// Cache the result (even if it's 0, to avoid repeated failed API calls)
-	f.cache.set(cacheKey, duration)
-	
-	return duration
-}
-
-// calculateRolloutDurationFromAPI performs the actual API call to calculate rollout duration
-func (f *statefulSetRolloutFactory) calculateRolloutDurationFromAPI(s *appsv1.StatefulSet) float64 {
-	// Get the ControllerRevision for the update revision
-	revision, err := f.client.AppsV1().ControllerRevisions(s.Namespace).Get(
-		context.TODO(),
-		s.Status.UpdateRevision,
-		metav1.GetOptions{},
-	)
-	if err != nil {
-		log.Debugf("Failed to get ControllerRevision %s for StatefulSet %s/%s: %v", 
-			s.Status.UpdateRevision, s.Namespace, s.Name, err)
-		return 0
-	}
-
-	// Calculate duration since the revision was created
-	if revision.CreationTimestamp.IsZero() {
-		return 0
-	}
-
-	duration := time.Since(revision.CreationTimestamp.Time)
-	return duration.Seconds()
-}
 
 // wrapStatefulSetFunc wraps a function that takes a StatefulSet and returns a metric Family
 func wrapStatefulSetFunc(f func(*appsv1.StatefulSet) *metric.Family) func(interface{}) *metric.Family {

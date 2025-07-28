@@ -145,11 +145,10 @@ func TestDeploymentRolloutFactory_getRolloutDuration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			client := fake.NewSimpleClientset(tt.replicaSets...)
 			factory := &deploymentRolloutFactory{
-				client: client,
-				cache:  newRolloutCache(30 * time.Second),
+				hybridProvider: newHybridRolloutProvider(client, 30*time.Second),
 			}
 
-			result := factory.getRolloutDuration(tt.deployment)
+			result := factory.hybridProvider.getDeploymentRolloutDuration(tt.deployment)
 
 			if tt.expectZero {
 				assert.Equal(t, float64(0), result)
@@ -170,6 +169,9 @@ func TestIsOwnedByDeployment(t *testing.T) {
 			UID:  deploymentUID,
 		},
 	}
+
+	client := fake.NewSimpleClientset()
+	provider := newHybridRolloutProvider(client, 30*time.Second)
 
 	tests := []struct {
 		name     string
@@ -249,7 +251,7 @@ func TestIsOwnedByDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isOwnedByDeployment(tt.rs, deployment)
+			result := provider.isOwnedByDeployment(tt.rs, deployment)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -304,8 +306,7 @@ func TestDeploymentRolloutFactory_Caching(t *testing.T) {
 
 	client := fake.NewSimpleClientset(replicaSet)
 	factory := &deploymentRolloutFactory{
-		client: client,
-		cache:  newRolloutCache(30 * time.Second),
+		hybridProvider: newHybridRolloutProvider(client, 30*time.Second),
 	}
 
 	deployment := &appsv1.Deployment{
@@ -328,13 +329,13 @@ func TestDeploymentRolloutFactory_Caching(t *testing.T) {
 	}
 
 	// First call should trigger API call
-	result1 := factory.getRolloutDuration(deployment)
+	result1 := factory.hybridProvider.getDeploymentRolloutDuration(deployment)
 	assert.InDelta(t, 300.0, result1, 10.0) // ~5 minutes
 
 	// Second call should use cache (verify by checking it's the same exact value)
-	result2 := factory.getRolloutDuration(deployment)
+	result2 := factory.hybridProvider.getDeploymentRolloutDuration(deployment)
 	assert.Equal(t, result1, result2)
 
 	// Cache should have one entry
-	assert.Equal(t, 1, factory.cache.size())
+	assert.Equal(t, 1, factory.hybridProvider.cache.size())
 }
