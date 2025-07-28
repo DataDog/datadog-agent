@@ -19,4 +19,6 @@ var (
 	notCapturedReasonUnavailable    jsontext.Token = jsontext.String("unavailable")
 	notCapturedReasonUnimplemented  jsontext.Token = jsontext.String("unimplemented")
 	// notCapturedReasonFieldCount     jsontext.Token = jsontext.String("fieldCount")
+
+	truncated jsontext.Token = jsontext.String("truncated")
 )

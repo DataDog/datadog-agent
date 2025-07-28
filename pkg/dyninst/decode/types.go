@@ -57,12 +57,15 @@ type goHMapHeaderType ir.GoHMapHeaderType
 type goHMapBucketType ir.GoHMapBucketType
 type goSwissMapHeaderType struct {
 	*ir.GoSwissMapHeaderType
-	keyTypeID        ir.TypeID
-	valueTypeID      ir.TypeID
-	keyTypeSize      uint32
-	valueTypeSize    uint32
-	keyTypeName      string
-	valueTypeName    string
+	// Fields related to user defined key and value types
+	keyTypeID     ir.TypeID
+	valueTypeID   ir.TypeID
+	keyTypeSize   uint32
+	valueTypeSize uint32
+	keyTypeName   string
+	valueTypeName string
+
+	// Fields in go swiss map internal representation
 	dirLenOffset     uint32
 	dirLenSize       uint8
 	dirPtrOffset     uint32
@@ -80,9 +83,6 @@ type goSwissMapHeaderType struct {
 	elementTypeSize  uint32
 	usedOffset       uint32
 	usedSize         uint8
-	tableType        *ir.PointerType
-	tableStructType  *ir.StructureType
-	groupType        *ir.GoSwissMapGroupsType
 }
 type goSwissMapGroupsType ir.GoSwissMapGroupsType
 type goChannelType ir.GoChannelType
@@ -172,10 +172,9 @@ func newDecoderType(
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
-
-		tableType := s.TablePtrSliceType.Element.(*ir.PointerType)
-		tableStructType := tableType.Pointee.(*ir.StructureType)
-		groupField, err := getFieldByName(tableStructType.RawFields, "groups")
+		tablePtrType := s.TablePtrSliceType.Element.(*ir.PointerType)
+		tableType := tablePtrType.Pointee.(*ir.StructureType)
+		groupField, err := getFieldByName(tableType.RawFields, "groups")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
@@ -191,34 +190,54 @@ func newDecoderType(
 		}
 		dataFieldOffset := dataField.Offset
 		dataFieldSize := dataField.Type.GetByteSize()
+		var sizeChecks = []struct {
+			name  string
+			value uint32
+		}{
+			{"dirLenSize", dirLenSize},
+			{"dirPtrSize", dirPtrSize},
+			{"ctrlSize", ctrlSize},
+			{"slotsSize", slotsFieldType.GetByteSize()},
+			{"groupFieldSize", groupFieldSize},
+			{"dataFieldSize", dataFieldSize},
+			{"usedSize", usedSize},
+		}
+		for _, check := range sizeChecks {
+			// We cast to uint8 expecting that the values are going to be small enough, given they
+			// are known to go swiss map implementation, but check just in case.
+			if check.value > math.MaxUint8 {
+				return nil, fmt.Errorf("%s is too large: %d", check.name, check.value)
+			}
+		}
 		return &goSwissMapHeaderType{
 			GoSwissMapHeaderType: s,
-			keyTypeID:            keyField.Type.GetID(),
-			valueTypeID:          elem.Type.GetID(),
-			keyTypeSize:          uint32(keyField.Type.GetByteSize()),
-			valueTypeSize:        uint32(elem.Type.GetByteSize()),
-			keyTypeName:          keyField.Type.GetName(),
-			valueTypeName:        elem.Type.GetName(),
-			dirLenOffset:         dirLenOffset,
-			dirLenSize:           uint8(dirLenSize),
-			dirPtrOffset:         dirPtrOffset,
-			dirPtrSize:           uint8(dirPtrSize),
-			ctrlOffset:           ctrlOffset,
-			ctrlSize:             uint8(ctrlSize),
-			slotsOffset:          slotsField.Offset,
-			slotsSize:            uint8(slotsFieldType.GetByteSize()),
-			tableType:            tableType,
-			tableStructType:      tableStructType,
-			groupType:            groupType,
-			groupFieldOffset:     groupFieldOffset,
-			groupFieldSize:       uint8(groupFieldSize),
-			dataFieldOffset:      dataFieldOffset,
-			dataFieldSize:        uint8(dataFieldSize),
-			tableTypeID:          tableType.Pointee.GetID(),
-			groupTypeID:          groupType.GroupSliceType.GetID(),
-			elementTypeSize:      uint32(groupType.GroupSliceType.Element.GetByteSize()),
-			usedOffset:           usedOffset,
-			usedSize:             uint8(usedSize),
+			// Fields related to user defined key and value types
+			keyTypeID:     keyField.Type.GetID(),
+			valueTypeID:   elem.Type.GetID(),
+			keyTypeSize:   keyField.Type.GetByteSize(),
+			valueTypeSize: elem.Type.GetByteSize(),
+			keyTypeName:   keyField.Type.GetName(),
+			valueTypeName: elem.Type.GetName(),
+
+			// Fields in go swiss map internal representation
+			// Seehttps://github.com/golang/go/blob/cd3655a8243b5f52b6a274a0aba5e01d998906c0/src/internal/runtime/maps/map.go#L195
+			dirLenOffset:     dirLenOffset,
+			dirLenSize:       uint8(dirLenSize),
+			dirPtrOffset:     dirPtrOffset,
+			dirPtrSize:       uint8(dirPtrSize),
+			ctrlOffset:       ctrlOffset,
+			ctrlSize:         uint8(ctrlSize),
+			slotsOffset:      slotsField.Offset,
+			slotsSize:        uint8(slotsFieldType.GetByteSize()),
+			groupFieldOffset: groupFieldOffset,
+			groupFieldSize:   uint8(groupFieldSize),
+			dataFieldOffset:  dataFieldOffset,
+			dataFieldSize:    uint8(dataFieldSize),
+			tableTypeID:      tablePtrType.Pointee.GetID(),
+			groupTypeID:      groupType.GroupSliceType.GetID(),
+			elementTypeSize:  uint32(groupType.GroupSliceType.Element.GetByteSize()),
+			usedOffset:       usedOffset,
+			usedSize:         uint8(usedSize),
 		}, nil
 	case *ir.BaseType:
 		return (*baseType)(s), nil
@@ -492,7 +511,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 		// This is a 'small' swiss map where there's only one group.
 		// We can collect the data item for the group directly.
 		groupDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.GroupType.GetID()),
+			irType: uint32(s.groupTypeID),
 			addr:   dirPtr,
 		}]
 		if !ok {
@@ -619,6 +638,9 @@ func (p *pointerType) encodeValueFields(
 	if !ok {
 		return fmt.Errorf("no go kind for type %s (ID: %d)", p.Pointee.GetName(), p.Pointee.GetID())
 	}
+	// We only encode the address for non-pointer types to avoid collisions of the 'address' field
+	// in cases of pointers to pointers. In a scenario like `**int`, only the final pointer that's
+	// closest to the actual data will be encoded.
 	if goKind != reflect.Pointer {
 		if err := writeTokens(enc,
 			jsontext.String("address"),
@@ -829,12 +851,6 @@ func (s *goStringHeaderType) encodeValueFields(
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
-	realLength := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
-	if err := writeTokens(enc,
-		jsontext.String("size"),
-		jsontext.Uint(realLength)); err != nil {
-		return err
-	}
 	fieldEnd := s.strFieldOffset + uint32(s.strFieldSize)
 	if fieldEnd >= uint32(len(data)) {
 		return writeTokens(enc,
@@ -861,17 +877,14 @@ func (s *goStringHeaderType) encodeValueFields(
 	}
 	stringData := stringValue.Data()
 	length := stringValue.Header().Length
-	if len(stringData) < int(length) {
-		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonPruned,
-		)
-	}
-	if realLength > uint64(len(stringData)) {
+	realLength := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
+	if realLength > uint64(length) {
 		// We captured partial data for the string, report truncation
 		if err := writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonPruned,
+			jsontext.String("size"),
+			jsontext.Uint(realLength),
+			truncated,
+			jsontext.Bool(true),
 		); err != nil {
 			return err
 		}
