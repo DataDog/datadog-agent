@@ -743,8 +743,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.unscheduled_check_threshold", 60) // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
-	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
-	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", false)        // Experimental. Subject to change. Uses the runners utilization to balance.
+	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", true)
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", true)
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_percentage_improvement", 10) // Experimental. Subject to change. Rebalance only if the distribution found improves the current one by this.
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
@@ -854,6 +854,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// enabling/disabling the environment variables & command scrubbing from the container specs
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.max_count", 5000)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_annotations_labels", []string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)

@@ -884,6 +884,7 @@ core,github.com/containerd/continuity/fs,Apache-2.0,"Copyright 2012-2015 Docker,
 core,github.com/containerd/continuity/sysx,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/errdefs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/errdefs/pkg/errgrpc,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/errdefs/pkg/errhttp,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/errdefs/pkg/internal/cause,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/errdefs/pkg/internal/types,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/fifo,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -930,6 +931,7 @@ core,github.com/docker/docker-credential-helpers/credentials,MIT,"Copyright 2012
 core,github.com/docker/docker/api,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/blkiodev,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/docker/docker/api/types/build,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/checkpoint,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/common,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/container,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -948,7 +950,6 @@ core,github.com/docker/docker/api/types/time,Apache-2.0,"Copyright 2012-2017 Doc
 core,github.com/docker/docker/api/types/versions,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/volume,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/client,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/docker/errdefs,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/internal/lazyregexp,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/internal/multierror,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/pkg/system,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -2179,8 +2180,11 @@ core,github.com/uptrace/bun/dialect/sqltype,BSD-2-Clause,Copyright (c) 2021 Vlad
 core,github.com/uptrace/bun/driver/pgdriver,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/extra/bunjson,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/internal,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
+core,github.com/uptrace/bun/internal/ordered,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/internal/parser,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/internal/tagparser,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
+core,github.com/uptrace/bun/migrate,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
+core,github.com/uptrace/bun/migrate/sqlschema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/schema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/urfave/negroni,MIT,Copyright (c) 2014 Jeremy Saenz
 core,github.com/valyala/fastjson,MIT,Copyright (c) 2018 Aliaksandr Valialkin
@@ -2549,6 +2553,7 @@ core,go.opentelemetry.io/otel/semconv/v1.22.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.25.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.26.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.27.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.34.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.8.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.9.0,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2596,6 +2601,8 @@ core,go.uber.org/zap/internal/pool,MIT,"Copyright (c) 2016-2017 Uber Technologie
 core,go.uber.org/zap/internal/stacktrace,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapcore,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapgrpc,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
+core,go.yaml.in/yaml/v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
+core,go.yaml.in/yaml/v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright (c) 2006-2011 Kirill Simonov | Copyright (c) 2011-2019 Canonical Ltd | Copyright 2011-2016 Canonical Ltd | copyright staring in 2011 when the project was ported over:
 core,go4.org/intern,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,go4.org/mem,Apache-2.0,Copyright 2020 The Go4 AUTHORS
 core,go4.org/netipx,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
@@ -2679,6 +2686,10 @@ core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright 2009 The Go Author
 core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/counter,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/internal/counter,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/internal/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/internal/telemetry,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/term,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/text/cases,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/text/encoding,BSD-3-Clause,Copyright 2009 The Go Authors
@@ -3944,5 +3955,5 @@ core,sigs.k8s.io/structured-merge-diff/v4/schema,Apache-2.0,Copyright 2017 The K
 core,sigs.k8s.io/structured-merge-diff/v4/typed,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/structured-merge-diff/v4/value,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/yaml,MIT,Copyright 2017 The Kubernetes Authors.
-core,sigs.k8s.io/yaml/goyaml.v2,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/yaml/goyaml.v2,MIT,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/yaml/goyaml.v3,MIT,Copyright 2017 The Kubernetes Authors.

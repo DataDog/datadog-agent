@@ -266,6 +266,7 @@ variables:
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
   FF_USE_FASTZIP: true
+  CACHE_COMPRESSION_LEVEL: slowest
 
 #
 # Condition mixins for simplification of rules
@@ -590,7 +591,6 @@ workflow:
   - pkg/network/**/*
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
-  - pkg/dynamicinstrumentation/**/*
   - pkg/dyninst/**/*
   - pkg/gpu/**/*
   - .gitlab/kernel_matrix_testing/system_probe.yml
