@@ -15,20 +15,28 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strings"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
 )
 
 var (
-	pprofPort  = flag.Int("pprof-port", 8081, "Port for pprof server.")
-	binaryPath = flag.String("binary-path", "", "Path to the binary to analyze.")
+	pprofPort      = flag.Int("pprof-port", 8081, "Port for pprof server.")
+	binaryPath     = flag.String("binary-path", "", "Path to the binary to analyze.")
+	mainModuleOnly = flag.Bool("main-module-only", false, "If set, only symbols from the module containing the \"main\" function are printed.")
+	silent         = flag.Bool("silent", false, "If set, the collected symbols are not printed.")
 )
 
 func main() {
 	flag.Parse()
 	if *binaryPath == "" {
-		fmt.Println("Usage: symdbcli --binary-path <path-to-binary> [--pprof-port <port>]")
+		fmt.Print(`Usage: symdbcli --binary-path <path-to-binary> [--main-module-only] [--silent]
+
+The symbols from the specified binary will be extracted and printed to stdout
+(unless --silent is specified).
+`)
 		os.Exit(1)
 	}
 
@@ -44,12 +52,8 @@ func main() {
 
 func run(binaryPath string) error {
 	log.Printf("Analyzing binary: %s", binaryPath)
-
-	file, err := object.OpenElfFile(binaryPath)
-	if err != nil {
-		return err
-	}
-	symBuilder, err := symdb.NewSymDBBuilder(file)
+	start := time.Now()
+	symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
 	if err != nil {
 		return err
 	}
@@ -57,8 +61,10 @@ func run(binaryPath string) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("Symbol extraction completed in %s.", time.Since(start))
 	stats := statsFromSymbols(symbols)
 	log.Printf("Symbol statistics for %s: %+v", binaryPath, stats)
+
 	return nil
 }
 
@@ -78,6 +84,9 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 	}
 	sourceFiles := make(map[string]struct{})
 	for _, pkg := range s.Packages {
+		if *mainModuleOnly && !strings.HasPrefix(pkg.Name, s.MainModule) {
+			continue
+		}
 		stats.numTypes += len(pkg.Types)
 		stats.numFunctions += len(pkg.Functions)
 		for _, f := range pkg.Functions {
@@ -88,5 +97,17 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 			}
 		}
 	}
+
+	if !*silent {
+		s.Serialize(symdbutil.MakePanickingWriter(os.Stdout), symdb.SerializationOptions{
+			OnlyMainModule: *mainModuleOnly,
+			PackageSerializationOptions: symdb.PackageSerializationOptions{
+				StripLocalFilePrefix: false,
+			},
+		})
+	} else {
+		log.Println("--silent specified; symbols not serialized.")
+	}
+
 	return stats
 }
