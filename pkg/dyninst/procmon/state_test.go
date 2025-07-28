@@ -141,7 +141,7 @@ func TestStateMachine(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			st := newState()
+			st := makeState()
 			for i, s := range tc.steps {
 				if !t.Run(fmt.Sprint(i), func(t *testing.T) {
 					mock := &mockEffects{}
@@ -172,6 +172,21 @@ func TestStateMachine(t *testing.T) {
 		})
 	}
 }
+
+func (s *state) handle(ev event, eff effects) {
+	switch e := ev.(type) {
+	case *processEvent:
+		s.handleProcessEvent(*e)
+	case *analysisResult:
+		s.handleAnalysisResult(*e)
+	}
+	s.analyzeOrReport(eff)
+}
+
+type event interface{ event() }
+
+func (e *processEvent) event()   {}
+func (r *analysisResult) event() {}
 
 // It can synchronously feed processResult events back into the state machine
 // and records every ProcessesUpdate sent to the actuator.
