@@ -207,11 +207,11 @@ func enableOtelCollectorConfig() error {
 func disableOtelCollectorConfig() error {
 	// Read existing config
 	data, err := os.ReadFile(datadogYamlPath)
+	// Nothing to delete if the file doesn't exist
+	if err != nil && os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
-		// Nothing to delete if the file doesn't exist
-		if os.IsNotExist(err) {
-			return nil
-		}
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
 	}
 
