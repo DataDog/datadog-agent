@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/comp/core/status
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.68.3-rc.3
-	github.com/DataDog/datadog-agent/pkg/template v0.68.3-rc.3
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.68.3
+	github.com/DataDog/datadog-agent/pkg/template v0.68.3
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.18.0
 	github.com/spf13/cast v1.9.2
@@ -14,10 +14,10 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.68.3-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.68.3-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.68.3-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.68.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.68.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.68.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

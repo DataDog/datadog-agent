@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/obfuscate
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/go-sqllexer v0.1.6
 	github.com/outcaste-io/ristretto v0.2.3
@@ -12,8 +12,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.68.3-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.68.3 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
