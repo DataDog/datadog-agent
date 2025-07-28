@@ -24,7 +24,7 @@
       exit 1
     fi
     # Remove the trailing slashes etc.
-    export OLDTMPDIR="$(realpath "$TMPDIR")"
+    export OLDTMPDIR="$(realpath -m "$TMPDIR")"
     sudo rm -rf "$OLDTMPDIR/gitlabci"
     NEWTMPDIR="$OLDTMPDIR/gitlabci/$CI_JOB_ID"
     mkdir -m 777 -p "$NEWTMPDIR"
