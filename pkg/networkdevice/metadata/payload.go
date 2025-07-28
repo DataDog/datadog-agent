@@ -172,14 +172,35 @@ type TopologyLinkMetadata struct {
 	Remote      *TopologyLinkSide `json:"remote"`
 }
 
+// VPNProtocol represents the different possible VPN protocols
+type VPNProtocol string
+
+const (
+	// IPsec represents the IPsec protocol
+	IPsec VPNProtocol = "ipsec"
+)
+
 // VPNTunnelMetadata contains VPN tunnel metadata
 type VPNTunnelMetadata struct {
-	DeviceID        string   `json:"device_id"`
-	InterfaceID     string   `json:"interface_id,omitempty"`
-	LocalOutsideIP  string   `json:"local_outside_ip"`
-	RemoteOutsideIP string   `json:"remote_outside_ip"`
-	Protocol        string   `json:"protocol"`
-	RouteAddresses  []string `json:"route_addresses"`
+	DeviceID        string           `json:"device_id"`
+	InterfaceID     string           `json:"interface_id,omitempty"`
+	LocalOutsideIP  string           `json:"local_outside_ip"`
+	RemoteOutsideIP string           `json:"remote_outside_ip"`
+	Status          string           `json:"status"`
+	Protocol        VPNProtocol      `json:"protocol"`
+	RouteAddresses  []string         `json:"route_addresses"`
+	Options         VPNTunnelOptions `json:"options,omitempty"`
+}
+
+// VPNTunnelOptions contains VPN tunnel options for each protocol
+type VPNTunnelOptions struct {
+	IPsecOptions IPsecOptions `json:"ipsec_options,omitempty"`
+}
+
+// IPsecOptions contains IPsec VPN tunnel options
+type IPsecOptions struct {
+	LifeSize int32 `json:"life_size"`
+	LifeTime int32 `json:"life_time"`
 }
 
 // NetflowExporter contains netflow exporters info

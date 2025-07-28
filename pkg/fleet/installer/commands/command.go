@@ -370,6 +370,7 @@ func promoteExperimentCommand() *cobra.Command {
 }
 
 func installConfigExperimentCommand() *cobra.Command {
+	var configOrderFlag string
 	cmd := &cobra.Command{
 		Use:     "install-config-experiment <package> <version> <config1> <config2> ...",
 		Short:   "Install a config experiment",
@@ -384,15 +385,25 @@ func installConfigExperimentCommand() *cobra.Command {
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
 
-			// Start with the main config
+			// Parse config order from flag
+			var configOrder []string
+			if configOrderFlag != "" {
+				err := json.Unmarshal([]byte(configOrderFlag), &configOrder)
+				if err != nil {
+					configOrder = []string{}
+				}
+				i.span.SetTag("params.configOrder", configOrderFlag)
+			}
+
 			configs := make([][]byte, len(args)-2)
 			for i, config := range args[2:] {
 				configs[i] = []byte(config)
 			}
 
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs)
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs, configOrder)
 		},
 	}
+	cmd.Flags().StringVar(&configOrderFlag, "config-order", "", "JSON array of config IDs in order of precedence")
 	return cmd
 }
 

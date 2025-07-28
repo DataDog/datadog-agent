@@ -141,7 +141,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	if ia.Enabled {
 		ia.initData()
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string, _, _ any, _ uint64) { ia.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { ia.Refresh() })
 	}
 
 	return provides{
