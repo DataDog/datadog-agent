@@ -475,8 +475,6 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	s.host.Run(fmt.Sprintf("sudo datadog-installer install oci://installtesting.datad0g.com/ddot-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
-	s.host.Run("sudo cp /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml")
-
 	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
 
@@ -494,9 +492,6 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	}
 	s.host.Run(fmt.Sprintf("sudo sh -c \"sed -i -e 's/\\${env:DD_API_KEY}/%s/' -e 's/\\${env:DD_SITE}/%s/' /etc/datadog-agent/otel-config.yaml\"", apiKey, site))
 
-	// Start ddot service
-	s.host.Run("sudo systemctl start datadog-agent-ddot.service")
-
 	s.host.WaitForUnitActive(s.T(), ddotUnit)
 
 	// Verify running
@@ -505,7 +500,7 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	s.assertDdotUnits(state, false)
 
 	// Verify files exist
-	// state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0644, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0644, "dd-agent", "dd-agent")
 
 	state.AssertDirExists("/opt/datadog-packages/datadog-agent-ddot/stable", 0755, "dd-agent", "dd-agent")
 	state.AssertFileExists("/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", 0755, "dd-agent", "dd-agent")
