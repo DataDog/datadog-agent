@@ -10,6 +10,9 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
@@ -72,6 +75,18 @@ func GetHostname(host *components.RemoteHost) (string, error) {
 		return "", fmt.Errorf("GetHostname failed: %v", err)
 	}
 	return strings.TrimSpace(hostname), nil
+}
+
+// SetHostname sets the hostname of the VM
+func RenameComputer(host *components.RemoteHost, hostname string) error {
+	cmd := fmt.Sprintf("Rename-Computer -NewName '%s' -Force -PassThru", hostname)
+	_, err := host.Execute(cmd)
+	if err != nil {
+		return fmt.Errorf("RenameComputer failed: %v", err)
+	}
+	// reboot the host
+	RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
+	return nil
 }
 
 // GetJoinedDomain returns the domain that the host is joined to

@@ -458,6 +458,26 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 		WithIdentity(identity)
 }
 
+func (s *testAgentUpgradeSuite) TestUpgradeWithHostNameChange() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	// Act
+	// change the host name
+	windowscommon.RenameComputer(s.Env().RemoteHost, "TEST-HOSTNAME")
+
+	// start experiment
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert
+
+}
+
 // TestUpgradeWithAgentUser tests that the agent user is preserved across remote upgrades.
 func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 	// Arrange
