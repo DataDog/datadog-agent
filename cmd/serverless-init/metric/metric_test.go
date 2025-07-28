@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	mockStartMetricName    = "gcp.run.enhanced.cold_start"
-	mockShutdownMetricName = "gcp.run.enhanced.shutdown"
+	mockStartMetricName    = "datadog.serverless_agent.enhanced.cold_start"
+	mockShutdownMetricName = "datadog.serverless_agent.enhanced.shutdown"
 	mockMetricSource       = metrics.MetricSourceServerless
 )
 
@@ -35,16 +35,12 @@ func TestAdd(t *testing.T) {
 	mockAgent := serverlessMetrics.ServerlessMetricAgent{
 		Demux: demux,
 	}
-	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"})
 	Add("a.super.metric", 1.0, mockMetricSource, mockAgent)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
 	assert.Equal(t, metric.Name, "a.super.metric")
-	assert.Equal(t, 2, len(metric.Tags))
-	assert.Equal(t, metric.Tags[0], "taga:valuea")
-	assert.Equal(t, metric.Tags[1], "tagb:valueb")
 }
 
 func TestAddStartMetric(t *testing.T) {
@@ -52,17 +48,13 @@ func TestAddStartMetric(t *testing.T) {
 	mockAgent := serverlessMetrics.ServerlessMetricAgent{
 		Demux: demux,
 	}
-	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"})
 	Add(mockStartMetricName, 1.0, mockMetricSource, mockAgent)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
-	assert.Equal(t, metric.Name, "gcp.run.enhanced.cold_start")
-	assert.Equal(t, 2, len(metric.Tags))
-	assert.Equal(t, metric.Tags[0], "taga:valuea")
-	assert.Equal(t, metric.Tags[1], "tagb:valueb")
-	assert.Equal(t, metric.Source, metrics.MetricSourceGoogleCloudRunEnhanced)
+	assert.Equal(t, metric.Name, "datadog.serverless_agent.enhanced.cold_start")
+	assert.Equal(t, metric.Source, metrics.MetricSourceServerless)
 }
 
 func TestAddShutdownMetric(t *testing.T) {
@@ -70,17 +62,13 @@ func TestAddShutdownMetric(t *testing.T) {
 	mockAgent := serverlessMetrics.ServerlessMetricAgent{
 		Demux: demux,
 	}
-	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"})
 	Add(mockShutdownMetricName, 1.0, mockMetricSource, mockAgent)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
-	assert.Equal(t, metric.Name, "gcp.run.enhanced.shutdown")
-	assert.Equal(t, 2, len(metric.Tags))
-	assert.Equal(t, metric.Tags[0], "taga:valuea")
-	assert.Equal(t, metric.Tags[1], "tagb:valueb")
-	assert.Equal(t, metric.Source, metrics.MetricSourceGoogleCloudRunEnhanced)
+	assert.Equal(t, metric.Name, "datadog.serverless_agent.enhanced.shutdown")
+	assert.Equal(t, metric.Source, metrics.MetricSourceServerless)
 }
 
 func TestNilDemuxDoesNotPanic(t *testing.T) {
