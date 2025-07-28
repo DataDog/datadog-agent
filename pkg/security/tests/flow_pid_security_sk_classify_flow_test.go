@@ -5630,6 +5630,16 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			args := []string{"connect-and-send", "2236", "tcp", "2345", "1234"}
 			cmd := cmdFunc(syscallTester, args, nil)
 			stdout, err := cmd.StdoutPipe()
+			stderr, err := cmd.StderrPipe()
+			errscanner := bufio.NewScanner(stderr)
+			go func() {
+				for errscanner.Scan() {
+					fmt.Printf("[TCP STDERR] %s\n", errscanner.Text())
+					if err := errscanner.Err(); err != nil {
+						t.Errorf("TCP: error reading stderr: %v", err)
+					}
+				}
+			}()
 			if err != nil {
 				t.Errorf("TCP: failed to get stdout pipe: %v", err)
 				return
@@ -5642,6 +5652,11 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			scanner := bufio.NewScanner(stdout)
 			for scanner.Scan() {
 				line := scanner.Text()
+				if err := scanner.Err(); err != nil {
+					t.Errorf("TCP: error reading stdout: %v", err)
+					return
+				}
+				fmt.Printf("[TCP] %s\n", line)
 				if strings.HasPrefix(line, "PID: ") {
 					pidStr := strings.TrimPrefix(line, "PID: ")
 					pid, err := strconv.Atoi(pidStr)
@@ -5666,6 +5681,17 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			args := []string{"connect-and-send", "2236", "udp", "2345", "1234"}
 			cmd := cmdFunc(syscallTester, args, nil)
 			stdout, err := cmd.StdoutPipe()
+			stderr, err := cmd.StderrPipe()
+			errscanner := bufio.NewScanner(stderr)
+			go func() {
+				for errscanner.Scan() {
+					fmt.Printf("[UDP STDERR] %s\n", errscanner.Text())
+					if err := errscanner.Err(); err != nil {
+						t.Errorf("UDP: error reading stderr: %v", err)
+					}
+				}
+			}()
+
 			if err != nil {
 				t.Errorf("UDP: failed to get stdout pipe: %v", err)
 				return
@@ -5679,7 +5705,11 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			scanner := bufio.NewScanner(stdout)
 			for scanner.Scan() {
 				line := scanner.Text()
-
+				if err := scanner.Err(); err != nil {
+					t.Errorf("UDP: error reading stdout: %v", err)
+					return
+				}
+				fmt.Printf("[UDP] %s\n", line)
 				if strings.HasPrefix(line, "PID: ") {
 					pidStr := strings.TrimPrefix(line, "PID: ")
 					pid, err := strconv.Atoi(pidStr)
@@ -5837,7 +5867,6 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			t.Errorf("server error: %v", err)
 			err = <-serverErr
 		}
-
 	})
 
 }

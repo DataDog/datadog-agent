@@ -1377,11 +1377,18 @@ int test_bind_and_listen(int argc, char **argv) {
 
     int opt = 1;
 
+    // REUSEADDR and REUSEPORT for the listening socket
     if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
         perror("setsockopt SO_REUSEPORT");
         close(s);
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEADDR");
+        close(s);
+        exit(EXIT_FAILURE);
+    }
+
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -1439,9 +1446,9 @@ int test_bind_and_listen(int argc, char **argv) {
             printf("UDP received: %s\n", buf);
         }
     }
+    close(s);
     printf("Closing socket...\n");
     fflush(stdout);
-    close(s);
     return EXIT_SUCCESS;
 }
 
@@ -1523,6 +1530,19 @@ int test_connect_and_send(int argc, char **argv) {
         close(s);
         exit(EXIT_FAILURE);
     }
+    // REUSEPORT and REUSEADDR for the listening socket
+    if (setsockopt(s_listen, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEPORT (s_listen)");
+        close(s_listen);
+        close(s);
+        exit(EXIT_FAILURE);
+    }
+    if (setsockopt(s_listen, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt SO_REUSEADDR (s_listen)");
+        close(s_listen);
+        close(s);
+        exit(EXIT_FAILURE);
+    }
     struct sockaddr_in listen_addr = {
         .sin_family = AF_INET,
         .sin_port = htons(listen_port),
@@ -1594,7 +1614,7 @@ int test_connect_and_send(int argc, char **argv) {
         }
         
         // Now wait before closing the socket
-        printf("Waiting on port %d\n", port);
+        printf("Waiting on port %d\n", listen_port);
         fflush(stdout);  // Send Pid to GO and synchronize with it
 
         // Receive one message via UDP
