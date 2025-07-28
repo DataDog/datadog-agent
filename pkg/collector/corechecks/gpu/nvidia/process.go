@@ -149,13 +149,13 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 	procs, err := c.device.GetComputeRunningProcesses()
 	// we don't check for error here, as the loop simply will be skipped.
 	for _, proc := range procs {
-		pidTag := []string{fmt.Sprintf("pid:%d", proc.Pid)}
+		pidTag := fmt.Sprintf("pid:%d", proc.Pid)
 		// Only emit memory.usage per process
 		processMetrics = append(processMetrics,
-			Metric{Name: "memory.usage", Value: float64(proc.UsedGpuMemory), Type: metrics.GaugeType, Priority: 10, Tags: pidTag},
+			Metric{Name: "memory.usage", Value: float64(proc.UsedGpuMemory), Type: metrics.GaugeType, Priority: 10, Tags: []string{pidTag}},
 		)
 		// Collect PID tags for aggregated limit metrics
-		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", proc.Pid))
+		allPidTags = append(allPidTags, pidTag)
 	}
 
 	devInfo := c.device.GetDeviceInfo()
