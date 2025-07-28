@@ -77,7 +77,7 @@ func GetHostname(host *components.RemoteHost) (string, error) {
 	return strings.TrimSpace(hostname), nil
 }
 
-// SetHostname sets the hostname of the VM
+// RenameComputer sets the hostname of the VM
 func RenameComputer(host *components.RemoteHost, hostname string) error {
 	cmd := fmt.Sprintf("Rename-Computer -NewName '%s' -Force -PassThru", hostname)
 	_, err := host.Execute(cmd)
@@ -85,7 +85,10 @@ func RenameComputer(host *components.RemoteHost, hostname string) error {
 		return fmt.Errorf("RenameComputer failed: %v", err)
 	}
 	// reboot the host
-	RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
+	err = RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
+	if err != nil {
+		return fmt.Errorf("RebootAndWait failed: %v", err)
+	}
 	return nil
 }
 

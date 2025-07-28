@@ -666,6 +666,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesAfterDCPromotion$/TestUpgradeAfterDCPromotion$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"

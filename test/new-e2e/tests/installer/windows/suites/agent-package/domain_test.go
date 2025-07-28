@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/test-infra-definitions/components/activedirectory"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 
 	"testing"
 )
@@ -247,4 +248,41 @@ func (s *testUpgradeWithMissingPasswordSuite) createStableAgentWithVersion(versi
 	s.Require().NoError(err, "Stable agent version was in an incorrect format")
 
 	return agent, nil
+}
+
+type testAgentUpgradesAfterDCPromotionSuite struct {
+	testAgentUpgradeSuite
+}
+
+// TestAgentUpgradesAfterDCPromotion tests that the agent can be upgraded after a domain controller promotion.
+func TestAgentUpgradesAfterDCPromotion(t *testing.T) {
+	e2e.Run(t, &testAgentUpgradesAfterDCPromotionSuite{},
+		e2e.WithProvisioner(
+			winawshost.ProvisionerNoAgentNoFakeIntake(),
+		),
+	)
+}
+
+func (s *testAgentUpgradesAfterDCPromotionSuite) TestUpgradeAfterDCPromotion() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	// Act
+	// change the host name
+	s.UpdateEnv(
+		winawshost.ProvisionerNoAgentNoFakeIntake(
+			winawshost.WithActiveDirectoryOptions(
+				activedirectory.WithDomainController(TestDomain, TestPassword),
+				activedirectory.WithDomainUser(TestUser, TestPassword),
+			),
+		),
+	)
+
+	// start experiment
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 }
