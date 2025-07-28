@@ -122,25 +122,12 @@ func (f Function) empty() bool {
 	return f.Name == ""
 }
 
-// SerializationOptions defines options for serializing symbols.
-type SerializationOptions struct {
-	PackageSerializationOptions
-}
-
-// PackageSerializationOptions defines options for serializing package data.
-type PackageSerializationOptions struct {
-	// /home/andrei/go/src/github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go
-	// becomes
-	// github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go
-	StripLocalFilePrefix bool
-}
-
 // Serialize serializes the symbols as a human-readable string.
 //
 // If packageFilter is non-empty, only packages that start with this prefix are
 // included in the output. The "main" package is always present, and is placed
 // first in the output.
-func (s Symbols) Serialize(w StringWriter, opt SerializationOptions) {
+func (s Symbols) Serialize(w StringWriter) {
 	w.WriteString("Main module: ")
 	w.WriteString(s.MainModule)
 	w.WriteString("\n")
@@ -149,32 +136,32 @@ func (s Symbols) Serialize(w StringWriter, opt SerializationOptions) {
 	for i, pkg := range s.Packages {
 		if pkg.Name == mainPackageName {
 			mainPkgIdx = i
-			pkg.Serialize(w, opt.PackageSerializationOptions)
+			pkg.Serialize(w)
 		}
 	}
 	for i, pkg := range s.Packages {
 		if i == mainPkgIdx {
 			continue
 		}
-		pkg.Serialize(w, opt.PackageSerializationOptions)
+		pkg.Serialize(w)
 	}
 }
 
 // Serialize serializes the symbols in the package as a human-readable string.
-func (p Package) Serialize(w StringWriter, opt PackageSerializationOptions) {
+func (p Package) Serialize(w StringWriter) {
 	w.WriteString("Package: ")
 	w.WriteString(p.Name)
 	w.WriteString("\n")
 	for _, fn := range p.Functions {
-		fn.Serialize(w, "\t", opt)
+		fn.Serialize(w, "\t")
 	}
 	for _, t := range p.Types {
-		t.Serialize(w, "\t", opt)
+		t.Serialize(w, "\t")
 	}
 }
 
 // Serialize serializes the function as a human-readable string.
-func (f Function) Serialize(w StringWriter, indent string, opt PackageSerializationOptions) {
+func (f Function) Serialize(w StringWriter, indent string) {
 	w.WriteString(indent)
 	w.WriteString("Function: ")
 	w.WriteString(f.Name)
@@ -183,12 +170,6 @@ func (f Function) Serialize(w StringWriter, indent string, opt PackageSerializat
 	w.WriteString(")")
 	w.WriteString(" in ")
 	file := f.File
-	if opt.StripLocalFilePrefix {
-		// Strip everything that comes before github.com.
-		if idx := strings.Index(file, "github.com/"); idx != -1 {
-			file = file[idx:]
-		}
-	}
 	w.WriteString(file)
 	w.WriteString(fmt.Sprintf(" [%d:%d]", f.StartLine, f.EndLine))
 	w.WriteString("\n")
@@ -221,7 +202,7 @@ func (s Scope) Serialize(w StringWriter, indent string) {
 //		Field: <fieldName>: <fieldType>
 //		Field: <fieldName>: <fieldType>
 //	 	Method: <methodName> ...
-func (t Type) Serialize(w StringWriter, indent string, opt PackageSerializationOptions) {
+func (t Type) Serialize(w StringWriter, indent string) {
 	w.WriteString(indent)
 	w.WriteString("Type: ")
 	w.WriteString(t.Name)
@@ -236,7 +217,7 @@ func (t Type) Serialize(w StringWriter, indent string, opt PackageSerializationO
 		w.WriteString("\n")
 	}
 	for _, m := range t.Methods {
-		m.Serialize(w, childIndent, opt)
+		m.Serialize(w, childIndent)
 	}
 }
 
