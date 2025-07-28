@@ -26,6 +26,7 @@
             "arguments": {
               "s": {
                 "type": "[]int",
+                "size": 3,
                 "elements": [
                   {
                     "type": "int",

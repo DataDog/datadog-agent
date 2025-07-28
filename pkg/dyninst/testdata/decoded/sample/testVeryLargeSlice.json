@@ -26,6 +26,7 @@
             "arguments": {
               "xs": {
                 "type": "[]uint",
+                "size": 100,
                 "elements": [
                   {
                     "type": "uint",

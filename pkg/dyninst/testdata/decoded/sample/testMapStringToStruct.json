@@ -26,7 +26,27 @@
             "arguments": {
               "m": {
                 "type": "map[string]main.nestedStruct",
+                "size": 2,
                 "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "bar"
+                    },
+                    {
+                      "type": "main.nestedStruct",
+                      "fields": {
+                        "anotherInt": {
+                          "type": "int",
+                          "value": "2"
+                        },
+                        "anotherString": {
+                          "type": "string",
+                          "value": "two"
+                        }
+                      }
+                    }
+                  ],
                   [
                     {
                       "type": "string",
@@ -46,8 +66,7 @@
                       }
                     }
                   ]
-                ],
-                "notCapturedReason": "depth"
+                ]
               }
             }
           }

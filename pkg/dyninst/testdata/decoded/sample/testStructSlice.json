@@ -26,6 +26,7 @@
             "arguments": {
               "xs": {
                 "type": "[]main.structWithNoStrings",
+                "size": 2,
                 "elements": [
                   {
                     "type": "main.structWithNoStrings",

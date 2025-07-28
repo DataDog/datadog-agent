@@ -29,6 +29,7 @@
                 "fields": {
                   "x": {
                     "type": "[]*string",
+                    "size": 1,
                     "elements": [
                       {
                         "type": "*string",

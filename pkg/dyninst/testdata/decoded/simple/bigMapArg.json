@@ -26,6 +26,7 @@
             "arguments": {
               "m": {
                 "type": "map[string]main.bigStruct",
+                "size": 1,
                 "entries": [
                   [
                     {
