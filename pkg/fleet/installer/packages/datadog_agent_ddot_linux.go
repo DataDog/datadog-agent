@@ -28,6 +28,10 @@ const (
 	agentDDOTPackage = "datadog-agent-ddot"
 )
 
+const (
+	datadogYamlPath = "/etc/datadog-agent/datadog.yaml"
+)
+
 var (
 	// ddotConfigPermissions are the ownerships and modes that are enforced on the DDOT configuration files
 	ddotConfigPermissions = file.Permissions{
@@ -44,8 +48,6 @@ var (
 	ddotConfigUninstallPaths = file.Paths{
 		"otel-config.yaml.example",
 	}
-
-	datadogYamlPath = "/etc/datadog-agent/datadog.yaml"
 
 	// agentDDOTService are the services that are part of the DDOT package
 	agentDDOTService = datadogAgentService{
@@ -188,6 +190,14 @@ func enableOtelCollectorConfig() error {
 
 	if err := os.WriteFile(datadogYamlPath, updatedData, 0640); err != nil {
 		return fmt.Errorf("failed to write updated datadog.yaml: %w", err)
+	}
+
+	datadogYamlPermissions := file.Permissions{
+		{Path: "datadog.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
+	}
+
+	if err := datadogYamlPermissions.Ensure("/etc/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to set ownership on datadog.yaml: %w", err)
 	}
 
 	return nil
