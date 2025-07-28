@@ -21,6 +21,9 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
+	"google.golang.org/grpc/codes"
+	grpcStatus "google.golang.org/grpc/status"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -149,7 +152,7 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 		remoteAgentActionError: telemetryComp.NewCounterWithOpts(
 			"remote_agent_registry",
 			"action_error",
-			[]string{"name", "action"},
+			[]string{"name", "action", "error"},
 			"Number of errors encountered while performing actions on the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
@@ -331,7 +334,13 @@ func (c *registryCollector) getRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 			resp, err := details.client.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, grpc.WaitForReady(true))
 			if err != nil {
 				log.Warnf("Failed to query remote agent '%s' for telemetry data: %v", agentID, err)
-				c.telemetryStore.remoteAgentActionError.Inc(details.sanatizedDisplayName, "telemetry")
+				errorString := codes.Unknown.String()
+				status, ok := grpcStatus.FromError(err)
+				if ok {
+					errorString = status.Code().String()
+				}
+
+				c.telemetryStore.remoteAgentActionError.Inc(details.sanatizedDisplayName, "telemetry", errorString)
 				return
 			}
 			if promText, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText); ok {
@@ -474,7 +483,12 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregist
 					DisplayName:   details.displayName,
 					FailureReason: fmt.Sprintf("Failed to query for status: %v", err),
 				}
-				ra.telemetryStore.remoteAgentActionError.Inc(details.sanatizedDisplayName, "status")
+				errorString := codes.Unknown.String()
+				status, ok := grpcStatus.FromError(err)
+				if ok {
+					errorString = status.Code().String()
+				}
+				ra.telemetryStore.remoteAgentActionError.Inc(details.sanatizedDisplayName, "status", errorString)
 				return
 			}
 
@@ -544,7 +558,13 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 			// We push any errors into "failure reason" which ends up getting shown in the status details.
 			resp, err := details.client.GetFlareFiles(ctx, &pb.GetFlareFilesRequest{}, grpc.WaitForReady(true))
 			if err != nil {
-				ra.telemetryStore.remoteAgentActionError.Inc(details.sanatizedDisplayName, "flare")
+				errorString := codes.Unknown.String()
+				status, ok := grpcStatus.FromError(err)
+				if ok {
+					errorString = status.Code().String()
+				}
+
+				ra.telemetryStore.remoteAgentActionError.Inc(details.sanatizedDisplayName, "flare", errorString)
 				log.Warnf("Failed to query remote agent '%s' for flare data: %v", agentID, err)
 				data <- nil
 				return
