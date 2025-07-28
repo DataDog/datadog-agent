@@ -110,38 +110,40 @@ type telemetryStore struct {
 	remoteAgentActionTimeout telemetry.Counter
 }
 
+const namespace = "remote_agent_registry"
+
 func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 	return &telemetryStore{
 		remoteAgentRegistered: telemetryComp.NewGaugeWithOpts(
-			"remote_agent_registry",
+			namespace,
 			"registered",
 			[]string{"name"},
 			"Number of remote agents registered in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentRegisteredError: telemetryComp.NewCounterWithOpts(
-			"remote_agent_registry",
+			namespace,
 			"registered_error",
 			[]string{"name"},
 			"Number of remote agents that failed to register in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentUpdated: telemetryComp.NewCounterWithOpts(
-			"remote_agent_registry",
+			namespace,
 			"updated",
 			[]string{"name"},
 			"Number of remote agents updated in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentUpdatedError: telemetryComp.NewCounterWithOpts(
-			"remote_agent_registry",
+			namespace,
 			"updated_error",
 			[]string{"name"},
 			"Number of remote agents that failed to update in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentActionDuration: telemetryComp.NewHistogramWithOpts(
-			"remote_agent_registry",
+			namespace,
 			"action_duration_seconds",
 			[]string{"name", "action"},
 			"Duration of actions performed on the remote agent registry.",
@@ -150,14 +152,14 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentActionError: telemetryComp.NewCounterWithOpts(
-			"remote_agent_registry",
+			namespace,
 			"action_error",
 			[]string{"name", "action", "error"},
 			"Number of errors encountered while performing actions on the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentActionTimeout: telemetryComp.NewCounterWithOpts(
-			"remote_agent_registry",
+			namespace,
 			"action_timeout",
 			[]string{"action"},
 			"Number of times an action on the remote agent registry timed out.",
