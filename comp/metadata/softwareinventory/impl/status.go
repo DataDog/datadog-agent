@@ -71,7 +71,11 @@ func formatYYYYMMDD(ts string) (string, error) {
 func (is *softwareInventory) populateStatus(status map[string]interface{}) {
 	data := map[string]interface{}{}
 	if is.cachedInventory == nil {
-		_ = is.refreshCachedValues()
+		err := is.refreshCachedValues()
+		if err != nil {
+			// Log the error but continue - we'll still try to use any data that might be in cachedInventory
+			_ = is.log.Warnf("Failed to refresh software inventory cache: %v", err)
+		}
 	}
 	for _, inventory := range is.cachedInventory {
 		inventory.InstallDate, _ = formatYYYYMMDD(inventory.InstallDate)
