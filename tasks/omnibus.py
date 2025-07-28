@@ -168,11 +168,11 @@ def _passthrough_env_for_os(starting_env: dict[str, str], platform: str) -> dict
 
     missing_env = expected_env - set(starting_env)
     if missing_env:
-        warnings.warn(f'Missing expected environment variables for Omnibus build: {missing_env}')
+        warnings.warn(f'Missing expected environment variables for Omnibus build: {missing_env}', stacklevel=1)
     passthrough_env = {k: v for k, v in starting_env.items() if k in expected_env}
 
     print('Variables that were blocked:')
-    print('\n'.join(f'- {var}' for var in sorted(set(starting_env) - set(passthrough_env))))
+    print('\n'.join(f'- {var} ({os.environ[var]})' for var in sorted(set(starting_env) - set(passthrough_env))))
 
     return passthrough_env
 
