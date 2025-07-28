@@ -56,6 +56,9 @@ type safeConfig struct {
 
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
+
+	// warnings contains the warnings that were logged during the configuration loading
+	warnings []error
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -784,7 +787,7 @@ func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars .
 }
 
 func (c *safeConfig) Warnings() *model.Warnings {
-	return nil
+	return &model.Warnings{Errors: c.warnings}
 }
 
 func (c *safeConfig) Object() model.Reader {

@@ -8,8 +8,4 @@
 ---
 enhancements:
   - |
-    [Windows] Added checking on the Agent user groups and account rights.
-    The enhancement helps correct misconfigured Agent accounts on Windows.
-other:
-  - |
-    The Agent user/account verification is now available with `agent flare` and `agent diagnose` commands.
+    Add the ``datadog.snmp.requests`` metric, which tracks the number of SNMP requests sent by the Agent to devices.

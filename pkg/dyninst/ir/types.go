@@ -8,6 +8,7 @@
 package ir
 
 import (
+	"iter"
 	"reflect"
 )
 
@@ -134,13 +135,28 @@ type StructureType struct {
 	TypeCommon
 	GoTypeAttributes
 
-	// Fields contains the fields of the structure.
-	Fields []Field
+	// RawFields contains all the fields of the structure.
+	// Use Fields() method to filter out uninteresting fields.
+	RawFields []Field
 }
 
 var _ Type = &StructureType{}
 
 func (t *StructureType) irType() {}
+
+// Fields returns interesting fields of the structure.
+func (t *StructureType) Fields() iter.Seq[Field] {
+	return func(yield func(Field) bool) {
+		for _, f := range t.RawFields {
+			if f.Name == "_" {
+				continue
+			}
+			if !yield(f) {
+				return
+			}
+		}
+	}
+}
 
 // Field is a field in a structure.
 type Field struct {

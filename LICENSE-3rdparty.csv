@@ -884,6 +884,7 @@ core,github.com/containerd/continuity/fs,Apache-2.0,"Copyright 2012-2015 Docker,
 core,github.com/containerd/continuity/sysx,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/errdefs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/errdefs/pkg/errgrpc,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/errdefs/pkg/errhttp,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/errdefs/pkg/internal/cause,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/errdefs/pkg/internal/types,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/fifo,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -930,6 +931,7 @@ core,github.com/docker/docker-credential-helpers/credentials,MIT,"Copyright 2012
 core,github.com/docker/docker/api,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/blkiodev,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/docker/docker/api/types/build,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/checkpoint,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/common,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/container,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -948,7 +950,6 @@ core,github.com/docker/docker/api/types/time,Apache-2.0,"Copyright 2012-2017 Doc
 core,github.com/docker/docker/api/types/versions,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api/types/volume,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/client,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/docker/errdefs,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/internal/lazyregexp,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/internal/multierror,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/pkg/system,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -2685,6 +2686,10 @@ core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright 2009 The Go Author
 core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/counter,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/internal/counter,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/internal/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/internal/telemetry,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/term,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/text/cases,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/text/encoding,BSD-3-Clause,Copyright 2009 The Go Authors
