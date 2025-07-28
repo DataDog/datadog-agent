@@ -49,6 +49,16 @@
     - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+    # Setup authanywhere to interact with agent ci api and trigger stack cleaner
+    - |
+      if [ $(uname -m) = x86_64 ]; then
+        AAA="amd64";
+      else
+        AAA="arm64";
+      fi;
+      curl -OL "binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}" || exit $?
+      mv "authanywhere-linux-${AAA}" /bin/authanywhere || exit $?
+      chmod +x /bin/authanywhere || exit $?
   variables:
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
@@ -72,6 +82,7 @@
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
+    E2E_COVERAGE_OUT_DIR: $CI_PROJECT_DIR/coverage
     PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
   script:
@@ -88,9 +99,11 @@
       - $E2E_RESULT_JSON
       # junit tarball, kept for investigations
       - junit-*.tgz
+      - $E2E_COVERAGE_OUT_DIR
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 .needs_new_e2e_template:
   - go_e2e_deps
@@ -214,6 +227,7 @@ new-e2e-containers-eks:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -363,7 +377,7 @@ new-e2e-npm-packages:
     - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/npm
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
     ON_NIGHTLY_FIPS: "true"
 
@@ -378,7 +392,7 @@ new-e2e-npm-docker:
     - qa_agent
   variables:
     TARGETS: ./tests/npm
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
     ON_NIGHTLY_FIPS: "true"
 
@@ -392,7 +406,7 @@ new-e2e-npm-eks-init:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/npm
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
@@ -413,10 +427,11 @@ new-e2e-npm-eks:
     - qa_dca
   variables:
     TARGETS: ./tests/npm
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-npm:
   extends: .new_e2e_template
@@ -429,7 +444,7 @@ new-e2e-npm:
     - qa_dca
   variables:
     TARGETS: ./tests/npm
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run TestCiliumLBConntracker
 
 new-e2e-amp:
@@ -482,6 +497,7 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
+    REMOTE_STACK_CLEANING: "true"
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
   parallel:
@@ -763,7 +779,7 @@ new-e2e-netpath:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/netpath
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-windows-systemprobe:
@@ -832,6 +848,7 @@ new-e2e-otel-eks:
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
     E2E_PRE_INITIALIZED: "true"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-otel:
   extends: .new_e2e_template
@@ -1025,7 +1042,7 @@ trigger-fips-e2e:
         job: generate-fips-e2e-pipeline
     strategy: depend
 
-new-e2e-eks-cleanup-on-failure:
+new-e2e-cleanup-on-failure:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: e2e_cleanup
@@ -1041,7 +1058,7 @@ new-e2e-eks-cleanup-on-failure:
     # Use S3 backend
     - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
-    - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "ci-init-$CI_PIPELINE_ID.*eks.*" --pulumi-backend=dd-pulumi-state
+    - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "ci-init-$CI_PIPELINE_ID-.*" --pulumi-backend=dd-pulumi-state
   variables:
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key

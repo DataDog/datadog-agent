@@ -145,6 +145,11 @@ func (c *CloudRun) Init() error {
 	return nil
 }
 
+// GetStartMetricName returns the metric name for container start (coldstart) events
+func (c *CloudRun) GetStartMetricName() string {
+	return fmt.Sprintf("%s.enhanced.cold_start", c.GetPrefix())
+}
+
 func isCloudRunService() bool {
 	_, exists := os.LookupEnv(ServiceNameEnvVar)
 	return exists

@@ -1,0 +1,5 @@
+
+features:
+  - | 
+    Windows: Add certificate chain validation to Windows Certificate Store integration.
+    
