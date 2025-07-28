@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetada
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.68.3-rc.3
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.68.3
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/pdata v1.34.0
 	go.opentelemetry.io/otel v1.36.0

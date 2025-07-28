@@ -3,16 +3,16 @@ module github.com/DataDog/datadog-agent/pkg/config/create
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.68.3-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.68.3-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.68.3-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.68.3-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/model v0.68.3
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.68.3
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.68.3
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.68.3
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.68.3-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.68.3 // indirect
 	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
