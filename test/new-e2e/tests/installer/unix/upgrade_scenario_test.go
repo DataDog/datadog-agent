@@ -772,11 +772,13 @@ func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, configs []
 	version := configs[0].ID
 
 	rawConfigs := []byte{}
-	for _, config := range configs {
+	for i, config := range configs {
 		rawConfig, err := json.Marshal(config.Files)
 		require.NoError(s.T(), err)
-		rawConfigs = append(rawConfigs, []byte(" ")...)
 		rawConfigs = append(rawConfigs, rawConfig...)
+		if i < len(configs)-1 {
+			rawConfigs = append(rawConfigs, []byte("' '")...)
+		}
 	}
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 	cmd := fmt.Sprintf("sudo -E datadog-installer install-config-experiment %s %s '%s' %s > /tmp/start_config_experiment.log 2>&1", pkg, version, rawConfigs, extraArgs)
