@@ -1162,17 +1162,3 @@ workflow:
       export sectionname=
       return $exitcode
     }
-
-test-datadog-ci:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
-  tags: ["arch:amd64"]
-  stage: .pre
-  needs: []
-  script:
-    - set -e
-    - !reference [.setup-datadog-ci-sections]
-    - |
-      datadog-ci-start-section "test-datadog-ci"
-      echo Some work to do...
-      sleep 1
-      datadog-ci-end-section --category some-work-to-do "test-datadog-ci"
