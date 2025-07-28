@@ -267,7 +267,7 @@ func (s *goSwissMapHeaderType) encodeSwissMapGroup(
 	enc *jsontext.Encoder,
 	groupData []byte,
 ) (valuesEncoded int, err error) {
-	slotsData := groupData[s.slotsOffset : s.slotsOffset+uint32(s.slotsSize)]
+	slotsData := groupData[s.slotsOffset : s.slotsOffset+s.slotsSize]
 	controlWord := binary.LittleEndian.Uint64(groupData[s.ctrlOffset : s.ctrlOffset+uint32(s.ctrlSize)])
 	entrySize := s.keyTypeSize + s.valueTypeSize
 	for i := range 8 {

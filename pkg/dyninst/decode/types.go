@@ -73,7 +73,7 @@ type goSwissMapHeaderType struct {
 	ctrlOffset       uint32
 	ctrlSize         uint8
 	slotsOffset      uint32
-	slotsSize        uint8
+	slotsSize        uint32
 	groupFieldOffset uint32
 	groupFieldSize   uint8
 	dataFieldOffset  uint32
@@ -197,7 +197,6 @@ func newDecoderType(
 			{"dirLenSize", dirLenSize},
 			{"dirPtrSize", dirPtrSize},
 			{"ctrlSize", ctrlSize},
-			{"slotsSize", slotsFieldType.GetByteSize()},
 			{"groupFieldSize", groupFieldSize},
 			{"dataFieldSize", dataFieldSize},
 			{"usedSize", usedSize},
@@ -228,13 +227,13 @@ func newDecoderType(
 			ctrlOffset:       ctrlOffset,
 			ctrlSize:         uint8(ctrlSize),
 			slotsOffset:      slotsField.Offset,
-			slotsSize:        uint8(slotsFieldType.GetByteSize()),
+			slotsSize:        slotsFieldType.GetByteSize(),
 			groupFieldOffset: groupFieldOffset,
 			groupFieldSize:   uint8(groupFieldSize),
 			dataFieldOffset:  dataFieldOffset,
 			dataFieldSize:    uint8(dataFieldSize),
 			tableTypeID:      tablePtrType.Pointee.GetID(),
-			groupTypeID:      groupType.GroupSliceType.GetID(),
+			groupTypeID:      s.GroupType.GetID(),
 			elementTypeSize:  uint32(groupType.GroupSliceType.Element.GetByteSize()),
 			usedOffset:       usedOffset,
 			usedSize:         uint8(usedSize),
