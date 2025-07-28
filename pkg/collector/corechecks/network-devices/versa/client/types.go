@@ -14,8 +14,13 @@ type Content interface {
 		int | // for row counts
 		[]TenantConfig |
 		OrganizationListResponse |
+		ApplianceListResponse |
 		DirectorStatus |
-		SLAMetricsResponse
+		AnalyticsMetricsResponse |
+		InterfaceListResponse |
+		InterfaceMetricsResponse |
+		InterfaceMetricsCollection |
+		[]InterfaceMetricsCollection
 }
 
 // DirectorStatus /versa/ncs-services/vnms/dashboard/vdStatus
@@ -294,6 +299,12 @@ type OrganizationListResponse struct {
 	Organizations []Organization `json:"organizations"`
 }
 
+// ApplianceListResponse represents the response from /vnms/appliance/appliance
+type ApplianceListResponse struct {
+	TotalCount int         `json:"totalCount"`
+	Appliances []Appliance `json:"appliances"`
+}
+
 // Organization encapsulates metadata for a Versa organization
 type Organization struct {
 	UUID                    string   `json:"uuid"`
@@ -312,9 +323,9 @@ type Organization struct {
 	PushCaConfig            bool     `json:"pushCaConfig"`
 }
 
-// SLAMetricsResponse /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+// AnalyticsMetricsResponse /versa/analytics/v1.0.0/data/provider/tenants/<tenantName>/features/<feature>
 // with query parameters
-type SLAMetricsResponse struct {
+type AnalyticsMetricsResponse struct {
 	QTime                int             `json:"qTime"`
 	SEcho                int             `json:"sEcho"`
 	ITotalDisplayRecords int             `json:"iTotalDisplayRecords"`
@@ -349,4 +360,94 @@ func (d *DirectorStatus) IPAddress() (string, error) {
 		return "", fmt.Errorf("no management IPs found for director")
 	}
 	return d.HAConfig.MyVnfManagementIPs[0], nil
+}
+
+// Interface encapsulates metadata for a Versa interface
+type Interface struct {
+	DeviceName    string `json:"deviceName"`
+	TenantName    string `json:"tenantName"`
+	Name          string `json:"name"`
+	Type          string `json:"type"`
+	MAC           string `json:"mac"`
+	IfOperStatus  string `json:"ifOperStatus"`
+	IfAdminStatus string `json:"ifAdminStatus"`
+	VRF           string `json:"vrf"`
+	IPAddress     string `json:"ipAddress"`
+	Key           string `json:"key"`
+	AdminUp       bool   `json:"adminUp"`
+	OperUp        bool   `json:"operUp"`
+}
+
+// InterfaceListResponse encapsulates the response structure for interface API calls
+type InterfaceListResponse struct {
+	List InterfaceList `json:"List"`
+}
+
+// InterfaceList encapsulates the "value" list containing the interfaces
+type InterfaceList struct {
+	Value []Interface `json:"value"`
+}
+
+// InterfaceMetricsResponse represents the response from the pageable interfaces API
+type InterfaceMetricsResponse struct {
+	QueryID    string                     `json:"query-id"`
+	Collection InterfaceMetricsCollection `json:"collection"`
+}
+
+// InterfaceMetricsCollection represents the collection wrapper in the pageable interfaces response
+type InterfaceMetricsCollection struct {
+	Interfaces []InterfaceMetrics `json:"interfaces"`
+}
+
+// InterfaceMetrics represents interface metrics data from the pageable interfaces API
+type InterfaceMetrics struct {
+	Interface string `json:"interface"`
+	HostInf   string `json:"host-inf"`
+	VRF       string `json:"vrf"`
+	RxPackets string `json:"rx-packets"`
+	RxErrors  string `json:"rx-errors"`
+	RxBytes   string `json:"rx-bytes"`
+	RxBps     string `json:"rx-bps"`
+	RxPps     string `json:"rx-pps"`
+	TxPackets string `json:"tx-packets"`
+	TxErrors  string `json:"tx-errors"`
+	TxBytes   string `json:"tx-bytes"`
+	TxBps     string `json:"tx-bps"`
+	TxPps     string `json:"tx-pps"`
+}
+
+// LinkUsageMetrics represents the columns to parse from the LinkExtendedMetricsResponse
+type LinkUsageMetrics struct {
+	DrillKey          string
+	Site              string
+	AccessCircuit     string
+	UplinkBandwidth   string
+	DownlinkBandwidth string
+	Type              string
+	Media             string
+	IP                string
+	ISP               string
+	VolumeTx          float64
+	VolumeRx          float64
+	BandwidthTx       float64
+	BandwidthRx       float64
+}
+
+// LinkStatusMetrics represents the columns to parse from the LinkStatusMetricsResponse
+type LinkStatusMetrics struct {
+	DrillKey      string
+	Site          string
+	AccessCircuit string
+	Availability  float64
+}
+
+// TunnelMetrics represents the columns to parse from the TunnelMetricsResponse
+type TunnelMetrics struct {
+	DrillKey    string
+	Appliance   string
+	LocalIP     string
+	RemoteIP    string
+	VpnProfName string
+	VolumeRx    float64
+	VolumeTx    float64
 }

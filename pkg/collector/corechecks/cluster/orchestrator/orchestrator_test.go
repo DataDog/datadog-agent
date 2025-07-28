@@ -14,17 +14,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core"
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
-	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -32,8 +22,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/fake"
+	cr "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
+	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
@@ -70,11 +74,13 @@ func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
 // TestOrchestratorCheckSafeReSchedule close simulates the check being unscheduled and rescheduled again
 func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	var wg sync.WaitGroup
+	var scheme = kscheme.Scheme
 
 	client := fake.NewSimpleClientset()
 	vpaClient := vpa.NewSimpleClientset()
 	crdClient := crd.NewSimpleClientset()
-	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient}
+	crClient := cr.NewSimpleDynamicClient(scheme)
+	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient, DynamicInformerCl: crClient}
 
 	cfg := mockconfig.New(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -85,6 +91,8 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
+	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
 	orchCheck.apiClient = cl
 
 	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
@@ -139,4 +147,49 @@ func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
 	case <-time.After(timeout):
 		return false
 	}
+}
+
+func TestOrchCheckExtraTags(t *testing.T) {
+
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
+
+	t.Run("with no tags", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+		assert.Empty(t, orchCheck.orchestratorConfig.ExtraTags)
+	})
+
+	t.Run("with tagger tags", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		fakeTagger.SetGlobalTags([]string{"tag1:value1", "tag2:value2"}, nil, nil, nil)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+		assert.ElementsMatch(t, []string{"tag1:value1", "tag2:value2"}, orchCheck.orchestratorConfig.ExtraTags)
+	})
+
+	t.Run("with check tags", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		initConfigData := integration.Data(`{}`)
+		instanceConfigData := integration.Data(`{}`)
+
+		err := initConfigData.MergeAdditionalTags([]string{"init_tag1:value1", "init_tag2:value2"})
+		assert.NoError(t, err)
+
+		err = instanceConfigData.MergeAdditionalTags([]string{"instance_tag1:value1", "instance_tag2:value2"})
+		assert.NoError(t, err)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), initConfigData, instanceConfigData, "test")
+		assert.ElementsMatch(t, []string{"init_tag1:value1", "init_tag2:value2", "instance_tag1:value1", "instance_tag2:value2"}, orchCheck.orchestratorConfig.ExtraTags)
+	})
+
 }

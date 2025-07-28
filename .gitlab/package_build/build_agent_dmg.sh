@@ -114,8 +114,9 @@ if [ "$SIGN" = true ]; then
     export LATEST_DMG
     # shellcheck disable=SC2016
     ./tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" bash -c '
+        set -euo pipefail
         EXIT_CODE=0
-        RESULT=$(xcrun notarytool submit --timeout "$NOTARIZATION_TIMEOUT" --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait || EXIT_CODE=$?)
+        RESULT=$(xcrun notarytool submit --timeout "$NOTARIZATION_TIMEOUT" --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
         echo "Results: $RESULT"
         SUBMISSION_ID="$(echo "$RESULT" | awk "\$1 == \"id:\"{print \$2; exit}")"
         echo "Submission ID: $SUBMISSION_ID"
@@ -123,7 +124,11 @@ if [ "$SIGN" = true ]; then
         sleep 1
         echo "Submission logs:"
         # Always show logs even if notarization fails to have more context
-        xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
+        STATUS=$(xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID" | tee /dev/stderr | jq --raw-output .status)
+        if [ "$STATUS" != Accepted ]; then
+            echo "Submission was not accepted, got: ${STATUS}"
+            exit 1
+        fi
         exit "$EXIT_CODE"
     '
     echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"

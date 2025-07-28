@@ -88,7 +88,7 @@ func (tm *testModule) HandleEvent(event *model.Event) {
 
 func (tm *testModule) HandleCustomEvent(_ *rules.Rule, _ *events.CustomEvent) {}
 
-func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
+func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 

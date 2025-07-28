@@ -80,10 +80,11 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 	for _, pod := range pods.Items {
 		p.podUtils.PopulateForPod(pod)
-		// Combine regular containers with init containers for easier iteration
-		allContainers := make([]kubelet.ContainerSpec, 0, len(pod.Spec.InitContainers)+len(pod.Spec.Containers))
+		// Combine regular containers with init and ephemeral containers for easier iteration
+		allContainers := make([]kubelet.ContainerSpec, 0, len(pod.Spec.InitContainers)+len(pod.Spec.Containers)+len(pod.Spec.EphemeralContainers))
 		allContainers = append(allContainers, pod.Spec.InitContainers...)
 		allContainers = append(allContainers, pod.Spec.Containers...)
+		allContainers = append(allContainers, pod.Spec.EphemeralContainers...)
 
 		for _, cStatus := range pod.Status.AllContainers {
 			if cStatus.ID == "" {
@@ -136,11 +137,14 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
-	for r, value := range container.Resources.Requests {
-		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tagList)
-	}
-	for r, value := range container.Resources.Limits {
-		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", value.AsApproximateFloat64(), "", tagList)
+	if container.Resources != nil { // Ephemeral containers do not have resources defined
+		for r, value := range container.Resources.Requests {
+			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tagList)
+		}
+
+		for r, value := range container.Resources.Limits {
+			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", value.AsApproximateFloat64(), "", tagList)
+		}
 	}
 }
 

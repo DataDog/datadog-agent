@@ -161,7 +161,9 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
 		}
 	case names.DataStreamsLiveMessages:
-		configs, err = logsConfig.ParseJSON(config.LogsConfig)
+		// Live messages provides a default (Json) logs config for the kafka_consumer integration when there is no config.
+		// However, if there is already a logs config, live messages will not override it, so it can be a yaml config in this case.
+		configs, err = logsConfig.ParseJSONOrYAML(config.LogsConfig)
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)

@@ -260,7 +260,7 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	}
 
 	if len(offsets) == 0 {
-		return .0, fmt.Errorf("failed to get clock offset from any ntp host: [ %s ]", strings.Join(c.cfg.instance.Hosts, ", "))
+		return .0, fmt.Errorf("failed to get clock offset from any ntp host: [ %s ]. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue", strings.Join(c.cfg.instance.Hosts, ", "))
 	}
 
 	var median float64

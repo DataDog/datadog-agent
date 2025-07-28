@@ -8,6 +8,7 @@ package workloadfilterimpl
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -356,6 +357,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("sbom.container_image.enabled", true)
 			mockConfig.SetWithoutSource("sbom.container_image.container_include", tt.include)
 			mockConfig.SetWithoutSource("sbom.container_image.container_exclude", tt.exclude)
 			mockConfig.SetWithoutSource("sbom.container_image.exclude_pause_container", tt.pauseCtn)
@@ -456,16 +458,56 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 	})
 }
 
+func TestContainerFilterInitializationError(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_include", []string{"name:dd-agent"})
+	mockConfig.SetWithoutSource("container_exclude", []string{"bad_name:nginx"})
+	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
+	mockConfig.SetWithoutSource("ac_include", []string{"other_bad_name:nginx"})
+	f := newFilterObject(t, mockConfig)
+
+	t.Run("Properly defined filter", func(t *testing.T) {
+		errs := f.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerMetrics})
+		assert.Empty(t, errs, "Expected no initialization errors for properly defined filter")
+	})
+
+	t.Run("Improperly defined filter", func(t *testing.T) {
+		errs := f.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal})
+		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter")
+		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
+	})
+
+	t.Run("Improperly defined filter with multiple filters", func(t *testing.T) {
+		errs := f.GetContainerFilterInitializationErrors(
+			append(
+				workloadfilter.FlattenFilterSets(workloadfilter.GetAutodiscoveryFilters(workloadfilter.GlobalFilter)),
+				workloadfilter.LegacyContainerACInclude,
+			),
+		)
+		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter with multiple filters")
+		assert.True(t, containsErrorWithMessage(errs, "other_bad_name"), "Expected error message to contain the improper key 'other_bad_name'")
+		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
+	})
+}
+
 type errorInclProgram struct{}
 
 func (p errorInclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
 	return workloadfilter.Included, []error{fmt.Errorf("include evaluation error on %s", o.Type())}
 }
 
+func (p errorInclProgram) GetInitializationErrors() []error {
+	return nil
+}
+
 type errorExclProgram struct{}
 
 func (p errorExclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
 	return workloadfilter.Excluded, []error{fmt.Errorf("exclude evaluation error on %s", o.Type())}
+}
+
+func (p errorExclProgram) GetInitializationErrors() []error {
+	return nil
 }
 
 func TestProgramErrorHandling(t *testing.T) {
@@ -518,23 +560,205 @@ func TestSpecialCharacters(t *testing.T) {
 }
 
 func TestServiceFiltering(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_include", []string{`name:svc1`})
-	f := newFilterObject(t, mockConfig)
+	tests := []struct {
+		name        string
+		include     []string
+		exclude     []string
+		serviceName string
+		namespace   string
+		annotations map[string]string
+		filters     [][]workloadfilter.ServiceFilter
+		expected    workloadfilter.Result
+	}{
+		{
+			name:        "Exclude by name",
+			exclude:     []string{"name:svc1"},
+			serviceName: "svc1",
+			namespace:   "",
+			annotations: nil,
+			filters:     [][]workloadfilter.ServiceFilter{{workloadfilter.LegacyServiceGlobal}},
+			expected:    workloadfilter.Excluded,
+		},
+		{
+			name:        "Exclude by namespace",
+			exclude:     []string{"kube_namespace:test"},
+			serviceName: "my-service",
+			namespace:   "test",
+			annotations: nil,
+			filters:     [][]workloadfilter.ServiceFilter{{workloadfilter.LegacyServiceGlobal}},
+			expected:    workloadfilter.Excluded,
+		},
+		{
+			name:        "AD annotation exclude",
+			serviceName: "annotated-service",
+			namespace:   "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/exclude": "true",
+			},
+			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:        "AD annotation metrics exclude",
+			serviceName: "metrics-excluded-service",
+			namespace:   "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/metrics_exclude": "true",
+			},
+			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotationsMetrics}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:        "AD annotation exclude truthy values",
+			serviceName: "annotated-service",
+			namespace:   "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/exclude": "T",
+			},
+			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}},
+			expected: workloadfilter.Excluded,
+		},
+	}
 
-	service := workloadfilter.CreateService("svc1", "", nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			if len(tt.exclude) > 0 {
+				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+			}
+			f := newFilterObject(t, mockConfig)
 
-	res := evaluateResource(f, service, [][]workloadfilter.ServiceFilter{{workloadfilter.LegacyServiceGlobal}})
-	assert.Equal(t, workloadfilter.Included, res)
+			service := workloadfilter.CreateService(tt.serviceName, tt.namespace, tt.annotations)
+
+			res := evaluateResource(f, service, tt.filters)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
 }
 
 func TestEndpointFiltering(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_include", []string{`name:ep1`})
-	f := newFilterObject(t, mockConfig)
+	tests := []struct {
+		name         string
+		include      []string
+		exclude      []string
+		endpointName string
+		namespace    string
+		annotations  map[string]string
+		filters      [][]workloadfilter.EndpointFilter
+		expected     workloadfilter.Result
+	}{
+		{
+			name:         "Exclude by name",
+			exclude:      []string{"name:ep1"},
+			endpointName: "ep1",
+			namespace:    "",
+			annotations:  nil,
+			filters:      [][]workloadfilter.EndpointFilter{{workloadfilter.LegacyEndpointGlobal}},
+			expected:     workloadfilter.Excluded,
+		},
+		{
+			name:         "Exclude by namespace",
+			exclude:      []string{"kube_namespace:test"},
+			endpointName: "my-endpoint",
+			namespace:    "test",
+			annotations:  nil,
+			filters:      [][]workloadfilter.EndpointFilter{{workloadfilter.LegacyEndpointGlobal}},
+			expected:     workloadfilter.Excluded,
+		},
+		{
+			name:         "AD annotation exclude",
+			endpointName: "annotated-endpoint",
+			namespace:    "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/exclude": "true",
+			},
+			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotations}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:         "AD annotation metrics exclude",
+			endpointName: "metrics-excluded-endpoint",
+			namespace:    "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/metrics_exclude": "true",
+			},
+			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotationsMetrics}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:         "AD annotation exclude truthy values",
+			endpointName: "metrics-excluded-endpoint",
+			namespace:    "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/metrics_exclude": "1",
+			},
+			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotationsMetrics}},
+			expected: workloadfilter.Excluded,
+		},
+	}
 
-	endpoint := workloadfilter.CreateEndpoint("ep1", "", nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			if len(tt.exclude) > 0 {
+				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+			}
+			f := newFilterObject(t, mockConfig)
 
-	res := evaluateResource(f, endpoint, [][]workloadfilter.EndpointFilter{{workloadfilter.LegacyEndpointGlobal}})
-	assert.Equal(t, workloadfilter.Included, res)
+			endpoint := workloadfilter.CreateEndpoint(tt.endpointName, tt.namespace, tt.annotations)
+
+			res := evaluateResource(f, endpoint, tt.filters)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
+}
+
+func TestImageFiltering(t *testing.T) {
+	tests := []struct {
+		name      string
+		include   []string
+		exclude   []string
+		imageName string
+		expected  workloadfilter.Result
+	}{
+		{
+			name:      "Include by image",
+			include:   []string{"image:dd-agent"},
+			exclude:   []string{"image:nginx"},
+			imageName: "dd-agent",
+			expected:  workloadfilter.Included,
+		},
+		{
+			name:      "Exclude by image",
+			include:   []string{"image:dd-agent"},
+			exclude:   []string{"image:nginx"},
+			imageName: "nginx-123",
+			expected:  workloadfilter.Excluded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("container_include", tt.include)
+			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+
+			f := newFilterObject(t, mockConfig)
+
+			image := workloadfilter.CreateImage(tt.imageName)
+
+			res := evaluateResource(f, image, [][]workloadfilter.ImageFilter{{workloadfilter.LegacyImage}})
+			assert.Equal(t, tt.expected, res)
+		})
+	}
+}
+
+// containsErrorWithMessage checks if any error in the slice contains the specified message
+func containsErrorWithMessage(errs []error, message string) bool {
+	for _, err := range errs {
+		if strings.Contains(err.Error(), message) {
+			return true
+		}
+	}
+	return false
 }

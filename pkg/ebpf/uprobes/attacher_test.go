@@ -1052,6 +1052,7 @@ func (s *SharedLibrarySuite) TestMultipleLibsets() {
 	// Create test files for different libsets
 	cryptoLibPath, _ := createTempTestFile(t, "foo-libssl.so")
 	gpuLibPath, _ := createTempTestFile(t, "foo-libcudart.so")
+	libcLibPath, _ := createTempTestFile(t, "foo-libc.so")
 
 	attachCfg := AttacherConfig{
 		Rules: []*AttachRule{
@@ -1063,9 +1064,13 @@ func (s *SharedLibrarySuite) TestMultipleLibsets() {
 				LibraryNameRegex: regexp.MustCompile(`foo-libcudart\.so`),
 				Targets:          AttachToSharedLibraries,
 			},
+			{
+				LibraryNameRegex: regexp.MustCompile(`foo-libc\.so`),
+				Targets:          AttachToSharedLibraries,
+			},
 		},
 		EbpfConfig:                     ebpfCfg,
-		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto, sharedlibraries.LibsetGPU},
+		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto, sharedlibraries.LibsetGPU, sharedlibraries.LibsetLibc},
 		EnablePeriodicScanNewProcesses: false,
 	}
 
@@ -1094,6 +1099,7 @@ func (s *SharedLibrarySuite) TestMultipleLibsets() {
 	testCases := []testCase{
 		{cryptoLibPath, "foo-libssl.so", "crypto library"},
 		{gpuLibPath, "foo-libcudart.so", "GPU library"},
+		{libcLibPath, "foo-libc.so", "libc library"},
 	}
 
 	var commands []*exec.Cmd

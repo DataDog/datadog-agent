@@ -26,10 +26,25 @@ import (
 // During a request, the http.Client will call the functions of the ClientTrace at specific moments
 // This is useful to get extra information about what is happening and if there are errors during
 // connection establishment, DNS resolution or TLS handshake for instance
-func createDiagnoseTraces(httpTraces *[]string) *httptrace.ClientTrace {
+// errorOnly is used to only collect information when there is an error
+func createDiagnoseTraces(httpTraces *[]string, errorOnly bool) *httptrace.ClientTrace {
 
 	hooks := &httpTraceContext{
 		httpTraces: httpTraces,
+		errorOnly:  errorOnly,
+	}
+
+	if errorOnly {
+		return &httptrace.ClientTrace{
+			// Hooks for connection establishment
+			ConnectDone: hooks.connectDoneHook,
+
+			// Hooks for DNS resolution
+			DNSDone: hooks.dnsDoneHook,
+
+			// Hooks for TLS Handshake
+			TLSHandshakeDone: hooks.tlsHandshakeDoneHook,
+		}
 	}
 
 	return &httptrace.ClientTrace{
@@ -56,12 +71,15 @@ func createDiagnoseTraces(httpTraces *[]string) *httptrace.ClientTrace {
 // to be retrieved later by client
 type httpTraceContext struct {
 	httpTraces *[]string
+	errorOnly  bool
 }
 
 // connectStartHook is called when the http.Client is establishing a new connection to 'addr'
 // However, it is not called when a connection is reused (see gotConnHook)
 func (c *httpTraceContext) connectStartHook(_, _ string) {
-	*(c.httpTraces) = append(*(c.httpTraces), "...Starting a new connection")
+	if !c.errorOnly {
+		*(c.httpTraces) = append(*(c.httpTraces), "...Starting a new connection")
+	}
 }
 
 // connectDoneHook is called when the new connection to 'addr' completes
@@ -69,7 +87,7 @@ func (c *httpTraceContext) connectStartHook(_, _ string) {
 func (c *httpTraceContext) connectDoneHook(_, _ string, err error) {
 	if err != nil {
 		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to connect to the endpoint: %v", scrubber.ScrubLine(err.Error())))
-	} else {
+	} else if !c.errorOnly {
 		*(c.httpTraces) = append(*(c.httpTraces), "...Connection to the endpoint: OK")
 	}
 }
@@ -105,7 +123,7 @@ func (c *httpTraceContext) dnsStartHook(di httptrace.DNSStartInfo) {
 func (c *httpTraceContext) dnsDoneHook(di httptrace.DNSDoneInfo) {
 	if di.Err != nil {
 		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to resolve the address: %v", scrubber.ScrubLine(di.Err.Error())))
-	} else {
+	} else if !c.errorOnly {
 		*(c.httpTraces) = append(*(c.httpTraces), "...DNS Lookup: OK")
 	}
 }
@@ -120,8 +138,10 @@ func (c *httpTraceContext) tlsHandshakeStartHook() {
 func (c *httpTraceContext) tlsHandshakeDoneHook(_ tls.ConnectionState, err error) {
 	if err != nil {
 		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to achieve the TLS Handshake: %v", scrubber.ScrubLine(err.Error())))
-		c.getTLSHandshakeHints(err)
-	} else {
+		if !c.errorOnly {
+			c.getTLSHandshakeHints(err)
+		}
+	} else if !c.errorOnly {
 		*(c.httpTraces) = append(*(c.httpTraces), "...TLS Handshake: OK")
 	}
 }

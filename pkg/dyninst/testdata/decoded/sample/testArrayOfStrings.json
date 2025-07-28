@@ -1,0 +1,48 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testArrayOfStrings",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testArrayOfStrings",
+          "location": {
+            "method": "main.testArrayOfStrings"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "[2]string",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "string",
+                    "value": "first"
+                  },
+                  {
+                    "type": "string",
+                    "value": "second"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

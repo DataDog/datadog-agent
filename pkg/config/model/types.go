@@ -124,7 +124,17 @@ type Proxy struct {
 // NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
 // configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
 // 'NotificationReceiver' should not be blocking.
-type NotificationReceiver func(setting string, oldValue, newValue any, sequenceID uint64)
+type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
+
+// ConfigChangeNotification stores the information about a change in the configuration and is sent to the listeners.
+type ConfigChangeNotification struct {
+	Key           string
+	Source        Source
+	PreviousValue interface{}
+	NewValue      interface{}
+	SequenceID    uint64
+	Receivers     []NotificationReceiver
+}
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
@@ -157,6 +167,7 @@ type Reader interface {
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
+	AllSettingsWithSequenceID() (map[string]interface{}, uint64)
 
 	// SetTestOnlyDynamicSchema is used by tests to disable validation of the config schema
 	// This lets tests use the config is more flexible ways (can add to the schema at any point,

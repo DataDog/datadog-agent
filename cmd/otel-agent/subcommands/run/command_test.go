@@ -21,8 +21,10 @@ func TestFxRun_WithDatadogExporter(t *testing.T) {
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 	fxutil.TestRun(t, func() error {
 		ctx := context.Background()
-		params := &subcommands.GlobalParams{
-			ConfPaths: []string{"test_config.yaml"},
+		params := &cliParams{
+			GlobalParams: &subcommands.GlobalParams{
+				ConfPaths: []string{"test_config.yaml"},
+			},
 		}
 		return runOTelAgentCommand(ctx, params)
 	})
@@ -32,8 +34,10 @@ func TestFxRun_NoDatadogExporter(t *testing.T) {
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 	fxutil.TestRun(t, func() error {
 		ctx := context.Background()
-		params := &subcommands.GlobalParams{
-			ConfPaths: []string{"test_config_no_dd.yaml"},
+		params := &cliParams{
+			GlobalParams: &subcommands.GlobalParams{
+				ConfPaths: []string{"test_config_no_dd.yaml"},
+			},
 		}
 		return runOTelAgentCommand(ctx, params)
 	})
@@ -42,8 +46,10 @@ func TestFxRun_NoDatadogExporter(t *testing.T) {
 func TestFxRun_Disabled(t *testing.T) {
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "false")
 	ctx := context.Background()
-	params := &subcommands.GlobalParams{
-		ConfPaths: []string{"test_config.yaml"},
+	params := &cliParams{
+		GlobalParams: &subcommands.GlobalParams{
+			ConfPaths: []string{"test_config.yaml"},
+		},
 	}
 	assert.NoError(t, runOTelAgentCommand(ctx, params))
 }

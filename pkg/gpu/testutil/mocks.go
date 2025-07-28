@@ -86,6 +86,9 @@ var DefaultTotalMemory = uint64(1024 * 1024 * 1024)
 // DefaultMaxClockRates is an array of Max SM clock and Max Mem Clock rates for the default device
 var DefaultMaxClockRates = [2]uint32{1000, 2000}
 
+// DevicesWithMIGChildren is a list of device indexes that have MIG children.
+var DevicesWithMIGChildren = []int{5, 6}
+
 // MIGChildrenPerDevice is a map of device index to the number of MIG children for that device.
 var MIGChildrenPerDevice = map[int]int{
 	5: 2,

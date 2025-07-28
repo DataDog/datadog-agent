@@ -122,8 +122,8 @@ const (
 	DefaultNetworkPathMaxTTL = 30
 )
 
-// datadog is the global configuration object
 var (
+	// datadog is the global configuration object
 	datadog     pkgconfigmodel.Config
 	systemProbe pkgconfigmodel.Config
 
@@ -743,8 +743,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.unscheduled_check_threshold", 60) // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
-	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
-	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", false)        // Experimental. Subject to change. Uses the runners utilization to balance.
+	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", true)
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", true)
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_percentage_improvement", 10) // Experimental. Subject to change. Rebalance only if the distribution found improves the current one by this.
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
@@ -854,6 +854,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// enabling/disabling the environment variables & command scrubbing from the container specs
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.max_count", 5000)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_words", []string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_sensitive_annotations_labels", []string{})
 	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
@@ -902,6 +903,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
+	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)
@@ -954,7 +956,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
-	config.BindEnvAndSetDefault("security_agent.disable_thp", false)
+	config.BindEnvAndSetDefault("security_agent.disable_thp", true)
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
 	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
@@ -1156,6 +1158,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
 	config.BindEnvAndSetDefault("metadata_provider_stop_timeout", 30*time.Second)
+	config.BindEnvAndSetDefault("inventories_diagnostics_enabled", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
@@ -1254,6 +1257,7 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
 	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
+	config.BindEnvAndSetDefault("include_ephemeral_containers", false)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
 	// ac_load_timeout is used to delay the introduction of sources other than
@@ -1366,10 +1370,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 func serializer(config pkgconfigmodel.Setup) {
 	// Serializer
-	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
@@ -1380,6 +1380,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
+	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1781,9 +1782,8 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubelet_client_key", "")
 
 	config.BindEnvAndSetDefault("kubernetes_pod_expiration_duration", 15*60) // in seconds, default 15 minutes
-	config.BindEnvAndSetDefault("kubelet_wait_on_missing_container", 0)
-	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)       // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
-	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5) // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
+	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)            // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
+	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5)      // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)

@@ -430,3 +430,66 @@ const GetSLAMetrics = `
         ]
     ]
 }`
+
+// GetLinkUsageMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetLinkUsageMetrics = `
+{
+    "qTime": 2,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,INET-1",
+            "test-branch-2B",
+            "INET-1",
+            "10000000000",
+            "10000000000",
+            "Unknown",
+            "Unknown",
+            "10.20.20.7",
+            "",
+            757144.0,
+            457032.0,
+            6730.168888888889,
+            4062.5066666666667
+        ]
+    ]
+}`
+
+// GetLinkStatusMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetLinkStatusMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,INET-1",
+            "test-branch-2B",
+            "INET-1",
+            98.5
+        ]
+    ]
+}`
+
+// GetTunnelMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SYSTEM
+const GetTunnelMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+			"test-branch-2B,10.1.1.1",
+            "test-branch-2B",
+            "10.1.1.1",
+            "10.2.2.2",
+            "vpn-profile-1",
+            67890.0,
+            12345.0
+        ]
+    ]
+}`

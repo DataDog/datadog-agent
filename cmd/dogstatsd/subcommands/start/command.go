@@ -17,7 +17,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -36,6 +35,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-dogstatsd"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -140,7 +140,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
-			InitHelper: common.GetWorkloadmetaInit(),
+			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 		metricscompressionfx.Module(),
 		logscompressionfx.Module(),

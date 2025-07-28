@@ -140,15 +140,15 @@ func TestNetworkCheck(t *testing.T) {
 		},
 		connectionStatsUDP4: []net.ConnectionStat{
 			{
-				Status: "NONE",
+				Status: "",
 			},
 		},
 		connectionStatsUDP6: []net.ConnectionStat{
 			{
-				Status: "NONE",
+				Status: "",
 			},
 			{
-				Status: "NONE",
+				Status: "",
 			},
 		},
 		connectionStatsTCP4: []net.ConnectionStat{
@@ -159,19 +159,19 @@ func TestNetworkCheck(t *testing.T) {
 				Status: "SYN_SENT",
 			},
 			{
-				Status: "SYN_RECV",
+				Status: "SYN_RECEIVED",
 			},
 			{
-				Status: "FIN_WAIT1",
+				Status: "FIN_WAIT_1",
 			},
 			{
-				Status: "FIN_WAIT2",
+				Status: "FIN_WAIT_2",
 			},
 			{
 				Status: "TIME_WAIT",
 			},
 			{
-				Status: "CLOSE",
+				Status: "CLOSED",
 			},
 			{
 				Status: "CLOSE_WAIT",
@@ -195,19 +195,19 @@ func TestNetworkCheck(t *testing.T) {
 				Status: "SYN_SENT",
 			},
 			{
-				Status: "SYN_RECV",
+				Status: "SYN_RECEIVED",
 			},
 			{
-				Status: "FIN_WAIT1",
+				Status: "FIN_WAIT_1",
 			},
 			{
-				Status: "FIN_WAIT2",
+				Status: "FIN_WAIT_2",
 			},
 			{
 				Status: "TIME_WAIT",
 			},
 			{
-				Status: "CLOSE",
+				Status: "CLOSED",
 			},
 			{
 				Status: "CLOSE_WAIT",
@@ -228,19 +228,19 @@ func TestNetworkCheck(t *testing.T) {
 				Status: "SYN_SENT",
 			},
 			{
-				Status: "SYN_RECV",
+				Status: "SYN_RECEIVED",
 			},
 			{
-				Status: "FIN_WAIT1",
+				Status: "FIN_WAIT_1",
 			},
 			{
-				Status: "FIN_WAIT2",
+				Status: "FIN_WAIT_2",
 			},
 			{
 				Status: "TIME_WAIT",
 			},
 			{
-				Status: "CLOSE",
+				Status: "CLOSED",
 			},
 			{
 				Status: "CLOSE_WAIT",

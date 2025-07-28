@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -17,6 +18,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/net/bpf"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -85,6 +88,11 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 		f.MountPath = mountPath
 		f.MountSource = source
 		f.MountOrigin = origin
+		err = fh.resolvers.PathResolver.ResolveMountAttributes(f, &ev.PIDContext, ev.ContainerContext)
+		if err != nil && f.PathResolutionError == nil {
+			seclog.Warnf("error while resolving the attributes for mountid %d: %s", f.MountID, err)
+			ev.SetPathResolutionError(f, err)
+		}
 	}
 
 	return f.PathnameStr
@@ -154,6 +162,9 @@ func (fh *EBPFFieldHandlers) ResolveXAttrNamespace(ev *model.Event, e *model.Set
 
 // ResolveMountPointPath resolves a mount point path
 func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
+	if e.Detached {
+		return "/"
+	}
 	if len(e.MountPointPath) == 0 {
 		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID)
 		if err != nil {
@@ -908,4 +919,55 @@ func (fh *EBPFFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.Acc
 	}
 
 	return e.Hostnames
+}
+
+// ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
+func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *model.SetSockOptEvent) string {
+	if len(e.FilterHash) == 0 {
+		h := sha256.New()
+		h.Write(e.RawFilter)
+		bs := h.Sum(nil)
+		e.FilterHash = fmt.Sprintf("%x", bs)
+		return e.FilterHash
+	}
+	return e.FilterHash
+}
+
+// ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
+func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
+	if len(e.FilterInstructions) == 0 {
+		raw := []bpf.RawInstruction{}
+		filterSize := 8
+		sizeToRead := int(e.SizeToRead)
+		actualNumberOfFilters := sizeToRead / filterSize
+		rawFilter := e.RawFilter
+		for i := 0; i < actualNumberOfFilters; i++ {
+			offset := i * filterSize
+
+			Code := binary.NativeEndian.Uint16(rawFilter[offset : offset+2])
+			Jt := rawFilter[offset+2]
+			Jf := rawFilter[offset+3]
+			K := binary.NativeEndian.Uint32(rawFilter[offset+4 : offset+8])
+
+			raw = append(raw, bpf.RawInstruction{
+				Op: Code,
+				Jt: Jt,
+				Jf: Jf,
+				K:  K,
+			})
+		}
+
+		instructions, allDecoded := bpf.Disassemble(raw)
+		if !allDecoded {
+			seclog.Warnf("failed to decode setsockopt filter instructions: %s", e.FilterHash)
+			return ""
+		}
+
+		for i, inst := range instructions {
+			e.FilterInstructions += fmt.Sprintf("%03d: %s\n", i, inst)
+		}
+
+		return e.FilterInstructions
+	}
+	return e.FilterInstructions
 }

@@ -129,14 +129,15 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	// and exit right away.
 	_ = cloudService.Init()
 
+	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
+
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)),
+			serverlessTag.ArrayToMap(configuredTags),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
 	origin := cloudService.GetOrigin()
-	prefix := cloudService.GetPrefix()
 
 	agentLogConfig := serverlessInitLog.CreateConfig(origin)
 
@@ -148,10 +149,12 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	}
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, origin)
 
-	traceAgent := setupTraceAgent(tags, tagger)
+	functionTags := strings.Join(configuredTags, ",")
+	traceAgent := setupTraceAgent(tags, functionTags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger)
-	metric.AddColdStartMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+
+	metric.Add(cloudService.GetStartMetricName(), origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	setupOtlpAgent(metricAgent, tagger)
 
@@ -170,7 +173,7 @@ var azureContainerAppTags = []string{
 	"aca.replica.name",
 }
 
-func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.ServerlessTraceAgent {
+func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.Component) trace.ServerlessTraceAgent {
 	var azureTags strings.Builder
 	for _, azureContainerAppTag := range azureContainerAppTags {
 		if value, ok := tags[azureContainerAppTag]; ok {
@@ -182,6 +185,7 @@ func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.Serv
 		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 		ColdStartSpanID:       random.Random.Uint64(),
 		AzureContainerAppTags: azureTags.String(),
+		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
 	go func() {

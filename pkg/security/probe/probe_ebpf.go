@@ -41,6 +41,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -177,6 +178,9 @@ type EBPFProbe struct {
 	// snapshot
 	ruleSetVersion    uint64
 	playSnapShotState *atomic.Bool
+
+	// Setsockopt and BPF Filter
+	BPFFilterTruncated *atomic.Uint64
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -277,7 +281,7 @@ func isFentrySupportedImpl(kernelVersion *kernel.Version) error {
 		return errors.New("fentry enabled but not supported with duplicated weak symbols")
 	}
 
-	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	hasPotentialFentryDeadlock, err := bugs.HasTasksRCUExitLockSymbol()
 	if err != nil {
 		return errors.New("fentry enabled but failed to verify kernel symbols")
 	}
@@ -775,6 +779,11 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
+	value := p.BPFFilterTruncated.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricBPFFilterTruncated, int64(value), []string{}, 1.0); err != nil {
+		return err
+	}
+
 	return p.monitors.SendStats()
 }
 
@@ -1079,22 +1088,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	switch eventType {
 
-	case model.FileFsmountEventType:
-		if _, err = event.Fsmount.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-
-		if err := p.handleNewMount(event, event.Fsmount.ToMount()); err != nil {
-			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
-			return
-		}
-
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
+
 		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return
@@ -1478,6 +1477,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if _, err = event.SetSockOpt.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode setsockopt event: %s (offset %d, len %d)", err, offset, len(data))
 			return
+		}
+		if event.SetSockOpt.IsFilterTruncated {
+			p.BPFFilterTruncated.Add(1)
 		}
 	case model.SetrlimitEventType:
 		if _, err = event.Setrlimit.UnmarshalBinary(data[offset:]); err != nil {
@@ -2024,8 +2026,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
-	// fsmount mounts a detached mountpoint, therefore there's no mount point and the root is always "/"
-	if m.Origin != model.MountOriginFsmount {
+	if !m.Detached {
 		// Resolve mount point
 		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 			return fmt.Errorf("failed to set mount point: %w", err)
@@ -2516,6 +2517,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		playSnapShotState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
 		ipc:                  ipc,
+		BPFFilterTruncated:   atomic.NewUint64(0),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -2877,6 +2879,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI6StructULI, "struct flowi6", "uli")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSocketStructSK, "struct socket", "sk")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCNum, "struct sock_common", "skc_num")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockStructSKProtocol, "struct sock", "sk_protocol")
 	// TODO: needed for l4_protocol resolution, see network/flow.h
 	//constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFlowI4StructProto, "struct flowi4", "flowi4_proto")
 	// TODO: needed for l4_protocol resolution, see network/flow.h
