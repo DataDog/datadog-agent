@@ -42,7 +42,7 @@ const (
 	TracerouteModule             types.ModuleName = "traceroute"
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
-	SoftwareInventory            types.ModuleName = "software_inventory"
+	SoftwareInventoryModule      types.ModuleName = "software_inventory"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -120,6 +120,7 @@ func load() (*types.Config, error) {
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
+	swEnabled := cfg.GetBool(swNS("enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
@@ -176,8 +177,9 @@ func load() (*types.Config, error) {
 			// module is enabled, to allow the core agent to detect our own crash
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 		}
-		// Always enabled on Windows
-		c.EnabledModules[SoftwareInventory] = struct{}{}
+		if swEnabled {
+			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
+		}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0

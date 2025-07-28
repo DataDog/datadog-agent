@@ -27,7 +27,7 @@ func TestGetPayloadRefreshesCachedValues(t *testing.T) {
 		{DisplayName: "BarApp", ProductCode: "bar"},
 	}
 	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventory).Return(mockData, nil)
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
 
 	// Status JSON should trigger a refresh of cached values
 	stats := make(map[string]interface{})
@@ -108,7 +108,7 @@ func TestStatusTemplates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			is, sp := newSoftwareInventory(t, true)
-			sp.On("GetCheck", sysconfig.SoftwareInventory).Return(tt.mockData, nil)
+			sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(tt.mockData, nil)
 
 			// Test Text template
 			var buf bytes.Buffer
@@ -133,7 +133,7 @@ func TestStatusTemplates(t *testing.T) {
 
 func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
 	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventory).Return([]software.Entry{}, nil)
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return([]software.Entry{}, nil)
 
 	// Test Text template
 	var buf bytes.Buffer

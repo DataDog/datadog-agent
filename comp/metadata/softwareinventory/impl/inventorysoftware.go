@@ -161,7 +161,7 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 func (is *softwareInventory) refreshCachedValues() error {
 	is.log.Debugf("Collecting Software Inventory")
 
-	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventory)
+	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
 	if err != nil {
 		return is.log.Errorf("error getting software inventory: %v", err)
 	}

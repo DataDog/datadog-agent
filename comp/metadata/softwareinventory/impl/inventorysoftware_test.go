@@ -51,7 +51,7 @@ func newSoftwareInventory(t *testing.T, enabled bool) (*softwareInventory, *mock
 func TestRefreshCachedValues(t *testing.T) {
 	mockData := []software.Entry{{DisplayName: "FooApp", ProductCode: "foo"}, {DisplayName: "BarApp", ProductCode: "bar"}}
 	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventory).Return(mockData, nil)
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
 
 	err := is.refreshCachedValues()
 
@@ -67,7 +67,7 @@ func TestRefreshCachedValues(t *testing.T) {
 
 func TestRefreshCachedValuesWithError(t *testing.T) {
 	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventory).Return([]software.Entry{}, fmt.Errorf("error"))
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return([]software.Entry{}, fmt.Errorf("error"))
 
 	// Assert that we attempted to refresh the cached values but
 	// system probe returned an error
@@ -78,7 +78,7 @@ func TestRefreshCachedValuesWithError(t *testing.T) {
 
 func TestRefreshCachedValuesWithEmptyInventory(t *testing.T) {
 	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventory).Return([]software.Entry{}, nil)
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return([]software.Entry{}, nil)
 
 	err := is.refreshCachedValues()
 	assert.NoError(t, err)
@@ -88,7 +88,7 @@ func TestRefreshCachedValuesWithEmptyInventory(t *testing.T) {
 func TestFlareProviderOutputDisabled(t *testing.T) {
 	mockData := []software.Entry{{DisplayName: "TestApp"}}
 	is, sp := newSoftwareInventory(t, false)
-	sp.On("GetCheck", sysconfig.SoftwareInventory).Return(mockData, nil)
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
 
 	flareProvider := is.FlareProvider()
 	assert.NotNil(t, flareProvider)
@@ -107,7 +107,7 @@ func TestFlareProviderOutputDisabled(t *testing.T) {
 func TestFlareProviderOutput(t *testing.T) {
 	mockData := []software.Entry{{DisplayName: "TestApp"}}
 	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventory).Return(mockData, nil)
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
 
 	flareProvider := is.FlareProvider()
 	assert.NotNil(t, flareProvider)
@@ -126,7 +126,7 @@ func TestFlareProviderOutput(t *testing.T) {
 func TestWritePayloadAsJSON(t *testing.T) {
 	mockData := []software.Entry{{DisplayName: "TestApp"}}
 	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventory).Return(mockData, nil)
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
 
 	w := httptest.NewRecorder()
 	is.writePayloadAsJSON(w, nil)
@@ -141,7 +141,7 @@ func TestWritePayloadAsJSON(t *testing.T) {
 func TestGetPayload(t *testing.T) {
 	mockData := []software.Entry{{DisplayName: "TestApp", ProductCode: "test"}}
 	is, sp := newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventory).Return(mockData, nil)
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(mockData, nil)
 
 	payload := is.getPayload()
 	assert.NotNil(t, payload)
@@ -153,7 +153,7 @@ func TestGetPayload(t *testing.T) {
 
 	// Test error case
 	is, sp = newSoftwareInventory(t, true)
-	sp.On("GetCheck", sysconfig.SoftwareInventory).Return([]software.Entry{}, fmt.Errorf("error"))
+	sp.On("GetCheck", sysconfig.SoftwareInventoryModule).Return([]software.Entry{}, fmt.Errorf("error"))
 
 	payload = is.getPayload()
 	assert.Nil(t, payload)
