@@ -95,6 +95,11 @@ exclude 'bundler\/git'
 strip_build windows_target? || do_build
 debug_path ".debug"  # the strip symbols will be in here
 
+if windows_target?
+  windows_symbol_stripping_file "#{install_dir}\\embedded\\bin\\otel-agent.exe"
+  sign_file "#{install_dir}\\embedded\\bin\\otel-agent.exe"
+end
+
 # ------------------------------------
 # Packaging
 # ------------------------------------
