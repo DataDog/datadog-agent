@@ -140,11 +140,17 @@ namespace Datadog.CustomActions
                 _session.Log($"Storing installedUser={user}");
                 subkey.SetValue("installedUser", user, RegistryValueKind.String);
             }
+            var sid = _session.Property("DDAGENTUSER_SID");
+            if (!string.IsNullOrEmpty(sid))
+            {
+                _session.Log($"Storing installedSID={sid}");
+                subkey.SetValue("installedSID", sid, RegistryValueKind.String);
+            }
         }
 
         protected void RemoveAgentUserInRegistry(IRegistryKey subkey)
         {
-            foreach (var value in new[] { "installedDomain", "installedUser" })
+            foreach (var value in new[] { "installedDomain", "installedUser", "installedSID" })
             {
                 try
                 {
