@@ -258,8 +258,6 @@ public:
 
       Actual service checks are submitted from go-land, this allows us to set the CGO callback.
     */
-    virtual cb_submit_metric_t getSubmitMetricCb() = 0;
-
     virtual void setSubmitServiceCheckCb(cb_submit_service_check_t) = 0;
 
     //! setSubmitEventCb member.

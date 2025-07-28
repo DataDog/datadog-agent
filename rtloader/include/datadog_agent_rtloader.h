@@ -384,7 +384,6 @@ DATADOG_AGENT_RTLOADER_API char *get_interpreter_memory_usage(rtloader_t *);
 DATADOG_AGENT_RTLOADER_API void set_submit_metric_cb(rtloader_t *, cb_submit_metric_t);
 
 // same submit_metric callback as above, but stored as a global variable in the C++ API
-// the callback above is stored in RtLoader::Three, which is Python specific
 DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_metric_cb(cb_submit_metric_t);
 
 // function used by shared library checks

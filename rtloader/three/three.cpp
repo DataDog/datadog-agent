@@ -910,11 +910,6 @@ void Three::setSubmitMetricCb(cb_submit_metric_t cb)
     _set_submit_metric_cb(cb);
 }
 
-cb_submit_metric_t Three::getSubmitMetricCb()
-{
-    return _get_submit_metric_cb();
-}
-
 void Three::setSubmitServiceCheckCb(cb_submit_service_check_t cb)
 {
     _set_submit_service_check_cb(cb);

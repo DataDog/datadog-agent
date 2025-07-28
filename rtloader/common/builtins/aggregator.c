@@ -62,11 +62,6 @@ void _set_submit_metric_cb(cb_submit_metric_t cb)
     cb_submit_metric = cb;
 }
 
-cb_submit_metric_t _get_submit_metric_cb(void)
-{
-    return cb_submit_metric;
-}
-
 void _set_submit_service_check_cb(cb_submit_service_check_t cb)
 {
     cb_submit_service_check = cb;

@@ -84,7 +84,6 @@ public:
 
     // aggregator API
     void setSubmitMetricCb(cb_submit_metric_t);
-    cb_submit_metric_t getSubmitMetricCb();
     void setSubmitServiceCheckCb(cb_submit_service_check_t);
     void setSubmitEventCb(cb_submit_event_t);
     void setSubmitHistogramBucketCb(cb_submit_histogram_bucket_t);

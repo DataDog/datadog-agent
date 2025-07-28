@@ -73,7 +73,6 @@ extern "C" {
 PyMODINIT_FUNC PyInit_aggregator(void);
 
 void _set_submit_metric_cb(cb_submit_metric_t cb);
-cb_submit_metric_t _get_submit_metric_cb(void);
 void _set_submit_service_check_cb(cb_submit_service_check_t cb);
 void _set_submit_event_cb(cb_submit_event_t cb);
 void _set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t cb);
