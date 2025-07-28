@@ -103,7 +103,7 @@ func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL) (*HTTPClient, 
 	// agent making the request at the transport level.
 	version, err := version.Agent()
 	if err != nil {
-		header.Set("User-Agent", fmt.Sprintf("datadog-agent/%s (%s)", version.GetNumber(), runtime.Version()))
+		header.Set("User-Agent", fmt.Sprintf("datadog-agent/%s (%s)", version.String(), runtime.Version()))
 	} else {
 		header.Set("User-Agent", fmt.Sprintf("datadog-agent/unknown (%s)", runtime.Version()))
 	}
