@@ -1112,7 +1112,7 @@ workflow:
 # This is used to setup utils to report custom datadog-ci spans
 .setup-datadog-ci-sections:
   - |
-    if [ -n "$DATADOG_API_KEY" ]; then
+    if [ -z "$DATADOG_API_KEY" ]; then
       DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     fi
   - |
