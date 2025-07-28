@@ -611,6 +611,7 @@ new-e2e-installer:
     - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
     - deploy_agent_oci
+    - installer-install-scripts
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
