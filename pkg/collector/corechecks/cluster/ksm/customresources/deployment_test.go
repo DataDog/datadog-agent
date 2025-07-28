@@ -146,6 +146,7 @@ func TestDeploymentRolloutFactory_getRolloutDuration(t *testing.T) {
 			client := fake.NewSimpleClientset(tt.replicaSets...)
 			factory := &deploymentRolloutFactory{
 				client: client,
+				cache:  newRolloutCache(30 * time.Second),
 			}
 
 			result := factory.getRolloutDuration(tt.deployment)
@@ -278,4 +279,62 @@ func TestDeploymentRolloutFactory_ExpectedType(t *testing.T) {
 	expectedType := factory.ExpectedType()
 	_, ok := expectedType.(*appsv1.Deployment)
 	assert.True(t, ok)
+}
+
+func TestDeploymentRolloutFactory_Caching(t *testing.T) {
+	deploymentUID := types.UID("test-deployment-uid")
+	
+	replicaSet := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "test-deployment-abc123",
+			Namespace:         "default",
+			CreationTimestamp: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
+			Labels: map[string]string{
+				"app": "test",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind: "Deployment",
+					Name: "test-deployment",
+					UID:  deploymentUID,
+				},
+			},
+		},
+	}
+
+	client := fake.NewSimpleClientset(replicaSet)
+	factory := &deploymentRolloutFactory{
+		client: client,
+		cache:  newRolloutCache(30 * time.Second),
+	}
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test-deployment",
+			Namespace:  "default",
+			UID:        deploymentUID,
+			Generation: 2,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "test",
+				},
+			},
+		},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration: 1,
+		},
+	}
+
+	// First call should trigger API call
+	result1 := factory.getRolloutDuration(deployment)
+	assert.InDelta(t, 300.0, result1, 10.0) // ~5 minutes
+
+	// Second call should use cache (verify by checking it's the same exact value)
+	result2 := factory.getRolloutDuration(deployment)
+	assert.Equal(t, result1, result2)
+
+	// Cache should have one entry
+	assert.Equal(t, 1, factory.cache.size())
 }

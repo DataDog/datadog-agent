@@ -9,6 +9,7 @@ package customresources
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,11 +33,13 @@ import (
 func NewDeploymentRolloutFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &deploymentRolloutFactory{
 		client: client.Cl,
+		cache:  newRolloutCache(30 * time.Second), // 30 second TTL
 	}
 }
 
 type deploymentRolloutFactory struct {
 	client kubernetes.Interface
+	cache  *rolloutCache
 }
 
 func (f *deploymentRolloutFactory) Name() string {
@@ -88,7 +91,7 @@ func (f *deploymentRolloutFactory) ListWatch(customResourceClient interface{}, n
 	}
 }
 
-// getRolloutDuration calculates the duration of an ongoing rollout
+// getRolloutDuration calculates the duration of an ongoing rollout with caching
 func (f *deploymentRolloutFactory) getRolloutDuration(d *appsv1.Deployment) float64 {
 	// Check if there's a rollout in progress by comparing generation
 	if d.Generation == d.Status.ObservedGeneration {
@@ -96,6 +99,25 @@ func (f *deploymentRolloutFactory) getRolloutDuration(d *appsv1.Deployment) floa
 		return 0
 	}
 
+	// Generate cache key including generation to invalidate cache when generation changes
+	cacheKey := fmt.Sprintf("deployment:%s/%s:%d", d.Namespace, d.Name, d.Generation)
+
+	// Check cache first
+	if cachedDuration, found := f.cache.get(cacheKey); found {
+		return cachedDuration
+	}
+
+	// Cache miss - calculate duration via API call
+	duration := f.calculateRolloutDurationFromAPI(d)
+	
+	// Cache the result (even if it's 0, to avoid repeated failed API calls)
+	f.cache.set(cacheKey, duration)
+	
+	return duration
+}
+
+// calculateRolloutDurationFromAPI performs the actual API call to calculate rollout duration
+func (f *deploymentRolloutFactory) calculateRolloutDurationFromAPI(d *appsv1.Deployment) float64 {
 	// Find the newest ReplicaSet for this deployment to get the rollout start time
 	replicaSets, err := f.client.AppsV1().ReplicaSets(d.Namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: labels.Set(d.Spec.Selector.MatchLabels).AsSelector().String(),

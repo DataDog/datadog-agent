@@ -91,6 +91,7 @@ func TestStatefulSetRolloutFactory_getRolloutDuration(t *testing.T) {
 			client := fake.NewSimpleClientset(tt.revisions...)
 			factory := &statefulSetRolloutFactory{
 				client: client,
+				cache:  newRolloutCache(30 * time.Second),
 			}
 
 			result := factory.getRolloutDuration(tt.statefulSet)
@@ -129,4 +130,42 @@ func TestStatefulSetRolloutFactory_ExpectedType(t *testing.T) {
 	expectedType := factory.ExpectedType()
 	_, ok := expectedType.(*appsv1.StatefulSet)
 	assert.True(t, ok)
+}
+
+func TestStatefulSetRolloutFactory_Caching(t *testing.T) {
+	revision := &appsv1.ControllerRevision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "test-sts-def456",
+			Namespace:         "default",
+			CreationTimestamp: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
+		},
+	}
+
+	client := fake.NewSimpleClientset(revision)
+	factory := &statefulSetRolloutFactory{
+		client: client,
+		cache:  newRolloutCache(30 * time.Second),
+	}
+
+	statefulSet := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-sts",
+			Namespace: "default",
+		},
+		Status: appsv1.StatefulSetStatus{
+			CurrentRevision: "test-sts-abc123",
+			UpdateRevision:  "test-sts-def456",
+		},
+	}
+
+	// First call should trigger API call
+	result1 := factory.getRolloutDuration(statefulSet)
+	assert.InDelta(t, 300.0, result1, 10.0) // ~5 minutes
+
+	// Second call should use cache (verify by checking it's the same exact value)
+	result2 := factory.getRolloutDuration(statefulSet)
+	assert.Equal(t, result1, result2)
+
+	// Cache should have one entry
+	assert.Equal(t, 1, factory.cache.size())
 }

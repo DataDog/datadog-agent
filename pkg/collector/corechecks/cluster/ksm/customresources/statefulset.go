@@ -9,6 +9,7 @@ package customresources
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -31,11 +32,13 @@ import (
 func NewStatefulSetRolloutFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &statefulSetRolloutFactory{
 		client: client.Cl,
+		cache:  newRolloutCache(30 * time.Second), // 30 second TTL
 	}
 }
 
 type statefulSetRolloutFactory struct {
 	client kubernetes.Interface
+	cache  *rolloutCache
 }
 
 func (f *statefulSetRolloutFactory) Name() string {
@@ -87,7 +90,7 @@ func (f *statefulSetRolloutFactory) ListWatch(customResourceClient interface{}, 
 	}
 }
 
-// getRolloutDuration calculates the duration of an ongoing rollout
+// getRolloutDuration calculates the duration of an ongoing rollout with caching
 func (f *statefulSetRolloutFactory) getRolloutDuration(s *appsv1.StatefulSet) float64 {
 	// Check if there's a rollout in progress
 	if s.Status.CurrentRevision == s.Status.UpdateRevision {
@@ -102,6 +105,25 @@ func (f *statefulSetRolloutFactory) getRolloutDuration(s *appsv1.StatefulSet) fl
 		return 0
 	}
 
+	// Generate cache key
+	cacheKey := fmt.Sprintf("statefulset:%s/%s:%s", s.Namespace, s.Name, s.Status.UpdateRevision)
+
+	// Check cache first
+	if cachedDuration, found := f.cache.get(cacheKey); found {
+		return cachedDuration
+	}
+
+	// Cache miss - calculate duration via API call
+	duration := f.calculateRolloutDurationFromAPI(s)
+	
+	// Cache the result (even if it's 0, to avoid repeated failed API calls)
+	f.cache.set(cacheKey, duration)
+	
+	return duration
+}
+
+// calculateRolloutDurationFromAPI performs the actual API call to calculate rollout duration
+func (f *statefulSetRolloutFactory) calculateRolloutDurationFromAPI(s *appsv1.StatefulSet) float64 {
 	// Get the ControllerRevision for the update revision
 	revision, err := f.client.AppsV1().ControllerRevisions(s.Namespace).Get(
 		context.TODO(),
