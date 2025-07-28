@@ -478,9 +478,6 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
 
-	// Enable ddot configuration in core
-	s.host.Run("sudo sh -c \"printf 'otelcollector:\\n  enabled: true\\n' >> /etc/datadog-agent/datadog.yaml\"")
-
 	// Substitute API & site into otel-config.yaml
 	apiKey := os.Getenv("DD_API_KEY")
 	if apiKey == "" {
