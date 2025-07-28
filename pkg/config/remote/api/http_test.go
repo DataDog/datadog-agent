@@ -10,9 +10,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 
@@ -184,7 +186,7 @@ func TestUserAgent(t *testing.T) {
 	defer cancel()
 
 	userAgentCh := make(chan string, 1)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		userAgentCh <- r.UserAgent()
 	}))
 	defer ts.Close()
@@ -200,10 +202,21 @@ func TestUserAgent(t *testing.T) {
 	select {
 	case ua := <-userAgentCh:
 		// Regex explained:
-		//   * ^datadog-agent\\/ == must start with "datadog-agent/"
-		//   * (unknown|\\d+\\.\\d+\\.\\d+) == either "unknown" or a semver string
-		//   * \\(go\\d+\\.\\d+\\.\\d+\\)$ == ends in " (go1.2.3)" where 1.2.3 is a semver string
-		assert.Regexp("^datadog-agent\\/(unknown|\\d+\\.\\d+\\.\\d+) \\(go\\d+\\.\\d+\\.\\d+\\)$", ua)
+		//   * ^datadog-agent\/ == must start with "datadog-agent/"
+		//   * (unknown|\d+\.\d+\.\d+) == either "unknown" or a semver string
+		//   * \(go\d+\.\d+\.\d+\)$ == ends in " (go1.2.3)" where 1.2.3 is a semver string
+		uaRegex := regexp.MustCompile(`^datadog-agent\/(.+) \(go\d+\.\d+\.\d+\)$`)
+		parts := uaRegex.FindStringSubmatch(ua)
+		assert.Len(parts, 2) // Original string + the extracted group.
+
+		// The extracted string must match either "unknown" or be valid semver.
+		switch parts[1] {
+		case "unknown":
+		default:
+			_, err = semver.NewVersion(parts[1])
+			assert.NoError(err)
+		}
+
 	case <-time.After(10 * time.Second):
 		t.Fatal("timeout waiting for user agent string")
 	}
