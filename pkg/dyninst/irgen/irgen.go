@@ -36,6 +36,7 @@ import (
 
 	pkgerrors "github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -620,13 +621,13 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 }
 
 func field(st *ir.StructureType, name string) (*ir.Field, error) {
-	offset := slices.IndexFunc(st.Fields, func(f ir.Field) bool {
+	offset := slices.IndexFunc(st.RawFields, func(f ir.Field) bool {
 		return f.Name == name
 	})
 	if offset == -1 {
 		return nil, fmt.Errorf("type %q has no %s field", st.Name, name)
 	}
-	return &st.Fields[offset], nil
+	return &st.RawFields[offset], nil
 }
 
 func fieldType[T ir.Type](st *ir.StructureType, name string) (T, error) {
@@ -1395,52 +1396,11 @@ func computeLocations(
 	loclistReader *loclist.Reader,
 	pointerSize uint8,
 ) ([]ir.Location, error) {
-	totalSize := typ.GetByteSize()
-	var locations []ir.Location
-	switch locField.Class {
-	case dwarf.ClassLocListPtr:
-		offset, ok := locField.Val.(int64)
-		if !ok {
-			return nil, fmt.Errorf(
-				"unexpected location field type: %T", locField.Val,
-			)
-		}
-		loclist, err := loclistReader.Read(unit, offset, totalSize)
-		if err != nil {
-			return nil, err
-		}
-		if len(loclist.Default) > 0 {
-			return nil, fmt.Errorf("unexpected default location pieces")
-		}
-		locations = loclist.Locations
-
-	case dwarf.ClassExprLoc:
-		instr, ok := locField.Val.([]byte)
-		if !ok {
-			return nil, fmt.Errorf(
-				"unexpected location field type: %T", locField.Val,
-			)
-		}
-		pieces, err := loclist.ParseInstructions(instr, pointerSize, totalSize)
-		if err != nil {
-			return nil, err
-		}
-		// BUG: This should take into consideration the ranges of the current
-		// block, not necessarily the ranges of the subprogram.
-		for _, r := range subprogramRanges {
-			locations = append(locations, ir.Location{
-				Range:  r,
-				Pieces: pieces,
-			})
-		}
-	default:
-		return nil, fmt.Errorf(
-			"unexpected %s class: %s",
-			locField.Attr, locField.Class,
-		)
-	}
-
-	return locations, nil
+	// BUG: We shouldn't pass subprogramRanges below; we should take into
+	// consideration the ranges of the current block, not necessarily the ranges
+	// of the subprogram.
+	return dwarfutil.ProcessLocations(
+		locField, unit, loclistReader, subprogramRanges, typ.GetByteSize(), pointerSize)
 }
 
 // maybeGetAttr is a helper function that returns the value of an attribute if

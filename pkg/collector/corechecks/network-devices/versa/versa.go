@@ -277,6 +277,16 @@ func (v *VersaCheck) Run() error {
 				v.metricsSender.SendLinkUsageMetrics(linkUsageMetrics, deviceNameToIDMap)
 			}
 		}
+
+		if *v.config.CollectTunnelMetrics {
+			// Collect tunnel metrics for each organization
+			tunnelMetrics, err := c.GetTunnelMetrics(org.Name)
+			if err != nil {
+				log.Warnf("error getting tunnel metrics for tenant %s from Versa client: %v", org.Name, err)
+				continue
+			}
+			v.metricsSender.SendTunnelMetrics(tunnelMetrics, deviceNameToIDMap)
+		}
 	}
 
 	// Commit

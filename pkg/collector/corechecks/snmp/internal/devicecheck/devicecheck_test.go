@@ -1001,3 +1001,140 @@ collect_topology: false
 	// THEN
 	assert.Equal(t, []string{"tag1:value1"}, externalTags)
 }
+
+func TestMissingOIDsAreRemoved(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateFakeSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_topology: false
+`)
+	// language=yaml
+	rawInitConfig := []byte(``)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
+
+	// All OIDs should be present in profileCache
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.5.0",
+	}, deviceCk.profileCache.scalarOIDs)
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+		"1.3.6.1.2.1.4.20.1.3",
+	}, deviceCk.profileCache.columnOIDs)
+
+	sess.
+		SetStr("1.3.6.1.2.1.1.1.0", "my_desc").
+		SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.3375.2.1.3.4.1").
+		SetStr("1.3.6.1.2.1.1.5.0", "foo_sys_name").
+		SetByte("1.3.6.1.2.1.2.2.1.6.1", []byte{00, 00, 00, 00, 00, 01}).
+		SetByte("1.3.6.1.2.1.2.2.1.6.2", []byte{00, 00, 00, 00, 00, 01}).
+		SetInt("1.3.6.1.2.1.2.2.1.8.1", 1).
+		SetInt("1.3.6.1.2.1.2.2.1.8.2", 1).
+		SetStr("1.3.6.1.2.1.31.1.1.1.18.1", "descRow1").
+		SetInt("1.3.6.1.2.1.4.20.1.2.10.0.0.1", 1)
+
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	// Missing OIDs should be removed from profileCache
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.5.0",
+	}, deviceCk.profileCache.scalarOIDs)
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+	}, deviceCk.profileCache.columnOIDs)
+
+	// Add new OIDs to the device
+	sess.
+		SetStr("1.3.6.1.2.1.31.1.1.1.1.1", "nameRow1").
+		SetStr("1.3.6.1.2.1.31.1.1.1.1.2", "nameRow2")
+
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	// OIDs in profileCache should be the same as last iteration because profileRefreshDelay has not been exceeded
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.5.0",
+	}, deviceCk.profileCache.scalarOIDs)
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+	}, deviceCk.profileCache.columnOIDs)
+
+	// Call profileCache.Update with a time to exceed profileRefreshDelay
+	_, err = deviceCk.profileCache.Update("", time.Now().Add((profileRefreshDelay+1)*time.Second), deviceCk.config)
+	assert.Nil(t, err)
+
+	// OIDs should be same as before the first check run
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.5.0",
+	}, deviceCk.profileCache.scalarOIDs)
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+		"1.3.6.1.2.1.4.20.1.3",
+	}, deviceCk.profileCache.columnOIDs)
+
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	// New added OID before should be present and missing ones should be removed
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.5.0",
+	}, deviceCk.profileCache.scalarOIDs)
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+	}, deviceCk.profileCache.columnOIDs)
+}
