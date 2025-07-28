@@ -9,6 +9,7 @@ package compiler
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/pkg/errors"
@@ -358,9 +359,15 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		}
 		needed = true
 		offsetShift = 0
+		if dataOffset > math.MaxUint8 {
+			return nil, false, errors.New("dataOffset is too large")
+		}
+		if lengthMaskOffset > math.MaxUint8 {
+			return nil, false, errors.New("lengthMaskOffset is too large")
+		}
 		ops = []Op{
 			ProcessGoSwissMapGroupsOp{
-				DataOffset:       uint8(dataOffset), //TODO: check if dataOffset fits in a uint8
+				DataOffset:       uint8(dataOffset),
 				LengthMaskOffset: uint8(lengthMaskOffset),
 				GroupSlice:       t.GroupSliceType,
 				Group:            t.GroupType,
@@ -379,6 +386,12 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		}
 		needed = true
 		offsetShift = 0
+		if directoryPtrOffset > math.MaxUint8 {
+			return nil, false, errors.New("directoryPtrOffset is too large")
+		}
+		if directoryLenOffset > math.MaxUint8 {
+			return nil, false, errors.New("directoryLenOffset is too large")
+		}
 		ops = []Op{
 			ProcessGoSwissMapOp{
 				TablePtrSlice: t.TablePtrSliceType,

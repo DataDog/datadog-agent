@@ -75,6 +75,11 @@ type goSwissMapHeaderType struct {
 	groupFieldSize   uint8
 	dataFieldOffset  uint32
 	dataFieldSize    uint8
+	tableTypeID      ir.TypeID
+	groupTypeID      ir.TypeID
+	elementTypeSize  uint32
+	usedOffset       uint32
+	usedSize         uint8
 	tableType        *ir.PointerType
 	tableStructType  *ir.StructureType
 	groupType        *ir.GoSwissMapGroupsType
@@ -126,6 +131,13 @@ func newDecoderType(
 		}
 		dirLenOffset := dirLenField.Offset
 		dirLenSize := dirLenField.Type.GetByteSize()
+
+		usedField, err := getFieldByName(s.RawFields, "used")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
+		}
+		usedOffset := usedField.Offset
+		usedSize := usedField.Type.GetByteSize()
 
 		slotsField, err := getFieldByName(s.GroupType.RawFields, "slots")
 		if err != nil {
@@ -202,6 +214,11 @@ func newDecoderType(
 			groupFieldSize:       uint8(groupFieldSize),
 			dataFieldOffset:      dataFieldOffset,
 			dataFieldSize:        uint8(dataFieldSize),
+			tableTypeID:          tableType.Pointee.GetID(),
+			groupTypeID:          groupType.GroupSliceType.GetID(),
+			elementTypeSize:      uint32(groupType.GroupSliceType.Element.GetByteSize()),
+			usedOffset:           usedOffset,
+			usedSize:             uint8(usedSize),
 		}, nil
 	case *ir.BaseType:
 		return (*baseType)(s), nil
@@ -457,6 +474,13 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
+	used := int64(binary.NativeEndian.Uint64(data[s.usedOffset : s.usedOffset+uint32(s.usedSize)]))
+	if err := writeTokens(enc,
+		jsontext.String("size"),
+		jsontext.Int(used),
+	); err != nil {
+		return err
+	}
 	dirLen := int64(binary.NativeEndian.Uint64(data[s.dirLenOffset : s.dirLenOffset+uint32(s.dirLenSize)]))
 	dirPtr := binary.NativeEndian.Uint64(data[s.dirPtrOffset : s.dirPtrOffset+uint32(s.dirPtrSize)])
 	if err := writeTokens(
@@ -478,11 +502,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 				notCapturedReasonDepth,
 			)
 		}
-		err := d.encodeSwissMapGroup(
-			enc,
-			s,
-			groupDataItem.Data(),
-		)
+		err := s.encodeSwissMapGroup(d, enc, groupDataItem.Data())
 		if err != nil {
 			log.Tracef("error encoding swiss map group: %v", err)
 			return writeTokens(enc,
@@ -516,11 +536,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 				notCapturedReasonDepth,
 			)
 		}
-		err := d.encodeSwissMapTables(
-			enc,
-			s,
-			tablePtrSliceDataItem,
-		)
+		err := s.encodeSwissMapTables(d, enc, tablePtrSliceDataItem)
 		if err != nil {
 			log.Tracef("error encoding swiss map tables: %v", err)
 			return writeTokens(enc,
@@ -734,6 +750,12 @@ func (s *goSliceHeaderType) encodeValueFields(
 			jsontext.BeginArray,
 			jsontext.EndArray)
 	}
+	if err := writeTokens(enc,
+		jsontext.String("size"),
+		jsontext.Uint(length)); err != nil {
+		return err
+	}
+
 	elementSize := int(s.Data.Element.GetByteSize())
 	taa := typeAndAddr{
 		addr:   address,
@@ -802,6 +824,11 @@ func (s *goStringHeaderType) encodeValueFields(
 	data []byte,
 ) error {
 	realLength := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
+	if err := writeTokens(enc,
+		jsontext.String("size"),
+		jsontext.Uint(realLength)); err != nil {
+		return err
+	}
 	fieldEnd := s.strFieldOffset + uint32(s.strFieldSize)
 	if fieldEnd >= uint32(len(data)) {
 		return writeTokens(enc,

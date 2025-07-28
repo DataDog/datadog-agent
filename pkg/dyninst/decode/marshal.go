@@ -9,7 +9,6 @@ package decode
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"slices"
 
@@ -89,9 +88,7 @@ func expressionIsPresent(bitset []byte, expressionIndex int) bool {
 
 func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 	var err error
-	if err = writeTokens(enc,
-		jsontext.BeginObject,
-	); err != nil {
+	if err = writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
 
@@ -102,8 +99,7 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 		parameterType := expr.Expression.Type
 		parameterData := ad.rootData[expr.Offset : expr.Offset+parameterType.GetByteSize()]
 
-		if err = writeTokens(enc,
-			jsontext.String(expr.Name)); err != nil {
+		if err = writeTokens(enc, jsontext.String(expr.Name)); err != nil {
 			return err
 		}
 		if !expressionIsPresent(presenceBitSet, i) && parameterType.GetByteSize() != 0 {
@@ -113,7 +109,7 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 				jsontext.String("type"),
 				jsontext.String(parameterType.GetName()),
 				notCapturedReason,
-				notCapturedReasonPruned,
+				notCapturedReasonUnavailable,
 				jsontext.EndObject,
 			); err != nil {
 				return err
@@ -129,9 +125,7 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			return fmt.Errorf("error parsing data for field %s: %w", ad.rootType.Name, err)
 		}
 	}
-	if err = writeTokens(enc,
-		jsontext.EndObject,
-	); err != nil {
+	if err = writeTokens(enc, jsontext.EndObject); err != nil {
 		return err
 	}
 	return nil
@@ -197,11 +191,7 @@ func (d *Decoder) encodeValue(
 	if !ok {
 		return fmt.Errorf("no decoder type found for type %s", decoderType.irType().GetName())
 	}
-	if err := decoderType.encodeValueFields(
-		d,
-		enc,
-		data,
-	); err != nil {
+	if err := decoderType.encodeValueFields(d, enc, data); err != nil {
 		return err
 	}
 	if err := writeTokens(enc, jsontext.EndObject); err != nil {
@@ -211,9 +201,8 @@ func (d *Decoder) encodeValue(
 }
 
 func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {
-	var err error
 	for i := range tokens {
-		err = enc.WriteToken(tokens[i])
+		err := enc.WriteToken(tokens[i])
 		if err != nil {
 			return err
 		}
@@ -222,18 +211,19 @@ func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {
 }
 
 // encodeSwissMapTables traverses the table pointer slice and encodes the data items for each table.
-func (d *Decoder) encodeSwissMapTables(
+func (s *goSwissMapHeaderType) encodeSwissMapTables(
+	d *Decoder,
 	enc *jsontext.Encoder,
-	s *goSwissMapHeaderType,
 	tablePtrSliceDataItem output.DataItem,
-) error {
+) (totalElementsEncoded int, err error) {
 	tablePointers := tablePtrSliceDataItem.Data()
 	addrs := []uint64{}
 	for i := range tablePtrSliceDataItem.Header().Length / 8 {
 		startIdx := i * 8
 		endIdx := startIdx + 8
 		if endIdx > uint32(len(tablePointers)) {
-			return fmt.Errorf("table pointer %d extends beyond data bounds: need %d bytes, have %d", i, endIdx, len(tablePointers))
+			return totalElementsEncoded, fmt.Errorf("table pointer %d extends beyond data bounds: need %d bytes, have %d",
+				i, endIdx, len(tablePointers))
 		}
 		addrs = append(addrs, binary.NativeEndian.Uint64(tablePointers[startIdx:endIdx]))
 	}
@@ -241,52 +231,42 @@ func (d *Decoder) encodeSwissMapTables(
 	// Go swiss maps may have multiple table pointers for the same group.
 	slices.Sort(addrs)
 	addrs = slices.Compact(addrs)
-	tableType := s.tableType
-	someDataNotCapture := false
 	for _, addr := range addrs {
 		tableDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(tableType.Pointee.GetID()),
+			irType: uint32(s.tableTypeID),
 			addr:   addr,
 		}]
 		if !ok {
-			someDataNotCapture = true
-			log.Tracef("table data item not found for addr %x", addr)
 			continue
 		}
 		groupData := tableDataItem.Data()[s.groupFieldOffset : s.groupFieldOffset+uint32(s.groupFieldSize)]
 		groupAddress := groupData[s.dataFieldOffset : s.dataFieldOffset+uint32(s.dataFieldSize)]
 		groupDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.groupType.GroupSliceType.GetID()),
+			irType: uint32(s.groupTypeID),
 			addr:   binary.NativeEndian.Uint64(groupAddress),
 		}]
 		if !ok {
-			someDataNotCapture = true
 			log.Tracef("group data item not found for addr %x", binary.NativeEndian.Uint64(groupAddress))
 			continue
 		}
-		elementType := s.groupType.GroupSliceType.Element
-		numberOfGroups := groupDataItem.Header().Length / elementType.GetByteSize()
+		numberOfGroups := groupDataItem.Header().Length / s.elementTypeSize
 		for i := range numberOfGroups {
-			singleGroupData := groupDataItem.Data()[s.groupType.GroupSliceType.Element.GetByteSize()*i : s.groupType.GroupSliceType.Element.GetByteSize()*(i+1)]
-			err := d.encodeSwissMapGroup(enc, s, singleGroupData)
+			singleGroupData := groupDataItem.Data()[s.elementTypeSize*i : s.elementTypeSize*(i+1)]
+			elementsEncoded, err := s.encodeSwissMapGroup(d, enc, singleGroupData)
 			if err != nil {
-				someDataNotCapture = true
-				log.Tracef("error encoding swiss map group: %v", err)
-				continue
+				return totalElementsEncoded, err
 			}
+			totalElementsEncoded += elementsEncoded
 		}
 	}
-	if someDataNotCapture {
-		return errors.New("some data not captured")
-	}
-	return nil
+	return totalElementsEncoded, nil
 }
 
-func (d *Decoder) encodeSwissMapGroup(
+func (s *goSwissMapHeaderType) encodeSwissMapGroup(
+	d *Decoder,
 	enc *jsontext.Encoder,
-	s *goSwissMapHeaderType,
 	groupData []byte,
-) error {
+) (valuesEncoded int, err error) {
 	slotsData := groupData[s.slotsOffset : s.slotsOffset+uint32(s.slotsSize)]
 	controlWord := binary.LittleEndian.Uint64(groupData[s.ctrlOffset : s.ctrlOffset+uint32(s.ctrlSize)])
 	entrySize := s.keyTypeSize + s.valueTypeSize
@@ -298,34 +278,27 @@ func (d *Decoder) encodeSwissMapGroup(
 		offset := entrySize * uint32(i)
 		entryEnd := offset + entrySize
 		if entryEnd > uint32(len(slotsData)) {
-			return fmt.Errorf("entry %d extends beyond slots data bounds: need %d bytes, have %d", i, entryEnd, len(slotsData))
+			return valuesEncoded, fmt.Errorf("entry %d extends beyond slots data bounds: need %d bytes, have %d", i, entryEnd, len(slotsData))
 		}
 		entryData := slotsData[offset:entryEnd]
 		if uint32(len(entryData)) < s.keyTypeSize+s.valueTypeSize {
-			return fmt.Errorf("entry %d data insufficient for key+value: need %d bytes, have %d", i, s.keyTypeSize+s.valueTypeSize, len(entryData))
+			return valuesEncoded, fmt.Errorf("entry %d data insufficient for key+value: need %d bytes, have %d", i, s.keyTypeSize+s.valueTypeSize, len(entryData))
 		}
 		keyData := entryData[0:s.keyTypeSize]
 		valueData := entryData[s.keyTypeSize : s.keyTypeSize+s.valueTypeSize]
-		if err := writeTokens(enc,
-			jsontext.BeginArray,
-		); err != nil {
-			return err
+		if err := writeTokens(enc, jsontext.BeginArray); err != nil {
+			return valuesEncoded, err
 		}
-		err := d.encodeValue(enc,
-			s.keyTypeID, keyData, s.keyTypeName,
-		)
-		if err != nil {
-			return err
+		if err := d.encodeValue(enc, s.keyTypeID, keyData, s.keyTypeName); err != nil {
+			return valuesEncoded, err
 		}
-		err = d.encodeValue(enc,
-			s.valueTypeID, valueData, s.valueTypeName,
-		)
-		if err != nil {
-			return err
+		if err := d.encodeValue(enc, s.valueTypeID, valueData, s.valueTypeName); err != nil {
+			return valuesEncoded, err
 		}
 		if err := writeTokens(enc, jsontext.EndArray); err != nil {
-			return err
+			return valuesEncoded, err
 		}
+		valuesEncoded++
 	}
-	return nil
+	return valuesEncoded, nil
 }

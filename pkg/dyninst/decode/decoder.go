@@ -29,10 +29,12 @@ type probeEvent struct {
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
+	// These fields are initialized on decoder creation and are shared between messages.
 	program      *ir.Program
 	decoderTypes map[ir.TypeID]decoderType
 	probeEvents  map[ir.TypeID]probeEvent
 
+	// These fields are initialized and reset for each message.
 	snapshotMessage   snapshotMessage
 	stackFrames       map[uint64][]symbol.StackFrame
 	dataItems         map[typeAndAddr]output.DataItem

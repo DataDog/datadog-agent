@@ -1028,7 +1028,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       return 1;
     }
     uint64_t length_mask = *(uint64_t*)&((*buf)[sm->buf_offset_0]);
-    LOG(3, "group_slice_type: %d, data: 0x%llx, length_mask: %llu", group_slice_type, data, length_mask);
+    LOG(4, "group_slice_type: %d, data: 0x%llx, length_mask: %llu", group_slice_type, data, length_mask);
     if (!sm_record_pointer(ctx, group_slice_type, data, /*decrease_ttl=*/false,
                            group_byte_len * (length_mask + 1))) {
       LOG(3, "enqueue: failed swiss map groups record");

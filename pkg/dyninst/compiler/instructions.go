@@ -143,8 +143,8 @@ func makeInstruction(op Op) codeFragment {
 		bytes := make([]byte, 0, 16)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.TablePtrSlice.GetID()))
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.Group.GetID()))
-		bytes = append(bytes, byte(op.DirPtrOffset))
-		bytes = append(bytes, byte(op.DirLenOffset))
+		bytes = append(bytes, op.DirPtrOffset)
+		bytes = append(bytes, op.DirLenOffset)
 		return staticInstruction{
 			opcode: OpcodeProcessGoSwissMap,
 			bytes:  bytes,
@@ -153,9 +153,9 @@ func makeInstruction(op Op) codeFragment {
 	case ProcessGoSwissMapGroupsOp:
 		bytes := make([]byte, 0, 16)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.GroupSlice.GetID()))
-		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.Group.GetByteSize()))
-		bytes = append(bytes, byte(op.DataOffset))
-		bytes = append(bytes, byte(op.LengthMaskOffset))
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.Group.GetByteSize())
+		bytes = append(bytes, op.DataOffset)
+		bytes = append(bytes, op.LengthMaskOffset)
 		return staticInstruction{
 			opcode: OpcodeProcessGoSwissMapGroups,
 			bytes:  bytes,
