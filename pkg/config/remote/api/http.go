@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -95,6 +97,15 @@ func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL) (*HTTPClient, 
 	}
 	if auth.UseAppKey {
 		header["DD-Application-Key"] = []string{auth.AppKey}
+	}
+
+	// Set the User Agent in outgoing requests to convey the version of the
+	// agent making the request at the transport level.
+	version, err := version.Agent()
+	if err != nil {
+		header.Set("User-Agent", fmt.Sprintf("datadog-agent/%s (%s)", version.GetNumber(), runtime.Version()))
+	} else {
+		header.Set("User-Agent", fmt.Sprintf("datadog-agent/unknown (%s)", runtime.Version()))
 	}
 
 	transport := httputils.CreateHTTPTransport(cfg)

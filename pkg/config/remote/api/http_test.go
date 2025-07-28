@@ -170,3 +170,41 @@ func TestNewWebSocket(t *testing.T) {
 		})
 	}
 }
+
+func TestUserAgent(t *testing.T) {
+	assert := assert.New(t)
+	agentConfig := mock.New(t)
+
+	// TLS test uses bogus certs
+	agentConfig.SetWithoutSource("skip_ssl_validation", true)                    // Transport
+	agentConfig.SetWithoutSource("remote_configuration.no_tls_validation", true) // RC check
+	agentConfig.SetWithoutSource("remote_configuration.no_tls", true)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+
+	userAgentCh := make(chan string, 1)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userAgentCh <- r.UserAgent()
+	}))
+	defer ts.Close()
+
+	url, err := url.Parse(ts.URL)
+	assert.NoError(err)
+
+	client, err := NewHTTPClient(Auth{}, agentConfig, url)
+	assert.NoError(err)
+
+	_, _ = client.FetchOrgData(ctx)
+
+	select {
+	case ua := <-userAgentCh:
+		// Regex explained:
+		//   * ^datadog-agent\\/ == must start with "datadog-agent/"
+		//   * (unknown|\\d+\\.\\d+\\.\\d+) == either "unknown" or a semver string
+		//   * \\(go\\d+\\.\\d+\\.\\d+\\)$ == ends in " (go1.2.3)" where 1.2.3 is a semver string
+		assert.Regexp("^datadog-agent\\/(unknown|\\d+\\.\\d+\\.\\d+) \\(go\\d+\\.\\d+\\.\\d+\\)$", ua)
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout waiting for user agent string")
+	}
+}
