@@ -37,7 +37,7 @@ if windows_target?
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
-  INSTALL_DIR = 'C:/opt/datadog-agent/'
+  INSTALL_DIR = 'C:/opt/datadog-agent'
 else
   INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
 end
