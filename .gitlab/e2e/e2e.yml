@@ -103,6 +103,7 @@
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 .needs_new_e2e_template:
   - go_e2e_deps
