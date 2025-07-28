@@ -167,7 +167,7 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 func enableOtelCollectorConfig() error {
 	// Read existing config
 	var existingConfig map[string]interface{}
-        data, err := os.ReadFile(datadogYamlPath)
+	data, err := os.ReadFile(datadogYamlPath)
 	if err != nil {
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
 	}
