@@ -223,6 +223,8 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		// Set configuration in global Datadog config
 		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
 		pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", "test-cluster")
+		// Set cluster ID environment variable to avoid cluster agent calls
+		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 	}
 
 	t.Run("successful configuration with default settings", func(t *testing.T) {
@@ -291,6 +293,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		env.SetFeatures(t, env.Kubernetes)
 		clustername.ResetClusterName()
 		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", false)
+		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
@@ -306,6 +309,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		clustername.ResetClusterName()
 		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
 		pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", "")
+		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
