@@ -10,11 +10,6 @@ include:
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
-    - changes:
-        paths:
-          - .gitlab/common/macos.yml
-        compare_to: $COMPARE_TO_BRANCH
-      when: on_success
   needs: ["go_deps", "go_tools_deps"]
   variables:
     TEST_OUTPUT_FILE: test_output.json
