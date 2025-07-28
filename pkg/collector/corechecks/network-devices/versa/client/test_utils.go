@@ -96,8 +96,11 @@ func setupCommonServerMux() *http.ServeMux {
 // 	return mux, handler
 // }
 
-// AnalyticsMetricsURL holds the API endpoint for Versa Analytics SLA metrics
-var AnalyticsMetricsURL = "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
+// AnalyticsSDWANMetricsURL holds the API endpoint for Versa Analytics SDWAN metrics
+var AnalyticsSDWANMetricsURL = "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
+
+// AnalyticsSystemMetricsURL holds the API endpoint for Versa Analytics System metrics
+var AnalyticsSystemMetricsURL = "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SYSTEM"
 
 // SetupMockAPIServer starts a mock API server
 func SetupMockAPIServer() *httptest.Server {
@@ -106,8 +109,8 @@ func SetupMockAPIServer() *httptest.Server {
 	mux.HandleFunc("/vnms/organization/orgs", fixtureHandler(fixtures.GetOrganizations))
 	//mux.HandleFunc("/vnms/dashboard/childAppliancesDetail/", fixtureHandler(fixtures.GetChildAppliancesDetail))
 	mux.HandleFunc("/vnms/dashboard/vdStatus", fixtureHandler(fixtures.GetDirectorStatus))
-	mux.HandleFunc(AnalyticsMetricsURL, func(w http.ResponseWriter, r *http.Request) {
-		// Check if this a valid analytics request
+	mux.HandleFunc(AnalyticsSDWANMetricsURL, func(w http.ResponseWriter, r *http.Request) {
+		// Check if this is a SLA metrics request or Link Extended metrics request
 		queryParams := r.URL.Query()
 		query := queryParams.Get("q")
 		if strings.Contains(query, "slam(") {
@@ -120,6 +123,17 @@ func SetupMockAPIServer() *httptest.Server {
 			fixtureHandler(fixtures.GetApplicationsByApplianceMetrics)(w, r)
 		} else if strings.Contains(query, "appUser(") {
 			fixtureHandler(fixtures.GetTopUsers)(w, r)
+		} else {
+			http.Error(w, "Unknown query type", http.StatusBadRequest)
+		}
+	})
+
+	// Handle tunnel metrics from SYSTEM feature
+	mux.HandleFunc(AnalyticsSystemMetricsURL, func(w http.ResponseWriter, r *http.Request) {
+		queryParams := r.URL.Query()
+		query := queryParams.Get("q")
+		if strings.Contains(query, "tunnelstats(") {
+			fixtureHandler(fixtures.GetTunnelMetrics)(w, r)
 		} else {
 			http.Error(w, "Unknown query type", http.StatusBadRequest)
 		}

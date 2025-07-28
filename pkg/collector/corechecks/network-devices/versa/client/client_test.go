@@ -527,7 +527,6 @@ func TestParseLinkStatusMetrics(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, result)
 }
-
 func TestGetApplicationsByAppliance(t *testing.T) {
 	expectedApplicationsByApplianceMetrics := []ApplicationsByApplianceMetrics{
 		{
@@ -556,6 +555,76 @@ func TestGetApplicationsByAppliance(t *testing.T) {
 
 	require.Equal(t, len(appsByApplianceMetrics), 1)
 	require.Equal(t, expectedApplicationsByApplianceMetrics, appsByApplianceMetrics)
+}
+
+func TestGetTunnelMetrics(t *testing.T) {
+	expectedTunnelMetrics := []TunnelMetrics{
+		{
+			DrillKey:    "test-branch-2B,10.1.1.1",
+			Appliance:   "test-branch-2B",
+			LocalIP:     "10.1.1.1",
+			RemoteIP:    "10.2.2.2",
+			VpnProfName: "vpn-profile-1",
+			VolumeRx:    67890.0,
+			VolumeTx:    12345.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	tunnelMetrics, err := client.GetTunnelMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(tunnelMetrics), 1)
+	require.Equal(t, expectedTunnelMetrics, tunnelMetrics)
+}
+
+func TestParseTunnelMetrics(t *testing.T) {
+	testData := [][]interface{}{
+		{
+			"test-branch-2B,10.1.1.1",
+			"test-branch-2B",
+			"10.1.1.1",
+			"10.2.2.2",
+			"vpn-profile-1",
+			67890.0,
+			12345.0,
+		},
+	}
+
+	expected := []TunnelMetrics{
+		{
+			DrillKey:    "test-branch-2B,10.1.1.1",
+			Appliance:   "test-branch-2B",
+			LocalIP:     "10.1.1.1",
+			RemoteIP:    "10.2.2.2",
+			VpnProfName: "vpn-profile-1",
+			VolumeRx:    67890.0,
+			VolumeTx:    12345.0,
+		},
+	}
+
+	result, err := parseTunnelMetrics(testData)
+	require.NoError(t, err)
+	require.Equal(t, expected, result)
+}
+
+func TestGetTunnelMetricsEmptyTenant(t *testing.T) {
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	_, err = client.GetTunnelMetrics("")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "tenant cannot be empty")
 }
 
 func TestGetTopUsers(t *testing.T) {

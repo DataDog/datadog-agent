@@ -474,8 +474,9 @@ func (r *testReporter) ReportIRGenFailed(
 	err error,
 	probes []ir.ProbeDefinition,
 ) {
+	defer close(r.attached)
 	r.t.Fatalf(
-		"IR generation failed for process %v: %v (with probes: %v)",
+		"IR generation failed for process %v: %#+v (with probes: %v)",
 		processID, err, probes,
 	)
 }
