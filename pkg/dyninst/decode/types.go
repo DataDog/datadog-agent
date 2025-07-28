@@ -502,14 +502,17 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 				notCapturedReasonDepth,
 			)
 		}
-		err := s.encodeSwissMapGroup(d, enc, groupDataItem.Data())
+		totalElementsEncoded, err := s.encodeSwissMapGroup(d, enc, groupDataItem.Data())
 		if err != nil {
-			log.Tracef("error encoding swiss map group: %v", err)
-			return writeTokens(enc,
-				jsontext.EndArray,
+			return err
+		}
+		if used > int64(totalElementsEncoded) {
+			if err := writeTokens(enc,
 				notCapturedReason,
-				notCapturedReasonDepth,
-			)
+				notCapturedReasonPruned,
+			); err != nil {
+				return err
+			}
 		}
 	} else {
 		// This is a 'large' swiss map where there are multiple groups of data/control words
@@ -536,14 +539,17 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 				notCapturedReasonDepth,
 			)
 		}
-		err := s.encodeSwissMapTables(d, enc, tablePtrSliceDataItem)
+		totalElementsEncoded, err := s.encodeSwissMapTables(d, enc, tablePtrSliceDataItem)
 		if err != nil {
-			log.Tracef("error encoding swiss map tables: %v", err)
-			return writeTokens(enc,
-				jsontext.EndArray,
+			return err
+		}
+		if used > int64(totalElementsEncoded) {
+			if err := writeTokens(enc,
 				notCapturedReason,
-				notCapturedReasonDepth,
-			)
+				notCapturedReasonPruned,
+			); err != nil {
+				return err
+			}
 		}
 	}
 	return writeTokens(enc, jsontext.EndArray)

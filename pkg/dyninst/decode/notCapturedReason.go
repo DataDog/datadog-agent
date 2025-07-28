@@ -16,6 +16,7 @@ var (
 	notCapturedReasonDepth          jsontext.Token = jsontext.String("depth")
 	notCapturedReasonCollectionSize jsontext.Token = jsontext.String("collectionSize")
 	notCapturedReasonPruned         jsontext.Token = jsontext.String("pruned")
+	notCapturedReasonUnavailable    jsontext.Token = jsontext.String("unavailable")
 	notCapturedReasonUnimplemented  jsontext.Token = jsontext.String("unimplemented")
 	// notCapturedReasonFieldCount     jsontext.Token = jsontext.String("fieldCount")
 )

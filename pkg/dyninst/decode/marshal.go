@@ -278,12 +278,10 @@ func (s *goSwissMapHeaderType) encodeSwissMapGroup(
 		offset := entrySize * uint32(i)
 		entryEnd := offset + entrySize
 		if entryEnd > uint32(len(slotsData)) {
-			return valuesEncoded, fmt.Errorf("entry %d extends beyond slots data bounds: need %d bytes, have %d", i, entryEnd, len(slotsData))
+			// Not all of the slot entries are present in data.
+			return valuesEncoded, nil
 		}
 		entryData := slotsData[offset:entryEnd]
-		if uint32(len(entryData)) < s.keyTypeSize+s.valueTypeSize {
-			return valuesEncoded, fmt.Errorf("entry %d data insufficient for key+value: need %d bytes, have %d", i, s.keyTypeSize+s.valueTypeSize, len(entryData))
-		}
 		keyData := entryData[0:s.keyTypeSize]
 		valueData := entryData[s.keyTypeSize : s.keyTypeSize+s.valueTypeSize]
 		if err := writeTokens(enc, jsontext.BeginArray); err != nil {
