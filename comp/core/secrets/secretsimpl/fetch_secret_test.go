@@ -55,25 +55,15 @@ func TestLimitBuffer(t *testing.T) {
 	assert.Equal(t, []byte("012ab"), lb.buf.Bytes())
 }
 
-// getBackendCommandBinary either selects a prebuilt binary, or compiles one from
-// source, then sets the proper permissions on it
+// getBackendCommandBinary compiles a binary from source, then sets the proper
+// permissions on it
 func getBackendCommandBinary(t *testing.T) (string, func()) {
 	platform := fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH)
-	targetBin := fmt.Sprintf("test/prebuilt/%s/test_command", platform)
-	if runtime.GOOS == "windows" {
-		targetBin = targetBin + ".exe"
-	}
-	if _, err := os.Stat(targetBin); err == nil {
-		t.Logf("using prebuilt secret backend binary '%s'", targetBin)
-		setCorrectRight(targetBin)
-		return targetBin, func() {}
-	}
-
 	outFile, err := os.CreateTemp("", "test_command_"+platform)
 	if err != nil {
 		t.Fatal(err)
 	}
-	targetBin = outFile.Name()
+	targetBin := outFile.Name()
 	if runtime.GOOS == "windows" {
 		targetBin = targetBin + ".exe"
 	}
