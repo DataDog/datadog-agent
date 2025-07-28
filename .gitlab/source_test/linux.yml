@@ -44,6 +44,7 @@
       junit: "**/junit-out-*.xml"
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 .linux_x64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64

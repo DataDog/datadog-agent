@@ -103,6 +103,7 @@
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 .needs_new_e2e_template:
   - go_e2e_deps
@@ -610,6 +611,7 @@ new-e2e-installer:
     - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
     - deploy_agent_oci
+    - installer-install-scripts
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
