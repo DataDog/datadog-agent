@@ -874,6 +874,16 @@ func TestMultipleProtocols(t *testing.T) {
 					t.Errorf("TCP: failed to get stdout pipe: %v", err)
 					return
 				}
+				stderr, err := cmd.StderrPipe()
+				errscanner := bufio.NewScanner(stderr)
+				go func() {
+					for errscanner.Scan() {
+						fmt.Printf("[TCP STDERR] %s\n", errscanner.Text())
+						if err := errscanner.Err(); err != nil {
+							t.Errorf("TCP: error reading stderr: %v", err)
+						}
+					}
+				}()
 
 				if err := cmd.Start(); err != nil {
 					t.Errorf("TCP: failed to start syscall_tester: %v", err)
@@ -881,6 +891,10 @@ func TestMultipleProtocols(t *testing.T) {
 				}
 
 				scanner := bufio.NewScanner(stdout)
+				if err := scanner.Err(); err != nil {
+					t.Errorf("TCP: failed to read stdout: %v", err)
+					return
+				}
 				for scanner.Scan() {
 					line := scanner.Text()
 					if strings.HasPrefix(line, "PID: ") {
@@ -916,6 +930,16 @@ func TestMultipleProtocols(t *testing.T) {
 					t.Errorf("UDP: failed to get stdout pipe: %v", err)
 					return
 				}
+				stderr, err := cmd.StderrPipe()
+				errscanner := bufio.NewScanner(stderr)
+				go func() {
+					for errscanner.Scan() {
+						fmt.Printf("[UDP STDERR] %s\n", errscanner.Text())
+						if err := errscanner.Err(); err != nil {
+							t.Errorf("UDP: error reading stderr: %v", err)
+						}
+					}
+				}()
 
 				if err := cmd.Start(); err != nil {
 					t.Errorf("UDP: failed to start syscall_tester: %v", err)
@@ -923,6 +947,10 @@ func TestMultipleProtocols(t *testing.T) {
 				}
 
 				scanner := bufio.NewScanner(stdout)
+				if err := scanner.Err(); err != nil {
+					t.Errorf("UDP: failed to read stdout: %v", err)
+					return
+				}
 				for scanner.Scan() {
 					line := scanner.Text()
 					if strings.HasPrefix(line, "PID: ") {
