@@ -628,7 +628,11 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 func (p *Profile) Reset() {
 	p.LoadedInKernel.Store(false)
 	p.LoadedNano.Store(0)
+
+	p.InstancesLock.Lock()
 	p.Instances = nil
+	p.InstancesLock.Unlock()
+
 	// keep the profileCookie in case we end up reloading the profile from the cache
 }
 
@@ -642,6 +646,9 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
+	p.InstancesLock.Lock()
+	defer p.InstancesLock.Unlock()
+
 	for _, workload := range p.Instances {
 		if entry.ContainerID == workload.ContainerID {
 			return true
@@ -717,9 +724,11 @@ func (p *Profile) ListAllVersionStates() {
 			}
 		}
 		fmt.Printf("Instances:\n")
+		p.InstancesLock.Lock()
 		for _, instance := range p.Instances {
 			fmt.Printf("  - %+v\n", instance.ContainerID)
 		}
+		p.InstancesLock.Unlock()
 
 	}
 }

@@ -467,7 +467,11 @@ func (m *Manager) SendStats() error {
 		profileVersions := make(map[string]int)
 		for selector, profile := range m.profiles {
 			if profile.LoadedInKernel.Load() { // make sure the profile is loaded
-				profileVersions[selector.Image] = len(profile.Instances)
+				profile.InstancesLock.Lock()
+				instanceCount := len(profile.Instances)
+				profile.InstancesLock.Unlock()
+
+				profileVersions[selector.Image] = instanceCount
 				if err := profile.SendStats(m.statsdClient); err != nil {
 					return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.GetSelectorStr(), err)
 				}
