@@ -35,8 +35,14 @@ const topologyLinkSourceTypeLLDP = "lldp"
 const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
+
 const inetAddressUnknown = "0"
 const inetAddressIPv4 = "1"
+
+var ciscoIPsecStatusByValue = map[string]string{
+	"1": "active",
+	"2": "destroy",
+}
 
 var supportedDeviceTypes = map[string]bool{
 	"access_point":  true,
@@ -609,10 +615,15 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 	}
 
 	vpnTunnelIndexes := store.GetColumnIndexes("cisco_ipsec_tunnel.local_outside_ip")
-	if len(vpnTunnelIndexes) == 0 {
-		log.Debugf("Unable to build VPN tunnels metadata: no cisco_ipsec_tunnel.local_outside_ip found")
-		return nil
+	if len(vpnTunnelIndexes) > 0 {
+		return buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes, deviceID, store)
 	}
+
+	log.Debugf("Unable to build VPN tunnels metadata: no indexes found")
+	return nil
+}
+
+func buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes []string, deviceID string, store *metadata.Store) []devicemetadata.VPNTunnelMetadata {
 	sort.Strings(vpnTunnelIndexes)
 
 	vpnTunnelStore := NewVPNTunnelStore()
@@ -628,11 +639,34 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 		localOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.local_outside_ip", strIndex)).String()
 		remoteOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.remote_outside_ip", strIndex)).String()
 
+		statusValue := store.GetColumnAsString("cisco_ipsec_tunnel.status", strIndex)
+		status, exists := ciscoIPsecStatusByValue[statusValue]
+		if !exists {
+			status = "unknown"
+		}
+
+		lifeSize, err := strconv.ParseInt(store.GetColumnAsString("cisco_ipsec_tunnel.life_size", strIndex), 10, 32)
+		if err != nil {
+			lifeSize = 0
+		}
+		lifeTime, err := strconv.ParseInt(store.GetColumnAsString("cisco_ipsec_tunnel.life_time", strIndex), 10, 32)
+		if err != nil {
+			lifeTime = 0
+		}
+
 		vpnTunnelStore.AddTunnel(devicemetadata.VPNTunnelMetadata{
 			DeviceID:        deviceID,
 			LocalOutsideIP:  localOutsideIP,
 			RemoteOutsideIP: remoteOutsideIP,
-			Protocol:        "ipsec",
+			Status:          status,
+			Protocol:        devicemetadata.IPsec,
+			RouteAddresses:  []string{},
+			Options: devicemetadata.VPNTunnelOptions{
+				IPsecOptions: devicemetadata.IPsecOptions{
+					LifeSize: int32(lifeSize),
+					LifeTime: int32(lifeTime),
+				},
+			},
 		})
 	}
 

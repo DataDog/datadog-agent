@@ -15,20 +15,29 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
 )
 
 var (
-	pprofPort  = flag.Int("pprof-port", 8081, "Port for pprof server.")
-	binaryPath = flag.String("binary-path", "", "Path to the binary to analyze.")
+	pprofPort      = flag.Int("pprof-port", 8081, "Port for pprof server.")
+	binaryPath     = flag.String("binary-path", "", "Path to the binary to analyze.")
+	silent         = flag.Bool("silent", false, "If set, the collected symbols are not printed.")
+	onlyFirstParty = flag.Bool("only-1stparty", false,
+		"Only output symbols for \"1st party\" code (i.e. code from modules belonging "+
+			"to the same GitHub org as the main one).")
 )
 
 func main() {
 	flag.Parse()
 	if *binaryPath == "" {
-		fmt.Println("Usage: symdbcli --binary-path <path-to-binary> [--pprof-port <port>]")
+		fmt.Print(`Usage: symdbcli --binary-path <path-to-binary> [--only-1stparty] [--silent]
+
+The symbols from the specified binary will be extracted and printed to stdout
+(unless --silent is specified).
+`)
 		os.Exit(1)
 	}
 
@@ -44,21 +53,24 @@ func main() {
 
 func run(binaryPath string) error {
 	log.Printf("Analyzing binary: %s", binaryPath)
-
-	file, err := object.OpenElfFile(binaryPath)
+	start := time.Now()
+	symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
 	if err != nil {
 		return err
 	}
-	symBuilder, err := symdb.NewSymDBBuilder(file)
+	opt := symdb.ExtractScopeAllSymbols
+	if *onlyFirstParty {
+		log.Println("Extracting only 1st party symbols")
+		opt = symdb.ExtractScopeModulesFromSameOrg
+	}
+	symbols, err := symBuilder.ExtractSymbols(opt)
 	if err != nil {
 		return err
 	}
-	symbols, err := symBuilder.ExtractSymbols()
-	if err != nil {
-		return err
-	}
+	log.Printf("Symbol extraction completed in %s.", time.Since(start))
 	stats := statsFromSymbols(symbols)
 	log.Printf("Symbol statistics for %s: %+v", binaryPath, stats)
+
 	return nil
 }
 
@@ -88,5 +100,16 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 			}
 		}
 	}
+
+	if !*silent {
+		s.Serialize(symdbutil.MakePanickingWriter(os.Stdout), symdb.SerializationOptions{
+			PackageSerializationOptions: symdb.PackageSerializationOptions{
+				StripLocalFilePrefix: false,
+			},
+		})
+	} else {
+		log.Println("--silent specified; symbols not serialized.")
+	}
+
 	return stats
 }

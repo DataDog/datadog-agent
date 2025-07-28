@@ -8,6 +8,7 @@
 package symdb
 
 import (
+	"debug/buildinfo"
 	"debug/dwarf"
 	"errors"
 	"fmt"
@@ -28,7 +29,9 @@ import (
 
 // Symbols models the symbols from a binary that get exported to SymDB.
 type Symbols struct {
-	Packages []Package
+	// MainModule is the path of the module containing the "main" function.
+	MainModule string
+	Packages   []Package
 }
 
 // Package describes a Go package for SymDB.
@@ -71,7 +74,9 @@ type Function struct {
 	// SymDB, the qualified name is how the function is identified to the
 	// prober.
 	QualifiedName string
-	File          string
+	// The source file containing the function. This is an absolute path local
+	// to the build machine, as recorded in DWARF.
+	File string
 	// The function itself represents a lexical block, with variables and
 	// sub-scopes.
 	Scope
@@ -79,6 +84,154 @@ type Function struct {
 
 func (f Function) empty() bool {
 	return f.Name == ""
+}
+
+// SerializationOptions defines options for serializing symbols.
+type SerializationOptions struct {
+	PackageSerializationOptions
+}
+
+// PackageSerializationOptions defines options for serializing package data.
+type PackageSerializationOptions struct {
+	// /home/andrei/go/src/github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go
+	// becomes
+	// github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go
+	StripLocalFilePrefix bool
+}
+
+// Serialize serializes the symbols as a human-readable string.
+//
+// If packageFilter is non-empty, only packages that start with this prefix are
+// included in the output. The "main" package is always present, and is placed
+// first in the output.
+func (s Symbols) Serialize(w StringWriter, opt SerializationOptions) {
+	w.WriteString("Main module: ")
+	w.WriteString(s.MainModule)
+	w.WriteString("\n")
+	// Serialize the "main" package before all the others.
+	mainPkgIdx := 0
+	for i, pkg := range s.Packages {
+		if pkg.Name == mainPackageName {
+			mainPkgIdx = i
+			pkg.Serialize(w, opt.PackageSerializationOptions)
+		}
+	}
+	for i, pkg := range s.Packages {
+		if i == mainPkgIdx {
+			continue
+		}
+		pkg.Serialize(w, opt.PackageSerializationOptions)
+	}
+}
+
+// Serialize serializes the symbols in the package as a human-readable string.
+func (p Package) Serialize(w StringWriter, opt PackageSerializationOptions) {
+	w.WriteString("Package: ")
+	w.WriteString(p.Name)
+	w.WriteString("\n")
+	for _, fn := range p.Functions {
+		fn.Serialize(w, "\t", opt)
+	}
+	for _, t := range p.Types {
+		t.Serialize(w, "\t", opt)
+	}
+}
+
+// Serialize serializes the function as a human-readable string.
+func (f Function) Serialize(w StringWriter, indent string, opt PackageSerializationOptions) {
+	w.WriteString(indent)
+	w.WriteString("Function: ")
+	w.WriteString(f.Name)
+	w.WriteString(" (")
+	w.WriteString(f.QualifiedName)
+	w.WriteString(")")
+	w.WriteString(" in ")
+	file := f.File
+	if opt.StripLocalFilePrefix {
+		// Strip everything that comes before github.com.
+		if idx := strings.Index(file, "github.com/"); idx != -1 {
+			file = file[idx:]
+		}
+	}
+	w.WriteString(file)
+	w.WriteString(fmt.Sprintf(" [%d:%d]", f.StartLine, f.EndLine))
+	w.WriteString("\n")
+
+	childIndent := indent + "\t"
+	for _, v := range f.Variables {
+		v.Serialize(w, childIndent)
+	}
+	for _, s := range f.Scopes {
+		s.Serialize(w, childIndent)
+	}
+}
+
+// Serialize serializes the scope as a human-readable string. It looks like:
+// Scope: <startLine>-<endLine>
+func (s Scope) Serialize(w StringWriter, indent string) {
+	w.WriteString(indent)
+	w.WriteString("Scope: ")
+	w.WriteString(fmt.Sprintf("%d-%d", s.StartLine, s.EndLine))
+	w.WriteString("\n")
+	childIndent := indent + "\t"
+	for _, v := range s.Variables {
+		v.Serialize(w, childIndent)
+	}
+}
+
+// Serialize serializes the type as a human-readable string. It looks like:
+//
+//	Type: <name>
+//		Field: <fieldName>: <fieldType>
+//		Field: <fieldName>: <fieldType>
+//	 	Method: <methodName> ...
+func (t Type) Serialize(w StringWriter, indent string, opt PackageSerializationOptions) {
+	w.WriteString(indent)
+	w.WriteString("Type: ")
+	w.WriteString(t.Name)
+	w.WriteString("\n")
+	childIndent := indent + "\t"
+	for _, f := range t.Fields {
+		w.WriteString(childIndent)
+		w.WriteString("Field: ")
+		w.WriteString(f.Name)
+		w.WriteString(": ")
+		w.WriteString(f.Type)
+		w.WriteString("\n")
+	}
+	for _, m := range t.Methods {
+		m.Serialize(w, childIndent, opt)
+	}
+}
+
+// Serialize serializes the variable as a human-readable string. It looks like:
+// Var: <name>: <type> (declared at line <declLine>, available: [<startLine>-<endLine>], [<startLine>-<endLine>], ...)
+func (v Variable) Serialize(w StringWriter, indent string) {
+	w.WriteString(indent)
+	if v.FunctionArgument {
+		w.WriteString("Arg: ")
+	} else {
+		w.WriteString("Var: ")
+	}
+	w.WriteString(v.Name)
+	w.WriteString(": ")
+	w.WriteString(v.TypeName)
+	w.WriteString(" (declared at line ")
+	w.WriteString(fmt.Sprintf("%d", v.DeclLine))
+	w.WriteString(", available: ")
+	for i, r := range v.AvailableLineRanges {
+		if i > 0 {
+			w.WriteString(", ")
+		}
+		w.WriteString(fmt.Sprintf("[%d-%d]", r[0], r[1]))
+	}
+	w.WriteString(")\n")
+}
+
+// StringWriter is like io.StringWriter, but writes panic on errors instead of
+// returning errors. See symdbutil.PanickingWriter for an implementation.
+type StringWriter interface {
+	WriteString(s string)
 }
 
 // Scope represents a function or another lexical block.
@@ -108,6 +261,8 @@ type Variable struct {
 // LineRange represents a range of source lines, inclusive of both ends.
 type LineRange [2]int
 
+const mainPackageName = "main"
+
 // SymDBBuilder walks the DWARF data for a binary, extracting symbols in the
 // SymDB format.
 // nolint:revive  // ignore stutter rule
@@ -121,6 +276,12 @@ type SymDBBuilder struct {
 	loclistReader *loclist.Reader
 	// The size of pointers for the binary's architecture, in bytes.
 	pointerSize int
+	// The module path of the Go module containing the main function. Empty if
+	// unknown.
+	mainModule string
+	// Filter files starting with these path prefixes when exploring the DWARF.
+	// Used to skip 3rd party code in certain cases.
+	filesFilter []string
 
 	// The compile unit currently being processed by explore* functions.
 	currentCompileUnit        *dwarf.Entry
@@ -340,7 +501,19 @@ func (s subprogBlock) resolvePCRanges(*dwarf.Data) ([]dwarfutil.PCRange, error) 
 // NewSymDBBuilder creates a new SymDBBuilder for the given ELF file. The
 // SymDBBuilder takes ownership of the ELF file.
 // Close() needs to be called .
-func NewSymDBBuilder(obj *object.ElfFile) (*SymDBBuilder, error) {
+func NewSymDBBuilder(binaryPath string) (*SymDBBuilder, error) {
+	obj, err := object.OpenElfFile(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	// Parse the binary's build info to figure out the URL of the main module.
+	// Note that we'll get an empty URL for binaries built with Bazel.
+	binfo, err := buildinfo.ReadFile(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read build info: %w", err)
+	}
+	mainModule := binfo.Main.Path
+
 	moduledata, err := object.ParseModuleData(obj.Underlying)
 	if err != nil {
 		return nil, err
@@ -376,6 +549,7 @@ func NewSymDBBuilder(obj *object.ElfFile) (*SymDBBuilder, error) {
 		sym:           symTable,
 		loclistReader: obj.LoclistReader(),
 		pointerSize:   int(obj.PointerSize()),
+		mainModule:    mainModule,
 		cleanupFuncs:  []func(){func() { _ = goDebugSections.Close() }, func() { _ = obj.Close() }},
 	}
 	b.types.typesCache = dwarfutils.NewTypeFinder(obj.DwarfData())
@@ -391,11 +565,71 @@ func (b *SymDBBuilder) Close() {
 	}
 }
 
+// ExtractScope defines which symbols to extract from the binary.
+type ExtractScope int
+
+const (
+	// ExtractScopeAllSymbols extracts all symbols from the binary.
+	ExtractScopeAllSymbols ExtractScope = iota
+	// ExtractScopeMainModuleOnly extracts only symbols from the main module,
+	// i.e. the Go module containing the main() function.
+	ExtractScopeMainModuleOnly
+	// ExtractScopeModulesFromSameOrg extracts symbols from the main module and
+	// other modules from the same GitHub organization or GitLab namespace. For
+	// example, if the main module is "github.com/DataDog/datadog-agent", this
+	// will extract symbols from all "github.com/DataDog/*" modules.
+	ExtractScopeModulesFromSameOrg
+)
+
 // ExtractSymbols walks the DWARF data and accumulates the symbols to send to
 // SymDB.
-func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
-	var res Symbols
+func (b *SymDBBuilder) ExtractSymbols(opt ExtractScope) (Symbols, error) {
+	res := Symbols{
+		MainModule: b.mainModule,
+		Packages:   nil,
+	}
 	entryReader := b.dwarfData.Reader()
+	// Figure out the package path prefix that corresponds to "1st party code"
+	// (as opposed to 3rd party dependencies), in case we're asked to filter for
+	// 1st party modules. We are only able to make this distinction if the
+	// binary was built with Go modules, recent versions of the compiler, and
+	// not with Bazel. We recognize modules hosted on GitHub and GitLab and
+	// consider anything in their organization as 1st party code.
+	//
+	// Binaries built by Bazel don't have module information, which means they
+	// don't have information on the main module. In that case, we can still
+	// identify most of the 3rd party code by the decl_file attribute of the
+	// subprograms -- third party functions are tagged as coming from
+	// "external/..." files and standard library functions as coming from "GOROOT/...".
+	var firstPartyPkgPrefix string
+	if b.mainModule != "" {
+		parts := strings.Split(b.mainModule, "/")
+		if len(parts) >= 3 && (parts[0] == "github.com" || parts[0] == "gitlab.com") {
+			firstPartyPkgPrefix = parts[0] + "/" + parts[1] + "/"
+		}
+	} else if opt == ExtractScopeMainModuleOnly || opt == ExtractScopeModulesFromSameOrg {
+		b.filesFilter = []string{"external/", "GOROOT/"}
+	}
+
+	pkgPassesFilter := func(pkgPath string) bool {
+		// We don't know what the main module is, so we can't filter out
+		// anything.
+		if b.mainModule == "" {
+			return true
+		}
+		// The "main" package is always included.
+		if pkgPath == mainPackageName {
+			return true
+		}
+		switch opt {
+		case ExtractScopeMainModuleOnly:
+			return strings.HasPrefix(pkgPath, b.mainModule)
+		case ExtractScopeModulesFromSameOrg:
+			return strings.HasPrefix(pkgPath, firstPartyPkgPrefix)
+		default:
+			panic(fmt.Sprintf("unsupported extract scope: %d", opt))
+		}
+	}
 
 	// Recognize compile units, which are the top-level entries in the DWARF
 	// data corresponding to Go packages.
@@ -409,11 +643,25 @@ func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
 			continue
 		}
 
+		if opt != ExtractScopeAllSymbols {
+			pkgName, ok := entry.Val(dwarf.AttrName).(string)
+			if !ok {
+				return Symbols{}, errors.New("compile unit without name")
+			}
+			if !pkgPassesFilter(pkgName) {
+				entryReader.SkipChildren()
+				continue
+			}
+		}
+
 		pkg, err := b.exploreCompileUnit(entry, entryReader)
 		if err != nil {
 			return Symbols{}, err
 		}
-		if pkg.Name != "" {
+		// Skip zero-value packages, and also packages that have no symbols in
+		// them. The latter happens for 3rd party packages when we're asking for
+		// 1st party code only.
+		if pkg.Name != "" && (len(pkg.Types) > 0 || len(pkg.Functions) > 0) {
 			res.Packages = append(res.Packages, pkg)
 		}
 	}
@@ -507,7 +755,7 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 	}
 	b.filesInCurrentCompileUnit = files
 
-	// We recognize subprograms and types.
+	// Go through the children, looking for subprograms.
 	for child, err := reader.Next(); child != nil; child, err = reader.Next() {
 		if err != nil {
 			return Package{}, err
@@ -584,6 +832,25 @@ func (b *SymDBBuilder) exploreSubprogram(
 		return earlyExit()
 	}
 
+	fileIdx, ok := subprogEntry.Val(dwarf.AttrDeclFile).(int64)
+	if !ok || fileIdx == 0 { // fileIdx == 0 means unknown file, as per DWARF spec
+		// TODO: log if this ever happens. I haven't seen it.
+		return earlyExit()
+	}
+	if fileIdx < 0 || int(fileIdx) >= len(b.filesInCurrentCompileUnit) {
+		return Function{}, fmt.Errorf(
+			"subprogram at 0x%x has invalid file index %d, expected in range [0, %d)",
+			subprogEntry.Offset, fileIdx, len(b.filesInCurrentCompileUnit),
+		)
+	}
+	fileName := b.filesInCurrentCompileUnit[fileIdx]
+	// If configured with a filter, check if the file should be ignored.
+	for _, filter := range b.filesFilter {
+		if strings.HasPrefix(fileName, filter) {
+			return earlyExit()
+		}
+	}
+
 	inline, ok := subprogEntry.Val(dwarf.AttrInline).(int64)
 	if ok && inline == dwarf2.DW_INL_inlined {
 		// This function is inlined; its variables don't have location lists here;
@@ -599,19 +866,6 @@ func (b *SymDBBuilder) exploreSubprogram(
 	if !ok {
 		return Function{}, fmt.Errorf("subprogram without name at 0x%x (%s)", subprogEntry.Offset, subprogEntry.Tag)
 	}
-
-	fileIdx, ok := subprogEntry.Val(dwarf.AttrDeclFile).(int64)
-	if !ok || fileIdx == 0 { // fileIdx == 0 means unknown file, as per DWARF spec
-		// TODO: log if this ever happens. I haven't seen it.
-		return earlyExit()
-	}
-	if fileIdx < 0 || int(fileIdx) >= len(b.filesInCurrentCompileUnit) {
-		return Function{}, fmt.Errorf(
-			"subprogram %s has invalid file index %d, expected in range [0, %d)",
-			funcQualifiedName, fileIdx, len(b.filesInCurrentCompileUnit),
-		)
-	}
-	fileName := b.filesInCurrentCompileUnit[fileIdx]
 
 	// There are some funky auto-generated functions that we can't deal with
 	// because we can't parse their names (e.g.
