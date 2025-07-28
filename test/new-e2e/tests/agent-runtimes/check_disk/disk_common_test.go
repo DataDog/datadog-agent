@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -62,6 +63,7 @@ instances:
 	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
 		v.Run(testCase.name, func() {
+			flake.Mark(v.T())
 			v.T().Log("run the disk check using old version")
 			pythonMetrics := v.runDiskCheck(testCase.agentConfig, testCase.checkConfig, false)
 			v.T().Log("run the disk check using new version")
