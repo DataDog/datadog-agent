@@ -53,6 +53,8 @@ NTSTATUS retrieve_private_data(const void* key, void** result, size_t* result_si
 
     // Create LSA unicode string for the key
     lsa_key_name.Buffer = key_copy;
+    // Specifies the length, in bytes, of the string pointed to by the Buffer member, not including the terminating null character, if any
+    // https://learn.microsoft.com/en-us/windows/win32/api/lsalookup/ns-lsalookup-lsa_unicode_string
     lsa_key_name.Length = wcslen(key_copy) * sizeof(WCHAR);
     lsa_key_name.MaximumLength = lsa_key_name.Length + sizeof(WCHAR);
 
