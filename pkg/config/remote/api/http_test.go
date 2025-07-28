@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // Test WebSocket connectivity under varying transport configurations, and

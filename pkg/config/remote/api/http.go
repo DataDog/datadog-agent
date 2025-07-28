@@ -22,11 +22,12 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/gorilla/websocket"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gorilla/websocket"
 )
 
 const (
