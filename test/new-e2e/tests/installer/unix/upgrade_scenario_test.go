@@ -766,7 +766,7 @@ func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, configs []
 		for i := range len(configs) - 1 {
 			extraArgs += fmt.Sprintf("\"%s\",", configs[i].ID)
 		}
-		extraArgs = fmt.Sprintf("--config-order '[%s%s]'", extraArgs, configs[len(configs)-1].ID)
+		extraArgs = fmt.Sprintf("--config-order '[%s\"%s\"]'", extraArgs, configs[len(configs)-1].ID)
 	}
 
 	version := configs[0].ID
