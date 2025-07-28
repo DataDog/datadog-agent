@@ -480,7 +480,6 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
-        "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
         "pkg/gpu/compile.go": "gpu",
     }
 
@@ -600,7 +599,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
-            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/base_event.h"],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
             ],
