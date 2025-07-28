@@ -105,7 +105,7 @@ func httpsSupported() bool {
 	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		return false
 	}
-	return usmconfig.TLSSupported(tracertestutil.Config())
+	return usmconfig.UretprobeTLSSupported(tracertestutil.Config())
 }
 
 func classificationSupported(config *config.Config) bool {
