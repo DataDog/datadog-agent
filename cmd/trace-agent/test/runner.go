@@ -130,17 +130,25 @@ func (s *Runner) BinDir() string {
 //
 // Example: r.PostMsgpack("/v0.5/stats", pb.ClientStatsPayload{})
 func (s *Runner) PostMsgpack(path string, data msgp.Marshaler) (err error) {
+	var b []byte
+	if b, err = data.MarshalMsg(nil); err != nil {
+		return err
+	}
+	return s.PostBinary(path, b)
+}
+
+// PostBinary takes messagepack encoded data and posts it to the given path. The agent
+// must be started using RunAgent.
+//
+// Example: r.PostBinary("/v0.5/traces", []byte])
+func (s *Runner) PostBinary(path string, data []byte) (err error) {
 	if s.agent == nil {
 		return ErrNotStarted
 	}
 	if s.agent.PID() == 0 {
 		return errors.New("post: trace-agent not running")
 	}
-	var b []byte
-	if b, err = data.MarshalMsg(nil); err != nil {
-		return err
-	}
-	buf := bytes.NewBuffer(b)
+	buf := bytes.NewBuffer(data)
 	addr := fmt.Sprintf("http://%s%s", s.agent.Addr(), path)
 	req, err := http.NewRequest("POST", addr, buf)
 	if err != nil {

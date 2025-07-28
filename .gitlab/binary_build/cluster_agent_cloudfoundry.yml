@@ -4,7 +4,7 @@ cluster_agent_cloudfoundry-build_amd64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: binary_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   artifacts:
@@ -17,9 +17,10 @@ cluster_agent_cloudfoundry-build_amd64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - inv check-go-version
-    - inv -e cluster-agent-cloudfoundry.build
+    - dda inv -- check-go-version
+    - dda inv -- -e cluster-agent-cloudfoundry.build
     - cd $CI_PROJECT_DIR/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
+    - strip datadog-cluster-agent-cloudfoundry
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - PACKAGE_VERSION=$(inv agent.version --url-safe) || exit $?
+    - PACKAGE_VERSION=$(dda inv agent.version --url-safe) || exit $?
     - tar cf $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent-cloudfoundry-$PACKAGE_VERSION-$ARCH.tar.xz datadog-cluster-agent-cloudfoundry

@@ -27,36 +27,125 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update
 
 FROM baseimage AS nosys-seccomp
+RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
-RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
 
-############################################
-#  Preparation stage: extract and cleanup  #
-############################################
+FROM baseimage AS extract-base
+RUN apt install --no-install-recommends -y curl ca-certificates maven xz-utils
 
-FROM baseimage AS extract
-ARG TARGETARCH
-ARG WITH_JMX
+############################################################
+#  Preparation stage: retrieval of 3rd party dependencies  #
+############################################################
+
+FROM extract-base AS external-deps
 ARG WITH_JMX_FIPS
-ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
+ARG TARGETARCH
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
-# copy everything - globbing with args wont work
-COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Get s6-overlay
 ENV S6_VERSION="v2.2.0.3"
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
-RUN apt install --no-install-recommends -y curl ca-certificates maven xz-utils
 RUN S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") && curl -L ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-${S6ARCH}.tar.gz -o /output/s6.tgz
 COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
 # To calculate S6_SHA256SUM for a specific version, run:
 # curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-<arch>.tar.gz | sha256sum
 RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - && rm -f /output/s6.$TARGETARCH.sha256
+
+# Download BouncyCastle FIPS provider jar files.
+COPY bouncycastle-fips/pom.xml /opt/bouncycastle-fips/
+RUN if [ -n "$WITH_JMX_FIPS" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy-dependencies; else mkdir -p /opt/bouncycastle-fips/target/dependency; fi
+
+########################################################################
+#  Construct the base image for the release, everything but the Agent  #
+########################################################################
+
+FROM baseimage AS release-base
+
+ENV DOCKER_DD_AGENT=true \
+    PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
+    CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem \
+    # Pass envvar variables to agents
+    S6_KEEP_ENV=1 \
+    # Direct all agent logs to stdout
+    S6_LOGGING=0 \
+    # Exit container if entrypoint fails
+    S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
+    # Allow readonlyrootfs
+    S6_READ_ONLY_ROOT=1
+
+# make sure we have recent dependencies -- CVE-fixing time!
+RUN apt full-upgrade -y \
+  # Install iproute2 package for the ss utility that is used by the network check.
+  # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
+  # this can be removed
+  # Install libseccomp2 as required by `nosys-seccomp` wrapper
+  && apt install -y iproute2 libseccomp2 tzdata adduser
+
+ARG WITH_JMX
+ARG WITH_JMX_FIPS
+
+# Install openjdk-11-jre-headless on jmx flavor
+RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
+  && mkdir -p /usr/share/man/man1 \
+  && apt install --no-install-recommends -y openjdk-11-jre-headless \
+  && apt clean; fi
+
+# Extract s6-overlay
+#
+# This step is dependant on the distribution's filesystem layout:
+# - When Buster moved to merged-usr (/bin/ as a symlink to /usr/bin),
+#   we had to change the extraction logic, see #1591
+# - The debian image is now built with merged-usr explicitly disabled,
+#   see https://github.com/debuerreotype/debuerreotype/pull/50
+# - Ubuntu 20.10 uses the symlink /bin -> /usr/bin
+COPY --from=external-deps /output/s6.tgz /
+RUN tar xzf s6.tgz -C / --exclude="./bin" \
+  && tar xzf s6.tgz -C /usr ./bin \
+  && rm s6.tgz
+
+# Override the exit script by ours to fix --pid=host operations
+RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
+COPY init-stage3          /etc/s6/init/init-stage3
+COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
+
+# Copy BouncyCastle Java FIPS provider binaries and configuration
+COPY --from=external-deps /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncycastle-fips/
+COPY --chmod=644 bouncycastle-fips/java.security /opt/bouncycastle-fips/
+COPY --chmod=644 bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
+RUN if [ -z "$WITH_JMX_FIPS" ]; then rm -rf /opt/bouncycastle-fips; fi
+# Configure Java to use BouncyCastle FIPS provider on JMX FIPS images.
+# Double equals sign for java.security.properties istructs java to replace system defaults with the contents of the new file.
+ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=/opt/bouncycastle-fips -Djava.security.properties==/opt/bouncycastle-fips/java.security -Dpolicy.url.2=file:/opt/bouncycastle-fips/bc-fips.policy}"
+
+# S6 entrypoint, service definitions, healthcheck probe
+COPY s6-services /etc/services.d/
+COPY cont-init.d /etc/cont-init.d/
+COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
+
+##########################################################
+#  Preparation stage: extract Agent package and cleanup  #
+##########################################################
+
+FROM extract-base AS extract
+ARG TARGETARCH
+ARG WITH_JMX
+
+ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
+# copy everything - globbing with args wont work
+COPY ${DD_AGENT_ARTIFACT} /
+WORKDIR /output
+
+# Configuration:
+#   - copy default config files
+COPY datadog*.yaml etc/datadog-agent/
+
+# Installation information
+COPY install_info etc/datadog-agent/
 
 # Extract and cleanup:
 #   - unused systemd unit
@@ -65,9 +154,9 @@ RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - 
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 
-RUN find / -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \;
-
-RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
+RUN --mount=from=artifacts,target=/artifacts \
+ find /artifacts -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
+ && find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && rm -rf usr etc/init lib \
     go/ \
     opt/datadog-agent/sources \
@@ -79,89 +168,30 @@ RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && mkdir conf.d checks.d
 
-# Configuration:
-#   - copy default config files
-COPY datadog*.yaml etc/datadog-agent/
+###########################################################
+#  Release docker image construction including the Agent  #
+###########################################################
 
-# Installation information
-COPY install_info etc/datadog-agent/
-
-# Download BouncyCastle FIPS provider jar files.
-COPY bouncycastle-fips/pom.xml /opt/bouncycastle-fips/
-RUN if [ -n "$WITH_JMX" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy-dependencies; else mkdir -p /opt/bouncycastle-fips/target/dependency; fi
-
-######################################
-#  Actual docker image construction  #
-######################################
-
-FROM baseimage AS release
+FROM release-base AS release
 LABEL maintainer="Datadog <package@datadoghq.com>"
-ARG WITH_JMX
-ARG WITH_JMX_FIPS
+
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA
-ENV DOCKER_DD_AGENT=true \
-    PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
-    CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem \
-    # Pass envvar variables to agents
-    S6_KEEP_ENV=1 \
-    # Direct all agent logs to stdout
-    S6_LOGGING=0 \
-    # Exit container if entrypoint fails
-    S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
-    # Allow readonlyrootfs
-    S6_READ_ONLY_ROOT=1 \
+ENV \
     # Allow User Group to exec the secret backend script.
     DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
     # Source code integration
     DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
     DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
-# make sure we have recent dependencies -- CVE-fixing time!
-RUN apt full-upgrade -y \
-  # Install iproute2 package for the ss utility that is used by the network check.
-  # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
-  # this can be removed
-  # Install libssl-dev as it's required by some Python checks and we rely on system version
-  # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
-
-# Install openjdk-11-jre-headless on jmx flavor
-RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
-  && mkdir -p /usr/share/man/man1 \
-  && apt install --no-install-recommends -y openjdk-11-jre-headless \
-  && apt clean; fi
-
-# cleaning up
-# We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
-# which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
-RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
-
 # Copy agent from extract stage
 COPY --from=extract /output/ /
 
-# S6 entrypoint, service definitions, healthcheck probe
-COPY s6-services /etc/services.d/
-COPY cont-init.d /etc/cont-init.d/
-COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
-
-# Extract s6-overlay
-#
-# This step is dependant on the distribution's filesystem layout:
-# - When Buster moved to merged-usr (/bin/ as a symlink to /usr/bin),
-#   we had to change the extraction logic, see #1591
-# - The debian image is now built with merged-usr explicitly disabled,
-#   see https://github.com/debuerreotype/debuerreotype/pull/50
-# - Ubuntu 20.10 uses the symlink /bin -> /usr/bin
-RUN tar xzf s6.tgz -C / --exclude="./bin" \
-  && tar xzf s6.tgz -C /usr ./bin \
-  && rm s6.tgz \
-  # Prepare for running without root
-  # - Create a dd-agent:root user and give it permissions on relevant folders
-  # - Remove the /var/run -> /run symlink and create a legit /var/run folder
-  # as some docker versions re-create /run from zero at container start
-  && adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+# Prepare for running without root
+# - Create a dd-agent:root user and give it permissions on relevant folders
+# - Remove the /var/run -> /run symlink and create a legit /var/run folder
+# as some docker versions re-create /run from zero at container start
+RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
   && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog \
@@ -182,24 +212,16 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
 # * https://datadoghq.atlassian.net/wiki/spaces/TS/pages/2615709591/Why+the+containerized+Agent+runs+as+root#Agent-user
 RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 
+# cleaning up
+# We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
+# which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
+RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
+
 # Enable FIPS if needed
 RUN if [ -x /opt/datadog-agent/embedded/bin/fipsinstall.sh ]; then \
   /opt/datadog-agent/embedded/bin/fipsinstall.sh; \
 fi
-
-# Override the exit script by ours to fix --pid=host operations
-RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
-COPY init-stage3          /etc/s6/init/init-stage3
-COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
-
-# Copy BouncyCastle Java FIPS provider binaries and configuration
-COPY --from=extract /opt/bouncycastle-fips/target/dependency/*.jar /opt/bouncycastle-fips/
-COPY --chmod=644 bouncycastle-fips/java.security /opt/bouncycastle-fips/
-COPY --chmod=644 bouncycastle-fips/bc-fips.policy /opt/bouncycastle-fips/
-RUN if [ -z "$WITH_JMX" ]; then rm -rf /opt/bouncycastle-fips; fi
-# Configure Java to use BouncyCastle FIPS provider on JMX FIPS images.
-# Double equals sign for java.security.properties istructs java to replace system defaults with the contents of the new file.
-ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=/opt/bouncycastle-fips -Djava.security.properties==/opt/bouncycastle-fips/java.security -Dpolicy.url.2=file:/opt/bouncycastle-fips/bc-fips.policy}"
 
 # Update if optional OTel Agent process should not run
 RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \

@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
@@ -60,10 +59,10 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 	})
-	configmock.New(t)
+	cfg := configmock.New(t)
 
 	if tc.configHostname {
-		pkgconfigsetup.Datadog().SetWithoutSource("hostname", "hostname-from-configuration")
+		cfg.SetWithoutSource("hostname", "hostname-from-configuration")
 	}
 	if tc.hostnameFile {
 		setupHostnameFile(t, "hostname-from-file")
@@ -89,7 +88,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 	if tc.FQDN || tc.FQDNEC2 {
 		// making isOSHostnameUsable return true
 		osHostnameUsable = func(context.Context) bool { return true }
-		pkgconfigsetup.Datadog().SetWithoutSource("hostname_fqdn", true)
+		cfg.SetWithoutSource("hostname_fqdn", true)
 		if !tc.FQDNEC2 {
 			fqdnHostname = func() (string, error) { return "hostname-from-fqdn", nil }
 		} else {
@@ -118,7 +117,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 	}
 
 	if tc.EC2Proritized {
-		pkgconfigsetup.Datadog().SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
+		cfg.SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
 	}
 }
 

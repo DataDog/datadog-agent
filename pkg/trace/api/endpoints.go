@@ -114,6 +114,10 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.pipelineStatsProxyHandler() },
 	},
 	{
+		Pattern: "/openlineage/api/v1/lineage",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.openLineageProxyHandler() },
+	},
+	{
 		Pattern:         "/evp_proxy/v1/",
 		Handler:         func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(1) },
 		TimeoutOverride: getConfiguredEVPRequestTimeoutDuration,

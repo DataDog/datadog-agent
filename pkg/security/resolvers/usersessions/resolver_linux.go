@@ -83,12 +83,12 @@ func (r *Resolver) Start(manager *manager.Manager) error {
 
 // ResolveUserSession returns the user session associated to the provided ID
 func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
-	r.Lock()
-	defer r.Unlock()
-
 	if id == 0 {
 		return nil
 	}
+
+	r.Lock()
+	defer r.Unlock()
 
 	// is this session already in cache ?
 	if session, ok := r.userSessions.Get(id); ok {

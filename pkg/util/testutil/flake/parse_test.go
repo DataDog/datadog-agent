@@ -51,6 +51,15 @@ pkg/toto:
   - test: TestGetPayload
   - on-log: "hello"`
 
+const flake6 = `pkg/gohai:
+  - test: TestGetPayload
+    on-log: "hello"
+pkg/toto:
+  - test: TestGetPayload
+    on-log: "hello"
+on-log: 
+  - "hello"`
+
 func TestFlakesParse(t *testing.T) {
 	t.Run("1", func(t *testing.T) {
 		kf, err := Parse(bytes.NewBuffer([]byte(flake1)))
@@ -95,5 +104,12 @@ func TestFlakesParse(t *testing.T) {
 	t.Run("5", func(t *testing.T) {
 		_, err := Parse(bytes.NewBuffer([]byte(flakeError)))
 		require.Error(t, err)
+	})
+
+	t.Run("6", func(t *testing.T) {
+		kf, err := Parse(bytes.NewBuffer([]byte(flake6)))
+		require.NoError(t, err)
+		assert.NotContains(t, kf.packageTestList, "pkg/gohai")
+		assert.NotContains(t, kf.packageTestList, "pkg/toto")
 	})
 }

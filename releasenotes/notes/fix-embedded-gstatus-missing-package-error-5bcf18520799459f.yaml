@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix the shebang of the `gstatus` binary to use the embedded Python environment.

@@ -7,11 +7,14 @@
 package probe
 
 import (
+	gopsutilProcess "github.com/shirou/gopsutil/v4/process"
+
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	gopsutilProcess "github.com/shirou/gopsutil/v4/process"
 )
 
 const (
@@ -22,7 +25,7 @@ const (
 )
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
+func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)
@@ -33,14 +36,14 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	if opts.EBPFLessEnabled {
-		pp, err := NewEBPFLessProbe(p, config, opts)
+		pp, err := NewEBPFLessProbe(p, config, ipc, opts)
 		if err != nil {
 			return nil, err
 		}
 		p.PlatformProbe = pp
 		p.agentContainerContext = acc
 	} else {
-		pp, err := NewEBPFProbe(p, config, opts)
+		pp, err := NewEBPFProbe(p, config, ipc, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +75,7 @@ func IsNetworkNotSupported(kv *kernel.Version) bool {
 
 // IsCgroupSysCtlNotSupported returns if the cgroup/sysctl program is supported
 func IsCgroupSysCtlNotSupported(kv *kernel.Version, cgroup2MountPath string) bool {
-	return len(cgroup2MountPath) > 0 && kv.HasCgroupSysctlSupportWithRingbuf()
+	return len(cgroup2MountPath) == 0 || !kv.HasCgroupSysctlSupportWithRingbuf()
 }
 
 // IsNetworkFlowMonitorNotSupported returns if the network flow monitor feature is supported
@@ -96,9 +99,11 @@ func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 		CreatedAt: uint64(createTime),
 	}
 
-	cid, err := utils.GetProcContainerID(uint32(pid), uint32(pid))
+	cfs := utils.DefaultCGroupFS()
+
+	cid, _, _, err := cfs.FindCGroupContext(uint32(pid), uint32(pid))
 	if err != nil {
-		return nil, err
+		seclog.Warnf("unable to find agent cgroup context: %v", err)
 	}
 	acc.ContainerID = cid
 	return acc, nil

@@ -6,6 +6,7 @@
 package sources
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,7 +75,7 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 	var sourceFound bool
 	for i, src := range s.sources {
 		if src == source {
-			s.sources = append(s.sources[:i], s.sources[i+1:]...)
+			s.sources = slices.Delete(s.sources, i, i+1)
 			sourceFound = true
 			break
 		}
@@ -108,7 +109,7 @@ func (s *LogSources) SubscribeAll() (added chan *LogSource, removed chan *LogSou
 	s.added = append(s.added, added)
 	s.removed = append(s.removed, removed)
 
-	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
+	existingSources := slices.Clone(s.sources) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
 			added <- source
@@ -140,7 +141,7 @@ func (s *LogSources) SubscribeForType(sourceType string) (added chan *LogSource,
 	}
 	s.removedByType[sourceType] = append(s.removedByType[sourceType], removed)
 
-	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
+	existingSources := slices.Clone(s.sources) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
 			if source.Config.Type == sourceType {
@@ -168,7 +169,7 @@ func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource {
 	stream := make(chan *LogSource)
 	s.addedByType[sourceType] = append(s.addedByType[sourceType], stream)
 
-	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
+	existingSources := slices.Clone(s.sources) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
 			if source.Config.Type == sourceType {
@@ -187,6 +188,6 @@ func (s *LogSources) GetSources() []*LogSource {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	clone := append([]*LogSource{}, s.sources...)
+	clone := slices.Clone(s.sources)
 	return clone
 }

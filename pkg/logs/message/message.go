@@ -19,11 +19,8 @@ import (
 // or/and at the end of every trucated lines.
 var TruncatedFlag = []byte("...TRUNCATED...")
 
-// TruncatedTag is added to truncated log messages (if enabled).
-const TruncatedTag = "truncated"
-
-// AutoMultiLineTag is added to multiline log messages (if enabled).
-const AutoMultiLineTag = "auto_multiline"
+// AggregatedJSONTag is added to recombined JSON log messages (if enabled).
+const AggregatedJSONTag = "aggregated_json:true"
 
 // EscapedLineFeed is used to escape new line character
 // for multiline message.
@@ -33,8 +30,8 @@ var EscapedLineFeed = []byte(`\n`)
 
 // Payload represents an encoded collection of messages ready to be sent to the intake
 type Payload struct {
-	// The slice of sources messages encoded in the payload
-	Messages []*Message
+	// The slice of sources message metadata encoded in the payload
+	MessageMetas []*MessageMetadata
 	// The encoded bytes to be sent to the intake (sometimes compressed)
 	Encoded []byte
 	// The content encoding. A header for HTTP, empty for TCP
@@ -43,15 +40,24 @@ type Payload struct {
 	UnencodedSize int
 }
 
+func NewPayload(messageMetas []*MessageMetadata, encoded []byte, encoding string, unencodedSize int) *Payload {
+	return &Payload{
+		MessageMetas:  messageMetas,
+		Encoded:       encoded,
+		Encoding:      encoding,
+		UnencodedSize: unencodedSize,
+	}
+}
+
 // Count returns the number of messages
 func (m *Payload) Count() int64 {
-	return int64(len(m.Messages))
+	return int64(len(m.MessageMetas))
 }
 
 // Size returns the size of the message.
 func (m *Payload) Size() int64 {
 	var size int64 = 0
-	for _, m := range m.Messages {
+	for _, m := range m.MessageMetas {
 		size += m.Size()
 	}
 	return size
@@ -60,6 +66,10 @@ func (m *Payload) Size() int64 {
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
 	MessageContent
+	MessageMetadata
+}
+
+type MessageMetadata struct {
 	Hostname           string
 	Origin             *Origin
 	Status             string
@@ -216,6 +226,13 @@ func NewMessageWithSource(content []byte, status string, source *sources.LogSour
 	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
 }
 
+// NewMessageWithSourceWithParsingExtra adds isTruncated to the parsingExtra tag for a new unstructured message with content, status, source and ingestionTimestamp
+func NewMessageWithSourceWithParsingExtra(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64, isTruncated bool) *Message {
+	msg := NewMessageWithSource(content, status, source, ingestionTimestamp)
+	msg.ParsingExtra.IsTruncated = isTruncated
+	return msg
+}
+
 // NewMessage constructs an unstructured message with content,
 // status, origin and the ingestion timestamp.
 func NewMessage(content []byte, origin *Origin, status string, ingestionTimestamp int64) *Message {
@@ -224,11 +241,20 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 			content: content,
 			State:   StateUnstructured,
 		},
-		Origin:             origin,
-		Status:             status,
-		RawDataLen:         len(content),
-		IngestionTimestamp: ingestionTimestamp,
+		MessageMetadata: MessageMetadata{
+			Origin:             origin,
+			Status:             status,
+			RawDataLen:         len(content),
+			IngestionTimestamp: ingestionTimestamp,
+		},
 	}
+}
+
+// NewMessageWithParsingExtra adds parsingExtra data to a new message
+func NewMessageWithParsingExtra(content []byte, origin *Origin, status string, ingestionTimestamp int64, parsingExtra ParsingExtra) *Message {
+	msg := NewMessage(content, origin, status, ingestionTimestamp)
+	msg.ParsingExtra = parsingExtra
+	return msg
 }
 
 // NewStructuredMessage creates a new message that had some structure the moment
@@ -243,10 +269,19 @@ func NewStructuredMessage(content StructuredContent, origin *Origin, status stri
 			structuredContent: content,
 			State:             StateStructured,
 		},
-		Origin:             origin,
-		Status:             status,
-		IngestionTimestamp: ingestionTimestamp,
+		MessageMetadata: MessageMetadata{
+			Origin:             origin,
+			Status:             status,
+			IngestionTimestamp: ingestionTimestamp,
+		},
 	}
+}
+
+// NewStructuredMessageWithParsingExtra adds isTruncated to the parsingExtra tag for a new structured message with content, status, origin and ingestionTimestamp
+func NewStructuredMessageWithParsingExtra(content StructuredContent, origin *Origin, status string, ingestionTimestamp int64, isTruncated bool) *Message {
+	msg := NewStructuredMessage(content, origin, status, ingestionTimestamp)
+	msg.ParsingExtra.IsTruncated = isTruncated
+	return msg
 }
 
 // Render renders the message.
@@ -318,14 +353,16 @@ func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime
 			content: content,
 			State:   StateUnstructured,
 		},
-		Origin:             origin,
-		Status:             status,
-		IngestionTimestamp: ingestionTimestamp,
-		ServerlessExtra: ServerlessExtra{
-			Timestamp: utcTime,
-			Lambda: &Lambda{
-				ARN:       ARN,
-				RequestID: reqID,
+		MessageMetadata: MessageMetadata{
+			Origin:             origin,
+			Status:             status,
+			IngestionTimestamp: ingestionTimestamp,
+			ServerlessExtra: ServerlessExtra{
+				Timestamp: utcTime,
+				Lambda: &Lambda{
+					ARN:       ARN,
+					RequestID: reqID,
+				},
 			},
 		},
 	}
@@ -333,7 +370,7 @@ func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime
 
 // GetStatus gets the status of the message.
 // if status is not set, StatusInfo will be returned.
-func (m *Message) GetStatus() string {
+func (m *MessageMetadata) GetStatus() string {
 	if m.Status == "" {
 		m.Status = StatusInfo
 	}
@@ -341,28 +378,41 @@ func (m *Message) GetStatus() string {
 }
 
 // GetLatency returns the latency delta from ingestion time until now
-func (m *Message) GetLatency() int64 {
+func (m *MessageMetadata) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
 }
 
 // Message returns all tags that this message is attached with.
-func (m *Message) Tags() []string {
+func (m *MessageMetadata) Tags() []string {
 	return m.Origin.Tags(m.ProcessingTags)
 }
 
 // Message returns all tags that this message is attached with, as a string.
-func (m *Message) TagsToString() string {
+func (m *MessageMetadata) TagsToString() string {
 	return m.Origin.TagsToString(m.ProcessingTags)
 }
 
 // Count returns the number of messages
-func (m *Message) Count() int64 {
+func (m *MessageMetadata) Count() int64 {
 	return 1
 }
 
 // Size returns the size of the message.
-func (m *Message) Size() int64 {
+func (m *MessageMetadata) Size() int64 {
 	return int64(m.RawDataLen)
+}
+
+// RecordProcessingRule records the application of a processing rule to a message.
+func (m *MessageMetadata) RecordProcessingRule(ruleType string, ruleName string) {
+	if m.Origin != nil && m.Origin.LogSource != nil {
+		m.Origin.LogSource.ProcessingInfo.Inc(ruleType + ":" + ruleName)
+	} else {
+		nilSource := "LogSource"
+		if m.Origin == nil {
+			nilSource = "Origin"
+		}
+		log.Debugf("Unable to record processing rule: %s is nil", nilSource)
+	}
 }
 
 // TruncatedReasonTag returns a tag with the reason for truncation.

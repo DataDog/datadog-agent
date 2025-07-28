@@ -6,6 +6,8 @@
 package testsuite
 
 import (
+	_ "embed"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +22,9 @@ import (
 
 // create a new config to access default config values
 var defaultAgentConfig = config.New()
+
+//go:embed testdata/v04SpanEvents.msgp
+var rubySpanEventsPayload []byte
 
 func TestTraces(t *testing.T) {
 	var r test.Runner
@@ -38,10 +43,10 @@ func TestTraces(t *testing.T) {
 		}
 		defer r.KillAgent()
 
-		p := testutil.GeneratePayload(10, &testutil.TraceConfig{
-			MinSpans: 10,
+		p := testutil.GeneratePayload(2, &testutil.TraceConfig{
+			MinSpans: 3,
 			Keep:     true,
-		}, nil)
+		}, &testutil.SpanConfig{NumSpanEvents: 1})
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
@@ -97,7 +102,7 @@ func TestTraces(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			payloadsEqual(t, append(p[:2], p[3:]...), v)
+			payloadsEqual(t, slices.Delete(p, 2, 3), v)
 		})
 	})
 
@@ -218,8 +223,8 @@ func TestTraces(t *testing.T) {
 		}
 		defer r.KillAgent()
 
-		p := testutil.GeneratePayload(10, &testutil.TraceConfig{
-			MinSpans: 10,
+		p := testutil.GeneratePayload(2, &testutil.TraceConfig{
+			MinSpans: 3,
 			Keep:     true,
 		}, nil)
 		if err := r.Post(p); err != nil {
@@ -227,6 +232,26 @@ func TestTraces(t *testing.T) {
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
 			payloadsEqual(t, p, v)
+		})
+	})
+
+	t.Run("ruby-span-events", func(t *testing.T) {
+		if err := r.RunAgent([]byte("apm_config:\r\n  env: my-env")); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
+
+		if err := r.PostBinary("/v0.4/traces", rubySpanEventsPayload); err != nil {
+			t.Fatal(err)
+		}
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
+			assert.Len(t, v.TracerPayloads[0].Chunks[0].Spans[0].SpanEvents, 1)
+			spanEvent := v.TracerPayloads[0].Chunks[0].Spans[0].SpanEvents[0]
+			assert.Equal(t, "event-name", spanEvent.Name)
+			assert.NotZero(t, spanEvent.TimeUnixNano)
+			assert.Len(t, spanEvent.Attributes, 1)
+			assert.Equal(t, pb.AttributeAnyValue_AttributeAnyValueType(0), spanEvent.Attributes["key"].Type)
+			assert.Equal(t, "value", spanEvent.Attributes["key"].StringValue)
 		})
 	})
 }
@@ -301,6 +326,15 @@ func spansEqual(s1, s2 *pb.Span) bool {
 	}
 	for k := range s1.Metrics {
 		if _, ok := s2.Metrics[k]; !ok {
+			return false
+		}
+	}
+	if len(s1.SpanEvents) != len(s2.SpanEvents) {
+		return false
+	}
+	for i, se := range s1.SpanEvents {
+		if se.Name != s2.SpanEvents[i].Name ||
+			se.TimeUnixNano != s2.SpanEvents[i].TimeUnixNano {
 			return false
 		}
 	}

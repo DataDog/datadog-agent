@@ -38,8 +38,8 @@ const (
 	// windowsHostnamePrefix is the prefix of the hostname of the agent
 	windowsHostnamePrefix = "cws-e2e-windows"
 
-	// securityAgentPathWindows is the path of the security-agent binary
-	securityAgentPathWindows = "C:/Program Files/Datadog/Datadog Agent/bin/agent/security-agent.exe"
+	// systemProbePathWindows is the path of the system-probe binary
+	systemProbePathWindows = "C:/Program Files/Datadog/Datadog Agent/bin/agent/system-probe.exe"
 
 	// policiesPathWindows is the path of the default runtime security policies
 	policiesPathWindows = "C:/ProgramData/Datadog/runtime-security.d/test.policy"
@@ -176,7 +176,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 	var policies string
 	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; & '%s' runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, securityAgentPathWindows))
+		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; & '%s' runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, systemProbePathWindows))
 		assert.NotEmpty(c, policies, "should not be empty")
 	}, 1*time.Minute, 1*time.Second)
 
@@ -189,7 +189,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("& '%s' runtime policy reload", securityAgentPathWindows))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("& '%s' runtime policy reload", systemProbePathWindows))
 
 	// Check if the policy is loaded
 	policyName := path.Base(policiesPathWindows)

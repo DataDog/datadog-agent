@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
 // StartServerTCPNs is identical to StartServerTCP, but it operates with the
@@ -30,7 +30,7 @@ func StartServerTCPNs(t testing.TB, ip net.IP, port int, ns string) io.Closer {
 	require.NoError(t, err)
 
 	var closer io.Closer
-	err = kernel.WithNS(h, func() error {
+	err = netnsutil.WithNS(h, func() error {
 		closer = StartServerTCP(t, ip, port)
 		return nil
 	})
@@ -88,7 +88,7 @@ func StartServerUDPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
 	require.NoError(t, err)
 
 	var closer io.Closer
-	err = kernel.WithNS(h, func() error {
+	err = netnsutil.WithNS(h, func() error {
 		closer = StartServerUDP(t, ip, port)
 		return nil
 	})

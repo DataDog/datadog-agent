@@ -14,12 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
@@ -34,17 +35,17 @@ func TestOTLPEnabled(t *testing.T) {
 	defer func(orig func(cfg model.Reader) bool) { otlpIsEnabled = orig }(otlpIsEnabled)
 
 	otlpIsEnabled = func(model.Reader) bool { return false }
-	p := GetPayload(ctx, conf)
+	p := GetPayload(ctx, conf, hostnameimpl.NewHostnameService())
 	assert.False(t, p.OtlpMeta.Enabled)
 
 	otlpIsEnabled = func(model.Reader) bool { return true }
-	p = GetPayload(ctx, conf)
+	p = GetPayload(ctx, conf, hostnameimpl.NewHostnameService())
 	assert.True(t, p.OtlpMeta.Enabled)
 }
 
 func TestGetNetworkMeta(t *testing.T) {
 	ctx := context.Background()
-	cloudproviders.MockNetworkID(t, "test networkID")
+	network.MockNetworkID(t, "test networkID")
 
 	m := getNetworkMeta(ctx)
 	assert.Equal(t, "test networkID", m.ID)
@@ -126,7 +127,7 @@ func TestGetPayload(t *testing.T) {
 	_, found := cache.Cache.Get(hostCacheKey)
 	assert.False(t, found)
 
-	p := GetPayload(ctx, conf)
+	p := GetPayload(ctx, conf, hostnameimpl.NewHostnameService())
 	if runtime.GOOS == "windows" {
 		assert.Equal(t, "win32", p.Os)
 	} else {
@@ -143,6 +144,7 @@ func TestGetPayload(t *testing.T) {
 	assert.NotNil(t, p.InstallMethod)
 	assert.NotNil(t, p.ProxyMeta)
 	assert.NotNil(t, p.OtlpMeta)
+	assert.NotNil(t, p.FipsMode)
 
 	_, found = cache.Cache.Get(hostCacheKey)
 	assert.True(t, found)
@@ -155,7 +157,7 @@ func TestGetFromCache(t *testing.T) {
 	conf := configmock.New(t)
 
 	cache.Cache.Set(hostCacheKey, &Payload{Os: "testOS"}, cache.NoExpiration)
-	p := GetFromCache(ctx, conf)
+	p := GetFromCache(ctx, conf, hostnameimpl.NewHostnameService())
 	require.NotNil(t, p)
 	assert.Equal(t, "testOS", p.Os)
 }

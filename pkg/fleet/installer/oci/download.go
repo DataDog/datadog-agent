@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -59,6 +60,8 @@ const (
 	DatadogPackageLayerMediaType types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
 	// DatadogPackageConfigLayerMediaType is the media type for the optional Datadog Package config layer.
 	DatadogPackageConfigLayerMediaType types.MediaType = "application/vnd.datadog.package.config.layer.v1.tar+zstd"
+	// DatadogPackageInstallerLayerMediaType is the media type for the optional Datadog Package installer layer.
+	DatadogPackageInstallerLayerMediaType types.MediaType = "application/vnd.datadog.package.installer.layer.v1"
 )
 
 const (
@@ -332,12 +335,19 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 					if err != nil {
 						return err
 					}
-					err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+
+					switch layerMediaType {
+					case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType:
+						err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+					case DatadogPackageInstallerLayerMediaType:
+						err = writeBinary(uncompressedLayer, dir)
+					default:
+						return fmt.Errorf("unsupported layer media type: %s", layerMediaType)
+					}
 					uncompressedLayer.Close()
 					if err != nil {
 						return err
 					}
-
 					return nil
 				},
 			)
@@ -413,6 +423,10 @@ func isRetryableNetworkError(err error) bool {
 		}
 	}
 
+	if strings.Contains(err.Error(), "connection reset by peer") {
+		return true
+	}
+
 	return isStreamResetError(err)
 }
 
@@ -443,4 +457,27 @@ func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator
 		Username: k.username,
 		Password: k.password,
 	}), nil
+}
+
+// writeBinary extracts the binary from the given reader to the given path.
+func writeBinary(r io.Reader, path string) error {
+	// Ensure the file has 0700 permissions even if it already exists
+	if err := os.Chmod(path, 0700); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("could not set file permissions before writing: %w", err)
+	}
+	outFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0700)
+	if err != nil {
+		return fmt.Errorf("could not create file: %w", err)
+	}
+	defer outFile.Close()
+
+	// Now that we have the 0700 permissions set, we can write to the file.
+	// Use io.LimitReader to limit the size of the layer to layerMaxSize.
+	limitedReader := io.LimitReader(r, layerMaxSize)
+	_, err = io.Copy(outFile, limitedReader)
+	if err != nil {
+		return fmt.Errorf("could not write to file: %w", err)
+	}
+
+	return nil
 }

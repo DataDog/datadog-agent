@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"runtime"
 	"time"
 
@@ -42,7 +41,7 @@ type SecurityModuleClientWrapper interface {
 	GetStatus() (*api.Status, error)
 	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
 	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
-	GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error)
+	GetRuleSetReport() (*api.GetRuleSetReportMessage, error)
 	GetEvents() (api.SecurityModule_GetEventsClient, error)
 	GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error)
 	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
@@ -132,8 +131,8 @@ func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessa
 	return response, nil
 }
 
-// GetRuleSetReport gets the currently loaded policies from the system probe
-func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error) {
+// GetRuleSetReport gets the currently ruleset loaded status
+func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportMessage, error) {
 	response, err := c.apiClient.GetRuleSetReport(context.Background(), &api.GetRuleSetReportParams{})
 	if err != nil {
 		return nil, err
@@ -189,17 +188,18 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 	}
 
 	family := config.GetFamilyAddress(socketPath)
-	if runtime.GOOS == "windows" && family == "unix" {
-		return nil, fmt.Errorf("unix sockets are not supported on Windows")
+	if family == "unix" {
+		if runtime.GOOS == "windows" {
+			return nil, fmt.Errorf("unix sockets are not supported on Windows")
+		}
+
+		socketPath = fmt.Sprintf("unix://%s", socketPath)
 	}
 
-	conn, err := grpc.Dial( //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+	conn, err := grpc.NewClient(
 		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
-		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
-			return net.Dial(family, url)
-		}),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
 				BaseDelay: time.Second,

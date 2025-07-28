@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	v2Informers "k8s.io/client-go/informers/autoscaling/v2"
 	v2Listers "k8s.io/client-go/listers/autoscaling/v2"
@@ -51,6 +52,7 @@ func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *H
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 hpaName,
+			Kind:                                 kubernetes.HorizontalPodAutoscalerKind,
 			NodeType:                             orchestrator.K8sHorizontalPodAutoscaler,
 			Version:                              hpaVersion,
 			LabelsAsTags:                         labelsAsTags,
@@ -91,7 +93,7 @@ func (c *HorizontalPodAutoscalerCollector) Run(rcfg *collectors.CollectorRunConf
 func (c *HorizontalPodAutoscalerCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -99,7 +101,7 @@ func (c *HorizontalPodAutoscalerCollector) Process(rcfg *collectors.CollectorRun
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

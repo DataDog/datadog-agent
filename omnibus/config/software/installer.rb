@@ -8,7 +8,10 @@ require 'pathname'
 
 name 'installer'
 
-source path: '..'
+source path: '..',
+       options: {
+         exclude: ["**/testdata/**/*"],
+       }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
@@ -36,7 +39,7 @@ build do
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
   elsif windows_target?
-    command "inv -e installer.build --install-path=#{install_dir}", env: env
+    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
@@ -44,9 +47,4 @@ build do
   delete "#{install_dir}/embedded/bin"
   delete "#{install_dir}/embedded/lib"
   delete "#{install_dir}/embedded/"
-
-  # The file below is touched by software builds that don't put anything in the installation
-  # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
-  # final package
-  delete "#{install_dir}/uselessfile"
 end

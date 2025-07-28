@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"go.opentelemetry.io/collector/component"
@@ -35,20 +36,20 @@ const (
 type Config struct {
 	OtelSource    string
 	LogSourceName string
-	QueueSettings exporterhelper.QueueConfig
+	QueueSettings exporterhelper.QueueBatchConfig
 }
 
 type factory struct {
 	logsAgentChannel chan *message.Message
+	gatewayUsage     otel.GatewayUsage
 }
 
-// NewFactory creates a new logsagentexporter factory.
-func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
-	f := &factory{logsAgentChannel: logsAgentChannel}
-	cfgType, _ := component.NewType(TypeStr)
+// NewFactoryWithType creates a new logsagentexporter factory with the given type.
+func NewFactoryWithType(logsAgentChannel chan *message.Message, typ component.Type, gatewayUsage otel.GatewayUsage) exp.Factory {
+	f := &factory{logsAgentChannel: logsAgentChannel, gatewayUsage: gatewayUsage}
 
 	return exp.NewFactory(
-		cfgType,
+		typ,
 		func() component.Config {
 			return &Config{
 				OtelSource:    otelSource,
@@ -58,6 +59,11 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 		},
 		exp.WithLogs(f.createLogsExporter, stability),
 	)
+}
+
+// NewFactory creates a new logsagentexporter factory. Should only be used in Agent OTLP ingestion pipelines.
+func NewFactory(logsAgentChannel chan *message.Message, gatewayUsage otel.GatewayUsage) exp.Factory {
+	return NewFactoryWithType(logsAgentChannel, component.MustNewType(TypeStr), gatewayUsage)
 }
 
 func (f *factory) createLogsExporter(
@@ -76,7 +82,7 @@ func (f *factory) createLogsExporter(
 		return nil, err
 	}
 
-	exporter, err := NewExporter(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator)
+	exporter, err := NewExporterWithGatewayUsage(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator, f.gatewayUsage)
 	if err != nil {
 		return nil, err
 	}

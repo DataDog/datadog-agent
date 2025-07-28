@@ -20,6 +20,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -244,7 +244,7 @@ func (c *ProcessAgentCheck) GetSenderStats() (stats.SenderStats, error) {
 }
 
 // GetDiagnoses returns the diagnoses of the check
-func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return nil, nil
 }
 

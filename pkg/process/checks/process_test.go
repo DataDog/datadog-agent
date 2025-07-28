@@ -14,6 +14,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -21,7 +22,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -60,17 +61,19 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 	mockGpuSubscriber := gpusubscriberfxmock.SetupMockGpuSubscriber(t)
 
 	return &ProcessCheck{
-		probe:             probe,
-		scrubber:          procutil.NewDefaultDataScrubber(),
-		hostInfo:          hostInfo,
-		containerProvider: mockContainerProvider(t),
-		sysProbeConfig:    &SysProbeConfig{},
-		checkCount:        0,
-		skipAmount:        2,
-		serviceExtractor:  serviceExtractor,
-		extractors:        []metadata.Extractor{serviceExtractor},
-		gpuSubscriber:     mockGpuSubscriber,
-		statsd:            &statsd.NoOpClient{},
+		probe:                   probe,
+		scrubber:                procutil.NewDefaultDataScrubber(),
+		hostInfo:                hostInfo,
+		containerProvider:       mockContainerProvider(t),
+		sysProbeConfig:          &SysProbeConfig{},
+		checkCount:              0,
+		skipAmount:              2,
+		serviceExtractor:        serviceExtractor,
+		extractors:              []metadata.Extractor{serviceExtractor},
+		gpuSubscriber:           mockGpuSubscriber,
+		useWLMProcessCollection: false,
+		statsd:                  &statsd.NoOpClient{},
+		clock:                   clock.NewMock(),
 	}, probe
 }
 
@@ -91,7 +94,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// Finally, container provider
 	filter, err := containers.GetPauseContainerFilter()
@@ -99,7 +102,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	return proccontainers.NewContainerProvider(metricsProvider, metadataProvider, filter, fakeTagger)
 }
 
-func TestProcessCheckFirstRun(t *testing.T) {
+func TestProcessCheckFirstRunWithProbe(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 
 	now := time.Now().Unix()
@@ -121,7 +124,7 @@ func TestProcessCheckFirstRun(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func TestProcessCheckSecondRun(t *testing.T) {
+func TestProcessCheckSecondRunWithProbe(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 
 	now := time.Now().Unix()
@@ -454,6 +457,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	procMap[1].Cmdline = nil
 	procMap[1].Exe = "datadog-process-agent --cfgpath datadog.conf"
 
+	now := time.Now()
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 
@@ -462,7 +466,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useWindowsServiceName := true
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, now)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
@@ -494,6 +498,7 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 	cfg := configmock.New(t)
 	processCheck.config = cfg
+	cfg.SetWithoutSource("process_config.ignore_zombie_processes", false)
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 
 	now := time.Now().Unix()

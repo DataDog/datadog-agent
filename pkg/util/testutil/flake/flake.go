@@ -20,6 +20,8 @@ import (
 	"sync"
 	"testing"
 
+	"regexp"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -33,11 +35,11 @@ var flakyPatternsConfigMutex = sync.Mutex{}
 // Otherwise test will be marked as known flake through a special message on tests output.
 func Mark(t testing.TB) {
 	t.Helper()
+	t.Log(flakyTestMessage)
 	if shouldSkipFlake() {
 		t.Skip("flakytest: skip known flaky test")
 		return
 	}
-	t.Log(flakyTestMessage)
 }
 
 // Get the test function package which is the topmost function in the stack that is part of the datadog-agent package
@@ -67,8 +69,14 @@ func getPackageName() (string, error) {
 	return packageName, nil
 }
 
-// MarkOnLog marks the test as flaky when the `pattern` regular expression is found in its logs.
-func MarkOnLog(t testing.TB, pattern string) {
+// MarkOnLog marks the test as flaky when the 'text' log is found, if you need to use regex see [MarkOnLogRegex]
+func MarkOnLog(t testing.TB, text string) {
+	t.Helper()
+	MarkOnLogRegex(t, regexp.QuoteMeta(text))
+}
+
+// MarkOnLogRegex marks the test as flaky when the `pattern` regular expression is found in its logs.
+func MarkOnLogRegex(t testing.TB, pattern string) {
 	// Types for the yaml file
 	type testEntry struct {
 		Test  string `yaml:"test"`
@@ -77,9 +85,9 @@ func MarkOnLog(t testing.TB, pattern string) {
 	type configEntries = map[string][]testEntry
 
 	t.Helper()
-	flakyPatternsConfig := os.Getenv("E2E_FLAKY_PATTERNS_CONFIG")
+	flakyPatternsConfig := os.Getenv("FLAKY_PATTERNS_CONFIG")
 	if flakyPatternsConfig == "" {
-		t.Log("Warning: flake.MarkOnLog will not mark tests as flaky since E2E_FLAKY_PATTERNS_CONFIG is not set")
+		t.Log("Warning: flake.MarkOnLog will not mark tests as flaky since FLAKY_PATTERNS_CONFIG is not set")
 		return
 	}
 

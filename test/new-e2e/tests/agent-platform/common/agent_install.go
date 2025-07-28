@@ -10,9 +10,11 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -48,13 +50,15 @@ func CheckSigningKeys(t *testing.T, client *TestClient) {
 // CheckInstallationMajorAgentVersion run tests to check the installation of an agent has the correct major version
 func CheckInstallationMajorAgentVersion(t *testing.T, client *TestClient, expectedVersion string) bool {
 	return t.Run("Check datadog-agent status version", func(tt *testing.T) {
-		versionRegexPattern := regexp.MustCompile(`(?m:^(IoT )?Agent \(v([0-9]).*\)$)`)
-		tmpCmd := fmt.Sprintf("sudo %s status", client.Helper.GetBinaryPath())
-		output, err := client.ExecuteWithRetry(tmpCmd)
-		require.NoError(tt, err, "datadog-agent status failed")
-		matchList := versionRegexPattern.FindStringSubmatch(output)
-		require.NotEmpty(tt, matchList, "wasn't able to retrieve datadog-agent major version on the following output : %s", output)
-		require.True(tt, matchList[2] == expectedVersion, "Expected datadog-agent major version %s got %s", expectedVersion, matchList[2])
+		require.EventuallyWithT(tt, func(c *assert.CollectT) {
+			versionRegexPattern := regexp.MustCompile(`(?m:^(IoT )?Agent \(v([0-9]).*\)$)`)
+			tmpCmd := fmt.Sprintf("sudo %s status", client.Helper.GetBinaryPath())
+			output, err := client.ExecuteWithRetry(tmpCmd)
+			require.NoError(c, err, "datadog-agent status failed")
+			matchList := versionRegexPattern.FindStringSubmatch(output)
+			require.NotEmpty(c, matchList, "wasn't able to retrieve datadog-agent major version on the following output : %s", output)
+			require.True(c, matchList[2] == expectedVersion, "Expected datadog-agent major version %s got %s", expectedVersion, matchList[2])
+		}, 2*time.Minute, 5*time.Second)
 	})
 }
 

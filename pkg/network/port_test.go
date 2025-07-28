@@ -22,7 +22,7 @@ import (
 	"github.com/vishvananda/netns"
 
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,7 +58,7 @@ func runServerProcess(t *testing.T, proto string, port uint16, ns netns.NsHandle
 	}
 
 	var proc *os.Process
-	kernel.WithNS(ns, func() error {
+	netnsutil.WithNS(ns, func() error {
 		cmd := exec.Command("socat", "-d", "-d", "STDIO", address)
 		stderr, err := cmd.StderrPipe()
 		require.NoError(t, err, "error getting stderr pipe for command %s", cmd)
@@ -104,7 +104,7 @@ func testReadListeningPorts(t *testing.T, proto string) {
 	ns, err = netns.GetFromName(nsName)
 	require.NoError(t, err)
 	t.Cleanup(func() { ns.Close() })
-	rootNs, err = kernel.GetRootNetNamespace("/proc")
+	rootNs, err = netnsutil.GetRootNetNamespace("/proc")
 	require.NoError(t, err)
 	t.Cleanup(func() { rootNs.Close() })
 
@@ -147,9 +147,9 @@ func testReadListeningPorts(t *testing.T, proto string) {
 		require.Less(t, i, 5, "failed to find unique port for proto %s", proto)
 	}
 
-	rootNsIno, err := kernel.GetInoForNs(rootNs)
+	rootNsIno, err := netnsutil.GetInoForNs(rootNs)
 	require.NoError(t, err)
-	nsIno, err := kernel.GetInoForNs(ns)
+	nsIno, err := netnsutil.GetInoForNs(ns)
 	require.NoError(t, err)
 
 	connType := TCP

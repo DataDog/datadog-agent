@@ -77,20 +77,41 @@ func (ownersLanguages *OwnersLanguages) String() string {
 	ownersLanguages.mutex.Lock()
 	defer ownersLanguages.mutex.Unlock()
 
-	state := "["
+	var sb strings.Builder
+	sb.WriteString("[")
+
+	firstOwner := true
 	for owner, langs := range ownersLanguages.containersLanguages {
-		state += fmt.Sprintf("(%s/%s/%s, %v,[", owner.Namespace, owner.Kind, owner.Name, langs.dirty)
-		for container, languageSet := range langs.languages {
-			state += container.Name + ": ("
-			for languagename := range languageSet {
-				state += fmt.Sprintf("%s,", languagename)
-			}
-			state += "),"
+		if !firstOwner {
+			sb.WriteString(",")
 		}
-		state += "]),"
+
+		sb.WriteString(fmt.Sprintf("(%s/%s/%s, %v,[", owner.Namespace, owner.Kind, owner.Name, langs.dirty))
+
+		firstContainer := true
+		for container, languageSet := range langs.languages {
+			if !firstContainer {
+				sb.WriteString(",")
+			}
+			sb.WriteString(container.Name + ": (")
+
+			languages := make([]string, 0, len(languageSet))
+			for languagename := range languageSet {
+				languages = append(languages, string(languagename))
+			}
+			sb.WriteString(strings.Join(languages, ","))
+
+			sb.WriteString(")")
+			firstContainer = false
+		}
+
+		sb.WriteString("])")
+		firstOwner = false
 	}
-	state += "]"
-	return state
+
+	sb.WriteString("]")
+
+	return sb.String()
 }
 
 // getOrInitialize returns the containers languages for a specific namespaced owner, initialising it if it doesn't already

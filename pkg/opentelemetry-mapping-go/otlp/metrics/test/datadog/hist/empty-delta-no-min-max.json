@@ -1,0 +1,30 @@
+{
+  "Sketches": [
+    {
+      "Name": "doubleHist.empty.test",
+      "Tags": [
+        "attribute_tag:attribute_value"
+      ],
+      "Host": "hostname",
+      "OriginID": "",
+      "OriginProduct": 10,
+      "OriginSubProduct": 17,
+      "OriginProductDetail": 0,
+      "Timestamp": 1667560641226420924,
+      "Summary": {
+        "Min": -9.941854089121368e-10,
+        "Max": -9.941854089121368e-10,
+        "Sum": 3.141592653589793,
+        "Avg": 0.15707963267948966,
+        "Cnt": 20
+      },
+      "Keys": [
+        -1
+      ],
+      "Counts": [
+        20
+      ]
+    }
+  ],
+  "TimeSeries": null
+}

@@ -145,7 +145,6 @@ func getExpectedConfigFiles() []string {
 		`datadog.yaml`,
 		`system-probe.yaml`,
 		`security-agent.yaml`,
-		`runtime-security.d\default.policy`,
 		`conf.d\win32_event_log.d\profiles\dd_security_events_high.yaml`,
 		`conf.d\win32_event_log.d\profiles\dd_security_events_low.yaml`,
 	}

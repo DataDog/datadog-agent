@@ -14,6 +14,7 @@ issues:
   exclude-dirs:
     - pkg/proto/patches
     - pkg/security/utils/lru
+    - pkg/template
     - tasks/unit_tests/testdata/components_src
 
   exclude:
@@ -463,7 +464,7 @@ issues:
     - path: comp/core/workloadmeta/collectors/internal/podman/podman.go
       linters:
         - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/process/process_collector.go
+    - path: comp/core/workloadmeta/collectors/internal/processlanguage/process_collector.go
       linters:
         - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/util/process_util_linux.go
@@ -611,12 +612,30 @@ linters-settings:
             desc: "prefer pkg/util/safeelf to prevent panics during parsing"
           - pkg: "golang.org/x/exp/slices"
             desc: "use the std slices package instead"
+          - pkg: "github.com/aws/aws-sdk-go/"
+            desc: "use the v2 sdk instead"
       logger:
         files:
           - "!**/pkg/util/log/**"
         deny:
           - pkg: "github.com/cihub/seelog"
             desc: "seelog should not be used directly. Use `pkg/util/log` instead."
+      templates:
+        deny:
+          # see https://github.com/golang/go/issues/72895 for details
+          - pkg: "text/template"
+            desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/text\" instead to avoid disabling dead code elimination."
+          - pkg: "html/template"
+            desc: "Use \"github.com/DataDog/datadog-agent/pkg/template/html\" instead to avoid disabling dead code elimination."
+        files:
+          - "**/cmd/**"
+          - "**/comp/**"
+          - "**/pkg/**"
+          - "!**/pkg/template/**"
+          - "!**/pkg/security/generators/**"
+          - "!**/pkg/network/go/lutgen/**"
+          - "!$test"
+          - "!**/tests/**"
 
   errcheck:
     exclude-functions:
@@ -658,6 +677,7 @@ linters-settings:
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
       - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
+      - github.com/DataDog/datadog-agent/pkg/util/log.WarnfStackDepth
       - golang.org/x/sys/windows.CloseHandle
       - golang.org/x/sys/windows.FreeLibrary
       - golang.org/x/sys/windows.FreeSid
@@ -749,3 +769,6 @@ linters-settings:
     pkgconfigusage:
       type: "module"
       description: "Check usage of pkgconfig in components folder"
+
+run:
+  allow-parallel-runners: true

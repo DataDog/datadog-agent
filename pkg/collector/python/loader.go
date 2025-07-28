@@ -17,6 +17,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -49,6 +50,7 @@ var (
 	py3LintedLock    sync.Mutex
 	linterLock       sync.Mutex
 	agentVersionTags []string
+	pythonOnce       sync.Once
 )
 
 const (
@@ -63,10 +65,11 @@ const (
 const PythonCheckLoaderName string = "python"
 
 func init() {
-	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
-		return NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, int, error) {
+		loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+		return loader, 20, err
 	}
-	loaders.RegisterLoader(20, factory)
+	loaders.RegisterLoader(factory)
 
 	configureErrors = map[string][]string{}
 	py3Linted = map[string]struct{}{}
@@ -87,7 +90,7 @@ func init() {
 
 // PythonCheckLoader is a specific loader for checks living in Python modules
 //
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type PythonCheckLoader struct {
 	logReceiver option.Option[integrations.Component]
 }
@@ -116,6 +119,12 @@ func (*PythonCheckLoader) Name() string {
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
 func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+	if pkgconfigsetup.Datadog().GetBool("python_lazy_loading") {
+		pythonOnce.Do(func() {
+			InitPython(common.GetPythonPaths()...)
+		})
+	}
+
 	if rtloader == nil {
 		return nil, fmt.Errorf("python is not initialized")
 	}
@@ -311,7 +320,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			// validatePython3 is CPU and memory hungry, make sure we only run one instance of it
 			// at once to avoid CPU and mem usage spikes
 			linterLock.Lock()
-			warnings, err := validatePython3(checkName, checkFilePath)
+			warnings, err := validatePython3(checkFilePath)
 			linterLock.Unlock()
 
 			if err != nil {

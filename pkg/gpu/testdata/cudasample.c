@@ -53,6 +53,10 @@ cudaError_t cudaEventDestroy(cudaEvent_t event) {
     return 0;
 }
 
+cudaError_t cudaMemcpy(void *dst, const void *src, size_t count, int kind) {
+    return 0;
+}
+
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
     cudaEvent_t event = 42;
@@ -81,11 +85,15 @@ int main(int argc, char **argv) {
     cudaFree(ptr);
     cudaStreamSynchronize(stream);
 
+    cudaMemcpy((void *)0x1234, (void *)0x5678, 100, 0); // kind 0 is cudaMemcpyHostToDevice
+
     cudaEventRecord(event, stream);
     cudaEventQuery(event);
     cudaEventSynchronize(event);
 
     cudaEventDestroy(event);
+
+    setenv("CUDA_VISIBLE_DEVICES", "42", 1);
 
     // we don't exit to avoid flakiness when the process is terminated before it was hooked for gpu monitoring
     // the expected usage is to send a kill signal to the process (or stop the container that is running it)

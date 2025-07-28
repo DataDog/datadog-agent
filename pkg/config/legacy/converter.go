@@ -10,6 +10,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -388,17 +389,14 @@ func buildHistogramAggregates(agentConfig Config) []string {
 	if configValue == "" {
 		return nil
 	}
-	configValue = strings.Replace(configValue, " ", "", -1)
+	configValue = strings.ReplaceAll(configValue, " ", "")
 	result := strings.Split(configValue, ",")
 
 	for _, res := range result {
 		found := false
-		for _, val := range validValues {
-			if res == val {
-				histogramBuild = append(histogramBuild, res)
-				found = true
-				break
-			}
+		if slices.Contains(validValues, res) {
+			histogramBuild = append(histogramBuild, res)
+			found = true
 		}
 		if !found {
 			// print the value skipped because invalid value
@@ -419,7 +417,7 @@ func buildHistogramPercentiles(agentConfig Config) []string {
 	}
 
 	// percentiles are rounded down to 2 digits and (0:1)
-	configList = strings.Replace(configList, " ", "", -1)
+	configList = strings.ReplaceAll(configList, " ", "")
 	result := strings.Split(configList, ",")
 	for _, res := range result {
 		num, err := strconv.ParseFloat(res, 64)

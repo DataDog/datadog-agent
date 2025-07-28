@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"strings"
@@ -21,9 +22,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -35,12 +37,12 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -57,9 +59,11 @@ func Module() fxutil.Module {
 
 var (
 	// for testing
-	installinfoGet         = installinfo.Get
-	fetchSecurityConfig    = configFetcher.SecurityAgentConfig
-	fetchProcessConfig     = func(cfg model.Reader) (string, error) { return configFetcher.ProcessAgentConfig(cfg, true) }
+	installinfoGet      = installinfo.Get
+	fetchSecurityConfig = configFetcher.SecurityAgentConfig
+	fetchProcessConfig  = func(cfg model.Reader, client ipc.HTTPClient) (string, error) {
+		return configFetcher.ProcessAgentConfig(cfg, client, true)
+	}
 	fetchTraceConfig       = configFetcher.TraceAgentConfig
 	fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 )
@@ -92,11 +96,12 @@ type inventoryagent struct {
 
 	log          log.Component
 	conf         config.Component
+	hostnameComp hostnameinterface.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
-	authToken    authtoken.Component
+	client       ipc.HTTPClient
 }
 
 type dependencies struct {
@@ -106,7 +111,8 @@ type dependencies struct {
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
-	AuthToken      authtoken.Component
+	IPCClient      ipc.HTTPClient
+	Hostname       hostnameinterface.Component
 }
 
 type provides struct {
@@ -120,21 +126,22 @@ type provides struct {
 }
 
 func newInventoryAgentProvider(deps dependencies) provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	ia := &inventoryagent{
 		conf:         deps.Config,
 		sysprobeConf: deps.SysProbeConfig,
 		log:          deps.Log,
+		hostnameComp: deps.Hostname,
 		hostname:     hname,
 		data:         make(agentMetadata),
-		authToken:    deps.AuthToken,
+		client:       deps.IPCClient,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
 	if ia.Enabled {
 		ia.initData()
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string, _, _ any) { ia.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { ia.Refresh() })
 	}
 
 	return provides{
@@ -168,7 +175,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["install_method_tool_version"] = toolVersion
 	ia.data["install_method_installer_version"] = installerVersion
 
-	data, err := hostname.GetWithProvider(context.Background())
+	data, err := ia.hostnameComp.GetWithProvider(context.Background())
 	if err == nil {
 		if data.Provider != "" && !data.FromFargate() {
 			ia.data["hostname_source"] = data.Provider
@@ -196,10 +203,10 @@ func (z *zeroConfigGetter) GetString(string) string { return "" }
 
 // getCorrectConfig tries to fetch the configuration from another process. It returns a new
 // configuration object on success and the local config upon failure.
-func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader) (string, error)) configGetter {
+func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader, client ipc.HTTPClient) (string, error)) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
-	if remoteConfig, err := configFetcher(localConf); err == nil {
+	if remoteConfig, err := configFetcher(localConf, ia.client); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
@@ -232,7 +239,6 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["config_process_dd_url"] = scrub(ia.conf.GetString("process_config.process_dd_url"))
 	ia.data["config_proxy_http"] = scrub(ia.conf.GetString("proxy.http"))
 	ia.data["config_proxy_https"] = scrub(ia.conf.GetString("proxy.https"))
-	ia.data["feature_fips_enabled"] = ia.conf.GetBool("fips.enabled")
 	ia.data["feature_logs_enabled"] = ia.conf.GetBool("logs_enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
@@ -251,6 +257,14 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["config_eks_fargate"] = eksFargate
 	if eksFargate {
 		ia.data["eks_fargate_cluster_name"] = ia.conf.GetString("cluster_name")
+	}
+
+	// FIPS mode
+	if val, err := fips.Enabled(); err == nil {
+		ia.data["fips_mode"] = val
+	} else {
+		ia.data["fips_mode"] = false
+		ia.log.Warnf("could not check if fips is enabled: %s", err)
 	}
 }
 
@@ -312,6 +326,10 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// Discovery module / system-probe
 
 	ia.data["feature_discovery_enabled"] = sysProbeConf.GetBool("discovery.enabled")
+
+	// GPU monitoring / system-probe
+
+	ia.data["feature_gpu_monitoring_enabled"] = sysProbeConf.GetBool("gpu_monitoring.enabled")
 
 	// miscellaneous / system-probe
 
@@ -461,11 +479,13 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
-	for k, v := range ia.data {
-		data[k] = v
-	}
+	maps.Copy(data, ia.data)
 
 	ia.getConfigs(data)
+
+	if !ia.conf.GetBool("inventories_diagnostics_enabled") {
+		delete(data, "diagnostics")
+	}
 
 	return &Payload{
 		Hostname:  ia.hostname,
@@ -481,8 +501,6 @@ func (ia *inventoryagent) Get() map[string]interface{} {
 	defer ia.m.Unlock()
 
 	data := map[string]interface{}{}
-	for k, v := range ia.data {
-		data[k] = v
-	}
+	maps.Copy(data, ia.data)
 	return data
 }

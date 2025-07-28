@@ -51,7 +51,7 @@ var apmPackageDefaultVersions = map[string]string{
 	"datadog-apm-library-ruby":   "2",
 	"datadog-apm-library-js":     "5",
 	"datadog-apm-library-dotnet": "3",
-	"datadog-apm-library-python": "2",
+	"datadog-apm-library-python": "3",
 	"datadog-apm-library-php":    "1",
 }
 
@@ -162,15 +162,5 @@ func packageToLanguage(packageName string) env.ApmLibLanguage {
 }
 
 func agentVersion(_ Package, e *env.Env) string {
-	minorVersion := e.AgentMinorVersion
-	if strings.Contains(minorVersion, ".") && !strings.HasSuffix(minorVersion, "-1") {
-		minorVersion = minorVersion + "-1"
-	}
-	if e.AgentMajorVersion != "" && minorVersion != "" {
-		return e.AgentMajorVersion + "." + minorVersion
-	}
-	if minorVersion != "" {
-		return "7." + minorVersion
-	}
-	return "latest"
+	return e.GetAgentVersion()
 }

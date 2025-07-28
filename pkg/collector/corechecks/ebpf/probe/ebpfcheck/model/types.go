@@ -8,14 +8,13 @@ package model
 
 import (
 	"time"
-
-	"github.com/cilium/ebpf"
 )
 
 // EBPFStats contains the statistics from the ebpf check
 type EBPFStats struct {
-	Maps     []EBPFMapStats
-	Programs []EBPFProgramStats
+	Maps        []EBPFMapStats
+	Programs    []EBPFProgramStats
+	KprobeStats []KprobeStats
 }
 
 // EBPFMapStats are the basic statistics for ebpf maps
@@ -26,7 +25,7 @@ type EBPFMapStats struct {
 	Module     string
 	RSS        uint64
 	MaxSize    uint64
-	Type       ebpf.MapType
+	Type       string
 	Entries    int64 // Allow negative values to indicate that the number of entries could not be calculated
 
 	// used only for tests
@@ -45,5 +44,15 @@ type EBPFProgramStats struct {
 	RecursionMisses uint64
 	Runtime         time.Duration
 	VerifiedInsns   uint32
-	Type            ebpf.ProgramType
+	Type            string
+}
+
+// KprobeStats are the various stats used to build hit/miss counts of k[ret]probes
+type KprobeStats struct {
+	Name                     string
+	Type                     string
+	Module                   string
+	KprobeMisses             uint64
+	KretprobeMaxActiveMisses uint64
+	KprobeHits               uint64
 }

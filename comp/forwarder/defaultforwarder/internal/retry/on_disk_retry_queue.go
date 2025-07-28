@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"time"
 
@@ -198,7 +199,7 @@ func (s *onDiskRetryQueue) removeFileAt(index int) error {
 
 	// Remove the file from s.filenames also in case of error to not
 	// fail on the next call.
-	s.filenames = append(s.filenames[:index], s.filenames[index+1:]...)
+	s.filenames = slices.Delete(s.filenames, index, index+1)
 
 	size, err := filesystem.GetFileSize(filename)
 	if err != nil {

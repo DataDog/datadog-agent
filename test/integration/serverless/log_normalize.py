@@ -42,6 +42,9 @@ def normalize_logs(stage, aws_account_id):
         # TODO: these messages may be an indication of a real problem and
         # should be investigated
         "TIMESTAMP http: proxy error: context canceled",
+        # these are related to datadog-agent/pull/34351
+        "[]string{\"169.254.169.254\", \"100.100.100.200\", \"169.254.169.254\", \"100.100.100.200\"}\n",
+        "[]string{\"169.254.169.254\", \"100.100.100.200\"}\n",
     )
 
     def rm_extra_items_key(log):

@@ -288,6 +288,20 @@ api_key:
 #
 # forwarder_stop_timeout: 2
 
+## @param http_protocol - string - optional - default: auto
+## @env DD_FORWARDER_HTTP_PROTOCOL - string - optional - default: auto
+## The transport type to use for sending logs. Possible values are "auto" or "http1".
+# forwarder_http_protocol: auto
+
+## @param forwarder_max_concurrent_requests - integer - optional - default: 10
+## @ENV DD_FORWARDER_MAX_CONCURRENT_REQUESTS - integer - optional - default: 10
+## The maximum number of concurrent requests that each worker can have queued up
+## at any one time. If the connection is over HTTP/1 each request will be waiting
+## for the previous request to complete before sending the next one. With HTTP/2
+## each request can be sent before waiting for the response.
+#
+# forwarder_max_concurrent_requests: 10
+
 ## @param forwarder_storage_max_size_in_bytes - integer - optional - default: 0
 ## @env DD_FORWARDER_STORAGE_MAX_SIZE_IN_BYTES - integer - optional - default: 0
 ## When the retry queue of the forwarder is full, `forwarder_storage_max_size_in_bytes`
@@ -383,19 +397,37 @@ api_key:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
+#
+
+## @param collect_ec2_instance_info - boolean - optional - default: false
+## @env DD_COLLECT_EC2_INSTANCE_INFO - boolean - optional - default: false
+## Extend host tags with AWS EC2 instance information. The added tags are:
+##  - region
+##  - instance-type
+##  - aws_account
+##  - image
+##  - availability-zone
+##
+## This should only be enabled when the Datadog AWS integration cannot be enabled (see
+## https://docs.datadoghq.com/integrations/amazon_web_services/ for more information on the AWS integration).
+## Using the AWS integration is recommended as it offers more features and a better integration with the AWS environment.
+#
+# collect_ec2_instance_info: false
 
 ## @param exclude_ec2_tags - list of strings - optional - default: []
 ## @env DD_EXCLUDE_EC2_TAGS - space separated list of strings - optional - default: []
-## EC2 tags to exclude from being converted into host tags -- only applicable when collect_ec2_tags is true. This does
-## not impact tags collected by the AWS Integration (see https://docs.datadoghq.com/integrations/amazon_web_services/
-## for more information on the AWS integration).
+## EC2 tags to exclude from being converted into host tags. This does not impact tags collected by the AWS Integration
+## (see https://docs.datadoghq.com/integrations/amazon_web_services/ for more information on the AWS integration).
+##
+## This requires 'collect_ec2_tags' setting to be set to true.
 #
 # exclude_ec2_tags: []
 
 ## @param collect_ec2_tags_use_imds - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false
 ## Use instance metadata service (IMDS) instead of EC2 API to collect AWS EC2 custom tags.
-## Requires `collect_ec2_tags`.
+##
+## This requires 'collect_ec2_tags' setting to be set to true.
 #
 # collect_ec2_tags_use_imds: false
 
@@ -466,6 +498,12 @@ api_key:
 #
 # gce_metadata_timeout: 1000
 
+## @param collect_gpu_tags - boolean - optional - default: true
+## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: true
+## Collect GPU related host tags
+#
+# collect_gpu_tags: false
+
 ## @param azure_hostname_style - string - optional - default: "os"
 ## @env DD_AZURE_HOSTNAME_STYLE - string - optional - default: "os"
 ## Changes how agent hostname is set on Azure virtual machines.
@@ -518,6 +556,15 @@ api_key:
 #
 # inventories_configuration_enabled: true
 
+## @env DD_METADATA_IP_RESOLUTION_FROM_HOSTNAME - boolean - optional - default: false
+## By default, the Agent uses the first interface in the list of network interfaces to determine the IP address of the host.
+## If you set this option to true, the Agent tries to resolve the host name to determine the host's IP address.
+## If this is unsuccessful, the Agent falls back to the default behavior.
+## This option is useful when the first interface is not the one you want to use to determine the host's IP address, or when
+## you define the hostname in the /etc/hosts configuration file.
+#
+# metadata_ip_resolution_from_hostname: false
+
 ## @param auto_exit - custom object - optional
 ## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
 #
@@ -550,7 +597,6 @@ api_key:
 
 
 ## @param fips - custom object - optional
-## [BETA] Enter specific configurations for using the FIPS proxy.
 ## Uncomment this parameter and the one below to enable them.
 #
 # fips:
@@ -614,7 +660,7 @@ api_key:
     ## @env DD_OBSERVABILITY_PIPELINES_WORKER_METRICS_URL - string - optional - default: ""
     ## URL endpoint for the Observability Pipelines Worker to send metrics to
     #
-    # url: "http//127.0.0.1:8080"
+    # url: "http://127.0.0.1:8080"
 
   ## @param  logs - custom object - optional
   ## Specific configurations for logs
@@ -631,7 +677,7 @@ api_key:
     ## @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_URL - string - optional - default: ""
     ## URL endpoint for the Observability Pipelines Worker to send logs to
     #
-    # url: "http//127.0.0.1:8080"
+    # url: "http://127.0.0.1:8080"
 
   ## @param  traces - custom object - optional
   ## Specific configurations for traces
@@ -648,7 +694,7 @@ api_key:
     ## @env DD_OBSERVABILITY_PIPELINES_WORKER_TRACES_URL - string - optional - default: ""
     ## URL endpoint for the Observability Pipelines Worker to send traces to
     #
-    # url: "http//127.0.0.1:8080"
+    # url: "http://127.0.0.1:8080"
 
 {{ end }}
 {{- if .Agent }}
@@ -818,18 +864,46 @@ api_key:
 #
 # windows_use_pythonpath: false
 {{ end }}
+## @param secret_backend_type - string - optional
+## @env DD_SECRET_BACKEND_TYPE - string - optional
+## This feature is in preview.
+##
+## `secret_backend_type` is the type of backend where secrets are stored.
+## Supported backends are: "aws.secrets", "aws.ssm", "azure.keyvault", "hashicorp.vault",
+## "file.json", "file.yaml"
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
+##
+## This option is ignored if 'secret_backend_command' is set.
+#
+# secret_backend_type: <BACKEND_TYPE>
+
+## @param secret_backend_config - map - optional
+## @env DD_SECRET_BACKEND_CONFIG - map - optional
+## This feature is in preview.
+##
+## The section contains configuration required by `secret_backend_type` to resolve secrets.
+## The necessary configuration depends upon which type is used.
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
+#
+# secret_backend_config:
+#   <KEY_1>: <VALUE_1>
+
 ## @param secret_backend_command - string - optional
 ## @env DD_SECRET_BACKEND_COMMAND - string - optional
-## `secret_backend_command` is the path to the script to execute to fetch secrets.
+## `secret_backend_command` is the path to your custom script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
 ##
-## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
+## This option take precedence over `secret_backend_type`.
+##
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_command: <COMMAND_PATH>
 
 ## @param secret_backend_arguments - list of strings - optional
 ## @env DD_SECRET_BACKEND_ARGUMENTS - space separated list of strings - optional
 ## If secret_backend_command is set, specify here a list of arguments to give to the command at each run.
+##
+## This option take precedence over `secret_backend_type`.
 #
 # secret_backend_arguments:
 #   - <ARGUMENT_1>
@@ -860,7 +934,6 @@ api_key:
 ## add a line break when exporting secrets through files.
 #
 # secret_backend_remove_trailing_line_break: false
-
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -941,11 +1014,19 @@ api_key:
   #     name: <RULE_NAME>
   #     pattern: <RULE_PATTERN>
 
+  ## @param auto_multi_line_detection - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: false
+  ## Enable automatic aggregation of multi-line logs for common log patterns.
+  ## More information can be found in Datadog documentation:
+  ## https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
+  #
+  # auto_multi_line_detection: true
+
   ## @param force_use_http - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_HTTP - boolean - optional - default: false
   ## By default, the Agent sends logs in HTTPS batches to port 443 if HTTPS connectivity can
   ## be established at Agent startup, and falls back to TCP otherwise. Set this parameter to `true` to
-  ## always send logs with HTTPS (recommended).
+  ## always send logs via HTTP protocol (recommended).
   ## Warning: force_use_http means HTTP over TCP, not HTTP over HTTPS. Please use logs_no_ssl for HTTP over HTTPS.
   #
   # force_use_http: true
@@ -955,9 +1036,14 @@ api_key:
   ## The transport type to use for sending logs. Possible values are "auto" or "http1".
   # http_protocol: auto
 
+  ## @param http_timeout - integer - optional - default: 10
+  ## @env DD_LOGS_CONFIG_HTTP_TIMEOUT - integer - optional - default: 10
+  ## The HTTP timeout to use for sending logs, in seconds.
+  # http_timeout: 10
+
   ## @param force_use_tcp - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false
-  ## By default, logs are sent through HTTPS if possible, set this parameter
+  ## By default, logs are sent via HTTP protocol if possible, set this parameter
   ## to `true` to always send logs via TCP. If `force_use_http` is set to `true`, this parameter
   ## is ignored.
   #
@@ -965,7 +1051,7 @@ api_key:
 
   ## @param use_compression - boolean - optional - default: true
   ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: true
-  ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
+  ## This parameter is available when sending logs via HTTP protocol. If enabled, the Agent
   ## compresses logs before sending them.
   #
   # use_compression: true
@@ -983,6 +1069,12 @@ api_key:
   ## The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
+
+  ## @param close_timeout - integer - optional - default: 60
+  ## @env DD_LOGS_CONFIG_CLOSE_TIMEOUT - integer - optional - default: 60
+  ## The maximum number of seconds the Agent spends reading from a file after it has been rotated.
+  #
+  # close_timeout: 60
 
   ## @param open_files_limit - integer - optional - default: 500
   ## @env DD_LOGS_CONFIG_OPEN_FILES_LIMIT - integer - optional - default: 500
@@ -1032,7 +1124,19 @@ api_key:
   ## The total combined usage all integrations logs files can use
   #
   # integrations_logs_total_usage: 100
-  
+
+  ## @param kublet_api_client_read_timeout - duration - optional - default: 30s
+  ## @env DD_LOGS_CONFIG_KUBELET_API_CLIENT_READ_TIMEOUT - duration - optional - default: 30s
+  ## Configure the kubelet API client's timeout used while streaming logs.
+  #
+  # kublet_api_client_read_timeout: 30
+
+  ## @param k8s_container_use_kubelet_api - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_K8S_CONTAINER_USE_KUBELET_API - boolean - optional - default: false
+  ## Enable container log collection via the kubelet API, typically used for EKS Fargate
+  #
+  # k8s_container_use_kubelet_api: false
+
   ## @param streaming - custom object - optional
   ## This section allows you to configure streaming logs via remote config.
   # streaming:
@@ -1177,6 +1281,10 @@ api_key:
   ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional
   ##        Enables a Luhn checksum check in order to eliminate false negatives. Disabled by default.
   #         luhn: false
+  ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - client_id
   #
   #     elasticsearch:
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional
@@ -1414,7 +1522,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","enable_receive_resource_spans_v2", "enable_operation_and_resource_name_logic_v2"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","disable_receive_resource_spans_v2", "disable_operation_and_resource_name_logic_v2"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
@@ -2499,6 +2607,13 @@ api_key:
 #
 # jmx_telemetry_enabled: false
 
+## @param jmx_java_tool_options - string - optional
+## @env DD_JMX_JAVA_TOOL_OPTIONS - string - optional
+## If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
+## set in the check templates. If that is the case, force custom jars here.
+#
+# jmx_java_tool_options: -javaagent:/path/to/agent.jar -XX:+UseG1GC
+
 {{ end -}}
 {{- if .Logging }}
 
@@ -2798,6 +2913,24 @@ api_key:
 #
 # ad_config_poll_interval: 10
 
+## @param ad_allowed_env_vars - list of strings - optional
+## @env DD_AD_ALLOWED_ENV_VARS - list of strings - optional
+## The list of environment variables that are allowed to be resolved in check
+## configurations.
+## If the list is not set or is empty, the default behavior applies: all envs
+## are allowed.
+## This list only applies when `ad_disable_env_var_resolution` is set to false.
+#
+# ad_allowed_env_vars:
+#   - <ENV_VAR_1>
+#   - <ENV_VAR_2>
+
+## @param ad_disable_env_var_resolution - boolean - optional - default: false
+## @env DD_AD_DISABLE_ENV_VAR_RESOLUTION - boolean - optional - default: false
+## Disable environment variable resolution in check configurations.
+#
+# ad_disable_env_var_resolution: false
+
 ## @param cloud_foundry_garden - custom object - optional
 ## Settings for Cloudfoundry application container autodiscovery.
 #
@@ -2941,12 +3074,18 @@ api_key:
   # extra_tags:
   #   - <TAG_KEY>:<TAG_VALUE>
 
-  ## @param advanced_dispatching_enabled - boolean - optional - default: false
-  ## @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: false
+  ## @param advanced_dispatching_enabled - boolean - optional - default: true
+  ## @env DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED - boolean - optional - default: true
   ## If advanced_dispatching_enabled is true the leader cluster-agent collects stats
   ## from the cluster level check runners to optimize the check dispatching logic.
   #
-  # advanced_dispatching_enabled: false
+  # advanced_dispatching_enabled: true
+
+  ## @param rebalance_with_utilization - boolean - optional - default: true
+  ## @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: true
+  ## If rebalance_with_utilization is true, the cluster-agent will rebalance cluster checks using node utilization.
+  #
+  # rebalance_with_utilization: true
 
   ## @param clc_runners_port - integer - optional - default: 5005
   ## @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005
@@ -3474,14 +3613,6 @@ api_key:
 #
 # kubelet_client_key: <CLIENT_KEY_FILE_PATH>
 
-## @param kubelet_wait_on_missing_container - integer - optional - default: 0
-## @env DD_KUBELET_WAIT_ON_MISSING_CONTAINER - integer - optional - default: 0
-## On some kubelet versions, containers can take up to a second to
-## register in the podlist. This option allows to wait for up to a given
-## number of seconds (in 250ms chunks) when a container does not exist in the podlist.
-#
-# kubelet_wait_on_missing_container: 0
-
 ## @param kubelet_cache_pods_duration - integer - optional - default: 5
 ## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 5
 ## Polling frequency in seconds of the Agent to the kubelet "/pods" endpoint.
@@ -3855,6 +3986,11 @@ api_key:
     #
     # collect_topology: true
 
+    ## @param collect_vpn - boolean - optional - default: false
+    ## Enable collection of VPN tunnels and route table data
+    #
+    # collect_vpn: true
+
     ## @param ping - custom object - optional
     ## Configure ICMP pings for all hosts in SNMP autodiscovery
     ## Devices will be pinged with these settings each time the SNMP
@@ -3879,15 +4015,21 @@ api_key:
     #                             # If `use_raw_socket` is set to true, you MUST also enable
     #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
+    ## @param use_deduplication - boolean - optional - default: false
+    ## Deduplicate IP addresses corresponding to the same device.
+    ## The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
+
     ## @param configs - list - required
     ## The actual list of configurations used to discover SNMP devices in various subnets.
     ## Example:
     ## configs:
     ##  - network_address: 10.0.0.0/24
-    ##    snmp_version: 1
-    ##    community_string: public
+    ##    authentications:
+    ##      - snmp_version: 1
+    ##        community_string: public
     ##  - network_address: 10.0.1.0/28
-    ##    community_string: public
+    ##    authentications:
+    ##      - community_string: public
     ##    ignored_ip_addresses:
     ##      - 10.0.1.0
     ##      - 10.0.1.1
@@ -3914,68 +4056,79 @@ api_key:
       #
       #   port: 161
 
-      ## @param snmp_version - integer - optional - default: <BEST_GUESS>
-      ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
-      ## If unset, the Agent tries to guess the correct version based on other configuration
-      ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
+      ## @param authentications - list of custom objects - optional
+      ## A list of authentication configurations to try when connecting to your SNMP devices.
+      ## The Agent tries each configuration until it successfully connects.
+      ## Example:
+      ## authentications:
+      ##   - community_string: public-1
+      ##   - user: myUser
+      ##     authKey: myAuthKey
+      ##   - community_string: public-2
       #
-      #   snmp_version: <VERSION>
+      #   authentications:
+          ## @param snmp_version - integer - optional - default: <BEST_GUESS>
+          ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
+          ## If unset, the Agent tries to guess the correct version based on other configuration
+          ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
+          #
+          #  - snmp_version: <VERSION>
 
-      ## @param timeout - integer - optional - default: 5
-      ## The number of seconds before timing out.
-      #
-      #   timeout: 5
+          ## @param timeout - integer - optional - default: 5
+          ## The number of seconds before timing out.
+          #
+          #   timeout: 5
 
-      ## @param retries - integer - optional - default: 3
-      ## The number of retries before failure.
-      #
-      #   retries: 3
+          ## @param retries - integer - optional - default: 3
+          ## The number of retries before failure.
+          #
+          #   retries: 3
 
-      ## @param community_string - string - optional
-      ## Required for SNMP v1 & v2.
-      ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
-      ## Ex: 'public'
-      #
-      #   community_string: '<COMMUNITY>'
+          ## @param community_string - string - optional
+          ## Required for SNMP v1 & v2.
+          ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
+          ## Ex: 'public'
+          #
+          #   community_string: '<COMMUNITY>'
 
-      ## @param user - string - optional
-      ## The username to connect to your SNMP devices.
-      ## SNMPv3 only.
-      #
-      #   user: <USERNAME>
+          ## @param user - string - optional
+          ## The username to connect to your SNMP devices.
+          ## SNMPv3 only.
+          #
+          #   user: <USERNAME>
 
-      ## @param authKey - string - optional
-      ## The passphrase to use with your Authentication type.
-      ## SNMPv3 only.
-      #
-      #   authKey: <AUTHENTICATION_KEY>
+          ## @param authKey - string - optional
+          ## The passphrase to use with your Authentication type.
+          ## SNMPv3 only.
+          #
+          #   authKey: <AUTHENTICATION_KEY>
 
-      ## @param authProtocol - string - optional
-      ## The authentication protocol to use when connecting to your SNMP devices.
-      ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
-      ## Defaults to MD5 when `authentication_key` is specified.
-      ## SNMPv3 only.
-      #
-      #   authProtocol: <AUTHENTICATION_PROTOCOL>
+          ## @param authProtocol - string - optional
+          ## The authentication protocol to use when connecting to your SNMP devices.
+          ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
+          ## Defaults to MD5 when `authentication_key` is specified.
+          ## SNMPv3 only.
+          #
+          #   authProtocol: <AUTHENTICATION_PROTOCOL>
 
-      ## @param privKey - string - optional
-      ## The passphrase to use with your privacy protocol.
-      ## SNMPv3 only.
-      #
-      #   privKey: <PRIVACY_KEY>
+          ## @param privKey - string - optional
+          ## The passphrase to use with your privacy protocol.
+          ## SNMPv3 only.
+          #
+          #   privKey: <PRIVACY_KEY>
 
-      ## @param privProtocol - string - optional
-      ## The privacy protocol to use when connecting to your SNMP devices.
-      ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
-      ## Defaults to DES when `privacy_key` is specified.
-      ## SNMPv3 only.
-      #
-      #   privProtocol: <PRIVACY_PROTOCOL>
+          ## @param privProtocol - string - optional
+          ## The privacy protocol to use when connecting to your SNMP devices.
+          ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
+          ## Defaults to DES when `privacy_key` is specified.
+          ## SNMPv3 only.
+          #
+          #   privProtocol: <PRIVACY_PROTOCOL>
 
-      ## @param context_name - string - optional
-      ## The name of your context (optional SNMP v3-only parameter).
-      #
-      #   context_name: <CONTEXT_NAME>
+          ## @param context_name - string - optional
+          ## The name of your context (optional SNMP v3-only parameter).
+          #
+          #   context_name: <CONTEXT_NAME>
 
       ## @param tags - list of strings - optional
       ## A list of tags to attach to every metric and service check of all devices discovered in the subnet.
@@ -4274,6 +4427,25 @@ api_key:
     ## be increased by 200 every 5 seconds until reaching 1000.
     # recovery_interval: 5s
 
+## @param ha_agent - custom object - optional
+## This section configures High Availability Agent feature.
+#
+# ha_agent:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable High Availability Agent feature.
+  #
+  # enabled: false
+
+
+## @param config_id - string - optional
+## The config_id configuration is used by High Availability Agent to assign a specific config ID to an Agent.
+## When used with `ha_agent.enabled: true`, all Agents with the same config_id will be part of the same group of Agents;
+## meaning that, one Agent within this group is designated as primary and others as standby.
+#
+# config_id:
+
+
 {{end -}}
 {{- if .OTLP }}
 ###################################
@@ -4355,11 +4527,11 @@ api_key:
     #
     # resource_attributes_as_tags: false
 
-    ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: false
-    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: false
+    ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: true
     ## Set to true to add metadata about the instrumentation scope that created a metric.
     #
-    # instrumentation_scope_metadata_as_tags: false
+    # instrumentation_scope_metadata_as_tags: true
 
     ## @param tag_cardinality - string - optional - default: low
     ## @env DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY - string - optional - default: low
@@ -4515,7 +4687,7 @@ api_key:
     #
     # enabled: true
 
-## @param debug - custom object - optional
+  ## @param debug - custom object - optional
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:
@@ -4528,6 +4700,7 @@ api_key:
     ## Valid values are basic, normal, detailed, none.
     #
     # verbosity: normal
+
 {{- if (eq .OS "windows")}}
 #####################################################
 ## Datadog Agent Manager System Tray Configuration ##
@@ -4613,4 +4786,77 @@ api_key:
   ## To learn about all the available service matching conditions & configuration options, visit
   ## https://docs.datadoghq.com/tracing/trace_collection/library_injection_local
 
+{{end}}
+
+{{- if .ApplicationMonitoring -}}
+###############################
+## Datadog APM Configuration ##
+###############################
+
+## @section APM Configuration Rules
+##
+## Enable and configure APM, profiling, and security monitoring features.
+##
+## Settings can be configured via environment variables or the application_monitoring.yaml file.
+## Configuration precedence (highest to lowest priority):
+##   1. Fleet-managed config file
+##      (etc/datadog-agent/managed/datadog-agent/stable/application_monitoring.yaml)
+##   2. Environment variables
+##   3. Local config file
+##      (etc/datadog-agent/application_monitoring.yaml)
+# apm_configuration_rules:
+
+  ## @param DD_APM_TRACING_ENABLED - boolean - optional - default: true
+  ## Enable Datadog tracing.
+  ## Docs: https://docs.datadoghq.com/tracing/trace_collection/
+  # DD_APM_TRACING_ENABLED: true
+
+  ## @param DD_RUNTIME_METRICS_ENABLED - boolean - optional - default: false
+  ## Enable runtime metrics.
+  ## Docs: https://docs.datadoghq.com/tracing/metrics/runtime_metrics/?tab=java#environment-variables
+  # DD_RUNTIME_METRICS_ENABLED: false
+
+  ## @param DD_LOGS_INJECTION - boolean - optional - default: false
+  ## Enable automatic trace and span ID injection into logs.
+  ## Docs: https://docs.datadoghq.com/tracing/other_telemetry/connect_logs_and_traces/
+  # DD_LOGS_INJECTION: false
+
+  ## @param DD_PROFILING_ENABLED - boolean - optional - default: false
+  ## Enable continuous profiling.
+  ## Docs: https://docs.datadoghq.com/profiler/
+  # DD_PROFILING_ENABLED: false
+
+  ## @param DD_DATA_STREAMS_ENABLED - boolean - optional - default: false
+  ## Enable data streams monitoring.
+  ## Docs: https://docs.datadoghq.com/data_streams/
+  # DD_DATA_STREAMS_ENABLED: false
+
+  ## @param DD_APPSEC_ENABLED - boolean - optional - default: false
+  ## Enable the Application Security product.
+  ## Docs: https://docs.datadoghq.com/security/application_security/
+  # DD_APPSEC_ENABLED: false
+
+  ## @param DD_IAST_ENABLED - boolean - optional - default: false
+  ## Enable Interactive Application Security Testing (IAST).
+  ## Docs: https://docs.datadoghq.com/security/code_security/iast/setup/#amazon-ecs
+  # DD_IAST_ENABLED: false
+
+  ## @param DD_DYNAMIC_INSTRUMENTATION_ENABLED - boolean - optional - default: false
+  ## Enable Dynamic Instrumentation.
+  ## Docs: https://docs.datadoghq.com/dynamic_instrumentation/
+  # DD_DYNAMIC_INSTRUMENTATION_ENABLED: false
+
+  ## @param DD_DATA_JOBS_ENABLED - boolean - optional - default: false
+  ## Enable data jobs visibility.
+  # DD_DATA_JOBS_ENABLED: false
+
+  ## @param DD_APPSEC_SCA_ENABLED - boolean - optional - default: false
+  ## Enable Software Composition Analysis.
+  ## Docs: https://docs.datadoghq.com/security/code_security/software_composition_analysis/
+  # DD_APPSEC_SCA_ENABLED: false
+
+  ## @param DD_TRACE_DEBUG - boolean - optional - default: false
+  ## Enable debug logging for the tracer.
+  ## Docs: https://docs.datadoghq.com/tracing/troubleshooting/tracer_debug_logs
+  # DD_TRACE_DEBUG: false
 {{end}}

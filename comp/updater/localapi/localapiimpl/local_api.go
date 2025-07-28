@@ -36,7 +36,7 @@ type dependencies struct {
 }
 
 func newLocalAPIComponent(lc fx.Lifecycle, deps dependencies) (localapi.Component, error) {
-	localAPI, err := daemon.NewLocalAPI(deps.Updater, deps.Config.GetString("run_path"))
+	localAPI, err := daemon.NewLocalAPI(deps.Updater)
 	if err != nil {
 		return nil, fmt.Errorf("could not create local API: %w", err)
 	}

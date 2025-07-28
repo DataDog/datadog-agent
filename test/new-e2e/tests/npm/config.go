@@ -9,8 +9,9 @@ package npm
 import (
 	_ "embed"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 )
 
 // systemProbeConfigNPM define the embedded minimal configuration for NPM

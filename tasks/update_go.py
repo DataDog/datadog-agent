@@ -7,10 +7,10 @@ from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.go import tidy
-from tasks.libs.ciproviders.circleci import update_circleci_config
 from tasks.libs.ciproviders.gitlab_api import update_gitlab_config
 from tasks.libs.common.color import color_message
 from tasks.libs.common.gomodules import get_default_modules
+from tasks.pkg_template import generate
 
 GO_VERSION_FILE = "./.go-version"
 
@@ -27,12 +27,12 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
     ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", True),
     ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
-    ("./README.md", "[Go](https://golang.org/doc/install) ", " or later", False),
+    ("./README.md", "[Go](https://golang.org/doc/install) ", ".", False),
     ("./test/fakeintake/docs/README.md", "[Golang ", "]", False),
     ("./cmd/process-agent/README.md", "`go >= ", "`", False),
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
     ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
-    ("./go.work", "go ", "", False),
+    ("./go.work", "go ", "", True),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'
@@ -89,25 +89,20 @@ def update_go(
             else:
                 raise
 
-        try:
-            update_circleci_config(".circleci/config.yml", image_tag, test=test)
-        except RuntimeError as e:
-            if warn:
-                print(color_message(f"WARNING: {str(e)}", "orange"))
-            else:
-                raise
-
     _update_references(warn, version)
     _update_go_mods(warn, version, include_otel_modules)
 
-    # check the installed go version before running `tidy_all`
+    # check the installed go version before running tasks requiring the correct version
     res = ctx.run("go version")
     if res and res.stdout.startswith(f"go version go{version} "):
+        print("Updating the code in pkg/template...")
+        generate(ctx)
+        print("Running the tidy task...")
         tidy(ctx)
     else:
         print(
             color_message(
-                "WARNING: did not run `inv tidy` as the version of your `go` binary doesn't match the requested version",
+                "WARNING: did not run `dda inv tidy` nor `dda inv pkg-template.generate` as the version of your `go` binary doesn't match the requested version",
                 "orange",
             )
         )

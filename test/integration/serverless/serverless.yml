@@ -582,6 +582,7 @@ functions:
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
       DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_APM_FEATURES: disable_operation_and_resource_name_logic_v2
       DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: localhost:4318
       OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
       OTEL_METRICS_EXPORTER: otlp

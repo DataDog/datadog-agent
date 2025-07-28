@@ -7,6 +7,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -66,6 +67,7 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
+	conf.ReceiverTimeout = 1
 	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
 
 	return conf
@@ -78,6 +80,77 @@ func TestMain(m *testing.M) {
 		fmt.Println()
 	}
 	os.Exit(m.Run())
+}
+
+func TestServerShutdown(t *testing.T) {
+	// prepare the msgpack payload
+	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+	assert.Nil(t, err)
+
+	// prepare the receiver
+	conf := newTestReceiverConfig()
+	conf.ReceiverSocket = t.TempDir() + "/somesock.sock"
+	dynConf := sampler.NewDynamicConfig()
+
+	rawTraceChan := make(chan *Payload)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	receiver.Start()
+
+	go func() {
+		for {
+			// simulate the channel being busy
+			time.Sleep(100 * time.Millisecond)
+			_, ok := <-rawTraceChan
+			if !ok {
+				return
+			}
+		}
+	}()
+
+	// Create two clients - one for TCP and one for UDS
+	tcpClient := http.Client{Timeout: 10 * time.Second}
+	udsClient := http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", conf.ReceiverSocket)
+			},
+		},
+	}
+
+	wg := &sync.WaitGroup{}
+
+	// Send requests to both TCP and UDS endpoints
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for n := 0; n < 200; n++ {
+				// Send to TCP endpoint
+				req, _ := http.NewRequest("POST", "http://localhost:8326/v0.4/traces", bytes.NewReader(bts))
+				req.Header.Set("Content-Type", "application/msgpack")
+				resp, _ := tcpClient.Do(req)
+				if resp != nil {
+					resp.Body.Close()
+				}
+
+				// Send to UDS endpoint
+				req, _ = http.NewRequest("POST", "http://unix/v0.4/traces", bytes.NewReader(bts))
+				req.Header.Set("Content-Type", "application/msgpack")
+				resp, _ = udsClient.Do(req)
+				if resp != nil {
+					resp.Body.Close()
+				}
+			}
+		}()
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	receiver.Stop()
+
+	wg.Wait()
 }
 
 func TestReceiverRequestBodyLength(t *testing.T) {
@@ -168,6 +241,18 @@ func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
 	defer r.Stop()
 	data := []byte{0x96, 0x97, 0xa4, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x96, 0x94, 0x9c, 0x00, 0x00, 0x00, 0x30, 0x30, 0xd1, 0x30, 0x30, 0x30, 0x30, 0x30, 0xdf, 0x30, 0x30, 0x30, 0x30}
 
+	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestTracesDecodeSlowDecodeInvalid(t *testing.T) {
+	r := newTestReceiverFromConfig(newTestReceiverConfig())
+	r.Start()
+	defer r.Stop()
+	data := []byte("\x96\x90\xdd\x01\x7D\x78\x3F")
 	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
 	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
 	require.NoError(t, err)
@@ -1083,7 +1168,7 @@ func TestExpvar(t *testing.T) {
 
 	c := newTestReceiverConfig()
 	c.DebugServerPort = 6789
-	info.InitInfo(c)
+	assert.NoError(t, info.InitInfo(c))
 
 	// Starting a TLS httptest server to retrieve tlsCert
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
@@ -1202,6 +1287,81 @@ func TestNormalizeHTTPHeader(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("normalizeHTTPHeader(%q) = %q; expected %q", test.input, result, test.expected)
 		}
+	}
+}
+
+func TestGetProcessTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		header   http.Header
+		payload  *pb.TracerPayload
+		expected string
+	}{
+		{
+			name: "process tags in payload tags",
+			header: http.Header{
+				header.ProcessTags: []string{"header-value"},
+			},
+			payload: &pb.TracerPayload{
+				Tags: map[string]string{
+					tagProcessTags: "payload-tag-value",
+				},
+			},
+			expected: "payload-tag-value",
+		},
+		{
+			name:   "process tags in first span meta",
+			header: http.Header{header.ProcessTags: []string{"header-value"}},
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{
+								Meta: map[string]string{
+									tagProcessTags: "span-meta-value",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: "span-meta-value",
+		},
+		{
+			name: "process tags in header only",
+			header: http.Header{
+				header.ProcessTags: []string{"header-value"},
+			},
+			payload:  &pb.TracerPayload{},
+			expected: "header-value",
+		},
+		{
+			name:     "no tags anywhere",
+			header:   http.Header{},
+			payload:  &pb.TracerPayload{},
+			expected: "",
+		},
+		{
+			name:   "chunks but no spans",
+			header: http.Header{header.ProcessTags: []string{"header-value"}},
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					nil,
+					{},
+					{Spans: []*pb.Span{nil}},
+				},
+			},
+			expected: "header-value",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getProcessTags(tc.header, tc.payload)
+			if result != tc.expected {
+				t.Errorf("expected %q, got %q", tc.expected, result)
+			}
+		})
 	}
 }
 

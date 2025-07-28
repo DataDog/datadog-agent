@@ -125,7 +125,7 @@ func runTestMetrics(t *testing.T, deps serverDeps, input []byte, expTests []*tMe
 
 	var b batcherMock
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
-	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{})
+	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
 
 	samples := b.samples
 	timedSamples := b.lateSamples
@@ -165,7 +165,7 @@ func TestEvents(t *testing.T) {
 		SourceTypeName: "source investigation",
 	}
 
-	s.parsePackets(&b, parser, genTestPackets(input1, input2), metrics.MetricSampleBatch{})
+	s.parsePackets(&b, parser, genTestPackets(input1, input2), metrics.MetricSampleBatch{}, nil)
 
 	assert.Equal(t, 2, len(b.events))
 
@@ -179,7 +179,7 @@ func TestEvents(t *testing.T) {
 		"_e{-5,2}:abc\n",
 	)
 
-	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{})
+	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
 	assert.Equal(t, 1, len(b.events))
 	defaultEvent().testEvent(t, b.events[0])
 }
@@ -193,7 +193,7 @@ func TestServiceChecks(t *testing.T) {
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 	var b batcherMock
 
-	s.parsePackets(&b, parser, genTestPackets(defaultServiceInput), metrics.MetricSampleBatch{})
+	s.parsePackets(&b, parser, genTestPackets(defaultServiceInput), metrics.MetricSampleBatch{}, nil)
 
 	assert.Equal(t, 1, len(b.serviceChecks))
 	defaultServiceCheck().testService(t, b.serviceChecks[0])
@@ -202,7 +202,7 @@ func TestServiceChecks(t *testing.T) {
 
 	// Test incomplete Service Check
 	input := append([]byte("_sc|agen.down\n"), defaultServiceInput...)
-	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{})
+	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
 
 	assert.Equal(t, 1, len(b.serviceChecks))
 	defaultServiceCheck().testService(t, b.serviceChecks[0])
@@ -255,13 +255,13 @@ func TestParseMetricMessageTelemetry(t *testing.T) {
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 
 	assert.Equal(t, float64(0), s.tlmProcessedOk.Get())
-	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", 0, "", false)
+	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", 0, "", false, nil)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 	assert.Equal(t, float64(1), s.tlmProcessedOk.Get())
 
 	assert.Equal(t, float64(0), s.tlmProcessedError.Get())
-	samples, err = s.parseMetricMessage(samples, parser, nil, "", 0, "", false)
+	samples, err = s.parseMetricMessage(samples, parser, nil, "", 0, "", false, nil)
 	assert.Error(t, err, "invalid dogstatsd message format")
 	assert.Len(t, samples, 1)
 	assert.Equal(t, float64(1), s.tlmProcessedError.Get())
@@ -365,7 +365,7 @@ dogstatsd_mapper_profiles:
 
 			parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 			var b batcherMock
-			s.parsePackets(&b, parser, genTestPackets(scenario.packets...), metrics.MetricSampleBatch{})
+			s.parsePackets(&b, parser, genTestPackets(scenario.packets...), metrics.MetricSampleBatch{}, nil)
 
 			for idx, sample := range b.samples {
 				scenario.expectedSamples[idx].testMetric(t, sample)
@@ -463,12 +463,12 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 
 		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 		samples := []metrics.MetricSample{}
-		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "test_container", 0, "1", false)
+		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "test_container", 0, "1", false, nil)
 		assert.NoError(err)
 		assert.Len(samples, 1)
 
 		// one thing should have been stored when we parse a metric
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "test_container", 0, "1", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "test_container", 0, "1", true, nil)
 		assert.NoError(err)
 		assert.Len(samples, 2)
 		assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
@@ -476,7 +476,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Equal(s.cachedOrder[0].origin, "test_container")
 
 		// when we parse another metric (different value) with same origin, cache should contain only one entry
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "test_container", 0, "2", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "test_container", 0, "2", true, nil)
 		assert.NoError(err)
 		assert.Len(samples, 3)
 		assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
@@ -486,7 +486,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Equal(s.cachedOrder[0].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "test_container"})
 
 		// when we parse another metric (different value) but with a different origin, we should store a new entry
-		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "another_container", 0, "3", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "another_container", 0, "3", true, nil)
 		assert.NoError(err)
 		assert.Len(samples, 4)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached")
@@ -500,7 +500,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 
 		// oldest one should be removed once we reach the limit of the cache
 		maxOriginCounters = 2
-		samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", 0, "3", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", 0, "3", true, nil)
 		assert.NoError(err)
 		assert.Len(samples, 5)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, one has been evicted already")
@@ -514,7 +514,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 
 		// oldest one should be removed once we reach the limit of the cache
 		maxOriginCounters = 2
-		samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", 0, "4", true)
+		samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", 0, "4", true, nil)
 		assert.NoError(err)
 		assert.Len(samples, 6)
 		assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, two have been evicted already")

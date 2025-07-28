@@ -17,17 +17,21 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -47,7 +51,9 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+			hostnameimpl.MockModule(),
 		),
 	)
 }
@@ -118,7 +124,6 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.enable_http_monitoring":     true,
 		"service_monitoring_config.tls.native.enabled":         true,
 		"service_monitoring_config.enabled":                    true,
-		"service_monitoring_config.tls.java.enabled":           true,
 		"service_monitoring_config.enable_http2_monitoring":    true,
 		"service_monitoring_config.enable_kafka_monitoring":    true,
 		"service_monitoring_config.enable_postgres_monitoring": true,
@@ -126,6 +131,7 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.tls.istio.enabled":          true,
 		"service_monitoring_config.tls.go.enabled":             true,
 		"discovery.enabled":                                    true,
+		"gpu_monitoring.enabled":                               true,
 		"system_probe_config.enable_tcp_queue_length":          true,
 		"system_probe_config.enable_oom_kill":                  true,
 		"windows_crash_detection.enabled":                      true,
@@ -174,11 +180,14 @@ func TestInitData(t *testing.T) {
 	}
 	ia := getTestInventoryPayload(t, overrides, sysprobeOverrides)
 	ia.refreshMetadata()
+	isFips, err := fips.Enabled()
+	assert.Nil(t, err)
 
 	expected := map[string]any{
 		"agent_version":                    version.AgentVersion,
 		"agent_startup_time_ms":            pkgconfigsetup.StartTime.UnixMilli(),
 		"flavor":                           flavor.GetFlavor(),
+		"fips_mode":                        isFips,
 		"config_apm_dd_url":                "http://name:********@someintake.example.com/",
 		"config_dd_url":                    "http://name:********@someintake.example.com/",
 		"config_site":                      "test",
@@ -190,7 +199,6 @@ func TestInitData(t *testing.T) {
 		"config_eks_fargate":               true,
 
 		"feature_process_language_detection_enabled": true,
-		"feature_fips_enabled":                       true,
 		"feature_logs_enabled":                       true,
 		"feature_cspm_enabled":                       true,
 		"feature_cspm_host_benchmarks_enabled":       true,
@@ -219,6 +227,7 @@ func TestInitData(t *testing.T) {
 		"feature_usm_istio_enabled":                    true,
 		"feature_usm_go_tls_enabled":                   true,
 		"feature_discovery_enabled":                    true,
+		"feature_gpu_monitoring_enabled":               true,
 		"feature_tcp_queue_length_enabled":             true,
 		"feature_oom_kill_enabled":                     true,
 		"feature_windows_crash_detection_enabled":      true,
@@ -268,11 +277,14 @@ func TestFlareProviderFilename(t *testing.T) {
 }
 
 func TestConfigRefresh(t *testing.T) {
+	cfg := configmock.New(t)
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfigsetup.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
-	assert.True(t, ia.RefreshTriggered())
+	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	assert.Eventually(t, func() bool {
+		return assert.True(t, ia.RefreshTriggered())
+	}, 5*time.Second, 1*time.Second)
 }
 
 func TestStatusHeaderProvider(t *testing.T) {
@@ -321,7 +333,8 @@ func TestFetchSecurityAgent(t *testing.T) {
 	defer func() {
 		fetchSecurityConfig = configFetcher.SecurityAgentConfig
 	}()
-	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+
+	fetchSecurityConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -343,7 +356,7 @@ func TestFetchSecurityAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_cspm_enabled"].(bool))
 	assert.False(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
 
-	fetchSecurityConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchSecurityConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `compliance_config:
   enabled: true
   host_benchmarks:
@@ -358,11 +371,11 @@ func TestFetchSecurityAgent(t *testing.T) {
 }
 
 func TestFetchProcessAgent(t *testing.T) {
-	defer func(original func(cfg pkgconfigmodel.Reader) (string, error)) {
+	defer func(original func(cfg pkgconfigmodel.Reader, client ipc.HTTPClient) (string, error)) {
 		fetchProcessConfig = original
 	}(fetchProcessConfig)
 
-	fetchProcessConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchProcessConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -386,7 +399,7 @@ func TestFetchProcessAgent(t *testing.T) {
 	// default to true in the process agent configuration
 	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
 
-	fetchProcessConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchProcessConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `
 process_config:
   process_collection:
@@ -409,7 +422,7 @@ func TestFetchTraceAgent(t *testing.T) {
 	defer func() {
 		fetchTraceConfig = configFetcher.TraceAgentConfig
 	}()
-	fetchTraceConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchTraceConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -435,7 +448,7 @@ func TestFetchTraceAgent(t *testing.T) {
 	}
 	assert.Equal(t, "", ia.data["config_apm_dd_url"].(string))
 
-	fetchTraceConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchTraceConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `
 apm_config:
   enabled: true
@@ -456,7 +469,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	defer func() {
 		fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 	}()
-	fetchSystemProbeConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchSystemProbeConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the system-probe config was passed and not the agent config
 		assert.True(
 			t,
@@ -493,6 +506,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
+	assert.False(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
 	assert.False(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
@@ -526,7 +540,9 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+			hostnameimpl.MockModule(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)
@@ -546,6 +562,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
+	assert.False(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
 	assert.False(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
@@ -565,7 +582,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
 
 	// Testing an inventoryagent where we can contact the system-probe process
-	fetchSystemProbeConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchSystemProbeConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `
 runtime_security_config:
   enabled: true
@@ -624,6 +641,9 @@ system_probe_config:
 
 dynamic_instrumentation:
   enabled: true
+
+gpu_monitoring:
+  enabled: true
 `, nil
 	}
 
@@ -645,6 +665,7 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_discovery_enabled"].(bool))
+	assert.True(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
 	assert.True(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.True(t, ia.data["feature_oom_kill_enabled"].(bool))
 	assert.True(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
@@ -726,4 +747,28 @@ func TestGetProvidedConfigurationOnly(t *testing.T) {
 	sort.Strings(expected)
 
 	assert.Equal(t, expected, keys)
+}
+
+func TestGetDiagnosticsDisabled(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_diagnostics_enabled": false,
+	}, nil)
+	ia.Set("diagnostics", "test")
+
+	payload := ia.getPayload().(*Payload)
+
+	// No configuration should be in the payload
+	assert.NotContains(t, payload.Metadata, "diagnostics")
+}
+
+func TestGetDiagnosticsEnabled(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_diagnostics_enabled": true,
+	}, nil)
+	ia.Set("diagnostics", "test")
+
+	payload := ia.getPayload().(*Payload)
+
+	// No configuration should be in the payload
+	assert.Contains(t, payload.Metadata, "diagnostics")
 }

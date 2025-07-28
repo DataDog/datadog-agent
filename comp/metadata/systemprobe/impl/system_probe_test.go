@@ -17,9 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -38,8 +39,8 @@ func setupFetcher(t *testing.T) {
 		fetchSystemProbeConfigBySource = configFetcher.SystemProbeConfigBySource
 	})
 
-	fetchSystemProbeConfig = func(_ model.Reader) (string, error) { return "full config", nil }
-	fetchSystemProbeConfigBySource = func(_ model.Reader) (string, error) {
+	fetchSystemProbeConfig = func(_ model.Reader, _ ipc.HTTPClient) (string, error) { return "full config", nil }
+	fetchSystemProbeConfigBySource = func(_ model.Reader, _ ipc.HTTPClient) (string, error) {
 		data, err := json.Marshal(map[string]interface{}{
 			string(model.SourceFile):               map[string]bool{"file": true},
 			string(model.SourceEnvVar):             map[string]bool{"env": true},
@@ -63,12 +64,13 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 		Log:        l,
 		Config:     cfg,
 		Serializer: serializermock.NewMetricSerializer(t),
-		AuthToken: fxutil.Test[authtoken.Component](t,
-			authtokenimpl.Module(),
+		IPC: fxutil.Test[ipc.Component](t,
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func() log.Component { return l }),
 			fx.Provide(func() config.Component { return cfg }),
 		),
 		SysProbeConfig: fxutil.Test[option.Option[sysprobeconfig.Component]](t, sysprobeconfigimpl.MockModule()),
+		Hostname:       hostnameimpl.NewHostnameService(),
 	}
 
 	comp := NewComponent(r).Comp

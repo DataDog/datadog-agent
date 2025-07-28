@@ -103,7 +103,7 @@ int hook_vfs_rename(ctx_t *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_RENAME);
@@ -111,7 +111,7 @@ int hook_vfs_rename(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_type) {
+int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
         pop_syscall(EVENT_RENAME);
         return 0;
@@ -143,15 +143,19 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
     if (syscall->state != DISCARDED && is_event_enabled(EVENT_RENAME)) {
         syscall->retval = retval;
 
-        // for centos7, use src dentry for target resolution as the pointers have been swapped
+        // target dentry is swapped with src in the case of a successful rename
+        if (retval >= 0) {
+            syscall->resolver.dentry = syscall->rename.src_dentry;
+        } else {
+            syscall->resolver.dentry = syscall->rename.target_dentry;
+        }
         syscall->resolver.key = syscall->rename.target_file.path_key;
-        syscall->resolver.dentry = syscall->rename.src_dentry;
         syscall->resolver.discarder_event_type = 0;
-        syscall->resolver.callback = select_dr_key(dr_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
+        syscall->resolver.callback = select_dr_key(prog_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
 
-        resolve_dentry(ctx, dr_type);
+        resolve_dentry(ctx, prog_type);
     }
 
     // if the tail call failed we need to pop the syscall cache entry
@@ -162,27 +166,26 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
 HOOK_EXIT("do_renameat2")
 int rethook_do_renameat2(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
-    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+    return sys_rename_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(rename) {
     int retval = SYSCALL_PARMRET(ctx);
-    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+    return sys_rename_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(renameat) {
     int retval = SYSCALL_PARMRET(ctx);
-    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+    return sys_rename_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(renameat2) {
     int retval = SYSCALL_PARMRET(ctx);
-    return sys_rename_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+    return sys_rename_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
-SEC("tracepoint/handle_sys_rename_exit")
-int tracepoint_handle_sys_rename_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_rename_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_rename_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
 int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
@@ -214,13 +217,11 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_rename_callback")
-int tail_call_target_dr_rename_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_rename_callback, ctx_t *ctx) {
     return dr_rename_callback(ctx);
 }
 
-SEC("tracepoint/dr_rename_callback")
-int tracepoint_dr_rename_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(dr_rename_callback, struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_rename_callback(args);
 }
 

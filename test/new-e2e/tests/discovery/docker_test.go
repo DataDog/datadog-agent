@@ -67,7 +67,7 @@ func (s *dockerDiscoveryTestSuite) TestServiceDiscoveryContainerID() {
 	containerID = strings.TrimSuffix(containerID, "\n")
 	t.Logf("service container ID: %v", containerID)
 
-	services := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "curl", "-s", "--unix-socket", "/opt/datadog-agent/run/sysprobe.sock", "http://unix/discovery/services")
+	services := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "curl", "-s", "--unix-socket", "/opt/datadog-agent/run/sysprobe.sock", "http://unix/discovery/check")
 	t.Logf("system-probe services: %v", services)
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -76,8 +76,8 @@ func (s *dockerDiscoveryTestSuite) TestServiceDiscoveryContainerID() {
 
 		foundMap := make(map[string]*aggregator.ServiceDiscoveryPayload)
 		for _, p := range payloads {
-			name := p.Payload.ServiceName
-			t.Log("RequestType", p.RequestType, "ServiceName", name)
+			name := p.Payload.GeneratedServiceName
+			t.Log("RequestType", p.RequestType, "GeneratedServiceName", name)
 
 			if p.RequestType == "start-service" {
 				foundMap[name] = p

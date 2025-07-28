@@ -8,11 +8,10 @@ To build the agent on Windows, see [datadog-agent-buildimages](https://github.co
 ### Python
 
 The Agent embeds a full-fledged CPython interpreter, so it requires the
-development files to be available in the dev env. The Agent can embed Python2
-and/or Python3, you will need development files for all versions you want to
-support.
+development files to be available in the dev env. The Agent can embed Python3,
+you will need development files for all versions you want to support.
 
-If you're on OSX/macOS, installing Python 2.7 and/or 3.12 with [Homebrew](https://brew.sh)
+If you're on OSX/macOS, installing Python 3.12 with [Homebrew](https://brew.sh)
 brings along all the development files needed:
 
 **Please note that not using Python versions explicitly supported, you may have
@@ -20,18 +19,16 @@ problems running the built Agent's Python checks, especially if using a virtuale
 At this time, only Python 3.12 is confirmed to work as expected in the development
 environment.**
 ```
-brew install python@2
 brew install python@3.12
 ```
 
 On Linux, depending on the distribution, you might need to explicitly install
 the development files, for example on Ubuntu:
 ```
-sudo apt-get install python2.7-dev
 sudo apt-get install python3.12-dev
 ```
 
-On Windows, install Python 2.7 and/or 3.12 via the [official installer](https://www.python.org/downloads/).
+On Windows, install 3.12 via the [official installer](https://www.python.org/downloads/).
 
 #### Python Dependencies
 
@@ -91,7 +88,7 @@ Enable pre-commit        OK
 Setup completed successfully.
 ```
 
-If you want to uninstall `deva`, you can simply run the `./deva self remove` command, which will remove the virtual environment from your system, and remove the binary. That's it.
+If you want to uninstall `deva`, you can simply run the `./dda self remove` command, which will remove the virtual environment from your system, and remove the binary. That's it.
 
 ##### Manual Installation
 
@@ -138,12 +135,11 @@ This procedure ensures you not only get the correct version of `invoke`, but als
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.23.6` or
-later. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
+You must [install Golang](https://golang.org/doc/install) version `1.24.5`. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
-specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/main/circleci/Dockerfile#L42))
+specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/34a493504f7600a2fc7ca75e443fa557da367b05/deb-arm/Dockerfile#L19))
 may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 
@@ -233,7 +229,7 @@ It is optional but recommended to install `pre-commit` to run a number of checks
 
 #### Installation
 
-To install pre-commit, follow [these instructions](https://pre-commit.com/#installation). The `deva setup` automatically enables the hooks, but you can do it manually running: `pre-commit install`.
+To install pre-commit, follow [these instructions](https://pre-commit.com/#installation). The `dda setup` automatically enables the hooks, but you can do it manually running: `GOFLAGS=-buildvcs=false pre-commit install`.
 
 The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`.
 To install it, run:

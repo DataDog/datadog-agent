@@ -43,3 +43,8 @@ var (
 func GetDistPath() string {
 	return distPath
 }
+
+// GetInstallPath returns the fully qualified path to the datadog-agent executable
+func GetInstallPath() string {
+	return _here
+}

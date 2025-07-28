@@ -10,12 +10,17 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/pkg/api/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Requires is a struct that contains the components required by the common endpoints
+type Requires struct {
+	Hostname hostnameinterface.Component
+}
 
 // Provider provides the common Agent API endpoints
 type Provider struct {
@@ -25,24 +30,26 @@ type Provider struct {
 }
 
 // CommonEndpointProvider return a filled Provider struct
-func CommonEndpointProvider() Provider {
+func CommonEndpointProvider(requires Requires) Provider {
 	return Provider{
-		VersionEndpoint:  api.NewAgentEndpointProvider(common.GetVersion, "/version", "GET"),
-		HostnameEndpoint: api.NewAgentEndpointProvider(getHostname, "/hostname", "GET"),
+		VersionEndpoint:  api.NewAgentEndpointProvider(version.Get, "/version", "GET"),
+		HostnameEndpoint: api.NewAgentEndpointProvider(getHostname(requires.Hostname), "/hostname", "GET"),
 		StopEndpoint:     api.NewAgentEndpointProvider(stopAgent, "/stop", "POST"),
 	}
 }
 
-// getHostname returns the hostname as a JSON response.
-func getHostname(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	hname, err := hostname.Get(r.Context())
-	if err != nil {
-		log.Warnf("Error getting hostname: %s\n", err) // or something like this
-		hname = ""
+// getHostname returns an http handler that writes the hostname as a JSON response.
+func getHostname(hostname hostnameinterface.Component) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		hname, err := hostname.Get(r.Context())
+		if err != nil {
+			log.Warnf("Error getting hostname: %s\n", err) // or something like this
+			hname = ""
+		}
+		j, _ := json.Marshal(hname)
+		w.Write(j)
 	}
-	j, _ := json.Marshal(hname)
-	w.Write(j)
 }
 
 // StopAgent stops the agent by sending a signal to the stopper channel.

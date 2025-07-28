@@ -16,7 +16,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
 type headlessSocketFilter struct {
@@ -44,7 +44,7 @@ func HeadlessSocketFilter(cfg *config.Config, filter *manager.Probe) (closeFn fu
 	}
 	defer ns.Close()
 
-	err = kernel.WithNS(ns, func() error {
+	err = netnsutil.WithNS(ns, func() error {
 		hsf.fd, err = unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(htons(unix.ETH_P_ALL)))
 		if err != nil {
 			return err

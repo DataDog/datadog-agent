@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -158,6 +159,33 @@ func TestNewInstrumentationConfig(t *testing.T) {
 							{
 								Name:  "DD_DATA_JOBS_ENABLED",
 								Value: "true",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:       "can provide DD_SERVICE from arbitrary label",
+			configPath: "testdata/filter_service_env_var_from.yaml",
+			expected: &InstrumentationConfig{
+				Enabled:            true,
+				EnabledNamespaces:  []string{},
+				DisabledNamespaces: []string{},
+				InjectorImageTag:   "0",
+				Version:            "v2",
+				LibVersions:        map[string]string{},
+				Targets: []Target{
+					{
+						Name: "name-services",
+						TracerConfigs: []TracerConfig{
+							{
+								Name: "DD_SERVICE",
+								ValueFrom: &corev1.EnvVarSource{
+									FieldRef: &corev1.ObjectFieldSelector{
+										FieldPath: "metadata.labels['app.kubernetes.io/name']",
+									},
+								},
 							},
 						},
 					},
@@ -340,6 +368,24 @@ func TestTargetEnvVar(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "target with env valueFrom",
+			expected: []Target{
+				{
+					Name: "default-target",
+					TracerConfigs: []TracerConfig{
+						{
+							Name: "DD_SERVICE",
+							ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{
+									FieldPath: "metadata.labels['foo-bar']",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -443,7 +489,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			name: "default libs (major versions)",
 			libVersions: map[string]string{
 				"java":   "v1",
-				"python": "v2",
+				"python": "v3",
 				"js":     "v5",
 				"dotnet": "v3",
 				"ruby":   "v2",
@@ -466,7 +512,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			name: "default libs (major versions mismatch)",
 			libVersions: map[string]string{
 				"java":   "v1",
-				"python": "v2",
+				"python": "v3",
 				"js":     "v3",
 				"dotnet": "v3",
 				"ruby":   "v2",

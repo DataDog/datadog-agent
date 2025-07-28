@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    APM: Container-based primary tags are now available by default.

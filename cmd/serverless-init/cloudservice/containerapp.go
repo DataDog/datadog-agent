@@ -43,6 +43,9 @@ const (
 	acaRegion         = "aca.app.region"
 	acaRevision       = "aca.app.revision"
 	acaSubscriptionID = "aca.subscription.id"
+
+	// ContainerAppOrigin origin tag value
+	ContainerAppOrigin = "containerapp"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -70,8 +73,8 @@ func (c *ContainerApp) GetTags() map[string]string {
 		acaRevision:    revision,
 		acaReplicaName: replica,
 
-		"origin":     c.GetOrigin(),
-		"_dd.origin": c.GetOrigin(),
+		"origin":     ContainerAppOrigin,
+		"_dd.origin": ContainerAppOrigin,
 	}
 
 	if c.SubscriptionId != "" {
@@ -97,7 +100,7 @@ func (c *ContainerApp) GetTags() map[string]string {
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *ContainerApp) GetOrigin() string {
-	return "containerapp"
+	return ContainerAppOrigin
 }
 
 // GetPrefix returns the prefix that we're prefixing all
@@ -134,6 +137,11 @@ func (c *ContainerApp) Init() error {
 	}
 
 	return nil
+}
+
+// GetStartMetricName returns the metric name for container start (coldstart) events
+func (c *ContainerApp) GetStartMetricName() string {
+	return fmt.Sprintf("%s.enhanced.cold_start", c.GetPrefix())
 }
 
 func isContainerAppService() bool {

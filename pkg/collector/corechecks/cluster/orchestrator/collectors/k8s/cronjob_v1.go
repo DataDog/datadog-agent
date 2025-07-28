@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1"
@@ -42,6 +43,7 @@ func NewCronJobV1Collector(metadataAsTags utils.MetadataAsTags) *CronJobV1Collec
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 cronJobName,
+			Kind:                                 kubernetes.CronJobKind,
 			NodeType:                             orchestrator.K8sCronJob,
 			Version:                              cronJobVersionV1,
 			LabelsAsTags:                         labelsAsTags,
@@ -82,7 +84,7 @@ func (c *CronJobV1Collector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 func (c *CronJobV1Collector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -90,7 +92,7 @@ func (c *CronJobV1Collector) Process(rcfg *collectors.CollectorRunConfig, list i
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

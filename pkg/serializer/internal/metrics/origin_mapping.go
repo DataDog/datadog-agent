@@ -10,16 +10,37 @@ import (
 )
 
 func metricSourceToOriginProduct(ms metrics.MetricSource) int32 {
+	const serieMetadataOriginOriginProductServerlessType = 1
 	const serieMetadataOriginOriginProductAgentType = 10
 	const serieMetadataOriginOriginProductDatadogExporterType = 19
+	const serieMetadataOriginOriginProductGPU = 38 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L277
 	if ms >= metrics.MetricSourceOpenTelemetryCollectorUnknown && ms <= metrics.MetricSourceOpenTelemetryCollectorCouchdbReceiver {
 		return serieMetadataOriginOriginProductDatadogExporterType
+	}
+	if ms == metrics.MetricSourceGPU {
+		return serieMetadataOriginOriginProductGPU
+	}
+	switch ms {
+	case metrics.MetricSourceServerless,
+		metrics.MetricSourceAwsLambdaCustom,
+		metrics.MetricSourceAwsLambdaEnhanced,
+		metrics.MetricSourceAwsLambdaRuntime,
+		metrics.MetricSourceAzureContainerAppCustom,
+		metrics.MetricSourceAzureContainerAppEnhanced,
+		metrics.MetricSourceAzureContainerAppRuntime,
+		metrics.MetricSourceAzureAppServiceCustom,
+		metrics.MetricSourceAzureAppServiceEnhanced,
+		metrics.MetricSourceAzureAppServiceRuntime,
+		metrics.MetricSourceGoogleCloudRunCustom,
+		metrics.MetricSourceGoogleCloudRunEnhanced,
+		metrics.MetricSourceGoogleCloudRunRuntime:
+		return serieMetadataOriginOriginProductServerlessType
 	}
 	return serieMetadataOriginOriginProductAgentType
 }
 
 func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
-	// These constants map to specific fields in the 'OriginCategory' enum in origin.proto
+	// These constants map to specific fields in the 'OriginSubproduct' enum in origin.proto
 	switch ms {
 	case metrics.MetricSourceUnknown:
 		return 0
@@ -73,6 +94,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceDisk,
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
+		metrics.MetricSourceWlan,
+		metrics.MetricSourceWindowsCertificateStore,
 		// Plugins and non-checks
 		metrics.MetricSourceCloudFoundry,
 		metrics.MetricSourceJenkins,
@@ -306,6 +329,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceVarnish,
 		metrics.MetricSourceVault,
 		metrics.MetricSourceVertica,
+		metrics.MetricSourceVelero,
 		metrics.MetricSourceVllm,
 		metrics.MetricSourceVoltdb,
 		metrics.MetricSourceVsphere,
@@ -318,8 +342,42 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAwsNeuron,
 		metrics.MetricSourceNvidiaNim,
 		metrics.MetricSourceQuarkus,
-		metrics.MetricSourceMilvus:
+		metrics.MetricSourceMilvus,
+		metrics.MetricSourceCelery,
+		metrics.MetricSourceInfiniband,
+		metrics.MetricSourceAnecdote,
+		metrics.MetricSourceSonatypeNexus,
+		metrics.MetricSourceSilverstripeCMS,
+		metrics.MetricSourceAltairPBSPro,
+		metrics.MetricSourceFalco,
+		metrics.MetricSourceKrakenD,
+		metrics.MetricSourceKuma,
+		metrics.MetricSourceLiteLLM,
+		metrics.MetricSourceLustre,
+		metrics.MetricSourceProxmox,
+		metrics.MetricSourceSupabase,
+		metrics.MetricSourceKeda,
+		metrics.MetricSourceDuckdb,
+		metrics.MetricSourceResilience4j:
 		return 11 // integrationMetrics
+	case metrics.MetricSourceGPU:
+		return 72 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L427
+	case metrics.MetricSourceAzureAppServiceCustom,
+		metrics.MetricSourceAzureAppServiceEnhanced,
+		metrics.MetricSourceAzureAppServiceRuntime:
+		return 35
+	case metrics.MetricSourceGoogleCloudRunCustom,
+		metrics.MetricSourceGoogleCloudRunEnhanced,
+		metrics.MetricSourceGoogleCloudRunRuntime:
+		return 36
+	case metrics.MetricSourceAzureContainerAppCustom,
+		metrics.MetricSourceAzureContainerAppEnhanced,
+		metrics.MetricSourceAzureContainerAppRuntime:
+		return 37
+	case metrics.MetricSourceAwsLambdaCustom,
+		metrics.MetricSourceAwsLambdaEnhanced,
+		metrics.MetricSourceAwsLambdaRuntime:
+		return 38
 	default:
 		return 0
 	}
@@ -440,6 +498,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 65
 	case metrics.MetricSourceGoExpvar:
 		return 66
+	case metrics.MetricSourceGPU:
+		return 466
 	case metrics.MetricSourceGunicorn:
 		return 67
 	case metrics.MetricSourceHaproxy:
@@ -720,6 +780,12 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 203
 	case metrics.MetricSourceInternal:
 		return 212
+	case metrics.MetricSourceSilverstripeCMS:
+		return 468
+	case metrics.MetricSourceSonatypeNexus:
+		return 469
+	case metrics.MetricSourceAnecdote:
+		return 470
 
 	case metrics.MetricSourceOpenTelemetryCollectorUnknown:
 		return 0
@@ -996,12 +1062,59 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 418
 	case metrics.MetricSourceTibcoEMS:
 		return 419
+	case metrics.MetricSourceDuckdb:
+		return 423
+	case metrics.MetricSourceKeda:
+		return 424
 	case metrics.MetricSourceMilvus:
 		return 425
 	case metrics.MetricSourceNvidiaNim:
 		return 426
 	case metrics.MetricSourceQuarkus:
 		return 427
+	case metrics.MetricSourceSupabase:
+		return 428
+	case metrics.MetricSourceVelero:
+		return 458
+	case metrics.MetricSourceCelery:
+		return 464
+	case metrics.MetricSourceInfiniband:
+		return 465
+	case metrics.MetricSourceAwsLambdaCustom,
+		metrics.MetricSourceAzureContainerAppCustom,
+		metrics.MetricSourceAzureAppServiceCustom,
+		metrics.MetricSourceGoogleCloudRunCustom:
+		return 472
+	case metrics.MetricSourceAwsLambdaEnhanced,
+		metrics.MetricSourceAzureContainerAppEnhanced,
+		metrics.MetricSourceAzureAppServiceEnhanced,
+		metrics.MetricSourceGoogleCloudRunEnhanced:
+		return 473
+	case metrics.MetricSourceAwsLambdaRuntime,
+		metrics.MetricSourceAzureContainerAppRuntime,
+		metrics.MetricSourceAzureAppServiceRuntime,
+		metrics.MetricSourceGoogleCloudRunRuntime:
+		return 474
+	case metrics.MetricSourceWlan:
+		return 475
+	case metrics.MetricSourceAltairPBSPro:
+		return 476
+	case metrics.MetricSourceFalco:
+		return 477
+	case metrics.MetricSourceKrakenD:
+		return 478
+	case metrics.MetricSourceKuma:
+		return 479
+	case metrics.MetricSourceLiteLLM:
+		return 480
+	case metrics.MetricSourceLustre:
+		return 481
+	case metrics.MetricSourceProxmox:
+		return 482
+	case metrics.MetricSourceResilience4j:
+		return 483
+	case metrics.MetricSourceWindowsCertificateStore:
+		return 484
 	default:
 		return 0
 	}

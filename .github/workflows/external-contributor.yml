@@ -22,17 +22,13 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
-      - name: Setup python
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+      - name: Install dda
+        uses: ./.github/actions/install-dda
         with:
-          python-version-file: .python-version
-          cache: 'pip'
-          cache-dependency-path: '**/requirements*.txt'
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
+          features: legacy-tasks
       - name: Set label on external contributor PRs
         run: |
-          inv -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
+          dda inv -- -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

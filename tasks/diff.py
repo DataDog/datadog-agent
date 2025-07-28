@@ -14,6 +14,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
+from tasks.go import version as dot_go_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_current_branch
@@ -27,7 +28,7 @@ BINARIES: dict[str, dict] = {
     },
     "iot-agent": {
         "build": "agent",
-        "entrypoint": "cmd/agent",
+        "entrypoint": "cmd/iot-agent",
         "flavor": AgentFlavor.iot,
         "platforms": ["linux/x64", "linux/arm64"],
     },
@@ -57,8 +58,16 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/security-agent",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64"],
     },
+    "sbomgen": {
+        "entrypoint": "cmd/sbomgen",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
     "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
     "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
+    "cws-instrumentation": {
+        "entrypoint": "cmd/cws-instrumentation",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
     "trace-agent": {
         "entrypoint": "cmd/trace-agent",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
@@ -68,6 +77,10 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/trace-agent",
         "flavor": AgentFlavor.heroku,
         "platforms": ["linux/x64"],
+    },
+    "otel-agent": {
+        "entrypoint": "cmd/otel-agent",
+        "platforms": ["linux/x64", "linux/arm64"],
     },
 }
 
@@ -133,7 +146,12 @@ def go_deps(
                             build = details.get("build", binary)
                             build_tags = get_default_build_tags(build=build, platform=platform, flavor=flavor)
                             # need to explicitly enable CGO to also include CGO-only deps when checking different platforms
-                            env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
+                            env = {
+                                "GOOS": goos,
+                                "GOARCH": goarch,
+                                "CGO_ENABLED": "1",
+                                "GOTOOLCHAIN": f"go{dot_go_version(ctx)}",
+                            }
                             ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
         finally:
             ctx.run(f"git checkout -q {current_branch}")
@@ -147,8 +165,11 @@ def go_deps(
 
                 prdeps = os.path.join(tmpdir, f"{target}-current")
                 maindeps = os.path.join(tmpdir, f"{target}-main")
+                # filter out internal packages to avoid noise
                 res = ctx.run(
-                    f"diff -u0 {maindeps} {prdeps} | grep -v '^@@' | grep -v '^[+-][+-]'", hide=True, warn=True
+                    f"diff -u0 {maindeps} {prdeps} | grep -v '^@@' | grep -v '^[+-][+-]' | grep -v -E '(^[+-]|/)internal/'",
+                    hide=True,
+                    warn=True,
                 )
                 if len(res.stdout) > 0:
                     diffs[target] = res.stdout.strip()
@@ -253,7 +274,7 @@ def _list_tasks_rec(collection, prefix='', res=None):
 def _list_invoke_tasks(ctx) -> dict[str, str]:
     """Returns a dictionary of invoke tasks and their descriptions."""
 
-    tasks = json.loads(ctx.run('invoke --list -F json', hide=True).stdout)
+    tasks = json.loads(ctx.run('dda inv -- --list -F json', hide=True).stdout)
 
     # Remove 'tasks.' prefix
     return {name.removeprefix(tasks['name'] + '.'): desc for name, desc in _list_tasks_rec(tasks).items()}

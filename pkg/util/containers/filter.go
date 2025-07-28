@@ -111,7 +111,7 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 	for _, filter := range filters {
 		switch {
 		case strings.HasPrefix(filter, imageFilterPrefix):
-			filter = preprocessImageFilter(filter)
+			filter = PreprocessImageFilter(filter)
 			r, err := filterToRegex(filter, imageFilterPrefix)
 			if err != nil {
 				filterErrs = append(filterErrs, err.Error())
@@ -143,10 +143,10 @@ func parseFilters(filters []string) (imageFilters, nameFilters, namespaceFilters
 	return imageFilters, nameFilters, namespaceFilters, filterErrs
 }
 
-// preprocessImageFilter modifies image filters having the format `name$`, where {name} doesn't include a colon (e.g. nginx$, ^nginx$), to
+// PreprocessImageFilter modifies image filters having the format `name$`, where {name} doesn't include a colon (e.g. nginx$, ^nginx$), to
 // `name:.*`.
 // This is done so that image filters can still match even if the matched image contains the tag or digest.
-func preprocessImageFilter(imageFilter string) string {
+func PreprocessImageFilter(imageFilter string) string {
 	regexVal := strings.TrimPrefix(imageFilter, imageFilterPrefix)
 	if strings.HasSuffix(regexVal, "$") && !strings.Contains(regexVal, ":") {
 		mutatedRegexVal := regexVal[:len(regexVal)-1] + "(@sha256)?:.*"
@@ -181,30 +181,35 @@ func GetSharedMetricFilter() (*Filter, error) {
 	return f, nil
 }
 
+// GetPauseContainerExcludeList returns the exclude list for pause containers
+func GetPauseContainerExcludeList() []string {
+	return []string{
+		pauseContainerGCR,
+		pauseContainerOpenshift,
+		pauseContainerOpenshift3,
+		pauseContainerKubernetes,
+		pauseContainerGoogle,
+		pauseContainerAzure,
+		pauseContainerECS,
+		pauseContainerEKS,
+		pauseContainerRancher,
+		pauseContainerRancherMirrored,
+		pauseContainerMCR,
+		pauseContainerWin,
+		pauseContainerAKS,
+		pauseContainerECR,
+		pauseContainerUpstream,
+		pauseContainerCDK,
+		pauseContainerGiantSwarm,
+		pauseContainerRegistryK8sIo,
+	}
+}
+
 // GetPauseContainerFilter returns a filter only excluding pause containers
 func GetPauseContainerFilter() (*Filter, error) {
 	var excludeList []string
 	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
-		excludeList = append(excludeList,
-			pauseContainerGCR,
-			pauseContainerOpenshift,
-			pauseContainerOpenshift3,
-			pauseContainerKubernetes,
-			pauseContainerGoogle,
-			pauseContainerAzure,
-			pauseContainerECS,
-			pauseContainerEKS,
-			pauseContainerRancher,
-			pauseContainerRancherMirrored,
-			pauseContainerMCR,
-			pauseContainerWin,
-			pauseContainerAKS,
-			pauseContainerECR,
-			pauseContainerUpstream,
-			pauseContainerCDK,
-			pauseContainerGiantSwarm,
-			pauseContainerRegistryK8sIo,
-		)
+		excludeList = GetPauseContainerExcludeList()
 	}
 
 	return NewFilter(GlobalFilter, nil, excludeList)
@@ -280,25 +285,7 @@ func newMetricFilterFromConfig() (*Filter, error) {
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
-		excludeList = append(excludeList,
-			pauseContainerGCR,
-			pauseContainerOpenshift,
-			pauseContainerOpenshift3,
-			pauseContainerKubernetes,
-			pauseContainerGoogle,
-			pauseContainerAzure,
-			pauseContainerECS,
-			pauseContainerEKS,
-			pauseContainerRancher,
-			pauseContainerMCR,
-			pauseContainerWin,
-			pauseContainerAKS,
-			pauseContainerECR,
-			pauseContainerUpstream,
-			pauseContainerCDK,
-			pauseContainerGiantSwarm,
-			pauseContainerRegistryK8sIo,
-		)
+		excludeList = append(excludeList, GetPauseContainerExcludeList()...)
 	}
 	return NewFilter(MetricsFilter, includeList, excludeList)
 }

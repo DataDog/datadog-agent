@@ -14,10 +14,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 // PreStartCallback is a callback to register clients to the event monitor before starting it
@@ -35,8 +36,10 @@ func StartEventMonitor(t *testing.T, callback PreStartCallback) {
 	// Needed for the socket creation to work
 	require.NoError(t, os.MkdirAll("/opt/datadog-agent/run/", 0755))
 
+	ipcComp := ipcmock.New(t)
+
 	opts := eventmonitor.Opts{}
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, opts)
 	require.NoError(t, err)
 	require.NoError(t, evm.Init())
 	callback(t, evm)

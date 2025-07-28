@@ -49,6 +49,9 @@ def generate_model(_):
 def ask_reviews(_, pr_id):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
+    if 'backport' in pr.title.casefold():
+        print("This is a backport PR, we don't need to ask for reviews.")
+        return
     if any(label.name == 'ask-review' for label in pr.get_labels()):
         actor = ask_review_actor(pr)
         reviewers = [f"@datadog/{team.slug}" for team in pr.requested_teams]
@@ -63,7 +66,10 @@ def ask_reviews(_, pr_id):
                 (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
                 HELP_SLACK_CHANNEL,
             )
-            message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\nThanks in advance!'
+            stop_updating = ""
+            if pr.user.login == "renovate[bot]" and pr.title.startswith("chore(deps): update integrations-core"):
+                stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
+            message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\n{stop_updating}Thanks in advance!\n'
             if channel == HELP_SLACK_CHANNEL:
                 message = f'Hello :{random.choice(waves)}:!\nA review channel is missing for {reviewer}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             try:
@@ -74,7 +80,7 @@ def ask_reviews(_, pr_id):
 
 
 @task
-def add_reviewers(ctx, pr_id, dry_run=False):
+def add_reviewers(ctx, pr_id, dry_run=False, owner_file=".github/CODEOWNERS"):
     """
     Add team labels and reviewers to a dependabot bump PR based on the changed dependencies
     """
@@ -117,11 +123,10 @@ def add_reviewers(ctx, pr_id, dry_run=False):
                         break
                     else:
                         if dependency in line:
-                            owners.update(set(search_owners(file, ".github/CODEOWNERS")))
+                            owners.update(set(search_owners(file, owner_file)))
                             break
     if dry_run:
         print(f"Owners for {dependency}: {owners}")
         return
     # Teams are added by slug, so we need to remove the @DataDog/ prefix
     pr.create_review_request(team_reviewers=[owner.casefold().removeprefix("@datadog/") for owner in owners])
-    pr.add_to_labels("ask-review")

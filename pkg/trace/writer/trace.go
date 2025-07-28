@@ -43,7 +43,7 @@ type samplerEnabledReader interface {
 type SampledChunks struct {
 	// TracerPayload contains all the chunks that were sampled as part of processing a payload.
 	TracerPayload *pb.TracerPayload
-	// Size represents the approximated message size in bytes.
+	// Size represents the approximated message size in bytes (upper bound).
 	Size int
 	// SpanCount specifies the number of spans that were sampled as part of a trace inside the TracerPayload.
 	SpanCount int64
@@ -59,14 +59,15 @@ type TraceWriter struct {
 	errorsSampler   samplerTPSReader
 	rareSampler     samplerEnabledReader
 
-	hostname     string
-	env          string
-	senders      []*sender
-	stop         chan struct{}
-	stats        *info.TraceWriterInfo
-	wg           sync.WaitGroup // waits flusher + reporter + compressor
-	tick         time.Duration  // flush frequency
-	agentVersion string
+	hostname        string
+	env             string
+	senders         []*sender
+	stop            chan struct{}
+	stats           *info.TraceWriterInfo
+	statsLastMinute *info.TraceWriterInfo // aggregated stats over the last minute. Shared with info package
+	wg              sync.WaitGroup        // waits flusher + reporter + compressor
+	tick            time.Duration         // flush frequency
+	agentVersion    string
 
 	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
 	bufferedSize   int                 // estimated buffer size
@@ -102,6 +103,7 @@ func NewTraceWriter(
 		hostname:           cfg.Hostname,
 		env:                cfg.DefaultEnv,
 		stats:              &info.TraceWriterInfo{},
+		statsLastMinute:    &info.TraceWriterInfo{},
 		stop:               make(chan struct{}),
 		flushChan:          make(chan chan struct{}),
 		syncMode:           cfg.SynchronousFlushing,
@@ -127,7 +129,7 @@ func NewTraceWriter(
 	tw.flushTicker = time.NewTicker(tw.tick)
 
 	qsize := 1
-	log.Infof("Trace writer initialized (climit=%d qsize=%d compression=%s)", climit, qsize, compressor.Encoding())
+	log.Infof("Trace writer initialized (climt=%d qsize=%d compression=%s)", climit, qsize, compressor.Encoding())
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector, statsd)
 	tw.wg.Add(1)
 	go tw.timeFlush()
@@ -148,11 +150,17 @@ func (w *TraceWriter) UpdateAPIKey(oldKey, newKey string) {
 
 func (w *TraceWriter) reporter() {
 	tck := time.NewTicker(w.tick)
+	info.UpdateTraceWriterInfo(w.statsLastMinute)
+	var lastReset time.Time
 	defer tck.Stop()
 	defer w.wg.Done()
 	for {
 		select {
-		case <-tck.C:
+		case now := <-tck.C:
+			if now.Sub(lastReset) >= time.Minute {
+				w.statsLastMinute.Reset()
+				lastReset = now
+			}
 			w.report()
 		case <-w.stop:
 			return
@@ -314,10 +322,12 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 		log.Errorf("Error closing %s stream when writing trace payload: %v", w.compressor.Encoding(), err)
 	}
 	sendPayloads(w.senders, p, w.syncMode)
-
 }
 
 func (w *TraceWriter) report() {
+	// update aggregated stats before reseting them.
+	w.statsLastMinute.Acc(w.stats)
+
 	_ = w.statsd.Count("datadog.trace_agent.trace_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
 	_ = w.statsd.Count("datadog.trace_agent.trace_writer.bytes_uncompressed", w.stats.BytesUncompressed.Swap(0), nil, 1)
 	_ = w.statsd.Count("datadog.trace_agent.trace_writer.retries", w.stats.Retries.Swap(0), nil, 1)

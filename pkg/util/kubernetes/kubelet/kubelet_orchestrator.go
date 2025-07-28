@@ -10,6 +10,7 @@ package kubelet
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 
 	v1 "k8s.io/api/core/v1"
@@ -21,17 +22,16 @@ import (
 // KubeUtilInterface defines the interface for kubelet api
 // and includes extra functions for the orchestrator build flag
 type KubeUtilInterface interface {
-	GetNodeInfo(ctx context.Context) (string, string, error)
 	GetNodename(ctx context.Context) (string, error)
 	GetLocalPodList(ctx context.Context) ([]*Pod, error)
 	GetLocalPodListWithMetadata(ctx context.Context) (*PodList, error)
 	ForceGetLocalPodList(ctx context.Context) (*PodList, error)
-	GetPodForContainerID(ctx context.Context, containerID string) (*Pod, error)
 	QueryKubelet(ctx context.Context, path string) ([]byte, int, error)
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)
 	GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error)
 	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
+	StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error)
 }
 
 // GetRawLocalPodList returns the unfiltered pod list from the kubelet

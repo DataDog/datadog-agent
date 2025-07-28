@@ -13,12 +13,27 @@ package tailerfactory
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
+	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
+
+// get gets a DockerUtil instance, either returning a memoized value
+// or trying to create a new one.
+func (dug *dockerUtilGetterImpl) get() (container.DockerContainerLogInterface, error) {
+	if dug.cli == nil {
+		var err error
+		dug.cli, err = dockerutilPkg.GetDockerUtil()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return dug.cli, nil
+}
 
 // makeSocketTailer makes a socket-based tailer for the given source, or returns
 // an error if it cannot do so (e.g., due to permission errors)
@@ -31,7 +46,7 @@ func (tf *factory) makeSocketTailer(source *sources.LogSource) (Tailer, error) {
 		return nil, errors.New("socket tailing is only supported for docker")
 	}
 
-	du, err := tf.getDockerUtil()
+	du, err := tf.dockerUtilGetter.get()
 	// if LogWhat == LogPods, this might fail because the docker socket is unavailable.  The
 	// error will trigger a fallback to file-based logging.
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	v1Informers "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions/autoscaling.k8s.io/v1"
 	v1Listers "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/listers/autoscaling.k8s.io/v1"
@@ -51,6 +52,7 @@ func NewVerticalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *Ver
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 vpaName,
+			Kind:                                 kubernetes.VerticalPodAutoscalerKind,
 			NodeType:                             orchestrator.K8sVerticalPodAutoscaler,
 			Version:                              vpaVersion,
 			LabelsAsTags:                         labelsAsTags,
@@ -91,7 +93,7 @@ func (c *VerticalPodAutoscalerCollector) Run(rcfg *collectors.CollectorRunConfig
 func (c *VerticalPodAutoscalerCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -99,7 +101,7 @@ func (c *VerticalPodAutoscalerCollector) Process(rcfg *collectors.CollectorRunCo
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

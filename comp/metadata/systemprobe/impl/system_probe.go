@@ -16,9 +16,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -75,8 +75,9 @@ type Requires struct {
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	// We need the authtoken to be created so we requires the comp. It will be used by configFetcher.
-	AuthToken      authtoken.Component
+	IPC            ipc.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
+	Hostname       hostnameinterface.Component
 }
 
 // Provides defines the output of the systemprobe metadatacomponent
@@ -89,7 +90,7 @@ type Provides struct {
 
 // NewComponent creates a new systemprobe metadata Component
 func NewComponent(deps Requires) Provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	sb := &systemprobe{
 		log:          deps.Log,
 		conf:         deps.Config,
@@ -131,7 +132,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 		return metadata
 	}
 
-	rawLayers, err := fetchSystemProbeConfigBySource(sysprobeConf)
+	rawLayers, err := fetchSystemProbeConfigBySource(sysprobeConf, nil) // It's ok to pass nil here because the IPCClient is not used by SystemProbe API
 	if err != nil {
 		sb.log.Debugf("error fetching system-probe config layers: %s", err)
 		return metadata
@@ -165,7 +166,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 		}
 	}
 
-	if str, err := fetchSystemProbeConfig(sysprobeConf); err == nil {
+	if str, err := fetchSystemProbeConfig(sysprobeConf, nil); err == nil {
 		metadata["full_configuration"] = str
 	} else {
 		sb.log.Debugf("error fetching system-probe config: %s", err)

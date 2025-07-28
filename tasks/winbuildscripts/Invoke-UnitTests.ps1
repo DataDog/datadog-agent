@@ -83,16 +83,16 @@ Invoke-BuildScript `
             New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
         }
         # Generate the datadog.yaml config file to be used in integration tests
-        & inv -e agent.generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
+        & dda inv -- -e agent.generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
         # Build inputs needed for go builds
         & .\tasks\winbuildscripts\pre-go-build.ps1
     }
 
     # MSI unit tests
     if ($Env:DEBUG_CUSTOMACTION) {
-        & inv -e msi.test --debug
+        & dda inv -- -e msi.test --debug
     } else {
-        & inv -e msi.test
+        & dda inv -- -e msi.test
     }
     $err = $LASTEXITCODE
     Write-Host Test result is $err
@@ -102,7 +102,7 @@ Invoke-BuildScript `
     }
 
     # rtloader unit tests
-    & inv -e rtloader.test
+    & dda inv -- -e rtloader.test
     $err = $LASTEXITCODE
     Write-Host rtloader test result is $err
     if($err -ne 0){
@@ -111,19 +111,28 @@ Invoke-BuildScript `
     }
 
     # Sanity check that the core agent can build
-    & inv -e agent.build
+    & dda inv -- -e agent.build
     $err = $LASTEXITCODE
     if($err -ne 0){
         Write-Host -ForegroundColor Red "Agent build failed $err"
         exit $err
     }
-    
+
     # Run python-script unit tests
-    & inv -e invoke-unit-tests --directory=".\omnibus\python-scripts\"
+    & dda inv -- -e invoke-unit-tests --directory=".\omnibus\python-scripts\"
     $err = $LASTEXITCODE
     Write-Host Python-script test result is $err
     if($err -ne 0){
         Write-Host -ForegroundColor Red "Python-script test failed $err"
+        exit $err
+    }
+
+    # Run PowerShell install script unit tests
+    & powershell -ExecutionPolicy Bypass -File ".\tools\windows\DatadogAgentInstallScript\Run-Tests.ps1"
+    $err = $LASTEXITCODE
+    Write-Host PowerShell install script test result is $err
+    if($err -ne 0){
+        Write-Host -ForegroundColor Red "PowerShell install script test failed $err"
         exit $err
     }
 
@@ -134,10 +143,10 @@ Invoke-BuildScript `
         $TEST_WASHER_FLAG="--test-washer"
     }
     $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
-    & inv -e test --junit-tar="$Env:JUNIT_TAR" `
+    & dda inv -- -e test --junit-tar="$Env:JUNIT_TAR" `
         --race --profile --rerun-fails=2 --coverage --cpus 8 `
         --python-home-3=$Env:Python3_ROOT_DIR `
-        --save-result-json C:\mnt\$test_output_file `
+        --result-json C:\mnt\$test_output_file `
         --build-stdlib `
         $TEST_WASHER_FLAG `
         $Env:EXTRA_OPTS
@@ -146,7 +155,7 @@ Invoke-BuildScript `
     if ($UploadCoverage) {
         # 1. Upload coverage reports to Codecov
         $Env:CODECOV_TOKEN=$(Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN")
-        & inv -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
+        & dda inv -- -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
         $localErr = $LASTEXITCODE
         if($localErr -ne 0){
             Write-Host -ForegroundColor Red "coverage upload failed $localErr"
@@ -159,13 +168,13 @@ Invoke-BuildScript `
             Copy-Item -Path $_.FullName -Destination C:\mnt
         }
         $Env:DATADOG_API_KEY=$(Get-VaultSecret -parameterName "$Env:API_KEY_ORG2")
-        & inv -e junit-upload --tgz-path $Env:JUNIT_TAR
+        & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json C:\mnt\$test_output_file
         $localErr = $LASTEXITCODE
         if($localErr -ne 0){
             Write-Host -ForegroundColor Red "junit upload failed $localErr"
         }
     }
-    
+
     If ($err -ne 0) {
         Write-Host -ForegroundColor Red "Go test failed $err"
         exit $err

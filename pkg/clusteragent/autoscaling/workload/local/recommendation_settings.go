@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	watermarkTolerance             = 5
-	containerCPUUsageMetricName    = "container.cpu.usage"
-	containerMemoryUsageMetricName = "container.memory.usage"
+	watermarkTolerance               = 5
+	defaultStaleDataThresholdSeconds = 60 // default time window to look for valid metrics
+	containerCPUUsageMetricName      = "container.cpu.usage"
+	containerMemoryUsageMetricName   = "container.memory.usage"
 )
 
 var resourceToMetric = map[corev1.ResourceName]string{
@@ -28,20 +29,34 @@ var resourceToMetric = map[corev1.ResourceName]string{
 }
 
 type resourceRecommenderSettings struct {
-	metricName    string
-	containerName string
-	lowWatermark  float64
-	highWatermark float64
+	metricName                 string
+	containerName              string
+	lowWatermark               float64
+	highWatermark              float64
+	fallbackStaleDataThreshold int64
 }
 
 func newResourceRecommenderSettings(objective datadoghqcommon.DatadogPodAutoscalerObjective) (*resourceRecommenderSettings, error) {
+	var recSettings *resourceRecommenderSettings
+	var err error
+
 	if objective.Type == datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType {
-		return getOptionsFromContainerResource(objective.ContainerResource)
+		recSettings, err = getOptionsFromContainerResource(objective.ContainerResource)
+		if err != nil {
+			return nil, err
+		}
+	} else if objective.Type == datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType {
+		recSettings, err = getOptionsFromPodResource(objective.PodResource)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("Invalid target type: %s", objective.Type)
 	}
-	if objective.Type == datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType {
-		return getOptionsFromPodResource(objective.PodResource)
-	}
-	return nil, fmt.Errorf("Invalid target type: %s", objective.Type)
+
+	recSettings.fallbackStaleDataThreshold = defaultStaleDataThresholdSeconds
+
+	return recSettings, nil
 }
 
 func getOptionsFromPodResource(target *datadoghqcommon.DatadogPodAutoscalerPodResourceObjective) (*resourceRecommenderSettings, error) {

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -42,7 +42,7 @@ import "C"
 func testTags(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
-	tagger := mock.SetupFakeTagger(t)
+	tagger := taggerfxmock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", []string{"tag1", "tag2", "tag3"}, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
@@ -65,7 +65,7 @@ func testTags(t *testing.T) {
 func testTagsNull(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
-	tagger := mock.SetupFakeTagger(t)
+	tagger := taggerfxmock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", nil, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()
@@ -80,7 +80,7 @@ func testTagsNull(t *testing.T) {
 func testTagsEmpty(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	logReceiver := option.None[integrations.Component]()
-	tagger := mock.SetupFakeTagger(t)
+	tagger := taggerfxmock.SetupFakeTagger(t)
 	tagger.SetTags(types.NewEntityID(types.ContainerID, "test"), "foo", []string{}, nil, nil, nil)
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger)
 	defer release()

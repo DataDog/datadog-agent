@@ -33,7 +33,7 @@ namespace WixSetup.Tests
         [Fact]
         public void Should_Parse_Nightly_Version_OmnibusFormat_Correctly()
         {
-            // Output of inv agent.version --omnibus-format on a nightly
+            // Output of dda inv agent.version --omnibus-format on a nightly
             var packageVersion = "7.40.0~rc.2+git.309.1240df2";
             var version = new AgentVersion(packageVersion);
             version.PackageVersion.Should().Be(packageVersion);
@@ -46,7 +46,7 @@ namespace WixSetup.Tests
         [Fact]
         public void Should_Parse_Nightly_Version_UrlSafe_Correctly()
         {
-            // Output of inv agent.version --url-safe on an RC
+            // Output of dda inv agent.version --url-safe on an RC
             var packageVersion = "7.43.1-rc.3.git.485.14b9337";
             var version = new AgentVersion(packageVersion);
             version.PackageVersion.Should().Be(packageVersion);

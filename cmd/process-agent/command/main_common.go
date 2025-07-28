@@ -17,10 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
@@ -32,9 +33,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -53,7 +54,6 @@ import (
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -155,9 +155,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
 
-		// Provide authtoken module
-		fetchonlyimpl.Module(), // TODO IPC: replace by createandfetchimpl when the auth-token volume is mounted on processAgent container on Windows
-
 		// Provide configsync module
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 
@@ -165,36 +162,16 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		autoexitimpl.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
-		wmcatalog.GetCatalog(),
+		wmcatalogremote.GetCatalog(),
 
 		// Provide workloadmeta module
-		workloadmetafx.ModuleWithProvider(func(c config.Component) workloadmeta.Params {
-			var catalog workloadmeta.AgentType
-
-			if c.GetBool("process_config.remote_workloadmeta") {
-				catalog = workloadmeta.Remote
-			} else {
-				catalog = workloadmeta.ProcessAgent
-			}
-
-			return workloadmeta.Params{AgentType: catalog}
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
 		}),
 
-		dualTaggerfx.Module(tagger.DualParams{
-			UseRemote: func(c config.Component) bool {
-				return c.GetBool("process_config.remote_tagger") ||
-					// If the agent is running in ECS or ECS Fargate and the ECS task collection is enabled, use the remote tagger
-					// as remote tagger can return more tags than the local tagger.
-					((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled"))
-			},
-		}, tagger.Params{}, tagger.RemoteParams{
+		remoteTaggerfx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-			},
-			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-				return func() (string, error) {
-					return security.FetchAuthToken(c)
-				}
 			},
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
@@ -243,6 +220,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			}
 		}),
 		settingsimpl.Module(),
+		ipcfx.ModuleReadWrite(),
 	)
 
 	err := app.Start(ctx)
@@ -292,6 +270,7 @@ type miscDeps struct {
 	WorkloadMeta workloadmeta.Component
 	Logger       logcomp.Component
 	Tagger       tagger.Component
+	IPC          ipc.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -308,7 +287,7 @@ func initMisc(deps miscDeps) error {
 	// we can include the tagger as part of the workloadmeta component.
 	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger)
 
-	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
+	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg, deps.IPC.GetTLSServerConfig())
 
 	// TODO(components): still unclear how the initialization of workloadmeta
 	//                   store and tagger should be performed.

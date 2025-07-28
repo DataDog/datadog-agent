@@ -7,6 +7,7 @@ package infraattributesprocessor
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -124,14 +125,16 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 				Traces:      TraceInfraAttributes{},
 				Cardinality: types.LowCardinality,
 			}
-			tc := newTestTaggerClient()
-			tc.tagMap["container_id://test"] = []string{"container:id"}
-			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
-			factory := NewFactoryForAgent(tc)
+			tc := testutil.NewTestTaggerClient()
+			tc.TagMap["container_id://test"] = []string{"container:id"}
+			tc.TagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
+			tc.TagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
+			factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
+				return "test-host", nil
+			})
 			fmp, err := factory.CreateTraces(
 				context.Background(),
-				processortest.NewNopSettings(),
+				processortest.NewNopSettings(Type),
 				cfg,
 				next,
 			)

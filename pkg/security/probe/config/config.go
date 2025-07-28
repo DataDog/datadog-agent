@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -100,6 +100,9 @@ type Config struct {
 	// EventStreamUseKprobeFallback specifies whether to use fentry fallback can be used
 	EventStreamUseKprobeFallback bool
 
+	// EventStreamKretprobeMaxActive specifies the maximum number of active kretprobe at a given time
+	EventStreamKretprobeMaxActive int
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -141,6 +144,12 @@ type Config struct {
 	// NetworkRawPacketEnabled defines if the network raw packet is enabled
 	NetworkRawPacketEnabled bool
 
+	// NetworkRawPacketLimiterRate defines the rate at which raw packets should be sent to user space
+	NetworkRawPacketLimiterRate int
+
+	// NetworkRawPacketRestriction defines the global raw packet filter
+	NetworkRawPacketFilter string
+
 	// NetworkPrivateIPRanges defines the list of IP that should be considered private
 	NetworkPrivateIPRanges []string
 
@@ -152,6 +161,18 @@ type Config struct {
 
 	// SyscallsMonitorEnabled defines if syscalls monitoring metrics should be collected
 	SyscallsMonitorEnabled bool
+
+	// DNSResolverCacheSize is the numer of entries in the DNS resolver LRU cache
+	DNSResolverCacheSize int
+
+	// DNSResolutionEnabled resolving DNS names from IP addresses
+	DNSResolutionEnabled bool
+
+	// SpanTrackingEnabled defines if span tracking should be enabled
+	SpanTrackingEnabled bool
+
+	// SpanTrackingCacheSize is the size of the span tracking cache
+	SpanTrackingCacheSize int
 }
 
 // NewConfig returns a new Config object
@@ -185,15 +206,20 @@ func NewConfig() (*Config, error) {
 		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
 		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
+		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
 
 		EnvsWithValue:               getStringSlice("envs_with_value"),
 		NetworkEnabled:              getBool("network.enabled"),
 		NetworkIngressEnabled:       getBool("network.ingress.enabled"),
 		NetworkRawPacketEnabled:     getBool("network.raw_packet.enabled"),
+		NetworkRawPacketLimiterRate: getInt("network.raw_packet.limiter_rate"),
+		NetworkRawPacketFilter:      getString("network.raw_packet.filter"),
 		NetworkPrivateIPRanges:      getStringSlice("network.private_ip_ranges"),
 		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
 		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 		SyscallsMonitorEnabled:      getBool("syscalls_monitor.enabled"),
+		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
+		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
 
 		// event server
 		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),
@@ -201,6 +227,10 @@ func NewConfig() (*Config, error) {
 
 		// runtime compilation
 		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),
+
+		// span tracking
+		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
+		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
 	}
 
 	if err := c.sanitize(); err != nil {

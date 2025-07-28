@@ -31,6 +31,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
@@ -70,6 +71,7 @@ func main() {
 
 	err := fxutil.OneShot(
 		run,
+		workloadfilterfx.Module(),
 		autodiscoveryimpl.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
@@ -77,7 +79,7 @@ func main() {
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
-		localTaggerFx.Module(tagger.Params{}),
+		localTaggerFx.Module(),
 		healthprobeFx.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true))),
@@ -104,8 +106,10 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression)
 
 	err := modeConf.Runner(logConfig)
+	prefix := cloudService.GetPrefix()
+	origin := cloudService.GetOrigin()
 
-	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	metric.AddShutdownMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 
 	return err
@@ -125,14 +129,15 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	// and exit right away.
 	_ = cloudService.Init()
 
+	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
+
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)),
+			serverlessTag.ArrayToMap(configuredTags),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
 	origin := cloudService.GetOrigin()
-	prefix := cloudService.GetPrefix()
 
 	agentLogConfig := serverlessInitLog.CreateConfig(origin)
 
@@ -142,12 +147,14 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression)
+	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, origin)
 
-	traceAgent := setupTraceAgent(tags, tagger)
+	functionTags := strings.Join(configuredTags, ",")
+	traceAgent := setupTraceAgent(tags, functionTags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger)
-	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+
+	metric.Add(cloudService.GetStartMetricName(), origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	setupOtlpAgent(metricAgent, tagger)
 
@@ -166,7 +173,7 @@ var azureContainerAppTags = []string{
 	"aca.replica.name",
 }
 
-func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.ServerlessTraceAgent {
+func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.Component) trace.ServerlessTraceAgent {
 	var azureTags strings.Builder
 	for _, azureContainerAppTag := range azureContainerAppTags {
 		if value, ok := tags[azureContainerAppTag]; ok {
@@ -178,6 +185,7 @@ func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.Serv
 		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 		ColdStartSpanID:       random.Random.Uint64(),
 		AzureContainerAppTags: azureTags.String(),
+		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
 	go func() {

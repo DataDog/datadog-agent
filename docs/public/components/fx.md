@@ -22,12 +22,13 @@ This means that each component declares a few things about itself to Fx, includi
 
 Fx connects components using types. Within the Agent, these are typically interfaces named `Component`. For example, `scrubber.Component` might be an interface defining functionality for scrubbing passwords from data structures:
 
-=== ":octicons-file-code-16: scrubber/component.go"
-    ```go
-    type Component interface {
-        ScrubString(string) string
-    }
-    ```
+/// tab | :octicons-file-code-16: scrubber/component.go
+```go
+type Component interface {
+    ScrubString(string) string
+}
+```
+///
 
 Fx needs to know how to *provide* an instance of this type when needed, and there are a few ways:
 
@@ -89,25 +90,27 @@ For anything more complex, it's not practical to call `fx.Provide` for every com
 
 So a slightly more complex version of the example might be:
 
-=== ":octicons-file-code-16: scrubber/component.go"
-    ```go
-    func Module() fxutil.Module {
-        return fx.Module("scrubber",
-        fx.Provide(newScrubber))    // now newScrubber need not be exported
-    }
-    ```
+/// tab | :octicons-file-code-16: scrubber/component.go
+```go
+func Module() fxutil.Module {
+    return fx.Module("scrubber",
+    fx.Provide(newScrubber))    // now newScrubber need not be exported
+}
+```
+///
 
-=== ":octicons-file-code-16: main.go"
-    ```go
-    someValue = "my password is hunter2"
-    app := fx.New(
-        scrubber.Module(),
-        fx.Invoke(func(sc scrubber.Component) {
-            fmt.Printf("scrubbed: %s", sc.ScrubString(somevalue))
-        }))
-    app.Run()
-    // Output: scrubbed: my password is *******
-    ```
+/// tab | :octicons-file-code-16: main.go
+```go
+someValue = "my password is hunter2"
+app := fx.New(
+    scrubber.Module(),
+    fx.Invoke(func(sc scrubber.Component) {
+        fmt.Printf("scrubbed: %s", sc.ScrubString(somevalue))
+    }))
+app.Run()
+// Output: scrubbed: my password is *******
+```
+///
 
 ## Lifecycle
 
@@ -142,7 +145,7 @@ type dependencies struct {
     Config config.Component
     Log log.Component
     Status status.Component
-)
+}
 
 type provides struct {
     fx.Out
@@ -170,34 +173,37 @@ For example:
 
 Here, two components add a `server.Endpoint` type to the `server` group (note the `group` label in the `fx.Out` struct).
 
-=== ":octicons-file-code-16: todolist/todolist.go"
-    ```go
-    type provides struct {
-        fx.Out
-        Component
-        Endpoint server.Endpoint `group:"server"`
-    }
-    ```
+/// tab | :octicons-file-code-16: todolist/todolist.go
+```go
+type provides struct {
+    fx.Out
+    Component
+    Endpoint server.Endpoint `group:"server"`
+}
+```
+///
 
-=== ":octicons-file-code-16: users/users.go"
-    ```go
-    type provides struct {
-        fx.Out
-        Component
-        Endpoint server.Endpoint `group:"server"`
-    }
-    ```
+/// tab | :octicons-file-code-16: users/users.go
+```go
+type provides struct {
+    fx.Out
+    Component
+    Endpoint server.Endpoint `group:"server"`
+}
+```
+///
 
 Here, a component requests all the types added to the `server` group. This takes the form of a slice received at
 instantiation (note once again the `group` label but in `fx.In` struct).
 
-=== ":octicons-file-code-16: server/server.go"
-    ```go
-    type dependencies struct {
-        fx.In
-        Endpoints []Endpoint `group:"server"`
-    }
-    ```
+/// tab | :octicons-file-code-16: server/server.go
+```go
+type dependencies struct {
+    fx.In
+    Endpoints []Endpoint `group:"server"`
+}
+```
+///
 
 # Day-to-Day Usage
 

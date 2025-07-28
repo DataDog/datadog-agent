@@ -11,11 +11,13 @@ package kubelet
 import (
 	"context"
 	stdErrors "errors"
+	"slices"
 	"strings"
 	"time"
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -35,21 +37,29 @@ const (
 	dockerImageIDPrefix = "docker-pullable://"
 )
 
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
 type collector struct {
-	id         string
-	catalog    workloadmeta.AgentType
-	watcher    *kubelet.PodWatcher
-	store      workloadmeta.Component
-	lastExpire time.Time
-	expireFreq time.Duration
+	id                         string
+	catalog                    workloadmeta.AgentType
+	watcher                    *kubelet.PodWatcher
+	store                      workloadmeta.Component
+	lastExpire                 time.Time
+	expireFreq                 time.Duration
+	collectEphemeralContainers bool
 }
 
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			id:                         collectorID,
+			catalog:                    workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 		},
 	}, nil
 }
@@ -83,7 +93,7 @@ func (c *collector) Pull(ctx context.Context) error {
 		return err
 	}
 
-	events := parsePods(updatedPods)
+	events := parsePods(updatedPods, c.collectEphemeralContainers)
 
 	if time.Since(c.lastExpire) >= c.expireFreq {
 		var expiredIDs []string
@@ -107,7 +117,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
+func parsePods(pods []*kubelet.Pod, collectEphemeralContainers bool) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
@@ -120,9 +130,9 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 		// Validate allocation size.
 		// Limits hardcoded here are huge enough to never be hit.
 		if len(pod.Spec.Containers) > 10000 ||
-			len(pod.Spec.InitContainers) > 10000 {
-			log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
-				podMeta.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+			len(pod.Spec.InitContainers) > 10000 || len(pod.Spec.EphemeralContainers) > 10000 {
+			log.Errorf("pod %s has a crazy number of containers: %d, init containers: %d or ephemeral containers: %d. Skipping it!",
+				podMeta.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers), len(pod.Spec.EphemeralContainers))
 			continue
 		}
 
@@ -144,6 +154,17 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 			pod.Status.Containers,
 			&podID,
 		)
+
+		var podEphemeralContainers []workloadmeta.OrchestratorContainer
+		var ephemeralContainerEvents []workloadmeta.CollectorEvent
+		if collectEphemeralContainers {
+			podEphemeralContainers, ephemeralContainerEvents = parsePodContainers(
+				pod,
+				pod.Spec.EphemeralContainers,
+				pod.Status.EphemeralContainers,
+				&podID,
+			)
+		}
 
 		GPUVendors := getGPUVendorsFromContainers(initContainerEvents, containerEvents)
 
@@ -172,6 +193,7 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 			PersistentVolumeClaimNames: pod.GetPersistentVolumeClaimNames(),
 			InitContainers:             podInitContainers,
 			Containers:                 podContainers,
+			EphemeralContainers:        podEphemeralContainers,
 			Ready:                      kubelet.IsPodReady(pod),
 			Phase:                      pod.Status.Phase,
 			IP:                         pod.Status.PodIP,
@@ -184,6 +206,7 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 
 		events = append(events, initContainerEvents...)
 		events = append(events, containerEvents...)
+		events = append(events, ephemeralContainerEvents...)
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeSet,
@@ -266,7 +289,7 @@ func parsePodContainers(
 		}
 
 		var allocatedResources []workloadmeta.ContainerAllocatedResource
-		for _, resource := range container.AllocatedResources {
+		for _, resource := range container.ResolvedAllocatedResources {
 			allocatedResources = append(allocatedResources, workloadmeta.ContainerAllocatedResource{
 				Name: resource.Name,
 				ID:   resource.ID,
@@ -309,15 +332,15 @@ func parsePodContainers(
 						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
 					},
 				},
-				Image:              image,
-				EnvVars:            env,
-				SecurityContext:    containerSecurityContext,
-				Ports:              ports,
-				Runtime:            workloadmeta.ContainerRuntime(runtime),
-				State:              containerState,
-				Owner:              parent,
-				Resources:          resources,
-				AllocatedResources: allocatedResources,
+				Image:                      image,
+				EnvVars:                    env,
+				SecurityContext:            containerSecurityContext,
+				Ports:                      ports,
+				Runtime:                    workloadmeta.ContainerRuntime(runtime),
+				State:                      containerState,
+				Owner:                      parent,
+				Resources:                  resources,
+				ResolvedAllocatedResources: allocatedResources,
 			},
 		})
 	}
@@ -402,6 +425,11 @@ func extractContainerSecurityContext(spec *kubelet.ContainerSpec) *workloadmeta.
 }
 
 func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
+	// filter out env vars that have external sources (eg. ConfigMap, Secret, etc.)
+	envSpec = slices.DeleteFunc(envSpec, func(v kubelet.EnvVar) bool {
+		return v.ValueFrom != nil
+	})
+
 	env := make(map[string]string)
 	mappingFunc := expansion.MappingFuncFor(env)
 
@@ -416,9 +444,18 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 			continue
 		}
 
+		ok := true
 		runtimeVal := e.Value
 		if runtimeVal != "" {
-			runtimeVal = expansion.Expand(runtimeVal, mappingFunc)
+			runtimeVal, ok = expansion.Expand(runtimeVal, mappingFunc)
+		}
+
+		// Ignore environment variables that failed to expand
+		// This occurs when the env var references another env var
+		// that has its value sourced from an external source
+		// (eg. ConfigMap, Secret, DownwardAPI)
+		if !ok {
+			continue
 		}
 
 		env[e.Name] = runtimeVal
@@ -429,6 +466,12 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
+
+	if spec.Resources == nil {
+		// Ephemeral containers do not have resources defined
+		return resources
+	}
+
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
 		resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
 	}

@@ -8,10 +8,8 @@ package inventoryotelimpl
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -21,18 +19,19 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iointerface "github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
@@ -69,14 +68,13 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 type inventoryotel struct {
 	util.InventoryPayload
 
-	conf       config.Component
-	log        log.Component
-	m          sync.Mutex
-	data       otelMetadata
-	hostname   string
-	authToken  authtoken.Component
-	f          *freshConfig
-	httpClient *http.Client
+	conf     config.Component
+	log      log.Component
+	m        sync.Mutex
+	data     otelMetadata
+	hostname string
+	client   ipc.HTTPClient
+	f        *freshConfig
 }
 
 type dependencies struct {
@@ -85,36 +83,27 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	AuthToken  authtoken.Component
+	Client     ipc.HTTPClient
+	Hostname   hostnameinterface.Component
 }
 
 type provides struct {
 	fx.Out
 
-	Comp                 iointerface.Component
-	Provider             runnerimpl.Provider
-	FlareProvider        flaretypes.Provider
-	StatusHeaderProvider status.HeaderInformationProvider
-	Endpoint             api.AgentEndpointProvider
+	Comp          iointerface.Component
+	Provider      runnerimpl.Provider
+	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 func newInventoryOtelProvider(deps dependencies) (provides, error) {
-	hname, _ := hostname.Get(context.Background())
-	// HTTP client need not verify otel-agent cert since it's self-signed
-	// at start-up. TLS used for encryption not authentication.
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
+	hname, _ := deps.Hostname.Get(context.Background())
 	i := &inventoryotel{
-		conf:      deps.Config,
-		log:       deps.Log,
-		hostname:  hname,
-		data:      make(otelMetadata),
-		authToken: deps.AuthToken,
-		httpClient: &http.Client{
-			Transport: tr,
-			Timeout:   httpTO,
-		},
+		conf:     deps.Config,
+		log:      deps.Log,
+		hostname: hname,
+		data:     make(otelMetadata),
+		client:   deps.Client,
 	}
 
 	getter := i.fetchRemoteOtelConfig
@@ -137,15 +126,14 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 		//       triggered by FA, so maybe this is OK.
 		//
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string, _, _ any) { i.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { i.Refresh() })
 	}
 
 	return provides{
-		Comp:                 i,
-		Provider:             i.MetadataProvider(),
-		FlareProvider:        i.FlareProvider(),
-		StatusHeaderProvider: status.NewHeaderInformationProvider(i),
-		Endpoint:             api.NewAgentEndpointProvider(i.writePayloadAsJSON, "/metadata/inventory-otel", "GET"),
+		Comp:          i,
+		Provider:      i.MetadataProvider(),
+		FlareProvider: i.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(i.writePayloadAsJSON, "/metadata/inventory-otel", "GET"),
 	}, nil
 }
 
@@ -168,30 +156,9 @@ func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error)
 }
 
 func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) {
-	// Create a Bearer string by appending string access token
-	bearer := "Bearer " + i.authToken.Get()
-
-	// Create a new request using http
-	req, err := http.NewRequest("GET", u.String(), nil)
+	body, err := i.client.Get(u.String(), ipchttp.WithTimeout(httpTO))
 	if err != nil {
-		i.log.Error("Error building request: ", err)
-		return nil, err
-	}
-
-	// add authorization header to the req
-	req.Header.Add("Authorization", bearer)
-
-	resp, err := i.httpClient.Do(req)
-	if err != nil {
-		i.log.Error("Error on response: ", err)
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		i.log.Error("Error while reading the response bytes:", err)
-		return nil, err
+		return nil, i.log.Error("error fetching remote otel config: %w", err)
 	}
 
 	return i.parseResponseFromJSON(body)
@@ -261,16 +228,4 @@ func (i *inventoryotel) writePayloadAsJSON(w http.ResponseWriter, _ *http.Reques
 		return
 	}
 	w.Write(scrubbed)
-}
-
-// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
-func (i *inventoryotel) Get() otelMetadata {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	data := otelMetadata{}
-	for k, v := range i.data {
-		data[k] = v
-	}
-	return data
 }

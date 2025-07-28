@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package corechecks provides common functionality for core checks.
 package corechecks
 
 import (
@@ -13,13 +13,13 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -214,6 +214,7 @@ func (c *CheckBase) ConfigSource() string {
 	return c.source
 }
 
+// Loader returns the loader name for the check.
 func (*CheckBase) Loader() string {
 	return GoCheckLoaderName
 }
@@ -282,7 +283,7 @@ func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 }
 
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
-func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *CheckBase) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return nil, nil
 }
 

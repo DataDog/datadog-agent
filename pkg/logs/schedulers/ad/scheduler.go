@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
@@ -64,7 +65,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		if !config.IsLogConfig() {
 			continue
 		}
-		if config.HasFilter(containers.LogsFilter) {
+		if config.HasFilter(workloadfilter.LogsFilter) {
 			log.Debugf("Config %s is filtered out for logs collection, ignoring it", configName(config))
 			continue
 		}
@@ -89,7 +90,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 // Unschedule removes all the sources and services matching the integration configs.
 func (s *Scheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !config.IsLogConfig() || config.HasFilter(containers.LogsFilter) {
+		if !config.IsLogConfig() || config.HasFilter(workloadfilter.LogsFilter) {
 			continue
 		}
 		switch {
@@ -159,6 +160,10 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		} else {
 			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
 		}
+	case names.DataStreamsLiveMessages:
+		// Live messages provides a default (Json) logs config for the kafka_consumer integration when there is no config.
+		// However, if there is already a logs config, live messages will not override it, so it can be a yaml config in this case.
+		configs, err = logsConfig.ParseJSONOrYAML(config.LogsConfig)
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)

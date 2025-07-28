@@ -5,7 +5,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.4.0
+install_script_version=1.5.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
@@ -13,6 +13,8 @@ log_dir=/opt/datadog-agent/logs
 run_dir=/opt/datadog-agent/run
 service_name="com.datadoghq.agent"
 systemwide_servicefile_name="/Library/LaunchDaemons/${service_name}.plist"
+sysprobe_service_name=com.datadoghq.sysprobe
+sysprobe_servicefile_name="/Library/LaunchDaemons/${sysprobe_service_name}.plist"
 
 if [ -n "$DD_REPO_URL" ]; then
     dmg_base_url=$DD_REPO_URL
@@ -60,20 +62,14 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   fi
 fi
 
-arch=$(/usr/bin/arch)
-if [ "$arch" == "arm64" ]; then
-  if ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
-    printf "\033[31mRosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license\033[0m\n"
-    exit 1
-  fi
-fi
+arch=$(/usr/bin/uname -m)
 
 # Cleanup tmp files used for installation
 rm -f /tmp/install-ddagent/system-wide
 
 function find_latest_patch_version_for() {
     major_minor="$1"
-    patch_versions=$(curl "https://s3.amazonaws.com/dd-agent?prefix=datadog-agent-${major_minor}." 2>/dev/null | grep -o "datadog-agent-${major_minor}.[0-9]*-1.dmg")
+    patch_versions=$(curl "$dmg_base_url?prefix=datadog-agent-${major_minor}." 2>/dev/null | grep -Eo "datadog-agent-${major_minor}.[0-9]*-1(.$arch)?.dmg")
     if [ -z "$patch_versions" ]; then
         echo "-1"
     fi
@@ -214,12 +210,6 @@ if [ -z "$dmg_version" ]; then
     else
         dmg_version="${agent_major_version}.${agent_minor_version}-1"
     fi
-fi
-
-if [ -z "$agent_dist_channel" ]; then
-    dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
-else
-    dmg_url="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}.dmg"
 fi
 
 if [ "$upgrade" ]; then
@@ -363,6 +353,22 @@ function plist_modify_user_group() {
     $sudo_cmd sh -c "sed $i_cmd -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|\" -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|\" \"$plist_file\""
 }
 
+# Determine agent flavor to install
+if [ -z "$agent_dist_channel" ]; then
+    dmg_url_prefix="$dmg_base_url/datadog-agent-${dmg_version}"
+else
+    dmg_url_prefix="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}"
+fi
+
+dmg_url="$dmg_url_prefix.$arch.dmg"  # favor architecture-specific DMG, if available
+if [ "$(curl --head --location --output /dev/null --silent --write-out '%{http_code}' "$dmg_url")" != 200 ]; then
+    dmg_url="$dmg_url_prefix.dmg"  # fallback to "universal" DMG
+    if [ "$arch" = arm64 ] && ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
+        printf "\033[31mRosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license\033[0m\n"
+        exit 1
+    fi
+fi
+
 # # Install the agent
 printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
 prepare_dmg_file $dmg_file
@@ -382,6 +388,17 @@ if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]
         $sudo_cmd launchctl unload -wF $systemwide_servicefile_name || true
     fi
 fi
+
+# Shut down and remove system probe service if present
+if [ -f "$sysprobe_servicefile_name" ]; then
+    printf "\033[34m\n    - Stopping System Probe daemon ...\n\033[0m"
+    $sudo_cmd launchctl stop $sysprobe_service_name || true
+    if $sudo_cmd launchctl print system/$sysprobe_service_name 2>/dev/null >/dev/null; then
+        $sudo_cmd launchctl unload -wF $sysprobe_servicefile_name || true
+    fi
+    $sudo_cmd rm -f "${sysprobe_servicefile_name}"
+fi
+
 printf "\033[34m\n    - Unpacking and copying files (this usually takes about a minute) ...\n\033[0m"
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
 printf "\033[34m\n    - Unmounting the DMG installer ...\n\033[0m"
@@ -453,6 +470,16 @@ else
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
     $sudo_cmd launchctl kickstart "system/$service_name"
+fi
+
+# Set up and start the system-probe service if this version includes support for it
+sysprobe_plist_example_file="${etc_dir}/${sysprobe_service_name}.plist.example"
+if [ -f "$sysprobe_plist_example_file" ]; then
+    printf "\033[34m\n* Setting up system-probe ($sysprobe_service_name) as a systemwide LaunchDaemon ...\n\n\033[0m"
+    $sudo_cmd mv "$sysprobe_plist_example_file" "$sysprobe_servicefile_name"
+    $sudo_cmd chown "0:0" "$sysprobe_servicefile_name"
+    $sudo_cmd launchctl load -w "$sysprobe_servicefile_name"
+    $sudo_cmd launchctl kickstart "system/$sysprobe_service_name"
 fi
 
 # Agent works, echo some instructions and exit

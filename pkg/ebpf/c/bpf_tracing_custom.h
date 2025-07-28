@@ -50,7 +50,9 @@
 
 #define DWARF_REGISTER(num) DWARF_REGISTER_##num
 
-#define DWARF_STACK_REGISTER DWARF_REGISTER(7)
+#define DWARF_BP_REG bp
+#define DWARF_SP_REG sp
+#define DWARF_PC_REG ip
 
 #elif defined(bpf_target_arm64)
 
@@ -71,7 +73,9 @@
 
 #define DWARF_REGISTER(num) regs[num]
 
-#define DWARF_STACK_REGISTER DWARF_REGISTER(29)
+#define DWARF_BP_REG DWARF_REGISTER(29)
+#define DWARF_SP_REG sp
+#define DWARF_PC_REG pc
 
 #define PT_REGS_PARM7(x) (__PT_REGS_CAST(x)->regs[6])
 #define PT_REGS_PARM8(x) (__PT_REGS_CAST(x)->regs[7])

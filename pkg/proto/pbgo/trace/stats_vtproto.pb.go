@@ -134,6 +134,20 @@ func (m *ClientStatsPayload) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.ProcessTags) > 0 {
+		i -= len(m.ProcessTags)
+		copy(dAtA[i:], m.ProcessTags)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ProcessTags)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x82
+	}
+	if m.ProcessTagsHash != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.ProcessTagsHash))
+		i--
+		dAtA[i] = 0x78
+	}
 	if len(m.ImageTag) > 0 {
 		i -= len(m.ImageTag)
 		copy(dAtA[i:], m.ImageTag)
@@ -549,6 +563,13 @@ func (m *ClientStatsPayload) SizeVT() (n int) {
 	l = len(m.ImageTag)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.ProcessTagsHash != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.ProcessTagsHash))
+	}
+	l = len(m.ProcessTags)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -1338,6 +1359,57 @@ func (m *ClientStatsPayload) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.ImageTag = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 15:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ProcessTagsHash", wireType)
+			}
+			m.ProcessTagsHash = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ProcessTagsHash |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 16:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ProcessTags", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ProcessTags = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

@@ -7,49 +7,57 @@ package profile
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func Test_resolveProfiles(t *testing.T) {
+	mockConfig := configmock.New(t)
 
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", defaultTestConfdPath)
+	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
 	defaultTestConfdProfiles := ProfileConfigMap{}
-	userTestConfdProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	userTestConfdProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
-	profilesWithInvalidExtendProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	profilesWithInvalidExtendProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidCyclicConfdPath)
-	invalidCyclicProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	mockConfig.SetWithoutSource("confd_path", invalidCyclicConfdPath)
+	invalidCyclicProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	profileWithInvalidExtendsFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
-	profileWithInvalidExtends, err := readProfileDefinition(profileWithInvalidExtendsFile)
+	profileWithInvalidExtends, haveLegacyProfile, err := readProfileDefinition(profileWithInvalidExtendsFile)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	validationErrorProfileFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "validation_error.yaml"))
-	validationErrorProfile, err := readProfileDefinition(validationErrorProfileFile)
+	validationErrorProfile, haveLegacyProfile, err := readProfileDefinition(validationErrorProfileFile)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	userProfilesCaseConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", userProfilesCaseConfdPath)
-	userProfilesCaseUserProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	mockConfig.SetWithoutSource("confd_path", userProfilesCaseConfdPath)
+	userProfilesCaseUserProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
-	userProfilesCaseDefaultProfiles, err := getProfileDefinitions(defaultProfilesFolder, true)
+	require.False(t, haveLegacyProfile)
+	userProfilesCaseDefaultProfiles, haveLegacyProfile, err := getProfileDefinitions(defaultProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	tests := []struct {
 		name                    string

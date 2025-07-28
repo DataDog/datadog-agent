@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -24,6 +25,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -324,6 +326,8 @@ func (e *EbpfProgram) start() error {
 		return err
 	}
 
+	ddebpf.AddProbeFDMappings(e.Manager.Manager)
+
 	for _, handler := range e.libsets {
 		if !handler.requested {
 			continue
@@ -362,10 +366,15 @@ func (l *libsetHandler) eventLoop(wg *sync.WaitGroup) {
 	}
 }
 
+// toLibPath casts the perf event data to the LibPath structure
+func toLibPath(data []byte) LibPath {
+	return *(*LibPath)(unsafe.Pointer(&data[0]))
+}
+
 func (l *libsetHandler) handleEvent(event *ddebpf.DataEvent) {
 	defer event.Done()
 
-	libpath := ToLibPath(event.Data)
+	libpath := toLibPath(event.Data)
 
 	l.callbacksMutex.RLock()
 	defer l.callbacksMutex.RUnlock()
@@ -588,7 +597,7 @@ func fexitSupported(funcName string) bool {
 	}
 	defer l.Close()
 
-	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	hasPotentialFentryDeadlock, err := bugs.HasTasksRCUExitLockSymbol()
 	if hasPotentialFentryDeadlock || (err != nil) {
 		// incase of error, let's be safe and assume the bug is present
 		return false
@@ -645,4 +654,13 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
+}
+
+// ToBytes converts the libpath to a byte array containing the path
+func ToBytes(l *LibPath) []byte {
+	return l.Buf[:l.Len]
+}
+
+func (l *LibPath) String() string {
+	return string(ToBytes(l))
 }

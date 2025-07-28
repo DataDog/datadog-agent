@@ -34,7 +34,6 @@ from tasks.libs.pipeline.tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-from tasks.libs.releasing.documentation import nightly_entry_for, release_entry_for
 
 BOT_NAME = "github-actions[bot]"
 
@@ -91,33 +90,6 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
     """Get Gitlab workflow rules list in a YAML-formatted string."""
     with open(gitlab_file) as f:
         return yaml.dump(yaml.safe_load(f.read())["workflow"]["rules"])
-
-
-@task
-def trigger(_, git_ref=None, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
-    """
-    OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
-    """
-
-    git_ref = git_ref or get_default_branch()
-    use_release_entries = ""
-    major_versions = []
-
-    if release_version_6 != "nightly" and release_version_7 != "nightly-a7":
-        use_release_entries = "--use-release-entries "
-
-    if release_version_6 != "":
-        major_versions.append("6")
-
-    if release_version_7 != "":
-        major_versions.append("7")
-
-    raise Exit(
-        f"""The pipeline.trigger task is obsolete. Use:
-    pipeline.run --git-ref {git_ref} --deploy --major-versions "{','.join(major_versions)}" --repo-branch {repo_branch} {use_release_entries}
-instead.""",
-        1,
-    )
 
 
 @task
@@ -181,7 +153,6 @@ def run(
     ctx,
     git_ref="",
     here=False,
-    use_release_entries=False,
     major_versions=None,
     repo_branch="dev",
     deploy=False,
@@ -205,9 +176,6 @@ def run(
     Use --rc-build to mark the build as Release Candidate.
     Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
 
-    By default, the nightly release.json entries (nightly and nightly-a7) are used.
-    Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
-
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
     (eg. '6' to build Agent 6 only, '6,7' to build both Agent 6 and Agent 7).
@@ -219,32 +187,25 @@ def run(
 
     Examples
     Run a pipeline on my-branch:
-      inv pipeline.run --git-ref my-branch
+      dda inv pipeline.run --git-ref my-branch
 
     Run a pipeline on the current branch:
-      inv pipeline.run --here
+      dda inv pipeline.run --here
 
     Run a pipeline without Kernel Matrix Tests on the current branch:
-      inv pipeline.run --here --no-kmt-tests
+      dda inv pipeline.run --here --no-kmt-tests
 
     Run a pipeline with e2e tets on the current branch:
-      inv pipeline.run --here --e2e-tests
+      dda inv pipeline.run --here --e2e-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
+      dda inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
     repo = get_gitlab_repo()
 
     if (git_ref == "" and not here) or (git_ref != "" and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
-
-    if use_release_entries:
-        release_version_6 = release_entry_for(6)
-        release_version_7 = release_entry_for(7)
-    else:
-        release_version_6 = nightly_entry_for(6)
-        release_version_7 = nightly_entry_for(7)
 
     if major_versions:
         print(
@@ -292,8 +253,6 @@ def run(
         pipeline = trigger_agent_pipeline(
             repo,
             git_ref,
-            release_version_6,
-            release_version_7,
             repo_branch,
             deploy=deploy,
             deploy_installer=deploy_installer,
@@ -320,9 +279,9 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     Use --project-name to specify a repo other than DataDog/datadog-agent (default)
 
     Examples:
-    inv pipeline.follow --git-ref my-branch
-    inv pipeline.follow --here
-    inv pipeline.follow --id 1234567
+    dda inv pipeline.follow --git-ref my-branch
+    dda inv pipeline.follow --here
+    dda inv pipeline.follow --id 1234567
     """
 
     repo = get_gitlab_repo(project_name)
@@ -375,9 +334,9 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True,
     Use --timeout to set up a timeout shorter than the default 2 hours, to anticipate failures if any.
 
     Examples:
-    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "RELEASE_VERSION"
+    dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "RELEASE_VERSION"
 
-    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
+    dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
 
     if not os.environ.get('CI_JOB_TOKEN'):
@@ -498,8 +457,8 @@ def changelog(ctx, new_commit_sha):
     empty_changelog_msg = "No new System Probe related commits in this release :cricket:"
     no_commits_msg = "No new commits in this release :cricket:"
     slack_message = (
-        "The nightly deployment is rolling out to Staging :siren: \n"
-        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+        f"The nightly deployment is rolling out to Staging :siren: \n"
+        f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
     )
 
     if old_commit_sha == new_commit_sha:
@@ -716,7 +675,9 @@ def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
     Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
     Use --no-test-version to commit without the _test_only suffixes
     """
-    raise Exit(f"This invoke task is {color_message('deprecated', 'red')}, please use inv buildimages.update instead.")
+    raise Exit(
+        f"This invoke task is {color_message('deprecated', 'red')}, please use `dda inv buildimages.update` instead."
+    )
 
 
 @task(
@@ -786,7 +747,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
             print('You might want to run these commands to restore the current state:')
             print('\n'.join(restore_commands))
 
-            exit(1)
+            raise Exit(code=1)
 
     # Show links
     repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
@@ -882,31 +843,39 @@ def compare_to_itself(ctx):
 
     release_json = load_release_json()
 
-    for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
-        with open(file) as f:
-            content = f.read()
-        with open(file, 'w') as f:
-            f.write(content.replace(f'compare_to: {release_json["base_branch"]}', f'compare_to: {new_branch}'))
+    with open('.gitlab-ci.yml', 'r+') as f:
+        content = f.read()
+        f.write(
+            content.replace(f'COMPARE_TO_BRANCH: {release_json["base_branch"]}', f'COMPARE_TO_BRANCH: {new_branch}')
+        )
 
     ctx.run("git commit -am 'Commit to compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
     max_attempts = 6
     compare_to_pipeline = None
     for attempt in range(max_attempts):
-        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created")
+        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created {attempt + 1}/{max_attempts}")
         time.sleep(30)
-        pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
-        for pipeline in pipelines:
+        for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
             commit = agent.commits.get(pipeline.sha)
-            if commit.author_name == BOT_NAME:
-                compare_to_pipeline = pipeline
-                print(f"Test pipeline found: {pipeline.web_url}")
+            if commit.author_name == BOT_NAME and commit.title == "Commit to compare to itself":
+                if pipeline.status == "skipped":
+                    # DDCI: we need to trigger the pipeline
+                    print(f"Triggering the CI execution for {new_branch}")
+                    trigger_agent_pipeline(repo=agent, ref=new_branch)
+                else:
+                    compare_to_pipeline = pipeline
+                    print(f"Test pipeline found: {pipeline.web_url}")
+                # Either we found the pipeline or we need to wait for it to be created
+                # In both cases we can skip the loop
+                break
         if compare_to_pipeline:
             break
         if attempt == max_attempts - 1:
-            # Clean up the branch and possible pipelines
-            for pipeline in pipelines:
+            print("Cleaning up the pipelines")
+            for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
                 cancel_pipeline(pipeline)
+            print("Cleaning up git")
             ctx.run(f"git checkout {current_branch}", hide=True)
             ctx.run(f"git branch -D {new_branch}", hide=True)
             ctx.run(f"git push origin :{new_branch}", hide=True)
@@ -920,9 +889,8 @@ def compare_to_itself(ctx):
         else:
             print(f"Pipeline correctly created, {color_message('congrats', Color.GREEN)}")
     finally:
-        # Clean up
         print("Cleaning up the pipelines")
-        for pipeline in pipelines:
+        for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
             cancel_pipeline(pipeline)
         print("Cleaning up git")
         ctx.run(f"git checkout {current_branch}", hide=True)

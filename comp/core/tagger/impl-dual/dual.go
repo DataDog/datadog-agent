@@ -10,6 +10,7 @@ package dualimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	local "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
@@ -22,13 +23,13 @@ import (
 // Requires contains the dependencies for the dual tagger component
 type Requires struct {
 	Lc           compdef.Lifecycle
-	LocalParams  tagger.Params
 	RemoteParams tagger.RemoteParams
 	DualParams   tagger.DualParams
 	Config       config.Component
 	Log          log.Component
 	Wmeta        workloadmeta.Component
 	Telemetry    telemetry.Component
+	IPC          ipc.Component
 }
 
 // Provides contains returned values for the  dual tagger component
@@ -45,6 +46,7 @@ func NewComponent(req Requires) (Provides, error) {
 			Config:    req.Config,
 			Log:       req.Log,
 			Telemetry: req.Telemetry,
+			IPC:       req.IPC,
 		}
 
 		provide, err := remote.NewComponent(remoteRequires)
@@ -61,12 +63,11 @@ func NewComponent(req Requires) (Provides, error) {
 	}
 
 	localRequires := local.Requires{
-		Config:    req.Config,
-		Telemetry: req.Telemetry,
-		Wmeta:     req.Wmeta,
-		Lc:        req.Lc,
-		Log:       req.Log,
-		Params:    req.LocalParams,
+		Config:       req.Config,
+		Telemetry:    req.Telemetry,
+		WorkloadMeta: req.Wmeta,
+		Lc:           req.Lc,
+		Log:          req.Log,
 	}
 	provide, err := local.NewComponent(localRequires)
 

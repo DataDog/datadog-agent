@@ -24,7 +24,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -69,7 +69,7 @@ type dependencies struct {
 	Statsd             statsd.Component
 	Tagger             tagger.Component
 	Compressor         compression.Component
-	At                 authtoken.Component
+	IPC                ipc.Component
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -78,8 +78,8 @@ func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator)
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, nil)
+func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, hostFromAttributesHandler)
 }
 
 func (c component) SendStatsPayload(p *pb.StatsPayload) {
@@ -103,7 +103,7 @@ type component struct {
 	params             *Params
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
-	at                 authtoken.Component
+	ipc                ipc.Component
 	wg                 *sync.WaitGroup
 }
 
@@ -126,7 +126,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		params:             deps.Params,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
-		at:                 deps.At,
+		ipc:                deps.IPC,
 		wg:                 &sync.WaitGroup{},
 	}
 	statsdCl, err := setupMetrics(deps.Statsd, c.config, c.telemetryCollector)
@@ -162,10 +162,7 @@ func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {
 		if mp, ok := os.LookupEnv("GOMAXPROCS"); ok {
 			log.Infof("GOMAXPROCS manually set to %v", mp)
 		} else if tracecfg.MaxCPU > 0 {
-			allowedCores := int(tracecfg.MaxCPU)
-			if allowedCores < 1 {
-				allowedCores = 1
-			}
+			allowedCores := max(int(tracecfg.MaxCPU), 1)
 			if allowedCores < runtime.GOMAXPROCS(0) {
 				log.Infof("apm_config.max_cpu is less than current GOMAXPROCS. Setting GOMAXPROCS to (%v) %d\n", allowedCores, allowedCores)
 				runtime.GOMAXPROCS(int(allowedCores))
@@ -256,7 +253,7 @@ func stop(ag component) error {
 	if err := ag.Statsd.Flush(); err != nil {
 		log.Error("Could not flush statsd: ", err)
 	}
-	stopAgentSidekicks(ag.config, ag.Statsd)
+	stopAgentSidekicks(ag.config, ag.Statsd, ag.params.DisableInternalProfiling)
 	if ag.params.CPUProfile != "" {
 		pprof.StopCPUProfile()
 	}

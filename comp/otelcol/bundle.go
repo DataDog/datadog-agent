@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: opentelemetry opentelemetry-agent
+// team: opentelemetry-agent
 
 // Bundle specifies the bundle for the OTLP ingest pipeline.
 func Bundle() fxutil.BundleOptions {

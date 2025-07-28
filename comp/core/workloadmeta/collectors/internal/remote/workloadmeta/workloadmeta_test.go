@@ -8,7 +8,6 @@ package workloadmeta
 import (
 	"context"
 	"net"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -18,18 +17,18 @@ import (
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -190,15 +189,8 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 }
 
 func TestCollection(t *testing.T) {
-	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog())); os.IsNotExist(err) {
-		_, err := security.FetchOrCreateAuthToken(context.Background(), pkgconfigsetup.Datadog())
-		require.NoError(t, err)
-		defer func() {
-			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
-		}()
-	}
+	// Create ipc component for the client
+	ipcComp := ipcmock.New(t)
 
 	// workloadmeta server
 	mockServerStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -208,7 +200,7 @@ func TestCollection(t *testing.T) {
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
 
 	// gRPC server
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(ipcComp.GetTLSServerConfig())))
 	pbgo.RegisterAgentSecureServer(grpcServer, server)
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -232,7 +224,7 @@ func TestCollection(t *testing.T) {
 		StreamHandler: &streamHandler{
 			port: port,
 		},
-		Insecure: true,
+		IPC: ipcComp,
 	}
 
 	// workloadmeta client store

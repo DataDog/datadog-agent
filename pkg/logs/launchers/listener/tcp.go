@@ -8,6 +8,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -160,7 +161,7 @@ func (l *TCPListener) stopTailer(tailer *tailer.Tailer) {
 		if t == tailer {
 			// Only stop the tailer if it has not already been stopped
 			tailer.Stop()
-			l.tailers = append(l.tailers[:i], l.tailers[i+1:]...)
+			l.tailers = slices.Delete(l.tailers, i, i+1)
 			break
 		}
 	}

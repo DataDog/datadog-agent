@@ -8,6 +8,7 @@ package workloadmetaimpl
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -179,7 +180,7 @@ func (w *workloadmeta) Unsubscribe(ch chan wmdef.EventBundle) {
 
 	for i, sub := range w.subscribers {
 		if sub.ch == ch {
-			w.subscribers = append(w.subscribers[:i], w.subscribers[i+1:]...)
+			w.subscribers = slices.Delete(w.subscribers, i, i+1)
 			telemetry.Subscribers.Dec()
 			close(ch)
 			return
@@ -285,6 +286,39 @@ func (w *workloadmeta) ListProcessesWithFilter(filter wmdef.EntityFilterFunc[*wm
 	}
 
 	return processes
+}
+
+// GetContainerForProcess implements Store#GetContainerForProcess
+func (w *workloadmeta) GetContainerForProcess(processID string) (*wmdef.Container, error) {
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
+
+	processEntities, ok := w.store[wmdef.KindProcess]
+	if !ok {
+		return nil, errors.NewNotFound(string(wmdef.KindProcess))
+	}
+
+	processEntity, ok := processEntities[processID]
+	if !ok {
+		return nil, errors.NewNotFound(processID)
+	}
+
+	process := processEntity.cached.(*wmdef.Process)
+	if process.Owner == nil || process.Owner.Kind != wmdef.KindContainer {
+		return nil, errors.NewNotFound(processID)
+	}
+
+	containerEntities, ok := w.store[wmdef.KindContainer]
+	if !ok {
+		return nil, errors.NewNotFound(process.Owner.ID)
+	}
+
+	container, ok := containerEntities[process.Owner.ID]
+	if !ok {
+		return nil, errors.NewNotFound(process.Owner.ID)
+	}
+
+	return container.cached.(*wmdef.Container), nil
 }
 
 // GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer

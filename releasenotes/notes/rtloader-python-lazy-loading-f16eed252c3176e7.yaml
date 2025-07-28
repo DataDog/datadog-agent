@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The Python runtime is now loaded when the first check is loaded, rather than when the agent starts.
+    This will eventually avoid having to load Python when no Python check is enabled.
+    This change can be reverted by setting ``python_lazy_loading: false`` in your configuration.

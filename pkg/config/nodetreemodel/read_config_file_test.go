@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,7 +55,7 @@ func writeTempFile(t *testing.T, name string, data string) string {
 }
 
 func TestReadConfig(t *testing.T) {
-	cfg := NewConfig("datadog", "DD", nil)
+	cfg := NewNodeTreeConfig("datadog", "DD", nil)
 	setupDefault(t, cfg)
 
 	err := cfg.ReadConfig(strings.NewReader(confYaml))
@@ -69,17 +70,19 @@ func TestReadConfig(t *testing.T) {
 	err = cfg.ReadConfig(strings.NewReader(confYaml2))
 	require.NoError(t, err)
 
-	assert.Equal(t, true, cfg.GetBool("network_devices.snmp_traps.enabled"))
+	// by reading confYaml2, we override the values set by confYaml, causing snmp_traps.enabled,
+	// snmp_traps.stop_timeout, and snmp_traps.namespace to be set to their default values.
+	assert.Equal(t, false, cfg.GetBool("network_devices.snmp_traps.enabled"))
 	assert.Equal(t, 9876, cfg.GetInt("network_devices.snmp_traps.port"))
 	assert.Equal(t, "ko", cfg.GetString("network_devices.snmp_traps.bind_host"))
-	assert.Equal(t, 4, cfg.GetInt("network_devices.snmp_traps.stop_timeout"))
-	assert.Equal(t, "abc", cfg.GetString("network_devices.snmp_traps.namespace"))
+	assert.Equal(t, 0, cfg.GetInt("network_devices.snmp_traps.stop_timeout"))
+	assert.Equal(t, "", cfg.GetString("network_devices.snmp_traps.namespace"))
 }
 
 func TestReadSingleFile(t *testing.T) {
 	confPath := writeTempFile(t, "datadog.yaml", confYaml)
 
-	cfg := NewConfig("datadog", "DD", nil)
+	cfg := NewNodeTreeConfig("datadog", "DD", nil)
 	cfg.SetConfigFile(confPath)
 	setupDefault(t, cfg)
 
@@ -94,7 +97,7 @@ func TestReadSingleFile(t *testing.T) {
 }
 
 func TestReadFilePathError(t *testing.T) {
-	cfg := NewConfig("datadog", "DD", nil)
+	cfg := NewNodeTreeConfig("datadog", "DD", nil)
 	cfg.SetConfigFile("does_not_exist.yaml")
 
 	err := cfg.ReadInConfig()
@@ -111,13 +114,13 @@ func TestReadFilePathError(t *testing.T) {
 func TestReadInvalidYAML(t *testing.T) {
 	confPath := writeTempFile(t, "datadog.yaml", "some invalid YAML")
 
-	cfg := NewConfig("datadog", "DD", nil)
+	cfg := NewNodeTreeConfig("datadog", "DD", nil)
 	cfg.SetConfigFile(confPath)
 
 	err := cfg.ReadInConfig()
 	require.Error(t, err)
 
-	cfg = NewConfig("datadog", "DD", nil)
+	cfg = NewNodeTreeConfig("datadog", "DD", nil)
 	err = cfg.ReadConfig(strings.NewReader("some invalid YAML"))
 	require.Error(t, err)
 }
@@ -126,7 +129,7 @@ func TestReadExtraFile(t *testing.T) {
 	confPath := writeTempFile(t, "datadog.yaml", confYaml)
 	confPath2 := writeTempFile(t, "datadog_second.yaml", confYaml2)
 
-	cfg := NewConfig("datadog", "DD", nil)
+	cfg := NewNodeTreeConfig("datadog", "DD", nil)
 	cfg.SetConfigFile(confPath)
 	cfg.AddExtraConfigPaths([]string{confPath2})
 	setupDefault(t, cfg)
@@ -147,7 +150,7 @@ a: orange
 c:
   d: 1234
 `
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
 	cfg.SetDefault("a", "apple")
 	cfg.SetDefault("b", 123)
@@ -191,7 +194,7 @@ c:
   d: 1234
   unknown: key
 `
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
 	cfg.SetDefault("a", "apple")
 	cfg.SetDefault("c.d", true)
@@ -204,7 +207,7 @@ c:
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, "unknown key from YAML: c.unknown", c.warnings[0])
+	assert.Equal(t, errors.New("unknown key from YAML: c.unknown"), c.warnings[0])
 
 	expected := &innerNode{
 		children: map[string]Node{
@@ -224,7 +227,7 @@ func TestWarningConflictDataType(t *testing.T) {
 a: orange
 c: 1234
 `
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
 	cfg.SetDefault("a", "apple")
 	cfg.SetDefault("c.d", true)
@@ -237,17 +240,31 @@ c: 1234
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, "invalid type from configuration for key 'c'", c.warnings[0])
+	assert.Equal(t, errors.New("invalid type from configuration for key 'c': 1234"), c.warnings[0])
 
-	expected := &innerNode{
-		children: map[string]Node{
-			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
-			"c": &innerNode{
-				children: map[string]Node{},
-			},
-		},
-	}
-	assert.Equal(t, expected, c.file)
+	// The file node with "1234" still exists, but it was not merged because it didn't match
+	// the schema layer.
+	expected := `tree(#ptr<000000>) source=root
+> a
+    leaf(#ptr<000001>), val:"orange", source:file
+> c
+  inner(#ptr<000002>)
+  > d
+      leaf(#ptr<000003>), val:true, source:default
+tree(#ptr<000004>) source=default
+> a
+    leaf(#ptr<000005>), val:"apple", source:default
+> c
+  inner(#ptr<000006>)
+  > d
+      leaf(#ptr<000007>), val:true, source:default
+tree(#ptr<000008>) source=environment-variable
+tree(#ptr<000009>) source=file
+> a
+    leaf(#ptr<000010>), val:"orange", source:file
+> c
+    leaf(#ptr<000011>), val:1234, source:file`
+	assert.Equal(t, expected, c.Stringify("all", model.OmitPointerAddr))
 }
 
 func TestToMapStringInterface(t *testing.T) {
@@ -257,14 +274,18 @@ func TestToMapStringInterface(t *testing.T) {
 	assert.Error(t, err)
 	_, err = toMapStringInterface("test", "key")
 	assert.Error(t, err)
-	_, err = toMapStringInterface(map[int]string{1: "test"}, "key")
-	assert.Error(t, err)
-	_, err = toMapStringInterface(map[interface{}]string{1: "test"}, "key")
-	assert.Error(t, err)
-	_, err = toMapStringInterface(map[interface{}]string{1: "test", "test2": "test2"}, "key")
-	assert.Error(t, err)
 
-	data, err := toMapStringInterface(map[string]string{"test": "test"}, "key")
+	data, err := toMapStringInterface(map[int]string{1: "test"}, "key")
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"1": "test"}, data)
+	data, err = toMapStringInterface(map[interface{}]string{1: "test"}, "key")
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"1": "test"}, data)
+	data, err = toMapStringInterface(map[interface{}]string{1: "test", "test2": "test2"}, "key")
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"1": "test", "test2": "test2"}, data)
+
+	data, err = toMapStringInterface(map[string]string{"test": "test"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"test": "test"}, data)
 
@@ -282,19 +303,19 @@ func TestToMapStringInterface(t *testing.T) {
 }
 
 func TestReadConfigBeforeReady(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	err := cfg.ReadConfig(strings.NewReader(""))
 	require.Error(t, err)
 	assert.Equal(t, "attempt to ReadConfig before config is constructed", err.Error())
 
-	cfg = NewConfig("test", "TEST", nil)
+	cfg = NewNodeTreeConfig("test", "TEST", nil)
 	err = cfg.ReadInConfig()
 	require.Error(t, err)
 	assert.Equal(t, "attempt to ReadInConfig before config is constructed", err.Error())
 }
 
 func TestReadConfigInvalidPath(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetConfigFile("does not exists")
 	cfg.BuildSchema()
 
@@ -303,7 +324,7 @@ func TestReadConfigInvalidPath(t *testing.T) {
 }
 
 func TestReadConfigInvalidYaml(t *testing.T) {
-	cfg := NewConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.BuildSchema()
 
 	err := cfg.ReadConfig(strings.NewReader("123"))

@@ -32,6 +32,7 @@ import (
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestInitExtraHeadersNoopCompression(t *testing.T) {
@@ -47,7 +48,7 @@ func TestInitExtraHeadersNoopCompression(t *testing.T) {
 	assert.Equal(t, expected, s.jsonExtraHeaders)
 
 	expected = make(http.Header)
-	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+	expected.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 	expected.Set("Content-Type", protobufContentType)
 	assert.Equal(t, expected, s.protobufExtraHeaders)
 
@@ -60,7 +61,7 @@ func TestInitExtraHeadersNoopCompression(t *testing.T) {
 	expected = make(http.Header)
 	expected.Set("Content-Type", protobufContentType)
 	expected.Set("Content-Encoding", "identity")
-	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+	expected.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 	assert.Equal(t, expected, s.protobufExtraHeadersWithCompression)
 }
 
@@ -86,7 +87,7 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 
 			expected = make(http.Header)
 			expected.Set("Content-Type", protobufContentType)
-			expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+			expected.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 			assert.Equal(t, expected, s.protobufExtraHeaders)
 
 			// "Content-Encoding" header present with correct value
@@ -98,7 +99,7 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 			expected = make(http.Header)
 			expected.Set("Content-Type", protobufContentType)
 			expected.Set("Content-Encoding", tc.expectedEncoding)
-			expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+			expected.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 			assert.Equal(t, expected, s.protobufExtraHeadersWithCompression)
 		})
 
@@ -106,7 +107,7 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 }
 
 func TestAgentPayloadVersion(t *testing.T) {
-	assert.NotEmpty(t, AgentPayloadVersion, "AgentPayloadVersion is empty, indicates that the package was not built correctly")
+	assert.NotEmpty(t, version.AgentPayloadVersion, "version.AgentPayloadVersion is empty, indicates that the package was not built correctly")
 }
 
 var (
@@ -262,7 +263,7 @@ func TestSendV1Events(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_events_stream_payload_serialization", false)
+			mockConfig.SetWithoutSource("serializer_use_events_marshaler_v2", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
@@ -274,6 +275,53 @@ func TestSendV1Events(t *testing.T) {
 			err := s.SendEvents([]*event.Event{})
 			require.Nil(t, err)
 			f.AssertExpectations(t)
+		})
+	}
+}
+
+func TestSendV1EventsNew(t *testing.T) {
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			f := &forwarder.MockedForwarder{}
+
+			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+			matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{"api":[{"msg_title":"","msg_text":"","timestamp":0,"host":""}]},"internalHostname"`, s)
+			f.On("SubmitV1Intake", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
+
+			err := s.SendEvents([]*event.Event{{}})
+			require.Nil(t, err)
+			f.AssertExpectations(t)
+		})
+	}
+}
+
+func TestSendV1EventsNewNoEmpty(t *testing.T) {
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			f := &forwarder.MockedForwarder{}
+
+			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+			err := s.SendEvents([]*event.Event{})
+			require.Nil(t, err)
+			f.AssertNotCalled(t, "SubmitV1Events")
 		})
 	}
 }
@@ -290,7 +338,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_events_stream_payload_serialization", true)
+			mockConfig.SetWithoutSource("serializer_use_events_marshaler_v2", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
@@ -331,7 +379,6 @@ func TestSendV1ServiceChecks(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_service_checks_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 
 			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
@@ -358,7 +405,6 @@ func TestSendV1Series(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("enable_stream_payload_serialization", false)
 			mockConfig.SetWithoutSource("use_v2_api.series", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 

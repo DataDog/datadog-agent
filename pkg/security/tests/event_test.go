@@ -289,51 +289,82 @@ func TestEventIteratorRegister(t *testing.T) {
 func TestEventProductTags(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	rule := &rules.RuleDefinition{
-		ID:          "event_product_tags",
-		Expression:  `open.file.path == "{{.Root}}/test-event-product-tags" && open.flags&O_CREAT == O_CREAT`,
-		ProductTags: []string{"tag:test_tag"},
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:          "rule_tags_match",
+			Expression:  `open.file.path == "{{.Root}}/test-tags-match" && open.flags&O_CREAT == O_CREAT && event.rule.tags in ["tag:match"]`,
+			ProductTags: []string{"tag:match"},
+		},
+		{
+			ID:          "rule_tags_no_match",
+			Expression:  `open.file.path == "{{.Root}}/test-tags-no-match" && open.flags&O_CREAT == O_CREAT && event.rule.tags in ["tag:match"]`,
+			ProductTags: []string{"tag:no-match"},
+		},
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
-	testFile, _, err := test.Path("test-event-product-tags")
+	testFileTagsMatch, _, err := test.Path("test-tags-match")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Run("product_tags", func(t *testing.T) {
+	testFileTagsNoMatch, _, err := test.Path("test-tags-no-match")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("match", func(t *testing.T) {
 		test.msgSender.flush()
 		err := test.GetEventSent(t, func() error {
-			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
+			f, err := os.OpenFile(testFileTagsMatch, os.O_CREATE, 0)
 			if err != nil {
 				return err
 			}
 			return f.Close()
 		}, func(rule *rules.Rule, _ *model.Event) bool {
-			assert.Contains(t, rule.Tags, "tag:test_tag")
+			assert.Contains(t, rule.Tags, "tag:match")
 			return true
-		}, getEventTimeout, "event_product_tags")
+		}, getEventTimeout, "rule_tags_match")
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		err = retry.Do(func() error {
-			msg := test.msgSender.getMsg("event_product_tags")
+			msg := test.msgSender.getMsg("rule_tags_match")
 			if msg == nil {
 				return errors.New("not found")
 			}
 
-			assert.Contains(t, msg.Tags, "tag:test_tag")
+			assert.Contains(t, msg.Tags, "tag:match")
 
 			return nil
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		if err != nil {
 			t.Fatal(err)
+		}
+	})
+
+	t.Run("no-match", func(t *testing.T) {
+		test.msgSender.flush()
+		err := test.GetEventSent(t, func() error {
+			f, err := os.OpenFile(testFileTagsNoMatch, os.O_CREATE, 0)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(_ *rules.Rule, _ *model.Event) bool {
+			t.Error("should not have received any event")
+			return true
+		}, 3*time.Second, "rule_tags_no_match")
+		if err != nil {
+			if otherErr, ok := err.(ErrTimeout); !ok {
+				t.Fatal(otherErr)
+			}
 		}
 	})
 }

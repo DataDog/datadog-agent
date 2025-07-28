@@ -82,7 +82,7 @@ int hook_vfs_unlink(ctx_t *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_UNLINK);
@@ -90,8 +90,7 @@ int hook_vfs_unlink(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_unlink_callback")
-int tail_call_target_dr_unlink_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_unlink_callback, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
         return 0;
@@ -176,8 +175,7 @@ HOOK_SYSCALL_EXIT(unlinkat) {
     return sys_unlink_ret(ctx, retval);
 }
 
-SEC("tracepoint/handle_sys_unlink_exit")
-int tracepoint_handle_sys_unlink_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_unlink_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_unlink_ret(args, args->ret);
 }
 

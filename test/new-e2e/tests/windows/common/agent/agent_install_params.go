@@ -307,7 +307,7 @@ func WithApplicationDataDirectory(applicationDataDirectory string) InstallAgentO
 // WithProjectLocation specifies the PROJECTLOCATION parameter.
 func WithProjectLocation(projectLocation string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
-		i.ProjectLocation = projectLocation
+		i.InstallAgentParams.InstallPath = projectLocation
 		return nil
 	}
 }

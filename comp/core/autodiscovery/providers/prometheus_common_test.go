@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -197,8 +197,9 @@ func TestGetPrometheusConfigs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			cfg := mock.New(t)
 			confBytes, _ := json.Marshal(tt.config)
-			pkgconfigsetup.Datadog().SetWithoutSource("prometheus_scrape.checks", string(confBytes))
+			cfg.SetWithoutSource("prometheus_scrape.checks", string(confBytes))
 			checks, err := getPrometheusConfigs()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getPrometheusConfigs() error = %v, wantErr %v", err, tt.wantErr)

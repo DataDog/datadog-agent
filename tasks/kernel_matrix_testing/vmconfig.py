@@ -11,9 +11,15 @@ from urllib.parse import urlparse
 
 from invoke.context import Context
 
+from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
 from tasks.kernel_matrix_testing.platforms import filter_by_ci_component, get_platforms
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, destroy_stack, stack_exists
+from tasks.kernel_matrix_testing.stacks import (
+    check_and_get_stack,
+    create_stack,
+    destroy_stack,
+    stack_exists,
+)
 from tasks.kernel_matrix_testing.tool import Exit, ask, convert_kmt_arch_or_local, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, VMCONFIG
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
@@ -129,6 +135,7 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
         "Alternative names",
         "Example VM tags to use with --vms (fuzzy matching)",
     ]
+
     custom_kernels: list[list[str]] = []
     for k in sorted(kernels, key=lambda x: tuple(map(int, x.split('.')))):
         if lte_414(k):
@@ -143,6 +150,7 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
     distro_kernels: list[list[str]] = []
     platforms = get_platforms()
     mappings = get_distribution_mappings()
+
     # Group kernels by name and kernel version, show whether one or two architectures are supported
     for arch in KMT_SUPPORTED_ARCHS:
         for name, platinfo in platforms[arch].items():
@@ -155,6 +163,7 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
                 if row[0] == name and row[4] == platinfo.get('kernel'):
                     entry = row
                     break
+
             if entry is None:
                 names = {k for k, v in mappings.items() if v == name}
                 # Take two random names for the table so users get an idea of possible mappings
@@ -173,6 +182,7 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
                 ]
                 distro_kernels.append(entry)
 
+            # Set architecture support
             if arch == "x86_64":
                 entry[5] = TICK
             else:
@@ -186,6 +196,79 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
         table += distro_kernels
     if custom:
         table += custom_kernels
+
+    return table
+
+
+def get_local_image_list(distro: bool, custom: bool) -> list[list[str]]:
+    headers = [
+        "VM name",
+        "OS ID",
+        "OS Name",
+        "OS Version",
+        "Kernel",
+        "Architecture",
+        "Alternative names",
+        "Last Update",
+        "Up to Date",
+    ]
+
+    local_distro_kernels: list[list[str]] = []
+    platforms = get_platforms()
+
+    # Group kernels by name and kernel version, show whether one or two architectures are supported
+    for arch in KMT_SUPPORTED_ARCHS:
+        for name, platinfo in platforms[arch].items():
+            if isinstance(platinfo, str):
+                continue  # Old format
+
+            # Check if image is available locally
+            if "image" not in platinfo or "image_version" not in platinfo:
+                continue
+
+            kernel_path = f"{platinfo['image_version']}/{platinfo['image']}"
+            kernel_name = xz_suffix_removed(os.path.basename(kernel_path))
+            local_path = os.path.join(get_kmt_os().rootfs_dir, kernel_name)
+            if not os.path.exists(local_path):
+                continue
+
+            # Create a new entry for this architecture
+            local_entry = [
+                name,
+                platinfo.get("os_id"),
+                platinfo.get("os_name"),
+                platinfo.get("os_version"),
+                platinfo.get("kernel"),
+                arch,
+                ", ".join(platinfo.get("alt_version_names", [])),
+                "N/A",  # Last Update column
+                "N/A",  # Up to Date column
+            ]
+
+            # Get last update time from manifest file
+            manifest_file = '.'.join(platinfo["image"].split('.')[:-2]) + ".manifest"
+            manifest_path = os.path.join(get_kmt_os().rootfs_dir, manifest_file)
+            local_entry[7] = get_image_age(manifest_path)
+
+            # Check if image is up to date using hash comparison
+            try:
+                local_entry[8] = is_image_up_to_date_hash(
+                    platforms["url_base"],
+                    get_kmt_os().rootfs_dir,
+                    platinfo["image"],
+                    platinfo.get('image_version', 'master'),
+                )
+            except Exception:
+                local_entry[8] = "?"
+
+            local_distro_kernels.append(local_entry)
+
+    # Sort by name and architecture
+    local_distro_kernels.sort(key=lambda x: (x[0], x[5]))
+
+    table = [headers]
+    if distro:
+        table += local_distro_kernels
 
     return table
 
@@ -655,7 +738,7 @@ def gen_config_for_stack(
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
-            f"Stack {stack} does not exist. Please create stack first 'inv kmt.create-stack --stack={stack}', or specify --init-stack option to the current command"
+            f"Stack {stack} does not exist. Please create stack first 'dda inv kmt.create-stack --stack={stack}', or specify --init-stack option to the current command"
         )
 
     if init_stack:
@@ -678,6 +761,19 @@ def gen_config_for_stack(
     vm_config = json.loads(orig_vm_config)
 
     vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_by_set(vms, sets), vcpu, memory, ci, template)
+
+    cm = ConfigManager()
+    setup = cm.config.get("setup")
+    if setup is None:
+        raise Exit("KMT setup information not recorded. Please run `dda inv kmt.init` to generate it.")
+
+    if setup == "remote":
+        for vmset in vm_config["vmsets"]:
+            if vmset["arch"] == "local":
+                raise Exit(
+                    "KMT initialized for remote only usage. Local VMs not supported. To use KMT locally run `dda inv -e kmt.init`"
+                )
+
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"
@@ -774,3 +870,69 @@ def gen_config(
 
     with open(output_file, "w") as f:
         f.write(json.dumps(vm_config, indent=4))
+
+
+def get_image_age(manifest_path: str) -> str:
+    if not os.path.exists(manifest_path):
+        return "Unknown"
+
+    try:
+        with open(manifest_path) as f:
+            for line in f:
+                if line.startswith("BUILD_DATE="):
+                    build_date = line.strip().split('=')[1].strip('"')
+                    try:
+                        from datetime import datetime
+
+                        # Parse the date format: "Thu Oct  3 11:11:55 UTC 2024"
+                        build_datetime = datetime.strptime(build_date, "%a %b %d %H:%M:%S UTC %Y")
+                        age = datetime.now() - build_datetime
+                        days = age.days
+
+                        # Show original date format with days difference
+                        return f"{build_date} ({days}d ago)"
+                    except ValueError:
+                        return build_date
+    except Exception:
+        return "Unknown"
+    return "Unknown"
+
+
+def has_checksum_changed(url_base: str, rootfs_dir: str, image: str, branch: str) -> bool:
+    import requests
+
+    if requests is None:
+        raise Exit("requests module is not installed, please install it to continue")
+
+    sum_url = os.path.join(url_base, branch, image + ".sum")
+
+    try:
+        r = requests.get(sum_url)
+        r.raise_for_status()  # Raise an exception for bad status codes
+        new_sum = r.text.rstrip().split(' ')[0]
+    except requests.exceptions.RequestException:
+        raise
+
+    local_sum_path = os.path.join(rootfs_dir, f"{image}.sum")
+
+    if not os.path.exists(local_sum_path):
+        return True
+
+    try:
+        with open(local_sum_path) as f:
+            original_sum = f.read().rstrip().split(' ')[0]
+    except Exception:
+        raise
+
+    if new_sum != original_sum:
+        return True
+
+    return False
+
+
+def is_image_up_to_date_hash(url_base: str, rootfs_dir: str, image: str, branch: str) -> str:
+    try:
+        needs_update = has_checksum_changed(url_base, rootfs_dir, image, branch)
+        return CROSS if needs_update else TICK
+    except Exception:
+        return "?"

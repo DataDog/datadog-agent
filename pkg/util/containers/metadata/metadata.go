@@ -7,6 +7,7 @@
 package containers
 
 import (
+	"maps"
 	"sync"
 	"time"
 
@@ -43,9 +44,7 @@ func Get(timeout time.Duration) map[string]string {
 				return
 			}
 			mutex.Lock()
-			for k, v := range meta {
-				containerMeta[k] = v
-			}
+			maps.Copy(containerMeta, meta)
 			mutex.Unlock()
 		}(provider, getMeta)
 	}
@@ -62,9 +61,7 @@ func Get(timeout time.Duration) map[string]string {
 		// in this case the map might be incomplete so return a copy to avoid race
 		incompleteMeta := make(map[string]string)
 		mutex.Lock()
-		for k, v := range containerMeta {
-			incompleteMeta[k] = v
-		}
+		maps.Copy(incompleteMeta, containerMeta)
 		mutex.Unlock()
 		return incompleteMeta
 	}

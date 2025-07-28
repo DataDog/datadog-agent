@@ -302,3 +302,19 @@ func TestFetchSecretRemoveTrailingLineBreak(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"handle1": "some data"}, resp)
 }
+
+func TestFetchSecretPayloadIncludesBackendConfig(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendType = "aws.secrets"
+	resolver.backendConfig = map[string]interface{}{"foo": "bar"}
+	var capturedPayload string
+	resolver.commandHookFunc = func(payload string) ([]byte, error) {
+		capturedPayload = payload
+		return []byte(`{"handle1":{"value":"test_value"}}`), nil
+	}
+	_, err := resolver.fetchSecret([]string{"handle1"})
+	require.NoError(t, err)
+	assert.Contains(t, capturedPayload, `"type":"aws.secrets"`)
+	assert.Contains(t, capturedPayload, `"config":{"foo":"bar"}`)
+}

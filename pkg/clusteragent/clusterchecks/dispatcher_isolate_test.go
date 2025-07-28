@@ -13,18 +13,53 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// isolateTestClcRunnerClient mocks the clcRunnersClient for advanced dispatching tests in this file only
+type isolateTestClcRunnerClient struct{}
+
+func (d *isolateTestClcRunnerClient) GetVersion(_IP string) (version.Version, error) {
+	return version.Version{}, nil
+}
+
+func (d *isolateTestClcRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, error) {
+	// Return dummy stats for nodes "A" and "B" to match the test setup
+	stats := map[string]types.CLCRunnersStats{
+		"A": {
+			"checkA0": {AverageExecutionTime: 50, MetricSamples: 10, IsClusterCheck: true},
+			"checkA1": {AverageExecutionTime: 20, MetricSamples: 10, IsClusterCheck: true},
+			"checkA2": {AverageExecutionTime: 100, MetricSamples: 10, IsClusterCheck: true},
+		},
+		"B": {
+			"checkB0": {AverageExecutionTime: 50, MetricSamples: 10, IsClusterCheck: true},
+			"checkB1": {AverageExecutionTime: 20, MetricSamples: 10, IsClusterCheck: true},
+			"checkB2": {AverageExecutionTime: 100, MetricSamples: 10, IsClusterCheck: true},
+		},
+	}
+	return stats[IP], nil
+}
+
+func (d *isolateTestClcRunnerClient) GetRunnerWorkers(IP string) (types.Workers, error) {
+	// Return 1 worker for node "A" and 1 worker for node "B"
+	workers := map[string]types.Workers{
+		"A": {Count: 1, Instances: map[string]types.WorkerInfo{"workerA": {Utilization: 0.1}}},
+		"B": {Count: 1, Instances: map[string]types.WorkerInfo{"workerB": {Utilization: 0.1}}},
+	}
+	return workers[IP], nil
+}
+
 func TestIsolateCheckSuccessful(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
-	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
+	testDispatcher.clcRunnersClient = &isolateTestClcRunnerClient{}
+	testDispatcher.store.nodes["A"] = newNodeStore("A", "A")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
-	testDispatcher.store.nodes["B"] = newNodeStore("B", "")
+	testDispatcher.store.nodes["B"] = newNodeStore("B", "B")
 	testDispatcher.store.nodes["B"].workers = pkgconfigsetup.DefaultNumWorkers
 
 	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
@@ -101,11 +136,12 @@ func TestIsolateCheckSuccessful(t *testing.T) {
 }
 
 func TestIsolateNonExistentCheckFails(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
-	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
+	testDispatcher.clcRunnersClient = &isolateTestClcRunnerClient{}
+	testDispatcher.store.nodes["A"] = newNodeStore("A", "A")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
-	testDispatcher.store.nodes["B"] = newNodeStore("B", "")
+	testDispatcher.store.nodes["B"] = newNodeStore("B", "B")
 	testDispatcher.store.nodes["B"].workers = pkgconfigsetup.DefaultNumWorkers
 
 	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
@@ -180,9 +216,10 @@ func TestIsolateNonExistentCheckFails(t *testing.T) {
 }
 
 func TestIsolateCheckOnlyOneRunnerFails(t *testing.T) {
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
-	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
+	testDispatcher.clcRunnersClient = &isolateTestClcRunnerClient{}
+	testDispatcher.store.nodes["A"] = newNodeStore("A", "A")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
 
 	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{

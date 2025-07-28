@@ -23,6 +23,6 @@ REPOSITORY_NAME="usm-agent"
 echo $AWS_ECR_LOGIN_PASSWORD | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
 
 # Build and push the Docker image
-inv -e process-agent.build-dev-image \
+dda inv -e process-agent.build-dev-image \
   --image "$AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPOSITORY_NAME/$IMAGE_NAME:$IMAGE_VERSION" \
   --base-image datadog/agent-dev:master-py3 --push

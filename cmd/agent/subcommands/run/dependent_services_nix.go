@@ -10,8 +10,9 @@ import "github.com/DataDog/datadog-agent/pkg/config/model"
 
 // Servicedef defines a service
 type Servicedef struct {
-	name       string
-	configKeys map[string]model.Config
+	name           string
+	configKeys     map[string]model.Config
+	shouldShutdown bool
 }
 
 var subservices []Servicedef

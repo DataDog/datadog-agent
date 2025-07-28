@@ -45,6 +45,7 @@ const testMaxAutoscalerObjects int = 2
 
 func newFixture(t *testing.T, testTime time.Time) *fixture {
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+
 	clock := clock.NewFakeClock(testTime)
 	recorder := record.NewFakeRecorder(100)
 	hashHeap := autoscaling.NewHashHeap(testMaxAutoscalerObjects, store)
@@ -52,7 +53,7 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 		ControllerFixture: autoscaling.NewFixture(
 			t, podAutoscalerGVR,
 			func(fakeClient *fake.FakeDynamicClient, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool) (*autoscaling.Controller, error) {
-				c, err := NewController("cluster-id1", recorder, nil, nil, fakeClient, informer, isLeader, store, nil, nil, hashHeap)
+				c, err := NewController(clock, "cluster-id1", recorder, nil, nil, fakeClient, informer, isLeader, store, nil, nil, hashHeap)
 				if err != nil {
 					return nil, err
 				}
@@ -754,4 +755,23 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-0"], "Expected dpa-0 to be in heap")
 	assert.Falsef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to not be in heap")
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-2"], "Expected dpa-2 to be in heap")
+}
+
+func TestIsTimestampStale(t *testing.T) {
+	currentTime := time.Now()
+	receivedTime := currentTime.Add(-1 * time.Minute)
+
+	// no fallback policy, use default stale timestamp threshold
+	assert.False(t, isTimestampStale(currentTime, receivedTime, defaultStaleTimestampThreshold))
+	receivedTime = currentTime.Add(-1 * time.Minute * 31)
+	assert.True(t, isTimestampStale(currentTime, receivedTime, defaultStaleTimestampThreshold))
+
+	// fallback policy with stale recommendation threshold
+	staleTimestampThreshold := time.Second * 120
+	receivedTime = currentTime.Add(-1 * time.Minute)
+	assert.False(t, isTimestampStale(currentTime, receivedTime, staleTimestampThreshold))
+	receivedTime = currentTime.Add(-1 * time.Minute * 2)
+	assert.False(t, isTimestampStale(currentTime, receivedTime, staleTimestampThreshold))
+	receivedTime = currentTime.Add(-1 * time.Minute * 3)
+	assert.True(t, isTimestampStale(currentTime, receivedTime, staleTimestampThreshold))
 }

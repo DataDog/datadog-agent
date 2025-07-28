@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
@@ -75,37 +74,37 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 
 	for _, tc := range []struct {
 		name          string
-		input         types.ContainerJSON
+		input         container.InspectResponse
 		expectedImage string
 	}{
 		{
 			name: "test empty config image name",
-			input: types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
+			input: container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{Image: imageSha},
 				Config:            &container.Config{},
 			},
 			expectedImage: imageName,
 		},
 		{
 			name: "test standard config image name",
-			input: types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{Image: "ignored"},
+			input: container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{Image: "ignored"},
 				Config:            &container.Config{Image: imageName},
 			},
 			expectedImage: imageName,
 		},
 		{
 			name: "test config image name as sha tag",
-			input: types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
+			input: container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{Image: imageSha},
 				Config:            &container.Config{Image: imageSha},
 			},
 			expectedImage: imageName,
 		},
 		{
 			name: "test config image name with sha tag",
-			input: types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
+			input: container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{Image: imageSha},
 				Config:            &container.Config{Image: imageWithShaTag},
 			},
 			expectedImage: imageName,
@@ -133,8 +132,8 @@ func TestResolveImageNameFromContainerError(t *testing.T) {
 		imageNameBySha: make(map[string]string),
 	}
 
-	input := types.ContainerJSON{
-		ContainerJSONBase: &types.ContainerJSONBase{Image: imageSha},
+	input := container.InspectResponse{
+		ContainerJSONBase: &container.ContainerJSONBase{Image: imageSha},
 		Config:            &container.Config{Image: imageSha},
 	}
 

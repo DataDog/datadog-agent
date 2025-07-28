@@ -1,15 +1,41 @@
 #!/bin/sh
-#
-# Perform necessary datadog-agent setup steps before package is installed.
-#
-# .rpm: STEP 2 of 6
+##########################################################################
+#             DO NOT EDIT THIS SCRIPT DIRECTLY.                          #
+#                                                                        #
+# The installation logic is handled by the installer in the following    #
+# file: pkg/fleet/installer/packages/datadog_agent_linux.go              #
+#                                                                        #
+##########################################################################
 
 INSTALL_DIR=/opt/datadog-agent
-SERVICE_NAME=datadog-agent
 
 set -e
 
-if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/system/$SERVICE_NAME.service" ]; then
+# Uninstall the agent if it was installed by the installer
+if command -v datadog-installer >/dev/null 2>&1 && datadog-installer is-installed datadog-agent; then
+    datadog-installer remove datadog-agent || printf "[ WARNING ]\tFailed to remove datadog-agent installed by the installer\n"
+fi
+
+# RPM Agents < 5.18.0 expect the preinst script of the _new_ package to stop the agent service on upgrade (which is defined with an init.d script on Agent 5)
+# So let's stop the Agent 5 service here until we don't want to support upgrades from Agents < 5.18.0 anymore
+if [ -f "/etc/init.d/datadog-agent" ]; then
+    /etc/init.d/datadog-agent stop || true
+fi
+
+# Run the upgrade prerm if supported in the previous version. See pkg/fleet/installer/packages/datadog_agent_linux.go
+if [ "$*" = "2" ] && [ -f "${INSTALL_DIR}/embedded/bin/installer" ] && ${INSTALL_DIR}/embedded/bin/installer is-prerm-supported; then
+    ${INSTALL_DIR}/embedded/bin/installer prerm --upgrade datadog-agent rpm || true
+    exit 0
+fi
+
+##########################################################################
+#    LEGACY INSTALLATION LOGIC BELOW WHEN UPGRADING FROM AGENT <7.68     #
+#                   DO NOT EDIT THIS SECTION                             #
+##########################################################################
+
+SERVICE_NAME=datadog-agent
+
+stop_agent() {
     # Stop an already running agent
     # Only supports systemd and upstart
     if command -v systemctl >/dev/null 2>&1; then
@@ -27,13 +53,28 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
     else
         echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
     fi
-fi
+}
 
-# RPM Agents < 5.18.0 expect the preinst script of the _new_ package to stop the agent service on upgrade (which is defined with an init.d script on Agent 5)
-# So let's stop the Agent 5 service here until we don't want to support upgrades from Agents < 5.18.0 anymore
-if [ -f "/etc/init.d/datadog-agent" ]; then
-    /etc/init.d/datadog-agent stop || true
-fi
+deregister_agent() {
+    # Disable agent start on system boot
+    # Only supports systemd and upstart
+    if command -v systemctl >/dev/null 2>&1; then
+        # Force systemd to ignore the sysvinit scripts. Only cosmetic, remove some irrelevant warnings during upgrade
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-process || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-sysprobe || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-trace || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME-security || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        # Nothing to do, this is defined directly in the upstart job file
+        :
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd and upstart."
+    fi
+}
+
+stop_agent
+deregister_agent
 
 # RPM unpacks the new files before running prerm of the old package
 # triggering manually the prerm python script of the old package
@@ -45,7 +86,8 @@ if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
     fi
 
     if [ -n "$PRE_PYTHON_FILE" ]; then
-        ${INSTALL_DIR}/embedded/bin/python "${PRE_PYTHON_FILE}" "${INSTALL_DIR}" || true
+        # -B prevents writing a cache of the bytecode since this is only run once
+        ${INSTALL_DIR}/embedded/bin/python -B "${PRE_PYTHON_FILE}" "${INSTALL_DIR}" || true
     else
         echo "[ WARNING ]\tPRE_PYTHON_FILE is not set"
     fi
@@ -63,7 +105,7 @@ if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
     # List all files in the embedded dir of the datadog-agent install dir
     PREV_DIR=$(pwd)
     cd $INSTALL_DIR
-    find . -depth -path './embedded/lib/python*/site-packages/datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
+    find . -depth -path './embedded/lib/python*/site-packages/datadog_*' >$INSTALL_DIR/embedded/.all-integrations.txt
 
     # List all files in the embedded dir of the datadog-agent install dir
     # which were not installed by the package and rm them.

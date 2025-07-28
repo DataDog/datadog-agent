@@ -1,0 +1,58 @@
+--- expat-2.4.1/configure.orig	2021-05-23 11:28:43.000000000 -0500
++++ expat-2.4.1/configure	2021-08-03 09:21:25.000000000 -0500
+@@ -12602,7 +12602,7 @@
+ #  endif
+ #endif
+ 
+-/* When -fvisibility=hidden is used, assume the code has been annotated
++/* When -qvisibility=hidden is used, assume the code has been annotated
+    correspondingly for the symbols needed.  */
+ #if defined __GNUC__ && (((__GNUC__ == 3) && (__GNUC_MINOR__ >= 3)) || (__GNUC__ > 3))
+ int fnord () __attribute__((visibility("default")));
+@@ -12708,7 +12708,7 @@
+ #  endif
+ #endif
+ 
+-/* When -fvisibility=hidden is used, assume the code has been annotated
++/* When -qvisibility=hidden is used, assume the code has been annotated
+    correspondingly for the symbols needed.  */
+ #if defined __GNUC__ && (((__GNUC__ == 3) && (__GNUC_MINOR__ >= 3)) || (__GNUC__ > 3))
+ int fnord () __attribute__((visibility("default")));
+@@ -17541,7 +17541,7 @@
+ else
+   expatcfg_cv_compiler_supports_visibility=no
+       OLDFLAGS=$CFLAGS
+-      as_fn_append CFLAGS " -fvisibility=hidden -Wall -Werror -Wno-unknown-warning-option"
++      as_fn_append CFLAGS " -qvisibility=hidden -Wall -Werror -Wno-unknown-warning-option"
+       cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -17563,15 +17563,15 @@
+ if ${AM_CFLAGS+:} false; then :
+ 
+   case " $AM_CFLAGS " in #(
+-  *" -fvisibility=hidden "*) :
+-    { { $as_echo "$as_me:${as_lineno-$LINENO}: : AM_CFLAGS already contains -fvisibility=hidden"; } >&5
+-  (: AM_CFLAGS already contains -fvisibility=hidden) 2>&5
++  *" -qvisibility=hidden "*) :
++    { { $as_echo "$as_me:${as_lineno-$LINENO}: : AM_CFLAGS already contains -qvisibility=hidden"; } >&5
++  (: AM_CFLAGS already contains -qvisibility=hidden) 2>&5
+   ac_status=$?
+   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+   test $ac_status = 0; } ;; #(
+   *) :
+ 
+-     as_fn_append AM_CFLAGS " -fvisibility=hidden"
++     as_fn_append AM_CFLAGS " -qvisibility=hidden"
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: : AM_CFLAGS=\"\$AM_CFLAGS\""; } >&5
+   (: AM_CFLAGS="$AM_CFLAGS") 2>&5
+   ac_status=$?
+@@ -17582,7 +17582,7 @@
+ 
+ else
+ 
+-  AM_CFLAGS=-fvisibility=hidden
++  AM_CFLAGS=-qvisibility=hidden
+   { { $as_echo "$as_me:${as_lineno-$LINENO}: : AM_CFLAGS=\"\$AM_CFLAGS\""; } >&5
+   (: AM_CFLAGS="$AM_CFLAGS") 2>&5
+   ac_status=$?

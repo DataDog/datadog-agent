@@ -56,7 +56,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			clock := clock.NewMock()
 			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-			tm := newTelemetryMiddlewareFactory(telemetry, clock)
+			tm := newTelemetryMiddlewareFactory(telemetry, clock, NoopAuthTagGetter)
 			telemetryHandler := tm.Middleware(serverName)
 
 			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
@@ -94,6 +94,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 				"status_code": strconv.Itoa(tc.code),
 				"method":      tc.method,
 				"path":        tc.path,
+				"auth":        "none",
 			}
 			assert.Equal(t, expected, labels)
 		})
@@ -102,7 +103,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 
 func TestTelemetryMiddlewareDuration(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	telemetryHandler := NewTelemetryMiddlewareFactory(telemetry).Middleware("test")
+	telemetryHandler := NewTelemetryMiddlewareFactory(telemetry, NoopAuthTagGetter).Middleware("test")
 
 	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -122,11 +123,15 @@ func TestTelemetryMiddlewareDuration(t *testing.T) {
 
 func TestTelemetryMiddlewareTwice(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tm := NewTelemetryMiddlewareFactory(telemetry)
+	tm := NewTelemetryMiddlewareFactory(telemetry, NoopAuthTagGetter)
 
 	// test that we can create multiple middleware instances
 	// Prometheus metrics can be registered only once, this test enforces that the metric
 	// is not created in the Middleware itself
 	_ = tm.Middleware("test1")
 	_ = tm.Middleware("test2")
+}
+
+func NoopAuthTagGetter(_ *http.Request) string {
+	return "none"
 }

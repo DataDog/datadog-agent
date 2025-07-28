@@ -86,7 +86,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_current_or_impersonated_exec_syscall();
@@ -328,8 +328,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET_WITH_HOOK_POINT("do_exit")
-int tail_call_target_flush_network_stats_exit(ctx_t *ctx) {
+TAIL_CALL_FNC_WITH_HOOK_POINT("do_exit", flush_network_stats_exit, ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid;
     u32 tgid = pid_tgid >> 32;
@@ -395,8 +394,7 @@ int hook_security_bprm_check(ctx_t *ctx) {
     return fill_exec_context();
 }
 
-TAIL_CALL_TARGET("get_envs_offset")
-int tail_call_target_get_envs_offset(void *ctx) {
+TAIL_CALL_FNC(get_envs_offset, void *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -414,7 +412,9 @@ int tail_call_target_get_envs_offset(void *ctx) {
     u64 offset = syscall->exec.args_envs_ctx.envs_offset;
     u32 args_count = syscall->exec.args_envs_ctx.args_count;
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (i = 0; i < MAX_ARGS_READ_PER_TAIL && args_count < syscall->exec.args.count; i++) {
         bytes_read = bpf_probe_read_str(&buff->value[0], MAX_ARRAY_ELEMENT_SIZE, (void *)(args_start + offset));
         if (bytes_read < 0 || bytes_read == MAX_ARRAY_ELEMENT_SIZE) {
@@ -468,7 +468,9 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
 
     void *buff_ptr = &buff->value[0];
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
         if (args_envs->counter == args_envs->count) {
             break;
@@ -526,8 +528,7 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
     }
 }
 
-TAIL_CALL_TARGET("parse_args_envs_split")
-int tail_call_target_parse_args_envs_split(void *ctx) {
+TAIL_CALL_FNC(parse_args_envs_split, void *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -555,8 +556,7 @@ int tail_call_target_parse_args_envs_split(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("parse_args_envs")
-int tail_call_target_parse_args_envs(void *ctx) {
+TAIL_CALL_FNC(parse_args_envs, void *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -693,7 +693,11 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
                     .mount_id = syscall->exec.file.path_key.mount_id,
                     .path_id = syscall->exec.file.path_key.path_id,
                 },
-                .flags = syscall->exec.file.flags },
+                .flags = syscall->exec.file.flags,
+                .metadata = {
+                    .nlink = syscall->exec.file.metadata.nlink
+                },
+            },
             .exec_timestamp = now,
         },
         .container = {},
@@ -779,8 +783,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET_WITH_HOOK_POINT("mprotect_fixup")
-int tail_call_target_flush_network_stats_exec(ctx_t *ctx) {
+TAIL_CALL_FNC_WITH_HOOK_POINT("mprotect_fixup", flush_network_stats_exec, ctx_t *ctx) {
     // flush network stats
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;

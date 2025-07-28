@@ -200,7 +200,7 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 func WritePersistentCache(key, value *C.char) {
 	keyName := C.GoString(key)
 	val := C.GoString(value)
-	persistentcache.Write(keyName, val) //nolint:errcheck
+	_ = persistentcache.Write(keyName, val)
 }
 
 // ReadPersistentCache retrieves a value for one check instance
@@ -366,7 +366,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		KeepTrailingSemicolon:         sqlOpts.KeepTrailingSemicolon,
 		KeepIdentifierQuotation:       sqlOpts.KeepIdentifierQuotation,
 		KeepJSONPath:                  sqlOpts.KeepJSONPath,
-	})
+	}, optStr)
 	if err != nil {
 		// memory will be freed by caller
 		*errResult = TrackedCString(err.Error())

@@ -8,7 +8,6 @@
 package listeners
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sort"
@@ -25,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,7 +43,7 @@ type KubeServiceListener struct {
 	delService        chan<- Service
 	targetAllServices bool
 	m                 sync.RWMutex
-	containerFilters  *containerFilters
+	filterStore       workloadfilter.Component
 	telemetryStore    *telemetry.Store
 }
 
@@ -93,15 +92,13 @@ func NewKubeServiceListener(options ServiceListernerDeps) (ServiceListener, erro
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
-	containerFilters := newContainerFilters()
-
 	return &KubeServiceListener{
 		services:          make(map[k8stypes.UID]Service),
 		informer:          servicesInformer,
 		promInclAnnot:     getPrometheusIncludeAnnotations(),
 		targetAllServices: options.Config.IsProviderEnabled(names.KubeServicesFileRegisterName),
-		containerFilters:  containerFilters,
 		telemetryStore:    options.Telemetry,
+		filterStore:       options.Filter,
 	}, nil
 }
 
@@ -237,23 +234,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 		return
 	}
 
-	svc := processService(ksvc)
-
-	svc.metricsExcluded = l.containerFilters.IsExcluded(
-		containers.MetricsFilter,
-		ksvc.GetAnnotations(),
-		ksvc.Name,
-		"",
-		ksvc.Namespace,
-	)
-
-	svc.globalExcluded = l.containerFilters.IsExcluded(
-		containers.GlobalFilter,
-		ksvc.GetAnnotations(),
-		ksvc.Name,
-		"",
-		ksvc.Namespace,
-	)
+	svc := processService(ksvc, l.filterStore)
 
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
@@ -265,10 +246,20 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 	}
 }
 
-func processService(ksvc *v1.Service) *KubeServiceService {
+func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *KubeServiceService {
 	svc := &KubeServiceService{
 		entity: apiserver.EntityForService(ksvc),
 	}
+
+	svc.metricsExcluded = filterStore.IsServiceExcluded(
+		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
+		[][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotationsMetrics}, {workloadfilter.LegacyServiceMetrics}},
+	)
+
+	svc.globalExcluded = filterStore.IsServiceExcluded(
+		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
+		[][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}, {workloadfilter.LegacyServiceGlobal}},
+	)
 
 	// Service tags
 	svc.tags = []string{
@@ -340,23 +331,23 @@ func (s *KubeServiceService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeServiceService) GetADIdentifiers(context.Context) ([]string, error) {
+func (s *KubeServiceService) GetADIdentifiers() []string {
 	// Only the entity for now, to match on annotation
-	return []string{s.entity}, nil
+	return []string{s.entity}
 }
 
 // GetHosts returns the pod hosts
-func (s *KubeServiceService) GetHosts(context.Context) (map[string]string, error) {
+func (s *KubeServiceService) GetHosts() (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPid is not supported for PodContainerService
-func (s *KubeServiceService) GetPid(context.Context) (int, error) {
+func (s *KubeServiceService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the container's ports
-func (s *KubeServiceService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *KubeServiceService) GetPorts() ([]ContainerPort, error) {
 	return s.ports, nil
 }
 
@@ -371,22 +362,22 @@ func (s *KubeServiceService) GetTagsWithCardinality(_ string) ([]string, error) 
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubeServiceService) GetHostname(context.Context) (string, error) {
+func (s *KubeServiceService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 
 // IsReady returns if the service is ready
-func (s *KubeServiceService) IsReady(context.Context) bool {
+func (s *KubeServiceService) IsReady() bool {
 	return true
 }
 
 // HasFilter returns whether the kube service should not collect certain metrics
 // due to filtering applied.
-func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
-	switch filter {
-	case containers.MetricsFilter:
+func (s *KubeServiceService) HasFilter(fs workloadfilter.Scope) bool {
+	switch fs {
+	case workloadfilter.MetricsFilter:
 		return s.metricsExcluded
-	case containers.GlobalFilter:
+	case workloadfilter.GlobalFilter:
 		return s.globalExcluded
 	default:
 		return false
@@ -394,9 +385,7 @@ func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
+func (s *KubeServiceService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 

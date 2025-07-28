@@ -21,15 +21,28 @@ import (
 // inspectGoBinaries goes through each service and populates information about the binary
 // and the relevant parameters, and their types
 // configEvent maps service names to info about the service and their configurations
-func inspectGoBinaries(configEvent ditypes.DIProcs) error {
+// it returns a map of PID -> bool stating for each PID if the analysis has succeeded or not
+// and an error when none of the processes have succeeded to be analyzed
+func inspectGoBinaries(configEvent ditypes.DIProcs) (map[ditypes.PID]bool, error) {
 	var err error
-	for i := range configEvent {
-		err = AnalyzeBinary(configEvent[i])
+	var inspectedAtLeastOneBinary bool
+	statuses := make(map[ditypes.PID]bool)
+	for pid, proc := range configEvent {
+		err = AnalyzeBinary(proc)
 		if err != nil {
-			return fmt.Errorf("inspection of PID %d (path=%s) failed: %w", configEvent[i].PID, configEvent[i].BinaryPath, err)
+			log.Infof("inspection of PID %d (path=%s) failed: %s", proc.PID, proc.BinaryPath, err)
+			statuses[pid] = false
+		} else {
+			statuses[pid] = true
+			inspectedAtLeastOneBinary = true
 		}
 	}
-	return nil
+
+	if !inspectedAtLeastOneBinary {
+		return statuses, fmt.Errorf("failed to inspect all tracked go binaries (%d)", len(configEvent))
+	}
+
+	return statuses, nil
 }
 
 // AnalyzeBinary reads the binary associated with the specified process and parses
@@ -41,6 +54,7 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 		functions = append(functions, probe.FuncName)
 		targetFunctions[probe.FuncName] = true
 	}
+	log.Infof("Starting binary analysis for PID %d, service %s", procInfo.PID, procInfo.ServiceName)
 
 	elfFile, err := safeelf.Open(procInfo.BinaryPath)
 	if err != nil {
@@ -58,9 +72,21 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 		return fmt.Errorf("could not retrieve type information from binary %w", err)
 	}
 
+	log.Infof("Successfully retrieved type map for %s (pid %d)", procInfo.ServiceName, procInfo.PID)
 	procInfo.TypeMap = typeMap
 
-	fieldIDs := make([]bininspect.FieldIdentifier, 0)
+	// Enforce limit on number of parameters
+	for funcName := range procInfo.TypeMap.Functions {
+		for i, param := range procInfo.TypeMap.Functions[funcName] {
+			if i >= ditypes.MaxFieldCount {
+				param.DoNotCapture = true
+				param.NotCaptureReason = ditypes.FieldLimitReached
+				log.Infof("Enforced parameter limits for %s (pid %d): %s(...%s", procInfo.ServiceName, procInfo.PID, funcName, param.Name)
+			}
+		}
+	}
+
+	fieldIDs := []bininspect.FieldIdentifier{}
 	for _, funcParams := range typeMap.Functions {
 		for _, param := range funcParams {
 			fieldIDs = append(fieldIDs,
@@ -70,8 +96,9 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 
 	r, err := bininspect.InspectWithDWARF(elfFile, dwarfData, functions, fieldIDs)
 	if err != nil {
-		return fmt.Errorf("could not determine locations of variables from debug information %w", err)
+		return fmt.Errorf("could not determine locations of variables from debug information (functions: %v): %w", functions, err)
 	}
+
 	stringPtrIdentifier := bininspect.FieldIdentifier{StructName: "string", FieldName: "str"}
 	stringLenIdentifier := bininspect.FieldIdentifier{StructName: "string", FieldName: "len"}
 	r.StructOffsets[stringPtrIdentifier] = 0
@@ -81,9 +108,9 @@ func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	for functionName, functionMetadata := range r.Functions {
 		putLocationsInParams(functionMetadata.Parameters, r.StructOffsets, procInfo.TypeMap.Functions, functionName)
 		populateLocationExpressionsForFunction(r.Functions, procInfo, functionName)
-		correctStructSizes(procInfo.TypeMap.Functions[functionName])
 	}
 
+	log.Infof("Finished binary analysis for %s (pid %d)", procInfo.ServiceName, procInfo.PID)
 	return nil
 }
 
@@ -112,17 +139,23 @@ func collectFieldIDs(param *ditypes.Parameter) []bininspect.FieldIdentifier {
 					// in these cases and we're best off skipping them.
 					continue
 				}
-				fieldIDs = append(fieldIDs, bininspect.FieldIdentifier{
+				fieldID := bininspect.FieldIdentifier{
 					StructName: current.Type,
 					FieldName:  structField.Name,
-				})
+				}
+				fieldIDs = append(fieldIDs, fieldID)
 				if len(fieldIDs) >= ditypes.MaxFieldCount {
-					log.Info("field limit applied, not collecting further fields", len(fieldIDs), ditypes.MaxFieldCount)
+					log.Infof("Field limit reached (%d/%d) for type %s.%s, stopping collection.",
+						len(fieldIDs),
+						ditypes.MaxFieldCount,
+						current.Type,
+						structField.Name)
 					return fieldIDs
 				}
 			}
 		}
 	}
+	log.Infof("Finished collecting field IDs. Total: %d", len(fieldIDs))
 	return fieldIDs
 }
 
@@ -208,16 +241,17 @@ func assignLocationsInOrder(params []*ditypes.Parameter, locations []ditypes.Loc
 		}
 		current := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
+		locationToAssign := locations[locationCounter]
 		if len(current.ParameterPieces) != 0 &&
 			current.Kind != uint(reflect.Array) &&
-			current.Kind != uint(reflect.Pointer) {
+			current.Kind != uint(reflect.Pointer) &&
+			!(current.Kind == uint(reflect.Struct) && !locationToAssign.InReg) {
 			for i := range current.ParameterPieces {
 				stack = append(stack, current.ParameterPieces[len(current.ParameterPieces)-1-i])
 			}
 		} else {
 			// Location fields are directly assigned instead of setting the whole
 			// location field to preserve other fields
-			locationToAssign := locations[locationCounter]
 			if current.Location == nil {
 				current.Location = &ditypes.Location{}
 			}

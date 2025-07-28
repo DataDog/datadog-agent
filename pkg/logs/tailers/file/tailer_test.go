@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -63,7 +65,8 @@ func (suite *TailerTestSuite) SetupTest() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -105,10 +108,11 @@ func (suite *TailerTestSuite) TestStopAfterFileRotationWhenStuck() {
 }
 
 func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
+	mockConfig := configmock.New(suite.T())
 	// To satisfy the suite level tailer
 	suite.tailer.StartFromBeginning()
 
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.close_timeout", 42)
+	mockConfig.SetWithoutSource("logs_config.close_timeout", 42)
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
 
@@ -118,7 +122,8 @@ func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	tailer := NewTailer(tailerOptions)
@@ -286,7 +291,8 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -317,7 +323,8 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -345,7 +352,8 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -359,10 +367,11 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 }
 
 func (suite *TailerTestSuite) TestTruncatedTag() {
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", 3)
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", true)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", false)
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 3)
+	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
+	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
 
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
@@ -377,7 +386,8 @@ func (suite *TailerTestSuite) TestTruncatedTag() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -410,7 +420,8 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	suite.tailer = NewTailer(tailerOptions)
@@ -446,7 +457,8 @@ func (suite *TailerTestSuite) TestDidRotateNilFullpath() {
 		SleepDuration:   sleepDuration,
 		Decoder:         decoder.NewDecoderFromSource(suite.source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
 	}
 
 	tailer := NewTailer(tailerOptions)

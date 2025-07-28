@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -78,8 +78,9 @@ func TestSourceHostTag(t *testing.T) {
 }
 
 func TestSourceHostTagFlagDisabled(t *testing.T) {
+	mockConfig := configmock.New(t)
 	// Set the config flag for source_host tag to false
-	pkgconfigsetup.Datadog().BindEnvAndSetDefault("logs_config.use_sourcehost_tag", false)
+	mockConfig.BindEnvAndSetDefault("logs_config.use_sourcehost_tag", false)
 
 	// Set up test components
 	msgChan := make(chan *message.Message)

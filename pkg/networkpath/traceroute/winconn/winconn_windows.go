@@ -27,7 +27,7 @@ type (
 	// RawConnWrapper is an interface that abstracts the raw socket
 	// connection for Windows
 	RawConnWrapper interface {
-		ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error)
+		ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, icmpPacketID uint16, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error)
 		SendRawPacket(destIP net.IP, destPort uint16, payload []byte) error
 		ReadFrom(b []byte) (*ipv4.Header, []byte, error)
 		Close()
@@ -114,10 +114,10 @@ func (r *RawConn) SendRawPacket(destIP net.IP, destPort uint16, payload []byte) 
 // If neither decoderFunc receives a matching packet within the timeout, a blank response is returned.
 // Once a matching packet is received by a decoderFunc, it will cause the other decoderFuncs to be
 // canceled, and data from the matching packet will be returned to the caller
-func (r *RawConn) ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error) {
+func (r *RawConn) ListenPackets(timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, packetID uint16, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	ip, finished, err := r.handlePackets(ctx, localIP, localPort, remoteIP, remotePort, innerIdentifier, matcherFuncs)
+	ip, finished, err := r.handlePackets(ctx, localIP, localPort, remoteIP, remotePort, innerIdentifier, packetID, matcherFuncs)
 	if err != nil {
 		_, canceled := err.(common.CanceledError)
 		if canceled {
@@ -136,7 +136,7 @@ func (r *RawConn) ListenPackets(timeout time.Duration, localIP net.IP, localPort
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
-func (r *RawConn) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error) {
+func (r *RawConn) handlePackets(ctx context.Context, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, packetID uint16, matcherFuncs map[int]common.MatcherFunc) (net.IP, time.Time, error) {
 	// TODO: reset to 512 before merge?
 	buf := make([]byte, 4096)
 	for {
@@ -167,7 +167,7 @@ func (r *RawConn) handlePackets(ctx context.Context, localIP net.IP, localPort u
 		if !ok {
 			continue
 		}
-		ip, err := matcherFunc(header, packet, localIP, localPort, remoteIP, remotePort, innerIdentifier)
+		ip, err := matcherFunc(header, packet, localIP, localPort, remoteIP, remotePort, innerIdentifier, packetID)
 		if err != nil {
 			// if packet is NOT a match continue, otherwise log
 			// the error

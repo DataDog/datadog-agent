@@ -84,7 +84,7 @@ func TestConversions(t *testing.T) {
 					CollectorTags: []string{
 						"tag1",
 					},
-					AllocatedResources: []workloadmeta.ContainerAllocatedResource{
+					ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
 					},
 				},
@@ -141,7 +141,7 @@ func TestConversions(t *testing.T) {
 					CollectorTags: []string{
 						"tag1",
 					},
-					AllocatedResources: []*pb.ContainerAllocatedResource{
+					ResolvedAllocatedResources: []*pb.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
 					},
 				},
@@ -187,6 +187,19 @@ func TestConversions(t *testing.T) {
 								Name:      "datadog/agent",
 								ShortName: "agent",
 								Tag:       "7",
+							},
+						},
+					},
+					EphemeralContainers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "ephemeralID",
+							Name: "ephemeralName",
+							Image: workloadmeta.ContainerImage{
+								ID:        "456",
+								RawName:   "busybox:latest",
+								Name:      "busybox",
+								ShortName: "busybox",
+								Tag:       "latest",
 							},
 						},
 					},
@@ -241,6 +254,19 @@ func TestConversions(t *testing.T) {
 								Name:      "datadog/agent",
 								ShortName: "agent",
 								Tag:       "7",
+							},
+						},
+					},
+					EphemeralContainers: []*pb.OrchestratorContainer{
+						{
+							Id:   "ephemeralID",
+							Name: "ephemeralName",
+							Image: &pb.ContainerImage{
+								Id:        "456",
+								RawName:   "busybox:latest",
+								Name:      "busybox",
+								ShortName: "busybox",
+								Tag:       "latest",
 							},
 						},
 					},

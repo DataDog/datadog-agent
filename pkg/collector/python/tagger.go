@@ -36,7 +36,16 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	goID := C.GoString(id)
 	var tags []string
 
-	tags, _ = checkContext.tagger.LegacyTag(goID, types.TagCardinality(cardinality))
+	// Generate EntityID from the entity ID string.
+	// This is done for backward compatibility with the Python checks as the Tags() signature cannot be changed.
+	prefix, eid, err := types.ExtractPrefixAndID(goID)
+	if err != nil {
+		log.Errorf("could not extract prefix and ID from id string: %v. Using LegacyTag.", err)
+		return nil
+	}
+	entityID := types.NewEntityID(prefix, eid)
+
+	tags, _ = checkContext.tagger.Tag(entityID, types.TagCardinality(cardinality))
 
 	length := len(tags)
 	if length == 0 {

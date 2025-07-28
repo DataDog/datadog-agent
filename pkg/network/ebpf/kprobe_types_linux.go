@@ -135,18 +135,15 @@ const (
 const BatchSize = 0x4
 const SizeofBatch = 0x1f0
 
-const TCPFailureConnReset = 0x68
-const TCPFailureConnTimeout = 0x6e
-const TCPFailureConnRefused = 0x6f
-
 const SizeofConn = 0x78
 
 type ClassificationProgram = uint32
+type ClassificationTLSProgram = uint32
 
 const (
-	ClassificationTLSClient ClassificationProgram = 0x7
-	ClassificationTLSServer ClassificationProgram = 0x8
-	ClassificationQueues    ClassificationProgram = 0x2
-	ClassificationDBs       ClassificationProgram = 0x3
-	ClassificationGRPC      ClassificationProgram = 0x5
+	ClassificationTLSClient ClassificationTLSProgram = 0x0
+	ClassificationTLSServer ClassificationTLSProgram = 0x1
+	ClassificationQueues    ClassificationProgram    = 0x2
+	ClassificationDBs       ClassificationProgram    = 0x3
+	ClassificationGRPC      ClassificationProgram    = 0x5
 )

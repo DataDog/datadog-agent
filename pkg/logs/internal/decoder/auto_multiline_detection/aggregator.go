@@ -8,7 +8,6 @@ package automultilinedetection
 
 import (
 	"bytes"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -72,6 +71,12 @@ func (b *bucket) flush() *message.Message {
 	if b.shouldTruncate {
 		// The current line is too long. Mark it truncated at the end.
 		content = append(content, message.TruncatedFlag...)
+		metrics.LogsTruncated.Add(1)
+		if b.message == nil || b.message.Origin == nil {
+			metrics.TlmTruncatedCount.Inc("", "")
+		} else {
+			metrics.TlmTruncatedCount.Inc(b.message.Origin.Service(), b.message.Origin.Source())
+		}
 	}
 
 	msg := b.message
@@ -81,7 +86,7 @@ func (b *bucket) flush() *message.Message {
 
 	if b.lineCount > 1 {
 		msg.ParsingExtra.IsMultiLine = true
-		tlmTags[1] = "multi_line"
+		tlmTags[1] = "auto_multi_line"
 		if b.tagMultiLineLogs {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag("auto_multiline"))
 		}
@@ -108,14 +113,12 @@ type Aggregator struct {
 	outputFn           func(m *message.Message)
 	bucket             *bucket
 	maxContentSize     int
-	flushTimeout       time.Duration
-	flushTimer         *time.Timer
 	multiLineMatchInfo *status.CountInfo
 	linesCombinedInfo  *status.CountInfo
 }
 
 // NewAggregator creates a new aggregator.
-func NewAggregator(outputFn func(m *message.Message), maxContentSize int, flushTimeout time.Duration, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry) *Aggregator {
+func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry) *Aggregator {
 	multiLineMatchInfo := status.NewCountInfo("MultiLine matches")
 	linesCombinedInfo := status.NewCountInfo("Lines Combined")
 	tailerInfo.Register(multiLineMatchInfo)
@@ -125,7 +128,6 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, flushT
 		outputFn:           outputFn,
 		bucket:             &bucket{buffer: bytes.NewBuffer(nil), tagTruncatedLogs: tagTruncatedLogs, tagMultiLineLogs: tagMultiLineLogs, maxContentSize: maxContentSize, lineCount: 0, shouldTruncate: false, needsTruncation: false},
 		maxContentSize:     maxContentSize,
-		flushTimeout:       flushTimeout,
 		multiLineMatchInfo: multiLineMatchInfo,
 		linesCombinedInfo:  linesCombinedInfo,
 	}
@@ -133,9 +135,6 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, flushT
 
 // Aggregate aggregates a multiline log using a label.
 func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
-
-	a.stopFlushTimerIfNeeded()
-	defer a.startFlushTimerIfNeeded()
 
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
@@ -186,36 +185,6 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 	a.bucket.add(msg)
 }
 
-func (a *Aggregator) stopFlushTimerIfNeeded() {
-	if a.flushTimer == nil || a.bucket.isEmpty() {
-		return
-	}
-	// stop the flush timer, as we now have data
-	if !a.flushTimer.Stop() {
-		<-a.flushTimer.C
-	}
-}
-
-func (a *Aggregator) startFlushTimerIfNeeded() {
-	if a.bucket.isEmpty() {
-		return
-	}
-	// since there's buffered data, start the flush timer to flush it
-	if a.flushTimer == nil {
-		a.flushTimer = time.NewTimer(a.flushTimeout)
-	} else {
-		a.flushTimer.Reset(a.flushTimeout)
-	}
-}
-
-// FlushChan returns the flush timer channel.
-func (a *Aggregator) FlushChan() <-chan time.Time {
-	if a.flushTimer != nil {
-		return a.flushTimer.C
-	}
-	return nil
-}
-
 // Flush flushes the aggregator.
 func (a *Aggregator) Flush() {
 	if a.bucket.isEmpty() {
@@ -223,4 +192,9 @@ func (a *Aggregator) Flush() {
 		return
 	}
 	a.outputFn(a.bucket.flush())
+}
+
+// IsEmpty returns true if the bucket is empty.
+func (a *Aggregator) IsEmpty() bool {
+	return a.bucket.isEmpty()
 }

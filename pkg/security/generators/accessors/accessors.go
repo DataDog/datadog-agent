@@ -778,7 +778,7 @@ func formatBuildTags(buildTags string) []string {
 	return formattedBuildTags
 }
 
-func newField(allFields map[string]*common.StructField, inputField *common.StructField) string {
+func newField(allFields map[string]*common.StructField, fieldName string, inputField *common.StructField) string {
 	var fieldPath, result string
 	for _, node := range strings.Split(inputField.Name, ".") {
 		if fieldPath != "" {
@@ -789,7 +789,10 @@ func newField(allFields map[string]*common.StructField, inputField *common.Struc
 
 		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
-				result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				// process & exec context are set in the template
+				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") {
+					result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				}
 			} else if field.IsArray && fieldPath != inputField.Name {
 				result += fmt.Sprintf("if len(ev.%s) == 0 { ev.%s = append(ev.%s, %s{}) }\n", field.Name, field.Name, field.Name, field.OrigType)
 			}
@@ -937,13 +940,6 @@ func getFieldHandler(allFields map[string]*common.StructField, field *common.Str
 	return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s.%s)", field.Handler, ptr, field.Prefix, field.Ref)
 }
 
-func fieldADPrint(field *common.StructField, handler string) string {
-	if field.SkipADResolution {
-		return fmt.Sprintf("if !forADs { _ = %s }", handler)
-	}
-	return fmt.Sprintf("_ = %s", handler)
-}
-
 func getHolder(allFields map[string]*common.StructField, field *common.StructField) *common.StructField {
 	idx := strings.LastIndex(field.Name, ".")
 	if idx == -1 {
@@ -980,6 +976,36 @@ func getChecks(allFields map[string]*common.StructField, field *common.StructFie
 	return checks
 }
 
+func getFieldHandlersChecks(allFields map[string]*common.StructField, field *common.StructField) string {
+	checks := getChecks(allFields, field)
+
+	var res []string
+
+	if field.SkipADResolution {
+		res = append(res, "!forADs")
+	}
+
+	if len(field.RestrictedTo) != 0 {
+		parts := make([]string, 0)
+		for _, restriction := range field.RestrictedTo {
+			parts = append(parts, fmt.Sprintf("eventType == \"%s\"", restriction))
+		}
+		check := strings.Join(parts, " || ")
+		if len(parts) > 1 {
+			check = fmt.Sprintf("(%s)", check)
+		}
+
+		res = append(res, check)
+	}
+
+	for _, check := range checks {
+		check := fmt.Sprintf("ev.%s()", check)
+		res = append(res, check)
+	}
+
+	return strings.Join(res, " && ")
+}
+
 func getSetHandler(allFields map[string]*common.StructField, field *common.StructField) string {
 	var handler string
 
@@ -997,7 +1023,7 @@ func getSetHandler(allFields map[string]*common.StructField, field *common.Struc
 			if !field.IsOrigTypePtr {
 				ptr = "&"
 			}
-			return fmt.Sprintf(`%s(%sev.%s, "%s", value)`, field.SetHandler, ptr, field.Name, strings.Replace(fqn, field.Alias+".", "", -1))
+			return fmt.Sprintf(`%s(%sev.%s, "%s", value)`, field.SetHandler, ptr, field.Name, strings.ReplaceAll(fqn, field.Alias+".", ""))
 		}
 
 		idx := strings.LastIndex(name, ".")
@@ -1085,6 +1111,10 @@ func genGetter(getters []string, getter string) bool {
 	return slices.Contains(getters, "*") || slices.Contains(getters, getter)
 }
 
+func upperCase(str string) string {
+	return cases.Title(language.Und).String(str)
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix":               strings.TrimPrefix,
 	"TrimSuffix":               strings.TrimSuffix,
@@ -1093,8 +1123,8 @@ var funcMap = map[string]interface{}{
 	"BuildFirstAccessor":       buildFirstAccessor,
 	"GeneratePrefixNilChecks":  generatePrefixNilChecks,
 	"GetFieldHandler":          getFieldHandler,
-	"FieldADPrint":             fieldADPrint,
 	"GetChecks":                getChecks,
+	"GetFieldHandlersChecks":   getFieldHandlersChecks,
 	"GetHandlers":              getHandlers,
 	"PascalCaseFieldName":      pascalCaseFieldName,
 	"GetDefaultValueOfType":    getDefaultValueOfType,
@@ -1105,6 +1135,7 @@ var funcMap = map[string]interface{}{
 	"GetSetHandler":            getSetHandler,
 	"IsReadOnly":               isReadOnly,
 	"GenGetter":                genGetter,
+	"UpperCase":                upperCase,
 }
 
 //go:embed accessors.tmpl

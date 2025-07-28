@@ -14,6 +14,8 @@ import (
 	"os"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/file"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -63,6 +66,8 @@ type EBPFResolvers struct {
 	HashResolver         *hash.Resolver
 	UserSessionsResolver *usersessions.Resolver
 	SyscallCtxResolver   *syscallctx.Resolver
+	DNSResolver          *dns.Resolver
+	FileMetadataResolver *file.Resolver
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
@@ -98,7 +103,19 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
-	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver)
+	// Create version resolver function that uses SBOM resolver if available
+	var versionResolver func(servicePath string) string
+	if config.RuntimeSecurity.SBOMResolverEnabled && sbomResolver != nil {
+		versionResolver = func(servicePath string) string {
+
+			if pkg := sbomResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
+				return pkg.Version
+			}
+			return ""
+		}
+	}
+
+	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver, versionResolver)
 
 	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
 	if err != nil {
@@ -149,6 +166,14 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		envVarsResolver = envvars.NewEnvVarsResolver(config.Probe)
 	}
 
+	var dnsResolver *dns.Resolver
+	if config.Probe.DNSResolutionEnabled {
+		dnsResolver, err = dns.NewDNSResolver(config.Probe, statsdClient)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
 		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
 	if err != nil {
@@ -160,6 +185,11 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity.UserSessionsCacheSize)
+	if err != nil {
+		return nil, err
+	}
+
+	fileMetadataResolver, err := file.NewResolver(config.RuntimeSecurity, statsdClient, &file.Opt{CgroupResolver: cgroupsResolver})
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +211,8 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		HashResolver:         hashResolver,
 		UserSessionsResolver: userSessionsResolver,
 		SyscallCtxResolver:   syscallctx.NewResolver(),
+		DNSResolver:          dnsResolver,
+		FileMetadataResolver: fileMetadataResolver,
 	}
 
 	return resolvers, nil
@@ -223,7 +255,7 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 		return cgroupContext, true, nil
 	}
 
-	cgroup, err := r.DentryResolver.Resolve(pathKey, true)
+	cgroup, err := r.DentryResolver.Resolve(pathKey, false)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
 	}
@@ -232,7 +264,7 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 		CGroupID:      containerutils.CGroupID(cgroup),
 		CGroupFlags:   containerutils.CGroupFlags(cgroupFlags),
 		CGroupFile:    pathKey,
-		CGroupManager: containerutils.CGroupManager(cgroupFlags & containerutils.CGroupManagerMask).String(),
+		CGroupManager: cgroupFlags.GetCGroupManager().String(),
 	}
 
 	return cgroupContext, false, nil
@@ -254,11 +286,6 @@ func (r *EBPFResolvers) Snapshot() error {
 
 	if err := selinux.SnapshotSELinux(selinuxStatusMap); err != nil {
 		return err
-	}
-
-	// snapshot sockets
-	if err := r.snapshotBoundSockets(); err != nil {
-		return fmt.Errorf("unable to snapshot bound sockets: %w", err)
 	}
 
 	return nil
@@ -324,14 +351,17 @@ func (r *EBPFResolvers) snapshot() error {
 	return nil
 }
 
+// nolint: deadcode, unused
 func (r *EBPFResolvers) snapshotBoundSockets() error {
 	processes, err := utils.GetProcesses()
 	if err != nil {
 		return err
 	}
 
+	boundSocketSnapshotter := procfs.NewBoundSocketSnapshotter()
+
 	for _, proc := range processes {
-		bs, err := procfs.GetBoundSockets(proc)
+		bs, err := boundSocketSnapshotter.GetBoundSockets(proc)
 		if err != nil {
 			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
 			continue

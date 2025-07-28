@@ -1501,7 +1501,7 @@ func TestHandleECSTask(t *testing.T) {
 				ClusterName:  "ecs-cluster",
 				Family:       "datadog-agent",
 				Version:      "1",
-				AWSAccountID: 1234567891234,
+				AWSAccountID: "1234567891234",
 				LaunchType:   workloadmeta.ECSLaunchTypeEC2,
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
@@ -1533,6 +1533,16 @@ func TestHandleECSTask(t *testing.T) {
 					},
 					StandardTags: []string{},
 				},
+				{
+					Source:               taskSource,
+					EntityID:             types.GetGlobalEntityID(),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ecs_cluster_name:ecs-cluster",
+					},
+					StandardTags: []string{},
+				},
 			},
 		},
 		{
@@ -1554,7 +1564,7 @@ func TestHandleECSTask(t *testing.T) {
 				},
 				AvailabilityZone: "us-east-1c",
 				Region:           "us-east-1",
-				AWSAccountID:     1234567891234,
+				AWSAccountID:     "1234567891234",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -2349,6 +2359,34 @@ func TestHandleGPU(t *testing.T) {
 					LowCardTags: []string{
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla-v100",
+						"gpu_uuid:gpu-1234",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "tags normalization",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "GPU-1234",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "GPU-1234",
+				},
+				Vendor: "Nvidia",
+				Device: "Tesla v100",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "GPU-1234"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:tesla_v100",
 						"gpu_uuid:gpu-1234",
 					},
 					StandardTags: []string{},

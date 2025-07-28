@@ -8,6 +8,7 @@ package valuestore
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,6 +32,12 @@ type ResultValueStore struct {
 	ColumnValues ColumnResultValuesType `json:"column_values"`
 }
 
+// ContainsScalarValue returns whether a scalar oid is present in ResultValueStore
+func (v *ResultValueStore) ContainsScalarValue(oid string) bool {
+	_, ok := v.ScalarValues[oid]
+	return ok
+}
+
 // GetScalarValue look for oid in ResultValueStore and returns the value and boolean
 // weather valid value has been found
 func (v *ResultValueStore) GetScalarValue(oid string) (ResultValue, error) {
@@ -39,6 +46,12 @@ func (v *ResultValueStore) GetScalarValue(oid string) (ResultValue, error) {
 		return ResultValue{}, fmt.Errorf("value for Scalar OID `%s` not found in results", oid)
 	}
 	return value, nil
+}
+
+// ContainsColumnValues returns whether a column oid is present in ResultValueStore
+func (v *ResultValueStore) ContainsColumnValues(oid string) bool {
+	_, ok := v.ColumnValues[oid]
+	return ok
 }
 
 // GetColumnValues look for oid in ResultValueStore and returns a map[<fullIndex>]ResultValue
@@ -51,9 +64,7 @@ func (v *ResultValueStore) GetColumnValues(oid string) (map[string]ResultValue, 
 		return nil, fmt.Errorf("value for Column OID `%s` not found in results", oid)
 	}
 	retValues := make(map[string]ResultValue, len(values))
-	for index, value := range values {
-		retValues[index] = value
-	}
+	maps.Copy(retValues, values)
 
 	return retValues, nil
 }

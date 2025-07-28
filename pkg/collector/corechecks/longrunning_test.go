@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -85,7 +85,7 @@ func (m *mockLongRunningCheck) InstanceConfig() string {
 	return args.String(0)
 }
 
-func (m *mockLongRunningCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (m *mockLongRunningCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	m.Called()
 	return nil, nil
 }

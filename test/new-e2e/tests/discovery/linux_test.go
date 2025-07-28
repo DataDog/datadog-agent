@@ -83,8 +83,8 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 
 		foundMap := make(map[string]*aggregator.ServiceDiscoveryPayload)
 		for _, p := range payloads {
-			name := p.Payload.ServiceName
-			t.Log("RequestType", p.RequestType, "ServiceName", name)
+			name := p.Payload.GeneratedServiceName
+			t.Log("RequestType", p.RequestType, "GeneratedServiceName", name)
 
 			if p.RequestType == "start-service" {
 				foundMap[name] = p
@@ -92,46 +92,37 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 		}
 
 		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			name:                 "json-server",
 			systemdServiceName:   "node-json-server",
 			instrumentation:      "none",
-			serviceName:          "json-server",
 			generatedServiceName: "json-server",
 			ddService:            "",
 			serviceNameSource:    "",
 		})
 		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			name:                 "node-instrumented",
 			systemdServiceName:   "node-instrumented",
 			instrumentation:      "provided",
-			serviceName:          "node-instrumented",
 			generatedServiceName: "node-instrumented",
 			ddService:            "",
 			serviceNameSource:    "",
 		})
 		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			name:                 "python-svc-dd",
 			systemdServiceName:   "python-svc",
 			instrumentation:      "none",
-			serviceName:          "python-svc-dd",
 			generatedServiceName: "python.server",
 			ddService:            "python-svc-dd",
 			serviceNameSource:    "provided",
 		})
 		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			name:                 "python.instrumented",
 			systemdServiceName:   "python-instrumented",
 			instrumentation:      "provided",
-			serviceName:          "python.instrumented",
 			generatedServiceName: "python.instrumented",
-			ddService:            "",
-			serviceNameSource:    "",
+			tracerServiceNames:   []string{"python-instrumented-dd"},
+			ddService:            "python-instrumented-dd",
+			serviceNameSource:    "provided",
 		})
 		s.assertService(t, c, foundMap, serviceExpectedPayload{
-			name:                 "rails_hello",
 			systemdServiceName:   "rails-svc",
 			instrumentation:      "none",
-			serviceName:          "rails_hello",
 			generatedServiceName: "rails_hello",
 			ddService:            "",
 			serviceNameSource:    "",
@@ -202,26 +193,35 @@ func (s *linuxTestSuite) stopServices() {
 }
 
 type serviceExpectedPayload struct {
-	name                 string
 	systemdServiceName   string
 	instrumentation      string
-	serviceName          string
 	generatedServiceName string
 	ddService            string
 	serviceNameSource    string
+	tracerServiceNames   []string
 }
 
 func (s *linuxTestSuite) assertService(t *testing.T, c *assert.CollectT, foundMap map[string]*aggregator.ServiceDiscoveryPayload, expected serviceExpectedPayload) {
 	t.Helper()
 
-	found := foundMap[expected.name]
-	if assert.NotNil(c, found, "could not find service %q", expected.name) {
-		assert.Equal(c, expected.instrumentation, found.Payload.APMInstrumentation, "service %q: APM instrumentation", expected.name)
-		assert.Equal(c, expected.serviceName, found.Payload.ServiceName, "service %q: service name", expected.name)
-		assert.Equal(c, expected.generatedServiceName, found.Payload.GeneratedServiceName, "service %q: generated service name", expected.name)
-		assert.Equal(c, expected.ddService, found.Payload.DDService, "service %q: DD service", expected.name)
-		assert.Equal(c, expected.serviceNameSource, found.Payload.ServiceNameSource, "service %q: service name source", expected.name)
-		assert.NotZero(c, found.Payload.RSSMemory, "service %q: expected non-zero memory usage", expected.name)
+	name := expected.generatedServiceName
+	found := foundMap[name]
+	if assert.NotNil(c, found, "could not find service %q", name) {
+		assert.Equal(c, expected.instrumentation, found.Payload.APMInstrumentation, "service %q: APM instrumentation", name)
+		assert.Equal(c, expected.generatedServiceName, found.Payload.GeneratedServiceName, "service %q: generated service name", name)
+		assert.Equal(c, expected.ddService, found.Payload.DDService, "service %q: DD service", name)
+		assert.Equal(c, expected.serviceNameSource, found.Payload.ServiceNameSource, "service %q: service name source", name)
+		assert.NotZero(c, found.Payload.RSSMemory, "service %q: expected non-zero memory usage", name)
+		if len(expected.tracerServiceNames) > 0 {
+			var foundServiceNames []string
+			var foundRuntimeIDs []string
+			for _, tm := range found.Payload.TracerMetadata {
+				foundServiceNames = append(foundServiceNames, tm.ServiceName)
+				foundRuntimeIDs = append(foundRuntimeIDs, tm.RuntimeID)
+			}
+			assert.Equal(c, expected.tracerServiceNames, foundServiceNames, "service %q: tracer service names", name)
+			assert.Len(c, foundRuntimeIDs, len(expected.tracerServiceNames), "service %q: tracer runtime ids", name)
+		}
 	} else {
 		status := s.Env().RemoteHost.MustExecute("sudo systemctl status " + expected.systemdServiceName)
 		logs := s.Env().RemoteHost.MustExecute("sudo journalctl -u " + expected.systemdServiceName)

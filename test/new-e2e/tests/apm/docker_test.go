@@ -14,14 +14,26 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
+	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 )
 
 type DockerFakeintakeSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
 	transport transport
+}
+
+// SetupSuite is called once before all tests in the suite.
+// This function is called by [testify Suite].
+func (s *DockerFakeintakeSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure() // cleanup if setup fails
+
+	// Pre-pull Docker image once for all tests to avoid network timeout issues during test execution
+	s.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:" + apps.Version)
 }
 
 func dockerSuiteOpts(tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
@@ -78,7 +90,7 @@ func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
+		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake, !s.Env().Agent.FIPSEnabled)
 	}, 2*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
@@ -160,9 +172,14 @@ func (s *DockerFakeintakeSuite) testStatsForService(enableClientSideStats bool) 
 		addSpanTags:           addSpanTags,
 		enableClientSideStats: enableClientSideStats,
 	})()
+
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testStatsHaveContainerTags(s.T(), c, service, s.Env().FakeIntake)
+	}, 2*time.Minute, 10*time.Second, "Failed finding container ID on stats")
 }
 
 func (s *DockerFakeintakeSuite) TestBasicTrace() {

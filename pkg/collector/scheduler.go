@@ -9,25 +9,25 @@ package collector
 import (
 	"expvar"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -145,11 +145,9 @@ func (s *CheckScheduler) Stop() {}
 
 // addLoader adds a new Loader that AutoConfig can use to load a check.
 func (s *CheckScheduler) addLoader(loader check.Loader) {
-	for _, l := range s.loaders {
-		if l == loader {
-			log.Warnf("Loader %s was already added, skipping...", loader)
-			return
-		}
+	if slices.Contains(s.loaders, loader) {
+		log.Warnf("Loader %s was already added, skipping...", loader)
+		return
 	}
 	s.loaders = append(s.loaders, loader)
 }
@@ -247,7 +245,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 			// skip non check configs.
 			continue
 		}
-		if config.HasFilter(containers.MetricsFilter) {
+		if config.HasFilter(filter.MetricsFilter) {
 			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", config.Name)
 			continue
 		}

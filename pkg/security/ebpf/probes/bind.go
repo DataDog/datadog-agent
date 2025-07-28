@@ -18,7 +18,18 @@ func getBindProbes(fentry bool) []*manager.Probe {
 			UID:          SecurityAgentUID,
 			EBPFFuncName: "hook_security_socket_bind",
 		},
-	})
+	}, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "hook_io_bind",
+		},
+	}, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "rethook_io_bind",
+		},
+	},
+	)
 
 	return bindProbes
 }

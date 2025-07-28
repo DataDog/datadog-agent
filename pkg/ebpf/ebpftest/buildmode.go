@@ -41,7 +41,7 @@ func (p prebuiltMode) String() string {
 
 func (p prebuiltMode) Env() map[string]string {
 	return map[string]string{
-		"NETWORK_TRACER_FENTRY_TESTS":        "false",
+		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "false",
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
@@ -58,7 +58,7 @@ func (r runtimeCompiled) String() string {
 
 func (r runtimeCompiled) Env() map[string]string {
 	return map[string]string{
-		"NETWORK_TRACER_FENTRY_TESTS":        "false",
+		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "false",
 		"DD_ENABLE_RUNTIME_COMPILER":         "true",
 		"DD_ENABLE_CO_RE":                    "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
@@ -75,7 +75,7 @@ func (c core) String() string {
 
 func (c core) Env() map[string]string {
 	return map[string]string{
-		"NETWORK_TRACER_FENTRY_TESTS":        "false",
+		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "false",
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "true",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
@@ -92,7 +92,7 @@ func (f fentry) String() string {
 
 func (f fentry) Env() map[string]string {
 	return map[string]string{
-		"NETWORK_TRACER_FENTRY_TESTS":        "true",
+		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "true",
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "true",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
@@ -109,7 +109,7 @@ func (e ebpfless) String() string {
 
 func (e ebpfless) Env() map[string]string {
 	return map[string]string{
-		"NETWORK_TRACER_FENTRY_TESTS":        "false",
+		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "false",
 		"DD_ENABLE_RUNTIME_COMPILER":         "false",
 		"DD_ENABLE_CO_RE":                    "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",

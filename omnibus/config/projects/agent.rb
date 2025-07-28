@@ -27,9 +27,8 @@ else
   COMPRESSION_THREADS = 1
 end
 
-# We want an higher compression level on deploy pipelines that are not nightly.
-# Nightly pipelines will be used as main reference for static quality gates and need the same compression level as main.
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
+# We want an higher compression level on deploy pipelines.
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
@@ -43,10 +42,6 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
 end
 
 if windows_target?
-  if ot_target?
-    raise UnknownPlatform
-  end
-
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
@@ -107,8 +102,7 @@ end
 do_build = false
 do_package = false
 
-if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
-  dependency "package-artifact"
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"] or do_repackage?
   do_package = true
   skip_healthcheck true
 else
@@ -206,7 +200,6 @@ package :zip do
   else
     # noinspection RubyLiteralArrayInspection
     extra_package_dirs [
-      "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root"
     ]
   end
@@ -235,16 +228,9 @@ if do_build
     dependency 'datadog-security-agent-policies'
   end
 
-  # System-probe
-  if sysprobe_enabled?
-    dependency 'system-probe'
-  end
-
   if osx_target?
     dependency 'datadog-agent-mac-app'
   end
-
-  dependency 'datadog-agent-integrations-py3'
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
@@ -263,8 +249,14 @@ if do_build
     dependency "init-scripts-agent"
   end
 elsif do_package
-  dependency "package-artifact"
+  if do_repackage?
+    dependency "existing-agent-package"
+    dependency "datadog-agent"
+  else
+    dependency "package-artifact"
+  end
   dependency "init-scripts-agent"
+  dependency 'datadog-agent-installer-symlinks'
 end
 
 # version manifest is based on the built softwares.
@@ -347,6 +339,9 @@ if windows_target?
     # strip the binary of debug symbols
     windows_symbol_stripping_file bin
   end
+
+  # We need to strip the debug symbols from the rtloader files
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
 
   if windows_signing_enabled?
     # Sign additional binaries from here.

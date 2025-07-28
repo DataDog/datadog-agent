@@ -42,7 +42,6 @@ public:
       thread id>,) in <module 'threading'".
       Even if Python ignores it, the exception ends up in the log files for
       upstart/syslog/...
-      Since we don't call Py_Finalize, we don't free _pythonHome here either.
 
       More info here:
       https://stackoverflow.com/questions/8774958/keyerror-in-module-threading-after-a-successful-py-test-run/12639040#12639040
@@ -129,20 +128,6 @@ public:
     void setIsExcludedCb(cb_is_excluded_t);
 
 private:
-    //! initPythonHome member.
-    /*!
-      \brief This member function sets the Python home for the underlying python3 interpreter.
-      \param pythonHome A C-string to the target python home for the python runtime.
-    */
-    void initPythonHome(const char *pythonHome = NULL);
-
-    //! initPythonExe member.
-    /*!
-      \brief This member function sets the path to the underlying python3 interpreter.
-      \param python_exe A C-string to the target python executable.
-    */
-    void initPythonExe(const char *python_exe = NULL);
-
     //! _importFrom member.
     /*!
       \brief This member function imports a Python object by name from the specified
@@ -183,8 +168,9 @@ private:
     */
     typedef std::vector<std::string> PyPaths;
 
-    wchar_t *_pythonHome; /*!< unicode string with the PYTHONHOME for the underlying interpreter */
-    wchar_t *_pythonExe; /*!< unicode string with the path to the executable of the underlying interpreter */
+    PyConfig _config;
+    std::string _pythonHome;
+    std::string _pythonExe;
     PyObject *_baseClass; /*!< PyObject * pointer to the base Agent check class */
     PyPaths _pythonPaths; /*!< string vector containing paths in the PYTHONPATH */
     PyThreadState *_threadState; /*!< PyThreadState * pointer to the saved Python interpreter thread state */

@@ -83,6 +83,13 @@ func test_array_of_structs(a [2]nestedStruct) {
 }
 
 //nolint:all
+//go:noinline
+func test_over_limit_array_parameters(a, b, c, d, e, f, g,
+	h, i, j, k, l, m, n,
+	o, p, q, r, s, t, u [3]uint32) {
+}
+
+//nolint:all
 func ExecuteArrayFuncs() {
 	test_byte_array([2]byte{1, 1})
 	test_rune_array([2]rune{1, 2})
@@ -103,4 +110,8 @@ func ExecuteArrayFuncs() {
 	test_array_of_strings([2]string{"first", "second"})
 	test_array_of_structs([2]nestedStruct{{42, "foo"}, {24, "bar"}})
 	test_array_of_arrays_of_arrays([2][2][2]int{{[2]int{1, 2}, [2]int{3, 4}}, {[2]int{5, 6}, [2]int{7, 8}}})
+
+	test_over_limit_array_parameters([3]uint32{1, 2, 1}, [3]uint32{1, 2, 2}, [3]uint32{1, 2, 3}, [3]uint32{1, 2, 4}, [3]uint32{1, 2, 5}, [3]uint32{1, 2, 6}, [3]uint32{1, 2, 7},
+		[3]uint32{1, 2, 8}, [3]uint32{1, 2, 9}, [3]uint32{1, 2, 10}, [3]uint32{1, 2, 11}, [3]uint32{1, 2, 12}, [3]uint32{1, 2, 13}, [3]uint32{1, 2, 14},
+		[3]uint32{1, 2, 15}, [3]uint32{1, 2, 16}, [3]uint32{1, 2, 17}, [3]uint32{1, 2, 18}, [3]uint32{1, 2, 19}, [3]uint32{1, 2, 20}, [3]uint32{1, 2, 21})
 }

@@ -18,9 +18,12 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -80,16 +83,12 @@ func (m *NamespaceMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Inter
 		return false, nil
 	}
 
-	for _, mutator := range m.config.securityClientLibraryPodMutators {
-		if err := mutator.mutatePod(pod); err != nil {
-			return false, fmt.Errorf("error mutating pod for security client: %w", err)
-		}
+	if err := m.core.mutatePodContainers(pod, m.config.securityClientLibraryMutator); err != nil {
+		return false, fmt.Errorf("error mutating pod for security client: %w", err)
 	}
 
-	for _, mutator := range m.config.profilingClientLibraryPodMutators {
-		if err := mutator.mutatePod(pod); err != nil {
-			return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
-		}
+	if err := m.core.mutatePodContainers(pod, m.config.profilingClientLibraryMutator); err != nil {
+		return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
 	}
 
 	if err := m.core.injectTracers(pod, extractedLibInfo); err != nil {
@@ -130,10 +129,15 @@ func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatec
 	}
 }
 
+func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator) error {
+	return mutatePodContainers(pod, filteredContainerMutator(m.config.containerFilter, cm))
+}
+
 func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {
 	if len(config.libs) == 0 {
 		return nil
 	}
+
 	requirements, injectionDecision := initContainerResourceRequirements(pod, m.config.defaultResourceRequirements)
 	if injectionDecision.skipInjection {
 		if pod.Annotations == nil {
@@ -145,27 +149,39 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 
 	var (
 		lastError      error
+		startTime      = time.Now()
 		configInjector = &libConfigInjector{}
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
-		initContainerMutators = m.newContainerMutators(requirements)
-		injector              = m.newInjector(time.Now(), pod, injectorWithLibRequirementOptions(libRequirementOptions{
+		ustEnvVarMutator = m.ustEnvVarMutator(pod)
+
+		// initContainerMutators are resource and security constraints
+		// to all the init containers the init containers that we create.
+		initContainerMutators = append(
+			m.newInitContainerMutators(requirements, pod.Namespace),
+			ustEnvVarMutator,
+		)
+		injectorOptions = libRequirementOptions{
+			containerFilter:       m.config.containerFilter,
 			initContainerMutators: initContainerMutators,
-		}))
+		}
+
+		injector          = m.newInjector(pod, startTime, injectorOptions)
 		containerMutators = containerMutators{
 			config.languageDetection.containerMutator(m.config.version),
+			ustEnvVarMutator,
 		}
 	)
 
 	// Inject env variables used for Onboarding KPIs propagation...
 	// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
 	// if local library injection is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection
-	if err := config.source.mutatePod(pod); err != nil {
+	if err := m.mutatePodContainers(pod, config.source.containerMutator()); err != nil {
 		return err
 	}
 
-	if err := injector.mutatePod(pod); err != nil {
+	if err := injector.podMutator(m.config.version).mutatePod(pod); err != nil {
 		// setting the language tag to `injector` because this injection is not related to a specific supported language
 		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(autoDetected), injectionType)
 		lastError = err
@@ -180,6 +196,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		}()
 
 		if err := lib.podMutator(m.config.version, libRequirementOptions{
+			containerFilter:       m.config.containerFilter,
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
 			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
@@ -205,17 +222,97 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	return lastError
 }
 
-func (m *mutatorCore) newContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
-	return containerMutators{
-		containerResourceRequirements{requirements},
-		containerSecurityContext{m.config.initSecurityContext},
-	}
+// serviceNameMutator will attempt to find a service name to
+// inject into the pods containers if SSI is enabled.
+//
+// This is kind of gross, and would ideally not happen more than in
+// one place but we made a decision to infer DD_SERVICE in the auto-instrumentation
+// webhook a while ago and customers might be relying on this behavior.
+//
+// We have another webhook that does something really similar: tagsFromLabels and
+// it this is where the responsibility should generally.
+//
+// The big difference between the two is that tagsFromLabels looks at the label
+// metadata and we might override it and this one will look for the _name_ of the
+// owner resource.
+//
+// The intention is to have this always run last so that we fallback to the owner
+// name in cases of missing labels coming from the resource or its owner.
+//
+// We want to get rid of the behavior when we are triggering the fallback _and_
+// it applies: https://datadoghq.atlassian.net/browse/INPLAT-458
+func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod) containerMutator {
+	return newServiceNameMutator(pod, m.config.podMetaAsTags)
 }
 
-func (m *mutatorCore) newInjector(startTime time.Time, pod *corev1.Pod, opts ...injectorOption) podMutator {
+// ustEnvVarMutator will attempt to find a ust env var to inject into the pods containers if SSI is enabled.
+//
+// This is used to inject the version and env tags into the pods containers.
+//
+// The service tag/name is handled separately in the serviceNameMutator for legacy reasons.
+func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
+	var mutators containerMutators
+	if !m.filter.IsNamespaceEligible(pod.Namespace) {
+		return mutators
+	}
+
+	for tag, envVarName := range map[string]string{
+		tags.Version: kubernetes.VersionTagEnvVar,
+		tags.Env:     kubernetes.EnvTagEnvVar,
+	} {
+		if mutator := ustEnvVarMutatorForPodMeta(pod, m.config.podMetaAsTags, tag, envVarName); mutator != nil {
+			mutators = append(mutators, mutator)
+		}
+	}
+
+	if mutator := m.serviceNameMutator(pod); mutator != nil {
+		mutators = append(mutators, mutator)
+	}
+
+	return mutators
+}
+
+// newInitContainerMutators constructs container mutators for behavior
+// that is common and passed to the init containers we create.
+//
+// At this point in time it is: resource requirements and security contexts.
+func (m *mutatorCore) newInitContainerMutators(
+	requirements corev1.ResourceRequirements,
+	nsName string,
+) containerMutators {
+	securityContext := m.config.initSecurityContext
+	if securityContext == nil {
+		nsLabels, err := getNamespaceLabels(m.wmeta, nsName)
+		if err != nil {
+			log.Warnf("error getting labels for namespace=%s: %s", nsName, err)
+		} else if val, ok := nsLabels["pod-security.kubernetes.io/enforce"]; ok && val == "restricted" {
+			// https://datadoghq.atlassian.net/browse/INPLAT-492
+			securityContext = defaultRestrictedSecurityContext
+		}
+	}
+
+	mutators := []containerMutator{
+		containerResourceRequirements{requirements},
+	}
+
+	if securityContext != nil {
+		mutators = append(mutators, containerSecurityContext{securityContext})
+	}
+
+	return mutators
+}
+
+// newInjector creates an injector instance for this pod.
+func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
+	opts := []injectorOption{
+		injectorWithLibRequirementOptions(lopts),
+		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag),
+	}
+
 	for _, e := range []annotationExtractor[injectorOption]{
 		injectorVersionAnnotationExtractor,
 		injectorImageAnnotationExtractor,
+		injectorDebugAnnotationExtractor,
 	} {
 		opt, err := e.extract(pod)
 		if err != nil {
@@ -227,8 +324,7 @@ func (m *mutatorCore) newInjector(startTime time.Time, pod *corev1.Pod, opts ...
 		opts = append(opts, opt)
 	}
 
-	return newInjector(startTime, m.config.containerRegistry, m.config.Instrumentation.InjectorImageTag, opts...).
-		podMutator(m.config.version)
+	return newInjector(startTime, m.config.containerRegistry, opts...)
 }
 
 // isPodEligible checks whether we are allowed to inject in this pod.
@@ -376,23 +472,25 @@ func (m *mutatorCore) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
 // * <unset> - product disactivated but can be activated remotely
 // * true - product activated, not overridable remotely
 // * false - product disactivated, not overridable remotely
-func securityClientLibraryConfigMutators(datadogConfig config.Component) []podMutator {
+func securityClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
 	asmEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm.enabled")
 	iastEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.iast.enabled")
 	asmScaEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm_sca.enabled")
 
-	var podMutators []podMutator
+	var mutators []containerMutator
 	if asmEnabled != nil {
-		podMutators = append(podMutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_ENABLED", asmEnabled))
-	}
-	if iastEnabled != nil {
-		podMutators = append(podMutators, newConfigEnvVarFromBoolMutator("DD_IAST_ENABLED", iastEnabled))
-	}
-	if asmScaEnabled != nil {
-		podMutators = append(podMutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_SCA_ENABLED", asmScaEnabled))
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_ENABLED", asmEnabled))
 	}
 
-	return podMutators
+	if iastEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_IAST_ENABLED", iastEnabled))
+	}
+
+	if asmScaEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_SCA_ENABLED", asmScaEnabled))
+	}
+
+	return mutators
 }
 
 // The config for profiling has four states: <unset> | "auto" | "true" | "false".
@@ -400,13 +498,23 @@ func securityClientLibraryConfigMutators(datadogConfig config.Component) []podMu
 // * "true" - profiling activated unconditionally, not overridable remotely
 // * "false" - profiling deactivated, not overridable remotely
 // * "auto" - profiling activates per-process heuristically, not overridable remotely
-func profilingClientLibraryConfigMutators(datadogConfig config.Component) []podMutator {
+func profilingClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
 	profilingEnabled := getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled")
 
-	var podMutators []podMutator
+	var mutators []containerMutator
 	if profilingEnabled != nil {
-		podMutators = append(podMutators, newConfigEnvVarFromStringlMutator("DD_PROFILING_ENABLED", profilingEnabled))
+		mutators = append(mutators, newConfigEnvVarFromStringMutator("DD_PROFILING_ENABLED", profilingEnabled))
 	}
 
-	return podMutators
+	return mutators
+}
+
+func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
+	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", name)
+	ns, err := wmeta.GetKubernetesMetadata(id)
+	if err != nil {
+		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
+	}
+
+	return ns.EntityMeta.Labels, nil
 }

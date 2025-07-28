@@ -19,6 +19,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	corev1Informers "k8s.io/client-go/informers/core/v1"
 	corev1Listers "k8s.io/client-go/listers/core/v1"
@@ -56,6 +57,7 @@ func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Componen
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 "terminated-pods",
+			Kind:                                 kubernetes.PodKind,
 			NodeType:                             orchestrator.K8sPod,
 			Version:                              "v1",
 			LabelsAsTags:                         labelsAsTags,
@@ -92,7 +94,7 @@ func (c *TerminatedPodCollector) Run(rcfg *collectors.CollectorRunConfig) (*coll
 func (c *TerminatedPodCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -100,9 +102,15 @@ func (c *TerminatedPodCollector) Process(rcfg *collectors.CollectorRunConfig, li
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 
 	return result, nil
+}
+
+// GetNodeName is used to get the node name from the resource.
+func (c *TerminatedPodCollector) GetNodeName(_ processors.ProcessorContext, resource interface{}) string {
+	r := resource.(*v1.Pod)
+	return r.Spec.NodeName
 }

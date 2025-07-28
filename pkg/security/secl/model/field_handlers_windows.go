@@ -22,6 +22,7 @@ func (ev *Event) ResolveFieldsForAD() {
 	ev.resolveFields(true)
 }
 func (ev *Event) resolveFields(forADs bool) {
+	eventType := ev.GetEventType().String()
 	// resolve context fields that are not related to any event type
 	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
@@ -38,6 +39,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 	_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 	_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 	if ev.BaseEvent.ProcessContext.HasParent() {
@@ -53,6 +55,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
@@ -63,7 +68,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	_ = ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
 	// resolve event specific fields
-	switch ev.GetEventType().String() {
+	switch eventType {
 	case "change_permission":
 		_ = ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
 		_ = ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
@@ -71,15 +76,18 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File)
+		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.CreateNewFile.File)
 	case "create_key":
 	case "delete":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File)
 		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File)
+		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.DeleteFile.File)
 	case "delete_key":
 	case "exec":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exec.Process)
@@ -88,6 +96,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "exit":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exit.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
@@ -98,14 +107,17 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old)
 		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old)
+		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.RenameFile.Old)
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New)
 		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New)
+		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.RenameFile.New)
 	case "set_key_value":
 	case "write":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File)
 		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File)
+		_ = ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.WriteFile.File)
 	}
 }
 
@@ -117,9 +129,11 @@ type FieldHandlers interface {
 	ResolveEventTime(ev *Event, e *BaseEvent) time.Time
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 	ResolveFileBasename(ev *Event, e *FileEvent) string
+	ResolveFileExtension(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
 	ResolveFileUserPath(ev *Event, e *FimFileEvent) string
 	ResolveFimFileBasename(ev *Event, e *FimFileEvent) string
+	ResolveFimFileExtension(ev *Event, e *FimFileEvent) string
 	ResolveFimFilePath(ev *Event, e *FimFileEvent) string
 	ResolveHostname(ev *Event, e *BaseEvent) string
 	ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
@@ -157,6 +171,9 @@ func (dfh *FakeFieldHandlers) ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 func (dfh *FakeFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) string {
 	return string(e.BasenameStr)
 }
+func (dfh *FakeFieldHandlers) ResolveFileExtension(ev *Event, e *FileEvent) string {
+	return string(e.Extension)
+}
 func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
 	return string(e.PathnameStr)
 }
@@ -165,6 +182,9 @@ func (dfh *FakeFieldHandlers) ResolveFileUserPath(ev *Event, e *FimFileEvent) st
 }
 func (dfh *FakeFieldHandlers) ResolveFimFileBasename(ev *Event, e *FimFileEvent) string {
 	return string(e.BasenameStr)
+}
+func (dfh *FakeFieldHandlers) ResolveFimFileExtension(ev *Event, e *FimFileEvent) string {
+	return string(e.Extension)
 }
 func (dfh *FakeFieldHandlers) ResolveFimFilePath(ev *Event, e *FimFileEvent) string {
 	return string(e.PathnameStr)

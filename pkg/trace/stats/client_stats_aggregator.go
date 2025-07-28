@@ -140,8 +140,9 @@ func (a *ClientStatsAggregator) getAggregationBucketTime(now, bs time.Time) time
 func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 	// populate container tags data on the payload
 	a.setVersionDataFromContainerTags(p)
+	p.ProcessTagsHash = processTagsHash(p.ProcessTags)
 	// compute the PayloadAggregationKey, common for all buckets within the payload
-	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag)
+	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag, p.Lang, p.ProcessTagsHash)
 
 	for _, clientBucket := range p.Stats {
 		clientBucketStart := time.Unix(0, int64(clientBucket.Start))
@@ -149,11 +150,13 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 		b, ok := a.buckets[ts.Unix()]
 		if !ok {
 			b = &bucket{
-				ts:  ts,
-				agg: make(map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedStats),
+				ts:          ts,
+				agg:         make(map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedStats),
+				processTags: make(map[uint64]string),
 			}
 			a.buckets[ts.Unix()] = b
 		}
+		b.processTags[p.ProcessTagsHash] = p.ProcessTags
 		b.aggregateStatsBucket(clientBucket, payloadAggKey)
 	}
 }
@@ -178,10 +181,11 @@ func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStat
 		return
 	}
 	if p.ContainerID != "" {
-		gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(p.ContainerID, a.conf)
+		cTags, err := a.conf.ContainerTags(p.ContainerID)
 		if err != nil {
 			log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
 		} else {
+			gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(cTags)
 			// Only override if the payload's original values were empty strings.
 			if p.ImageTag == "" {
 				p.ImageTag = imageTag
@@ -206,7 +210,8 @@ type bucket struct {
 	// ts is the timestamp attached to the payload
 	ts time.Time
 	// agg contains the aggregated Hits/Errors/Duration counts
-	agg map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedStats
+	agg         map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedStats
+	processTags map[uint64]string
 }
 
 // aggregateStatsBucket takes a ClientStatsBucket and a PayloadAggregationKey, and aggregates all counts
@@ -298,12 +303,16 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 				Stats:    groupedStats,
 			}}
 		res = append(res, &pb.ClientStatsPayload{
-			Hostname:     payloadKey.Hostname,
-			Env:          payloadKey.Env,
-			Version:      payloadKey.Version,
-			ImageTag:     payloadKey.ImageTag,
-			GitCommitSha: payloadKey.GitCommitSha,
-			Stats:        clientBuckets,
+			Hostname:        payloadKey.Hostname,
+			Env:             payloadKey.Env,
+			Version:         payloadKey.Version,
+			ImageTag:        payloadKey.ImageTag,
+			Lang:            payloadKey.Lang,
+			GitCommitSha:    payloadKey.GitCommitSha,
+			ContainerID:     payloadKey.ContainerID,
+			Stats:           clientBuckets,
+			ProcessTagsHash: payloadKey.ProcessTagsHash,
+			ProcessTags:     b.processTags[payloadKey.ProcessTagsHash],
 		})
 	}
 	return res
@@ -350,14 +359,16 @@ func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*
 	}, nil
 }
 
-func newPayloadAggregationKey(env, hostname, version, cid string, gitCommitSha string, imageTag string) PayloadAggregationKey {
+func newPayloadAggregationKey(env, hostname, version, cid, gitCommitSha, imageTag, lang string, processTagsHash uint64) PayloadAggregationKey {
 	return PayloadAggregationKey{
-		Env:          env,
-		Hostname:     hostname,
-		Version:      version,
-		ContainerID:  cid,
-		GitCommitSha: gitCommitSha,
-		ImageTag:     imageTag,
+		Env:             env,
+		Hostname:        hostname,
+		Version:         version,
+		ContainerID:     cid,
+		GitCommitSha:    gitCommitSha,
+		ImageTag:        imageTag,
+		Lang:            lang,
+		ProcessTagsHash: processTagsHash,
 	}
 }
 
@@ -374,7 +385,7 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 		IsTraceRoot:    b.IsTraceRoot,
 	}
 	if tags := b.GetPeerTags(); len(tags) > 0 {
-		k.PeerTagsHash = peerTagsHash(tags)
+		k.PeerTagsHash = tagsFnvHash(tags)
 	}
 	return k
 }

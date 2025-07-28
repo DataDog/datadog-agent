@@ -96,8 +96,12 @@ class SSHKey(TypedDict):
     name: str  # Name of the public key (identification for the agent, based on the public key comment)
 
 
+KMTSetupType = Literal["remote", "full"]
+
+
 class KMTConfig(TypedDict, total=False):
     ssh: SSHKey  # noqa: F841
+    setup: KMTSetupType
 
 
 StackOutputMicroVM = TypedDict(

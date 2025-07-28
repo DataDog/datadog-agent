@@ -7,6 +7,7 @@ package tagset
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 )
 
@@ -48,7 +49,7 @@ func CombineCompositeTagsAndSlice(compositeTags CompositeTags, tags []string) Co
 	}
 	// Copy tags in case `CombineCompositeTagsAndSlice` is called twice with the same first argument.
 	// For example see TestCompositeTagsCombineCompositeTagsAndSlice.
-	newTags := append(append([]string{}, compositeTags.tags2...), tags...)
+	newTags := slices.Concat(compositeTags.tags2, tags)
 	return NewCompositeTags(compositeTags.tags1, newTags)
 }
 
@@ -90,18 +91,10 @@ func (t CompositeTags) ForEachErr(callback func(tag string) error) error {
 
 // Find returns whether `callback` returns true for a tag
 func (t CompositeTags) Find(callback func(tag string) bool) bool {
-	for _, t := range t.tags1 {
-		if callback(t) {
-			return true
-		}
+	if slices.ContainsFunc(t.tags1, callback) {
+		return true
 	}
-	for _, t := range t.tags2 {
-		if callback(t) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(t.tags2, callback)
 }
 
 // Len returns the length of the tags
@@ -140,5 +133,5 @@ func (t CompositeTags) UnsafeToReadOnlySliceString() []string {
 	if len(t.tags2) == 0 {
 		return t.tags1
 	}
-	return append(append([]string{}, t.tags1...), t.tags2...)
+	return slices.Concat(t.tags1, t.tags2)
 }

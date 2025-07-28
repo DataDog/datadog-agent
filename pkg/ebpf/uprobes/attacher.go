@@ -53,7 +53,7 @@ var (
 	// ErrNoMatchingRule is returned when no rule matches the shared library path.
 	ErrNoMatchingRule = errors.New("no matching rule")
 	// regex that defines internal DataDog processes
-	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
+	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace|otel)-agent|system-probe|agent)")
 )
 
 // AttachTarget defines the target to which we should attach the probes, libraries or executables
@@ -148,17 +148,20 @@ func (r *AttachRule) Validate(attacherConfig *AttacherConfig) error {
 			// so we do a simple check: either the regex matches a library name in the libset, or the regex contains
 			// a substring that matches a library name in the libset.
 			matchesAtLeastOneLib := false
-			suffixes := sharedlibraries.LibsetToLibSuffixes[attacherConfig.SharedLibsLibset]
-			for _, libSuffix := range suffixes {
-				libSuffixWithExt := libSuffix + ".so"
-				if r.LibraryNameRegex.MatchString(libSuffixWithExt) || strings.Contains(r.LibraryNameRegex.String(), libSuffix) {
-					matchesAtLeastOneLib = true
-					break
+		outer:
+			for _, libset := range attacherConfig.SharedLibsLibsets {
+				suffixes := sharedlibraries.LibsetToLibSuffixes[libset]
+				for _, libSuffix := range suffixes {
+					libSuffixWithExt := libSuffix + ".so"
+					if r.LibraryNameRegex.MatchString(libSuffixWithExt) || strings.Contains(r.LibraryNameRegex.String(), libSuffix) {
+						matchesAtLeastOneLib = true
+						break outer
+					}
 				}
 			}
 
 			if !matchesAtLeastOneLib {
-				result = multierror.Append(result, fmt.Errorf("library name regex %s does not match any library in libset %s (%s)", r.LibraryNameRegex, attacherConfig.SharedLibsLibset, suffixes))
+				result = multierror.Append(result, fmt.Errorf("library name regex %s does not match any library in libsets [%v]", r.LibraryNameRegex, attacherConfig.SharedLibsLibsets))
 			}
 		}
 	}
@@ -217,8 +220,21 @@ type AttacherConfig struct {
 	// This is useful for debugging purposes, do not enable in production.
 	EnableDetailedLogging bool
 
-	// If shared libraries tracing is enabled, this is the name of the library set used to filter the events
-	SharedLibsLibset sharedlibraries.Libset
+	// If shared libraries tracing is enabled, this is the list of library sets to use to filter the events
+	// from the shared libraries program.
+	SharedLibsLibsets []sharedlibraries.Libset
+
+	// OnSyncCallback is an optional function that gets called when the attacher performs a sync. Receives as an argument
+	// the set of alive PIDs in the system.
+	// This function will not be called in the same goroutine as the attacher code, so it will not block process creation/deletion
+	// events from happening. However, if it takes too long it can delay the next sync. In any case, synchronizations are
+	// usually performed every 30 seconds by default (ScanProcessesInterval), so it shouldn't be a problem.
+	OnSyncCallback func(map[uint32]struct{})
+
+	// MaxPeriodicScansPerProcess defines the maximum number of periodic scans we will perform for a given PID
+	// when EnablePeriodicScanNewProcesses is true. Useful to avoid re-scanning processes that have already
+	// been scanned, specially when shared libraries are being traced as scanning the maps file can be expensive.
+	MaxPeriodicScansPerProcess int
 }
 
 // SetDefaults configures the AttacherConfig with default values for those fields for which the compiler
@@ -234,6 +250,13 @@ func (ac *AttacherConfig) SetDefaults() {
 
 	if ac.EbpfConfig == nil {
 		ac.EbpfConfig = ebpf.NewConfig()
+	}
+
+	if ac.MaxPeriodicScansPerProcess == 0 {
+		// 2 seems a reasonable default, as we will give time (1 minute with the default interval)
+		// to the process to start and for any environmental errors to stop affecting the process
+		// and allow it to load the shared libraries we might be interested in.
+		ac.MaxPeriodicScansPerProcess = 2
 	}
 }
 
@@ -259,8 +282,12 @@ func (ac *AttacherConfig) Validate() error {
 		targetsSharedLibs = targetsSharedLibs || rule.canTarget(AttachToSharedLibraries)
 	}
 
-	if targetsSharedLibs && !sharedlibraries.IsLibsetValid(ac.SharedLibsLibset) {
-		err = multierror.Append(err, fmt.Errorf("invalid libset %s", ac.SharedLibsLibset))
+	if targetsSharedLibs {
+		for _, libset := range ac.SharedLibsLibsets {
+			if !sharedlibraries.IsLibsetValid(libset) {
+				err = multierror.Append(err, fmt.Errorf("invalid libset %s", libset))
+			}
+		}
 	}
 
 	return err
@@ -353,6 +380,13 @@ type UprobeAttacher struct {
 
 	// processMonitor is the process monitor that we use to subscribe to process start and exit events
 	processMonitor ProcessMonitor
+
+	// scansPerPid is a map of PIDs to the number of times we have scanned them, to avoid re-scanning them
+	// too many times when EnablePeriodicScanNewProcesses is true
+	scansPerPid map[uint32]int
+
+	// attachLimiter is used to limit the number of times we log warnings about attachment errors
+	attachLimiter *log.Limit
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
@@ -384,6 +418,8 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		done:                   make(chan struct{}),
 		inspector:              inspector,
 		processMonitor:         processMonitor,
+		scansPerPid:            make(map[uint32]int),
+		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
 	}
 
 	utils.AddAttacher(moduleName, name, ua)
@@ -445,12 +481,12 @@ func (ua *UprobeAttacher) Start() error {
 
 		ua.soWatcher = sharedlibraries.GetEBPFProgram(ua.config.EbpfConfig)
 
-		err := ua.soWatcher.InitWithLibsets(ua.config.SharedLibsLibset)
+		err := ua.soWatcher.InitWithLibsets(ua.config.SharedLibsLibsets...)
 		if err != nil {
 			return fmt.Errorf("error initializing shared library program: %w", err)
 		}
 
-		cleanupSharedLibs, err = ua.soWatcher.Subscribe(ua.handleLibraryOpen, ua.config.SharedLibsLibset)
+		cleanupSharedLibs, err = ua.soWatcher.Subscribe(ua.handleLibraryOpen, ua.config.SharedLibsLibsets...)
 		if err != nil {
 			return fmt.Errorf("error subscribing to shared libraries events: %w", err)
 		}
@@ -506,7 +542,7 @@ func (ua *UprobeAttacher) Start() error {
 
 // Sync scans the proc filesystem for new processes and detaches from terminated ones
 func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
-	if !trackDeletions && !trackCreations {
+	if !trackDeletions && !trackCreations && ua.config.OnSyncCallback == nil {
 		return nil // Nothing to do
 	}
 
@@ -519,26 +555,51 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 		return err
 	}
 
-	_ = kernel.WithAllProcs(ua.config.ProcRoot, func(pid int) error {
-		if pid == thisPID { // don't scan ourselves
+	alivePIDs := make(map[uint32]struct{})
+	_ = kernel.WithAllProcs(ua.config.ProcRoot, func(p int) error {
+		if p == thisPID { // don't scan ourselves
 			return nil
 		}
 
+		pid := uint32(p)
+
+		alivePIDs[pid] = struct{}{}
+
 		if trackDeletions {
-			if _, ok := deletionCandidates[uint32(pid)]; ok {
+			if _, ok := deletionCandidates[pid]; ok {
 				// We have previously hooked into this process and it remains active,
 				// so we remove it from the deletionCandidates list, and move on to the next PID
-				delete(deletionCandidates, uint32(pid))
+				delete(deletionCandidates, pid)
 				return nil
 			}
 		}
 
-		if trackCreations {
+		if trackCreations && ua.scansPerPid[pid] < ua.config.MaxPeriodicScansPerProcess {
 			// This is a new PID so we attempt to attach SSL probes to it
-			_ = ua.AttachPID(uint32(pid))
+			ua.scansPerPid[pid]++
+			err := ua.AttachPID(pid)
+			if err == nil {
+				if ua.config.EnableDetailedLogging {
+					log.Debugf("uprobe attacher %s attached to process %d via periodic scan", ua.name, pid)
+				}
+
+				// Set the number of scans to the maximum so we don't try to scan it again
+				ua.scansPerPid[pid] = ua.config.MaxPeriodicScansPerProcess
+			} else {
+				if ua.shouldLogRegistryError(err) {
+					log.Warnf("could not attach to process %d: %v", pid, err)
+				}
+			}
 		}
 		return nil
 	})
+
+	// Clean up the scansPerPid map, removing all PIDs that are no longer alive
+	for pid := range ua.scansPerPid {
+		if _, ok := alivePIDs[pid]; !ok {
+			delete(ua.scansPerPid, pid)
+		}
+	}
 
 	if trackDeletions {
 		// At this point all entries from deletionCandidates are no longer alive, so
@@ -546,6 +607,10 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 		for pid := range deletionCandidates {
 			ua.handleProcessExit(pid)
 		}
+	}
+
+	if ua.config.OnSyncCallback != nil {
+		ua.config.OnSyncCallback(alivePIDs)
 	}
 
 	return nil
@@ -557,10 +622,30 @@ func (ua *UprobeAttacher) Stop() {
 	ua.wg.Wait()
 }
 
+func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Always log all errors if detailed logging is enabled
+	if ua.config.EnableDetailedLogging {
+		return true
+	}
+
+	var unknownErr *utils.UnknownAttachmentError
+	if errors.As(err, &unknownErr) {
+		return ua.attachLimiter.ShouldLog()
+	}
+	return false
+}
+
 // handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error
 // for API compatibility with processMonitor
 func (ua *UprobeAttacher) handleProcessStart(pid uint32) {
-	_ = ua.AttachPIDWithOptions(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
+	err := ua.AttachPIDWithOptions(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
+	if ua.shouldLogRegistryError(err) {
+		log.Warnf("could not attach to process %d: %v", pid, err)
+	}
 }
 
 // handleProcessExit is called when a process finishes, wraps DetachPID but ignoring the error
@@ -573,8 +658,8 @@ func (ua *UprobeAttacher) handleLibraryOpen(libpath sharedlibraries.LibPath) {
 	path := sharedlibraries.ToBytes(&libpath)
 
 	err := ua.AttachLibrary(string(path), libpath.Pid)
-	if err != nil {
-		log.Errorf("error attaching to library %s (PID %d): %v", path, libpath.Pid, err)
+	if ua.shouldLogRegistryError(err) {
+		log.Warnf("could not attach to library %s (PID %d): %v", path, libpath.Pid, err)
 	}
 }
 
@@ -669,6 +754,9 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 	if ua.handlesExecutables() || (ua.config.ExcludeTargets&ExcludeInternal) != 0 {
 		binPath, err = procInfo.Exe()
 		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return utils.NewUnknownAttachmentError(err)
+			}
 			return err
 		}
 	}
@@ -709,7 +797,7 @@ func isBuildKit(procInfo *ProcInfo) bool {
 }
 
 func isContainerdTmpMount(path string) bool {
-	return strings.Contains(path, "tmpmounts/containerd-mount")
+	return strings.Contains(path, "tmpmounts/containerd-mount") || strings.Contains(path, "/tmp/ctd-volume")
 }
 
 // getUID() return a key of length 5 as the kernel uprobe registration path is limited to a length of 64
@@ -750,18 +838,20 @@ func parseSymbolFromEBPFProbeName(probeName string) (symbol string, isManualRetu
 // callback.
 func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*AttachRule, procInfo *ProcInfo) error {
 	if ua.config.ExcludeTargets&ExcludeBuildkit != 0 && isBuildKit(procInfo) {
-		return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
+		return fmt.Errorf("%w: process %d is buildkitd, skipping", utils.ErrEnvironment, fpath.PID)
 	} else if ua.config.ExcludeTargets&ExcludeContainerdTmp != 0 && isContainerdTmpMount(fpath.HostPath) {
-		return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
+		return fmt.Errorf("%w: path %s from process %d is tempmount of containerd, skipping", utils.ErrEnvironment, fpath.HostPath, fpath.PID)
 	}
 
 	symbolsToRequest, err := ua.computeSymbolsToRequest(matchingRules)
 	if err != nil {
-		return fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err)
+		return utils.NewUnknownAttachmentError(fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err))
 	}
 
 	inspectResult, err := ua.inspector.Inspect(fpath, symbolsToRequest)
 	if err != nil {
+		// Not wrapping this one in an UnknownAttachmentError as it can happen if we're trying to
+		// attach to a process that just doesn't have the symbols we're looking for.
 		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
 	}
 
@@ -771,7 +861,10 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		for _, selector := range rule.ProbesSelector {
 			err = ua.attachProbeSelector(selector, fpath, uid, rule, inspectResult)
 			if err != nil {
-				return err
+				// At this point we have done enough validation so that the
+				// probe attachment should work, if it doesn't it's an issue we
+				// don't expect and we want to know about it.
+				return utils.NewUnknownAttachmentError(err)
 			}
 		}
 	}
@@ -934,7 +1027,7 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 	successfulMatches := make([]string, 0)
 	libs, err := ua.getLibrariesFromMapsFile(int(pid))
 	if err != nil {
-		return err
+		return utils.NewUnknownAttachmentError(err)
 	}
 	for _, libpath := range libs {
 		err := ua.AttachLibrary(libpath, pid)
@@ -950,10 +1043,10 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 		if len(registerErrors) == 0 {
 			return nil // No libraries found to attach
 		}
-		return fmt.Errorf("no rules matched for pid %d, errors: %v", pid, registerErrors)
+		return utils.NewUnknownAttachmentError(fmt.Errorf("no rules matched for pid %d, errors: %v", pid, registerErrors))
 	}
 	if len(registerErrors) > 0 {
-		return fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %v", successfulMatches, pid, registerErrors)
+		return utils.NewUnknownAttachmentError(fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %v", successfulMatches, pid, registerErrors))
 	}
 	return nil
 }

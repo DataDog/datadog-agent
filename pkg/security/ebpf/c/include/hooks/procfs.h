@@ -57,8 +57,7 @@ HOOK_SYSCALL_EXIT(newfstatat) {
     return handle_ret_stat();
 }
 
-SEC("tracepoint/handle_sys_newfstatat_exit")
-int tracepoint_handle_sys_newfstatat_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_newfstatat_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return handle_ret_stat();
 }
 

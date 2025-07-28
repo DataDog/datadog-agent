@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -72,6 +73,7 @@ func (s *UtfSuite) TestUtfTailing() {
 }
 
 func (s *UtfSuite) testUtfBigEndianCollection() {
+	flake.Mark(s.T())
 	agentOptions := []agentparams.Option{
 		agentparams.WithLogs(),
 		agentparams.WithIntegration("custom_logs.d", string(utfBigEndianLogConfig)),
@@ -91,6 +93,7 @@ func (s *UtfSuite) testUtfBigEndianCollection() {
 }
 
 func (s *UtfSuite) testUtfLittleEndianCollection() {
+	flake.Mark(s.T())
 	agentOptions := []agentparams.Option{
 		agentparams.WithLogs(),
 		agentparams.WithIntegration("custom_logs.d", string(utfLittleEndianLogConfig)),

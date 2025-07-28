@@ -17,8 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -68,6 +66,10 @@ type syncInformerResult struct {
 
 // SyncInformersReturnErrors does the same thing as SyncInformers except it returns a map of InformerName and error
 func SyncInformersReturnErrors(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) map[InformerName]error {
+	if len(informers) == 0 {
+		return nil
+	}
+
 	resultChan := make(chan syncInformerResult)
 	errors := make(map[InformerName]error, len(informers))
 	timeoutConfig := pkgconfigsetup.Datadog().GetDuration("kube_cache_sync_timeout_seconds") * time.Second
@@ -106,15 +108,6 @@ func SyncInformersReturnErrors(informers map[InformerName]cache.SharedInformer, 
 	}
 
 	return errors
-}
-
-// UnstructuredIntoWPA converts an unstructured into a WPA
-func UnstructuredIntoWPA(obj interface{}, structDest *v1alpha1.WatermarkPodAutoscaler) error {
-	unstrObj, ok := obj.(*unstructured.Unstructured)
-	if !ok {
-		return fmt.Errorf("could not cast Unstructured object: %v", obj)
-	}
-	return runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), structDest)
 }
 
 // UnstructuredFromAutoscaler converts a WPA object into an Unstructured

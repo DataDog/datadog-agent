@@ -7,7 +7,6 @@ package ec2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,21 +19,22 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 var (
-	initialMetadataURL = metadataURL
-	initialTokenURL    = tokenURL
+	initialMetadataURL = ec2internal.MetadataURL
+	initialTokenURL    = ec2internal.TokenURL
 )
 
 const testIMDSToken = "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
 
 func resetPackageVars() {
-	metadataURL = initialMetadataURL
-	tokenURL = initialTokenURL
-	token = httputils.NewAPIToken(getToken)
-	currentMetadataSource = metadataSourceNone
+	ec2internal.MetadataURL = initialMetadataURL
+	ec2internal.TokenURL = initialTokenURL
+	ec2internal.Token = httputils.NewAPIToken(ec2internal.GetToken)
+	ec2internal.CurrentMetadataSource = ec2internal.MetadataSourceNone
 
 	instanceIDFetcher.Reset()
 	publicIPv4Fetcher.Reset()
@@ -80,7 +80,7 @@ func TestGetInstanceID(t *testing.T) {
 	var lastRequest *http.Request
 
 	// Force refresh
-	token.ExpirationDate = time.Now()
+	ec2internal.Token.ExpirationDate = time.Now()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -103,8 +103,8 @@ func TestGetInstanceID(t *testing.T) {
 		lastRequest = r
 	}))
 	defer ts.Close()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
+	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
@@ -145,7 +145,7 @@ func TestGetLegacyResolutionInstanceID(t *testing.T) {
 		lastRequest = r
 	}))
 	defer ts.Close()
-	metadataURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
@@ -237,7 +237,7 @@ func TestGetHostAliases(t *testing.T) {
 			defer ts.Close()
 			defer resetPackageVars()
 
-			metadataURL = ts.URL
+			ec2internal.MetadataURL = ts.URL
 			conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 			ctx := context.Background()
@@ -262,7 +262,7 @@ func TestGetHostname(t *testing.T) {
 		io.WriteString(w, expected)
 	}))
 	defer ts.Close()
-	metadataURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
 
 	conf := configmock.New(t)
 	defer resetPackageVars()
@@ -302,56 +302,11 @@ func TestGetHostname(t *testing.T) {
 	hostnameFetcher.Reset()
 
 	// ensure we get an empty string along with the error when not on EC2
-	metadataURL = "foo"
+	ec2internal.MetadataURL = "foo"
 	val, err = GetHostname(ctx)
 	assert.NotNil(t, err)
 	assert.Equal(t, "", val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
-}
-
-func TestExtractClusterName(t *testing.T) {
-	testCases := []struct {
-		name string
-		in   []string
-		out  string
-		err  error
-	}{
-		{
-			name: "cluster name found",
-			in: []string{
-				"Name:myclustername-eksnodes-Node",
-				"aws:autoscaling:groupName:myclustername-eks-nodes-NodeGroup-11111111",
-				"aws:cloudformation:logical-id:NodeGroup",
-				"aws:cloudformation:stack-id:arn:aws:cloudformation:zone:1111111111:stack/myclustername-eks-nodes/1111111111",
-				"aws:cloudformation:stack-name:myclustername-eks-nodes",
-				"kubernetes.io/role/master:1",
-				"kubernetes.io/cluster/myclustername:owned",
-			},
-			out: "myclustername",
-			err: nil,
-		},
-		{
-			name: "cluster name not found",
-			in: []string{
-				"Name:myclustername-eksnodes-Node",
-				"aws:autoscaling:groupName:myclustername-eks-nodes-NodeGroup-11111111",
-				"aws:cloudformation:logical-id:NodeGroup",
-				"aws:cloudformation:stack-id:arn:aws:cloudformation:zone:1111111111:stack/myclustername-eks-nodes/1111111111",
-				"aws:cloudformation:stack-name:myclustername-eks-nodes",
-				"kubernetes.io/role/master:1",
-			},
-			out: "",
-			err: errors.New("unable to parse cluster name from EC2 tags"),
-		},
-	}
-
-	for i, test := range testCases {
-		t.Run(fmt.Sprintf("case %d: %s", i, test.name), func(t *testing.T) {
-			result, err := extractClusterName(test.in)
-			assert.Equal(t, test.out, result)
-			assert.Equal(t, test.err, err)
-		})
-	}
 }
 
 func TestGetToken(t *testing.T) {
@@ -369,10 +324,10 @@ func TestGetToken(t *testing.T) {
 	defer resetPackageVars()
 
 	defer ts.Close()
-	tokenURL = ts.URL
+	ec2internal.TokenURL = ts.URL
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
-	token, err := token.Get(ctx)
+	token, err := ec2internal.Token.Get(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, testIMDSToken, token)
 }
@@ -443,8 +398,8 @@ func TestMetedataRequestWithToken(t *testing.T) {
 				}
 			}))
 			defer ts.Close()
-			metadataURL = ts.URL
-			tokenURL = ts.URL
+			ec2internal.MetadataURL = ts.URL
+			ec2internal.TokenURL = ts.URL
 
 			// Set test-specific configuration
 			defer resetPackageVars()
@@ -476,7 +431,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 			assert.Equal(t, "2", requestWithToken.Header.Get("X-sequence"))
 
 			// Force refresh
-			token.ExpirationDate = time.Now()
+			ec2internal.Token.ExpirationDate = time.Now()
 			ips, err = GetPublicIPv4(ctx)
 			require.NoError(t, err)
 			assert.Equal(t, ipv4, ips)
@@ -517,8 +472,8 @@ func TestLegacyMetedataRequestWithoutToken(t *testing.T) {
 		}
 	}))
 	defer ts.Close()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
+	ec2internal.TokenURL = ts.URL
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	ips, err := GetPublicIPv4(context.Background())
@@ -538,7 +493,7 @@ func TestGetNTPHostsFromIMDS(t *testing.T) {
 	configmock.New(t)
 	defer resetPackageVars()
 
-	metadataURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
 	actualHosts := GetNTPHosts(context.Background())
 	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
 }
@@ -549,7 +504,7 @@ func TestGetNTPHostsDMI(t *testing.T) {
 	conf.SetWithoutSource("ec2_use_dmi", true)
 
 	setupDMIForEC2(t)
-	metadataURL = ""
+	ec2internal.MetadataURL = ""
 
 	actualHosts := GetNTPHosts(context.Background())
 	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
@@ -561,7 +516,7 @@ func TestGetNTPHostsEC2UUID(t *testing.T) {
 	conf.SetWithoutSource("ec2_use_dmi", true)
 
 	dmi.SetupMock(t, "ec2something", "", "", "")
-	metadataURL = ""
+	ec2internal.MetadataURL = ""
 
 	actualHosts := GetNTPHosts(context.Background())
 	assert.Equal(t, []string{"169.254.169.123"}, actualHosts)
@@ -574,7 +529,7 @@ func TestGetNTPHostsDisabledDMI(t *testing.T) {
 
 	// DMI without EC2 UUID
 	dmi.SetupMock(t, "something", "something", "i-myinstance", DMIBoardVendor)
-	metadataURL = ""
+	ec2internal.MetadataURL = ""
 
 	actualHosts := GetNTPHosts(context.Background())
 	assert.Equal(t, []string(nil), actualHosts)
@@ -582,7 +537,7 @@ func TestGetNTPHostsDisabledDMI(t *testing.T) {
 
 func TestGetNTPHostsNotEC2(t *testing.T) {
 	setupDMIForNotEC2(t)
-	metadataURL = ""
+	ec2internal.MetadataURL = ""
 
 	actualHosts := GetNTPHosts(context.Background())
 	assert.Equal(t, []string(nil), actualHosts)
@@ -609,8 +564,8 @@ func TestMetadataSourceIMDS(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	metadataURL = ts.URL
-	tokenURL = ts.URL
+	ec2internal.MetadataURL = ts.URL
+	ec2internal.TokenURL = ts.URL
 	conf := configmock.New(t)
 	defer resetPackageVars()
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
@@ -618,23 +573,23 @@ func TestMetadataSourceIMDS(t *testing.T) {
 	conf.SetWithoutSource("ec2_imdsv2_transition_payload_enabled", false)
 
 	assert.True(t, IsRunningOn(ctx))
-	assert.Equal(t, metadataSourceIMDSv2, currentMetadataSource)
+	assert.Equal(t, ec2internal.MetadataSourceIMDSv2, ec2internal.CurrentMetadataSource)
 
 	hostnameFetcher.Reset()
-	currentMetadataSource = metadataSourceNone
+	ec2internal.CurrentMetadataSource = ec2internal.MetadataSourceNone
 	conf.SetWithoutSource("ec2_prefer_imdsv2", false)
 	conf.SetWithoutSource("ec2_imdsv2_transition_payload_enabled", true)
 	assert.True(t, IsRunningOn(ctx))
-	assert.Equal(t, metadataSourceIMDSv2, currentMetadataSource)
+	assert.Equal(t, ec2internal.MetadataSourceIMDSv2, ec2internal.CurrentMetadataSource)
 
 	// trying IMDSv1
 	hostnameFetcher.Reset()
-	currentMetadataSource = metadataSourceNone
+	ec2internal.CurrentMetadataSource = ec2internal.MetadataSourceNone
 	conf.SetWithoutSource("ec2_prefer_imdsv2", false)
 	conf.SetWithoutSource("ec2_imdsv2_transition_payload_enabled", false)
 
 	assert.True(t, IsRunningOn(ctx))
-	assert.Equal(t, metadataSourceIMDSv1, currentMetadataSource)
+	assert.Equal(t, ec2internal.MetadataSourceIMDSv1, ec2internal.CurrentMetadataSource)
 }
 
 func TestMetadataSourceUUID(t *testing.T) {
@@ -644,19 +599,19 @@ func TestMetadataSourceUUID(t *testing.T) {
 
 	ctx := context.Background()
 
-	metadataURL = ""
+	ec2internal.MetadataURL = ""
 
 	dmi.SetupMock(t, "ec2something", "", "", "")
 	assert.True(t, IsRunningOn(ctx))
-	assert.Equal(t, metadataSourceUUID, currentMetadataSource)
+	assert.Equal(t, ec2internal.MetadataSourceUUID, ec2internal.CurrentMetadataSource)
 
 	dmi.SetupMock(t, "", "ec2something", "", "")
 	assert.True(t, IsRunningOn(ctx))
-	assert.Equal(t, metadataSourceUUID, currentMetadataSource)
+	assert.Equal(t, ec2internal.MetadataSourceUUID, ec2internal.CurrentMetadataSource)
 
 	dmi.SetupMock(t, "", "45E12AEC-DCD1-B213-94ED-012345ABCDEF", "", "")
 	assert.True(t, IsRunningOn(ctx))
-	assert.Equal(t, metadataSourceUUID, currentMetadataSource)
+	assert.Equal(t, ec2internal.MetadataSourceUUID, ec2internal.CurrentMetadataSource)
 }
 
 func TestMetadataSourceDMI(t *testing.T) {
@@ -666,11 +621,11 @@ func TestMetadataSourceDMI(t *testing.T) {
 
 	ctx := context.Background()
 
-	metadataURL = ""
+	ec2internal.MetadataURL = ""
 
 	setupDMIForEC2(t)
 	GetHostAliases(ctx)
-	assert.Equal(t, metadataSourceDMI, currentMetadataSource)
+	assert.Equal(t, ec2internal.MetadataSourceDMI, ec2internal.CurrentMetadataSource)
 }
 
 func TestMetadataSourceDMIPreventFallback(t *testing.T) {
@@ -680,12 +635,12 @@ func TestMetadataSourceDMIPreventFallback(t *testing.T) {
 
 	ctx := context.Background()
 
-	metadataURL = ""
+	ec2internal.MetadataURL = ""
 
 	setupDMIForEC2(t)
 	GetHostAliases(ctx)
-	assert.Equal(t, metadataSourceDMI, currentMetadataSource)
+	assert.Equal(t, ec2internal.MetadataSourceDMI, ec2internal.CurrentMetadataSource)
 
 	assert.True(t, IsRunningOn(ctx))
-	assert.Equal(t, metadataSourceDMI, currentMetadataSource)
+	assert.Equal(t, ec2internal.MetadataSourceDMI, ec2internal.CurrentMetadataSource)
 }

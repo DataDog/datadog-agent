@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
+	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -25,10 +27,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
+	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -40,7 +44,10 @@ const (
 )
 
 type npCollectorImpl struct {
+	// config related
 	collectorConfigs *collectorConfigs
+	sourceExcludes   []*filter.ConnectionFilter
+	destExcludes     []*filter.ConnectionFilter
 
 	// Deps
 	epForwarder  eventplatform.Forwarder
@@ -58,12 +65,14 @@ type npCollectorImpl struct {
 	pathtestProcessingChan chan *pathteststore.PathtestContext
 
 	// Scheduling related
-	running       bool
-	workers       int
-	stopChan      chan struct{}
-	flushLoopDone chan struct{}
-	runDone       chan struct{}
-	flushInterval time.Duration
+	running               bool
+	workers               int
+	stopChan              chan struct{}
+	flushLoopDone         chan struct{}
+	workersDone           chan struct{}
+	runDone               chan struct{}
+	flushInterval         time.Duration
+	inputChanFullLogLimit *utillog.Limit
 
 	// Telemetry component
 	telemetrycomp telemetryComp.Component
@@ -84,32 +93,24 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 }
 
 func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component, statsd ddgostatsd.ClientInterface) *npCollectorImpl {
-	logger.Infof("New NpCollector (workers=%d timeout=%d max_ttl=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s max_per_minute=%d flush_interval=%s reverse_dns_enabled=%t reverse_dns_timeout=%d)",
-		collectorConfigs.workers,
-		collectorConfigs.timeout,
-		collectorConfigs.maxTTL,
-		collectorConfigs.pathtestInputChanSize,
-		collectorConfigs.pathtestProcessingChanSize,
-		collectorConfigs.storeConfig.ContextsLimit,
-		collectorConfigs.storeConfig.TTL,
-		collectorConfigs.storeConfig.Interval,
-		collectorConfigs.storeConfig.MaxPerMinute,
-		collectorConfigs.flushInterval,
-		collectorConfigs.reverseDNSEnabled,
-		collectorConfigs.reverseDNSTimeout,
-	)
+	logger.Infof("New NpCollector %+v", collectorConfigs)
 
 	return &npCollectorImpl{
-		epForwarder:      epForwarder,
 		collectorConfigs: collectorConfigs,
-		rdnsquerier:      rdnsquerier,
-		logger:           logger,
+		sourceExcludes:   filter.ParseConnectionFilters(collectorConfigs.sourceExcludedConns),
+		destExcludes:     filter.ParseConnectionFilters(collectorConfigs.destExcludedConns),
+
+		epForwarder:  epForwarder,
+		logger:       logger,
+		statsdClient: statsd,
+		rdnsquerier:  rdnsquerier,
 
 		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.storeConfig, logger, statsd, time.Now),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
+		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
 
 		networkDevicesNamespace: collectorConfigs.networkDevicesNamespace,
 
@@ -122,9 +123,9 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
 		flushLoopDone: make(chan struct{}),
+		workersDone:   make(chan struct{}),
 
 		runTraceroute: runTraceroute,
-		statsdClient:  statsd,
 	}
 }
 
@@ -157,15 +158,57 @@ func makePathtest(conn *model.Connection, dns map[string]*model.DNSEntry) common
 	}
 }
 
-func doSubnetsContainIP(subnets []*net.IPNet, ip net.IP) bool {
+func doSubnetsContainIP(subnets []*net.IPNet, ip netip.Addr) bool {
 	for _, subnet := range subnets {
-		if subnet.Contains(ip) {
+		if subnet.Contains(net.IP(ip.AsSlice())) {
 			return true
 		}
 	}
 	return false
 }
 
+func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
+	if len(vpcSubnets) == 0 && len(s.sourceExcludes) == 0 && len(s.destExcludes) == 0 {
+		// this should be most customers - parsing IPs is not necessary
+		return true
+	}
+
+	sourceAddr, err := netip.ParseAddr(conn.Laddr.Ip)
+	if err != nil {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:failed_parse_source_ip"}, 1) //nolint:errcheck
+		return false
+	}
+	source := netip.AddrPortFrom(sourceAddr, uint16(conn.Laddr.Port))
+
+	translatedDest := conn.Raddr.Ip
+	// prefer IP translation if it's available
+	if conn.IpTranslation != nil && conn.IpTranslation.ReplDstIP != "" {
+		translatedDest = conn.IpTranslation.ReplDstIP
+	}
+	destAddr, err := netip.ParseAddr(translatedDest)
+	if err != nil {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:failed_parse_dest_ip"}, 1) //nolint:errcheck
+		return false
+	}
+	dest := netip.AddrPortFrom(destAddr, uint16(conn.Raddr.Port))
+
+	if doSubnetsContainIP(vpcSubnets, dest.Addr()) {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1) //nolint:errcheck
+		return false
+	}
+
+	filterable := filter.FilterableConnection{
+		Type:   conn.Type,
+		Source: source,
+		Dest:   dest,
+	}
+	if filter.IsExcludedConnection(s.sourceExcludes, s.destExcludes, filterable) {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_cidr_excluded"}, 1) //nolint:errcheck
+		return false
+	}
+	return true
+
+}
 func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
 	if conn == nil {
 		return false
@@ -183,22 +226,8 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_ipv6"}, 1) //nolint:errcheck
 		return false
 	}
-	translatedDest := conn.Raddr.Ip
-	// prefer IP translation if it's available
-	if conn.IpTranslation != nil && conn.IpTranslation.ReplDstIP != "" {
-		translatedDest = conn.IpTranslation.ReplDstIP
-	}
-	remoteIP := net.ParseIP(translatedDest)
-	if remoteIP.IsLoopback() {
-		// is this case possible, given that we already filter out IntraHost?
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_loopback"}, 1) //nolint:errcheck
-		return false
-	}
-	if doSubnetsContainIP(vpcSubnets, remoteIP) {
-		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_vpc"}, 1) //nolint:errcheck
-		return false
-	}
-	return true
+
+	return s.checkPassesConnCIDRFilters(conn, vpcSubnets)
 }
 
 func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
@@ -208,7 +237,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	vpcSubnets, err := cloudproviders.GetVPCSubnetsForHost(ctx)
+	vpcSubnets, err := network.GetVPCSubnetsForHost(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("disable_intra_vpc_collection is enforced, but failed to get VPC subnets: %w", err)
 	}
@@ -260,7 +289,10 @@ func (s *npCollectorImpl) scheduleOne(pathtest *common.Pathtest) error {
 		return nil
 	default:
 		_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"schedule.pathtest_dropped", []string{"reason:input_chan_full"}, 1)
-		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
+		if s.inputChanFullLogLimit.ShouldLog() {
+			s.logger.Warnf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
+		}
+		return nil
 	}
 }
 
@@ -274,7 +306,7 @@ func (s *npCollectorImpl) start() error {
 
 	go s.listenPathtests()
 	go s.flushLoop()
-	s.startWorkers()
+	go s.runWorkers()
 
 	return nil
 }
@@ -286,6 +318,7 @@ func (s *npCollectorImpl) stop() {
 	}
 	close(s.stopChan)
 	<-s.flushLoopDone
+	<-s.workersDone
 	<-s.runDone
 	s.running = false
 }
@@ -310,11 +343,13 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	cfg := config.Config{
-		DestHostname: ptest.Pathtest.Hostname,
-		DestPort:     ptest.Pathtest.Port,
-		MaxTTL:       uint8(s.collectorConfigs.maxTTL),
-		Timeout:      s.collectorConfigs.timeout,
-		Protocol:     ptest.Pathtest.Protocol,
+		DestHostname:              ptest.Pathtest.Hostname,
+		DestPort:                  ptest.Pathtest.Port,
+		MaxTTL:                    uint8(s.collectorConfigs.maxTTL),
+		Timeout:                   s.collectorConfigs.timeout,
+		Protocol:                  ptest.Pathtest.Protocol,
+		TCPMethod:                 s.collectorConfigs.tcpMethod,
+		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
 	}
 
 	path, err := s.runTraceroute(cfg, s.telemetrycomp)
@@ -494,15 +529,23 @@ func (s *npCollectorImpl) getReverseDNSResult(ipAddr string, results map[string]
 	return result.Hostname
 }
 
-func (s *npCollectorImpl) startWorkers() {
+func (s *npCollectorImpl) runWorkers() {
 	s.logger.Debugf("Starting workers (%d)", s.workers)
+
+	var wg sync.WaitGroup
 	for w := 0; w < s.workers; w++ {
+		wg.Add(1)
 		s.logger.Debugf("Starting worker #%d", w)
-		go s.startWorker(w)
+		go func() {
+			defer wg.Done()
+			s.runWorker(w)
+		}()
 	}
+	wg.Wait()
+	s.workersDone <- struct{}{}
 }
 
-func (s *npCollectorImpl) startWorker(workerID int) {
+func (s *npCollectorImpl) runWorker(workerID int) {
 	for {
 		select {
 		case <-s.stopChan:
@@ -519,7 +562,9 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			checkDuration := s.TimeNowFn().Sub(startTime)
 			_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.task_duration", checkDuration.Seconds(), nil, 1)
 			_ = s.statsdClient.Incr(networkPathCollectorMetricPrefix+"worker.pathtest_processed", []string{}, 1)
-			_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.pathtest_interval", checkInterval.Seconds(), nil, 1)
+			if checkInterval > 0 {
+				_ = s.statsdClient.Histogram(networkPathCollectorMetricPrefix+"worker.pathtest_interval", checkInterval.Seconds(), nil, 1)
+			}
 		}
 	}
 }

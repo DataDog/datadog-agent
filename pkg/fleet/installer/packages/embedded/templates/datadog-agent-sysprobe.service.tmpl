@@ -1,0 +1,33 @@
+[Unit]
+{{- if .Stable}}
+Description=Datadog System Probe
+Requires=sys-kernel-debug.mount
+Before=datadog-agent.service datadog-agent-exp.service
+After=network.target sys-kernel-debug.mount
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-exp.service datadog-agent-sysprobe-exp.service
+ConditionPathExists=|{{.EtcDir}}/system-probe.yaml
+ConditionPathExists=|{{.FleetPoliciesDir}}/system-probe.yaml
+{{- else}}
+Description=Datadog System Probe Experiment
+Requires=sys-kernel-debug.mount
+Before=datadog-agent.service datadog-agent-exp.service
+After=network.target sys-kernel-debug.mount
+BindsTo=datadog-agent-exp.service
+Conflicts=datadog-agent.service datadog-agent-sysprobe.service
+ConditionPathExists=|{{.EtcDir}}/system-probe.yaml
+ConditionPathExists=|{{.FleetPoliciesDir}}/system-probe.yaml
+{{- end}}
+
+[Service]
+Type=simple
+PIDFile={{.InstallDir}}/run/system-probe.pid
+Restart=on-failure
+EnvironmentFile=-{{.EtcDir}}/environment
+Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+ExecStart={{.InstallDir}}/embedded/bin/system-probe run --config={{.EtcDir}}/system-probe.yaml --pid={{.InstallDir}}/run/system-probe.pid
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

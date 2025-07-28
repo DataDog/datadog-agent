@@ -13,10 +13,15 @@ import (
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 type fakeNetworkStats struct {
@@ -37,16 +42,12 @@ type fakeNetworkStats struct {
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (n *fakeNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
+func (n *fakeNetworkStats) IOCounters(_ bool) ([]net.IOCountersStat, error) {
 	return n.counterStats, n.counterStatsError
 }
 
 // ProtoCounters returns the inner values of counterStats and counterStatsError
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (n *fakeNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
+func (n *fakeNetworkStats) ProtoCounters(_ []string) ([]net.ProtoCountersStat, error) {
 	return n.protoCountersStats, n.protoCountersStatsError
 }
 
@@ -79,6 +80,9 @@ func TestDefaultConfiguration(t *testing.T) {
 }
 
 func TestConfiguration(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("network_check.use_core_loader", true, configmodel.SourceAgentRuntime)
+
 	check := NetworkCheck{}
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
@@ -89,13 +93,43 @@ excluded_interface_re: "eth.*"
 `)
 	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
 	assert.ElementsMatch(t, []string{"eth0", "lo0"}, check.config.instance.ExcludedInterfaces)
 	assert.Equal(t, "eth.*", check.config.instance.ExcludedInterfaceRe)
 }
 
+func TestNetworkCheckWithoutCoreLoader(t *testing.T) {
+	flavor.SetTestFlavor(t, flavor.DefaultAgent)
+
+	cfg := configmock.New(t)
+	cfg.Set("network_check.use_core_loader", false, configmodel.SourceAgentRuntime)
+
+	networkCheck := new(NetworkCheck)
+	mock := mocksender.NewMockSender(networkCheck.ID())
+	err := networkCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	require.ErrorIs(t, err, check.ErrSkipCheckInstance)
+}
+
+func TestNetworkCheckNonDefaultFlavor(t *testing.T) {
+	for _, fl := range []string{flavor.IotAgent, flavor.ClusterAgent} {
+		t.Run(fl, func(t *testing.T) {
+			flavor.SetTestFlavor(t, fl)
+
+			cfg := configmock.New(t)
+			cfg.Set("network_check.use_core_loader", false, configmodel.SourceAgentRuntime)
+
+			networkCheck := new(NetworkCheck)
+			mock := mocksender.NewMockSender(networkCheck.ID())
+			err := networkCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestNetworkCheck(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("network_check.use_core_loader", true, configmodel.SourceAgentRuntime)
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
 			{
@@ -395,6 +429,9 @@ excluded_interfaces:
     - lo0
 `)
 
+	cfg := configmock.New(t)
+	cfg.Set("network_check.use_core_loader", true, configmodel.SourceAgentRuntime)
+
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 
@@ -474,6 +511,8 @@ func TestExcludedInterfacesRe(t *testing.T) {
 excluded_interface_re: "eth[0-9]"
 `)
 
+	cfg := configmock.New(t)
+	cfg.Set("network_check.use_core_loader", true, configmodel.SourceAgentRuntime)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)

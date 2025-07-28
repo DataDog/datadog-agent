@@ -30,6 +30,14 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
     // process context
     fill_network_process_context_from_pkt(&evt->process, pkt);
 
+    u64 sched_cls_has_current_pid_tgid_helper = 0;
+    LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
+    if (sched_cls_has_current_pid_tgid_helper) {
+        // reset and fill span context
+        reset_span_context(&evt->span);
+        fill_span_context(&evt->span);
+    }
+
     // network context
     fill_network_context(&evt->network, skb, pkt);
 
@@ -48,6 +56,24 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
             evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
         }
     }
+
+    return evt;
+}
+
+__attribute__((always_inline)) union dns_responses_t *get_dns_response_event() {
+    const u32 key = DNS_EVENT_KEY;
+    return bpf_map_lookup_elem(&dns_response_event, &key);
+}
+
+__attribute__((always_inline)) union dns_responses_t *reset_dns_response_event(struct __sk_buff *skb, struct packet_t *pkt) {
+    union dns_responses_t *evt = get_dns_response_event();
+
+    if (evt == NULL) {
+        // should never happen
+        return NULL;
+    }
+
+    __builtin_memset(evt, 0, sizeof(*evt));
 
     return evt;
 }

@@ -21,7 +21,9 @@
 #include <arpa/inet.h>
 #include <linux/un.h>
 #include <err.h>
-#include <errno.h>
+#include <limits.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -194,6 +196,70 @@ int ptrace_attach() {
         wait(NULL);
         sleep(3); // sleep here to let the agent resolve the pid namespace on procfs
     }
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_nofile() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 1024;  // soft limit
+    rlim.rlim_max = 2048;  // hard limit
+    
+    if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+        perror("setrlimit RLIMIT_NOFILE");
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_nproc() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 512;   // soft limit
+    rlim.rlim_max = 1024;  // hard limit
+    
+    if (setrlimit(RLIMIT_NPROC, &rlim) < 0) {
+        perror("setrlimit RLIMIT_NPROC");
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+int prlimit64_stack(void) {
+    struct rlimit64 rlim;
+    rlim.rlim_cur = 1024;   
+    rlim.rlim_max = 2048;
+
+    pid_t dummy_pid = fork();
+    if (dummy_pid < 0) {
+        perror("fork");
+        return EXIT_FAILURE;
+    }
+
+    if (dummy_pid == 0) {
+        sleep(30);
+        return EXIT_SUCCESS;
+    }
+
+    if (prlimit64(dummy_pid, RLIMIT_STACK, &rlim, NULL) < 0) {
+        perror("prlimit64 RLIMIT_STACK");
+        kill(dummy_pid, SIGTERM);
+        waitpid(dummy_pid, NULL, 0);
+        return EXIT_FAILURE;
+    }
+
+    kill(dummy_pid, SIGTERM);
+    waitpid(dummy_pid, NULL, 0);
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_core() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 0;      // no core dumps
+    rlim.rlim_max = 0;      // no core dumps
+    
+    if (setrlimit(RLIMIT_CORE, &rlim) < 0) {
+        perror("setrlimit RLIMIT_CORE");
+        return EXIT_FAILURE;
+    }    
     return EXIT_SUCCESS;
 }
 
@@ -792,6 +858,53 @@ int test_connect_af_inet6(int argc, char** argv) {
     return EXIT_SUCCESS;
 }
 
+int test_connect_af_unix(int argc, char** argv) {
+    if (argc != 3) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: the path of the UNIX socket to connect to\n");
+        fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        return EXIT_FAILURE;
+    }
+
+    char *proto = argv[2];
+    int s;
+    if (!strcmp(proto, "tcp")) {
+        s = socket(AF_UNIX, SOCK_STREAM, 0);
+    } else if (!strcmp(proto, "udp")) {
+        s = socket(AF_UNIX, SOCK_DGRAM, 0);
+    } else {
+        fprintf(stderr, "Please specify an option in the list: tcp, udp\n");
+        return EXIT_FAILURE;
+    }
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    char *socket_path = argv[1];
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+
+    if (strlen(socket_path) >= sizeof(addr.sun_path)) {
+        close(s);
+        fprintf(stderr, "Path too long for AF_UNIX socket\n");
+        return EXIT_FAILURE;
+    }
+    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+
+    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(s);
+        perror("Failed to connect to AF_UNIX socket");
+        return EXIT_FAILURE;
+    }
+
+    close(s);
+    return EXIT_SUCCESS;
+}
+
+
 int test_connect(int argc, char** argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please specify an addr_type\n");
@@ -803,6 +916,8 @@ int test_connect(int argc, char** argv) {
         return test_connect_af_inet(argc - 1, argv + 1);
     } else if  (!strcmp(addr_family, "AF_INET6")) {
         return test_connect_af_inet6(argc - 1, argv + 1);
+    } else if (!strcmp(addr_family, "AF_UNIX")) {
+        return test_connect_af_unix(argc - 1, argv + 1);
     }
     fprintf(stderr, "Specified %s addr_type is not a valid one, try: AF_INET or AF_INET6 \n", addr_family);
     return EXIT_FAILURE;
@@ -1099,6 +1214,137 @@ int test_network_flow_send_udp4(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_chmod(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a file name and a mode\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    char *end;
+    unsigned long mode = strtoul(argv[2], &end, 8);
+    if (end == argv[2]) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && mode == ULONG_MAX) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (mode > 0777) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    if (chmod(filename, mode) < 0) {
+        perror("chmod");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_chown(int argc, char **argv) {
+    if (argc != 4) {
+        fprintf(stderr, "Please specify a file name, a user ID, and a group ID\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    char *end;
+    unsigned long owner = strtoul(argv[2], &end, 10);
+    if (end == argv[2]) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && owner == ULONG_MAX) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if ((uid_t)owner != owner) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+
+    unsigned long group = strtoul(argv[3], &end, 10);
+    if (end == argv[3]) {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && group == ULONG_MAX) {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if ((gid_t)group != group) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    if (chown(filename, (uid_t)owner, (gid_t)group) < 0) {
+        perror("chown");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_rename(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a source and a destination file name\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *oldpath = argv[1];
+    const char *newpath = argv[2];
+
+    if (rename(oldpath, newpath) < 0) {
+        perror("rename");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_utimes(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a file name and a time\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    struct timeval times[2] = {0, 0};
+    if (utimes(filename, times) < 0) {
+        perror("utimes");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_link(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a source and a destination file name\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *oldpath = argv[1];
+    const char *newpath = argv[2];
+
+    if (link(oldpath, newpath) < 0) {
+        perror("link");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1130,6 +1376,14 @@ int main(int argc, char **argv) {
             exit_code = ptrace_traceme();
         } else if (strcmp(cmd, "ptrace-attach") == 0) {
             exit_code = ptrace_attach();
+        } else if (strcmp(cmd, "setrlimit-nofile") == 0) {
+            exit_code = setrlimit_nofile();
+        } else if (strcmp(cmd, "setrlimit-nproc") == 0) {
+            exit_code = setrlimit_nproc();
+        } else if (strcmp(cmd, "prlimit64-stack") == 0) {
+            exit_code = prlimit64_stack();
+        } else if (strcmp(cmd, "setrlimit-core") == 0) {
+            exit_code = setrlimit_core();
         } else if (strcmp(cmd, "span-open") == 0) {
             exit_code = span_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pipe-chown") == 0) {
@@ -1153,7 +1407,7 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmd, "connect") == 0) {
             exit_code = test_connect(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fork") == 0) {
-            return test_forkexec(sub_argc, sub_argv);
+            exit_code = test_forkexec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "set-signal-handler") == 0) {
             exit_code = test_set_signal_handler(sub_argc, sub_argv);
         } else if (strcmp(cmd, "wait-signal") == 0) {
@@ -1182,9 +1436,18 @@ int main(int argc, char **argv) {
             exit_code = test_slow_write(sub_argc, sub_argv);
         } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
-        }
-        else {
-            fprintf(stderr, "Unknown command `%s`\n", cmd);
+        } else if (strcmp(cmd, "chmod") == 0) {
+            exit_code = test_chmod(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chown") == 0) {
+            exit_code = test_chown(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "rename") == 0) {
+            exit_code = test_rename(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "utimes") == 0) {
+            exit_code = test_utimes(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "link") == 0) {
+            exit_code = test_link(sub_argc, sub_argv);
+        } else {
+            fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;
         }
 

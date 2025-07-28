@@ -56,5 +56,5 @@ func (o *Obfuscator) ObfuscateURLString(val string) string {
 			u.Path = strings.Join(segs, "/")
 		}
 	}
-	return strings.Replace(u.String(), "/REDACTED/", "?", -1)
+	return strings.ReplaceAll(u.String(), "/REDACTED/", "?")
 }

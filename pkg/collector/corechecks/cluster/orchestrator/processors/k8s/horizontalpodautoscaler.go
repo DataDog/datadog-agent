@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 )
 
@@ -29,6 +30,16 @@ type HorizontalPodAutoscalerHandlers struct {
 func (h *HorizontalPodAutoscalerHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.HorizontalPodAutoscaler)
 	m.Yaml = yaml
+	return
+}
+
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *HorizontalPodAutoscalerHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*v2.HorizontalPodAutoscaler)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
 	return
 }
 
@@ -48,7 +59,8 @@ func (h *HorizontalPodAutoscalerHandlers) BuildMessageBody(ctx processors.Proces
 		GroupId:                  pctx.MsgGroupID,
 		GroupSize:                int32(groupSize),
 		HorizontalPodAutoscalers: models,
-		Tags:                     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:                     util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion:             ctx.GetAgentVersion(),
 	}
 }
 
@@ -69,7 +81,7 @@ func (h *HorizontalPodAutoscalerHandlers) ResourceList(ctx processors.ProcessorC
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
@@ -87,6 +99,17 @@ func (h *HorizontalPodAutoscalerHandlers) ResourceUID(ctx processors.ProcessorCo
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *HorizontalPodAutoscalerHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*v2.HorizontalPodAutoscaler).ResourceVersion
+}
+
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *HorizontalPodAutoscalerHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.HorizontalPodAutoscaler)
+	if !ok {
+		return nil
+	}
+	return m.Tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

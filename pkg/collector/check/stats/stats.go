@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package stats contains the stats for a check
 package stats
 
 import (
+	"maps"
 	"sync"
 	"time"
 
@@ -89,9 +90,7 @@ func NewSenderStats() SenderStats {
 func (s SenderStats) Copy() (result SenderStats) {
 	result = s
 	result.EventPlatformEvents = make(map[string]int64, len(s.EventPlatformEvents))
-	for k, v := range s.EventPlatformEvents {
-		result.EventPlatformEvents[k] = v
-	}
+	maps.Copy(result.EventPlatformEvents, s.EventPlatformEvents)
 	return result
 }
 
@@ -133,7 +132,7 @@ type Stats struct {
 	HASupported              bool
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type StatsCheck interface {
 	// String provides a printable version of the check name
 	String() string
@@ -196,10 +195,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		tlmExecutionTime.Set(float64(tms), cs.CheckName, cs.CheckLoader)
 	}
 	var totalExecutionTime int64
-	ringSize := cs.TotalRuns
-	if ringSize > uint64(len(cs.ExecutionTimes)) {
-		ringSize = uint64(len(cs.ExecutionTimes))
-	}
+	ringSize := min(cs.TotalRuns, uint64(len(cs.ExecutionTimes)))
 	for i := uint64(0); i < ringSize; i++ {
 		totalExecutionTime += cs.ExecutionTimes[i]
 	}
@@ -309,8 +305,6 @@ func TranslateEventPlatformEventTypes(aggregatorStats interface{}) (interface{},
 	result := make(map[string]interface{})
 	result["EventPlatformEvents"] = translateEventTypes(aggStats.EventPlatformEvents)
 	result["EventPlatformEventsErrors"] = translateEventTypes(aggStats.EventPlatformEventsErrors)
-	for k, v := range aggStats.Other {
-		result[k] = v
-	}
+	maps.Copy(result, aggStats.Other)
 	return result, nil
 }

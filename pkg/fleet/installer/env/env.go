@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,22 +36,40 @@ const (
 	envAgentMajorVersion     = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
-	envAgentUserName         = "DD_AGENT_USER_NAME"
-	// envAgentUserNameCompat provides compatibility with the original MSI parameter name
-	envAgentUserNameCompat = "DDAGENTUSER_NAME"
-	envTags                = "DD_TAGS"
-	envExtraTags           = "DD_EXTRA_TAGS"
-	envHostname            = "DD_HOSTNAME"
-	envDDHTTPProxy         = "DD_PROXY_HTTP"
-	envHTTPProxy           = "HTTP_PROXY"
-	envDDHTTPSProxy        = "DD_PROXY_HTTPS"
-	envHTTPSProxy          = "HTTPS_PROXY"
-	envDDNoProxy           = "DD_PROXY_NO_PROXY"
-	envNoProxy             = "NO_PROXY"
-	envIsFromDaemon        = "DD_INSTALLER_FROM_DAEMON"
+	envTags                  = "DD_TAGS"
+	envExtraTags             = "DD_EXTRA_TAGS"
+	envHostname              = "DD_HOSTNAME"
+	envDDHTTPProxy           = "DD_PROXY_HTTP"
+	envHTTPProxy             = "HTTP_PROXY"
+	envDDHTTPSProxy          = "DD_PROXY_HTTPS"
+	envHTTPSProxy            = "HTTPS_PROXY"
+	envDDNoProxy             = "DD_PROXY_NO_PROXY"
+	envNoProxy               = "NO_PROXY"
+	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
 
 	// install script
 	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
+	envRuntimeMetricsEnabled     = "DD_RUNTIME_METRICS_ENABLED"
+	envLogsInjection             = "DD_LOGS_INJECTION"
+	envAPMTracingEnabled         = "DD_APM_TRACING_ENABLED"
+	envProfilingEnabled          = "DD_PROFILING_ENABLED"
+	envDataStreamsEnabled        = "DD_DATA_STREAMS_ENABLED"
+	envAppsecEnabled             = "DD_APPSEC_ENABLED"
+	envIastEnabled               = "DD_IAST_ENABLED"
+	envDataJobsEnabled           = "DD_DATA_JOBS_ENABLED"
+	envAppsecScaEnabled          = "DD_APPSEC_SCA_ENABLED"
+)
+
+// Windows MSI options
+const (
+	envAgentUserName = "DD_AGENT_USER_NAME"
+	// envAgentUserNameCompat provides compatibility with the original MSI parameter name
+	envAgentUserNameCompat = "DDAGENTUSER_NAME"
+	envAgentUserPassword   = "DD_AGENT_USER_PASSWORD"
+	// envAgentUserPasswordCompat provides compatibility with the original MSI parameter name
+	envAgentUserPasswordCompat  = "DDAGENTUSER_PASSWORD"
+	envProjectLocation          = "DD_PROJECTLOCATION"
+	envApplicationDataDirectory = "DD_APPLICATIONDATADIRECTORY"
 )
 
 var defaultEnv = Env{
@@ -73,6 +92,15 @@ var defaultEnv = Env{
 
 	InstallScript: InstallScriptEnv{
 		APMInstrumentationEnabled: "",
+		RuntimeMetricsEnabled:     nil,
+		LogsInjection:             nil,
+		APMTracingEnabled:         nil,
+		ProfilingEnabled:          "",
+		DataStreamsEnabled:        nil,
+		AppsecEnabled:             nil,
+		IastEnabled:               nil,
+		DataJobsEnabled:           nil,
+		AppsecScaEnabled:          nil,
 	},
 }
 
@@ -93,9 +121,29 @@ const (
 	APMInstrumentationNotSet = "not_set"
 )
 
+// MsiParamsEnv contains the environment variables for options that are passed to the MSI.
+type MsiParamsEnv struct {
+	AgentUserName            string
+	AgentUserPassword        string
+	ProjectLocation          string
+	ApplicationDataDirectory string
+}
+
 // InstallScriptEnv contains the environment variables for the install script.
 type InstallScriptEnv struct {
+	// SSI
 	APMInstrumentationEnabled string
+
+	// APM features toggles
+	RuntimeMetricsEnabled *bool
+	LogsInjection         *bool
+	APMTracingEnabled     *bool
+	ProfilingEnabled      string
+	DataStreamsEnabled    *bool
+	AppsecEnabled         *bool
+	IastEnabled           *bool
+	DataJobsEnabled       *bool
+	AppsecScaEnabled      *bool
 }
 
 // Env contains the configuration for the installer.
@@ -121,7 +169,8 @@ type Env struct {
 
 	AgentMajorVersion string
 	AgentMinorVersion string
-	AgentUserName     string // windows only
+
+	MsiParams MsiParamsEnv // windows only
 
 	InstallScript InstallScriptEnv
 
@@ -191,10 +240,25 @@ func FromEnv() *Env {
 
 		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
-		AgentUserName:     getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
+
+		MsiParams: MsiParamsEnv{
+			AgentUserName:            getEnvOrDefault(envAgentUserName, os.Getenv(envAgentUserNameCompat)),
+			AgentUserPassword:        getEnvOrDefault(envAgentUserPassword, os.Getenv(envAgentUserPasswordCompat)),
+			ProjectLocation:          getEnvOrDefault(envProjectLocation, ""),
+			ApplicationDataDirectory: getEnvOrDefault(envApplicationDataDirectory, ""),
+		},
 
 		InstallScript: InstallScriptEnv{
 			APMInstrumentationEnabled: getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
+			RuntimeMetricsEnabled:     getBoolEnv(envRuntimeMetricsEnabled),
+			LogsInjection:             getBoolEnv(envLogsInjection),
+			APMTracingEnabled:         getBoolEnv(envAPMTracingEnabled),
+			ProfilingEnabled:          getEnvOrDefault(envProfilingEnabled, ""),
+			DataStreamsEnabled:        getBoolEnv(envDataStreamsEnabled),
+			AppsecEnabled:             getBoolEnv(envAppsecEnabled),
+			IastEnabled:               getBoolEnv(envIastEnabled),
+			DataJobsEnabled:           getBoolEnv(envDataJobsEnabled),
+			AppsecScaEnabled:          getBoolEnv(envAppsecScaEnabled),
 		},
 
 		Tags: append(
@@ -212,36 +276,59 @@ func FromEnv() *Env {
 	}
 }
 
+func appendBoolEnv(env []string, key string, value *bool) []string {
+	if value != nil {
+		env = append(env, key+"="+strconv.FormatBool(*value))
+	}
+	return env
+}
+
+func appendStringEnv(env []string, key string, value string, skipIfEqual string) []string {
+	if value != skipIfEqual {
+		env = append(env, key+"="+value)
+	}
+	return env
+}
+
+// ToEnv returns a slice of environment variables from the InstallScriptEnv struct
+func (e *InstallScriptEnv) ToEnv(env []string) []string {
+	env = appendStringEnv(env, envApmInstrumentationEnabled, e.APMInstrumentationEnabled, "")
+	env = appendBoolEnv(env, envRuntimeMetricsEnabled, e.RuntimeMetricsEnabled)
+	env = appendBoolEnv(env, envLogsInjection, e.LogsInjection)
+	env = appendBoolEnv(env, envAPMTracingEnabled, e.APMTracingEnabled)
+	env = appendStringEnv(env, envProfilingEnabled, e.ProfilingEnabled, "")
+	env = appendBoolEnv(env, envDataStreamsEnabled, e.DataStreamsEnabled)
+	env = appendBoolEnv(env, envAppsecEnabled, e.AppsecEnabled)
+	env = appendBoolEnv(env, envIastEnabled, e.IastEnabled)
+	env = appendBoolEnv(env, envDataJobsEnabled, e.DataJobsEnabled)
+	env = appendBoolEnv(env, envAppsecScaEnabled, e.AppsecScaEnabled)
+	return env
+}
+
+// ToEnv returns a slice of environment variables from the MsiParamsEnv struct.
+func (e *MsiParamsEnv) ToEnv(env []string) []string {
+	env = appendStringEnv(env, envAgentUserName, e.AgentUserName, "")
+	env = appendStringEnv(env, envAgentUserPassword, e.AgentUserPassword, "")
+	env = appendStringEnv(env, envProjectLocation, e.ProjectLocation, "")
+	env = appendStringEnv(env, envApplicationDataDirectory, e.ApplicationDataDirectory, "")
+	return env
+}
+
 // ToEnv returns a slice of environment variables from the Env struct.
 func (e *Env) ToEnv() []string {
 	var env []string
-	if e.APIKey != "" {
-		env = append(env, envAPIKey+"="+e.APIKey)
-	}
-	if e.Site != "" {
-		env = append(env, envSite+"="+e.Site)
-	}
+	env = appendStringEnv(env, envAPIKey, e.APIKey, "")
+	env = appendStringEnv(env, envSite, e.Site, "")
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
 	}
-	if e.Mirror != "" {
-		env = append(env, envMirror+"="+e.Mirror)
-	}
-	if e.RegistryOverride != "" {
-		env = append(env, envRegistryURL+"="+e.RegistryOverride)
-	}
-	if e.RegistryAuthOverride != "" {
-		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
-	}
-	if e.RegistryUsername != "" {
-		env = append(env, envRegistryUsername+"="+e.RegistryUsername)
-	}
-	if e.RegistryPassword != "" {
-		env = append(env, envRegistryPassword+"="+e.RegistryPassword)
-	}
-	if e.InstallScript.APMInstrumentationEnabled != "" {
-		env = append(env, envApmInstrumentationEnabled+"="+e.InstallScript.APMInstrumentationEnabled)
-	}
+	env = appendStringEnv(env, envMirror, e.Mirror, "")
+	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
+	env = appendStringEnv(env, envRegistryAuth, e.RegistryAuthOverride, "")
+	env = appendStringEnv(env, envRegistryUsername, e.RegistryUsername, "")
+	env = appendStringEnv(env, envRegistryPassword, e.RegistryPassword, "")
+	env = e.MsiParams.ToEnv(env)
+	env = e.InstallScript.ToEnv(env)
 	if len(e.ApmLibraries) > 0 {
 		libraries := []string{}
 		for l, v := range e.ApmLibraries {
@@ -257,18 +344,10 @@ func (e *Env) ToEnv() []string {
 	if len(e.Tags) > 0 {
 		env = append(env, envTags+"="+strings.Join(e.Tags, ","))
 	}
-	if len(e.Hostname) > 0 {
-		env = append(env, envHostname+"="+e.Hostname)
-	}
-	if e.HTTPProxy != "" {
-		env = append(env, envHTTPProxy+"="+e.HTTPProxy)
-	}
-	if e.HTTPSProxy != "" {
-		env = append(env, envHTTPSProxy+"="+e.HTTPSProxy)
-	}
-	if e.NoProxy != "" {
-		env = append(env, envNoProxy+"="+e.NoProxy)
-	}
+	env = appendStringEnv(env, envHostname, e.Hostname, "")
+	env = appendStringEnv(env, envHTTPProxy, e.HTTPProxy, "")
+	env = appendStringEnv(env, envHTTPSProxy, e.HTTPSProxy, "")
+	env = appendStringEnv(env, envNoProxy, e.NoProxy, "")
 	if e.IsFromDaemon {
 		env = append(env, envIsFromDaemon+"=true")
 		// This is a bit of a hack; as we should properly redirect the log level
@@ -284,6 +363,7 @@ func (e *Env) ToEnv() []string {
 	env = append(env, overridesByNameToEnv(envRegistryPassword, e.RegistryPasswordByImage)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
+
 	return env
 }
 
@@ -362,11 +442,25 @@ func overridesByNameToEnv[T any](envPrefix string, overridesByPackage map[string
 }
 
 func getEnvOrDefault(env string, defaultValue string) string {
-	value := os.Getenv(env)
-	if value == "" {
+	value, set := os.LookupEnv(env)
+	if !set {
 		return defaultValue
 	}
 	return value
+}
+
+func getBoolEnv(env string) *bool {
+	t := true
+	f := false
+	value := os.Getenv(env)
+	switch value {
+	case "true":
+		return &t
+	case "false":
+		return &f
+	default:
+		return nil
+	}
 }
 
 func getProxySetting(ddEnv string, env string) string {
@@ -385,4 +479,19 @@ func ValidateAPMInstrumentationEnabled(value string) error {
 		return fmt.Errorf("invalid value for %s: %s", envApmInstrumentationEnabled, value)
 	}
 	return nil
+}
+
+// GetAgentVersion returns the agent version from the environment variables.
+func (e *Env) GetAgentVersion() string {
+	minorVersion := e.AgentMinorVersion
+	if strings.Contains(minorVersion, ".") && !strings.HasSuffix(minorVersion, "-1") {
+		minorVersion = minorVersion + "-1"
+	}
+	if e.AgentMajorVersion != "" && minorVersion != "" {
+		return e.AgentMajorVersion + "." + minorVersion
+	}
+	if minorVersion != "" {
+		return "7." + minorVersion
+	}
+	return "latest"
 }

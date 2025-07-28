@@ -424,7 +424,13 @@ func TestMultipleAPIKeys(t *testing.T) {
 
 	apiKeys := []string{"apiKeyI", "apiKeyII", "apiKeyIII"}
 
-	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, configmock.New(t), func(_ *CheckRunner, ep *mockEndpoint) {
+	config := configmock.New(t)
+	// Set concurrent requests to 1 to ensure that the requests are made in exact order.
+	// A value of more than 1 would mean the order is determined by the go scheduler and can be different to
+	// what is sent.
+	config.SetWithoutSource("forwarder_max_concurrent_requests", 1)
+
+	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, config, func(_ *CheckRunner, ep *mockEndpoint) {
 		for _, expectedAPIKey := range apiKeys {
 			request := <-ep.Requests
 			assert.Equal(t, expectedAPIKey, request.headers.Get("DD-Api-Key"))
@@ -460,8 +466,8 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	assert.NoError(t, err)
 	err = check.Init(nil, hostInfo, true)
 	assert.NoError(t, err)
-	deps := newSubmitterDepsWithConfig(t, mockConfig)
-	submitter, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, deps.Statsd, hostInfo.HostName)
+	deps := getSubmitterDeps(t, mockConfig.AllSettings(), nil)
+	submitter, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, deps.Statsd, hostInfo.HostName, deps.SysProbeConfig)
 	c.Submitter = submitter
 	require.NoError(t, err)
 

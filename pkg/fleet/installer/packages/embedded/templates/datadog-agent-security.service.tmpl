@@ -1,0 +1,29 @@
+[Unit]
+{{- if .Stable}}
+Description=Datadog Security Agent
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-security-exp.service
+ConditionPathExists=|{{.EtcDir}}/security-agent.yaml
+ConditionPathExists=|{{.FleetPoliciesDir}}/security-agent.yaml
+{{- else}}
+Description=Datadog Security Agent Experiment
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent-exp.service
+Conflicts=datadog-agent-security.service
+ConditionPathExists=|{{.EtcDir}}/security-agent.yaml
+ConditionPathExists=|{{.FleetPoliciesDir}}/security-agent.yaml
+{{- end}}
+
+[Service]
+Type=simple
+PIDFile={{.InstallDir}}/run/security-agent.pid
+Restart=on-failure
+EnvironmentFile=-{{.EtcDir}}/environment
+Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+ExecStart={{.InstallDir}}/embedded/bin/security-agent start -c {{.EtcDir}}/datadog.yaml -c {{.EtcDir}}/security-agent.yaml --sysprobe-config {{.EtcDir}}/system-probe.yaml --pidfile {{.InstallDir}}/run/security-agent.pid
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

@@ -10,6 +10,7 @@ package k8s
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -33,6 +34,16 @@ func (h *NodeHandlers) AfterMarshalling(ctx processors.ProcessorContext, resourc
 	return
 }
 
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *NodeHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*corev1.Node)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
+	return
+}
+
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
 func (h *NodeHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
@@ -44,12 +55,13 @@ func (h *NodeHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 	}
 
 	return &model.CollectorNode{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		Nodes:       models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		Nodes:        models,
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 }
 
@@ -70,7 +82,7 @@ func (h *NodeHandlers) ResourceList(ctx processors.ProcessorContext, list interf
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
@@ -90,6 +102,17 @@ func (h *NodeHandlers) ResourceVersion(ctx processors.ProcessorContext, resource
 	return resource.(*corev1.Node).ResourceVersion
 }
 
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *NodeHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.Node)
+	if !ok {
+		return nil
+	}
+	return m.Tags
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //
@@ -104,4 +127,12 @@ func (h *NodeHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, re
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {
+}
+
+// GetNodeName is a handler called to retrieve the node name from the resource.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *NodeHandlers) GetNodeName(ctx processors.ProcessorContext, resource interface{}) string {
+	r := resource.(*corev1.Node)
+	return r.Name
 }

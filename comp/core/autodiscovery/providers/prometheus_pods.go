@@ -9,11 +9,15 @@ package providers
 
 import (
 	"context"
+	"fmt"
+	"maps"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -22,20 +26,23 @@ import (
 // PrometheusPodsConfigProvider implements the ConfigProvider interface for prometheus pods.
 type PrometheusPodsConfigProvider struct {
 	kubelet kubelet.KubeUtilInterface
+	checks  []*types.PrometheusCheck
 
-	checks []*types.PrometheusCheck
+	configErrorsMu sync.RWMutex
+	configErrors   map[string]providerTypes.ErrorMsgSet
 }
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewPrometheusPodsConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
+func NewPrometheusPodsConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (providerTypes.ConfigProvider, error) {
 	checks, err := getPrometheusConfigs()
 	if err != nil {
 		return nil, err
 	}
 
 	p := &PrometheusPodsConfigProvider{
-		checks: checks,
+		checks:       checks,
+		configErrors: make(map[string]providerTypes.ErrorMsgSet),
 	}
 	return p, nil
 }
@@ -64,24 +71,46 @@ func (p *PrometheusPodsConfigProvider) Collect(ctx context.Context) ([]integrati
 }
 
 // IsUpToDate always return false to poll new data from kubelet
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (p *PrometheusPodsConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (p *PrometheusPodsConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return false, nil
 }
 
 // parsePodlist searches for pods that match the AD configuration
 func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelet.Pod) []integration.Config {
+	p.configErrorsMu.Lock()
+	defer p.configErrorsMu.Unlock()
+
+	// Reset configErrors
+	p.configErrors = make(map[string]providerTypes.ErrorMsgSet)
+
 	var configs []integration.Config
+
 	for _, pod := range podlist {
 		for _, check := range p.checks {
-			configs = append(configs, utils.ConfigsForPod(check, pod)...)
+			podConfigs, err := utils.ConfigsForPod(check, pod)
+			if err != nil {
+				p.configErrors[podIDForErrMsg(pod)] = providerTypes.ErrorMsgSet{
+					err.Error(): struct{}{},
+				}
+			} else {
+				configs = append(configs, podConfigs...)
+			}
 		}
 	}
+
 	return configs
 }
 
-// GetConfigErrors is not implemented for the PrometheusPodsConfigProvider
-func (p *PrometheusPodsConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+// GetConfigErrors returns the configuration errors
+func (p *PrometheusPodsConfigProvider) GetConfigErrors() map[string]providerTypes.ErrorMsgSet {
+	p.configErrorsMu.RLock()
+	defer p.configErrorsMu.RUnlock()
+
+	errors := make(map[string]providerTypes.ErrorMsgSet, len(p.configErrors))
+	maps.Copy(errors, p.configErrors)
+	return errors
+}
+
+func podIDForErrMsg(pod *kubelet.Pod) string {
+	return fmt.Sprintf("%s/%s (%s)", pod.Metadata.Namespace, pod.Metadata.Name, pod.Metadata.UID)
 }

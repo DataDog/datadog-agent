@@ -10,29 +10,29 @@ import (
 func (z *AttributeAnyValue) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 6
-	// string "Type"
-	o = append(o, 0x86, 0xa4, 0x54, 0x79, 0x70, 0x65)
+	// string "type"
+	o = append(o, 0x86, 0xa4, 0x74, 0x79, 0x70, 0x65)
 	o = msgp.AppendInt32(o, int32(z.Type))
-	// string "StringValue"
-	o = append(o, 0xab, 0x53, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x56, 0x61, 0x6c, 0x75, 0x65)
+	// string "string_value"
+	o = append(o, 0xac, 0x73, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
 	o = msgp.AppendString(o, z.StringValue)
-	// string "BoolValue"
-	o = append(o, 0xa9, 0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65)
+	// string "bool_value"
+	o = append(o, 0xaa, 0x62, 0x6f, 0x6f, 0x6c, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
 	o = msgp.AppendBool(o, z.BoolValue)
-	// string "IntValue"
-	o = append(o, 0xa8, 0x49, 0x6e, 0x74, 0x56, 0x61, 0x6c, 0x75, 0x65)
+	// string "int_value"
+	o = append(o, 0xa9, 0x69, 0x6e, 0x74, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
 	o = msgp.AppendInt64(o, z.IntValue)
-	// string "DoubleValue"
-	o = append(o, 0xab, 0x44, 0x6f, 0x75, 0x62, 0x6c, 0x65, 0x56, 0x61, 0x6c, 0x75, 0x65)
+	// string "double_value"
+	o = append(o, 0xac, 0x64, 0x6f, 0x75, 0x62, 0x6c, 0x65, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
 	o = msgp.AppendFloat64(o, z.DoubleValue)
-	// string "ArrayValue"
-	o = append(o, 0xaa, 0x41, 0x72, 0x72, 0x61, 0x79, 0x56, 0x61, 0x6c, 0x75, 0x65)
+	// string "array_value"
+	o = append(o, 0xab, 0x61, 0x72, 0x72, 0x61, 0x79, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
 	if z.ArrayValue == nil {
 		o = msgp.AppendNil(o)
 	} else {
 		// map header, size 1
-		// string "Values"
-		o = append(o, 0x81, 0xa6, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x73)
+		// string "values"
+		o = append(o, 0x81, 0xa6, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x73)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.ArrayValue.Values)))
 		for za0001 := range z.ArrayValue.Values {
 			if z.ArrayValue.Values[za0001] == nil {
@@ -67,7 +67,7 @@ func (z *AttributeAnyValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "Type":
+		case "type":
 			{
 				var zb0002 int32
 				zb0002, bts, err = msgp.ReadInt32Bytes(bts)
@@ -77,31 +77,31 @@ func (z *AttributeAnyValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 				z.Type = AttributeAnyValue_AttributeAnyValueType(zb0002)
 			}
-		case "StringValue":
+		case "string_value":
 			z.StringValue, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "StringValue")
 				return
 			}
-		case "BoolValue":
+		case "bool_value":
 			z.BoolValue, bts, err = msgp.ReadBoolBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "BoolValue")
 				return
 			}
-		case "IntValue":
+		case "int_value":
 			z.IntValue, bts, err = msgp.ReadInt64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "IntValue")
 				return
 			}
-		case "DoubleValue":
+		case "double_value":
 			z.DoubleValue, bts, err = msgp.ReadFloat64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "DoubleValue")
 				return
 			}
-		case "ArrayValue":
+		case "array_value":
 			if msgp.IsNil(bts) {
 				bts, err = msgp.ReadNilBytes(bts)
 				if err != nil {
@@ -126,7 +126,7 @@ func (z *AttributeAnyValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 						return
 					}
 					switch msgp.UnsafeString(field) {
-					case "Values":
+					case "values":
 						var zb0004 uint32
 						zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
 						if err != nil {
@@ -179,7 +179,7 @@ func (z *AttributeAnyValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *AttributeAnyValue) Msgsize() (s int) {
-	s = 1 + 5 + msgp.Int32Size + 12 + msgp.StringPrefixSize + len(z.StringValue) + 10 + msgp.BoolSize + 9 + msgp.Int64Size + 12 + msgp.Float64Size + 11
+	s = 1 + 5 + msgp.Int32Size + 13 + msgp.StringPrefixSize + len(z.StringValue) + 11 + msgp.BoolSize + 10 + msgp.Int64Size + 13 + msgp.Float64Size + 12
 	if z.ArrayValue == nil {
 		s += msgp.NilSize
 	} else {
@@ -227,8 +227,8 @@ func (z AttributeAnyValue_AttributeAnyValueType) Msgsize() (s int) {
 func (z *AttributeArray) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 1
-	// string "Values"
-	o = append(o, 0x81, 0xa6, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x73)
+	// string "values"
+	o = append(o, 0x81, 0xa6, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x73)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Values)))
 	for za0001 := range z.Values {
 		if z.Values[za0001] == nil {
@@ -262,7 +262,7 @@ func (z *AttributeArray) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "Values":
+		case "values":
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
@@ -321,20 +321,20 @@ func (z *AttributeArray) Msgsize() (s int) {
 func (z *AttributeArrayValue) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 5
-	// string "Type"
-	o = append(o, 0x85, 0xa4, 0x54, 0x79, 0x70, 0x65)
+	// string "type"
+	o = append(o, 0x85, 0xa4, 0x74, 0x79, 0x70, 0x65)
 	o = msgp.AppendInt32(o, int32(z.Type))
-	// string "StringValue"
-	o = append(o, 0xab, 0x53, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x56, 0x61, 0x6c, 0x75, 0x65)
+	// string "string_value"
+	o = append(o, 0xac, 0x73, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
 	o = msgp.AppendString(o, z.StringValue)
-	// string "BoolValue"
-	o = append(o, 0xa9, 0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65)
+	// string "bool_value"
+	o = append(o, 0xaa, 0x62, 0x6f, 0x6f, 0x6c, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
 	o = msgp.AppendBool(o, z.BoolValue)
-	// string "IntValue"
-	o = append(o, 0xa8, 0x49, 0x6e, 0x74, 0x56, 0x61, 0x6c, 0x75, 0x65)
+	// string "int_value"
+	o = append(o, 0xa9, 0x69, 0x6e, 0x74, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
 	o = msgp.AppendInt64(o, z.IntValue)
-	// string "DoubleValue"
-	o = append(o, 0xab, 0x44, 0x6f, 0x75, 0x62, 0x6c, 0x65, 0x56, 0x61, 0x6c, 0x75, 0x65)
+	// string "double_value"
+	o = append(o, 0xac, 0x64, 0x6f, 0x75, 0x62, 0x6c, 0x65, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65)
 	o = msgp.AppendFloat64(o, z.DoubleValue)
 	return
 }
@@ -357,7 +357,7 @@ func (z *AttributeArrayValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "Type":
+		case "type":
 			{
 				var zb0002 int32
 				zb0002, bts, err = msgp.ReadInt32Bytes(bts)
@@ -367,25 +367,25 @@ func (z *AttributeArrayValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 				z.Type = AttributeArrayValue_AttributeArrayValueType(zb0002)
 			}
-		case "StringValue":
+		case "string_value":
 			z.StringValue, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "StringValue")
 				return
 			}
-		case "BoolValue":
+		case "bool_value":
 			z.BoolValue, bts, err = msgp.ReadBoolBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "BoolValue")
 				return
 			}
-		case "IntValue":
+		case "int_value":
 			z.IntValue, bts, err = msgp.ReadInt64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "IntValue")
 				return
 			}
-		case "DoubleValue":
+		case "double_value":
 			z.DoubleValue, bts, err = msgp.ReadFloat64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "DoubleValue")
@@ -405,7 +405,7 @@ func (z *AttributeArrayValue) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *AttributeArrayValue) Msgsize() (s int) {
-	s = 1 + 5 + msgp.Int32Size + 12 + msgp.StringPrefixSize + len(z.StringValue) + 10 + msgp.BoolSize + 9 + msgp.Int64Size + 12 + msgp.Float64Size
+	s = 1 + 5 + msgp.Int32Size + 13 + msgp.StringPrefixSize + len(z.StringValue) + 11 + msgp.BoolSize + 10 + msgp.Int64Size + 13 + msgp.Float64Size
 	return
 }
 
@@ -908,14 +908,14 @@ func (z *Span) Msgsize() (s int) {
 func (z *SpanEvent) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 3
-	// string "TimeUnixNano"
-	o = append(o, 0x83, 0xac, 0x54, 0x69, 0x6d, 0x65, 0x55, 0x6e, 0x69, 0x78, 0x4e, 0x61, 0x6e, 0x6f)
+	// string "time_unix_nano"
+	o = append(o, 0x83, 0xae, 0x74, 0x69, 0x6d, 0x65, 0x5f, 0x75, 0x6e, 0x69, 0x78, 0x5f, 0x6e, 0x61, 0x6e, 0x6f)
 	o = msgp.AppendUint64(o, z.TimeUnixNano)
-	// string "Name"
-	o = append(o, 0xa4, 0x4e, 0x61, 0x6d, 0x65)
+	// string "name"
+	o = append(o, 0xa4, 0x6e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.Name)
-	// string "Attributes"
-	o = append(o, 0xaa, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73)
+	// string "attributes"
+	o = append(o, 0xaa, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73)
 	o = msgp.AppendMapHeader(o, uint32(len(z.Attributes)))
 	for za0001, za0002 := range z.Attributes {
 		o = msgp.AppendString(o, za0001)
@@ -950,19 +950,19 @@ func (z *SpanEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			return
 		}
 		switch msgp.UnsafeString(field) {
-		case "TimeUnixNano":
+		case "time_unix_nano":
 			z.TimeUnixNano, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "TimeUnixNano")
 				return
 			}
-		case "Name":
+		case "name":
 			z.Name, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Name")
 				return
 			}
-		case "Attributes":
+		case "attributes":
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
@@ -1017,7 +1017,7 @@ func (z *SpanEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *SpanEvent) Msgsize() (s int) {
-	s = 1 + 13 + msgp.Uint64Size + 5 + msgp.StringPrefixSize + len(z.Name) + 11 + msgp.MapHeaderSize
+	s = 1 + 15 + msgp.Uint64Size + 5 + msgp.StringPrefixSize + len(z.Name) + 11 + msgp.MapHeaderSize
 	if z.Attributes != nil {
 		for za0001, za0002 := range z.Attributes {
 			_ = za0002

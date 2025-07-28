@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 func TestSecurityProfile(t *testing.T) {
@@ -93,7 +93,7 @@ func TestSecurityProfile(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
-			func(sp *profile.SecurityProfile) bool {
+			func(sp *profile.Profile) bool {
 				if sp.Metadata.Name != dump.Name {
 					t.Errorf("Profile name %s != %s\n", sp.Metadata.Name, dump.Name)
 				}
@@ -147,7 +147,7 @@ func TestSecurityProfile(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
-			func(sp *profile.SecurityProfile) bool {
+			func(sp *profile.Profile) bool {
 				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
 					return node.Node.Process.FileEvent.PathnameStr == syscallTester
 				})
@@ -173,7 +173,7 @@ func TestSecurityProfile(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -186,7 +186,7 @@ func TestSecurityProfile(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
-			func(sp *profile.SecurityProfile) bool {
+			func(sp *profile.Profile) bool {
 				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
 					return node.Node.Process.Argv0 == "nslookup"
 				})
@@ -197,7 +197,7 @@ func TestSecurityProfile(t *testing.T) {
 					t.Fatalf("Found %d nodes, expected only one.", len(nodes))
 				}
 				for name := range nodes[0].DNSNames {
-					if name == "foo.bar" {
+					if name == "one.one.one.one" {
 						return true
 					}
 				}
@@ -326,7 +326,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -362,7 +362,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -458,7 +458,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 
 	t.Run("anomaly-detection-warmup-1", func(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
-			cmd := testDockerInstance1.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := testDockerInstance1.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
@@ -469,7 +469,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 
 	t.Run("anomaly-detection-warmed-up-autolearned-1", func(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
-			cmd := testDockerInstance1.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := testDockerInstance1.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
@@ -512,7 +512,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 
 	t.Run("anomaly-detection-warmed-up-autolearned-2", func(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
-			cmd := testDockerInstance2.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := testDockerInstance2.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			cmd.CombinedOutput()
 			return nil
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
@@ -633,7 +633,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -700,7 +700,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
@@ -762,7 +762,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		},
 		{
 			ID:         "test_autosuppression_dns",
-			Expression: `dns.question.type == A && dns.question.name == "foo.bar"`,
+			Expression: `dns.question.type == A && dns.question.name == "one.one.one.one"`,
 			Tags:       map[string]string{"allow_autosuppression": "true"},
 		},
 		{
@@ -829,7 +829,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	t.Run("auto-suppression-dns-signal", func(t *testing.T) {
 		// check that we generate an event during profile learning phase
 		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
@@ -869,7 +869,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
 		// check we autosuppress signals
 		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
@@ -988,7 +988,7 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	}
 
 	// test profiling part
-	validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil, func(sp *profile.SecurityProfile) bool {
+	validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil, func(sp *profile.Profile) bool {
 		nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
 			if node.Node.Process.FileEvent.PathnameStr == "/bin/date" || node.Node.Process.Argv0 == "/bin/date" {
 				if len(node.Node.Process.Argv) == 1 && slices.Contains([]string{"-u", "-R"}, node.Node.Process.Argv[0]) {
@@ -2236,75 +2236,81 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	})
 }
 
-func generateSyscallTestProfile(add ...model.Syscall) *dumpsv1.SecurityProfile {
-	syscallProfile := &dumpsv1.SecurityProfile{
-		Selector: &dumpsv1.ProfileSelector{
-			ImageName: "fake_ubuntu",
-			ImageTag:  "latest",
-		},
-		ProfileContexts: map[string]*dumpsv1.ProfileContext{
-			"latest": {
-				Syscalls: []uint32{
-					5,   // SysFstat
-					10,  // SysMprotect
-					11,  // SysMunmap
-					12,  // SysBrk
-					13,  // SysRtSigaction
-					14,  // SysRtSigprocmask
-					15,  // SysRtSigreturn
-					17,  // SysPread64
-					24,  // SysSchedYield
-					28,  // SysMadvise
-					35,  // SysNanosleep
-					39,  // SysGetpid
-					56,  // SysClone
-					63,  // SysUname
-					72,  // SysFcntl
-					79,  // SysGetcwd
-					80,  // SysChdir
-					97,  // SysGetrlimit
-					102, // SysGetuid
-					105, // SysSetuid
-					106, // SysSetgid
-					116, // SysSetgroups
-					125, // SysCapget
-					126, // SysCapset
-					131, // SysSigaltstack
-					137, // SysStatfs
-					138, // SysFstatfs
-					157, // SysPrctl
-					158, // SysArchPrctl
-					186, // SysGettid
-					202, // SysFutex
-					204, // SysSchedGetaffinity
-					217, // SysGetdents64
-					218, // SysSetTidAddress
-					233, // SysEpollCtl
-					234, // SysTgkill
-					250, // SysKeyctl
-					257, // SysOpenat
-					262, // SysNewfstatat
-					267, // SysReadlinkat
-					273, // SysSetRobustList
-					281, // SysEpollPwait
-					290, // SysEventfd2
-					291, // SysEpollCreate1
-					293, // SysPipe2
-					302, // SysPrlimit64
-					317, // SysSeccomp
-					321, // SysBpf
-					334, // SysRseq
-					435, // SysClone3
-					439, // SysFaccessat2
-				},
-			},
-		},
+func generateSyscallTestProfile(timeResolver *ktime.Resolver, add ...model.Syscall) *profile.Profile {
+	syscallProfile := profile.New(
+		profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "fake_ubuntu", Tag: "latest"}),
+	)
+
+	baseSyscalls := []uint32{
+		5,   // SysFstat
+		10,  // SysMprotect
+		11,  // SysMunmap
+		12,  // SysBrk
+		13,  // SysRtSigaction
+		14,  // SysRtSigprocmask
+		15,  // SysRtSigreturn
+		17,  // SysPread64
+		24,  // SysSchedYield
+		28,  // SysMadvise
+		35,  // SysNanosleep
+		39,  // SysGetpid
+		56,  // SysClone
+		63,  // SysUname
+		72,  // SysFcntl
+		79,  // SysGetcwd
+		80,  // SysChdir
+		97,  // SysGetrlimit
+		102, // SysGetuid
+		105, // SysSetuid
+		106, // SysSetgid
+		116, // SysSetgroups
+		125, // SysCapget
+		126, // SysCapset
+		131, // SysSigaltstack
+		137, // SysStatfs
+		138, // SysFstatfs
+		157, // SysPrctl
+		158, // SysArchPrctl
+		186, // SysGettid
+		202, // SysFutex
+		204, // SysSchedGetaffinity
+		217, // SysGetdents64
+		218, // SysSetTidAddress
+		233, // SysEpollCtl
+		234, // SysTgkill
+		250, // SysKeyctl
+		257, // SysOpenat
+		262, // SysNewfstatat
+		267, // SysReadlinkat
+		273, // SysSetRobustList
+		281, // SysEpollPwait
+		290, // SysEventfd2
+		291, // SysEpollCreate1
+		293, // SysPipe2
+		302, // SysPrlimit64
+		317, // SysSeccomp
+		321, // SysBpf
+		334, // SysRseq
+		435, // SysClone3
+		439, // SysFaccessat2
 	}
+
+	syscalls := slices.Clone(baseSyscalls)
 	for _, toAdd := range add {
-		if !slices.Contains(syscallProfile.ProfileContexts["latest"].Syscalls, uint32(toAdd)) {
-			syscallProfile.ProfileContexts["latest"].Syscalls = append(syscallProfile.ProfileContexts["latest"].Syscalls, uint32(toAdd))
+		if !slices.Contains(syscalls, uint32(toAdd)) {
+			syscalls = append(syscalls, uint32(toAdd))
 		}
 	}
+
+	nowNano := uint64(timeResolver.ComputeMonotonicTimestamp(time.Now()))
+	syscallProfile.AddVersionContext("latest", &profile.VersionContext{
+		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
+		FirstSeenNano:  nowNano,
+		LastSeenNano:   nowNano,
+		Syscalls:       syscalls,
+		Tags:           []string{"image_name:fake_ubuntu", "image_tag:latest"},
+	})
+
 	return syscallProfile
 }
 
@@ -2380,11 +2386,8 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
-			secProfileManager := test.probe.PlatformProbe.GetProfileManager().(*probe.SecurityProfileManagers).GetSecurityProfileManager()
-			secProfileManager.OnNewProfileEvent(cgroupModel.WorkloadSelector{
-				Image: "fake_ubuntu",
-				Tag:   "latest",
-			}, generateSyscallTestProfile())
+			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+			manager.AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver))
 
 			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
 
@@ -2505,11 +2508,8 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
-			secProfileManager := test.probe.PlatformProbe.GetProfileManager().(*probe.SecurityProfileManagers).GetSecurityProfileManager()
-			secProfileManager.OnNewProfileEvent(cgroupModel.WorkloadSelector{
-				Image: "fake_ubuntu",
-				Tag:   "latest",
-			}, generateSyscallTestProfile(model.SysExecve, model.SysExit, model.SysExitGroup))
+			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+			manager.AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver, model.SysExecve, model.SysExit, model.SysExitGroup))
 
 			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
 
@@ -2622,11 +2622,9 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
-			secProfileManager := test.probe.PlatformProbe.GetProfileManager().(*probe.SecurityProfileManagers).GetSecurityProfileManager()
-			secProfileManager.OnNewProfileEvent(cgroupModel.WorkloadSelector{
-				Image: "fake_ubuntu",
-				Tag:   "latest",
-			}, generateSyscallTestProfile(
+			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
+			manager.AddProfile(generateSyscallTestProfile(
+				test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver,
 				model.SysExecve,
 				model.SysExit,
 				model.SysExitGroup,

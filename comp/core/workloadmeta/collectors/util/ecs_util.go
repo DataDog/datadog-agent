@@ -10,7 +10,6 @@ package util
 import (
 	"context"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -247,13 +246,13 @@ func parseTime(fieldOwner, fieldName, fieldValue string) *time.Time {
 }
 
 // ParseRegionAndAWSAccountID parses the region and AWS account ID from a task ARN.
-func ParseRegionAndAWSAccountID(taskARN string) (string, int) {
+func ParseRegionAndAWSAccountID(taskARN string) (string, string) {
 	arnParts := strings.Split(taskARN, ":")
 	if len(arnParts) < 5 {
-		return "", 0
+		return "", ""
 	}
 	if arnParts[0] != "arn" || arnParts[1] != "aws" {
-		return "", 0
+		return "", ""
 	}
 	region := arnParts[3]
 	if strings.Count(region, "-") < 2 {
@@ -264,14 +263,10 @@ func ParseRegionAndAWSAccountID(taskARN string) (string, int) {
 	// aws account id is 12 digits
 	// https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-identifiers.html
 	if len(id) != 12 {
-		return region, 0
-	}
-	awsAccountID, err := strconv.Atoi(id)
-	if err != nil {
-		return region, 0
+		return region, ""
 	}
 
-	return region, awsAccountID
+	return region, id
 }
 
 func parseClusterName(cluster string) string {

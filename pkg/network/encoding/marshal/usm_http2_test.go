@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
+
 package marshal
 
 import (
-	"runtime"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -21,23 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-type connTag = uint64
-
-// ConnTag constant must be the same for all platform
-const (
-	tagGnuTLS  connTag = 0x01 // network.ConnTagGnuTLS
-	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
-	tagTLS     connTag = 0x10 // network.ConnTagTLS
-)
-
 type HTTP2Suite struct {
 	suite.Suite
 }
 
 func TestHTTP2Stats(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("the feature is only supported on linux.")
-	}
 	suite.Run(t, &HTTP2Suite{})
 }
 
@@ -86,9 +75,11 @@ func (s *HTTP2Suite) TestFormatHTTP2Stats() {
 				}},
 			},
 		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			httpKey1: http2Stats1,
-			httpKey2: http2Stats2,
+		USMData: network.USMProtocolsData{
+			HTTP2: map[http.Key]*http.RequestStats{
+				httpKey1: http2Stats1,
+				httpKey2: http2Stats2,
+			},
 		},
 	}
 	out := &model.HTTP2Aggregations{
@@ -113,7 +104,7 @@ func (s *HTTP2Suite) TestFormatHTTP2Stats() {
 		out.EndpointAggregations[1].StatsByStatusCode[int32(statusCode)] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 20, Latencies: nil}
 	}
 
-	http2Encoder := newHTTP2Encoder(in.HTTP2)
+	http2Encoder := newHTTP2Encoder(in.USMData.HTTP2)
 	aggregations, tags, _ := getHTTP2Aggregations(t, http2Encoder, in.Conns[0])
 
 	require.NotNil(t, aggregations)
@@ -163,11 +154,13 @@ func (s *HTTP2Suite) TestFormatHTTP2StatsByPath() {
 				}},
 			},
 		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			key: http2ReqStats,
+		USMData: network.USMProtocolsData{
+			HTTP2: map[http.Key]*http.RequestStats{
+				key: http2ReqStats,
+			},
 		},
 	}
-	http2Encoder := newHTTP2Encoder(payload.HTTP2)
+	http2Encoder := newHTTP2Encoder(payload.USMData.HTTP2)
 	http2Aggregations, tags, _ := getHTTP2Aggregations(t, http2Encoder, payload.Conns[0])
 
 	require.NotNil(t, http2Aggregations)
@@ -233,12 +226,14 @@ func (s *HTTP2Suite) TestHTTP2IDCollisionRegression() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			httpKey: http2Stats,
+		USMData: network.USMProtocolsData{
+			HTTP2: map[http.Key]*http.RequestStats{
+				httpKey: http2Stats,
+			},
 		},
 	}
 
-	http2Encoder := newHTTP2Encoder(in.HTTP2)
+	http2Encoder := newHTTP2Encoder(in.USMData.HTTP2)
 
 	// assert that the first connection matching the HTTP2 data will get
 	// back a non-nil result
@@ -250,7 +245,7 @@ func (s *HTTP2Suite) TestHTTP2IDCollisionRegression() {
 	// addresses but different PIDs *won't* be associated with the HTTP2 stats
 	// object
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	http2Encoder.WriteHTTP2AggregationsAndTags(connections[1], model.NewConnectionBuilder(streamer))
+	http2Encoder.EncodeConnection(connections[1], model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
@@ -296,30 +291,13 @@ func (s *HTTP2Suite) TestHTTP2LocalhostScenario() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			httpKey: http2Stats,
+		USMData: network.USMProtocolsData{
+			HTTP2: map[http.Key]*http.RequestStats{
+				httpKey: http2Stats,
+			},
 		},
 	}
-	if runtime.GOOS == "windows" {
-		/*
-		 * on Windows, there are separate http transactions for
-		 * each side of the connection.  And they're kept separate,
-		 * and keyed separately.  Address this condition until the
-		 * platforms are resynced
-		 */
-		httpKeyWin := http.NewKey(
-			util.AddressFromString("127.0.0.1"),
-			util.AddressFromString("127.0.0.1"),
-			serverport,
-			cliport,
-			[]byte("/"),
-			true,
-			http.MethodGet,
-		)
-
-		in.HTTP2[httpKeyWin] = http2Stats
-	}
-	http2Encoder := newHTTP2Encoder(in.HTTP2)
+	http2Encoder := newHTTP2Encoder(in.USMData.HTTP2)
 
 	// assert that both ends (client:server, server:client) of the connection
 	// will have HTTP2 stats
@@ -334,7 +312,7 @@ func (s *HTTP2Suite) TestHTTP2LocalhostScenario() {
 
 func getHTTP2Aggregations(t *testing.T, encoder *http2Encoder, c network.ConnectionStats) (*model.HTTP2Aggregations, uint64, map[string]struct{}) {
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	staticTags, dynamicTags := encoder.WriteHTTP2AggregationsAndTags(c, model.NewConnectionBuilder(streamer))
+	staticTags, dynamicTags := encoder.EncodeConnection(c, model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)

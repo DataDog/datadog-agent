@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,6 +33,8 @@ const (
 	tlsProcessTailCall     = "uprobe__redis_tls_process"
 	tlsTerminationTailCall = "uprobe__redis_tls_termination"
 	eventStream            = "redis"
+	netifProbe             = "tracepoint__net__netif_receive_skb_redis"
+	netifProbe414          = "netif_receive_skb_core_redis_4_14"
 )
 
 type protocol struct {
@@ -47,6 +50,22 @@ var Spec = &protocols.ProtocolSpec{
 	Factory: newRedisProtocol,
 	Maps: []*manager.Map{
 		{Name: inFlightMap},
+	},
+	Probes: []*manager.Probe{
+		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe414,
+				UID:          eventStream,
+			},
+		},
+		{
+
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+				UID:          eventStream,
+			},
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -98,6 +117,14 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStream,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "redis_monitoring_enabled")
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
@@ -151,10 +178,15 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 
+	keysToStats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Redis,
-		Stats: p.statskeeper.GetAndResetAllStats(),
-	}, nil
+			Type:  protocols.Redis,
+			Stats: keysToStats,
+		}, func() {
+			for _, stats := range keysToStats {
+				stats.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as Redis module is supported by all modes.
@@ -165,7 +197,8 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processRedis(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		p.statskeeper.Process(tx)
+		eventWrapper := NewEventWrapper(tx)
+		p.statskeeper.Process(eventWrapper)
 	}
 }
 
@@ -184,7 +217,7 @@ func (p *protocol) setupMapCleaner() {
 
 	// Clean up idle connections. We currently use the same TTL as HTTP, but we plan to rename this variable to be more generic.
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
+	mapCleaner.Start(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

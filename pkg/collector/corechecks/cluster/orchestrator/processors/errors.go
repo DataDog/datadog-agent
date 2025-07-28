@@ -17,9 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// newMarshallingError creates an error that wraps the cause of a marshalling
+// NewMarshallingError creates an error that wraps the cause of a marshalling
 // error.
-func newMarshallingError(cause error) error {
+func NewMarshallingError(cause error) error {
 	return errors.WithMessage(cause, "unable to marshal resource to JSON")
 }
 

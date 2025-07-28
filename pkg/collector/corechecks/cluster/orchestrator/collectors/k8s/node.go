@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
@@ -49,6 +50,7 @@ func NewNodeCollector(metadataAsTags utils.MetadataAsTags) *NodeCollector {
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 nodeName,
+			Kind:                                 kubernetes.NodeKind,
 			NodeType:                             orchestrator.K8sNode,
 			Version:                              nodeVersion,
 			LabelsAsTags:                         labelsAsTags,
@@ -89,7 +91,7 @@ func (c *NodeCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 func (c *NodeCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -97,7 +99,7 @@ func (c *NodeCollector) Process(rcfg *collectors.CollectorRunConfig, list interf
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

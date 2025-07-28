@@ -20,7 +20,7 @@ func TestExtractSimpleGPUName(t *testing.T) {
 	}{
 		{
 			name:     "known gpu resource",
-			gpuName:  gpuNvidiaGeneric,
+			gpuName:  GpuNvidiaGeneric,
 			found:    true,
 			expected: "nvidia",
 		},

@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	storagev1Informers "k8s.io/client-go/informers/storage/v1"
@@ -50,6 +51,7 @@ func NewStorageClassCollector(metadataAsTags utils.MetadataAsTags) *StorageClass
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 storageClassName,
+			Kind:                                 kubernetes.StorageClassKind,
 			NodeType:                             orchestrator.K8sStorageClass,
 			Version:                              storageClassVersion,
 			LabelsAsTags:                         labelsAsTags,
@@ -90,7 +92,7 @@ func (c *StorageClassCollector) Run(rcfg *collectors.CollectorRunConfig) (*colle
 func (c *StorageClassCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -98,7 +100,7 @@ func (c *StorageClassCollector) Process(rcfg *collectors.CollectorRunConfig, lis
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

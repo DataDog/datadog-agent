@@ -30,7 +30,7 @@ HOOK_SYSCALL_ENTRY3(finit_module, int, fd, const char *, uargs, int, flags) {
     return trace_init_module(0, uargs);
 }
 
-int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f, int dr_type) {
+int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
@@ -47,7 +47,7 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, dr_type);
+    resolve_dentry(ctx, prog_type);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_INIT_MODULE);
@@ -84,13 +84,13 @@ int hook_module_param_sysfs_setup(ctx_t *ctx) {
 HOOK_ENTRY("security_kernel_module_from_file")
 int hook_security_kernel_module_from_file(ctx_t *ctx) {
     struct file *f = (struct file *)CTX_PARM1(ctx);
-    return trace_kernel_file(ctx, f, DR_KPROBE_OR_FENTRY);
+    return trace_kernel_file(ctx, f, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_ENTRY("security_kernel_read_file")
 int hook_security_kernel_read_file(ctx_t *ctx) {
     struct file *f = (struct file *)CTX_PARM1(ctx);
-    return trace_kernel_file(ctx, f, DR_KPROBE_OR_FENTRY);
+    return trace_kernel_file(ctx, f, KPROBE_OR_FENTRY_TYPE);
 }
 
 int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, char *modname) {
@@ -190,13 +190,11 @@ HOOK_SYSCALL_EXIT(delete_module) {
     return trace_delete_module_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
-SEC("tracepoint/handle_sys_init_module_exit")
-int tracepoint_handle_sys_init_module_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_init_module_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return trace_init_module_ret(args, args->ret, NULL);
 }
 
-SEC("tracepoint/handle_sys_delete_module_exit")
-int tracepoint_handle_sys_delete_module_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_delete_module_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return trace_delete_module_ret(args, args->ret);
 }
 

@@ -6,6 +6,7 @@
 package profiledefinition
 
 import (
+	"errors"
 	"maps"
 	"regexp"
 	"slices"
@@ -41,6 +42,9 @@ const (
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
+// ErrLegacySymbolType is returned when unmarshaling a MetricsConfig with a legacy string symbol type
+var ErrLegacySymbolType = errors.New("legacy symbol type 'string' is not supported with the Core loader")
+
 // SymbolConfigCompat is used to deserialize string field or SymbolConfig.
 // For OID/Name to Symbol harmonization:
 // When users declare metric tag like:
@@ -49,7 +53,7 @@ const (
 //	  - OID: 1.2.3
 //	    symbol: aSymbol
 //
-// this will lead to OID stored as MetricTagConfig.OID  and name stored as MetricTagConfig.Symbol.Name
+// this will lead to OID stored as MetricTagConfig.OID and name stored as MetricTagConfig.Symbol.Name
 // When this happens, in ValidateEnrichMetricTags we harmonize by moving MetricTagConfig.OID to MetricTagConfig.Symbol.OID.
 type SymbolConfigCompat SymbolConfig
 
@@ -202,6 +206,29 @@ func (m *MetricsConfig) GetSymbolTags() []string {
 		symbolTags = append(symbolTags, metricTag.SymbolTag)
 	}
 	return symbolTags
+}
+
+// IsLegacy returns true if the metrics config is written in the legacy Python syntax
+func (m *MetricsConfig) IsLegacy() bool {
+	if m.MIB == "" {
+		return false
+	}
+
+	if m.OID == "" && m.Name != "" {
+		return true
+	}
+
+	if m.Symbol.OID == "" && m.Symbol.Name != "" {
+		return true
+	}
+
+	for _, symbol := range m.Symbols {
+		if symbol.OID == "" && symbol.Name != "" && !symbol.ConstantValueOne {
+			return true
+		}
+	}
+
+	return false
 }
 
 // IsColumn returns true if the metrics config define columns metrics

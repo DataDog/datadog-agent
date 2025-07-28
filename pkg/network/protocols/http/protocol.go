@@ -44,6 +44,8 @@ const (
 	tlsProcessTailCall     = "uprobe__http_process"
 	tlsTerminationTailCall = "uprobe__http_termination"
 	eventStream            = "http"
+	netifProbe             = "tracepoint__net__netif_receive_skb_http"
+	netifProbe414          = "netif_receive_skb_core_http_4_14"
 )
 
 // Spec is the protocol spec for the HTTP protocol.
@@ -64,6 +66,21 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "http_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe414,
+				UID:          eventStream,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+				UID:          eventStream,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -130,6 +147,14 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStream,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "http_monitoring_enabled")
 	// Configure event stream
 	events.Configure(p.cfg, eventStream, p.mgr, opts)
@@ -204,7 +229,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
+	mapCleaner.Start(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

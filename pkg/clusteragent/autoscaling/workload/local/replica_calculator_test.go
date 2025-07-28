@@ -17,6 +17,7 @@ import (
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/clock"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
@@ -75,7 +76,7 @@ func TestProcessAverageContainerMetricValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			averageMetric, lastTimestamp, err := processAverageContainerMetricValue(tt.series, tt.currentTime)
+			averageMetric, lastTimestamp, err := processAverageContainerMetricValue(tt.series, tt.currentTime, defaultStaleDataThresholdSeconds)
 			if err != nil {
 				assert.Error(t, err, tt.err.Error())
 				assert.Equal(t, tt.err, err)
@@ -431,7 +432,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
+			objective := datadoghqcommon.DatadogPodAutoscalerObjective{
 				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
 				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
@@ -440,7 +441,8 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 						Utilization: pointer.Ptr(int32(80)),
 					},
 				},
-			})
+			}
+			recSettings, err := newResourceRecommenderSettings(objective)
 			assert.NoError(t, err)
 			utilization, err := calculateUtilization(*recSettings, tt.pods, tt.queryResult, tt.currentTime)
 			if err != nil {
@@ -796,18 +798,19 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
-				Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
-				ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
-					Name: "cpu",
-					Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
-						Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
-						Utilization: pointer.Ptr(int32(80)),
-					},
-					Container: "container-name1",
+		objective := datadoghqcommon.DatadogPodAutoscalerObjective{
+			Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+			ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
+				Name: "cpu",
+				Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+					Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+					Utilization: pointer.Ptr(int32(80)),
 				},
-			})
+				Container: "container-name1",
+			},
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			recSettings, err := newResourceRecommenderSettings(objective)
 			assert.NoError(t, err)
 			utilization, err := calculateUtilization(*recSettings, tt.pods, tt.queryResult, tt.currentTime)
 			if err != nil {
@@ -1537,7 +1540,7 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 
 	// Setup podwatcher
 	pw := workload.NewPodWatcher(nil, nil)
-	pw.HandleEvent(newPodEvent(ns, deploymentName, "pod1", []string{"container-name1"}))
+	pw.HandleEvent(newFakeWLMPodEvent(ns, deploymentName, "pod1", []string{"container-name1"}))
 
 	expectedOwner := workload.NamespacedPodOwner{
 		Namespace: ns,
@@ -1594,7 +1597,7 @@ func TestCalculateHorizontalRecommendationsScaleUp(t *testing.T) {
 	}
 	dpai := model.NewPodAutoscalerInternal(dpa)
 
-	r := newReplicaCalculator(pw)
+	r := newReplicaCalculator(clock.RealClock{}, pw)
 	res, err := r.calculateHorizontalRecommendations(dpai, lStore)
 	assert.NoError(t, err)
 	assert.Equal(t, int32(2), res.Replicas)

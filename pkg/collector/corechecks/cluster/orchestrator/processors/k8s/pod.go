@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -53,6 +54,16 @@ func NewPodHandlers(cfg config.Component, store workloadmeta.Component, tagger t
 func (h *PodHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Pod)
 	m.Yaml = yaml
+	return
+}
+
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*corev1.Pod)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
 	return
 }
 
@@ -116,14 +127,16 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 	}
 
 	return &model.CollectorPod{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		HostName:    pctx.HostName,
-		Pods:        models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
-		Info:        pctx.SystemInfo,
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		HostName:     pctx.HostName,
+		Pods:         models,
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		Info:         pctx.SystemInfo,
+		IsTerminated: ctx.IsTerminatedResources(),
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 }
 
@@ -144,7 +157,7 @@ func (h *PodHandlers) ResourceList(ctx processors.ProcessorContext, list interfa
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
@@ -164,21 +177,15 @@ func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource,
 	return resourceModel.(*model.Pod).Metadata.ResourceVersion
 }
 
-// ResourceTaggerTags is a handler called to retrieve tags for a resource from the tagger.
+// GetMetadataTags returns the tags in the metadata model.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *PodHandlers) ResourceTaggerTags(ctx processors.ProcessorContext, resource interface{}) []string {
-	r, ok := resource.(*corev1.Pod)
+func (h *PodHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.Pod)
 	if !ok {
-		log.Debugf("Could not cast resource to pod")
 		return nil
 	}
-	tags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
-	if err != nil {
-		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
-		return nil
-	}
-	return tags
+	return m.Tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

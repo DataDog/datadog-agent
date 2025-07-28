@@ -29,6 +29,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 )
 
 type VMFakeintakeSuite struct {
@@ -47,6 +48,16 @@ func NewVMFakeintakeSuite(tr transport) *VMFakeintakeSuite {
 		transport:    tr,
 		extraLogging: extraLogging,
 	}
+}
+
+// SetupSuite is called once before all tests in the suite.
+// This function is called by [testify Suite].
+func (s *VMFakeintakeSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure() // cleanup if setup fails
+
+	// Pre-pull Docker image once for all tests to avoid network timeout issues during test execution
+	s.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:" + apps.Version)
 }
 
 func vmProvisionerOpts(opts ...awshost.ProvisionerOption) []awshost.ProvisionerOption {
@@ -126,7 +137,7 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
+		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake, !s.Env().Agent.FIPSEnabled)
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
@@ -203,7 +214,13 @@ func (s *VMFakeintakeSuite) testStatsForService(enableClientSideStats bool) {
 		s.logStatus()
 		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
 		s.logJournal(false)
-	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
+	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveContainerTags(s.T(), c, service, s.Env().FakeIntake)
+		s.logJournal(false)
+	}, 2*time.Minute, 10*time.Second, "Failed finding container ID on stats")
 }
 
 func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
@@ -297,6 +314,54 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+}
+
+func (s *VMFakeintakeSuite) TestProcessTagsHeaderTrace() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	traceWithProcessTagsWithHeader(s.Env().RemoteHost, "binary:generator", "test-service")
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+}
+
+func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	traceWithProcessTags(s.Env().RemoteHost, "binary:generator", "test-service")
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 }
 
 func (s *VMFakeintakeSuite) TestProbabilitySampler() {

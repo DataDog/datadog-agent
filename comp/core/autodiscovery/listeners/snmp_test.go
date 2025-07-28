@@ -22,14 +22,19 @@ func TestSNMPListener(t *testing.T) {
 	delSvc := make(chan Service, 10)
 	testChan := make(chan snmpJob, 10)
 
-	snmpConfig := snmp.Config{
-		Network:   "192.168.0.0/24",
-		Community: "public",
-		Loader:    "core",
+	snmpConfig := map[string]interface{}{
+		"network":   "192.168.0.0/24",
+		"community": "public",
+		"loader":    "core",
+		"authentications": []interface{}{
+			map[string]interface{}{
+				"user": "someUser",
+			},
+		},
 	}
-	listenerConfig := snmp.ListenerConfig{
-		Configs: []snmp.Config{snmpConfig},
-		Workers: 1,
+	listenerConfig := map[string]interface{}{
+		"configs": []interface{}{snmpConfig},
+		"workers": 1,
 	}
 
 	mockConfig := configmock.New(t)
@@ -54,6 +59,8 @@ func TestSNMPListener(t *testing.T) {
 	assert.Equal(t, "192.168.0.0", job.subnet.startingIP.String())
 	assert.Equal(t, "192.168.0.0/24", job.subnet.network.String())
 	assert.Equal(t, "public", job.subnet.config.Community)
+	assert.Equal(t, "public", job.subnet.config.Authentications[0].Community)
+	assert.Equal(t, "someUser", job.subnet.config.Authentications[1].User)
 
 	job = <-testChan
 	assert.Equal(t, "192.168.0.1", job.currentIP.String())
@@ -65,19 +72,20 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	delSvc := make(chan Service, 10)
 	testChan := make(chan snmpJob)
 
-	listenerConfig := snmp.ListenerConfig{
-		Configs: []snmp.Config{},
-		Workers: 10,
+	configs := make([]map[string]interface{}, 0, 100)
+	for i := 0; i < 100; i++ {
+		snmpConfig := map[string]interface{}{
+			"network":      "172.18.0.0/30",
+			"community":    "f5-big-ip",
+			"port":         1161,
+			"context_name": "context" + strconv.Itoa(i),
+		}
+		configs = append(configs, snmpConfig)
 	}
 
-	for i := 0; i < 100; i++ {
-		snmpConfig := snmp.Config{
-			Network:     "172.18.0.0/30",
-			Community:   "f5-big-ip",
-			Port:        1161,
-			ContextName: "context" + strconv.Itoa(i),
-		}
-		listenerConfig.Configs = append(listenerConfig.Configs, snmpConfig)
+	listenerConfig := map[string]interface{}{
+		"configs": configs,
+		"workers": 10,
 	}
 
 	mockConfig := configmock.New(t)
@@ -121,14 +129,15 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	delSvc := make(chan Service, 10)
 	testChan := make(chan snmpJob, 10)
 
-	snmpConfig := snmp.Config{
-		Network:            "192.168.0.0/24",
-		Community:          "public",
-		IgnoredIPAddresses: map[string]bool{"192.168.0.0": true},
+	snmpConfig := map[string]interface{}{
+		"network":              "192.168.0.0/24",
+		"community":            "public",
+		"ignored_ip_addresses": map[string]bool{"192.168.0.0": true},
 	}
-	listenerConfig := snmp.ListenerConfig{
-		Configs: []snmp.Config{snmpConfig},
-		Workers: 1,
+
+	listenerConfig := map[string]interface{}{
+		"configs": []interface{}{snmpConfig},
+		"workers": 1,
 	}
 
 	mockConfig := configmock.New(t)
@@ -248,6 +257,20 @@ func TestExtraConfig(t *testing.T) {
 
 	svc.config.CollectTopology = false
 	info, err = svc.GetExtraConfig("collect_topology")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", info)
+
+	info, err = svc.GetExtraConfig("collect_vpn")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", info)
+
+	svc.config.CollectVPN = true
+	info, err = svc.GetExtraConfig("collect_vpn")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "true", info)
+
+	svc.config.CollectVPN = false
+	info, err = svc.GetExtraConfig("collect_vpn")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "false", info)
 

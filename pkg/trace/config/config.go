@@ -88,6 +88,10 @@ type OTLP struct {
 	// OTLP semantic convention attributes. If it is true, we will only populate a field if its associated "datadog."
 	// OTLP span attribute exists, otherwise we will leave it empty.
 	IgnoreMissingDatadogFields bool `mapstructure:"ignore_missing_datadog_fields"`
+
+	// GrpcMaxRecvMsgSizeMib specifies the max receive message size (in Mib) in OTLP receiver gRPC server in the trace agent binary.
+	// This config only applies to Agent OTLP ingestion. It does not apply to OSS Datadog exporter/connector or DDOT.
+	GrpcMaxRecvMsgSizeMib int `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -260,6 +264,20 @@ type EVPProxy struct {
 	MaxPayloadSize int64
 	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
 	ReceiverTimeout int
+}
+
+// OpenLineageProxy contains the settings for the OpenLineageProxy proxy.
+type OpenLineageProxy struct {
+	// Enabled reports whether OpenLineageProxy is enabled (true by default).
+	Enabled bool
+	// DDURL is the Datadog site to forward payloads to (defaults to the Site setting if not set).
+	DDURL string
+	// APIKey is the main API Key (defaults to the main API key).
+	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string
+	// APIVersion indicates what version the OpenLineageProxy uses for the DO-intake API.
+	APIVersion int
 }
 
 // InstallSignatureConfig contains the information on how the agent was installed
@@ -450,6 +468,9 @@ type AgentConfig struct {
 	// EVPProxy contains the settings for the EVPProxy proxy.
 	EVPProxy EVPProxy
 
+	// OpenLineageProxy contains the settings for the OpenLineageProxy proxy;
+	OpenLineageProxy OpenLineageProxy
+
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
 
@@ -469,6 +490,8 @@ type AgentConfig struct {
 
 	// RemoteConfigClient retrieves sampling updates from the remote config backend
 	RemoteConfigClient RemoteClient `json:"-"`
+	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
+	MRFRemoteConfigClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
@@ -492,13 +515,17 @@ type AgentConfig struct {
 	// key-value pairs, starting with a comma
 	AzureContainerAppTags string
 
-	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
-	// Function will be nil if in an environment without an auth token
-	GetAgentAuthToken func() string `json:"-"`
+	// AuthToken is the auth token for the agent
+	AuthToken string `json:"-"`
 
-	// IsMRFEnabled determines whether Multi-Region Failover is enabled. It is based on the core config's
-	// `multi_region_failover.enabled` and `multi_region_failover.failover_apm` settings.
-	IsMRFEnabled func() bool `json:"-"`
+	// IPC TLS client config
+	IPCTLSClientConfig *tls.Config `json:"-"`
+
+	// IPC TLS server config
+	IPCTLSServerConfig *tls.Config `json:"-"`
+
+	MRFFailoverAPMDefault bool
+	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -588,6 +615,10 @@ func New() *AgentConfig {
 		EVPProxy: EVPProxy{
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
+		},
+		OpenLineageProxy: OpenLineageProxy{
+			Enabled:    true,
+			APIVersion: 2,
 		},
 
 		Features:               make(map[string]struct{}),
@@ -685,6 +716,14 @@ func (c *AgentConfig) AllFeatures() []string {
 		feats = append(feats, feat)
 	}
 	return feats
+}
+
+// MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
+func (c *AgentConfig) MRFFailoverAPM() bool {
+	if c.MRFFailoverAPMRC != nil {
+		return *c.MRFFailoverAPMRC
+	}
+	return c.MRFFailoverAPMDefault
 }
 
 // ConfiguredPeerTags returns the set of peer tags that should be used

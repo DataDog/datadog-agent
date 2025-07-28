@@ -299,6 +299,26 @@ func (mr *MockAgentSecureClientMockRecorder) RegisterRemoteAgent(ctx, in interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureClient)(nil).RegisterRemoteAgent), varargs...)
 }
 
+// ResetConfigState mocks base method.
+func (m *MockAgentSecureClient) ResetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*core.ResetStateConfigResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ResetConfigState", varargs...)
+	ret0, _ := ret[0].(*core.ResetStateConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResetConfigState indicates an expected call of ResetConfigState.
+func (mr *MockAgentSecureClientMockRecorder) ResetConfigState(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetConfigState", reflect.TypeOf((*MockAgentSecureClient)(nil).ResetConfigState), varargs...)
+}
+
 // TaggerFetchEntity mocks base method.
 func (m *MockAgentSecureClient) TaggerFetchEntity(ctx context.Context, in *core.FetchEntityRequest, opts ...grpc.CallOption) (*core.FetchEntityResponse, error) {
 	m.ctrl.T.Helper()
@@ -905,6 +925,21 @@ func (mr *MockAgentSecureServerMockRecorder) RegisterRemoteAgent(arg0, arg1 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterRemoteAgent", reflect.TypeOf((*MockAgentSecureServer)(nil).RegisterRemoteAgent), arg0, arg1)
 }
 
+// ResetConfigState mocks base method.
+func (m *MockAgentSecureServer) ResetConfigState(arg0 context.Context, arg1 *empty.Empty) (*core.ResetStateConfigResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetConfigState", arg0, arg1)
+	ret0, _ := ret[0].(*core.ResetStateConfigResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResetConfigState indicates an expected call of ResetConfigState.
+func (mr *MockAgentSecureServerMockRecorder) ResetConfigState(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetConfigState", reflect.TypeOf((*MockAgentSecureServer)(nil).ResetConfigState), arg0, arg1)
+}
+
 // TaggerFetchEntity mocks base method.
 func (m *MockAgentSecureServer) TaggerFetchEntity(arg0 context.Context, arg1 *core.FetchEntityRequest) (*core.FetchEntityResponse, error) {
 	m.ctrl.T.Helper()
@@ -1383,6 +1418,26 @@ func (mr *MockRemoteAgentClientMockRecorder) GetStatusDetails(ctx, in interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusDetails", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetStatusDetails), varargs...)
 }
 
+// GetTelemetry mocks base method.
+func (m *MockRemoteAgentClient) GetTelemetry(ctx context.Context, in *core.GetTelemetryRequest, opts ...grpc.CallOption) (*core.GetTelemetryResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetTelemetry", varargs...)
+	ret0, _ := ret[0].(*core.GetTelemetryResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTelemetry indicates an expected call of GetTelemetry.
+func (mr *MockRemoteAgentClientMockRecorder) GetTelemetry(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetry", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetTelemetry), varargs...)
+}
+
 // MockRemoteAgentServer is a mock of RemoteAgentServer interface.
 type MockRemoteAgentServer struct {
 	ctrl     *gomock.Controller
@@ -1434,4 +1489,19 @@ func (m *MockRemoteAgentServer) GetStatusDetails(arg0 context.Context, arg1 *cor
 func (mr *MockRemoteAgentServerMockRecorder) GetStatusDetails(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusDetails", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetStatusDetails), arg0, arg1)
+}
+
+// GetTelemetry mocks base method.
+func (m *MockRemoteAgentServer) GetTelemetry(arg0 context.Context, arg1 *core.GetTelemetryRequest) (*core.GetTelemetryResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTelemetry", arg0, arg1)
+	ret0, _ := ret[0].(*core.GetTelemetryResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTelemetry indicates an expected call of GetTelemetry.
+func (mr *MockRemoteAgentServerMockRecorder) GetTelemetry(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetry", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetTelemetry), arg0, arg1)
 }

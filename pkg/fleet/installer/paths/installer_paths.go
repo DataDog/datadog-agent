@@ -8,6 +8,8 @@
 // Package paths defines commonly used paths throughout the installer
 package paths
 
+import "os"
+
 const (
 	// PackagesPath is the path to the packages directory.
 	PackagesPath = "/opt/datadog-packages"
@@ -23,4 +25,17 @@ const (
 	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
 	// RunPath is the default run path
 	RunPath = "/opt/datadog-packages/run"
+	// DatadogDataDir is the path to the Datadog data directory.
+	DatadogDataDir = "/etc/datadog-agent"
 )
+
+// EnsureInstallerDataDir ensures that permissions are set correctly on the installer data directory.
+// This is a no-op on non-Windows platforms.
+func EnsureInstallerDataDir() error {
+	return nil
+}
+
+// SetRepositoryPermissions sets the permissions on the repository directory
+func SetRepositoryPermissions(path string) error {
+	return os.Chmod(path, 0755)
+}

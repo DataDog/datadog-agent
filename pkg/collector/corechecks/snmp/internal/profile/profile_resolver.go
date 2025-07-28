@@ -8,6 +8,7 @@ package profile
 import (
 	"expvar"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -81,10 +82,8 @@ func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefin
 			}
 			baseDefinition = &profile.Definition
 		}
-		for _, extend := range extendsHistory {
-			if extend == extendEntry {
-				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", extendEntry, extendsHistory)
-			}
+		if slices.Contains(extendsHistory, extendEntry) {
+			return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", extendEntry, extendsHistory)
 		}
 
 		mergeProfileDefinition(definition, baseDefinition)

@@ -6,7 +6,6 @@
 package backoff
 
 import (
-	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -14,25 +13,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func init() {
-	rand.Seed(10)
-}
-
 func TestRandomBetween(t *testing.T) {
 	getRandomMinMax := func() (float64, float64) {
 		a := float64(rand.Intn(10))
 		b := float64(rand.Intn(10))
-		min := math.Min(a, b)
-		max := math.Max(a, b)
-		return min, max
+		return min(a, b), max(a, b)
 	}
 
-	for i := 1; i < 100; i++ {
+	for range 100 {
 		min, max := getRandomMinMax()
-		between := randomBetween(min, max)
 
-		assert.True(t, min <= between)
-		assert.True(t, max >= between)
+		for range 100 {
+			between := randomBetween(min, max)
+
+			assert.LessOrEqual(t, min, between)
+			assert.LessOrEqual(t, between, max)
+		}
 	}
 }
 

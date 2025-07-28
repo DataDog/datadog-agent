@@ -6,8 +6,9 @@
 package otlpingest
 
 import (
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"testing"
+
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
@@ -33,12 +34,6 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-agents:
-  containers:
-    traceAgent:
-      env:
-        - name: DD_APM_FEATURES
-          value: 'enable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestSpanReceiverV2TestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
@@ -46,7 +41,10 @@ agents:
 
 func (s *otlpIngestSpanReceiverV2TestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.SetupSampleTraces(s)
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otlpIngestSpanReceiverV2TestSuite) TestTracesWithSpanReceiverV2() {

@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -73,13 +72,23 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		if _, exists := ignoreResNames[resourceName]; exists {
 			continue
 		}
-		env := traceutil.GetOTelEnv(otelres)
-		hostname := traceutil.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
-		version := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeServiceVersion)
-		cid := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+
+		env := transform.GetOTelEnv(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		hostname := transform.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		version := transform.GetOTelVersion(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		cid := transform.GetOTelContainerID(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		var ctags []string
 		if cid != "" {
 			ctags = traceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)
+			if conf.ContainerTags != nil {
+				tags, err := conf.ContainerTags(cid)
+				if err != nil {
+					log.Debugf("Failed to get container tags for container %q: %v", cid, err)
+				} else {
+					log.Tracef("Getting container tags for ID %q: %v", cid, tags)
+					ctags = append(ctags, tags...)
+				}
+			}
 			if ctags != nil {
 				// Make sure container tags are sorted per APM stats intake requirement
 				if !slices.IsSorted(ctags) {

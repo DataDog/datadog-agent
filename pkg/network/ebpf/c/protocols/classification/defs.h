@@ -123,10 +123,13 @@ typedef enum {
     CLASSIFICATION_GRPC_PROG,
     __PROG_ENCRYPTION,
     // Encryption classification programs go here
-    CLASSIFICATION_TLS_CLIENT_PROG,
-    CLASSIFICATION_TLS_SERVER_PROG,
     CLASSIFICATION_PROG_MAX,
 } classification_prog_t;
+
+typedef enum {
+    CLASSIFICATION_TLS_CLIENT_PROG,
+    CLASSIFICATION_TLS_SERVER_PROG,
+} classification_tls_prog_t;
 
 typedef enum {
     DISPATCHER_KAFKA_PROG = 0,

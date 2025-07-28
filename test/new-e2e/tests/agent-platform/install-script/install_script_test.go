@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -160,8 +161,11 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 		common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion2)
 	}
 	common.SetAgentPythonMajorVersion(is.T(), client, "3")
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion3)
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckApmEnabled(is.T(), client)
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckApmDisabled(is.T(), client)
 	if flavor == "datadog-agent" {
 		common.CheckSystemProbeBehavior(is.T(), client)

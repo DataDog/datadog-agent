@@ -7,6 +7,8 @@
 package selftests
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -24,10 +26,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	logRateLimit = time.Minute
+)
+
 // SelfTest represent one self test
 type SelfTest interface {
 	GetRuleDefinition() *rules.RuleDefinition
-	GenerateEvent() error
+	GenerateEvent(_ context.Context) error
 	HandleEvent(selfTestEvent)
 	IsSuccess() bool
 }
@@ -48,21 +54,31 @@ type SelfTester struct {
 	isClosed        bool
 	done            chan bool
 	selfTestRunning chan time.Duration
+	errorTimestamp  map[eval.RuleID]time.Time
 }
 
 var _ rules.PolicyProvider = (*SelfTester)(nil)
 
 // RunSelfTest runs the self test and return the result
-func (t *SelfTester) RunSelfTest(timeout time.Duration) error {
+func (t *SelfTester) RunSelfTest(ctx context.Context, timeout time.Duration) error {
 	t.Lock()
 	defer t.Unlock()
 
-	t.beginSelfTests(timeout)
+	if err := t.beginSelfTests(timeout); err != nil {
+		return err
+	}
 
 	for _, selfTest := range t.selfTests {
-		if err := selfTest.GenerateEvent(); err != nil {
-			log.Errorf("self test failed: %s", selfTest.GetRuleDefinition().ID)
+		// allow 10 seconds for the self test event to be generated
+		ctx, cancelFnc := context.WithTimeout(ctx, 10*time.Second)
+		if err := selfTest.GenerateEvent(ctx); err != nil {
+			if time.Since(t.errorTimestamp[selfTest.GetRuleDefinition().ID]) > logRateLimit {
+				log.Errorf("self test failed (%s): %v", selfTest.GetRuleDefinition().ID, err)
+
+				t.errorTimestamp[selfTest.GetRuleDefinition().ID] = time.Now()
+			}
 		}
+		cancelFnc()
 	}
 
 	return nil
@@ -94,7 +110,7 @@ func CreateTargetDir() (string, error) {
 }
 
 // WaitForResult wait for self test results
-func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID, events map[eval.RuleID]*serializers.EventSerializer)) {
+func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID)) {
 	for timeout := range t.selfTestRunning {
 		timer := time.After(timeout)
 
@@ -145,7 +161,7 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 		t.success, t.fails, t.lastTimestamp = success, fails, time.Now()
 		t.Unlock()
 
-		cb(success, fails, events)
+		cb(success, fails)
 
 		t.endSelfTests()
 	}
@@ -182,23 +198,35 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 		policyDef.Rules[i] = selfTest.GetRuleDefinition()
 	}
 
-	policy, err := rules.LoadPolicyFromDefinition(policyName, policySource, rules.SelftestPolicy, policyDef, nil, nil)
+	pInfo := &rules.PolicyInfo{
+		Name:       policyName,
+		Source:     policySource,
+		Type:       rules.SelftestPolicy,
+		IsInternal: true,
+	}
+
+	policy, err := rules.LoadPolicyFromDefinition(pInfo, policyDef, nil, nil)
 	if err != nil {
 		return nil, multierror.Append(nil, err)
 	}
-	policy.IsInternal = true
 
 	return []*rules.Policy{policy}, nil
 }
 
-func (t *SelfTester) beginSelfTests(timeout time.Duration) {
+func (t *SelfTester) beginSelfTests(timeout time.Duration) error {
 	// t.Lock is held here
 	if t.isClosed {
-		return
+		return nil
 	}
 
+	select {
+	case t.selfTestRunning <- timeout:
+	default:
+		return fmt.Errorf("channel is already full, self test is already running")
+	}
 	t.waitingForEvent.Store(true)
-	t.selfTestRunning <- timeout
+
+	return nil
 }
 
 func (t *SelfTester) endSelfTests() {
@@ -219,7 +247,7 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *prob
 			return true
 		}
 
-		s := serializers.NewEventSerializer(ev, rule.Opts)
+		s := serializers.NewEventSerializer(ev, rule)
 		if s == nil {
 			return false
 		}

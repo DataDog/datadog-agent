@@ -155,7 +155,7 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
                 config.to_file()
             else:
                 raise Exit(
-                    f'{color_message("Error", Color.RED)}: Configuration file is not formatted correctly, use `invoke modules.validate --fix-format` to fix it'
+                    f'{color_message("Error", Color.RED)}: Configuration file is not formatted correctly, use `dda inv modules.validate --fix-format` to fix it'
                 )
 
     with open(base_dir / Configuration.FILE_NAME) as f:
@@ -171,6 +171,10 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
 
     # Backward check for go.mod (ensure there is a module for each go.mod)
     for go_mod in glob(str(base_dir / '**/go.mod'), recursive=True):
+        # Ignore bazel generated symlinks
+        if go_mod.startswith(str(base_dir / 'bazel')):
+            continue
+
         path = Path(go_mod).parent.relative_to(base_dir).as_posix()
         assert path in config.modules or path in config.ignored_modules, f"Configuration is missing a module for {path}"
 
@@ -281,7 +285,7 @@ def remove_replace_rules(data: str) -> str:
     data = re.sub("\tgithub.com/DataDog/datadog-agent/.+ => .+", '', data)
     data = re.sub("replace github.com/DataDog/datadog-agent/[^ ]+ => .+", '', data)
     data = re.sub(r"replace \(\s+\)", '', data)
-    data = re.sub(r"// This section was automatically added by 'invoke modules\..+", '', data)
+    data = re.sub(r"// This section was automatically added by 'dda inv modules\..+", '', data)
     return data
 
 
@@ -289,7 +293,7 @@ def update_go_mod(gomod_list, root):
     file = "go.mod"
     repo_name = "github.com/DataDog/datadog-agent/"
     replace_comment = (
-        "// This section was automatically added by 'invoke modules.add-all-replace' command, do not edit manually\n\n"
+        "// This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually\n\n"
     )
 
     gomod_file = os.path.join(root, file)
@@ -331,8 +335,8 @@ def add_all_replace(ctx: Context):
     and no replace rule is missing.
 
     It's meant to be used as the following:
-    - running `inv modules.add-all-replace` to add all possible replace rules to all go.mod
-    - `inv tidy` to update all the go.mod
+    - running `dda inv modules.add-all-replace` to add all possible replace rules to all go.mod
+    - `dda inv tidy` to update all the go.mod
 
     This solves the problem of `go mod tidy` failing if some replace rules are missing but needing `go mod tidy` to run
     successfully to know which replace rules are needed. This is a major pain point when creating/moving go.mod.

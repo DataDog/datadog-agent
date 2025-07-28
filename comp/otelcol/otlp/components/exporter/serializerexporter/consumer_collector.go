@@ -8,19 +8,19 @@ package serializerexporter
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter"
 )
 
 // collectorConsumer is a consumer OSS collector uses to send metrics to the DataDog.
 type collectorConsumer struct {
 	*serializerConsumer
-	seenHosts    map[string]struct{}
-	seenTags     map[string]struct{}
-	buildInfo    component.BuildInfo
-	gatewayUsage *attributes.GatewayUsage
+	seenHosts map[string]struct{}
+	seenTags  map[string]struct{}
+	buildInfo component.BuildInfo
 	// getPushTime returns a Unix time in nanoseconds, representing the time pushing metrics.
 	// It will be overwritten in tests.
 	getPushTime func() uint64
@@ -35,9 +35,6 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 	for host := range c.seenHosts {
 		// Report the host as running
 		runningMetric := exporterDefaultMetrics("metrics", host, timestamp, buildTags)
-		if c.gatewayUsage != nil {
-			series = append(series, gatewayUsageGauge(timestamp, host, buildTags, c.gatewayUsage))
-		}
 		series = append(series, runningMetric)
 	}
 
@@ -57,7 +54,7 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 	c.series = series
 }
 
-func (c *collectorConsumer) addTelemetryMetric(_ string) {
+func (c *collectorConsumer) addTelemetryMetric(_ string, _ exporter.Settings, _ telemetry.Gauge) {
 }
 
 // ConsumeHost implements the metrics.HostConsumer interface.
@@ -78,24 +75,6 @@ func exporterDefaultMetrics(exporterType string, hostname string, timestamp uint
 			{
 				Ts:    float64(timestamp),
 				Value: 1.0,
-			},
-		},
-		Host:   hostname,
-		MType:  metrics.APIGaugeType,
-		Tags:   tagset.CompositeTagsFromSlice(tags),
-		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
-	}
-	return metrics
-}
-
-// gatewayUsageGauge creates a gauge metric to report if there is a gateway
-func gatewayUsageGauge(timestamp uint64, hostname string, tags []string, gatewayUsage *attributes.GatewayUsage) *metrics.Serie {
-	metrics := &metrics.Serie{
-		Name: "datadog.otel.gateway",
-		Points: []metrics.Point{
-			{
-				Ts:    float64(timestamp),
-				Value: gatewayUsage.Gauge(),
 			},
 		},
 		Host:   hostname,

@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	httptestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
@@ -31,9 +32,8 @@ const (
 // TestIgnoreComm checks that the 'sshd' command is ignored and the 'node' command is not
 func TestIgnoreComm(t *testing.T) {
 	serverDir := buildFakeServer(t)
-	url, mockContainerProvider, mTimeProvider := setupDiscoveryModule(t)
-	mockContainerProvider.EXPECT().GetContainers(containerCacheValidity, nil).AnyTimes()
-	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
+	discovery := setupDiscoveryModule(t)
+	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -54,7 +54,7 @@ func TestIgnoreComm(t *testing.T) {
 
 	seen := make(map[int]model.Service)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, url)
+		resp := getCheckServices(collect, discovery.url)
 		for _, s := range resp.StartedServices {
 			seen[s.PID] = s
 		}
@@ -66,12 +66,12 @@ func TestIgnoreComm(t *testing.T) {
 
 // TestIgnoreCommsLengths checks that the map contains names no longer than 15 bytes.
 func TestIgnoreCommsLengths(t *testing.T) {
-	discovery := newDiscovery(nil, nil)
+	discovery := newDiscovery(t, nil)
 	require.NotEmpty(t, discovery)
-	require.Equal(t, len(discovery.config.ignoreComms), 10)
+	require.Equal(t, len(discovery.config.IgnoreComms), 10)
 
-	for comm := range discovery.config.ignoreComms {
-		assert.LessOrEqual(t, len(comm), maxCommLen, "Process name %q too big", comm)
+	for comm := range discovery.config.IgnoreComms {
+		assert.LessOrEqual(t, len(comm), core.MaxCommLen, "Process name %q too big", comm)
 	}
 }
 
@@ -122,10 +122,10 @@ func TestShouldIgnoreComm(t *testing.T) {
 
 	serverBin := buildTestBin(t)
 	serverDir := filepath.Dir(serverBin)
-	discovery := newDiscovery(nil, nil)
+	discovery := newDiscovery(t, nil)
 	require.NotEmpty(t, discovery)
-	require.NotEmpty(t, discovery.config.ignoreComms)
-	require.Equal(t, len(discovery.config.ignoreComms), 10)
+	require.NotEmpty(t, discovery.config.IgnoreComms)
+	require.Equal(t, len(discovery.config.IgnoreComms), 10)
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
@@ -209,7 +209,7 @@ func BenchmarkProcName(b *testing.B) {
 
 // BenchmarkShouldIgnoreComm benchmarks reading of command name from /proc/<pid>/comm.
 func BenchmarkShouldIgnoreComm(b *testing.B) {
-	discovery := newDiscovery(nil, nil)
+	discovery := newDiscovery(b, nil)
 	cmd := startProcessLongComm(b)
 
 	b.ResetTimer()

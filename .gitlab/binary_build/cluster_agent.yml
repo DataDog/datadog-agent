@@ -2,16 +2,21 @@
 .cluster_agent-build_common:
   stage: binary_build
   rules:
-    !reference [.on_tag_or_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_mod_tidy_check", "go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - inv check-go-version
-    - inv -e cluster-agent.build --release-version "$RELEASE_VERSION_7"
+    - dda inv -- check-go-version
+    - dda inv -- -e cluster-agent.build --major-version "$AGENT_MAJOR_VERSION"
+    # keep the unstripped binary for fips compliance checks
+    - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
+    - strip $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
   artifacts:
     paths:
       - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
+      - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
       - Dockerfiles/cluster-agent/datadog-cluster.yaml
       - Dockerfiles/cluster-agent/security-agent-policies
     exclude:
@@ -22,15 +27,16 @@
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"
     KUBERNETES_CPU_REQUEST: 6
+    AGENT_MAJOR_VERSION: 7
 
 cluster_agent-build_amd64:
   extends: .cluster_agent-build_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
 
 cluster_agent-build_arm64:
   extends: .cluster_agent-build_common
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
 
 cluster_agent_fips-build_amd64:

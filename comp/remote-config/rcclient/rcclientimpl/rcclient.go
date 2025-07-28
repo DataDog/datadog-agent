@@ -18,12 +18,12 @@ import (
 	"go.uber.org/fx"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -73,6 +73,7 @@ type dependencies struct {
 	SettingsComponent settings.Component
 	Config            configcomp.Component
 	SysprobeConfig    option.Option[sysprobeconfig.Component]
+	IPC               ipc.Component
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
@@ -99,7 +100,8 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	c, err := client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
-		func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
+		deps.IPC.GetAuthToken(),
+		deps.IPC.GetTLSClientConfig(),
 		optsWithDefault...,
 	)
 	if err != nil {
@@ -111,7 +113,8 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
 			pkgconfigsetup.GetIPCPort(),
-			func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
+			deps.IPC.GetAuthToken(),
+			deps.IPC.GetTLSClientConfig(),
 			optsWithDefault...,
 		)
 		if err != nil {
@@ -173,31 +176,9 @@ func (rc rcClient) start() {
 // It fetches all the configs targeting the agent and applies the failover settings
 // using an OR strategy. In case of nil the value is not updated, for a false it does not update if
 // the setting is already set to true.
+//
+// If a setting is not set via any config, it will fallback if the source was RC.
 func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	// If the updates map is empty, we should unset the failover settings if they were set via RC previously
-	if len(updates) == 0 {
-		mrfFailoverMetricsSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_metrics")
-		mrfFailoverLogsSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_logs")
-		mrfFailoverAPMSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_apm")
-
-		// Unset the RC-sourced failover values regardless of what they are
-		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_metrics", model.SourceRC)
-		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_logs", model.SourceRC)
-		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_apm", model.SourceRC)
-
-		// If either of the values were previously set via RC, log the current values now that we've unset them
-		if mrfFailoverMetricsSource == model.SourceRC {
-			pkglog.Infof("Falling back to `multi_region_failover.failover_metrics: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_metrics"))
-		}
-		if mrfFailoverLogsSource == model.SourceRC {
-			pkglog.Infof("Falling back to `multi_region_failover.failover_logs: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_logs"))
-		}
-		if mrfFailoverAPMSource == model.SourceRC {
-			pkglog.Infof("Falling back to `multi_region_failover.failover_apm: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_apm"))
-		}
-		return
-	}
-
 	var enableLogs, enableMetrics, enableAPM *bool
 	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth string
 	for cfgPath, update := range updates {
@@ -251,13 +232,19 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 		}
 		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for metrics", change)
 		applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	} else {
+		mrfFailoverMetricsSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_metrics")
+		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_metrics", model.SourceRC)
+		if mrfFailoverMetricsSource == model.SourceRC {
+			pkglog.Infof("Falling back to `multi_region_failover.failover_metrics: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_metrics"))
+		}
 	}
 
 	if enableLogs != nil {
 		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *enableLogs, enableLogsCfgPth, applyStateCallback)
 		if err != nil {
 			pkglog.Errorf("Multi-Region Failover failed to apply new logs settings : %s", err)
-			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
+			applyStateCallback(enableLogsCfgPth, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
@@ -269,6 +256,12 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 		}
 		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for logs", change)
 		applyStateCallback(enableLogsCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	} else {
+		mrfFailoverLogsSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_logs")
+		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_logs", model.SourceRC)
+		if mrfFailoverLogsSource == model.SourceRC {
+			pkglog.Infof("Falling back to `multi_region_failover.failover_logs: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_logs"))
+		}
 	}
 
 	if enableAPM != nil {
@@ -287,6 +280,12 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 		}
 		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for apm", change)
 		applyStateCallback(enableAPMCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	} else {
+		mrfFailoverAPMSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_apm")
+		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_apm", model.SourceRC)
+		if mrfFailoverAPMSource == model.SourceRC {
+			pkglog.Infof("Falling back to `multi_region_failover.failover_apm: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_apm"))
+		}
 	}
 }
 

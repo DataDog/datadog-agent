@@ -47,6 +47,8 @@ type Package struct {
 	URL string
 	// Flavor is the Agent Flavor (e.g. `base`, `fips`, `iot``)
 	Flavor string
+	// Product is the installers json package name (e.g. `datadog-agent`, `datadog-fips-agent`)
+	Product string
 }
 
 // AgentVersion returns a string containing version number and the pre only, e.g. `0.0.0-beta.1`
@@ -475,4 +477,218 @@ func GetUpgradeTestPackageFromEnv() (*Package, error) {
 
 	// if not in pipeline or provided in env, then fail
 	return nil, fmt.Errorf("no upgradable package found")
+}
+
+// PackageOption defines a function type for modifying a Package
+type PackageOption func(*Package) error
+
+// NewPackage creates a new Package with the provided options
+func NewPackage(opts ...PackageOption) (*Package, error) {
+	pkg := &Package{
+		Product: "datadog-agent",
+		Arch:    "x86_64",
+	}
+	for _, opt := range opts {
+		if err := opt(pkg); err != nil {
+			return nil, err
+		}
+	}
+	return pkg, nil
+}
+
+// WithChannel sets the channel for the Package
+//
+// Example: beta, stable
+func WithChannel(channel string) PackageOption {
+	return func(p *Package) error {
+		p.Channel = channel
+		return nil
+	}
+}
+
+// WithVersion sets the version for the Package
+//
+// If using installers_v2.json, the version must match the version key in the json file
+//
+// Example: 7.65.0-1, 7.65.0-rc.1-1
+func WithVersion(version string) PackageOption {
+	return func(p *Package) error {
+		p.Version = version
+		return nil
+	}
+}
+
+// WithArch sets the architecture for the Package
+//
+// Default is x86_64
+//
+// If using installers_v2.json, the arch must match the arch key in the json file
+//
+// Example: x86_64
+func WithArch(arch string) PackageOption {
+	return func(p *Package) error {
+		p.Arch = arch
+		return nil
+	}
+}
+
+// WithFlavor sets the flavor for the Package
+//
+// # Default is empty, which is the base flavor
+//
+// Example: base, fips
+func WithFlavor(flavor string) PackageOption {
+	return func(p *Package) error {
+		p.Flavor = flavor
+		return nil
+	}
+}
+
+// WithProduct sets the product for the Package
+//
+// If using installers_v2.json, the product must match the product key in the json file
+//
+// Example: datadog-agent, datadog-fips-agent
+func WithProduct(product string) PackageOption {
+	return func(p *Package) error {
+		p.Product = product
+		return nil
+	}
+}
+
+// WithURL sets the URL for the MSI Package
+func WithURL(url string) PackageOption {
+	return func(p *Package) error {
+		p.URL = url
+		return nil
+	}
+}
+
+// WithPipelineID sets the pipeline ID for the Package
+func WithPipelineID(pipelineID string) PackageOption {
+	return func(p *Package) error {
+		p.PipelineID = pipelineID
+		return nil
+	}
+}
+
+// WithURLFromPipeline gets the Agent MSI URL from the pipeline
+func WithURLFromPipeline(pipelineID string) PackageOption {
+	return func(p *Package) error {
+		url, err := pipeline.GetPipelineArtifact(pipelineID, pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+			return strings.Contains(artifact, p.Product) && strings.HasSuffix(artifact, ".msi")
+		})
+		if err != nil {
+			return err
+		}
+		p.PipelineID = pipelineID
+		p.URL = url
+		return nil
+	}
+}
+
+// WithURLFromInstallersJSON gets the Agent MSI URL from the installers JSON
+//
+// Note: Depends on the Product and Arch fields. Ensure they are set first when using non-default values.
+func WithURLFromInstallersJSON(jsonURL, version string) PackageOption {
+	return func(p *Package) error {
+		if p.Product == "" {
+			return fmt.Errorf("product must be set before calling WithURLFromInstallersJSON")
+		}
+		if p.Arch == "" {
+			return fmt.Errorf("arch must be set before calling WithURLFromInstallersJSON")
+		}
+		url, err := installers.GetProductURL(jsonURL, p.Product, version, p.Arch)
+		if err != nil {
+			return err
+		}
+		p.Version = version
+		p.URL = url
+		return nil
+	}
+}
+
+// WithDevEnvOverrides creates a Package with development environment overrides
+//
+// Example: local MSI package file
+//
+//	export CURRENT_AGENT_MSI_URL="file:///path/to/msi/package.msi"
+//
+// Example: from a different pipeline
+//
+//	export CURRENT_AGENT_MSI_PIPELINE="123456"
+//
+// Example: stable version from installers_v2.json
+//
+//	export CURRENT_AGENT_MSI_VERSION="7.65.0-1"
+//
+// Example: beta version from installers_v2.json
+//
+//	export CURRENT_AGENT_MSI_VERSION="7.65.0-rc.1-1"
+//
+// Example: custom build from installers_v2.json
+//
+//	export CURRENT_AGENT_MSI_CHANNEL="beta"
+//	export CURRENT_AGENT_MSI_VERSION="7.65.0-custombuild-1"
+//
+// Example: custom URL
+//
+//	export CURRENT_AGENT_MSI_URL="https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.64.0-rc.9.msi"
+func WithDevEnvOverrides(devenvPrefix string) PackageOption {
+	return func(p *Package) error {
+		if flavor, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_FLAVOR", devenvPrefix)); ok {
+			if err := WithFlavor(flavor)(p); err != nil {
+				return err
+			}
+		}
+		if product, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_PRODUCT", devenvPrefix)); ok {
+			if err := WithProduct(product)(p); err != nil {
+				return err
+			}
+		}
+		if arch, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_ARCH", devenvPrefix)); ok {
+			if err := WithArch(arch)(p); err != nil {
+				return err
+			}
+		}
+		if channel, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_CHANNEL", devenvPrefix)); ok {
+			if err := WithChannel(channel)(p); err != nil {
+				return err
+			}
+		}
+		if version, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_VERSION", devenvPrefix)); ok {
+			if p.Channel == "" {
+				channel := stableChannel
+				// if channel is not provided, check if we can infer it from the version,
+				// If version contains `-rc.`, assume it is a beta version
+				if strings.Contains(strings.ToLower(version), `-rc.`) {
+					channel = betaChannel
+				}
+				if err := WithChannel(channel)(p); err != nil {
+					return err
+				}
+			}
+			jsonURL, err := GetChannelURL(p.Channel)
+			if err != nil {
+				return err
+			}
+			if customJSONURL, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_JSON_URL", devenvPrefix)); ok {
+				jsonURL = customJSONURL
+			}
+			if err := WithURLFromInstallersJSON(jsonURL, version)(p); err != nil {
+				return err
+			}
+		}
+		if url, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_URL", devenvPrefix)); ok {
+			if err := WithURL(url)(p); err != nil {
+				return err
+			}
+		}
+		if pipelineID, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_PIPELINE", devenvPrefix)); ok {
+			if err := WithURLFromPipeline(pipelineID)(p); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 }

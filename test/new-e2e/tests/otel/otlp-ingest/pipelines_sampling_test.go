@@ -49,6 +49,11 @@ agents:
 	e2e.Run(t, &otlpIngestSamplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
 }
 
+func (s *otlpIngestSamplingTestSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	utils.TestCalendarApp(s, false, utils.CalendarService)
+}
+
 func (s *otlpIngestSamplingTestSuite) TestSampling() {
 	utils.TestSampling(s, false)
 }

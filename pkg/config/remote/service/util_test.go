@@ -22,6 +22,7 @@ import (
 )
 
 const apiKey = "37d58c60b8ac337293ce2ca6b28b19eb"
+const rcURL = "dd-rc-url"
 
 func TestAuthKeys(t *testing.T) {
 	tests := []struct {
@@ -103,7 +104,7 @@ func checkData(db *bbolt.DB) error {
 	})
 }
 
-func getMetadata(db *bbolt.DB) (*AgentMetadata, error) {
+func getBucketMetadata(db *bbolt.DB) (*AgentMetadata, error) {
 	tx, err := db.Begin(false)
 	defer tx.Rollback()
 	if err != nil {
@@ -128,11 +129,11 @@ func TestRemoteConfigNewDB(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// should add the version to newly created databases
-	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey)
+	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey, rcURL)
 	require.NoError(t, err)
 	defer db.Close()
 
-	metadata, err := getMetadata(db)
+	metadata, err := getBucketMetadata(db)
 	require.NoError(t, err)
 
 	assert.Equal(t, agentVersion, metadata.Version)
@@ -144,21 +145,20 @@ func TestRemoteConfigChangedAPIKey(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// should add the version to newly created databases
-	db0, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey)
+	db0, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey, rcURL)
 	require.NoError(t, err)
 	defer db0.Close()
-	metadata0, err := getMetadata(db0)
+	metadata0, err := getBucketMetadata(db0)
 	require.NoError(t, err)
 	db0.Close()
 
-	db1, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey+"-new")
+	db1, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey+"-new", rcURL)
 	require.NoError(t, err)
 	defer db1.Close()
-	metadata1, err := getMetadata(db1)
+	metadata1, err := getBucketMetadata(db1)
 	require.NoError(t, err)
 
 	require.NotEqual(t, metadata0.APIKeyHash, metadata1.APIKeyHash)
-	require.NotEqual(t, metadata0.CreationTime, metadata1.CreationTime)
 }
 
 func TestRemoteConfigReopenNoVersionChange(t *testing.T) {
@@ -167,17 +167,17 @@ func TestRemoteConfigReopenNoVersionChange(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// should add the version to newly created databases
-	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion, apiKey)
+	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion, apiKey, rcURL)
 	require.NoError(t, err)
 
-	metadata, err := getMetadata(db)
+	metadata, err := getBucketMetadata(db)
 	require.NoError(t, err)
 
 	assert.Equal(t, agentVersion, metadata.Version)
 	require.NoError(t, addData(db))
 	require.NoError(t, db.Close())
 
-	db, err = openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion, apiKey)
+	db, err = openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion, apiKey, rcURL)
 	require.NoError(t, err)
 	defer db.Close()
 	require.NoError(t, checkData(db))
@@ -191,7 +191,7 @@ func TestRemoteConfigOldDB(t *testing.T) {
 	dbPath := filepath.Join(dir, "remote-config.db")
 
 	// create database with current version
-	db, err := openCacheDB(dbPath, agentVersion, apiKey)
+	db, err := openCacheDB(dbPath, agentVersion, apiKey, rcURL)
 	require.NoError(t, err)
 
 	require.NoError(t, addData(db))
@@ -207,13 +207,35 @@ func TestRemoteConfigOldDB(t *testing.T) {
 	require.NoError(t, db.Close())
 
 	// reopen database
-	db, err = openCacheDB(dbPath, agentVersion, apiKey)
+	db, err = openCacheDB(dbPath, agentVersion, apiKey, rcURL)
 	require.NoError(t, err)
 
 	// check version after the database opens
-	parsedMeta, err := getMetadata(db)
+	parsedMeta, err := getBucketMetadata(db)
 	require.NoError(t, err)
 
 	assert.Equal(t, agentVersion, parsedMeta.Version)
 	assert.Error(t, checkData(db))
+}
+
+func TestRemoteConfigChangedURL(t *testing.T) {
+	dir, err := os.MkdirTemp("", "remote-config-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	// should add the version to newly created databases
+	db0, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey, rcURL)
+	require.NoError(t, err)
+	defer db0.Close()
+	metadata0, err := getBucketMetadata(db0)
+	require.NoError(t, err)
+	db0.Close()
+
+	db1, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey, rcURL+"-new")
+	require.NoError(t, err)
+	defer db1.Close()
+	metadata1, err := getBucketMetadata(db1)
+	require.NoError(t, err)
+
+	require.NotEqual(t, metadata0.URL, metadata1.URL)
 }

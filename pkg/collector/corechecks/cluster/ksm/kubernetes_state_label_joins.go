@@ -8,6 +8,8 @@
 package ksm
 
 import (
+	"slices"
+
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -154,13 +156,7 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfi
 		}
 
 		for labelName, labelValue := range metric.Labels {
-			isALabelToMatch := false
-			for _, labelToMatch := range config.labelsToMatch {
-				if labelName == labelToMatch {
-					isALabelToMatch = true
-					break
-				}
-			}
+			isALabelToMatch := slices.Contains(config.labelsToMatch, labelName)
 			if !isALabelToMatch {
 				current.labelsToAdd = append(current.labelsToAdd, label{labelName, labelValue})
 			}

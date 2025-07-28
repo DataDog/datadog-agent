@@ -45,13 +45,18 @@ func (fc *MockFlare) handlerFunc(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Create mocks the flare create function
-func (fc *MockFlare) Create(_ flaretypes.ProfileData, _ time.Duration, _ error) (string, error) {
-	return "a string", nil
+func (fc *MockFlare) Create(_ flaretypes.ProfileData, _ time.Duration, _ error, _ []byte) (string, error) {
+	return "", nil
 }
 
 // Send mocks the flare send function
 func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
-	return "a string", nil
+	return "", nil
+}
+
+// CreateWithArgs mocks the flare create with args function
+func (fc *MockFlare) CreateWithArgs(_ flaretypes.FlareArgs, _ time.Duration, _ error, _ []byte) (string, error) {
+	return "", nil
 }
 
 // NewMock returns a new flare provider

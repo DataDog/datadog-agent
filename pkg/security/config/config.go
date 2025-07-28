@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -25,12 +25,143 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 const (
 	// ADMinMaxDumSize represents the minimum value for runtime_security_config.activity_dump.max_dump_size
 	ADMinMaxDumSize = 100
+)
+
+var (
+	// defaultKernelCompilationFlags are the kernel compilation flags checked by CWS
+	// This list was moved here, away from the config/ package, to reduce the size of the agent metadata payload in REDAPL.
+	defaultKernelCompilationFlags = []string{
+		// memory management hardening
+		"CONFIG_DEBUG_KERNEL",
+		"CONFIG_DEBUG_RODATA",
+		"CONFIG_STRICT_KERNEL_RWX",
+		"CONFIG_ARCH_OPTIONAL_KERNEL_RWX",
+		"CONFIG_ARCH_HAS_STRICT_KERNEL_RWX",
+		"CONFIG_DEBUG_WX",
+		"CONFIG_INIT_ON_ALLOC_DEFAULT_ON",
+		"CONFIG_INIT_ON_FREE_DEFAULT_ON",
+		"CONFIG_IOMMU_DEFAULT_DMA_STRICT",
+		"CONFIG_IOMMU_DEFAULT_PASSTHROUGH",
+		"CONFIG_KFENCE",
+		"CONFIG_HAVE_ARCH_KFENCE",
+		"CONFIG_KFENCE_SAMPLE_INTERVAL",
+		"CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT",
+		"CONFIG_CC_STACKPROTECTOR",
+		"CONFIG_CC_STACKPROTECTOR_STRONG",
+		"CONFIG_STACKPROTECTOR",
+		"CONFIG_STACKPROTECTOR_STRONG",
+		"CONFIG_DEVMEM",
+		"CONFIG_STRICT_DEVMEM",
+		"CONFIG_IO_STRICT_DEVMEM",
+		"CONFIG_SCHED_STACK_END_CHECK",
+		"CONFIG_HARDENED_USERCOPY",
+		"CONFIG_HARDENED_USERCOPY_FALLBACK",
+		"CONFIG_HARDENED_USERCOPY_PAGESPAN",
+		"CONFIG_VMAP_STACK",
+		"CONFIG_REFCOUNT_FULL",
+		"CONFIG_FORTIFY_SOURCE",
+		"CONFIG_ACPI_CUSTOM_METHOD",
+		"CONFIG_DEVKMEM",
+		"CONFIG_PROC_KCORE",
+		"CONFIG_COMPAT_VDSO",
+		"CONFIG_SECURITY_DMESG_RESTRICT",
+		"CONFIG_RETPOLINE",
+		"CONFIG_LEGACY_VSYSCALL_NONE",
+		"CONFIG_LEGACY_VSYSCALL_EMULATE",
+		"CONFIG_LEGACY_VSYSCALL_XONLY",
+		"CONFIG_X86_VSYSCALL_EMULATION",
+		"CONFIG_SHUFFLE_PAGE_ALLOCATOR",
+		// protect kernel data structures
+		"CONFIG_DEBUG_CREDENTIALS",
+		"CONFIG_DEBUG_NOTIFIERS",
+		"CONFIG_DEBUG_LIST",
+		"CONFIG_DEBUG_SG",
+		"CONFIG_BUG_ON_DATA_CORRUPTION",
+		// harden the memory allocator
+		"CONFIG_SLAB_FREELIST_RANDOM",
+		"CONFIG_SLUB",
+		"CONFIG_SLAB_FREELIST_HARDENED",
+		"CONFIG_SLAB_MERGE_DEFAULT",
+		"CONFIG_SLUB_DEBUG",
+		"CONFIG_PAGE_POISONING",
+		"CONFIG_PAGE_POISONING_NO_SANITY",
+		"CONFIG_PAGE_POISONING_ZERO",
+		"CONFIG_COMPAT_BRK",
+		// harden the management of kernel modules
+		"CONFIG_MODULES",
+		"CONFIG_STRICT_MODULE_RWX",
+		"CONFIG_MODULE_SIG",
+		"CONFIG_MODULE_SIG_FORCE",
+		"CONFIG_MODULE_SIG_ALL",
+		"CONFIG_MODULE_SIG_SHA512",
+		"CONFIG_MODULE_SIG_HASH",
+		// handle abnormal situations
+		"CONFIG_BUG",
+		"CONFIG_PANIC_ON_OOPS",
+		"CONFIG_PANIC_TIMEOUT",
+		// configure kernel security functions
+		"CONFIG_MULTIUSER",
+		"CONFIG_SECURITY",
+		"CONFIG_SECCOMP",
+		"CONFIG_SECCOMP_FILTER",
+		"CONFIG_SECURITY_YAMA",
+		"CONFIG_SECURITY_WRITABLE_HOOKS",
+		"CONFIG_SECURITY_SELINUX",
+		"CONFIG_SECURITY_SELINUX_DISABLE",
+		"CONFIG_BPF_LSM",
+		"CONFIG_SECURITY_SMACK",
+		"CONFIG_SECURITY_TOMOYO",
+		"CONFIG_SECURITY_APPARMOR",
+		"CONFIG_SECURITY_LOCKDOWN_LSM",
+		"CONFIG_LOCK_DOWN_KERNEL_FORCE_INTEGRITY",
+		"CONFIG_SECURITY_LANDLOCK",
+		"CONFIG_LSM",
+		"CONFIG_INTEGRITY_AUDIT",
+		"CONFIG_INTEGRITY",
+		"CONFIG_INTEGRITY_SIGNATURE",
+		"CONFIG_INTEGRITY_ASYMMETRIC_KEYS",
+		"CONFIG_INTEGRITY_TRUSTED_KEYRING",
+		"CONFIG_INTEGRITY_PLATFORM_KEYRING",
+		"CONFIG_INTEGRITY_MACHINE_KEYRING",
+		// configure compiler plugins
+		"CONFIG_GCC_PLUGINS",
+		"CONFIG_GCC_PLUGIN_LATENT_ENTROPY",
+		"CONFIG_GCC_PLUGIN_STACKLEAK",
+		"CONFIG_GCC_PLUGIN_STRUCTLEAK",
+		"CONFIG_GCC_PLUGIN_STRUCTLEAK_BYREF_ALL",
+		"CONFIG_GCC_PLUGIN_RANDSTRUCT",
+		"CONFIG_GCC_PLUGIN_RANDSTRUCT_PERFORMANCE",
+		// configure the IP stack
+		"CONFIG_IPV6",
+		"CONFIG_SYN_COOKIES",
+		// various kernel behavior
+		"CONFIG_KEXEC",
+		"CONFIG_KEXEC_SIG",
+		"CONFIG_KEXEC_SIG_FORCE",
+		"CONFIG_HIBERNATION",
+		"CONFIG_BINFMT_MISC",
+		"CONFIG_LEGACY_PTYS",
+		// options for x86_32 bit architectures
+		"CONFIG_HIGHMEM64G",
+		"CONFIG_X86_PAE",
+		// options for x86_64 or arm64 architectures
+		"CONFIG_X86_64",
+		"CONFIG_DEFAULT_MMAP_MIN_ADDR",
+		"CONFIG_RANDOMIZE_BASE",
+		"CONFIG_RANDOMIZE_MEMORY",
+		"CONFIG_PAGE_TABLE_ISOLATION",
+		"CONFIG_IA32_EMULATION",
+		"CONFIG_MODIFY_LDT_SYSCALL",
+		"CONFIG_ARM64_SW_TTBR0_PAN",
+		"CONFIG_UNMAP_KERNEL_AT_EL0",
+	}
 )
 
 // Policy represents a policy file in the configuration file
@@ -74,6 +205,8 @@ type RuntimeSecurityConfig struct {
 	LogPatterns []string
 	// LogTags tags to be used by the logger for trace level
 	LogTags []string
+	// EnvAsTags convert envs to tags
+	EnvAsTags []string
 	// HostServiceName string
 	HostServiceName string
 	// OnDemandEnabled defines whether the on-demand probes should be enabled
@@ -210,6 +343,8 @@ type RuntimeSecurityConfig struct {
 	SBOMResolverWorkloadsCacheSize int
 	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
 	SBOMResolverHostEnabled bool
+	// SBOMResolverAnalyzers defines the list of analyzers that should be used to compute the SBOM
+	SBOMResolverAnalyzers []string
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -234,6 +369,8 @@ type RuntimeSecurityConfig struct {
 	SysCtlSnapshotPeriod time.Duration
 	// SysCtlSnapshotIgnoredBaseNames defines the list of basenaes that should be ignored from the snapshot
 	SysCtlSnapshotIgnoredBaseNames []string
+	// SysCtlSnapshotKernelCompilationFlags defines the list of kernel compilation flags that should be collected by the agent
+	SysCtlSnapshotKernelCompilationFlags map[string]uint8
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
@@ -287,6 +424,9 @@ type RuntimeSecurityConfig struct {
 
 	// SendEventFromSystemProbe defines when the event are sent directly from system-probe
 	SendEventFromSystemProbe bool
+
+	// FileMetadataResolverEnabled defines if the file metadata is enabled
+	FileMetadataResolverEnabled bool
 }
 
 // Config defines a security config
@@ -373,6 +513,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		LogPatterns: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_tags"),
+		EnvAsTags:   pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.env_as_tags"),
 
 		// custom events
 		InternalMonitoringEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.internal_monitoring.enabled"),
@@ -401,10 +542,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.auto_suppression.enabled"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
-			mds := pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size")
-			if mds < ADMinMaxDumSize {
-				mds = ADMinMaxDumSize
-			}
+			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
 		},
 
@@ -412,6 +550,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
 		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
+		SBOMResolverAnalyzers:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sbom.analyzers"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -423,10 +562,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),
 
 		// SysCtl config parameter
-		SysCtlEnabled:                  pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
-		SysCtlSnapshotEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
-		SysCtlSnapshotPeriod:           pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
-		SysCtlSnapshotIgnoredBaseNames: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
+		SysCtlEnabled:                        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
+		SysCtlSnapshotEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
+		SysCtlSnapshotPeriod:                 pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
+		SysCtlSnapshotIgnoredBaseNames:       pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
+		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
 		// security profiles
 		SecurityProfileEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -479,6 +619,17 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// direct sender
 		SendEventFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
+
+		// FileMetadataResolverEnabled
+		FileMetadataResolverEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.file_metadata_resolver.enabled"),
+	}
+
+	compilationFlags := pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.kernel_compilation_flags")
+	if len(compilationFlags) == 0 {
+		compilationFlags = defaultKernelCompilationFlags
+	}
+	for _, configFlag := range compilationFlags {
+		rsConfig.SysCtlSnapshotKernelCompilationFlags[configFlag] = 1
 	}
 
 	activityDumpRateLimiter := pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.rate_limiter")
@@ -573,14 +724,7 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 // sanitizeRuntimeSecurityConfigActivityDump ensures that runtime_security_config.activity_dump is properly configured
 func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() error {
-	var execFound bool
-	for _, evtType := range c.ActivityDumpTracedEventTypes {
-		if evtType == model.ExecEventType {
-			execFound = true
-			break
-		}
-	}
-	if !execFound {
+	if !slices.Contains(c.ActivityDumpTracedEventTypes, model.ExecEventType) {
 		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
 	}
 

@@ -4,9 +4,6 @@ on:
   push:
     branches:
     - main
-    paths:
-    - docs/**
-    - .github/workflows/docs-dev.yml
   pull_request:
     branches:
     - main
@@ -31,13 +28,10 @@ jobs:
         # Fetch all history for applying timestamps to every page
         fetch-depth: 0
 
-    - name: Set up Python
-      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+    - name: Install dda
+      uses: ./.github/actions/install-dda
       with:
-        python-version-file: .python-version
-
-    - name: Install dependencies
-      run: pip install -r tasks/requirements.txt
+        features: legacy-tasks
 
     - name: Configure Git for GitHub Actions bot
       run: |
@@ -45,10 +39,10 @@ jobs:
         git config --local user.email 'github-actions[bot]@users.noreply.github.com'
 
     - name: Validate documentation
-      run: invoke docs.build --validate
+      run: dda run docs build --check
 
     - name: Build documentation
-      run: invoke docs.build
+      run: dda run docs build
 
     - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
       with:

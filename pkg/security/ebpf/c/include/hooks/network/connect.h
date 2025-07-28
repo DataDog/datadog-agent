@@ -5,16 +5,26 @@
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
 
+int __attribute__((always_inline)) sys_connect(u64 pid_tgid) {
+    struct policy_t policy = fetch_policy(EVENT_CONNECT);
+    struct syscall_cache_t syscall = {
+        .policy = policy,
+        .type = EVENT_CONNECT,
+        .async = pid_tgid ? 1: 0,
+        .connect = {
+            .pid_tgid = pid_tgid,
+        }
+    };
+    cache_syscall(&syscall);
+    return 0;
+}
+
 HOOK_SYSCALL_ENTRY3(connect, int, socket, struct sockaddr *, addr, unsigned int, addr_len) {
     if (!addr) {
         return 0;
     }
 
-    struct syscall_cache_t syscall = {
-        .type = EVENT_CONNECT,
-    };
-    cache_syscall(&syscall);
-    return 0;
+    return sys_connect(0);
 }
 
 int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
@@ -23,7 +33,12 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (IS_UNHANDLED_ERROR(retval)) {
+    if (approve_syscall(syscall, connect_approvers) == DISCARDED) {
+        return 0;
+    }
+
+    // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64)
+    if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
         return 0;
     }
 
@@ -37,7 +52,12 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         .protocol = syscall->connect.protocol,
     };
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
+    struct proc_cache_t *entry;
+    if (syscall->connect.pid_tgid != 0) {
+        entry = fill_process_context_with_pid_tgid(&event.process, syscall->connect.pid_tgid);
+    } else {
+        entry = fill_process_context(&event.process);
+    }
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
@@ -94,9 +114,20 @@ int hook_security_socket_connect(ctx_t *ctx) {
     return 0;
 }
 
-SEC("tracepoint/handle_sys_connect_exit")
-int tracepoint_handle_sys_connect_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_connect_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_connect_ret(args, args->ret);
+}
+
+HOOK_ENTRY("io_connect")
+int hook_io_connect(ctx_t *ctx) {
+    void *raw_req = (void *)CTX_PARM1(ctx);
+    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
+    return sys_connect(pid_tgid);
+}
+
+HOOK_EXIT("io_connect")
+int rethook_io_connect(ctx_t *ctx) {
+    return sys_connect_ret(ctx, CTX_PARMRET(ctx));
 }
 
 #endif /* _CONNECT_H_ */

@@ -158,7 +158,6 @@ func (c *reverseDNSCache) Len() int {
 }
 
 func (c *reverseDNSCache) Close() {
-	c.oversizedLogLimit.Close()
 	close(c.exit)
 }
 

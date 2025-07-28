@@ -13,8 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -26,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -183,10 +184,10 @@ func (c *Check) Interval() time.Duration {
 }
 
 // GetDiagnoses collects diagnoses for diagnose CLI
-func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	if c.config.IsDiscovery() {
 		devices := c.discovery.GetDiscoveredDeviceConfigs()
-		var diagnosis []diagnosis.Diagnosis
+		var diagnosis []diagnose.Diagnosis
 
 		for _, deviceCheck := range devices {
 			diagnosis = append(diagnosis, deviceCheck.GetDiagnoses()...)

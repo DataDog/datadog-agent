@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 
 	policyv1 "k8s.io/api/policy/v1"
@@ -25,6 +26,16 @@ type PodDisruptionBudgetHandlers struct {
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *PodDisruptionBudgetHandlers) AfterMarshalling(_ processors.ProcessorContext, _, _ interface{}, _ []byte) (skip bool) {
+	return
+}
+
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodDisruptionBudgetHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*policyv1.PodDisruptionBudget)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
 	return
 }
 
@@ -44,7 +55,8 @@ func (h *PodDisruptionBudgetHandlers) BuildMessageBody(ctx processors.ProcessorC
 		GroupId:              pctx.MsgGroupID,
 		GroupSize:            int32(groupSize),
 		PodDisruptionBudgets: models,
-		Tags:                 append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:                 util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion:         ctx.GetAgentVersion(),
 	}
 }
 
@@ -61,7 +73,7 @@ func (h *PodDisruptionBudgetHandlers) ResourceList(_ processors.ProcessorContext
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
@@ -75,6 +87,17 @@ func (h *PodDisruptionBudgetHandlers) ResourceUID(_ processors.ProcessorContext,
 // ResourceVersion is a handler called to retrieve the resource version.
 func (h *PodDisruptionBudgetHandlers) ResourceVersion(_ processors.ProcessorContext, resource, _ interface{}) string {
 	return resource.(*policyv1.PodDisruptionBudget).ResourceVersion
+}
+
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *PodDisruptionBudgetHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.PodDisruptionBudget)
+	if !ok {
+		return nil
+	}
+	return m.Tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

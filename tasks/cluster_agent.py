@@ -16,7 +16,7 @@ from tasks.build_tags import get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
 from tasks.gointegrationtest import CLUSTER_AGENT_IT_CONF, containerized_integration_tests
-from tasks.libs.releasing.version import load_release_versions
+from tasks.libs.releasing.version import load_dependencies
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -35,13 +35,13 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
-    release_version="nightly-a7",
+    major_version='7',
 ):
     """
     Build Cluster Agent
 
      Example invokation:
-        inv cluster-agent.build
+        dda inv cluster-agent.build
     """
     build_common(
         ctx,
@@ -54,14 +54,16 @@ def build(
         race,
         development,
         skip_assets,
+        major_version=major_version,
+        cover=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
 
     if policies_version is None:
-        print(f"Loading release versions for {release_version}")
-        env = load_release_versions(ctx, release_version)
+        print("Loading dependencies from release.json")
+        env = load_dependencies(ctx)
         if "SECURITY_AGENT_POLICIES_VERSION" in env:
             policies_version = env["SECURITY_AGENT_POLICIES_VERSION"]
-            print(f"Security Agent polices for {release_version}: {policies_version}")
+            print(f"Security Agent polices: {policies_version}")
 
     build_context = "Dockerfiles/cluster-agent"
     policies_path = f"{build_context}/security-agent-policies"
@@ -151,7 +153,9 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     shutil.copy2(latest_file, exec_path)
     shutil.copy2(latest_cws_instrumentation_file, cws_instrumentation_exec_path)
     shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
-    ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")
+    ctx.run(
+        f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path} --build-context artifacts={build_context}"
+    )
     ctx.run(f"rm {exec_path}")
     ctx.run(f"rm -rf {cws_instrumentation_base}")
 
@@ -165,11 +169,12 @@ def hacky_dev_image_build(
     base_image=None,
     target_image="cluster-agent",
     push=False,
+    race=False,
     signed_pull=False,
     arch=None,
 ):
     os.environ["DELVE"] = "1"
-    build(ctx)
+    build(ctx, race=race)
 
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())

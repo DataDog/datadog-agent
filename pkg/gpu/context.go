@@ -1,57 +1,34 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
 import (
 	"fmt"
-	"slices"
-	"time"
-
-	"github.com/prometheus/procfs"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const nvidiaResourceName = "nvidia.com/gpu"
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
 type systemContext struct {
 	// timeResolver allows to resolve kernel-time timestamps
 	timeResolver *ktime.Resolver
 
-	// nvmlLib is the NVML library used to query GPU devices
-	nvmlLib nvml.Interface
-
-	// deviceSmVersions maps each device UUID to its SM (Compute architecture) version
-	deviceSmVersions map[string]uint32
-
-	// smVersionSet is a set of all the seen SM versions, to filter kernels to parse
-	smVersionSet map[uint32]struct{}
-
-	// cudaSymbols maps each executable file path to its Fatbin file data
-	cudaSymbols map[symbolFileIdentifier]*symbolsEntry
-
-	// pidMaps maps each process ID to its memory maps
-	pidMaps map[int][]*procfs.ProcMap
-
 	// procRoot is the root directory for process information
 	procRoot string
-
-	// procfsObj is the procfs filesystem object to retrieve process maps
-	procfsObj procfs.FS
 
 	// selectedDeviceByPIDAndTID maps each process ID to the map of thread IDs to selected device index.
 	// The reason to have a nested map is to allow easy cleanup of data when a process exits.
@@ -60,252 +37,133 @@ type systemContext struct {
 	// be modified by the CUDA_VISIBLE_DEVICES environment variable later
 	selectedDeviceByPIDAndTID map[int]map[int]int32
 
-	// gpuDevices is the list of GPU devices on the system. Needs to be present to
-	// be able to compute the visible devices for a process
-	gpuDevices []nvml.Device
+	// cudaVisibleDevicesPerProcess maps each process ID to the latest visible
+	// devices environment variable that was set by the process. This is used to
+	// keep track of updates during process runtime, which aren't visible in
+	// /proc/pid/environ.
+	cudaVisibleDevicesPerProcess map[int]string
+
+	// deviceCache is a cache of GPU devices on the system
+	deviceCache ddnvml.DeviceCache
 
 	// visibleDevicesCache is a cache of visible devices for each process, to avoid
 	// looking into the environment variables every time
-	visibleDevicesCache map[int][]nvml.Device
+	visibleDevicesCache map[int][]ddnvml.Device
 
 	// workloadmeta is the workloadmeta component that we use to get necessary container metadata
 	workloadmeta workloadmeta.Component
 
-	// telemetry holds telemetry elements for the context
-	telemetry *contextTelemetry
-
-	// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
-	fatbinTelemetry *fatbinTelemetry
+	// cudaKernelCache caches kernel data and handles background loading
+	cudaKernelCache *cuda.KernelCache
 }
 
-// symbolFileIdentifier holds the inode and file size of a symbol file, which we use to avoid
-// parsing the same file multiple times when it has different paths (e.g., symlinks in /proc/PID/root)
-// We add fileSize to the identifier to mitigate possible issues with inode reuse.
-type symbolFileIdentifier struct {
-	inode    int
-	fileSize int64
+type systemContextOptions struct {
+	procRoot             string
+	wmeta                workloadmeta.Component
+	tm                   telemetry.Component
+	fatbinParsingEnabled bool
+	config               *config.Config
 }
 
-// contextTelemetry holds telemetry elements for the context
-type contextTelemetry struct {
-	symbolCacheSize telemetry.Gauge
-	activePIDs      telemetry.Gauge
-}
+type systemContextOption func(*systemContextOptions)
 
-// fatbinTelemetry holds telemetry counters and histograms for the fatbin parsing process
-type fatbinTelemetry struct {
-	readErrors     telemetry.Counter
-	fatbinPayloads telemetry.Counter
-	kernelsPerFile telemetry.Histogram
-	kernelSizes    telemetry.Histogram
-}
-
-// symbolsEntry embeds cuda.Symbols adding a field for keeping track of the last
-// time the entry was accessed, for cleanup purposes.
-type symbolsEntry struct {
-	*cuda.Symbols
-	lastUsedTime time.Time
-}
-
-func (e *symbolsEntry) updateLastUsedTime() {
-	e.lastUsedTime = time.Now()
-}
-
-func getSystemContext(nvmlLib nvml.Interface, procRoot string, wmeta workloadmeta.Component, tm telemetry.Component) (*systemContext, error) {
-	ctx := &systemContext{
-		deviceSmVersions:          make(map[string]uint32),
-		smVersionSet:              make(map[uint32]struct{}),
-		cudaSymbols:               make(map[symbolFileIdentifier]*symbolsEntry),
-		pidMaps:                   make(map[int][]*procfs.ProcMap),
-		nvmlLib:                   nvmlLib,
-		procRoot:                  procRoot,
-		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
-		visibleDevicesCache:       make(map[int][]nvml.Device),
-		workloadmeta:              wmeta,
-		telemetry:                 newContextTelemetry(tm),
-		fatbinTelemetry:           newfatbinTelemetry(tm),
+func withProcRoot(procRoot string) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.procRoot = procRoot
 	}
+}
 
-	if err := ctx.fillDeviceInfo(); err != nil {
-		return nil, fmt.Errorf("error querying devices: %w", err)
+func withWorkloadMeta(wmeta workloadmeta.Component) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.wmeta = wmeta
+	}
+}
+
+func withTelemetry(tm telemetry.Component) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.tm = tm
+	}
+}
+
+func withFatbinParsingEnabled(enabled bool) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.fatbinParsingEnabled = enabled
+	}
+}
+
+func withConfig(config *config.Config) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.config = config
+	}
+}
+
+func newSystemContextOptions(optList ...systemContextOption) *systemContextOptions {
+	opts := &systemContextOptions{
+		fatbinParsingEnabled: false,
+		config:               config.New(),
+	}
+	for _, opt := range optList {
+		opt(opts)
+	}
+	return opts
+}
+
+func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
+	opts := newSystemContextOptions(optList...)
+
+	ctx := &systemContext{
+		procRoot:                     opts.procRoot,
+		selectedDeviceByPIDAndTID:    make(map[int]map[int]int32),
+		visibleDevicesCache:          make(map[int][]ddnvml.Device),
+		cudaVisibleDevicesPerProcess: make(map[int]string),
+		workloadmeta:                 opts.wmeta,
 	}
 
 	var err error
+	ctx.deviceCache, err = ddnvml.NewDeviceCache()
+	if err != nil {
+		return nil, fmt.Errorf("error creating device cache: %w", err)
+	}
+
 	ctx.timeResolver, err = ktime.NewResolver()
 	if err != nil {
 		return nil, fmt.Errorf("error creating time resolver: %w", err)
 	}
 
-	ctx.procfsObj, err = procfs.NewFS(procRoot)
-	if err != nil {
-		return nil, fmt.Errorf("error creating procfs filesystem: %w", err)
+	if opts.fatbinParsingEnabled {
+		ctx.cudaKernelCache, err = cuda.NewKernelCache(opts.procRoot, ctx.deviceCache.SMVersionSet(), opts.tm, opts.config.KernelCacheQueueSize)
+		if err != nil {
+			return nil, fmt.Errorf("error creating kernel cache: %w", err)
+		}
 	}
 
 	return ctx, nil
 }
 
-func newContextTelemetry(tm telemetry.Component) *contextTelemetry {
-	subsystem := gpuTelemetryModule + "__context"
-
-	return &contextTelemetry{
-		symbolCacheSize: tm.NewGauge(subsystem, "symbol_cache_size", nil, "Number of CUDA symbols in the cache"),
-		activePIDs:      tm.NewGauge(subsystem, "active_pids", nil, "Number of active PIDs being monitored"),
-	}
-}
-
-func newfatbinTelemetry(tm telemetry.Component) *fatbinTelemetry {
-	subsystem := gpuTelemetryModule + "__fatbin_parser"
-
-	return &fatbinTelemetry{
-		readErrors:     tm.NewCounter(subsystem, "read_errors", nil, "Number of errors reading fatbin data"),
-		fatbinPayloads: tm.NewCounter(subsystem, "fatbin_payloads", []string{"compression"}, "Number of fatbin payloads read"),
-		kernelsPerFile: tm.NewHistogram(subsystem, "kernels_per_file", nil, "Number of kernels per fatbin file", []float64{5, 10, 50, 100, 500}),
-		kernelSizes:    tm.NewHistogram(subsystem, "kernel_sizes", nil, "Size of kernels in bytes", []float64{100, 1000, 10000, 100000, 1000000, 10000000}),
-	}
-}
-
-func getDeviceSmVersion(device nvml.Device) (uint32, error) {
-	major, minor, ret := device.GetCudaComputeCapability()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting SM version: %s", nvml.ErrorString(ret))
-	}
-
-	return uint32(major*10 + minor), nil
-}
-
-func (ctx *systemContext) fillDeviceInfo() error {
-	count, ret := ctx.nvmlLib.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
-	}
-	for i := 0; i < count; i++ {
-		dev, ret := ctx.nvmlLib.DeviceGetHandleByIndex(i)
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
-		}
-		smVersion, err := getDeviceSmVersion(dev)
-		if err != nil {
-			return err
-		}
-		ctx.smVersionSet[smVersion] = struct{}{}
-		devUUID, ret := dev.GetUUID()
-		if ret != nvml.SUCCESS {
-			return fmt.Errorf("error getting device UUID: %s", nvml.ErrorString(ret))
-		}
-
-		ctx.deviceSmVersions[devUUID] = smVersion
-		ctx.gpuDevices = append(ctx.gpuDevices, dev)
-	}
-	return nil
-}
-
-func buildSymbolFileIdentifier(path string) (symbolFileIdentifier, error) {
-	stat, err := utils.UnixStat(path)
-	if err != nil {
-		return symbolFileIdentifier{}, fmt.Errorf("error getting file info: %w", err)
-	}
-
-	return symbolFileIdentifier{inode: int(stat.Ino), fileSize: stat.Size}, nil
-}
-
-func (ctx *systemContext) getCudaSymbols(path string) (*symbolsEntry, error) {
-	fileIdent, err := buildSymbolFileIdentifier(path)
-	if err != nil {
-		// an error means we cannot access the file, so returning makes sense as we will fail later anyways
-		return nil, fmt.Errorf("error building symbol file identifier: %w", err)
-	}
-
-	if data, ok := ctx.cudaSymbols[fileIdent]; ok {
-		data.updateLastUsedTime()
-		return data, nil
-	}
-
-	log.Debugf("Getting CUDA symbols for %s, wanted SM versions: %v", path, ctx.smVersionSet)
-
-	data, err := cuda.GetSymbols(path, ctx.smVersionSet)
-	if err != nil {
-		ctx.fatbinTelemetry.readErrors.Inc()
-		return nil, fmt.Errorf("error getting file data: %w", err)
-	}
-
-	ctx.fatbinTelemetry.fatbinPayloads.Add(float64(data.Fatbin.CompressedPayloads), "compressed")
-	ctx.fatbinTelemetry.fatbinPayloads.Add(float64(data.Fatbin.UncompressedPayloads), "uncompressed")
-	ctx.fatbinTelemetry.kernelsPerFile.Observe(float64(data.Fatbin.NumKernels()))
-
-	for kernel := range data.Fatbin.GetKernels() {
-		ctx.fatbinTelemetry.kernelsPerFile.Observe(float64(kernel.KernelSize))
-	}
-
-	wrapper := &symbolsEntry{Symbols: data}
-	wrapper.updateLastUsedTime()
-	ctx.cudaSymbols[fileIdent] = wrapper
-
-	ctx.telemetry.symbolCacheSize.Set(float64(len(ctx.cudaSymbols)))
-
-	return wrapper, nil
-}
-
-func (ctx *systemContext) getProcessMemoryMaps(pid int) ([]*procfs.ProcMap, error) {
-	if maps, ok := ctx.pidMaps[pid]; ok {
-		return maps, nil
-	}
-
-	proc, err := ctx.procfsObj.Proc(pid)
-	if err != nil {
-		return nil, fmt.Errorf("error opening process %d: %w", pid, err)
-	}
-
-	maps, err := proc.ProcMaps()
-	if err != nil {
-		return nil, fmt.Errorf("error reading process %d memory maps: %w", pid, err)
-	}
-
-	// Remove any maps that don't have a pathname, we only want to keep the ones that are backed by a file
-	// to read from there the CUDA symbols.
-	maps = slices.DeleteFunc(maps, func(m *procfs.ProcMap) bool {
-		return m.Pathname == ""
-	})
-	slices.SortStableFunc(maps, func(a, b *procfs.ProcMap) int {
-		return int(a.StartAddr) - int(b.StartAddr)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error reading process memory maps: %w", err)
-	}
-
-	ctx.pidMaps[pid] = maps
-	ctx.telemetry.activePIDs.Set(float64(len(ctx.pidMaps)))
-	return maps, nil
-}
-
 // removeProcess removes any data associated with a process from the system context.
 func (ctx *systemContext) removeProcess(pid int) {
-	delete(ctx.pidMaps, pid)
 	delete(ctx.selectedDeviceByPIDAndTID, pid)
 	delete(ctx.visibleDevicesCache, pid)
+	delete(ctx.cudaVisibleDevicesPerProcess, pid)
 
-	ctx.telemetry.activePIDs.Set(float64(len(ctx.pidMaps)))
+	if ctx.cudaKernelCache != nil {
+		ctx.cudaKernelCache.CleanProcessData(pid)
+	}
 }
 
-// cleanupOldEntries removes any old entries that have not been accessed in a while, to avoid
+// cleanOld removes any old entries that have not been accessed in a while, to avoid
 // retaining unused data forever
-func (ctx *systemContext) cleanupOldEntries() {
-	maxFatbinAge := 5 * time.Minute
-	fatbinExpirationTime := time.Now().Add(-maxFatbinAge)
-
-	for path, data := range ctx.cudaSymbols {
-		if data.lastUsedTime.Before(fatbinExpirationTime) {
-			delete(ctx.cudaSymbols, path)
-		}
+func (ctx *systemContext) cleanOld() {
+	if ctx.cudaKernelCache != nil {
+		ctx.cudaKernelCache.CleanOld()
 	}
-
-	ctx.telemetry.symbolCacheSize.Set(float64(len(ctx.cudaSymbols)))
 }
 
 // filterDevicesForContainer filters the available GPU devices for the given
 // container. If the ID is not empty, we check the assignment of GPU resources
 // to the container and return only the devices that are available to the
 // container.
-func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, containerID string) ([]nvml.Device, error) {
+func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, containerID string) ([]ddnvml.Device, error) {
 	if containerID == "" {
 		// If the process is not running in a container, we assume all devices are available.
 		return devices, nil
@@ -316,7 +174,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 		// If we don't find the container, we assume all devices are available.
 		// This can happen sometimes, e.g. if we don't have the container in the
 		// store yet. Do not block metrics on that.
-		if errors.IsNotFound(err) {
+		if dderrors.IsNotFound(err) {
 			return devices, nil
 		}
 
@@ -325,39 +183,25 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 		return nil, fmt.Errorf("cannot retrieve data for container %s: %s", containerID, err)
 	}
 
-	var filteredDevices []nvml.Device
-	numContainerGPUs := 0
-	for _, resource := range container.AllocatedResources {
-		// Only consider NVIDIA GPUs
-		if resource.Name != nvidiaResourceName {
-			continue
-		}
-
-		numContainerGPUs++
-
-		for _, device := range devices {
-			uuid, ret := device.GetUUID()
-			if ret != nvml.SUCCESS {
-				log.Warnf("Error getting GPU UUID for device %s: %s", device, nvml.ErrorString(ret))
-				continue
-			}
-
-			if resource.ID == uuid {
-				filteredDevices = append(filteredDevices, device)
-				break
-			}
-		}
-	}
+	filteredDevices, err := containers.MatchContainerDevices(container, devices)
 
 	// Found matching devices, return them
 	if len(filteredDevices) > 0 {
+		if err != nil {
+			if logLimitProbe.ShouldLog() {
+				log.Warnf("error matching some container devices: %s. Will continue with the available devices", err)
+			}
+		}
 		return filteredDevices, nil
 	}
 
-	// We didn't match any devices to the container. This could be caused by
-	// multiple reasons. One option is that the container has no GPUs assigned
-	// to it. This could be a problem in the PodResources API.
-	if numContainerGPUs == 0 {
+	// We didn't match any devices to the container, but there were not errors
+	// while matching, which means that there were no GPU devices assigned to
+	// the container to try and match. This could be a problem in the PodResources
+	// API, or it could be due to the container environment being different
+	// (e.g., Docker instead of k8s). In any case, we return the available
+	// devices as a fallback.
+	if err == nil {
 		// An special case is when we only have one GPU in the system. In that
 		// case, we don't need the API as there's only one device available, so
 		// return it directly as a fallback
@@ -373,25 +217,39 @@ func (ctx *systemContext) filterDevicesForContainer(devices []nvml.Device, conta
 	// If the container has GPUs assigned to it but we couldn't match it to our
 	// devices, return the error for this case and show the allocated resources
 	// for debugging purposes.
-	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.AllocatedResources)
+	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v: %w", containerID, container.ResolvedAllocatedResources, err)
 }
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
 // last selection (via cudaSetDevice) this thread made and the visible devices for the process.
-func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerID string) (nvml.Device, error) {
+// This function caches the visible devices for the process in the visibleDevicesCache map, so it only
+// does the expensive operations of looking into the process state and filtering devices one time for each process
+// containerIDFunc is a function that returns the container ID for the given process. As retrieving the container ID
+// might be expensive, we pass a function that can be called to retrieve it only when needed
+func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (ddnvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
+		containerID := containerIDFunc()
+
 		// Order is important! We need to filter the devices for the container
 		// first. In a container setting, the environment variable acts as a
 		// filter on the devices that are available to the process, not on the
 		// devices available on the host system.
 		var err error // avoid shadowing visibleDevices, declare error before so we can use = instead of :=
-		visibleDevices, err = ctx.filterDevicesForContainer(ctx.gpuDevices, containerID)
+		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.AllPhysicalDevices(), containerID)
 		if err != nil {
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}
 
-		visibleDevices, err = cuda.GetVisibleDevicesForProcess(visibleDevices, pid, ctx.procRoot)
+		envVar, ok := ctx.cudaVisibleDevicesPerProcess[pid]
+		if !ok {
+			envVar, err = kernel.GetProcessEnvVariable(pid, ctx.procRoot, cuda.CudaVisibleDevicesEnvVar)
+			if err != nil {
+				return nil, fmt.Errorf("error getting env var %s for process %d: %w", cuda.CudaVisibleDevicesEnvVar, pid, err)
+			}
+		}
+
+		visibleDevices, err = cuda.ParseVisibleDevices(visibleDevices, envVar)
 		if err != nil {
 			return nil, fmt.Errorf("error getting visible devices for process %d: %w", pid, err)
 		}
@@ -410,7 +268,7 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 	}
 
 	if selectedDeviceIndex < 0 || selectedDeviceIndex >= int32(len(visibleDevices)) {
-		return nil, fmt.Errorf("device index %d is out of range", selectedDeviceIndex)
+		return nil, fmt.Errorf("device index %d is out of range for visible devices %+v", selectedDeviceIndex, visibleDevices)
 	}
 
 	return visibleDevices[selectedDeviceIndex], nil
@@ -425,16 +283,9 @@ func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32
 	ctx.selectedDeviceByPIDAndTID[pid][tid] = deviceIndex
 }
 
-// getDeviceByUUID returns the device with the given UUID.
-func (ctx *systemContext) getDeviceByUUID(uuid string) (nvml.Device, error) {
-	for _, dev := range ctx.gpuDevices {
-		devUUID, ret := dev.GetUUID()
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("error getting device UUID: %s", nvml.ErrorString(ret))
-		}
-		if devUUID == uuid {
-			return dev, nil
-		}
-	}
-	return nil, fmt.Errorf("device with UUID %s not found", uuid)
+func (ctx *systemContext) setUpdatedVisibleDevicesEnvVar(pid int, envVar string) {
+	ctx.cudaVisibleDevicesPerProcess[pid] = envVar
+
+	// Invalidate the visible devices cache to force a re-scan of the devices
+	delete(ctx.visibleDevicesCache, pid)
 }

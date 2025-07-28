@@ -85,6 +85,9 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	if deps.Cfg.IsSet("remote_configuration.refresh_interval") {
 		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("remote_configuration.refresh_interval"), "remote_configuration.refresh_interval"))
 	}
+	if deps.Cfg.IsSet("remote_configuration.org_status_refresh_interval") {
+		options = append(options, remoteconfig.WithOrgStatusRefreshInterval(deps.Cfg.GetDuration("remote_configuration.org_status_refresh_interval"), "remote_configuration.org_status_refresh_interval"))
+	}
 	if deps.Cfg.IsSet("remote_configuration.max_backoff_interval") {
 		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("remote_configuration.max_backoff_interval"), "remote_configuration.max_backoff_interval"))
 	}

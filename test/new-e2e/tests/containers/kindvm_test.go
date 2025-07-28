@@ -21,12 +21,10 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	// Added to investigate flaky E2E test
-	// TODO: remove when investigation is done
 	helmValues := `
 clusterAgent:
     envDict:
-        DD_LOG_LEVEL: TRACE
+        DD_CSI_ENABLED: "true"
 `
 
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(

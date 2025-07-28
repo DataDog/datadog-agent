@@ -81,6 +81,7 @@ const (
 	orchestratorEndpoint         = "/api/v2/orch"
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
 	metadataEndpoint             = "/api/v1/metadata"
+	ndmEndpoint                  = "/api/v2/ndm"
 	ndmflowEndpoint              = "/api/v2/ndmflow"
 	netpathEndpoint              = "/api/v2/netpath"
 	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
@@ -99,12 +100,30 @@ func WithoutStrictFakeintakeIDCheck() Option {
 	}
 }
 
+// WithGetBackoffDelay sets the delay between two retries in get
+func WithGetBackoffDelay(delay time.Duration) Option {
+	return func(c *Client) {
+		c.getBackoffDelay = delay
+	}
+}
+
+// WithGetBackoffRetries sets the number of retries in get
+func WithGetBackoffRetries(retries uint64) Option {
+	return func(c *Client) {
+		c.getBackoffRetries = retries
+	}
+}
+
 // Client is a fake intake client
 type Client struct {
 	fakeintakeID            string
 	fakeIntakeURL           string
 	strictFakeintakeIDCheck bool
 	fakeintakeIDMutex       sync.RWMutex
+
+	// Get retry parameters
+	getBackoffRetries uint64
+	getBackoffDelay   time.Duration
 
 	metricAggregator               aggregator.MetricAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
@@ -122,6 +141,7 @@ type Client struct {
 	orchestratorAggregator         aggregator.OrchestratorAggregator
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
 	metadataAggregator             aggregator.MetadataAggregator
+	ndmAggregator                  aggregator.NDMAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
 	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
@@ -133,6 +153,8 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 	client := &Client{
 		strictFakeintakeIDCheck:        true,
 		fakeintakeIDMutex:              sync.RWMutex{},
+		getBackoffRetries:              4,
+		getBackoffDelay:                5 * time.Second,
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
@@ -150,6 +172,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		orchestratorAggregator:         aggregator.NewOrchestratorAggregator(),
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 		metadataAggregator:             aggregator.NewMetadataAggregator(),
+		ndmAggregator:                  aggregator.NewNDMAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
 		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
@@ -285,6 +308,14 @@ func (c *Client) getAPMStats() error {
 		return err
 	}
 	return c.apmStatsAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getNDMPayloads() error {
+	payloads, err := c.getFakePayloads(ndmEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.ndmAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getNDMFlows() error {
@@ -684,6 +715,36 @@ func (c *Client) GetProcesses() ([]*aggregator.ProcessPayload, error) {
 	return procs, nil
 }
 
+// GetLastProcessPayloadAPIKey fetches fakeintake on `/api/v1/collector` endpoint and returns
+// the API key of the last received process payload
+func (c *Client) GetLastProcessPayloadAPIKey() (string, error) {
+	payloads, err := c.getFakePayloads(processesEndpoint)
+	if err != nil {
+		return "", err
+	}
+	return payloads[len(payloads)-1].APIKey, nil
+}
+
+// GetAllProcessPayloadAPIKeys fetches fakeintake on `/api/v1/collector` endpoint and returns
+// a list of unique API keys of the received process payloads
+func (c *Client) GetAllProcessPayloadAPIKeys() ([]string, error) {
+	payloads, err := c.getFakePayloads(processesEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	keysFound := make(map[string]struct{})
+	keys := make([]string, 0)
+	for _, payload := range payloads {
+		if _, ok := keysFound[payload.APIKey]; !ok {
+			keysFound[payload.APIKey] = struct{}{}
+			keys = append(keys, payload.APIKey)
+		}
+	}
+
+	return keys, nil
+}
+
 // GetContainers fetches fakeintake on `/api/v1/container` endpoint and returns
 // all received container payloads
 func (c *Client) GetContainers() ([]*aggregator.ContainerPayload, error) {
@@ -831,6 +892,25 @@ func (c *Client) GetOrchestratorResources(filter *PayloadFilter) ([]*aggregator.
 	return orchs, nil
 }
 
+// GetOrchestratorResourcesPayloadAPIKeys fetches fakeintake on `/api/v2/orch` endpoint and returns
+// the API keys of the received orchestrator payloads
+func (c *Client) GetOrchestratorResourcesPayloadAPIKeys() ([]string, error) {
+	payloads, err := c.getFakePayloads(orchestratorEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(payloads))
+	uniqueKeys := make(map[string]struct{}, len(payloads))
+	for _, payload := range payloads {
+		if _, ok := uniqueKeys[payload.APIKey]; !ok {
+			keys = append(keys, payload.APIKey)
+			uniqueKeys[payload.APIKey] = struct{}{}
+		}
+	}
+	return keys, nil
+}
+
 // GetOrchestratorManifests fetches fakeintake on `/api/v2/orchmanif` endpoint and returns
 // all received process payloads
 func (c *Client) GetOrchestratorManifests() ([]*aggregator.OrchestratorManifestPayload, error) {
@@ -884,7 +964,7 @@ func (c *Client) get(route string) ([]byte, error) {
 
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(c.getBackoffDelay), c.getBackoffRetries))
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		panic(fmt.Sprintf("fakeintake call timed out: %v", err))
 	}
@@ -940,6 +1020,19 @@ func (c *Client) GetAPMStats() ([]*aggregator.APMStatsPayload, error) {
 		stats = append(stats, c.apmStatsAggregator.GetPayloadsByName(name)...)
 	}
 	return stats, nil
+}
+
+// GetNDMPayloads fetches fakeintake on `/api/v2/ndm` endpoint and returns all received NDM payloads
+func (c *Client) GetNDMPayloads() ([]*aggregator.NDMPayload, error) {
+	err := c.getNDMPayloads()
+	if err != nil {
+		return nil, err
+	}
+	var ndmDevices []*aggregator.NDMPayload
+	for _, name := range c.ndmAggregator.GetNames() {
+		ndmDevices = append(ndmDevices, c.ndmAggregator.GetPayloadsByName(name)...)
+	}
+	return ndmDevices, nil
 }
 
 // GetNDMFlows fetches fakeintake on `/api/v2/ndmflows` endpoint and returns all received ndmflow payloads

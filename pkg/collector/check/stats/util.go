@@ -15,12 +15,7 @@ func calculateCheckDelay(now time.Time, prevRunStats *Stats, execTime time.Durat
 	previousCheckStartDate := prevRunStats.UpdateTimestamp - (prevRunStats.LastExecutionTime / 1e3)
 	currentCheckStartDate := now.Unix() - int64(execTime.Seconds())
 
-	delay := currentCheckStartDate - previousCheckStartDate - int64(prevRunStats.Interval.Seconds())
-
-	// delay can be negative if a check recovers from delay
-	if delay < 0 {
-		delay = 0
-	}
+	delay := max(currentCheckStartDate-previousCheckStartDate-int64(prevRunStats.Interval.Seconds()), 0)
 
 	return delay
 }

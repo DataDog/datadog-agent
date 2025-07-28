@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -133,7 +132,7 @@ func (d *DockerCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
-	d.processor = generic.NewProcessor(metrics.GetProvider(option.New(d.store)), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store), d.tagger)
+	d.processor = generic.NewProcessor(metrics.GetProvider(option.New(d.store)), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store), d.tagger, false)
 	d.processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 	d.configureNetworkProcessor(&d.processor)
 	d.setOkExitCodes()
@@ -200,7 +199,7 @@ type containersPerTags struct {
 	stopped int64
 }
 
-func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, rawContainerList []dockerTypes.Container) error {
+func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, rawContainerList []container.Summary) error {
 	// Container metrics
 	var containersRunning, containersStopped uint64
 	containerGroups := map[string]*containersPerTags{}
@@ -240,7 +239,10 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 			annotations = pod.Annotations
 		}
 
-		isContainerExcluded := d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
+		isContainerExcluded := false
+		if d.containerFilter != nil {
+			isContainerExcluded = d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
+		}
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
 		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID)
 		tags, err := d.getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)

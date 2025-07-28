@@ -10,12 +10,15 @@ package testutil
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"os"
 	"os/exec"
-	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"text/template"
@@ -23,68 +26,85 @@ import (
 
 	"github.com/kr/pretty"
 
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diconfig"
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diconfig"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/stretchr/testify/require"
 )
 
-type testResult struct {
-	testName          string
-	matches           []bool
-	expectation       ditypes.CapturedValueMap
-	unexpectedResults []ditypes.CapturedValueMap
-}
-
-var results = make(map[string]*testResult)
-
 func TestGoDI(t *testing.T) {
 	flake.Mark(t)
-	if err := rlimit.RemoveMemlock(); err != nil {
-		require.NoError(t, rlimit.RemoveMemlock())
-	}
-
+	require.NoError(t, rlimit.RemoveMemlock())
 	if features.HaveMapType(ebpf.RingBuf) != nil {
 		t.Skip("ringbuffers not supported on this kernel")
 	}
 
+	for function, expectedCaptureTuples := range expectedCaptures {
+		for _, expectedCaptureValue := range expectedCaptureTuples {
+			justFunctionName := string(function[strings.LastIndex(function, ".")+1:])
+			t.Run(justFunctionName, func(t *testing.T) {
+				runTestCase(t, function, expectedCaptureValue)
+			})
+		}
+	}
+}
+
+func runTestCase(t *testing.T, function string, expectedCaptureValue CapturedValueMapWithOptions) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	serviceName := "go-di-sample-service-" + randomLabel()
 	sampleServicePath := BuildSampleService(t)
-	cmd := exec.Command(sampleServicePath)
+	cmd := exec.CommandContext(ctx, sampleServicePath)
+	cmd.WaitDelay = 10 * time.Millisecond
 	cmd.Env = []string{
 		"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
 		fmt.Sprintf("DD_SERVICE=%s", serviceName),
 		"DD_DYNAMIC_INSTRUMENTATION_OFFLINE=true",
 	}
 
-	stdoutPipe, err1 := cmd.StdoutPipe()
-	require.NoError(t, err1)
+	stdoutPipe, err := cmd.StdoutPipe()
+	require.NoError(t, err)
 	go func() {
 		scanner := bufio.NewScanner(stdoutPipe)
 		for scanner.Scan() {
-			t.Log(scanner.Text())
+			t.Log("sample_service:", scanner.Text())
 		}
-		if err := scanner.Err(); err != nil {
-			t.Log(err)
+		if err := scanner.Err(); err != nil && !errors.Is(err, os.ErrClosed) {
+			t.Log("sample_service:", err)
 		}
 	}()
+	t.Cleanup(func() {
+		stdoutPipe.Close()
+	})
 
 	// send stderr to stdout pipe
 	cmd.Stderr = cmd.Stdout
 
 	require.NoError(t, cmd.Start())
 	t.Cleanup(func() {
-		t.Log(cmd.Process.Kill())
+		t.Logf("stopping %d", cmd.Process.Pid)
+		_ = cmd.Process.Signal(os.Interrupt)
+		_ = cmd.Wait()
 	})
+	t.Logf("launched %s as %d", serviceName, cmd.Process.Pid)
 
 	eventOutputWriter := &eventOutputTestWriter{
-		t: t,
+		snapshots: make(chan ditypes.SnapshotUpload, 100),
 	}
+	t.Cleanup(func() { close(eventOutputWriter.snapshots) })
+
+	diagnostics.Diagnostics = diagnostics.NewDiagnosticManager()
+	t.Cleanup(diagnostics.StopGlobalDiagnostics)
 
 	opts := &dynamicinstrumentation.DIOptions{
 		RateLimitPerProbePerSecond: 0.0,
@@ -95,100 +115,119 @@ func TestGoDI(t *testing.T) {
 		},
 	}
 
-	var (
-		GoDI *dynamicinstrumentation.GoDI
-		err  error
-	)
-
-	GoDI, err = dynamicinstrumentation.RunDynamicInstrumentation(opts)
+	GoDI, err := dynamicinstrumentation.RunDynamicInstrumentation(ctx, consumerstestutil.NewTestProcessConsumer(t), opts)
 	require.NoError(t, err)
 	t.Cleanup(GoDI.Close)
 
 	cm, ok := GoDI.ConfigManager.(*diconfig.ReaderConfigManager)
-	if !ok {
-		t.Fatal("Config manager is of wrong type")
-	}
+	require.True(t, ok, "Config manager is of wrong type")
 
 	cfgTemplate, err := template.New("config_template").Parse(configTemplateText)
-	require.NoError(t, err)
+	require.NoError(t, err, "template parse")
 
-	b := []byte{}
-	var buf *bytes.Buffer
-	doCapture = false
-	for function, expectedCaptureValue := range expectedCaptures {
-		// Generate config for this function
-		buf = bytes.NewBuffer(b)
-		functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
-		t.Log("Instrumenting ", functionWithoutPackagePrefix)
-		results[function] = &testResult{
-			testName:          functionWithoutPackagePrefix,
-			expectation:       expectedCaptureValue,
-			matches:           []bool{},
-			unexpectedResults: []ditypes.CapturedValueMap{},
-		}
-		err = cfgTemplate.Execute(buf, configDataType{
-			ServiceName:  serviceName,
-			FunctionName: functionWithoutPackagePrefix,
-		})
-		require.NoError(t, err)
-		eventOutputWriter.expectedResult = expectedCaptureValue
+	// Generate config for this function
+	functionWithoutPackagePrefix := strings.TrimPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
+	t.Log("Instrumenting", functionWithoutPackagePrefix)
+	buf := &bytes.Buffer{}
+	err = cfgTemplate.Execute(buf, configDataType{
+		ServiceName:  serviceName,
+		FunctionName: functionWithoutPackagePrefix,
+		CaptureDepth: expectedCaptureValue.Options.CaptureDepth,
+	})
+	require.NoError(t, err, "template execute")
 
-		// Read the configuration via the config manager
-		_, err := cm.ConfigWriter.Write(buf.Bytes())
-		time.Sleep(time.Second * 2)
-		doCapture = true
-		if err != nil {
-			t.Errorf("could not read new configuration: %s", err)
-		}
-		time.Sleep(time.Second * 2)
-		doCapture = false
-	}
+	cm.ProcTracker.HandleProcessStartSync(uint32(cmd.Process.Pid))
 
-	for i := range results {
-		for _, ok := range results[i].matches {
-			if !ok {
-				t.Errorf("Failed test for: %s\nReceived event: %v\nExpected: %v",
-					results[i].testName,
-					pretty.Sprint(results[i].unexpectedResults),
-					pretty.Sprint(results[i].expectation))
-				break
-			}
+	// Read the configuration via the config manager
+	_ = cm.ConfigWriter.WriteSync(buf.Bytes())
+
+	var lastSnapshot ditypes.CapturedValueMap
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		snapshot, ok := <-eventOutputWriter.snapshots
+		if !ok {
+			return
 		}
+		actual := snapshot.Debugger.Captures.Entry.Arguments
+		scrubPointerValues(actual)
+		compareCapturedValues(t, "", expectedCaptureValue.CapturedValueMap, actual)
+		lastSnapshot = actual
+	}, 5*time.Second, 100*time.Millisecond)
+
+	if t.Failed() && lastSnapshot != nil {
+		t.Logf("Expected:\n%s", pretty.Sprint(expectedCaptureValue.CapturedValueMap))
+		t.Logf("Actual:\n%s", pretty.Sprint(lastSnapshot))
 	}
 }
 
 type eventOutputTestWriter struct {
-	t              *testing.T
-	expectedResult map[string]*ditypes.CapturedValue
+	snapshots chan ditypes.SnapshotUpload
 }
 
-var doCapture bool
+// compareCapturedValues compares two CapturedValueMap objects in a deterministic way.
+// This function is needed because the test results are stored in maps, which don't guarantee
+// a consistent iteration order.
+//
+// The function ensures consistent comparison by:
+// 1. Comparing map lengths first
+// 2. Sorting keys before comparison
+// 3. Recursively comparing nested fields
+// 4. Comparing all relevant fields (Type, NotCapturedReason, Value) in a deterministic order
+func compareCapturedValues(t assert.TestingT, path string, expected, actual ditypes.CapturedValueMap) {
+	expectedKeys := slices.Collect(maps.Keys(expected))
+	actualKeys := slices.Collect(maps.Keys(actual))
+	assert.ElementsMatch(t, expectedKeys, actualKeys, "map keys")
+
+	for _, k := range expectedKeys {
+		expectedVal, eok := expected[k]
+		actualVal, aok := actual[k]
+		if !eok || !aok {
+			continue
+		}
+
+		var prefix string
+		if path != "" {
+			prefix = fmt.Sprintf("%s.%s", path, k)
+		} else {
+			prefix = k
+		}
+		compareCapturedValue(t, prefix, expectedVal, actualVal)
+	}
+}
+
+func compareCapturedValue(t assert.TestingT, path string, expected, actual *ditypes.CapturedValue) {
+	assert.Equal(t, expected.Type, actual.Type, "Path: %q\nField: Type", path)
+	assert.Equal(t, stringComparePtrValue(expected.Value), stringComparePtrValue(actual.Value), "Path: %q\nField: Value", path)
+	compareCapturedValues(t, path, expected.Fields, actual.Fields)
+	// Entries seems unused, so don't compare
+	assert.Len(t, actual.Elements, len(expected.Elements), "Path: %q\nField: Elements (length)", path)
+	for i := range expected.Elements {
+		if i >= len(actual.Elements) {
+			continue
+		}
+		compareCapturedValue(t, fmt.Sprintf("%s.Elements[%d]", path, i), &expected.Elements[i], &actual.Elements[i])
+	}
+
+	assert.Equal(t, expected.NotCapturedReason, actual.NotCapturedReason, "Path: %q\nField: NotCapturedReason", path)
+	assert.Equal(t, expected.IsNull, actual.IsNull, "Path: %q\nField: IsNull", path)
+	assert.Equal(t, expected.Size, actual.Size, "Path: %q\nField: Size", path)
+	assert.Equal(t, expected.Truncated, actual.Truncated, "Path: %q\nField: Truncated", path)
+}
+
+func stringComparePtrValue(x *string) any {
+	if x == nil {
+		return nil
+	}
+	return *x
+}
 
 func (e *eventOutputTestWriter) Write(p []byte) (n int, err error) {
-	if !doCapture {
-		return 0, nil
-	}
 	var snapshot ditypes.SnapshotUpload
-	if err := json.Unmarshal(p, &snapshot); err != nil {
-		e.t.Error("failed to unmarshal snapshot", err)
+	err = json.Unmarshal(p, &snapshot)
+	if err != nil {
+		return 0, err
 	}
 
-	funcName := snapshot.Debugger.ProbeInSnapshot.Method
-	actual := snapshot.Debugger.Captures.Entry.Arguments
-	scrubPointerValues(actual)
-	b, ok := results[funcName]
-	if !ok {
-		e.t.Errorf("received event from unexpected probe: %s", funcName)
-		return
-	}
-	if !reflect.DeepEqual(e.expectedResult, actual) {
-		b.matches = append(b.matches, false)
-		b.unexpectedResults = append(b.unexpectedResults, actual)
-		e.t.Error("received unexpected value")
-	} else {
-		b.matches = append(b.matches, true)
-	}
-
+	e.snapshots <- snapshot
 	return len(p), nil
 }
 
@@ -208,6 +247,7 @@ func scrubPointerValue(capture *ditypes.CapturedValue) {
 type configDataType struct {
 	ServiceName  string
 	FunctionName string
+	CaptureDepth int
 }
 
 var configTemplateText = `
@@ -240,7 +280,7 @@ var configTemplateText = `
             ],
             "captureSnapshot": false,
             "capture": {
-                "maxReferenceDepth": 5
+                "maxReferenceDepth": {{.CaptureDepth}}
             },
             "sampling": {
                 "snapshotsPerSecond": 5000

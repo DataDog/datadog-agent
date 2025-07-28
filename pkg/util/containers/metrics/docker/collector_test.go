@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -133,13 +132,13 @@ func TestGetContainerIDForPID(t *testing.T) {
 func Test_fillStatsFromSpec(t *testing.T) {
 	tests := []struct {
 		name          string
-		spec          *types.ContainerJSON
+		spec          *container.InspectResponse
 		expectedStats *provider.ContainerStats
 	}{
 		{
 			name: "Empty HostConfig",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{},
 				},
 			},
@@ -149,8 +148,8 @@ func Test_fillStatsFromSpec(t *testing.T) {
 		},
 		{
 			name: "Memory Limit set",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{
 						Resources: container.Resources{
 							Memory: 500,

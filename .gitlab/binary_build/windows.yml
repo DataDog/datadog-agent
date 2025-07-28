@@ -4,9 +4,9 @@ build_windows_container_entrypoint:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
+  needs: []
   stage: binary_build
   extends: .windows_docker_default
-  needs: ["lint_windows-x64"]
   variables:
     ARCH: "x64"
   script:

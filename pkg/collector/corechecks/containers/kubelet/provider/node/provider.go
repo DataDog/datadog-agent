@@ -12,6 +12,7 @@ package node
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -41,7 +42,9 @@ func NewProvider(config *common.KubeletConfig) *Provider {
 // Provide sends the metrics collected from the `/spec` Kubelet endpoint
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
-	nodeSpecRaw, responseCode, err := kc.QueryKubelet(context.TODO(), "/spec/")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.config.Timeout)*time.Second)
+	nodeSpecRaw, responseCode, err := kc.QueryKubelet(ctx, "/spec/")
+	cancel()
 	if err != nil || responseCode == 404 {
 		if responseCode == 404 {
 			return nil

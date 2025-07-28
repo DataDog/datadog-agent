@@ -6,6 +6,7 @@
 package gosnmplib
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -23,7 +24,7 @@ type debugVariable struct {
 	ParseErr string      `json:"parse_err,omitempty"`
 }
 
-var strippableSpecialChars = map[byte]bool{'\r': true, '\n': true, '\t': true}
+var strippableSpecialChars = map[byte]bool{'\r': true, '\n': true, '\t': true, 00: true}
 
 // IsStringPrintable returns true if the provided byte array is only composed of printable characeters
 func IsStringPrintable(bytesValue []byte) bool {
@@ -95,21 +96,30 @@ func StandardTypeToString(value interface{}) (string, error) {
 		return value, nil
 	case []byte:
 		bytesValue := value
-		var strValue string
 		if !IsStringPrintable(bytesValue) {
 			// We hexify like Python/pysnmp impl (keep compatibility) if the value contains non ascii letters:
 			// https://github.com/etingof/pyasn1/blob/db8f1a7930c6b5826357646746337dafc983f953/pyasn1/type/univ.py#L950-L953
 			// hexifying like pysnmp prettyPrint might lead to unpredictable results since `[]byte` might or might not have
 			// elements outside of 32-126 range. New lines, tabs and carriage returns are also stripped from the string.
 			// An alternative solution is to explicitly force the conversion to specific type using profile config.
-			strValue = fmt.Sprintf("%#x", bytesValue)
-		} else {
-			strValue = string(bytesValue)
+			return hexify(bytesValue), nil
 		}
-		return strValue, nil
-	}
-	return "", fmt.Errorf("invalid type %T for value %#v", value, value)
 
+		// String is printable, trimming trailing 00s
+		trimmedBytes := bytes.TrimRight(bytesValue, "\x00")
+		if len(trimmedBytes) == 0 {
+			// If value is only 0s, hexify
+			return hexify(bytesValue), nil
+		}
+
+		return string(trimmedBytes), nil
+	}
+
+	return "", fmt.Errorf("invalid type %T for value %#v", value, value)
+}
+
+func hexify(bytesValue []byte) string {
+	return fmt.Sprintf("%#x", bytesValue)
 }
 
 // PacketAsString used to format gosnmp.SnmpPacket for debug/trace logging

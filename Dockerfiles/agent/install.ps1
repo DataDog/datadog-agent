@@ -40,7 +40,9 @@ if ("$env:WITH_JMX" -ne "false") {
 }
 
 New-Item -ItemType directory -Path 'C:/ProgramData/Datadog'
-Move-Item "C:/Program Files/Datadog/Datadog Agent/EXAMPLECONFSLOCATION" "C:/ProgramData/Datadog/conf.d"
+Move-Item "C:/Program Files/Datadog/Datadog Agent/etc/datadog-agent/conf.d" "C:/ProgramData/Datadog/conf.d"
+# This folder only contains config artifacts, we've copied what we need so we can remove the rest.
+rm -r -fo "C:/Program Files/Datadog/Datadog Agent/etc/"
 
 $services = [ordered]@{
   "datadogagent" = "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe",@()

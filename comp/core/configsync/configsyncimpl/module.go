@@ -9,18 +9,16 @@ package configsyncimpl
 import (
 	"context"
 	"net"
-	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,7 +28,7 @@ type dependencies struct {
 
 	Config     config.Component
 	Log        log.Component
-	Authtoken  authtoken.Component
+	IPCClient  ipc.HTTPClient
 	SyncParams Params
 }
 
@@ -52,14 +50,14 @@ func Module(params Params) fxutil.Module {
 }
 
 type configSync struct {
-	Config    config.Component
-	Log       log.Component
-	Authtoken authtoken.Component
+	Config config.Component
+	Log    log.Component
 
 	url       *url.URL
-	client    *http.Client
+	client    ipc.HTTPClient
 	connected bool
 	ctx       context.Context
+	timeout   time.Duration
 	enabled   bool
 }
 
@@ -89,17 +87,16 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client := apiutil.GetClientWithTimeout(deps.SyncParams.Timeout, false)
 	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
 
 	configSync := configSync{
-		Config:    deps.Config,
-		Log:       deps.Log,
-		Authtoken: deps.Authtoken,
-		url:       url,
-		client:    client,
-		ctx:       ctx,
-		enabled:   true,
+		Config:  deps.Config,
+		Log:     deps.Log,
+		url:     url,
+		client:  deps.IPCClient,
+		ctx:     ctx,
+		timeout: deps.SyncParams.Timeout,
+		enabled: true,
 	}
 
 	if deps.SyncParams.OnInitSync {

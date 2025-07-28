@@ -154,6 +154,22 @@ func TestHTTPReceiverStart(t *testing.T) {
 	}
 }
 
+func TestShutdown(t *testing.T) {
+	socket := filepath.Join(t.TempDir(), "agent.sock")
+	cfg := config.New()
+	cfg.ReceiverEnabled = true
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = socket
+	r := newTestReceiverFromConfig(cfg)
+	r.Start()
+	_, err := os.Stat(socket)
+	assert.NoError(t, err)
+	r.Stop()
+	// Ensure we do not delete the socket
+	_, err = os.Stat(socket)
+	assert.NoError(t, err)
+}
+
 // freePort returns a random and free TCP port.
 func freeTCPPort() int {
 	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")

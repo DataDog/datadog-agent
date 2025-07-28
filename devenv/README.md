@@ -19,7 +19,7 @@ There is a Ruby template file to generate the various Packer combinations.
 To generate the Packer file and then invoke Packer the `Invoke!` library is used.
 
 To generate the `packer.json` file (here for Windows 10):
-`inv packer.build --os=windows-10 --provider=virtualbox-iso`
+`dda inv packer.build --os=windows-10 --provider=virtualbox-iso`
 
 Where the valid `os` values are:
 
@@ -84,6 +84,6 @@ Two third party files are used and adapted:
 ## Run and debug with VSCode (Linux/Mac)
 
 1. Open the workspace in VSCode
-2. Configure VS Code using `inv vscode.setup` (this will install extensions and create the `.vscode/{tasks,launch,settings,extensions}.json` files)
+2. Configure VS Code using `dda inv vscode.setup` (this will install extensions and create the `.vscode/{tasks,launch,settings,extensions}.json` files)
 
 You can see `.vscode/*.json.template` files for example configurations.

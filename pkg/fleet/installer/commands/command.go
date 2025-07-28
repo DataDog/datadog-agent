@@ -11,24 +11,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime"
 	"strings"
+	"syscall"
+	"time"
+
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
 )
 
 type cmd struct {
-	t    *telemetry.Telemetry
-	span *telemetry.Span
-	ctx  context.Context
-	env  *env.Env
+	t              *telemetry.Telemetry
+	span           *telemetry.Span
+	ctx            context.Context
+	env            *env.Env
+	stopSigHandler context.CancelFunc
 }
 
 // newCmd creates a new command
@@ -36,13 +42,31 @@ func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
+	ctx, stop := context.WithCancel(ctx)
+	handleSignals(ctx, stop)
 	setInstallerUmask(span)
 	return &cmd{
-		t:    t,
-		ctx:  ctx,
-		span: span,
-		env:  env,
+		t:              t,
+		ctx:            ctx,
+		span:           span,
+		env:            env,
+		stopSigHandler: stop,
 	}
+}
+
+func handleSignals(ctx context.Context, stop context.CancelFunc) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sigChan:
+			// Wait for 10 seconds to allow the command to finish properly
+			time.Sleep(10 * time.Second)
+			stop()
+		}
+	}()
 }
 
 // Stop stops the command
@@ -51,6 +75,7 @@ func (c *cmd) stop(err error) {
 	if c.t != nil {
 		c.t.Stop()
 	}
+	c.stopSigHandler()
 }
 
 type installerCmd struct {
@@ -118,7 +143,7 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 		apiKey = config.APIKey
 	}
 	site := env.Site
-	if site == "" {
+	if _, set := os.LookupEnv("DD_SITE"); !set && config.Site != "" {
 		site = config.Site
 	}
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
@@ -130,6 +155,7 @@ func RootCommands() []*cobra.Command {
 	return []*cobra.Command{
 		installCommand(),
 		setupCommand(),
+		setupInstallerCommand(),
 		bootstrapCommand(),
 		removeCommand(),
 		installExperimentCommand(),
@@ -143,6 +169,12 @@ func RootCommands() []*cobra.Command {
 		isInstalledCommand(),
 		apmCommands(),
 		getStateCommand(),
+		statusCommand(),
+		postinstCommand(),
+		isPrermSupportedCommand(),
+		prermCommand(),
+		hooksCommand(),
+		packageCommand(),
 	}
 }
 
@@ -220,6 +252,25 @@ func installCommand() *cobra.Command {
 	}
 	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
 	cmd.Flags().BoolVar(&forceInstall, "force", false, "Install packages, even if they are already up-to-date.")
+	return cmd
+}
+
+func setupInstallerCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "setup-installer <stablePath>",
+		Short:   "Sets up the installer package",
+		GroupID: "installer",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("setup_installer")
+			if err != nil {
+				return err
+			}
+			defer func() { i.stop(err) }()
+			i.span.SetTag("params.stablePath", args[0])
+			return i.SetupInstaller(i.ctx, args[0])
+		},
+	}
 	return cmd
 }
 
@@ -320,10 +371,10 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version> <config>",
+		Use:     "install-config-experiment <package> <version> <config1> <config2> ...",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.ExactArgs(3),
+		Args:    cobra.MinimumNArgs(3),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -332,7 +383,14 @@ func installConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], []byte(args[2]))
+
+			// Start with the main config
+			configs := make([][]byte, len(args)-2)
+			for i, config := range args[2:] {
+				configs[i] = []byte(config)
+			}
+
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs)
 		},
 	}
 	return cmd
@@ -426,6 +484,26 @@ func isInstalledCommand() *cobra.Command {
 	return cmd
 }
 
+func getState() (*repository.PackageStates, error) {
+	i, err := newInstallerCmd("get_states")
+	if err != nil {
+		return nil, err
+	}
+	defer i.stop(err)
+	states, err := i.States(i.ctx)
+	if err != nil {
+		return nil, err
+	}
+	configStates, err := i.ConfigStates(i.ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &repository.PackageStates{
+		States:       states,
+		ConfigStates: configStates,
+	}, nil
+}
+
 func getStateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Hidden:  true,
@@ -433,23 +511,9 @@ func getStateCommand() *cobra.Command {
 		Short:   "Get the package & config states",
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			i, err := newInstallerCmd("get_states")
+			pStates, err := getState()
 			if err != nil {
-				return err
-			}
-			defer func() { i.stop(err) }()
-			states, err := i.States(i.ctx)
-			if err != nil {
-				return err
-			}
-			configStates, err := i.ConfigStates(i.ctx)
-			if err != nil {
-				return err
-			}
-
-			pStates := repository.PackageStates{
-				States:       states,
-				ConfigStates: configStates,
+				return
 			}
 
 			pStatesRaw, err := json.Marshal(pStates)
@@ -461,5 +525,29 @@ func getStateCommand() *cobra.Command {
 			return nil
 		},
 	}
+	return cmd
+}
+
+// packageCommand runs a package-specific command
+func packageCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Hidden:  true,
+		GroupID: "installer",
+		Use:     "package-command <package> <command>",
+		Short:   "Run a package-specific command",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i := newCmd("package_command")
+			defer i.stop(err)
+
+			packageName := args[0]
+			command := args[1]
+			i.span.SetTag("params.package", packageName)
+			i.span.SetTag("params.command", command)
+
+			return packages.RunPackageCommand(i.ctx, packageName, command)
+		},
+	}
+
 	return cmd
 }

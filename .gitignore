@@ -53,11 +53,10 @@ Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies
 pkg/status/template.go
 
-# gotestsum-generated files
-module_test_output.json
-
 # jetbrains IDE directory
 /.idea/
+
+.cursor
 
 # Ignore debs from the root of the project.
 datadog-agent*_amd64.deb
@@ -113,6 +112,9 @@ pkg/process/config/logs
 *.ninja
 compile_commands.json
 pkg/ebpf/bytecode/build/**/*.d
+pkg/ebpf/kernelbugs/c/*.d
+pkg/ebpf/kernelbugs/c/*.o
+pkg/ebpf/kernelbugs/c/detect-seccomp-bug
 pkg/security/tests/syscall_tester/**/*.d
 
 # dsd artifacts
@@ -139,8 +141,7 @@ pkg/ebpf/bytecode/build/
 *.bc
 
 # CGo generated object files
-pkg/network/**/_obj/
-pkg/util/winutil/**/_obj/
+**/_obj/*.o
 
 # windows container build output
 build.out/
@@ -159,6 +160,8 @@ devenv/iso
 devenv/output-virtualbox-iso/
 devenv/packer_cache
 test_output.json
+module_test_output.json
+e2e_test_output.json
 
 # doxygen doc & error log
 rtloader/doc
@@ -191,7 +194,7 @@ tools/windows/DatadogAgentInstaller/.vs/
 tools/windows/DatadogAgentInstaller/packages/
 tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
 *.wixobj
-*obj*
+*.obj
 *.g.wxs
 *.DotSettings.user
 

@@ -32,8 +32,9 @@ func TestGetInstance(t *testing.T) {
 	defer ts.Close()
 
 	expected := &Instance{
-		Cluster: "ecs_cluster",
-		Version: "Amazon ECS Agent - v1.32.0 (a7f81040)",
+		Cluster:              "ecs_cluster",
+		Version:              "Amazon ECS Agent - v1.32.0 (a7f81040)",
+		ContainerInstanceARN: "arn:aws:ecs:us-west-1:601427279990:container-instance/ede93446-9e5f-4c52-83d0-796d7194548a",
 	}
 
 	client := NewClient(ts.URL)

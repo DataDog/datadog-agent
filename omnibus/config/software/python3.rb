@@ -1,11 +1,10 @@
 name "python3"
 
-default_version "3.12.9"
+default_version "3.12.11"
 
 unless windows?
   dependency "libxcrypt"
   dependency "libffi"
-  dependency "ncurses"
   dependency "zlib"
   dependency "bzip2"
   dependency "libsqlite3"
@@ -15,7 +14,7 @@ end
 dependency "openssl3"
 
 source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "45313e4c5f0e8acdec9580161d565cf5fea578e3eabf25df7cc6355bf4afa1ee"
+       :sha256 => "7b8d59af8216044d2313de8120bfc2cc00a9bd2e542f15795e1d616c51faf3d6"
 
 relative_path "Python-#{version}"
 
@@ -27,12 +26,13 @@ build do
     env = with_standard_compiler_flags(with_embedded_path)
     python_configure_options = [
       "--without-readline",  # Disables readline support
-      "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
+      "--with-ensurepip=yes", # We upgrade pip later, in the pip3 software definition
+      "--without-static-libpython" # We only care about the shared library
     ]
 
     if mac_os_x?
       python_configure_options.push("--enable-ipv6",
-                            "--with-universal-archs=intel",
+                            "--with-universal-archs=#{arm_target? ? "universal2" : "intel"}",
                             "--enable-shared")
     elsif linux_target?
       python_configure_options.push("--enable-shared",
@@ -70,7 +70,6 @@ build do
   else
     dependency "vc_redist_14"
 
-    vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
     ###############################
     # Setup openssl dependency... #
     ###############################
@@ -81,7 +80,7 @@ build do
 
     # This is not necessarily the version we built, but the version
     # the Python build system expects.
-    openssl_version = "3.0.15"
+    openssl_version = "3.0.16.2"
     python_arch = "amd64"
 
     mkdir "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include"
@@ -89,15 +88,12 @@ build do
     # their names in usual python builds
     copy "#{install_dir}\\embedded3\\lib\\libcrypto.dll.a", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libcrypto.lib"
     copy "#{install_dir}\\embedded3\\lib\\libssl.dll.a", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl.lib"
-    copy "#{install_dir}\\embedded3\\lib\\libssl.dll.a", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl.lib"
     # Copy the actual DLLs, be sure to keep the same name since that's what the IMPLIBs expect
     copy "#{install_dir}\\embedded3\\bin\\libssl-3-x64.dll", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl-3.dll"
     # Create empty PDBs since python's build system require those to be present
     command "touch externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl-3.pdb"
     copy "#{install_dir}\\embedded3\\bin\\libcrypto-3-x64.dll", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libcrypto-3.dll"
     command "touch externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libcrypto-3.pdb"
-    # The applink "header"
-    copy "#{install_dir}\\embedded3\\include\\openssl\\applink.c", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include\\"
     # And finally the headers:
     copy "#{install_dir}\\embedded3\\include\\openssl", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include\\"
     # Now build python itself...

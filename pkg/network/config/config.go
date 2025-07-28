@@ -9,12 +9,9 @@ package config
 import (
 	"time"
 
-	cebpf "github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
-
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -286,7 +283,11 @@ type Config struct {
 	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
 	EnableUSMRingBuffers bool
 
+	// EnableEbpfless enables the use of network tracing without eBPF using packet capture.
 	EnableEbpfless bool
+
+	// EnableFentry enables the experimental fentry tracer (disabled by default)
+	EnableFentry bool
 
 	// EnableUSMEventStream enables USM to use the event stream instead
 	// of netlink for receiving process events.
@@ -398,6 +399,7 @@ func New() *Config {
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
 
 		EnableEbpfless: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
+		EnableFentry:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
 
 		// Service Monitoring
 		EnableGoTLSSupport:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
@@ -438,11 +440,6 @@ func New() *Config {
 		log.Info("network process event monitoring disabled")
 	}
 	return c
-}
-
-// RingBufferSupportedNPM returns true if the kernel supports ring buffers and the config enables them
-func (c *Config) RingBufferSupportedNPM() bool {
-	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
 }
 
 // FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled

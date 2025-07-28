@@ -8,7 +8,6 @@ package configsyncimpl
 import (
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
@@ -17,9 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -30,8 +30,9 @@ func TestOptionalModule(t *testing.T) {
 	handler := func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"key1": "value1"}`))
 	}
-	server := httptest.NewTLSServer(http.HandlerFunc(handler))
-	t.Cleanup(server.Close)
+
+	ipcComp := ipcmock.New(t)
+	server := ipcComp.NewMockServer(http.HandlerFunc(handler))
 
 	url, err := url.Parse(server.URL)
 	require.NoError(t, err)
@@ -50,7 +51,8 @@ func TestOptionalModule(t *testing.T) {
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
-		fetchonlyimpl.Module(),
+		fx.Provide(func() ipc.Component { return ipcComp }),
+		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		Module(Params{}),
 		fx.Populate(&cfg),
 		fx.Replace(config.MockParams{Overrides: overrides}),

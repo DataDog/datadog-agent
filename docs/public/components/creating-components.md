@@ -63,22 +63,23 @@ The `def` folder contains your interface and ALL public types needed by the user
 
 In the example of a compression component, the def folder looks like this:
 
-=== ":octicons-file-code-16: comp/compression/def/component.go"
-    ```go
-    // Package compression contains all public type and interfaces for the compression component
-    package compression
+/// tab | :octicons-file-code-16: comp/compression/def/component.go
+```go
+// Package compression contains all public type and interfaces for the compression component
+package compression
 
-    // team: <your team>
+// team: <your team>
 
-    // Component describes the interface implemented by all compression implementations.
-    type Component interface {
-        // Compress compresses the input data.
-        Compress([]byte) ([]byte, error)
+// Component describes the interface implemented by all compression implementations.
+type Component interface {
+    // Compress compresses the input data.
+    Compress([]byte) ([]byte, error)
 
-        // Decompress decompresses the input data.
-        Decompress([]byte) ([]byte, error)
-    }
-    ```
+    // Decompress decompresses the input data.
+    Decompress([]byte) ([]byte, error)
+}
+```
+///
 
 All component interfaces must be called `Component`, so all imports have the form `<COMPONENT_NAME>.Component`.
 
@@ -87,20 +88,21 @@ for your component.
 
 When defining a component interface, avoid using structs or interfaces from third-party dependencies.
 
-!!! warning "Interface using a third-party dependency"
-    ```
-    package telemetry
+/// warning | Interface using a third-party dependency
+```go
+package telemetry
 
-    import "github.com/prometheus/client_golang/prometheus"
+import "github.com/prometheus/client_golang/prometheus"
 
-    // team: agent-runtimes
+// team: agent-runtimes
 
-    // Component is the component type.
-    type Component interface {
-        // RegisterCollector Registers a Collector with the prometheus registry
-        RegisterCollector(c prometheus.Collector)
-    }
-    ```
+// Component is the component type.
+type Component interface {
+    // RegisterCollector Registers a Collector with the prometheus registry
+    RegisterCollector(c prometheus.Collector)
+}
+```
+///
 
 In the example above, every user of the `telemetry` component would have to import `github.com/prometheus/client_golang/prometheus` no matter which implementation they use.
 
@@ -116,15 +118,16 @@ internally by each component (more on this [here TODO]()). -->
 The `impl` folder is where the component implementation is written. The details of component implementation are up to the developer.
 The only requirements are that the package name follows the pattern `<COMPONENT_NAME>impl` for the regular implementation or `<IMPL_NAME>impl` for the alternative implementation, and that there is a public instantiation function called `NewComponent`.
 
-=== ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
-    ```go
-    package zstdimpl
+/// tab | :octicons-file-code-16: comp/compression/impl-zstd/compressor.go
+```go
+package zstdimpl
 
-    // NewComponent returns a new ZSTD implementation for the compression component
-    func NewComponent(reqs Requires) Provides {
-        ....
-    }
-    ```
+// NewComponent returns a new ZSTD implementation for the compression component
+func NewComponent(reqs Requires) Provides {
+    ....
+}
+```
+///
 
 To require input arguments to the `NewComponent` instantiation function, use a special struct named `Requires`.
 The instantiation function returns a special stuct named `Provides`. This internal nomenclature is used
@@ -132,118 +135,122 @@ to handle the different component dependencies using Fx groups.
 
 In this example, the compression component must access the configuration component and the log component. To express this, define a `Requires` struct with two fields. The name of the fields is irrelevant, but the type must be the concrete type of interface that you require.
 
-=== ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
-    ```go
-    package zstdimpl
+/// tab | :octicons-file-code-16: comp/compression/impl-zstd/compressor.go
+```go
+package zstdimpl
 
-    import (
-        "fmt"
+import (
+    "fmt"
 
-        config "github.com/DataDog/datadog-agent/comp/core/config/def"
-        log "github.com/DataDog/datadog-agent/comp/core/log/def"
-    )
+    config "github.com/DataDog/datadog-agent/comp/core/config/def"
+    log "github.com/DataDog/datadog-agent/comp/core/log/def"
+)
 
-    // Here, list all components and other types known by Fx that you need.
-    // To be used in `fx` folders, type and field need to be public.
-    //
-    // In this example, you need config and log components.
-    type Requires struct {
-        Conf config.Component
-        Log  log.Component
-    }
-    ```
+// Here, list all components and other types known by Fx that you need.
+// To be used in `fx` folders, type and field need to be public.
+//
+// In this example, you need config and log components.
+type Requires struct {
+    Conf config.Component
+    Log  log.Component
+}
+```
+///
 
-!!! Info "Using other components"
-    If you want to use another component within your own, add it to the `Requires` struct, and `Fx` will give it to
-    you at initialization. Be careful of circular dependencies.
+/// info | Using other components
+If you want to use another component within your own, add it to the `Requires` struct, and `Fx` will give it to you at initialization. Be careful of circular dependencies.
+///
 
 For the output of the component, populate the `Provides` struct with the return values.
-=== ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
-    ```go
-    package zstdimpl
 
-    import (
-        // Always import the component def folder, so that you can return a 'compression.Component' type.
-        compression "github.com/DataDog/datadog-agent/comp/compression/def"
-    )
+/// tab | :octicons-file-code-16: comp/compression/impl-zstd/compressor.go
+```go
+package zstdimpl
 
-    // Here, list all the types your component is going to return. You can return as many types as you want; all of them are available through Fx in other components.
-    // To be used in `fx` folders, type and field need to be public.
-    //
-    // In this example, only the compression component is returned.
-    type Provides struct {
-        Comp compression.Component
-    }
-    ```
+import (
+    // Always import the component def folder, so that you can return a 'compression.Component' type.
+    compression "github.com/DataDog/datadog-agent/comp/compression/def"
+)
+
+// Here, list all the types your component is going to return. You can return as many types as you want; all of them are available through Fx in other components.
+// To be used in `fx` folders, type and field need to be public.
+//
+// In this example, only the compression component is returned.
+type Provides struct {
+    Comp compression.Component
+}
+```
+///
 
 All together, the component code looks like the following:
 
-=== ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
-    ```go
-    package zstdimpl
+/// tab | :octicons-file-code-16: comp/compression/impl-zstd/compressor.go
+```go
+package zstdimpl
 
-    import (
-        "fmt"
+import (
+    "fmt"
 
-        compression "github.com/DataDog/datadog-agent/comp/compression/def"
-        config "github.com/DataDog/datadog-agent/comp/core/config/def"
-        log "github.com/DataDog/datadog-agent/comp/core/log/def"
-    )
+    compression "github.com/DataDog/datadog-agent/comp/compression/def"
+    config "github.com/DataDog/datadog-agent/comp/core/config/def"
+    log "github.com/DataDog/datadog-agent/comp/core/log/def"
+)
 
-    type Requires struct {
-        Conf config.Component
-        Log  log.Component
+type Requires struct {
+    Conf config.Component
+    Log  log.Component
+}
+
+type Provides struct {
+    Comp compression.Component
+}
+
+// The actual type implementing the 'Component' interface. This type MUST be private, you need the guarantee that
+// components can only be used through their respective interfaces.
+type compressor struct {
+    // Keep a ref on the config and log components, so that you can use them in the 'compressor' methods
+    conf config.Component
+    log  log.Component
+
+    // any other field you might need
+}
+
+// NewComponent returns a new ZSTD implementation for the compression component
+func NewComponent(reqs Requires) Provides {
+    // Here, do whatever is needed to build a ZSTD compression comp.
+
+    // And create your component
+    comp := &compressor{
+        conf: reqs.Conf,
+        log:  reqs.Log,
     }
 
-    type Provides struct {
-        Comp compression.Component
+    return Provides{
+        comp: comp,
     }
+}
 
-    // The actual type implementing the 'Component' interface. This type MUST be private, you need the guarantee that
-    // components can only be used through their respective interfaces.
-    type compressor struct {
-        // Keep a ref on the config and log components, so that you can use them in the 'compressor' methods
-        conf config.Component
-        log  log.Component
+//
+// You then need to implement all methods from your 'compression.Component' interface
+//
 
-        // any other field you might need
-    }
+// Compress compresses the input data using ZSTD
+func (c *compressor) Compress(data []byte) ([]byte, error) {
+    c.log.Debug("compressing a buffer with ZSTD")
 
-    // NewComponent returns a new ZSTD implementation for the compression component
-    func NewComponent(reqs Requires) Provides {
-        // Here, do whatever is needed to build a ZSTD compression comp.
+    // [...]
+    return compressData, nil
+}
 
-        // And create your component
-        comp := &compressor{
-            conf: reqs.Conf,
-            log:  reqs.Log,
-        }
+// Decompress decompresses the input data using ZSTD.
+func (c *compressor) Decompress(data []byte) ([]byte, error) {
+    c.log.Debug("decompressing a buffer with ZSTD")
 
-        return Provides{
-            comp: comp,
-        }
-    }
-
-    //
-    // You then need to implement all methods from your 'compression.Component' interface
-    //
-
-    // Compress compresses the input data using ZSTD
-    func (c *compressor) Compress(data []byte) ([]byte, error) {
-        c.log.Debug("compressing a buffer with ZSTD")
-
-        // [...]
-        return compressData, nil
-    }
-
-    // Decompress decompresses the input data using ZSTD.
-    func (c *compressor) Decompress(data []byte) ([]byte, error) {
-        c.log.Debug("decompressing a buffer with ZSTD")
-
-        // [...]
-        return compressData, nil
-    }
-    ```
+    // [...]
+    return compressData, nil
+}
+```
+///
 
 The constructor can return either a `Provides`, if it is infallible, or `(Provides, error)`, if it could fail. In the
 latter case, a non-nil error results in the Agent crashing at startup with a message containing the error.
@@ -258,36 +265,35 @@ dependency injection with Fx for your component.
 All `fx.go` files must define a `func Module() fxutil.Module` function. The helpers contained in `fxutil` handle all
 the logic. Most `fx/fx.go` file should look the same as this:
 
-=== ":octicons-file-code-16: comp/compression/fx-zstd/fx.go"
-    ```go
-    package fx
+/// tab | :octicons-file-code-16: comp/compression/fx-zstd/fx.go
+```go
+package fx
 
-    import (
-        "github.com/DataDog/datadog-agent/pkg/util/fxutil"
+import (
+    "github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
-        // You must import the implementation you are exposing through FX
-        compressionimpl "github.com/DataDog/datadog-agent/comp/compression/impl-zstd"
-    )
+    // You must import the implementation you are exposing through FX
+    compressionimpl "github.com/DataDog/datadog-agent/comp/compression/impl-zstd"
+)
 
-    // Module specifies the compression module.
-    func Module() fxutil.Module {
-        return fxutil.Component(
-            // ProvideComponentConstructor will automatically detect the 'Requires' and 'Provides' structs
-            // of your constructor function and map them to FX.
-            fxutil.ProvideComponentConstructor(
-                compressionimpl.NewComponent,
-            )
+// Module specifies the compression module.
+func Module() fxutil.Module {
+    return fxutil.Component(
+        // ProvideComponentConstructor will automatically detect the 'Requires' and 'Provides' structs
+        // of your constructor function and map them to FX.
+        fxutil.ProvideComponentConstructor(
+            compressionimpl.NewComponent,
         )
-    }
-    ```
+    )
+}
+```
+///
 
-!!! Info "Optional dependencies"
+/// info | Optional dependencies
+To create an optional wrapper type for your component, you can use the helper function `fxutil.ProvideOptional`. This generic function requires the type of the component interface, and will automatically make a conversion function `optional.Option` for that component.
 
-    To create an optional wrapper type for your component, you can use the helper function `fxutil.ProvideOptional`.
-    This generic function requires the type of the component interface, and will automatically make a conversion
-    function `optional.Option` for that component.
-
-    More on this in the [FAQ](faq.md#optional-component).
+More on this in the [FAQ](faq.md#optional-component).
+///
 
 For the ZIP implementation, create the same file in `fx-zip` folder. In most cases, your component has a
 single implementation. If so, you have only one `impl` and `fx` folder.
@@ -298,19 +304,20 @@ Some parts of the codebase might have optional dependencies on your components (
 
 If it's the case, you need to provide a fx wrapper called `fx-none` to avoid duplicating the use of `optional.NewNoneOption[def.Component]()` in all our binaries
 
-=== ":octicons-file-code-16: comp/compression/fx-none/fx.go"
-    ```go
-    import (
-        compression "github.com/DataDog/datadog-agent/comp/compression/def"
-    )
+/// tab | :octicons-file-code-16: comp/compression/fx-none/fx.go
+```go
+import (
+    compression "github.com/DataDog/datadog-agent/comp/compression/def"
+)
 
-    func Module() fxutil.Module {
-        return fxutil.Component(
-            fx.Provide(func() optional.Option[compression.Component] {
-                return optional.NewNoneOption[compression.Component]()
-            }))
-    }
-    ```
+func Module() fxutil.Module {
+    return fxutil.Component(
+        fx.Provide(func() optional.Option[compression.Component] {
+            return optional.NewNoneOption[compression.Component]()
+        }))
+}
+```
+///
 
 ### The mock folder
 
@@ -322,41 +329,42 @@ constructors must take a `*testing.T` as parameter.
 
 In the following example, your mock has no dependencies and returns the same string every time.
 
-=== ":octicons-file-code-16: comp/compression/mock/mock.go"
-    ```go
-    //go:build test
+/// tab | :octicons-file-code-16: comp/compression/mock/mock.go
+```go
+//go:build test
 
-    package mock
+package mock
 
-    import (
-        "testing"
+import (
+    "testing"
 
-        compression "github.com/DataDog/datadog-agent/comp/compression/def"
-    )
+    compression "github.com/DataDog/datadog-agent/comp/compression/def"
+)
 
-    type Provides struct {
-        Comp compression.Component
+type Provides struct {
+    Comp compression.Component
+}
+
+type mock struct {}
+
+// New returns a mock compressor
+func New(*testing.T) Provides {
+    return Provides{
+        comp: &mock{},
     }
+}
 
-    type mock struct {}
+// Compress compresses the input data using ZSTD
+func (c *mock) Compress(data []byte) ([]byte, error) {
+    return []byte("compressed"), nil
+}
 
-    // New returns a mock compressor
-    func New(*testing.T) Provides {
-        return Provides{
-            comp: &mock{},
-        }
-    }
-
-    // Compress compresses the input data using ZSTD
-    func (c *mock) Compress(data []byte) ([]byte, error) {
-        return []byte("compressed"), nil
-    }
-
-    // Decompress decompresses the input data using ZSTD.
-    func (c *compressor) Decompress(data []byte) ([]byte, error) {
-        return []byte("decompressed"), nil
-    }
-    ```
+// Decompress decompresses the input data using ZSTD.
+func (c *compressor) Decompress(data []byte) ([]byte, error) {
+    return []byte("decompressed"), nil
+}
+```
+///
 
 ### Go module
 
@@ -410,12 +418,11 @@ This can seem like a lot for a single compression component, but this design ans
 of the Agent ecosystem. Your component needs to behave correctly with many binaries composed of unique and shared
 components, outside repositories that want to pull only specific features, and everything in between.
 
-!!! Info "Important"
-    No components know how or where they will be used and MUST, therefore, respect all the rules above. It's a very
-    common pattern for teams to work only on their use cases, thinking their code will not be used anywhere else. But
-    customers want common behavior between all Datadog products (Agent, serverless, Agentless, Helm, Operator, etc.).
+/// info | Important
+No components know how or where they will be used and MUST, therefore, respect all the rules above. It's a very common pattern for teams to work only on their use cases, thinking their code will not be used anywhere else. Although, customers want common behavior between all Datadog products (Agent, serverless, Agentless, Helm, Operator, etc.).
 
-    A key idea behind the component is to produce shareable and reusable code.
+A key idea behind the component is to produce shareable and reusable code.
+///
 
 ## General consideration about designing components
 
@@ -443,11 +450,12 @@ Documentation should include:
   value passed to a component will not be later modified, whether by the component or the caller. Any deviation from these
   defaults should be documented.
 
-    !!! note
-        It can be surprisingly hard to avoid mutating data -- for example, `append(..)` surprisingly mutates its first
-        argument. It is also hard to detect these bugs, as they are often intermittent, cause silent data corruption, or
-        introduce rare data races. Where performance is not an issue, prefer to copy mutable input and outputs to avoid
-        any potential bugs.
+    /// note
+    It can be surprisingly hard to avoid mutating data -- for example, `append(..)` surprisingly mutates its first
+    argument. It is also hard to detect these bugs, as they are often intermittent, cause silent data corruption, or
+    introduce rare data races. Where performance is not an issue, prefer to copy mutable input and outputs to avoid
+    any potential bugs.
+    ///
 
 * Precise information about goroutines and blocking. Users can assume that methods do not block indefinitely, so
   blocking methods should be documented as such. Methods that invoke callbacks should be clear about how the callback is

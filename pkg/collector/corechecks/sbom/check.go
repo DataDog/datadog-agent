@@ -9,6 +9,7 @@ package sbom
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"time"
 
@@ -157,9 +158,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		c.workloadmetaStore,
 		sender,
 		c.tagger,
+		c.cfg,
 		c.instance.ChunkSize,
 		time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second,
-		c.cfg.GetBool("sbom.host.enabled"),
 		time.Duration(c.instance.HostHeartbeatValiditySeconds)*time.Second); err != nil {
 		return err
 	}
@@ -171,6 +172,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
+
+	containerFilter, err := collectors.NewSBOMContainerFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create container filter: %w", err)
+	}
 
 	filter := workloadmeta.NewFilterBuilder().
 		AddKind(workloadmeta.KindContainer).
@@ -198,6 +204,11 @@ func (c *Check) Run() error {
 	containerPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.ContainerPeriodicRefreshSeconds) * time.Second)
 	defer containerPeriodicRefreshTicker.Stop()
 
+	procfsSbomChan := make(chan sbom.ScanResult) // default value to listen to nothing
+	if collectors.GetProcfsScanner() != nil && collectors.GetProcfsScanner().Channel() != nil {
+		procfsSbomChan = collectors.GetProcfsScanner().Channel()
+	}
+
 	hostPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.HostPeriodicRefreshSeconds) * time.Second)
 	defer hostPeriodicRefreshTicker.Stop()
 
@@ -211,12 +222,17 @@ func (c *Check) Run() error {
 			if !ok {
 				return nil
 			}
-			c.processor.processContainerImagesEvents(eventBundle)
+			c.processor.processContainerImagesEvents(eventBundle, containerFilter)
 		case scanResult, ok := <-hostSbomChan:
 			if !ok {
 				return nil
 			}
 			c.processor.processHostScanResult(scanResult)
+		case scanResult, ok := <-procfsSbomChan:
+			if !ok {
+				return nil
+			}
+			c.processor.processProcfsScanResult(scanResult)
 		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 		case <-hostPeriodicRefreshTicker.C:

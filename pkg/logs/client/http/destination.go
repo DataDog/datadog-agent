@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,6 +39,12 @@ const (
 	ProtobufContentType = "application/x-protobuf"
 )
 
+// NoTimeoutOverride is a special value that tells the httpClientFactory to use the logs_config.http_timeout setting.
+// This should generally be used for all HTTP destinations barring special cases like the HTTP connectivity check.
+const (
+	NoTimeoutOverride = -1
+)
+
 // HTTP errors.
 var (
 	errClient  = errors.New("client error")
@@ -54,7 +61,12 @@ var (
 // emptyJsonPayload is an empty payload used to check HTTP connectivity without sending logs.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: []byte("{}")}
+var emptyJsonPayload = message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("{}")}
+
+type destinationResult struct {
+	latency time.Duration
+	err     error
+}
 
 // Destination sends a payload over HTTP.
 type Destination struct {
@@ -70,8 +82,8 @@ type Destination struct {
 	isMRF               bool
 
 	// Concurrency
-	climit chan struct{} // semaphore for limiting concurrent background sends
-	wg     sync.WaitGroup
+	workerPool *workerPool
+	wg         sync.WaitGroup
 
 	// Retry
 	backoff        backoff.Policy
@@ -85,45 +97,49 @@ type Destination struct {
 	destMeta        *client.DestinationMetadata
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
+	instanceID      string
 }
 
 // NewDestination returns a new Destination.
-// If `maxConcurrentBackgroundSends` > 0, then at most that many background payloads will be sent concurrently, else
-// there is no concurrency and the background sending pipeline will block while sending each payload.
+// minConcurrency denotes the minimum number of concurrent http requests the pipeline will allow at once.
+// maxConcurrency represents the maximum number of concurrent http requests, reachable when the client is experiencing a large latency in sends.
 // TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
-	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader,
-	pipelineMonitor metrics.PipelineMonitor) *Destination {
+	minConcurrency int,
+	maxConcurrency int,
+	pipelineMonitor metrics.PipelineMonitor,
+	instanceID string) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
 		destinationsContext,
-		time.Second*10,
-		maxConcurrentBackgroundSends,
+		NoTimeoutOverride,
 		shouldRetry,
 		destMeta,
 		cfg,
-		pipelineMonitor)
+		minConcurrency,
+		maxConcurrency,
+		pipelineMonitor,
+		instanceID)
 }
 
 func newDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
-	timeout time.Duration,
-	maxConcurrentBackgroundSends int,
+	timeoutOverride time.Duration,
 	shouldRetry bool,
 	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader,
-	pipelineMonitor metrics.PipelineMonitor) *Destination {
+	minConcurrency int,
+	maxConcurrency int,
+	pipelineMonitor metrics.PipelineMonitor,
+	instanceID string) *Destination {
 
-	if maxConcurrentBackgroundSends <= 0 {
-		maxConcurrentBackgroundSends = 1
-	}
 	policy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
 		endpoint.BackoffBase,
@@ -140,14 +156,16 @@ func newDestination(endpoint config.Endpoint,
 		metrics.DestinationExpVars.Set(destMeta.TelemetryName(), expVars)
 	}
 
+	workerPool := newDefaultWorkerPool(minConcurrency, maxConcurrency, destMeta)
+
 	return &Destination{
 		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
 		endpoint:            endpoint,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout, cfg)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg, timeoutOverride)),
 		destinationsContext: destinationsContext,
-		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
+		workerPool:          workerPool,
 		wg:                  sync.WaitGroup{},
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
@@ -159,7 +177,8 @@ func newDestination(endpoint config.Endpoint,
 		destMeta:            destMeta,
 		isMRF:               endpoint.IsMRF,
 		pipelineMonitor:     pipelineMonitor,
-		utilization:         pipelineMonitor.MakeUtilizationMonitor(destMeta.MonitorTag()),
+		utilization:         pipelineMonitor.MakeUtilizationMonitor(destMeta.MonitorTag(), instanceID),
+		instanceID:          instanceID,
 	}
 }
 
@@ -222,20 +241,16 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 
 func (d *Destination) sendConcurrent(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
 	d.wg.Add(1)
-	d.climit <- struct{}{}
-	go func() {
-		defer func() {
-			<-d.climit
-			d.wg.Done()
-		}()
-		d.sendAndRetry(payload, output, isRetrying)
-	}()
+	d.workerPool.run(func() destinationResult {
+		result := d.sendAndRetry(payload, output, isRetrying)
+		d.wg.Done()
+		return result
+	})
 }
 
 // Send sends a payload over HTTP,
-func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
+func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) destinationResult {
 	for {
-
 		d.retryLock.Lock()
 		nbErrors := d.nbErrors
 		d.retryLock.Unlock()
@@ -249,7 +264,13 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			metrics.TlmRetryCount.Add(1)
 		}
 
+		start := time.Now()
 		err := d.unconditionalSend(payload)
+		latency := time.Since(start)
+		result := destinationResult{
+			latency: latency,
+			err:     err,
+		}
 
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
@@ -265,7 +286,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 
 		if err == context.Canceled {
 			d.updateRetryState(nil, isRetrying)
-			return
+			return result
 		}
 
 		if d.shouldRetry {
@@ -274,10 +295,10 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
-		metrics.LogsSent.Add(int64(len(payload.Messages)))
-		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
+		metrics.LogsSent.Add(payload.Count())
+		metrics.TlmLogsSent.Add(float64(payload.Count()))
 		output <- payload
-		return
+		return result
 	}
 }
 
@@ -292,9 +313,22 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		return err
 	}
 	metrics.BytesSent.Add(int64(payload.UnencodedSize))
-	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize))
+	var sourceTag string
+	compressionKind := "none"
+
+	if d.endpoint.UseCompression {
+		compressionKind = d.endpoint.CompressionKind
+	}
+
+	if strings.Contains(d.Metadata().TelemetryName(), "logs") {
+		sourceTag = "logs"
+	} else {
+		sourceTag = "epforwarder"
+	}
+
+	metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
 	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
-	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)))
+	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag, compressionKind)
 
 	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
 	if err != nil {
@@ -316,13 +350,12 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		req.Header.Set("DD-EVP-ORIGIN", string(d.origin))
 		req.Header.Set("DD-EVP-ORIGIN-VERSION", version.AgentVersion)
 	}
-	req.Header.Set("dd-message-timestamp", strconv.FormatInt(getMessageTimestamp(payload.Messages), 10))
+	req.Header.Set("dd-message-timestamp", strconv.FormatInt(getMessageTimestamp(payload.MessageMetas), 10))
 	then := time.Now()
 	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
 
 	req = req.WithContext(ctx)
 	resp, err := d.client.Do(req)
-
 	latency := time.Since(then).Milliseconds()
 	metrics.TlmSenderLatency.Observe(float64(latency))
 	metrics.SenderLatency.Set(latency)
@@ -364,7 +397,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// internal error. We should retry these requests.
 		return client.NewRetryableError(errServer)
 	} else {
-		d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag())
+		d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
 		return nil
 	}
 }
@@ -392,10 +425,14 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 	}
 }
 
-func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
+func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) func() *http.Client {
 	var transport *http.Transport
 
 	transportConfig := cfg.Get("logs_config.http_protocol")
+	timeout := timeoutOverride
+	if timeout == NoTimeoutOverride {
+		timeout = time.Second * time.Duration(cfg.GetInt("logs_config.http_timeout"))
+	}
 
 	// Configure transport based on user setting
 	switch transportConfig {
@@ -449,7 +486,7 @@ func buildURL(endpoint config.Endpoint) string {
 	return url.String()
 }
 
-func getMessageTimestamp(messages []*message.Message) int64 {
+func getMessageTimestamp(messages []*message.MessageMetadata) int64 {
 	timestampNanos := int64(-1)
 	if len(messages) > 0 {
 		timestampNanos = messages[len(messages)-1].IngestionTimestamp
@@ -460,7 +497,8 @@ func getMessageTimestamp(messages []*message.Message) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, client.NewNoopDestinationMetadata(), cfg, metrics.NewNoopPipelineMonitor(""))
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "")
+
 	return ctx, destination
 }
 

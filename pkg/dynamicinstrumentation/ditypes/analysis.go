@@ -10,6 +10,7 @@ package ditypes
 import (
 	"debug/dwarf"
 	"fmt"
+	"math"
 )
 
 // TypeMap contains all the information about functions and their parameters
@@ -50,11 +51,29 @@ func (p Parameter) String() string {
 type NotCaptureReason uint8
 
 const (
-	Unsupported         NotCaptureReason = iota + 1 // Unsupported means the data type of the parameter is unsupported
-	NoFieldLocation                                 // NoFieldLocation means the parameter wasn't captured because location information is missing from analysis
-	FieldLimitReached                               // FieldLimitReached means the parameter wasn't captured because the data type has too many fields
-	CaptureDepthReached                             // CaptureDepthReached means the parameter wasn't captures because the data type has too many levels
+	Unsupported            NotCaptureReason = iota + 1 // Unsupported means the data type of the parameter is unsupported
+	NoFieldLocation                                    // NoFieldLocation means the parameter wasn't captured because location information is missing from analysis
+	FieldLimitReached                                  // FieldLimitReached means the parameter wasn't captured because the data type has too many fields
+	CaptureDepthReached                                // CaptureDepthReached means the parameter wasn't captures because the data type has too many levels
+	CollectionLimitReached                             // CollectionLimitReached means the parameter wasn't captured because the data type has too many elements
 )
+
+func (r NotCaptureReason) String() string {
+	switch r {
+	case Unsupported:
+		return "unsupported"
+	case NoFieldLocation:
+		return "no field location"
+	case FieldLimitReached:
+		return "fieldCount"
+	case CaptureDepthReached:
+		return "depth"
+	case CollectionLimitReached:
+		return "collectionSize"
+	default:
+		return fmt.Sprintf("unknown reason (%d)", r)
+	}
+}
 
 // SpecialKind is used for clarity in generated events that certain fields weren't read
 type SpecialKind uint8
@@ -71,13 +90,15 @@ func (s SpecialKind) String() string {
 		return "Unsupported"
 	case KindCutFieldLimit:
 		return "CutFieldLimit"
+	case KindCaptureDepthReached:
+		return "CaptureDepthReached"
 	default:
 		return fmt.Sprintf("%d", s)
 	}
 }
 
 func (l LocationExpression) String() string {
-	return fmt.Sprintf("Opcode: %s Args: [%d, %d, %d] Label: %s Collection ID: %s\n",
+	return fmt.Sprintf("Opcode: %s Args: [%d, %d, %d] Label: %d Collection ID: %d\n",
 		l.Opcode.String(),
 		l.Arg1,
 		l.Arg2,
@@ -92,6 +113,8 @@ type LocationExpressionOpcode uint
 const (
 	// OpInvalid represents an invalid operation
 	OpInvalid LocationExpressionOpcode = iota
+	// OpNoop represents a noop operation
+	OpNoop
 	// OpComment represents a comment operation
 	OpComment
 	// OpPrintStatement represents a print statement operation
@@ -133,12 +156,21 @@ const (
 	// OpPopPointerAddress is a special opcode for a compound operation (combination of location expressions)
 	// that are used for popping the address when reading pointers
 	OpPopPointerAddress
+	// OpSetParameterIndex sets the parameter index in the base event's param_indicies array field
+	OpSetParameterIndex
+
+	// OpCompilerError represents an operation to insert a compiler error for the sake of testing
+	OpCompilerError = math.MaxUint - 1
+	// OpVerifierError represents an operation to insert a verifier error for the sake of testing
+	OpVerifierError = math.MaxUint
 )
 
 func (op LocationExpressionOpcode) String() string {
 	switch op {
 	case OpInvalid:
 		return "Invalid"
+	case OpNoop:
+		return "Noop"
 	case OpComment:
 		return "Comment"
 	case OpPrintStatement:
@@ -177,6 +209,12 @@ func (op LocationExpressionOpcode) String() string {
 		return "SetGlobalLimit"
 	case OpJumpIfGreaterThanLimit:
 		return "JumpIfGreaterThanLimit"
+	case OpSetParameterIndex:
+		return "SetParamIndex"
+	case OpCompilerError:
+		return "CompilerError"
+	case OpVerifierError:
+		return "VerifierError"
 	default:
 		return fmt.Sprintf("LocationExpressionOpcode(%d)", int(op))
 	}
@@ -209,9 +247,9 @@ func DirectReadLocationExpression(p *Parameter) LocationExpression {
 		return LocationExpression{Opcode: OpInvalid}
 	}
 	if p.Location.InReg {
-		return ReadRegisterLocationExpression(uint(p.Location.Register), uint(p.TotalSize))
+		return ReadRegisterLocationExpression(uint16(p.Location.Register), uint16(p.TotalSize))
 	}
-	return ReadStackLocationExpression(uint(p.Location.StackOffset), uint(p.TotalSize))
+	return ReadStackLocationExpression(uint16(p.Location.StackOffset), uint16(p.TotalSize))
 }
 
 // DirectReadToOutputLocationExpression creates an expression which
@@ -222,9 +260,9 @@ func DirectReadToOutputLocationExpression(p *Parameter) LocationExpression {
 		return LocationExpression{Opcode: OpInvalid}
 	}
 	if p.Location.InReg {
-		return ReadRegisterToOutputLocationExpression(uint(p.Location.Register), uint(p.TotalSize))
+		return ReadRegisterToOutputLocationExpression(uint16(p.Location.Register), uint16(p.TotalSize))
 	}
-	return ReadStackToOutputLocationExpression(uint(p.Location.StackOffset), uint(p.TotalSize))
+	return ReadStackToOutputLocationExpression(uint16(p.Location.StackOffset), uint16(p.TotalSize))
 }
 
 // ReadRegisterLocationExpression creates an expression which
@@ -232,7 +270,7 @@ func DirectReadToOutputLocationExpression(p *Parameter) LocationExpression {
 // the top of the BPF parameter stack.
 // Arg1 = register
 // Arg2 = size of element
-func ReadRegisterLocationExpression(register, size uint) LocationExpression {
+func ReadRegisterLocationExpression(register, size uint16) LocationExpression {
 	return LocationExpression{Opcode: OpReadUserRegister, Arg1: register, Arg2: size}
 }
 
@@ -241,7 +279,7 @@ func ReadRegisterLocationExpression(register, size uint) LocationExpression {
 // into a u64 which is then pushed to the top of the BPF parameter stack.
 // Arg1 = stack offset
 // Arg2 = size of element
-func ReadStackLocationExpression(offset, size uint) LocationExpression {
+func ReadStackLocationExpression(offset, size uint16) LocationExpression {
 	return LocationExpression{Opcode: OpReadUserStack, Arg1: offset, Arg2: size}
 }
 
@@ -250,7 +288,7 @@ func ReadStackLocationExpression(offset, size uint) LocationExpression {
 // the output buffer.
 // Arg1 = register
 // Arg2 = size of element
-func ReadRegisterToOutputLocationExpression(register, size uint) LocationExpression {
+func ReadRegisterToOutputLocationExpression(register, size uint16) LocationExpression {
 	return LocationExpression{Opcode: OpReadUserRegisterToOutput, Arg1: register, Arg2: size}
 }
 
@@ -259,7 +297,7 @@ func ReadRegisterToOutputLocationExpression(register, size uint) LocationExpress
 // into a u64 which is then written to the output buffer
 // Arg1 = stack offset
 // Arg2 = size of element
-func ReadStackToOutputLocationExpression(offset, size uint) LocationExpression {
+func ReadStackToOutputLocationExpression(offset, size uint16) LocationExpression {
 	return LocationExpression{Opcode: OpReadUserStackToOutput, Arg1: offset, Arg2: size}
 }
 
@@ -269,7 +307,7 @@ func ReadStackToOutputLocationExpression(offset, size uint) LocationExpression {
 // back to the BPF parameter stack.
 // It should only be used for types of 8 bytes or less
 // Arg1 = size of value we're reading from the 8 byte address at the top of the stack
-func DereferenceLocationExpression(valueSize uint) LocationExpression {
+func DereferenceLocationExpression(valueSize uint16) LocationExpression {
 	if valueSize > 8 {
 		return LocationExpression{Opcode: OpDereferenceLarge, Arg1: valueSize, Arg2: (valueSize + 7) / 8}
 	}
@@ -282,7 +320,7 @@ func DereferenceLocationExpression(valueSize uint) LocationExpression {
 // directly to the output buffer.
 // It should only be used for types of 8 bytes or less
 // Arg1 = size of value we're reading from the 8 byte address at the top of the stack
-func DereferenceToOutputLocationExpression(valueSize uint) LocationExpression {
+func DereferenceToOutputLocationExpression(valueSize uint16) LocationExpression {
 	if valueSize > 8 {
 		return LocationExpression{Opcode: OpDereferenceLargeToOutput, Arg1: valueSize, Arg2: (valueSize + 7) / 8}
 	}
@@ -296,7 +334,7 @@ func DereferenceToOutputLocationExpression(valueSize uint) LocationExpression {
 // back to the BPF parameter stack.
 // Arg1 = size in bytes of value we're reading from the 8 byte address at the top of the stack
 // Arg2 = number of chunks (should be ({{.Arg1}} + 7) / 8)
-func DereferenceLargeLocationExpression(typeSize uint) LocationExpression {
+func DereferenceLargeLocationExpression(typeSize uint16) LocationExpression {
 	return LocationExpression{Opcode: OpDereferenceLarge, Arg1: typeSize, Arg2: (typeSize + 7) / 8}
 }
 
@@ -306,7 +344,7 @@ func DereferenceLargeLocationExpression(typeSize uint) LocationExpression {
 // This is safe to use for types larger than 8-bytes.
 // Arg1 = size in bytes of value we're reading from the 8 byte address at the top of the stack
 // Arg2 = number of chunks (should be ({{.Arg1}} + 7) / 8)
-func DereferenceLargeToOutputLocationExpression(typeSize uint) LocationExpression {
+func DereferenceLargeToOutputLocationExpression(typeSize uint16) LocationExpression {
 	return LocationExpression{Opcode: OpDereferenceLargeToOutput, Arg1: typeSize, Arg2: (typeSize + 7) / 8}
 }
 
@@ -316,7 +354,7 @@ func DereferenceLargeToOutputLocationExpression(typeSize uint) LocationExpressio
 // the output buffer.
 // Maximum limit (Arg1) should be set to the size of each element * max collection length
 // Arg1 = maximum limit on bytes read
-func DereferenceDynamicToOutputLocationExpression(readLimit uint) LocationExpression {
+func DereferenceDynamicToOutputLocationExpression(readLimit uint16) LocationExpression {
 	return LocationExpression{Opcode: OpDereferenceDynamicToOutput, Arg1: readLimit}
 }
 
@@ -327,13 +365,16 @@ func DereferenceDynamicToOutputLocationExpression(readLimit uint) LocationExpres
 // itself to be on the top of the stack.
 // Arg1 = string length limit
 func ReadStringToOutputLocationExpression(limit uint16) LocationExpression {
-	return LocationExpression{Opcode: OpReadStringToOutput, Arg1: uint(limit)}
+	return LocationExpression{Opcode: OpReadStringToOutput, Arg1: limit}
 }
 
 // ApplyOffsetLocationExpression creates an expression which
 // adds `offset` to the 8-byte address on the top of the bpf parameter stack.
 // Arg1 = uint value (offset) we're adding to the 8-byte address on top of the stack
-func ApplyOffsetLocationExpression(offset uint) LocationExpression {
+func ApplyOffsetLocationExpression(offset uint16) LocationExpression {
+	if offset == 0 {
+		return LocationExpression{Opcode: OpComment, Label: 0}
+	}
 	return LocationExpression{Opcode: OpApplyOffset, Arg1: offset}
 }
 
@@ -341,20 +382,20 @@ func ApplyOffsetLocationExpression(offset uint) LocationExpression {
 // writes to output `num_elements` elements, each of size `elementSize, from the top of the stack.
 // Arg1 = number of elements to pop
 // Arg2 = size of each element
-func PopLocationExpression(numElements, elementSize uint) LocationExpression {
+func PopLocationExpression(numElements, elementSize uint16) LocationExpression {
 	return LocationExpression{Opcode: OpPop, Arg1: numElements, Arg2: elementSize}
 }
 
 // InsertLabel inserts a label in the bpf program
 // No args, just set label
-func InsertLabel(label string) LocationExpression {
+func InsertLabel(label uint32) LocationExpression {
 	return LocationExpression{Opcode: OpLabel, Label: label}
 }
 
 // SetLimitEntry associates a collection identifier with the passed limit
 // Arg1 = limit to set
 // CollectionIdentifier = the collection that we're limiting
-func SetLimitEntry(collectionIdentifier string, limit uint) LocationExpression {
+func SetLimitEntry(collectionIdentifier uint32, limit uint16) LocationExpression {
 	return LocationExpression{Opcode: OpSetGlobalLimit, CollectionIdentifier: collectionIdentifier, Arg1: limit}
 }
 
@@ -363,33 +404,42 @@ func SetLimitEntry(collectionIdentifier string, limit uint) LocationExpression {
 // Arg1 = value to compare to global limit variable
 // CollectionIdentifier = the collection that we're limiting
 // Label = label to jump to if the value is equal to the global limit variable
-func JumpToLabelIfEqualToLimit(val uint, collectionIdentifier, label string) LocationExpression {
+func JumpToLabelIfEqualToLimit(val uint16, collectionIdentifier, label uint32) LocationExpression {
 	return LocationExpression{Opcode: OpJumpIfGreaterThanLimit, CollectionIdentifier: collectionIdentifier, Arg1: val, Label: label}
 }
 
-// InsertComment inserts a comment into the bpf program
-// Label = comment
-func InsertComment(comment string) LocationExpression {
-	return LocationExpression{Opcode: OpComment, Label: comment}
+// SetParameterIndexLocationExpression creates an expression which
+// sets the parameter index in the base event's param_indicies array field.
+// This allows tracking which parameters were successfully collected.
+// Arg1 = index of the parameter
+func SetParameterIndexLocationExpression(index uint16) LocationExpression {
+	return LocationExpression{
+		Opcode: OpSetParameterIndex,
+		Arg1:   (index),
+	}
 }
 
-// PrintStatement inserts a print statement into the bpf program
-// Label = format
-// CollectionIdentifier = arguments
-// Example usage: PrintStatement("%d", "variableName")
-func PrintStatement(format, arguments string) LocationExpression {
-	return LocationExpression{Opcode: OpPrintStatement, Label: format, CollectionIdentifier: arguments}
+// CompilerErrorLocationExpression creates an expression which
+// inserts a compiler error into the bpf program
+func CompilerErrorLocationExpression() LocationExpression {
+	return LocationExpression{Opcode: OpCompilerError}
+}
+
+// VerifierErrorLocationExpression creates an expression which
+// inserts a verifier error into the bpf program
+func VerifierErrorLocationExpression() LocationExpression {
+	return LocationExpression{Opcode: OpVerifierError}
 }
 
 // LocationExpression is an operation which will be executed in bpf with the purpose
 // of capturing parameters from a running Go program
 type LocationExpression struct {
 	Opcode               LocationExpressionOpcode
-	Arg1                 uint
-	Arg2                 uint
-	Arg3                 uint
-	CollectionIdentifier string
-	Label                string
+	Arg1                 uint16
+	Arg2                 uint16
+	Arg3                 uint16
+	CollectionIdentifier uint32
+	Label                uint32
 	IncludedExpressions  []LocationExpression
 }
 
@@ -435,6 +485,10 @@ type FuncByPCEntry struct {
 	Line       int64
 }
 
-// RemoteConfigCallback is the name of the function in dd-trace-go which we hook for retrieving
+// RemoteConfigCallback is the name of the function in dd-trace-go v1 which we hook for retrieving
 // probe configurations
 const RemoteConfigCallback = "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration"
+
+// RemoteConfigCallbackV2 is the name of the function in dd-trace-go v2 which we hook for retrieving
+// probe configurations
+const RemoteConfigCallbackV2 = "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.passProbeConfiguration"

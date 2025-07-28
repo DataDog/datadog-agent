@@ -1,8 +1,9 @@
 protobuf_test:
   stage: source_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
   tags: ["arch:amd64"]
   needs: []
   script:
-    - inv install-tools
-    - inv -e protobuf.generate
+    - dda inv -- install-tools
+    # Run protobuf generation in pre-commit mode to ensure that it fails if the files are not up to date
+    - dda inv -- -e protobuf.generate --pre-commit

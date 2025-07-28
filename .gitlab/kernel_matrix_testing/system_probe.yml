@@ -21,19 +21,16 @@ upload_dependencies_sysprobe_arm64:
 
 # --- Docker test images
 .pull_test_dockers:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: []
   tags: ["arch:amd64"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   stage: kernel_matrix_testing_prepare
   script:
-    # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | crane auth login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+    - !reference [.login_to_docker_readonly_crane]
     # Pull base images
     - mkdir $KMT_DOCKERS
-    - inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
+    - dda inv -- -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
   after_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
@@ -57,7 +54,7 @@ pull_test_dockers_arm64:
 # -- BTF
 .upload_minimized_btfs:
   stage: kernel_matrix_testing_prepare
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   script:
     # Build dependencies directory
@@ -174,7 +171,7 @@ upload_sysprobe_tests_x64:
   extends:
     - .upload_sysprobe_tests
   needs: ["go_deps", "prepare_sysprobe_ebpf_functional_tests_x64", "tests_ebpf_x64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   variables:
     ARCH: x86_64
@@ -184,7 +181,7 @@ upload_sysprobe_tests_arm64:
   extends:
     - .upload_sysprobe_tests
   needs: ["go_deps", "prepare_sysprobe_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
@@ -201,7 +198,7 @@ upload_sysprobe_tests_arm64:
 kmt_run_sysprobe_tests_x64:
   extends:
     - .kmt_run_sysprobe_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_sysprobe_x64
@@ -231,15 +228,17 @@ kmt_run_sysprobe_tests_x64:
           - "centos_7.9"
           - "centos_8"
           - "rocky_9.4"
+          - "rocky_8.4"
         TEST_SET: ["only_usm", "no_usm"]
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_sysprobe_tests_arm64:
   extends:
     - .kmt_run_sysprobe_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_sysprobe_arm64
@@ -271,7 +270,7 @@ kmt_run_sysprobe_tests_arm64:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
-
+    - !reference [.suggest_kmt_retry_command]
 .kmt_sysprobe_cleanup:
   extends:
     - .kmt_cleanup

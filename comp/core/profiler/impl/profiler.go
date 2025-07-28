@@ -19,16 +19,16 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	profilercomp "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 
 // Requires defines the dependencies for the profiler component
@@ -38,6 +38,7 @@ type Requires struct {
 	SettingsComponent settings.Component
 	Config            config.Component
 	SysProbeConfig    sysprobeconfig.Component
+	IPCClient         ipc.HTTPClient
 }
 
 // Provides defines the output of the profiler component
@@ -52,6 +53,7 @@ type profiler struct {
 	settingsComponent settings.Component
 	cfg               config.Component
 	sysProbeCfg       sysprobeconfig.Component
+	ipcClient         ipc.HTTPClient
 }
 
 // ReadProfileData gathers and returns pprof server output for a variety of agent services.
@@ -66,7 +68,6 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 	type agentProfileCollector func(service string) error
 
 	pdata := flaretypes.ProfileData{}
-	c := util.GetClient(false)
 
 	type pprofGetter func(path string) ([]byte, error)
 	tcpGet := func(portConfig string, onHTTPS bool) pprofGetter {
@@ -79,7 +80,7 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 			endpoint.Scheme = "https"
 		}
 		return func(path string) ([]byte, error) {
-			return util.DoGet(c, endpoint.String()+path, util.LeaveConnectionOpen)
+			return p.ipcClient.Get(endpoint.String()+path, ipchttp.WithLeaveConnectionOpen)
 		}
 	}
 
@@ -329,6 +330,7 @@ func NewComponent(req Requires) (Provides, error) {
 		settingsComponent: req.SettingsComponent,
 		cfg:               req.Config,
 		sysProbeCfg:       req.SysProbeConfig,
+		ipcClient:         req.IPCClient,
 	}
 	return Provides{
 		Comp:          p,

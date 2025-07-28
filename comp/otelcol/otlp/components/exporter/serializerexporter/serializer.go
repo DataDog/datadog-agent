@@ -16,18 +16,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
-
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
+	"golang.org/x/net/http/httpproxy"
 )
 
 const megaByte = 1024 * 1024
@@ -41,6 +42,8 @@ func setupForwarder(config pkgconfigmodel.Config) {
 
 	config.Set("forwarder_num_workers", 1, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_stop_timeout", 2, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_http_protocol", "auto", pkgconfigmodel.SourceDefault)
+
 	// Forwarder retry settings
 	config.Set("forwarder_backoff_factor", 2, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_backoff_base", 2, pkgconfigmodel.SourceDefault)
@@ -62,12 +65,8 @@ func setupForwarder(config pkgconfigmodel.Config) {
 	config.Set("forwarder_requeue_buffer_size", 100, pkgconfigmodel.SourceDefault)
 }
 
-func setupSerializer(config pkgconfigmodel.Config) {
+func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	// Serializer
-	config.Set("enable_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
-	config.Set("enable_service_checks_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
-	config.Set("enable_events_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
-	config.Set("enable_sketch_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
 	config.Set("enable_json_stream_shared_compressor_buffers", true, pkgconfigmodel.SourceDefault)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
@@ -86,6 +85,28 @@ func setupSerializer(config pkgconfigmodel.Config) {
 	config.Set("enable_payloads.service_checks", true, pkgconfigmodel.SourceDefault)
 	config.Set("enable_payloads.sketches", true, pkgconfigmodel.SourceDefault)
 	config.Set("enable_payloads.json_to_v1_intake", true, pkgconfigmodel.SourceDefault)
+
+	// Proxy Setup
+	proxyConfig := httpproxy.FromEnvironment()
+	if proxyConfig.HTTPProxy != "" {
+		config.Set("proxy.http", proxyConfig.HTTPProxy, pkgconfigmodel.SourceDefault)
+	}
+	if proxyConfig.HTTPSProxy != "" {
+		config.Set("proxy.https", proxyConfig.HTTPSProxy, pkgconfigmodel.SourceDefault)
+	}
+
+	// ProxyURL takes precedence over proxy environment variables if set
+	if cfg.HTTPConfig.ProxyURL != "" {
+		config.Set("proxy.http", cfg.HTTPConfig.ProxyURL, pkgconfigmodel.SourceFile)
+		config.Set("proxy.https", cfg.HTTPConfig.ProxyURL, pkgconfigmodel.SourceFile)
+	}
+
+	// Handle no_proxy environment variable
+	var noProxy []any
+	for _, v := range strings.Split(proxyConfig.NoProxy, ",") {
+		noProxy = append(noProxy, v)
+	}
+	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
 }
 
 func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarder.DefaultForwarder, error) {
@@ -98,7 +119,7 @@ func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := viperconfig.NewConfig("DD", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+			pkgconfig := create.NewConfig("DD")
 
 			// Set the API Key
 			pkgconfig.Set("api_key", string(cfg.API.Key), pkgconfigmodel.SourceFile)
@@ -106,9 +127,10 @@ func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			if cfg.Metrics.Metrics.TCPAddrConfig.Endpoint != "" {
 				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceDefault)
 			}
-			setupSerializer(pkgconfig)
+			setupSerializer(pkgconfig, cfg)
 			setupForwarder(pkgconfig)
 			pkgconfig.Set("logging_frequency", int64(500), pkgconfigmodel.SourceDefault)
+			pkgconfig.Set("skip_ssl_validation", cfg.ClientConfig.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 			return pkgconfig
 		}),
 		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {

@@ -26,7 +26,7 @@ type ConnectionKey struct {
 }
 
 // String returns a string representation of the ConnectionKey
-func (c *ConnectionKey) String() string {
+func (c ConnectionKey) String() string {
 	return fmt.Sprintf(
 		"[%v:%d ⇄ %v:%d]",
 		util.FromLowHigh(c.SrcIPLow, c.SrcIPHigh),

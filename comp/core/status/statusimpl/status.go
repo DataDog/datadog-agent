@@ -17,7 +17,6 @@ import (
 	"path"
 	"sort"
 	"strings"
-	"text/template"
 	"unicode"
 
 	"go.uber.org/fx"
@@ -29,6 +28,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

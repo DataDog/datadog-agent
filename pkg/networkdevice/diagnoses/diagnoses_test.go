@@ -6,10 +6,12 @@
 package diagnoses
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
 
 func TestReportDeviceDiagnoses(t *testing.T) {
@@ -71,8 +73,8 @@ func TestReportAsAgentDiagnoses(t *testing.T) {
 
 	diagnosesCLI := diagnoses.ReportAsAgentDiagnoses()
 
-	expected := []diagnosis.Diagnosis{{
-		Result:    diagnosis.DiagnosisFail,
+	expected := []diagnose.Diagnosis{{
+		Status:    diagnose.DiagnosisFail,
 		Name:      "NDM device - default:1.2.3.4.5 - TEST_ERROR_DIAG",
 		Diagnosis: "This is a test error diagnosis",
 	}}

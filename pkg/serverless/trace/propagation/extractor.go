@@ -120,6 +120,16 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 		if err == nil {
 			return tc, nil
 		}
+	case events.NestedStepFunctionPayload:
+		tc, err := extractTraceContextFromNestedStepFunctionContext(ev)
+		if err == nil {
+			return tc, nil
+		}
+	case events.LambdaRootStepFunctionPayload:
+		tc, err := extractTraceContextFromLambdaRootStepFunctionContext(ev)
+		if err == nil {
+			return tc, nil
+		}
 	default:
 		err = errorUnsupportedExtractionType
 	}

@@ -555,7 +555,7 @@ def lint_components(_, fix=False):
 
     if not ok:
         if fixable:
-            print("Run `inv components.lint-components --fix` to fix errors")
+            print("Run `dda inv components.lint-components --fix` to fix errors")
         raise Exit(code=1)
 
 
@@ -578,9 +578,9 @@ def new_bundle(_, bundle_path, overwrite=False, team="/* TODO: add team name */"
         - You can use the --team flag to set the team name for the new bundle.
 
     Examples:
-        inv components.new-bundle comp/foo/bar             # Create the 'bar' bundle in the 'comp/foo' folder
-        inv components.new-bundle comp/foo/bar --overwrite # Create the 'bar' bundle in the 'comp/foo' folder and overwrite 'comp/foo/bar/bundle{_test}.go' even if they already exist.
-        inv components.new-bundle /tmp/baz                 # Create the 'baz' bundle in the '/tmp/' folder. './comp' prefix is not enforced by the task.
+        dda inv components.new-bundle comp/foo/bar             # Create the 'bar' bundle in the 'comp/foo' folder
+        dda inv components.new-bundle comp/foo/bar --overwrite # Create the 'bar' bundle in the 'comp/foo' folder and overwrite 'comp/foo/bar/bundle{_test}.go' even if they already exist.
+        dda inv components.new-bundle /tmp/baz                 # Create the 'baz' bundle in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
     template_var_mapping = {"BUNDLE_NAME": os.path.basename(bundle_path), "TEAM_NAME": team}
     create_components_framework_files(
@@ -599,9 +599,9 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
         - You can use the --team flag to set the team name for the new component/
 
     Examples:
-        inv components.new-component comp/foo/bar             # Create the 'bar' component in the 'comp/foo' folder
-        inv components.new-component comp/foo/bar --overwrite # Create the 'bar' component in the 'comp/foo' folder and overwrite 'comp/foo/bar/component.go' even if it already exists
-        inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task.
+        dda inv components.new-component comp/foo/bar             # Create the 'bar' component in the 'comp/foo' folder
+        dda inv components.new-component comp/foo/bar --overwrite # Create the 'bar' component in the 'comp/foo' folder and overwrite 'comp/foo/bar/component.go' even if it already exists
+        dda inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
     component_name = os.path.basename(comp_path)
     template_var_mapping = {

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -14,16 +14,15 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,62 +32,55 @@ const telemetryEventErrorUnknownType = "unknown_type"
 const telemetryEventTypeUnknown = "unknown"
 const telemetryEventHeader = "header"
 
-type nonGlobalStreamKey struct {
-	pid    uint32
-	stream uint64
-}
-
 // cudaEventConsumer is responsible for consuming CUDA events from the eBPF probe, and delivering them
 // to the appropriate stream handler.
 type cudaEventConsumer struct {
-	eventHandler        ddebpf.EventHandler
-	once                sync.Once
-	closed              chan struct{}
-	streamHandlers      map[streamKey]*StreamHandler
-	nonGlobalStreamKeys map[nonGlobalStreamKey]streamKey // TODO: Move this to a separate class that deals with stream assignment
-	wg                  sync.WaitGroup
-	running             atomic.Bool
-	sysCtx              *systemContext
-	cfg                 *config.Config
-	telemetry           *cudaEventConsumerTelemetry
-	debugCollector      *eventCollector
+	eventHandler   ddebpf.EventHandler
+	once           sync.Once
+	closed         chan struct{}
+	streamHandlers *streamCollection
+	wg             sync.WaitGroup
+	running        atomic.Bool
+	sysCtx         *systemContext
+	cfg            *config.Config
+	telemetry      *cudaEventConsumerTelemetry
+	debugCollector *eventCollector
 }
 
 type cudaEventConsumerTelemetry struct {
-	activeHandlers     telemetry.Gauge
-	removedHandlers    telemetry.Counter
 	events             telemetry.Counter
 	eventErrors        telemetry.Counter
-	finalizedProcesses telemetry.Counter
-	missingContainers  telemetry.Counter
-	missingDevices     telemetry.Counter
+	eventCounterByType map[gpuebpf.CudaEventType]telemetry.SimpleCounter
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
-func newCudaEventConsumer(sysCtx *systemContext, eventHandler ddebpf.EventHandler, cfg *config.Config, telemetry telemetry.Component) *cudaEventConsumer {
+func newCudaEventConsumer(sysCtx *systemContext, streamHandlers *streamCollection, eventHandler ddebpf.EventHandler, cfg *config.Config, telemetry telemetry.Component) *cudaEventConsumer {
 	return &cudaEventConsumer{
-		eventHandler:        eventHandler,
-		closed:              make(chan struct{}),
-		streamHandlers:      make(map[streamKey]*StreamHandler),
-		nonGlobalStreamKeys: make(map[nonGlobalStreamKey]streamKey),
-		cfg:                 cfg,
-		sysCtx:              sysCtx,
-		telemetry:           newCudaEventConsumerTelemetry(telemetry),
-		debugCollector:      newEventCollector(),
+		eventHandler:   eventHandler,
+		closed:         make(chan struct{}),
+		cfg:            cfg,
+		sysCtx:         sysCtx,
+		streamHandlers: streamHandlers,
+		telemetry:      newCudaEventConsumerTelemetry(telemetry),
+		debugCollector: newEventCollector(),
 	}
 }
 
 func newCudaEventConsumerTelemetry(tm telemetry.Component) *cudaEventConsumerTelemetry {
-	subsystem := gpuTelemetryModule + "__consumer"
+	subsystem := consts.GpuTelemetryModule + "__consumer"
+
+	events := tm.NewCounter(subsystem, "events", []string{"event_type"}, "Number of processed CUDA events received by the consumer")
+	eventCounterByType := make(map[gpuebpf.CudaEventType]telemetry.SimpleCounter)
+
+	for i := 0; i < int(gpuebpf.CudaEventTypeCount); i++ {
+		eventType := gpuebpf.CudaEventType(i)
+		eventCounterByType[eventType] = events.WithTags(map[string]string{"event_type": eventType.String()})
+	}
 
 	return &cudaEventConsumerTelemetry{
-		activeHandlers:     tm.NewGauge(subsystem, "active_handlers", nil, "Number of active stream handlers"),
-		removedHandlers:    tm.NewCounter(subsystem, "removed_handlers", nil, "Number of removed stream handlers"),
-		events:             tm.NewCounter(subsystem, "events", []string{"event_type"}, "Number of processed CUDA events received by the consumer"),
+		events:             events,
 		eventErrors:        tm.NewCounter(subsystem, "events__errors", []string{"event_type", "error"}, "Number of CUDA events that couldn't be processed due to an error"),
-		finalizedProcesses: tm.NewCounter(subsystem, "finalized_processes", nil, "Number of finalized processes"),
-		missingContainers:  tm.NewCounter(subsystem, "missing_containers", []string{"reason"}, "Number of missing containers"),
-		missingDevices:     tm.NewCounter(subsystem, "missing_devices", nil, "Number of failures to get GPU devices for a stream"),
+		eventCounterByType: eventCounterByType,
 	}
 }
 
@@ -108,7 +100,7 @@ func (c *cudaEventConsumer) Start() {
 	if c == nil {
 		return
 	}
-	health := health.RegisterLiveness("gpu-tracer-cuda-events")
+	health := health.RegisterLiveness(consts.GpuConsumerHealthName)
 	processMonitor := monitor.GetProcessMonitor()
 	cleanupExit := processMonitor.SubscribeExit(c.handleProcessExit)
 
@@ -137,7 +129,7 @@ func (c *cudaEventConsumer) Start() {
 			case <-health.C:
 			case <-processSync.C:
 				c.checkClosedProcesses()
-				c.sysCtx.cleanupOldEntries()
+				c.sysCtx.cleanOld()
 			case batchData, ok := <-dataChannel:
 				if !ok {
 					return
@@ -145,25 +137,19 @@ func (c *cudaEventConsumer) Start() {
 
 				dataLen := len(batchData.Data)
 				if dataLen < gpuebpf.SizeofCudaEventHeader {
-					log.Errorf("Not enough data to parse header, data size=%d, expecting at least %d", dataLen, gpuebpf.SizeofCudaEventHeader)
+					if logLimitProbe.ShouldLog() {
+						log.Warnf("Not enough data to parse header, data size=%d, expecting at least %d", dataLen, gpuebpf.SizeofCudaEventHeader)
+					}
 					c.telemetry.eventErrors.Inc(telemetryEventHeader, telemetryEventErrorMismatch)
 					continue
 				}
 
 				header := (*gpuebpf.CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
 				dataPtr := unsafe.Pointer(&batchData.Data[0])
+				err := c.handleEvent(header, dataPtr, dataLen)
 
-				var err error
-				eventType := gpuebpf.CudaEventType(header.Type)
-				c.telemetry.events.Inc(eventType.String())
-				if isStreamSpecificEvent(eventType) {
-					err = c.handleStreamEvent(header, dataPtr, dataLen)
-				} else {
-					err = c.handleGlobalEvent(header, dataPtr, dataLen)
-				}
-
-				if err != nil {
-					log.Errorf("Error processing CUDA event: %v", err)
+				if err != nil && logLimitProbe.ShouldLog() {
+					log.Warnf("Error processing CUDA event: %v", err)
 				}
 
 				batchData.Done()
@@ -179,14 +165,23 @@ func (c *cudaEventConsumer) Start() {
 }
 
 func isStreamSpecificEvent(eventType gpuebpf.CudaEventType) bool {
-	return eventType != gpuebpf.CudaEventTypeSetDevice
+	return eventType != gpuebpf.CudaEventTypeSetDevice && eventType != gpuebpf.CudaEventTypeVisibleDevicesSet
+}
+
+func (c *cudaEventConsumer) handleEvent(header *gpuebpf.CudaEventHeader, dataPtr unsafe.Pointer, dataLen int) error {
+	eventType := gpuebpf.CudaEventType(header.Type)
+	c.telemetry.eventCounterByType[eventType].Inc()
+	if isStreamSpecificEvent(eventType) {
+		return c.handleStreamEvent(header, dataPtr, dataLen)
+	}
+	return c.handleGlobalEvent(header, dataPtr, dataLen)
 }
 
 func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType gpuebpf.CudaEventType, data unsafe.Pointer, dataLen int, expectedSize int) error {
 	if dataLen != expectedSize {
 		evStr := eventType.String()
 		c.telemetry.eventErrors.Inc(evStr, telemetryEventErrorMismatch)
-		return fmt.Errorf("Not enough data to parse %s event, data size=%d, expecting %d", evStr, dataLen, expectedSize)
+		return fmt.Errorf("not enough data to parse %s event, data size=%d, expecting %d", evStr, dataLen, expectedSize)
 	}
 
 	typedEvent := (*K)(data)
@@ -199,10 +194,10 @@ func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType g
 
 func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
 	eventType := gpuebpf.CudaEventType(header.Type)
-	streamHandler, err := c.getStreamHandler(header)
+	streamHandler, err := c.streamHandlers.getStream(header)
 
 	if err != nil {
-		return fmt.Errorf("error getting stream handler: %w", err)
+		return fmt.Errorf("error getting stream handler for stream id: %d : %w ", header.Stream_id, err)
 	}
 
 	switch eventType {
@@ -214,7 +209,7 @@ func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, d
 		return handleTypedEvent(c, streamHandler.handleSync, eventType, data, dataLen, int(gpuebpf.SizeofCudaSync))
 	default:
 		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
-		return fmt.Errorf("Unknown event type: %d", header.Type)
+		return fmt.Errorf("unknown event type: %d", header.Type)
 	}
 }
 
@@ -229,100 +224,27 @@ func (c *cudaEventConsumer) handleSetDevice(csde *gpuebpf.CudaSetDeviceEvent) {
 	c.sysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
 }
 
+func (c *cudaEventConsumer) handleVisibleDevicesSet(vds *gpuebpf.CudaVisibleDevicesSetEvent) {
+	pid, _ := getPidTidFromHeader(&vds.Header)
+
+	c.sysCtx.setUpdatedVisibleDevicesEnvVar(int(pid), unix.ByteSliceToString(vds.Devices[:]))
+}
+
 func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
 	eventType := gpuebpf.CudaEventType(header.Type)
 	switch eventType {
 	case gpuebpf.CudaEventTypeSetDevice:
 		return handleTypedEvent(c, c.handleSetDevice, eventType, data, dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
+	case gpuebpf.CudaEventTypeVisibleDevicesSet:
+		return handleTypedEvent(c, c.handleVisibleDevicesSet, eventType, data, dataLen, gpuebpf.SizeofCudaVisibleDevicesSetEvent)
 	default:
 		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
-		return fmt.Errorf("Unknown event type: %d", header.Type)
+		return fmt.Errorf("unknown event type: %d", header.Type)
 	}
 }
 
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
-	for key, handler := range c.streamHandlers {
-		if key.pid == pid {
-			log.Debugf("Process %d ended, marking stream %d as ended", pid, key.stream)
-			// the probe is responsible for deleting the stream handler
-			_ = handler.markEnd()
-			c.telemetry.finalizedProcesses.Inc()
-		}
-	}
-}
-
-func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) (streamKey, error) {
-	pid, tid := getPidTidFromHeader(header)
-
-	var nonGlobalKey nonGlobalStreamKey
-	if header.Stream_id != 0 {
-		// Non-global stream, check if we have created it before
-		nonGlobalKey.pid = pid
-		nonGlobalKey.stream = header.Stream_id
-
-		if key, ok := c.nonGlobalStreamKeys[nonGlobalKey]; ok {
-			return key, nil
-		}
-	}
-
-	cgroup := unix.ByteSliceToString(header.Cgroup[:])
-	containerID, err := cgroups.ContainerFilter("", cgroup)
-	if err != nil {
-		// We don't want to return an error here, as we can still process the event without the container ID
-		log.Warnf("error getting container ID for cgroup %s: %s", cgroup, err)
-		c.telemetry.missingContainers.Inc("error")
-	} else if containerID == "" {
-		c.telemetry.missingContainers.Inc("missing")
-	}
-
-	key := streamKey{
-		pid:         pid,
-		stream:      header.Stream_id,
-		gpuUUID:     "",
-		containerID: containerID,
-	}
-
-	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), containerID)
-	if err != nil {
-		c.telemetry.missingDevices.Inc()
-		return streamKey{}, fmt.Errorf("Error getting GPU device for process %d: %w", pid, err)
-	}
-
-	var ret nvml.Return
-	key.gpuUUID, ret = gpuDevice.GetUUID()
-	if ret != nvml.SUCCESS {
-		return streamKey{}, fmt.Errorf("Error getting GPU UUID for process %d: %v", pid, nvml.ErrorString(ret))
-	}
-
-	if header.Stream_id != 0 {
-		c.nonGlobalStreamKeys[nonGlobalKey] = key
-	}
-
-	return key, nil
-}
-
-func (c *cudaEventConsumer) getStreamHandler(header *gpuebpf.CudaEventHeader) (*StreamHandler, error) {
-	key, err := c.getStreamKey(header)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, ok := c.streamHandlers[key]; !ok {
-		smVersion, ok := c.sysCtx.deviceSmVersions[key.gpuUUID]
-		if !ok {
-			if key.gpuUUID != "" {
-				// Only warn when we have a device, otherwise it's expected to not find the SM version
-				// if the device UUID is empty
-				log.Warnf("SM version not found for device %s, using default", key.gpuUUID)
-			}
-			smVersion = noSmVersion
-		}
-
-		c.streamHandlers[key] = newStreamHandler(key.pid, key.containerID, smVersion, c.sysCtx)
-		c.telemetry.activeHandlers.Set(float64(len(c.streamHandlers)))
-	}
-
-	return c.streamHandlers[key], nil
+	c.streamHandlers.markProcessStreamsAsEnded(pid)
 }
 
 func (c *cudaEventConsumer) checkClosedProcesses() {
@@ -332,24 +254,9 @@ func (c *cudaEventConsumer) checkClosedProcesses() {
 		return nil
 	})
 
-	for key, handler := range c.streamHandlers {
-		if _, ok := seenPIDs[key.pid]; !ok {
-			log.Debugf("Process %d ended, marking stream %d as ended", key.pid, key.stream)
-			_ = handler.markEnd()
+	for handler := range c.streamHandlers.allStreams() {
+		if _, ok := seenPIDs[handler.metadata.pid]; !ok {
+			c.streamHandlers.markProcessStreamsAsEnded(handler.metadata.pid)
 		}
 	}
-}
-
-func (c *cudaEventConsumer) cleanFinishedHandlers() {
-	for key, handler := range c.streamHandlers {
-		if handler.processEnded {
-			delete(c.streamHandlers, key)
-
-			if key.stream != 0 {
-				delete(c.nonGlobalStreamKeys, nonGlobalStreamKey{pid: key.pid, stream: key.stream})
-			}
-		}
-	}
-
-	c.telemetry.activeHandlers.Set(float64(len(c.streamHandlers)))
 }

@@ -2,14 +2,6 @@ global_config_source = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0RhdGFEb2cv
 qa_statuses = ["To Do", "In Progress", "Done"]
 ignored_labels = ["qa/done", "qa/no-code-change"]
 
-[teams."Agent Metrics Logs"]
-jira_project = "AMLII"
-jira_issue_type = "Task"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-metrics-logs"
-github_labels = ["team/agent-metrics-logs"]
-exclude_members = ["olivielpeau"]
-
 [teams."Agent Log Pipelines"]
 jira_project = "AGNTLOG"
 jira_issue_type = "Task"
@@ -25,14 +17,6 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-metric-pipelines"
 github_labels = ["team/agent-metric-pipelines"]
 exclude_members = [""]
-
-[teams."Agent Processing and Routing"]
-jira_project = "APR"
-jira_issue_type = "Task"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-processing-and-routing"
-github_labels = ["team/agent-processing-and-routing"]
-exclude_members = []
 
 [teams."Agent Runtimes"]
 jira_project = "AGENTRUN"
@@ -50,20 +34,12 @@ github_team = "agent-configuration"
 github_labels = ["team/agent-configuration"]
 exclude_members = ["sgnn7"]
 
-[teams."Agent Developer Tools"]
-jira_project = "ADXT"
-jira_issue_type = "QA"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-devx-loops"
-github_labels = ["team/agent-devx-loops"]
-exclude_members = []
-
-[teams."Agent CI Experience"]
+[teams."Agent Developer Experience"]
 jira_project = "ACIX"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-devx-infra"
-github_labels = ["team/agent-devx-infra"]
+github_team = "agent-devx"
+github_labels = ["team/agent-devx"]
 exclude_members = []
 
 [teams."Agent Delivery"]
@@ -73,6 +49,13 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-delivery"
 github_labels = ["team/agent-delivery"]
 exclude_members = ["KSerrania"]
+
+[teams."Agent Build"]
+jira_project = "ABLD"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-build"
+github_labels = ["team/agent-build"]
 
 [teams."Agent Discovery"]
 jira_project = "DSCVR"
@@ -199,12 +182,12 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-cspm"
 github_labels = ["team/agent-cspm"]
 
-[teams."Container Intake"]
-jira_project = "CTK"
+[teams."Container Experiences"]
+jira_project = "CXP"
 jira_issue_type = "Task"
 jira_statuses = ["TRIAGE", "In Progress", "Done"]
-github_team = "container-intake"
-github_labels = ["team/container-intake"]
+github_team = "container-experiences"
+github_labels = ["team/container-experiences"]
 
 [teams."Windows Agent"]
 jira_project = "WINA"
@@ -212,13 +195,6 @@ jira_issue_type = "QA Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "windows-agent"
 github_labels = ["team/windows-agent"]
-
-[teams."Windows Kernel Integrations"]
-jira_project = "WKINT"
-jira_issue_type = "Task"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "windows-kernel-integrations"
-github_labels = ["team/windows-kernel-integrations"]
 
 [teams."Database Monitoring"]
 jira_project = "DBMON"

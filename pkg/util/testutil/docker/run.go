@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -20,6 +21,7 @@ import (
 // Use NewRunConfig to run a single docker container or NewComposeConfig to spin docker-compose
 // This method is using testing.TB interface to handle cleanup and logging during UTs execution
 func Run(t testing.TB, cfg LifecycleConfig) error {
+	t.Logf("Running %s command. Waiting for %s container to be running", cfg.command(), cfg.Name())
 	var err error
 	var ctx context.Context
 	for i := 0; i < cfg.Retries(); i++ {
@@ -41,7 +43,7 @@ func Run(t testing.TB, cfg LifecycleConfig) error {
 			t.Logf("%s command succeeded. %s container is running", cfg.command(), cfg.Name())
 			return nil
 		}
-		t.Logf("[Attempt #%v] failed to start %s server: %v", i+1, cfg.Name(), err)
+		t.Logf("[Attempt #%v] failed to start %s server: %v. Container logs:\n", i+1, cfg.Name(), err)
 		cfg.PatternScanner().PrintLogs(t)
 		time.Sleep(5 * time.Second)
 	}
@@ -69,6 +71,8 @@ func run(t testing.TB, cfg LifecycleConfig) (context.Context, error) {
 
 	args := cfg.commandArgs(start)
 
+	t.Logf("docker run command: %s %s", cfg.command(), strings.Join(args, " "))
+
 	//prepare the command
 	cmd := exec.CommandContext(ctx, cfg.command(), args...)
 	cmd.Env = append(cmd.Env, cfg.Env()...)
@@ -81,6 +85,12 @@ func run(t testing.TB, cfg LifecycleConfig) (context.Context, error) {
 	}
 	//register cleanup function to kill the instances upon finishing the test
 	t.Cleanup(func() {
+		if t.Failed() {
+			// Get the logs of the container. PatternScanner only prints the log up
+			// until the pattern is found.
+			logs, _ := exec.Command("docker", "logs", cfg.Name()).Output()
+			t.Logf("outputting container logs for %s\n%s", cfg.Name(), logs)
+		}
 		cancel()
 		_ = cmd.Wait()
 		killPreviousInstances(cfg)

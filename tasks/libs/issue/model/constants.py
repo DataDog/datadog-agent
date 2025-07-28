@@ -3,7 +3,8 @@ BASE_MODEL = "distilbert-base-uncased-finetuned-sst-2-english"
 TEAMS = (
     'agent-all',
     'agent-apm',
-    'agent-build-and-releases',
+    'agent-build',
+    'agent-delivery',
     'agent-ci-experience',
     'agent-configuration',
     'agent-cspm',
@@ -43,5 +44,4 @@ TEAMS = (
     'triage',
     'universal-service-monitoring',
     'windows-agent',
-    'windows-kernel-integrations',
 )

@@ -22,13 +22,13 @@ func TestStreamStrategy(t *testing.T) {
 	s := NewStreamStrategy(input, output, compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1))
 	s.Start()
 
-	content := []byte("a")
+	content := []byte("aa")
 	message1 := message.NewMessage(content, nil, "", 0)
 	input <- message1
 
 	payload := <-output
-	assert.Equal(t, message1, payload.Messages[0])
-	assert.Equal(t, 1, payload.UnencodedSize)
+	assert.Equal(t, &message1.MessageMetadata, payload.MessageMetas[0])
+	assert.Equal(t, 2, payload.UnencodedSize)
 	assert.Equal(t, content, payload.Encoded)
 
 	content = []byte("b")
@@ -36,7 +36,7 @@ func TestStreamStrategy(t *testing.T) {
 	input <- message2
 
 	payload = <-output
-	assert.Equal(t, message2, payload.Messages[0])
+	assert.Equal(t, &message2.MessageMetadata, payload.MessageMetas[0])
 	assert.Equal(t, 1, payload.UnencodedSize)
 	assert.Equal(t, content, payload.Encoded)
 	s.Stop()

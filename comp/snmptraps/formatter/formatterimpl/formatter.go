@@ -9,6 +9,7 @@ package formatterimpl
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/gosnmp/gosnmp"
@@ -143,9 +144,7 @@ func (f JSONFormatter) formatV1Trap(packet *packet.SnmpPacket) map[string]interf
 		f.sender.Count(telemetryVarsNotEnriched, float64(enrichmentFailed), "", tags)
 	}
 	data["variables"] = parsedVariables
-	for key, value := range enrichedValues {
-		data[key] = value
-	}
+	maps.Copy(data, enrichedValues)
 	return data
 }
 
@@ -194,9 +193,7 @@ func (f JSONFormatter) formatTrap(packet *packet.SnmpPacket) (map[string]interfa
 		f.sender.Count(telemetryVarsNotEnriched, float64(enrichmentFailed), "", tags)
 	}
 	data["variables"] = parsedVariables
-	for key, value := range enrichedValues {
-		data[key] = value
-	}
+	maps.Copy(data, enrichedValues)
 	return data, nil
 }
 

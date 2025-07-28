@@ -59,12 +59,19 @@
         "addr": {
           "$ref": "#/$defs/IPPortFamily",
           "description": "Bound address (if any)"
+        },
+        "hostnames": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "addr"
+        "addr",
+        "hostnames"
       ],
       "description": "AcceptEventSerializer serializes a bind event to JSON"
     },
@@ -205,16 +212,41 @@
         "manager": {
           "type": "string",
           "description": "CGroup manager"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "description": "CGroupContextSerializer serializes a cgroup context to JSON"
     },
+    "CGroupWriteEvent": {
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/File",
+          "description": "File pointing to the cgroup"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "PID of the process added to the cgroup"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
+    },
     "ConnectEvent": {
       "properties": {
         "addr": {
           "$ref": "#/$defs/IPPortFamily"
+        },
+        "hostnames": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "protocol": {
           "type": "string"
@@ -224,6 +256,7 @@
       "type": "object",
       "required": [
         "addr",
+        "hostnames",
         "protocol"
       ],
       "description": "ConnectEventSerializer serializes a connect event to JSON"
@@ -269,16 +302,26 @@
           "type": "integer",
           "description": "id is the unique identifier of the DNS request"
         },
+        "is_query": {
+          "type": "boolean",
+          "description": "is_query if true means it's a question, if false is a response"
+        },
         "question": {
           "$ref": "#/$defs/DNSQuestion",
           "description": "question is a DNS question for the DNS request"
+        },
+        "response": {
+          "$ref": "#/$defs/DNSResponseEvent",
+          "description": "response is a DNS response for the DNS request"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "id",
-        "question"
+        "is_query",
+        "question",
+        "response"
       ],
       "description": "DNSEventSerializer serializes a DNS event to JSON"
     },
@@ -316,6 +359,20 @@
       ],
       "description": "DNSQuestionSerializer serializes a DNS question to JSON"
     },
+    "DNSResponseEvent": {
+      "properties": {
+        "code": {
+          "type": "integer",
+          "description": "RCode is the response code present in the response"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "code"
+      ],
+      "description": "DNSResponseEventSerializer serializes a DNS response event to JSON"
+    },
     "EventContext": {
       "properties": {
         "name": {
@@ -344,6 +401,10 @@
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variables values"
+        },
+        "rule_context": {
+          "$ref": "#/$defs/RuleContext",
+          "description": "RuleContext rule context"
         }
       },
       "additionalProperties": false,
@@ -379,6 +440,10 @@
           "type": "string",
           "description": "File basename"
         },
+        "extension": {
+          "type": "string",
+          "description": "File extension"
+        },
         "path_resolution_error": {
           "type": "string",
           "description": "Error message from path resolution"
@@ -479,6 +544,17 @@
         "mount_origin": {
           "type": "string",
           "description": "MountOrigin origin of the mount"
+        },
+        "mount_visible": {
+          "type": "boolean",
+          "description": "MountVisible origin of the mount"
+        },
+        "mount_detached": {
+          "type": "boolean",
+          "description": "MountDetached origin of the mount"
+        },
+        "metadata": {
+          "$ref": "#/$defs/FileMetadata"
         }
       },
       "additionalProperties": false,
@@ -499,6 +575,10 @@
           "type": "string",
           "description": "File basename"
         },
+        "extension": {
+          "type": "string",
+          "description": "File extension"
+        },
         "path_resolution_error": {
           "type": "string",
           "description": "Error message from path resolution"
@@ -599,6 +679,17 @@
         "mount_origin": {
           "type": "string",
           "description": "MountOrigin origin of the mount"
+        },
+        "mount_visible": {
+          "type": "boolean",
+          "description": "MountVisible origin of the mount"
+        },
+        "mount_detached": {
+          "type": "boolean",
+          "description": "MountDetached origin of the mount"
+        },
+        "metadata": {
+          "$ref": "#/$defs/FileMetadata"
         },
         "destination": {
           "$ref": "#/$defs/File",
@@ -624,6 +715,37 @@
         "gid"
       ],
       "description": "FileEventSerializer serializes a file event to JSON"
+    },
+    "FileMetadata": {
+      "properties": {
+        "size": {
+          "type": "integer"
+        },
+        "type": {
+          "type": "string"
+        },
+        "is_executable": {
+          "type": "boolean"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "abi": {
+          "type": "string"
+        },
+        "is_upx_packed": {
+          "type": "boolean"
+        },
+        "compression": {
+          "type": "string"
+        },
+        "is_garble_obfuscated": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "FileMetadataSerializer serializes a file metadata"
     },
     "Flow": {
       "properties": {
@@ -837,6 +959,30 @@
       "type": "object",
       "description": "MatchedRuleSerializer serializes a rule"
     },
+    "MatchingSubExpr": {
+      "properties": {
+        "offset": {
+          "type": "integer"
+        },
+        "length": {
+          "type": "integer"
+        },
+        "value": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "offset",
+        "length",
+        "value"
+      ],
+      "description": "MatchingSubExpr serializes matching sub expression to JSON"
+    },
     "ModuleEvent": {
       "properties": {
         "name": {
@@ -909,6 +1055,14 @@
         "source.path_error": {
           "type": "string",
           "description": "Mount source path error"
+        },
+        "detached": {
+          "type": "boolean",
+          "description": "Mount is not attached to the VFS tree"
+        },
+        "visible": {
+          "type": "boolean",
+          "description": "Mount is not visible in the VFS tree"
         }
       },
       "additionalProperties": false,
@@ -1117,6 +1271,10 @@
           "$ref": "#/$defs/File",
           "description": "File information of the interpreter"
         },
+        "cgroup": {
+          "$ref": "#/$defs/CGroupContext",
+          "description": "CGroup context"
+        },
         "container": {
           "$ref": "#/$defs/ContainerContext",
           "description": "Container context"
@@ -1255,6 +1413,10 @@
         "interpreter": {
           "$ref": "#/$defs/File",
           "description": "File information of the interpreter"
+        },
+        "cgroup": {
+          "$ref": "#/$defs/CGroupContext",
+          "description": "CGroup context"
         },
         "container": {
           "$ref": "#/$defs/ContainerContext",
@@ -1474,6 +1636,22 @@
       ],
       "description": "RawPacketSerializer defines a raw packet serializer"
     },
+    "RuleContext": {
+      "properties": {
+        "matching_subexprs": {
+          "items": {
+            "$ref": "#/$defs/MatchingSubExpr"
+          },
+          "type": "array"
+        },
+        "expression": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "RuleContext serializes rule context to JSON"
+    },
     "SELinuxBoolChange": {
       "properties": {
         "name": {
@@ -1566,6 +1744,56 @@
         "event_type_state"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
+    },
+    "SetSockOptEvent": {
+      "properties": {
+        "socket_type": {
+          "type": "string",
+          "description": "Socket file descriptor"
+        },
+        "socket_family": {
+          "type": "string",
+          "description": "Socket family"
+        },
+        "filter_len": {
+          "type": "integer",
+          "description": "Length of the filter"
+        },
+        "socket_protocol": {
+          "type": "string",
+          "description": "Socket protocol"
+        },
+        "level": {
+          "type": "string",
+          "description": "Level at which the option is defined"
+        },
+        "optname": {
+          "type": "string",
+          "description": "Name of the option being set"
+        },
+        "is_filter_truncated": {
+          "type": "boolean",
+          "description": "Filter truncated"
+        },
+        "filter": {
+          "type": "string",
+          "description": "Filter instructions"
+        },
+        "filter_hash": {
+          "type": "string",
+          "description": "Filter hash"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "socket_type",
+        "socket_family",
+        "socket_protocol",
+        "level",
+        "optname"
+      ],
+      "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
     },
     "SignalEvent": {
       "properties": {
@@ -1747,6 +1975,9 @@
         },
         "rmdir": {
           "$ref": "#/$defs/SyscallArgs"
+        },
+        "setsockopt": {
+          "$ref": "#/$defs/SyscallArgs"
         }
       },
       "additionalProperties": false,
@@ -1927,6 +2158,12 @@
     },
     "sysctl": {
       "$ref": "#/$defs/SysCtlEvent"
+    },
+    "setsockopt": {
+      "$ref": "#/$defs/SetSockOptEvent"
+    },
+    "cgroup_write": {
+      "$ref": "#/$defs/CGroupWriteEvent"
     }
   },
   "additionalProperties": false,

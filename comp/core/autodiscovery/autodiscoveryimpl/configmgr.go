@@ -6,7 +6,6 @@
 package autodiscoveryimpl
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -25,12 +24,12 @@ import (
 //
 // This type is threadsafe, internally using a mutex to serialize operations.
 type configManager interface {
-	// processNewService handles a new service, with the given AD identifiers
-	processNewService(adIdentifiers []string, svc listeners.Service) integration.ConfigChanges
+	// processNewService handles a new service
+	processNewService(svc listeners.Service) integration.ConfigChanges
 
 	// processDelService handles removal of a service, unscheduling any configs
 	// that had been resolved for it.
-	processDelService(ctx context.Context, svc listeners.Service) integration.ConfigChanges
+	processDelService(svc listeners.Service) integration.ConfigChanges
 
 	// processNewConfig handles a new config
 	processNewConfig(config integration.Config) (integration.ConfigChanges, map[checkid.ID]checkid.ID)
@@ -46,6 +45,9 @@ type configManager interface {
 	// The call is made with the manager's lock held, so callers should perform
 	// minimal work within f.
 	mapOverLoadedConfigs(func(map[string]integration.Config))
+
+	// getActiveConfigs returns the currently active configs
+	getActiveConfigs() map[string]integration.Config
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -117,7 +119,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component) configManager
 }
 
 // processNewService implements configManager#processNewService.
-func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, svc listeners.Service) integration.ConfigChanges {
+func (cm *reconcilingConfigManager) processNewService(svc listeners.Service) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
@@ -126,6 +128,8 @@ func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, sv
 		log.Debugf("Service %s is already tracked by autodiscovery", svcID)
 		return integration.ConfigChanges{}
 	}
+
+	adIdentifiers := svc.GetADIdentifiers()
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
 	//
@@ -148,7 +152,7 @@ func (cm *reconcilingConfigManager) processNewService(adIdentifiers []string, sv
 }
 
 // processDelService implements configManager#processDelService.
-func (cm *reconcilingConfigManager) processDelService(_ context.Context, svc listeners.Service) integration.ConfigChanges {
+func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) integration.ConfigChanges {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 
@@ -292,6 +296,17 @@ func (cm *reconcilingConfigManager) mapOverLoadedConfigs(f func(map[string]integ
 	f(cm.scheduledConfigs)
 }
 
+func (cm *reconcilingConfigManager) getActiveConfigs() map[string]integration.Config {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+
+	res := make(map[string]integration.Config, len(cm.activeConfigs))
+	for k, v := range cm.activeConfigs {
+		res[k] = v
+	}
+	return res
+}
+
 // reconcileService calculates the current set of resolved templates for the
 // given service and calculates the difference from what is currently recorded
 // in cm.serviceResolutions.  It updates cm.serviceResolutions and returns the
@@ -368,6 +383,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
+		log.Debug(msg)
 		errorStats.setResolveWarning(tpl.Name, msg)
 		return tpl, false
 	}

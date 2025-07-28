@@ -11,17 +11,18 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/util"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewFileConfigManager creates a new FileConfigManager
-func NewFileConfigManager(configFile string) (*ReaderConfigManager, func(), error) {
+func NewFileConfigManager(pm process.Subscriber, configFile string) (*ReaderConfigManager, func(), error) {
 	stopChan := make(chan bool)
 	stop := func() {
 		stopChan <- true
 	}
 
-	cm, err := NewReaderConfigManager()
+	cm, err := NewReaderConfigManager(pm)
 	if err != nil {
 		return nil, stop, err
 	}

@@ -1,6 +1,6 @@
-import io
+import re
 import subprocess
-from collections import defaultdict
+from dataclasses import dataclass
 from enum import Enum
 
 from gitlab.v4.objects import ProjectJob
@@ -88,9 +88,6 @@ class FailedJobs:
         else:
             self.mandatory_job_failures.append(job)
 
-    def all_non_infra_failures(self):
-        return self.mandatory_job_failures + self.optional_job_failures
-
     def all_mandatory_failures(self):
         return self.mandatory_job_failures + self.mandatory_infra_job_failures
 
@@ -103,73 +100,59 @@ class FailedJobs:
         )
 
 
-class SlackMessage:
-    JOBS_SECTION_HEADER = "Failed jobs:"
-    INFRA_SECTION_HEADER = "Infrastructure failures:"
-    TEST_SECTION_HEADER = "Failed tests:"
-    MAX_JOBS_PER_TEST = 2
+class PermissionCheck(Enum):
+    """
+    Enum to have a choice of permissions as argument to the check-permissions task.
+    """
 
-    def __init__(self, base: str = "", jobs: FailedJobs = None, skipped: list | None = None):
-        jobs = jobs if jobs else FailedJobs()
-        self.base_message = base
-        self.failed_jobs = jobs
-        self.failed_tests = defaultdict(list)
-        self.coda = ""
-        self.skipped_jobs = skipped or []
+    REPO = 'repo'
+    TEAM = 'team'
 
-    def add_test_failure(self, test, job):
-        self.failed_tests[test.key].append(job)
 
-    def __render_jobs_section(self, header: str, jobs: list, buffer: io.StringIO):
-        if not jobs:
-            return
+@dataclass
+class JobDependency:
+    job_name: str  #: The name of the job
 
-        print(header, file=buffer)
+    # For dependences that only require a subset of the tags of parallel jobs.
+    # The data is represent as a list of possible tag name + tag values pairs.
+    tags: list[list[tuple[str, set[str]]]]
 
-        jobs_per_stage = defaultdict(list)
-        for job in jobs:
-            jobs_per_stage[job.stage].append(job)
+    def matches(self, job_name: str) -> bool:
+        job_name_parts = job_name.split(": ", maxsplit=1)
+        base_job_name = job_name_parts[0]
 
-        for stage, jobs in jobs_per_stage.items():
-            jobs_info = []
-            for job in jobs:
-                num_retries = len(job.retry_summary) - 1
-                emoji = " :job-skipped-on-pr:" if job.name in self.skipped_jobs else ""
-                job_info = f"<{job.web_url}|{job.name}>{emoji}"
-                if num_retries > 0:
-                    job_info += f" ({num_retries} retries)"
+        if base_job_name != self.job_name:
+            return False
 
-                jobs_info.append(job_info)
+        # Check if we have to match tags
+        if len(self.tags) == 0:
+            return True
 
-            print(
-                f"- {', '.join(jobs_info)} (`{stage}` stage)",
-                file=buffer,
-            )
+        # We want tags but the job name doesn't have any, so it can't match
+        if len(job_name_parts) == 1:
+            return False
 
-    def __render_tests_section(self, buffer):
-        print(self.TEST_SECTION_HEADER, file=buffer)
-        for (test_name, test_package), jobs in self.failed_tests.items():
-            job_list = ", ".join(f"<{job.web_url}|{job.name}>" for job in jobs[: self.MAX_JOBS_PER_TEST])
-            if len(jobs) > self.MAX_JOBS_PER_TEST:
-                job_list += f" and {len(jobs) - self.MAX_JOBS_PER_TEST} more"
-            print(f"- `{test_name}` from package `{test_package}` (in {job_list})", file=buffer)
+        # Parse the job tags
+        match = re.search(r"\[([^\]]+)\]", job_name_parts[1])
+        if match is None:
+            raise RuntimeError(f"Invalid job name {job_name}, cannot parse parallel variables")
 
-    def __str__(self):
-        buffer = io.StringIO()
-        if self.base_message:
-            print(self.base_message, file=buffer)
-        self.__render_jobs_section(
-            self.JOBS_SECTION_HEADER,
-            self.failed_jobs.mandatory_job_failures,
-            buffer,
-        )
-        self.__render_jobs_section(
-            self.INFRA_SECTION_HEADER,
-            self.failed_jobs.mandatory_infra_job_failures,
-            buffer,
-        )
-        if self.failed_tests:
-            self.__render_tests_section(buffer)
-        if self.coda:
-            print(self.coda, file=buffer)
-        return buffer.getvalue()
+        job_tags = [x.strip() for x in match.group(1).split(",")]
+
+        # Check if the job tags match any possible combination of the dependency tags
+        for tagset in self.tags:
+            if self._match_tagset(tagset, job_tags):
+                return True
+
+        return False
+
+    def _match_tagset(self, tagset: list[tuple[str, set[str]]], job_tags: list[str]) -> bool:
+        if len(job_tags) < len(tagset):
+            return False  # Not enough tags to match
+
+        for wanted, value in zip(tagset, job_tags, strict=False):
+            wanted_values = wanted[1]
+            if value not in wanted_values:
+                return False
+
+        return True

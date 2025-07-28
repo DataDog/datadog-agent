@@ -135,7 +135,6 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 			if err != nil {
 				return "", fmt.Errorf("process FD cache incomplete during path resolution: %w", err)
 			}
-
 			filename = filepath.Join(path, filename)
 		}
 	}
@@ -151,6 +150,21 @@ func getFullPathFromFilename(process *Process, filename string) (string, error) 
 		}
 	}
 	return filename, nil
+}
+
+func evalProcessSymlinks(process *Process, path string) string {
+	// if it's a /proc/self/ link, we should resolve it as if it's related to the process
+	procSelf := "/proc/self/"
+	if strings.HasPrefix(path, procSelf) {
+		newPrefix := fmt.Sprintf("/proc/%d/", process.Pid)
+		path = newPrefix + path[len(procSelf):]
+	}
+
+	newPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+	return newPath
 }
 
 func refreshUserCache(tracer *Tracer) error {

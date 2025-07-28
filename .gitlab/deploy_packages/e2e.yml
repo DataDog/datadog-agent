@@ -3,7 +3,7 @@
 # Linux / Windows script doesn't impact the other OS (i.e. Windows scripts failing to be signed blocking Linux E2E tests).
 
 qa_installer_script_linux:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
   tags: ["arch:amd64"]
   rules:
@@ -18,7 +18,7 @@ qa_installer_script_linux:
     - $S3_CP_CMD --recursive --exclude "*" --include "install*.sh" "$OMNIBUS_PACKAGE_DIR" "s3://${INSTALLER_TESTING_S3_BUCKET}/pipeline-${CI_PIPELINE_ID}/scripts/"
 
 qa_installer_script_windows:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
   tags: ["arch:amd64"]
   rules:

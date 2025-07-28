@@ -13,7 +13,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/user"
 	"strings"
 	"time"
 
@@ -21,13 +20,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
 	commandTimeoutDuration = 10 * time.Second
+	configDir              = "/etc/datadog-agent"
 )
 
 var (
@@ -42,13 +43,14 @@ type Setup struct {
 	start     time.Time
 	flavor    string
 
-	Out                     *Output
-	Env                     *env.Env
-	Ctx                     context.Context
-	Span                    *telemetry.Span
-	Packages                Packages
-	Config                  Config
-	DdAgentAdditionalGroups []string
+	Out                       *Output
+	Env                       *env.Env
+	Ctx                       context.Context
+	Span                      *telemetry.Span
+	Packages                  Packages
+	Config                    config.Config
+	DdAgentAdditionalGroups   []string
+	DelayedAgentRestartConfig config.DelayedAgentRestartConfig
 }
 
 // NewSetup creates a new Setup structure with some default values.
@@ -68,11 +70,13 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	}
 	var proxyNoProxy []string
 	if os.Getenv("DD_PROXY_NO_PROXY") != "" {
-		proxyNoProxy = strings.Split(os.Getenv("DD_PROXY_NO_PROXY"), ",")
+		proxyNoProxy = strings.FieldsFunc(os.Getenv("DD_PROXY_NO_PROXY"), func(r rune) bool {
+			return r == ',' || r == ' '
+		}) // comma and space-separated list, consistent with viper and documentation
 	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
 	s := &Setup{
-		configDir: configDir,
+		configDir: paths.DatadogDataDir,
 		installer: installer,
 		start:     start,
 		flavor:    flavor,
@@ -80,19 +84,19 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		Env:       env,
 		Ctx:       ctx,
 		Span:      span,
-		Config: Config{
-			DatadogYAML: DatadogConfig{
+		Config: config.Config{
+			DatadogYAML: config.DatadogConfig{
 				APIKey:   env.APIKey,
 				Hostname: os.Getenv("DD_HOSTNAME"),
 				Site:     env.Site,
-				Proxy: DatadogConfigProxy{
+				Proxy: config.DatadogConfigProxy{
 					HTTP:    os.Getenv("DD_PROXY_HTTP"),
 					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
 					NoProxy: proxyNoProxy,
 				},
 				Env: os.Getenv("DD_ENV"),
 			},
-			IntegrationConfigs: make(map[string]IntegrationConfig),
+			IntegrationConfigs: make(map[string]config.IntegrationConfig),
 		},
 		Packages: Packages{
 			install: make(map[string]packageWithVersion),
@@ -105,45 +109,20 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 func (s *Setup) Run() (err error) {
 	defer func() { s.Span.Finish(err) }()
 	s.Out.WriteString("Applying configurations...\n")
-	err = writeConfigs(s.Config, s.configDir)
+	err = config.WriteConfigs(s.Config, s.configDir)
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}
-	packages := resolvePackages(s.Packages)
+	packages := resolvePackages(s.Env, s.Packages)
 	s.Out.WriteString("The following packages will be installed:\n")
-	installerVersion := "latest"
-	if s.Env.DefaultPackagesVersionOverride["datadog-installer"] != "" {
-		installerVersion = s.Env.DefaultPackagesVersionOverride["datadog-installer"]
-	}
-	s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", "datadog-installer", installerVersion))
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
 	}
-	// HACK: even if the setup and installer are currently merged we can't self install since we
-	// don't have the full OCI and only the installer CLI.
-	// To solve this issue we assume our parent OCI is available with our version as tag.
-	url := oci.PackageURL(s.Env, "datadog-installer", installerVersion)
-	err = s.installPackage("datadog-installer", url)
-	if err != nil {
-		return fmt.Errorf("failed to install installer: %w", err)
-	}
-	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-%s.sh", s.flavor))
+
+	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-script-%s", s.flavor))
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
-	for _, group := range s.DdAgentAdditionalGroups {
-		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
-		if _, err := user.LookupGroup(group); err != nil {
-			log.Infof("Skipping group %s as it does not exist", group)
-			continue
-		}
-		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
-		if err != nil {
-			s.Out.WriteString("Failed to add dd-agent to group" + group + ": " + err.Error())
-			log.Warnf("failed to add dd-agent to group %s:  %v", group, err)
-		}
-	}
-
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
 		err = s.installPackage(p.name, url)
@@ -151,9 +130,20 @@ func (s *Setup) Run() (err error) {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
 	}
+	if err = s.postInstallPackages(); err != nil {
+		return fmt.Errorf("failed during post-package installation: %w", err)
+	}
+	if s.Packages.copyInstallerSSI {
+		if err := copyInstallerSSI(); err != nil {
+			return err
+		}
+	}
 	err = s.restartServices(packages)
 	if err != nil {
 		return fmt.Errorf("failed to restart services: %w", err)
+	}
+	if s.DelayedAgentRestartConfig.Scheduled {
+		ScheduleDelayedAgentRestart(s, s.DelayedAgentRestartConfig.Delay, s.DelayedAgentRestartConfig.LogFile)
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil
@@ -196,4 +186,13 @@ var ExecuteCommandWithTimeout = func(s *Setup, command string, args ...string) (
 		return nil, err
 	}
 	return output, nil
+}
+
+// ScheduleDelayedAgentRestart schedules an agent restart after the specified delay
+func ScheduleDelayedAgentRestart(s *Setup, delay time.Duration, logFile string) {
+	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", delay))
+	cmd := exec.Command("nohup", "bash", "-c", fmt.Sprintf("echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Waiting %v...\" >> %[2]s.log && sleep %d && echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting agent...\" >> %[2]s.log && systemctl restart datadog-agent >> %[2]s.log 2>&1", delay, logFile, int(delay.Seconds())))
+	if err := cmd.Start(); err != nil {
+		s.Out.WriteString(fmt.Sprintf("Failed to schedule restart: %v\n", err))
+	}
 }

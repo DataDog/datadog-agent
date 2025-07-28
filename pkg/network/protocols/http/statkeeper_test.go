@@ -298,6 +298,30 @@ func TestHTTPCorrectness(t *testing.T) {
 		require.Len(t, stats, 0)
 	})
 
+	t.Run("invalid status code", func(t *testing.T) {
+		cfg := config.New()
+		cfg.MaxHTTPStatsBuffered = 1000
+		libtelemetry.Clear()
+		tel := NewTelemetry("http")
+		sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
+		tx := generateIPv4HTTPTransaction(
+			util.AddressFromString("1.1.1.1"),
+			util.AddressFromString("2.2.2.2"),
+			1234,
+			8080,
+			"/get",
+			700,
+			30*time.Millisecond,
+		)
+
+		sk.Process(tx)
+		tel.Log()
+		require.Equal(t, int64(1), tel.invalidStatusCode.Get())
+
+		stats := sk.GetAndResetAllStats()
+		require.Len(t, stats, 0)
+	})
+
 	t.Run("Empty path", func(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
@@ -321,4 +345,39 @@ func TestHTTPCorrectness(t *testing.T) {
 		stats := sk.GetAndResetAllStats()
 		require.Len(t, stats, 0)
 	})
+}
+
+func TestStatkeeperSortedRules(t *testing.T) {
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 1000
+	cfg.HTTPReplaceRules = []*config.ReplaceRule{
+		{
+			Re:   regexp.MustCompile("/users/[A-z0-9]+"),
+			Repl: "/users/?",
+		},
+		{
+			Re: regexp.MustCompile("/payment/[0-9]+"),
+		},
+		{
+			Re: regexp.MustCompile("/test"),
+		},
+		{
+			Re:   regexp.MustCompile("/payment2/[0-9]+"),
+			Repl: "/payment/?",
+		},
+	}
+	libtelemetry.Clear()
+	tel := NewTelemetry("http")
+
+	sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
+	require.NotNil(t, sk)
+
+	require.Empty(t, sk.replaceRules[0].Repl)
+	require.Equal(t, sk.replaceRules[0].Re.String(), "/payment/[0-9]+")
+	require.Empty(t, sk.replaceRules[1].Repl)
+	require.Equal(t, sk.replaceRules[1].Re.String(), "/test")
+	require.NotEmpty(t, sk.replaceRules[2].Repl)
+	require.Equal(t, sk.replaceRules[2].Re.String(), "/users/[A-z0-9]+")
+	require.NotEmpty(t, sk.replaceRules[3].Repl)
+	require.Equal(t, sk.replaceRules[3].Re.String(), "/payment2/[0-9]+")
 }

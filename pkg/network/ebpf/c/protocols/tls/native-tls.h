@@ -220,7 +220,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_read_ex) {
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%p", pid_tgid, args.ctx);
-    bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
 
     // Trigger mapping of SSL context to connection tuple in case it is missing.
     tup_from_ssl_ctx(args.ctx, pid_tgid);
@@ -294,7 +294,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_write_ex) {
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_write_ex: pid_tgid=%llx ctx=%p", pid_tgid, args.ctx);
-    bpf_map_update_elem(&ssl_write_ex_args, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_write_ex_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
 
@@ -554,7 +554,31 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
     // map connection tuple during SSL_do_handshake(ctx)
     map_ssl_ctx_to_sock(sk);
+    return 0;
+}
 
+static __always_inline void delete_pid_in_maps() {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
+    bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
+    bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
+}
+
+SEC("tracepoint/sched/sched_process_exit")
+int tracepoint__sched__sched_process_exit(void *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    delete_pid_in_maps();
+    return 0;
+}
+
+SEC("raw_tracepoint/sched_process_exit")
+int raw_tracepoint__sched_process_exit(void *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    delete_pid_in_maps();
     return 0;
 }
 

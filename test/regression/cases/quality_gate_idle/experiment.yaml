@@ -12,7 +12,7 @@ target:
   memory_allotment: 300 MiB
 
   environment:
-    DD_API_KEY: 00000001
+    DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
 
   profiling_environment:
@@ -35,8 +35,8 @@ checks:
   - name: memory_usage
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
-      series: total_rss_bytes
-      upper_bound: "283.0 MiB"
+      series: total_pss_bytes
+      upper_bound: "214 MiB"
 
   - name: intake_connections
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."
@@ -46,4 +46,4 @@ checks:
 
 report_links:
   - text: "bounds checks dashboard"
-    link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&tpl_var_run-id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"
+    link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"

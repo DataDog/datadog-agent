@@ -7,25 +7,39 @@
 package installinfo
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v2"
 )
 
-const (
-	installInfoFile = "/etc/datadog-agent/install_info"
-	installSigFile  = "/etc/datadog-agent/install.json"
-
-	toolInstaller = "installer"
+var (
+	installInfoFile string
+	installSigFile  string
 )
+
+const (
+	toolInstaller = "installer"
+	execTimeout   = 30 * time.Second
+)
+
+func init() {
+	// TODO(WINA-1429): The data dir should be configurable on Windows
+	installInfoFile = filepath.Join(paths.DatadogDataDir, "install_info")
+	installSigFile = filepath.Join(paths.DatadogDataDir, "install.json")
+}
 
 // WriteInstallInfo writes install info and signature files.
 func WriteInstallInfo(installType string) error {
@@ -38,11 +52,13 @@ func writeInstallInfo(installInfoFile string, installSigFile string, installType
 		return nil
 	}
 
+	tool, toolVersion, installerVersion := getToolVersion(installType)
+
 	info := map[string]map[string]string{
 		"install_method": {
-			"tool":              toolInstaller,
-			"tool_version":      version.AgentVersion,
-			"installer_version": installType,
+			"tool":              tool,
+			"tool_version":      toolVersion,
+			"installer_version": installerVersion,
 		},
 	}
 	yamlData, err := yaml.Marshal(info)
@@ -55,7 +71,7 @@ func writeInstallInfo(installInfoFile string, installSigFile string, installType
 
 	sig := map[string]string{
 		"install_id":   strings.ToLower(uuid),
-		"install_type": installType,
+		"install_type": installerVersion,
 		"install_time": strconv.FormatInt(time.Unix(), 10),
 	}
 	jsonData, err := json.Marshal(sig)
@@ -75,4 +91,50 @@ func RemoveInstallInfo() {
 			log.Warnf("Failed to remove %s: %v", file, err)
 		}
 	}
+}
+
+func getToolVersion(installType string) (tool string, toolVersion string, installerVersion string) {
+	tool = toolInstaller
+	toolVersion = version.AgentVersion
+	installerVersion = fmt.Sprintf("%s_package", installType)
+	if _, err := exec.LookPath("dpkg-query"); err == nil {
+		tool = "dpkg"
+		toolVersion, err = getDpkgVersion()
+		if err != nil {
+			toolVersion = "unknown"
+		}
+		toolVersion = fmt.Sprintf("dpkg-%s", toolVersion)
+	}
+	if _, err := exec.LookPath("rpm"); err == nil {
+		tool = "rpm"
+		toolVersion, err = getRPMVersion()
+		if err != nil {
+			toolVersion = "unknown"
+		}
+		toolVersion = fmt.Sprintf("rpm-%s", toolVersion)
+	}
+	return
+}
+
+func getRPMVersion() (string, error) {
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+	output, err := exec.CommandContext(cancelctx, "rpm", "-q", "-f", "/bin/rpm", "--queryformat", "%%{VERSION}").Output()
+	return string(output), err
+}
+
+func getDpkgVersion() (string, error) {
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+	cmd := exec.CommandContext(cancelctx, "dpkg-query", "--showformat=${Version}", "--show", "dpkg")
+	output, err := cmd.Output()
+	if err != nil {
+		log.Warnf("Failed to get dpkg version: %s", err)
+		return "", err
+	}
+	splitVersion := strings.Split(strings.TrimSpace(string(output)), ".")
+	if len(splitVersion) < 3 {
+		return "", fmt.Errorf("failed to parse dpkg version: %s", string(output))
+	}
+	return strings.Join(splitVersion[:3], "."), nil
 }

@@ -217,7 +217,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	var tracerType = TracerTypeFentry
 	var closeTracerFn func()
 	m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
-	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
+	if err != nil && !errors.Is(err, fentry.ErrorDisabled) {
 		// failed to load fentry tracer
 		return nil, err
 	}
@@ -380,6 +380,8 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 		t.closeConsumer.Stop()
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
+
+	ddebpf.AddProbeFDMappings(t.m.Manager)
 
 	return nil
 }
@@ -603,6 +605,7 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.tcpCloseTargetFailures
 	ch <- EbpfTracerTelemetry.tcpDoneConnectionFlush
 	ch <- EbpfTracerTelemetry.tcpCloseConnectionFlush
+	ch <- EbpfTracerTelemetry.tcpSynRetransmit
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -781,7 +784,7 @@ func (t *ebpfTracer) setupOngoingConnectMapCleaner(m *manager.Manager) {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
-	tcpOngoingConnectPidCleaner.Clean(time.Minute*5, nil, nil, func(now int64, _ netebpf.SkpConn, val netebpf.PidTs) bool {
+	tcpOngoingConnectPidCleaner.Start(time.Minute*5, nil, nil, func(now int64, _ netebpf.SkpConn, val netebpf.PidTs) bool {
 		ts := int64(val.Timestamp)
 		expired := ts > 0 && now-ts > tcpOngoingConnectMapTTL
 		if expired {
@@ -807,7 +810,7 @@ func (t *ebpfTracer) setupTLSTagsMapCleaner(m *manager.Manager) {
 		return
 	}
 	// slight jitter to avoid all maps being cleaned at the same time
-	TLSTagsMapCleaner.Clean(time.Second*70, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.TLSTagsWrapper) bool {
+	TLSTagsMapCleaner.Start(time.Second*70, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.TLSTagsWrapper) bool {
 		ts := int64(val.Updated)
 		return ts > 0 && now-ts > tlsTagsMapTTL
 	})

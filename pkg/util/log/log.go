@@ -54,7 +54,6 @@ var (
 type DatadogLogger struct {
 	inner LoggerInterface
 	level LogLevel
-	extra map[string]LoggerInterface
 	l     sync.RWMutex
 }
 
@@ -78,7 +77,6 @@ func SetupLogger(i LoggerInterface, level string) {
 func setupCommonLogger(i LoggerInterface, level string) *DatadogLogger {
 	l := &DatadogLogger{
 		inner: i,
-		extra: make(map[string]LoggerInterface),
 	}
 
 	lvl, ok := LogLevelFromString(level)
@@ -94,7 +92,7 @@ func setupCommonLogger(i LoggerInterface, level string) *DatadogLogger {
 	// The fact we need a constant "additional depth" means some
 	// theoretical refactor to avoid duplication in the functions
 	// below cannot be performed.
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	return l
 }
@@ -212,40 +210,6 @@ func ValidateLogLevel(logLevel string) (string, error) {
 *	Operation on the **logger**
  */
 
-// RegisterAdditionalLogger registers an additional logger for logging
-func RegisterAdditionalLogger(n string, li LoggerInterface) error {
-	return logger.registerAdditionalLogger(n, li)
-}
-func (sw *loggerPointer) registerAdditionalLogger(n string, li LoggerInterface) error {
-	l := sw.Load()
-	if l == nil {
-		return errors.New("cannot register: logger not initialized")
-	}
-
-	l.l.Lock()
-	defer l.l.Unlock()
-
-	if l.inner == nil {
-		return errors.New("cannot register: logger not initialized")
-	}
-
-	if l.extra == nil {
-
-		return errors.New("logger not fully initialized, additional logging unavailable")
-	}
-
-	if _, ok := l.extra[n]; ok {
-		return errors.New("logger already registered with that name")
-	}
-	l.extra[n] = li
-
-	return nil
-}
-
-// ReplaceLogger allows replacing the internal logger, returns old logger
-func ReplaceLogger(li LoggerInterface) LoggerInterface {
-	return logger.replaceInnerLogger(li)
-}
 func (sw *loggerPointer) replaceInnerLogger(li LoggerInterface) LoggerInterface {
 	l := sw.Load()
 	if l == nil {
@@ -307,7 +271,6 @@ func log(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string), v .
 		s := BuildLogEntry(v...)
 		scrubAndLogFunc(s)
 	}
-
 }
 func logWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, fallbackStderr bool, v ...interface{}) error {
 	l := logger.Load()
@@ -426,10 +389,10 @@ func logContext(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(strin
 		addLogToBuffer(bufferFunc)
 	} else if l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
-		l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+		_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 		scrubAndLogFunc(message)
 		l.inner.SetContext(nil)
-		l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+		_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 	}
 }
 func logContextWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, message string, fallbackStderr bool, depth int, context ...interface{}) error {
@@ -454,10 +417,10 @@ func logContextWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc f
 		}
 	} else if l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
-		l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+		_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 		err := scrubAndLogFunc(message)
 		l.inner.SetContext(nil)
-		l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+		_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 		defer l.l.Unlock()
 		return err
 	}
@@ -481,10 +444,6 @@ func (sw *loggerPointer) trace(s string) {
 
 	scrubbed := l.scrub(s)
 	l.inner.Trace(scrubbed)
-
-	for _, l := range l.extra {
-		l.Trace(scrubbed)
-	}
 }
 
 // trace logs at the trace level and the current stack depth plus the
@@ -493,13 +452,9 @@ func (sw *loggerPointer) traceStackDepth(s string, depth int) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
 
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Trace(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
-
-	for _, l := range l.extra {
-		l.Trace(scrubbed)
-	}
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 }
 
 // debug logs at the debug level, called with sw.l held
@@ -507,23 +462,15 @@ func (sw *loggerPointer) debug(s string) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
 	l.inner.Debug(scrubbed)
-
-	for _, l := range l.extra {
-		l.Debug(scrubbed)
-	}
 }
 
 // debug logs at the debug level and the current stack depth plus the additional given one, called with sw.l held
 func (sw *loggerPointer) debugStackDepth(s string, depth int) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Debug(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
-
-	for _, l := range l.extra {
-		l.Debug(scrubbed) //nolint:errcheck
-	}
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 }
 
 // info logs at the info level, called with sw.l held
@@ -531,22 +478,15 @@ func (sw *loggerPointer) info(s string) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
 	l.inner.Info(scrubbed)
-	for _, l := range l.extra {
-		l.Info(scrubbed)
-	}
 }
 
 // info logs at the info level and the current stack depth plus the additional given one, called with sw.l held
 func (sw *loggerPointer) infoStackDepth(s string, depth int) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Info(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
-
-	for _, l := range l.extra {
-		l.Info(scrubbed) //nolint:errcheck
-	}
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 }
 
 // warn logs at the warn level, called with sw.l held
@@ -555,10 +495,6 @@ func (sw *loggerPointer) warn(s string) error {
 	scrubbed := l.scrub(s)
 	err := l.inner.Warn(scrubbed)
 
-	for _, l := range l.extra {
-		l.Warn(scrubbed) //nolint:errcheck
-	}
-
 	return err
 }
 
@@ -566,13 +502,9 @@ func (sw *loggerPointer) warn(s string) error {
 func (sw *loggerPointer) warnStackDepth(s string, depth int) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	err := l.inner.Warn(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
-
-	for _, l := range l.extra {
-		l.Warn(scrubbed) //nolint:errcheck
-	}
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	return err
 }
@@ -583,10 +515,6 @@ func (sw *loggerPointer) error(s string) error {
 	scrubbed := l.scrub(s)
 	err := l.inner.Error(scrubbed)
 
-	for _, l := range l.extra {
-		l.Error(scrubbed) //nolint:errcheck
-	}
-
 	return err
 }
 
@@ -594,13 +522,9 @@ func (sw *loggerPointer) error(s string) error {
 func (sw *loggerPointer) errorStackDepth(s string, depth int) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	err := l.inner.Error(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
-
-	for _, l := range l.extra {
-		l.Error(scrubbed) //nolint:errcheck
-	}
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	return err
 }
@@ -611,10 +535,6 @@ func (sw *loggerPointer) critical(s string) error {
 	scrubbed := l.scrub(s)
 	err := l.inner.Critical(scrubbed)
 
-	for _, l := range l.extra {
-		l.Critical(scrubbed) //nolint:errcheck
-	}
-
 	return err
 }
 
@@ -622,13 +542,9 @@ func (sw *loggerPointer) critical(s string) error {
 func (sw *loggerPointer) criticalStackDepth(s string, depth int) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	err := l.inner.Critical(scrubbed)
-	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
-
-	for _, l := range l.extra {
-		l.Critical(scrubbed) //nolint:errcheck
-	}
+	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
 	return err
 }
@@ -638,10 +554,6 @@ func (sw *loggerPointer) tracef(format string, params ...interface{}) {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	l.inner.Trace(scrubbed)
-
-	for _, l := range l.extra {
-		l.Trace(scrubbed)
-	}
 }
 
 // debugf logs with format at the debug level, called with sw.l held
@@ -649,10 +561,6 @@ func (sw *loggerPointer) debugf(format string, params ...interface{}) {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	l.inner.Debug(scrubbed)
-
-	for _, l := range l.extra {
-		l.Debug(scrubbed)
-	}
 }
 
 // infof logs with format at the info level, called with sw.l held
@@ -660,10 +568,6 @@ func (sw *loggerPointer) infof(format string, params ...interface{}) {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	l.inner.Info(scrubbed)
-
-	for _, l := range l.extra {
-		l.Info(scrubbed)
-	}
 }
 
 // warnf logs with format at the warn level, called with sw.l held
@@ -671,10 +575,6 @@ func (sw *loggerPointer) warnf(format string, params ...interface{}) error {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	err := l.inner.Warn(scrubbed)
-
-	for _, l := range l.extra {
-		l.Warn(scrubbed) //nolint:errcheck
-	}
 
 	return err
 }
@@ -685,10 +585,6 @@ func (sw *loggerPointer) errorf(format string, params ...interface{}) error {
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	err := l.inner.Error(scrubbed)
 
-	for _, l := range l.extra {
-		l.Error(scrubbed) //nolint:errcheck
-	}
-
 	return err
 }
 
@@ -697,10 +593,6 @@ func (sw *loggerPointer) criticalf(format string, params ...interface{}) error {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	err := l.inner.Critical(scrubbed)
-
-	for _, l := range l.extra {
-		l.Critical(scrubbed) //nolint:errcheck
-	}
 
 	return err
 }

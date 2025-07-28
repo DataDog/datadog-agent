@@ -7,6 +7,7 @@
 package tag
 
 import (
+	"maps"
 	"os"
 	"strings"
 
@@ -52,9 +53,7 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 		}
 	}
 
-	for key, value := range metadata {
-		tagsMap[key] = value
-	}
+	maps.Copy(tagsMap, metadata)
 
 	tagsMap[versionMode] = tags.GetExtensionVersion()
 	tagsMap[tags.ComputeStatsKey] = tags.ComputeStatsValue

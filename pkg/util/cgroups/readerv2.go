@@ -8,12 +8,14 @@
 package cgroups
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"strings"
 
-	"github.com/karrick/godirwalk"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -45,27 +47,30 @@ func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter, pidMapperID s
 func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 	res := make(map[string]Cgroup)
 
-	err := godirwalk.Walk(r.cgroupRoot, &godirwalk.Options{
-		AllowNonDirectory: true,
-		Unsorted:          true,
-		Callback: func(fullPath string, de *godirwalk.Dirent) error {
-			if de.IsDir() {
-				id, err := r.filter(fullPath, de.Name())
-				if id != "" {
-					relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
-					if err != nil {
-						return err
-					}
-					res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
-				}
+	err := filepath.WalkDir(r.cgroupRoot, func(fullPath string, de fs.DirEntry, err error) error {
+		if err != nil {
+			// if the error is a permission issue skip the directory
+			if errors.Is(err, fs.ErrPermission) {
+				log.Debugf("skipping %s due to permission error", fullPath)
+				return filepath.SkipDir
+			}
+			return err
+		}
+		if !de.IsDir() {
+			return nil
+		}
 
+		id, err := r.filter(fullPath, de.Name())
+		if id != "" {
+			relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
+			if err != nil {
 				return err
 			}
+			res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
+		}
 
-			return nil
-		},
+		return err
 	})
-
 	return res, err
 }
 

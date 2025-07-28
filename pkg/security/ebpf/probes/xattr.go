@@ -24,6 +24,30 @@ func getXattrProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_vfs_removexattr",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_io_setxattr",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_io_setxattr",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_io_fsetxattr",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_io_fsetxattr",
+			},
+		},
 	}
 
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{

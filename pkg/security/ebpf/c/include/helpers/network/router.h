@@ -9,12 +9,18 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
         count_pkt(skb, pkt);
     }
 
+    u64 dns_port;
+    LOAD_CONSTANT("dns_port", dns_port);
+
     // route DNS requests
-    if (is_event_enabled(EVENT_DNS)) {
-        if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_UDP && pkt->translated_ns_flow.flow.dport == htons(53)) {
-            bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST);
+    if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_UDP) {
+        if (pkt->translated_ns_flow.flow.sport == dns_port) {
+            bpf_tail_call_compat(skb, &classifier_router, DNS_RESPONSE);
+        } else if (pkt->translated_ns_flow.flow.dport == dns_port && is_event_enabled(EVENT_DNS)) {
+                bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST);
         }
     }
+
 
     // route IMDS requests
     if (is_event_enabled(EVENT_IMDS)) {
@@ -23,7 +29,7 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
         }
     }
 
-    return ACT_OK;
+    return TC_ACT_UNSPEC;
 }
 
 #endif

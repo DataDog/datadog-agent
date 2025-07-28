@@ -22,7 +22,7 @@ import (
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -199,14 +199,14 @@ type netlinkRouter struct {
 
 // NewNetlinkRouter create a Router that queries routes via netlink
 func NewNetlinkRouter(rootNs netns.NsHandle) (Router, error) {
-	rootNsIno, err := kernel.GetInoForNs(rootNs)
+	rootNsIno, err := netnsutil.GetInoForNs(rootNs)
 	if err != nil {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)
 	}
 
 	var fd int
 	var nlHandle *netlink.Handle
-	err = kernel.WithNS(rootNs, func() (sockErr error) {
+	err = netnsutil.WithNS(rootNs, func() (sockErr error) {
 		if fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0); err != nil {
 			return err
 		}

@@ -48,9 +48,8 @@ var (
 	}
 	scriptTestsWithSkippedFlavors = []installerScriptTestsWithSkippedFlavors{
 		{t: testDatabricksScript},
-		{t: testDefaultScript, skippedFlavors: []e2eos.Descriptor{
-			e2eos.CentOS7, // CentOS 7 is not supported by the default script because of SELinux
-		}},
+		{t: testDefaultScript, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7}},
+		{t: testSSIScript},
 	}
 )
 
@@ -115,9 +114,9 @@ type installerScriptSuite interface {
 func newInstallerScriptSuite(pkg string, e2eos e2eos.Descriptor, arch e2eos.Architecture, opts ...awshost.ProvisionerOption) installerScriptBaseSuite {
 	var scriptURLPrefix string
 	if pipelineID, ok := os.LookupEnv("E2E_PIPELINE_ID"); ok {
-		scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/", pipelineID)
+		scriptURLPrefix = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/pipeline-%s/scripts/", pipelineID)
 	} else if commitHash, ok := os.LookupEnv("CI_COMMIT_SHA"); ok {
-		scriptURLPrefix = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/", commitHash)
+		scriptURLPrefix = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/%s/scripts/", commitHash)
 	} else {
 		require.FailNowf(nil, "missing script identifier", "CI_COMMIT_SHA or CI_PIPELINE_ID must be set")
 	}
@@ -141,7 +140,10 @@ func (s *installerScriptBaseSuite) ProvisionerOptions() []awshost.ProvisionerOpt
 
 func (s *installerScriptBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 }
 
 type installerScriptBaseSuite struct {
@@ -187,7 +189,7 @@ func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params 
 		time.Sleep(1 * time.Second)
 	}
 
-	scriptParams := append(params, fmt.Sprintf("DD_API_KEY=%s", s.getAPIKey()), "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com")
+	scriptParams := append(params, fmt.Sprintf("DD_API_KEY=%s", s.getAPIKey()), "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com.internal.dda-testing.com")
 	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%s bash install_script", strings.Join(scriptParams, " ")))
 	return err
 }

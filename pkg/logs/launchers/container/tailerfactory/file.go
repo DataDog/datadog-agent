@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build kubelet || docker
 
 package tailerfactory
 
@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
+	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -88,7 +88,7 @@ func (tf *factory) attachChildSource(source, childSource *sources.LogSource) (Ta
 	// Update parent source with additional information
 	sourceInfo.SetMessage(containerID,
 		fmt.Sprintf("Container ID: %s, Tailing from file: %s",
-			dockerutilPkg.ShortContainerID(containerID),
+			containerutilPkg.ShortContainerID(containerID),
 			childSource.Config.Path))
 
 	// link status for this source and the parent, and hide the parent
@@ -134,6 +134,8 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 		AutoMultiLine:               source.Config.AutoMultiLine,
 		AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
 		AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,
+		AutoMultiLineOptions:        source.Config.AutoMultiLineOptions,
+		AutoMultiLineSamples:        source.Config.AutoMultiLineSamples,
 	})
 
 	// inform the file launcher that it should expect docker-formatted content
@@ -178,17 +180,15 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 	}
 }
 
-// makeK8sFileSource makes a LogSource with Config.Type="file" for a container in a K8s pod.
-func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSource, error) {
-	containerID := source.Config.Identifier
-
+func (tf *factory) getPodAndContainer(containerID string) (*workloadmeta.OrchestratorContainer, *workloadmeta.KubernetesPod, error) {
 	wmeta, ok := tf.workloadmetaStore.Get()
 	if !ok {
-		return nil, errors.New("workloadmeta store is not initialized")
+		return nil, nil, errors.New("workloadmeta store is not initialized")
 	}
+
 	pod, err := wmeta.GetKubernetesPodForContainer(containerID)
 	if err != nil {
-		return nil, fmt.Errorf("cannot find pod for container %q: %w", containerID, err)
+		return nil, nil, fmt.Errorf("cannot find pod for container %q: %w", containerID, err)
 	}
 
 	var container *workloadmeta.OrchestratorContainer
@@ -202,7 +202,19 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	if container == nil {
 		// this failure is impossible, as GetKubernetesPodForContainer found
 		// the pod by searching for this container
-		return nil, fmt.Errorf("cannot find container %q in pod %q", containerID, pod.Name)
+		return nil, nil, fmt.Errorf("cannot find container %q in pod %q", containerID, pod.Name)
+	}
+
+	return container, pod, nil
+}
+
+// makeK8sFileSource makes a LogSource with Config.Type="file" for a container in a K8s pod.
+func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSource, error) {
+	containerID := source.Config.Identifier
+
+	container, pod, err := tf.getPodAndContainer(containerID)
+	if err != nil {
+		return nil, err
 	}
 
 	// get the path for the discovered pod and container
@@ -231,6 +243,8 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 			AutoMultiLine:               source.Config.AutoMultiLine,
 			AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
 			AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,
+			AutoMultiLineOptions:        source.Config.AutoMultiLineOptions,
+			AutoMultiLineSamples:        source.Config.AutoMultiLineSamples,
 		})
 
 	switch source.Config.Type {

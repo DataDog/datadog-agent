@@ -7,6 +7,7 @@
 package flare
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -24,15 +25,22 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
+	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
+	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
@@ -43,9 +51,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	haagentmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
@@ -55,7 +65,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -130,7 +139,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType:  workloadmeta.NodeAgent,
-					InitHelper: common.GetWorkloadmetaInit(),
+					InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 				}),
 				fx.Provide(func(config config.Component) coresettings.Params {
 					return coresettings.Params{
@@ -142,7 +151,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
-				localTaggerfx.Module(tagger.Params{}),
+				localTaggerfx.Module(),
+				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
 				fx.Supply(option.None[collector.Component]()),
 				diagnosesendermanagerimpl.Module(),
@@ -153,7 +163,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				inventoryotelimpl.Module(),
 				haagentmetadatafx.Module(),
 				resourcesimpl.Module(),
-				authtokenimpl.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
 				// the backend a nil will work.
 				fx.Provide(func() serializer.MetricSerializer {
@@ -163,6 +172,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				haagentfx.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
+				diagnosefx.Module(),
+				ipcfx.ModuleInsecure(),
 			)
 		},
 	}
@@ -189,8 +200,15 @@ func makeFlare(flareComp flare.Component,
 	_ sysprobeconfig.Component,
 	cliParams *cliParams,
 	_ option.Option[workloadmeta.Component],
-	_ tagger.Component,
-	flareprofiler flareprofilerdef.Component) error {
+	tagger tagger.Component,
+	flareprofiler flareprofilerdef.Component,
+	client ipc.HTTPClient,
+	senderManager diagnosesendermanager.Component,
+	wmeta option.Option[workloadmeta.Component],
+	ac autodiscovery.Component,
+	secretResolver secrets.Component,
+	diagnoseComponent diagnose.Component,
+) error {
 	var (
 		profile flaretypes.ProfileData
 		err     error
@@ -210,8 +228,8 @@ func makeFlare(flareComp flare.Component,
 	fmt.Fprintln(color.Output, color.BlueString("See https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agentv6v7#send-a-flare-from-the-datadog-site for more info."))
 
 	warnings := config.Warnings()
-	if warnings != nil && warnings.Err != nil {
-		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))
+	if warnings != nil && warnings.Errors != nil {
+		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Errors))
 	}
 	caseID := ""
 	if len(cliParams.args) > 0 {
@@ -228,7 +246,7 @@ func makeFlare(flareComp flare.Component,
 	}
 
 	if cliParams.profiling >= 30 {
-		c, err := common.NewSettingsClient()
+		c, err := common.NewSettingsClient(client)
 		if err != nil {
 			return fmt.Errorf("failed to initialize settings client: %w", err)
 		}
@@ -260,17 +278,23 @@ func makeFlare(flareComp flare.Component,
 
 	if streamLogParams.Duration > 0 {
 		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
-		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
+		err := streamlogs.StreamLogs(lc, config, client, &streamLogParams)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
 		}
 	}
 
 	var filePath string
+
 	if cliParams.forceLocal {
-		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil)
+		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
+		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil, diagnoseresult)
 	} else {
-		filePath, err = requestArchive(flareComp, profile, cliParams.providerTimeout)
+		filePath, err = requestArchive(profile, client, cliParams.providerTimeout)
+		if err != nil {
+			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
+			filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, err, diagnoseresult)
+		}
 	}
 
 	if err != nil {
@@ -300,13 +324,12 @@ func makeFlare(flareComp flare.Component,
 	return nil
 }
 
-func requestArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration) (string, error) {
+func requestArchive(pdata flaretypes.ProfileData, client ipc.HTTPClient, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
-	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
-		return createArchive(flareComp, pdata, providerTimeout, err)
+		return "", err
 	}
 
 	cmdport := pkgconfigsetup.Datadog().GetInt("cmd_port")
@@ -323,19 +346,13 @@ func requestArchive(flareComp flare.Component, pdata flaretypes.ProfileData, pro
 
 	urlstr := url.String()
 
-	// Set session token
-	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
-		return createArchive(flareComp, pdata, providerTimeout, err)
-	}
-
 	p, err := json.Marshal(pdata)
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", err)))
 		return "", err
 	}
 
-	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(p))
+	r, err := client.Post(urlstr, "application/json", bytes.NewBuffer(p))
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while making the flare: %s\n", color.RedString(string(r)))
@@ -344,19 +361,47 @@ func requestArchive(flareComp flare.Component, pdata flaretypes.ProfileData, pro
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
 			err = fmt.Errorf("Error getting flare from running agent: %w", err)
 		}
-		return createArchive(flareComp, pdata, providerTimeout, err)
+		return "", err
 	}
 
 	return string(r), nil
 }
 
-func createArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration, ipcError error) (string, error) {
+func createArchive(flareComp flare.Component, pdata flaretypes.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, err := flareComp.Create(pdata, providerTimeout, ipcError)
+	filePath, err := flareComp.Create(pdata, providerTimeout, ipcError, diagnoseResult)
 	if err != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", err)
 		return "", err
 	}
 
 	return filePath, nil
+}
+
+func runLocalDiagnose(
+	diagnoseComponent diagnose.Component,
+	diagnoseConfig diagnose.Config,
+	log log.Component,
+	senderManager diagnosesendermanager.Component,
+	wmeta option.Option[workloadmeta.Component],
+	ac autodiscovery.Component,
+	secretResolver secrets.Component,
+	tagger tagger.Component,
+	config config.Component) []byte {
+
+	result, err := diagnoseLocal.Run(diagnoseComponent, diagnose.Config{Verbose: true}, log, senderManager, wmeta, ac, secretResolver, tagger, config)
+
+	if err != nil {
+		return []byte(color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+	}
+
+	var buffer bytes.Buffer
+	writer := bufio.NewWriter(&buffer)
+	err = format.Text(writer, diagnoseConfig, result)
+	if err != nil {
+		return []byte(color.RedString(fmt.Sprintf("Error formatting diagnose result: %s", err)))
+	}
+	writer.Flush()
+
+	return buffer.Bytes()
 }

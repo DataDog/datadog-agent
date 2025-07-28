@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && nvml
 
 package nvml
 
@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -26,13 +27,14 @@ func TestPull(t *testing.T) {
 		id:      collectorID,
 		catalog: workloadmeta.NodeAgent,
 		store:   wmetaMock,
-		nvmlLib: nvmlMock,
 	}
+
+	ddnvml.WithMockNVML(t, nvmlMock)
 
 	c.Pull(context.Background())
 
 	gpus := wmetaMock.ListGPUs()
-	require.Equal(t, len(testutil.GPUUUIDs), len(gpus))
+	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
 	var expectedActivePIDs []int
 	for _, proc := range testutil.DefaultProcessInfo {
 		expectedActivePIDs = append(expectedActivePIDs, int(proc.Pid))
@@ -41,14 +43,21 @@ func TestPull(t *testing.T) {
 	foundIDs := make(map[string]bool)
 	for _, gpu := range gpus {
 		foundIDs[gpu.ID] = true
+		var expectedName string
+		if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
+			expectedName = "MIG " + testutil.DefaultGPUName
+		} else if gpu.DeviceType == workloadmeta.GPUDeviceTypePhysical {
+			expectedName = testutil.DefaultGPUName
+			//for now, we test totalMemory only for physical devices
+			require.Equal(t, testutil.DefaultTotalMemory, gpu.TotalMemory, "unexpected device memory for device %s", gpu.ID)
+		}
 		require.Equal(t, testutil.DefaultNvidiaDriverVersion, gpu.DriverVersion)
 		require.Equal(t, nvidiaVendor, gpu.Vendor)
-		require.Equal(t, testutil.DefaultGPUName, gpu.Name)
-		require.Equal(t, testutil.DefaultGPUName, gpu.Device)
+		require.Equal(t, expectedName, gpu.Name)
+		require.Equal(t, expectedName, gpu.Device)
 		require.Equal(t, "hopper", gpu.Architecture)
 		require.Equal(t, testutil.DefaultGPUComputeCapMajor, gpu.ComputeCapability.Major)
 		require.Equal(t, testutil.DefaultGPUComputeCapMinor, gpu.ComputeCapability.Minor)
-		require.Equal(t, testutil.DefaultTotalMemory, gpu.TotalMemory)
 		require.Equal(t, testutil.DefaultMaxClockRates[workloadmeta.GPUSM], gpu.MaxClockRates[workloadmeta.GPUSM])
 		require.Equal(t, testutil.DefaultMaxClockRates[workloadmeta.GPUMemory], gpu.MaxClockRates[workloadmeta.GPUMemory])
 		require.Equal(t, expectedActivePIDs, gpu.ActivePIDs)
@@ -84,14 +93,15 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 		id:      collectorID,
 		catalog: workloadmeta.NodeAgent,
 		store:   wmetaMock,
-		nvmlLib: nvmlMock,
 	}
+
+	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// First pull to populate the store with initial PIDs
 	c.Pull(context.Background())
 
 	gpus := wmetaMock.ListGPUs()
-	require.Equal(t, len(testutil.GPUUUIDs), len(gpus))
+	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
 
 	var expectedActivePIDs []int
 	for _, proc := range testutil.DefaultProcessInfo {
@@ -116,7 +126,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 
 	c.Pull(context.Background())
 	gpus = wmetaMock.ListGPUs()
-	require.Equal(t, len(testutil.GPUUUIDs), len(gpus))
+	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
 
 	for _, gpu := range gpus {
 		require.Equal(t, expectedActivePIDs, gpu.ActivePIDs)

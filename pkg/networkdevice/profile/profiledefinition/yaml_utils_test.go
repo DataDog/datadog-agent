@@ -21,6 +21,10 @@ type MySymbolStruct struct {
 	SymbolField SymbolConfigCompat `yaml:"my_symbol_field"`
 }
 
+type MyMetrics struct {
+	SomeMetrics []MetricsConfig `yaml:"metrics"`
+}
+
 func Test_metricTagConfig_UnmarshalYAML(t *testing.T) {
 	myStruct := MetricsConfig{}
 	expected := MetricsConfig{MetricTags: []MetricTagConfig{{Index: 3}}}
@@ -91,4 +95,119 @@ my_symbol_field: aSymbol
 `), &myStruct)
 
 	assert.Equal(t, expected, myStruct)
+}
+
+func Test_MetricsConfigs_UnmarshalYAML(t *testing.T) {
+	tests := []struct {
+		name           string
+		data           []byte
+		result         MyMetrics
+		expectedErrors []string
+	}{
+		{
+			name: "ok unmarshal",
+			data: []byte(`
+metrics:
+  - MIB: FOO-MIB
+    OID: 1.2.3.4
+    name: fooName
+
+  - MIB: FOO-MIB
+    symbol:
+      OID: 1.2.3.4
+      name: fooName
+
+  - MIB: FOO-MIB
+    table:
+      OID: 1.2.3.4
+      name: fooTable
+    symbols:
+      - OID: 1.2.3.4.1
+        name: fooName1
+      - OID: 1.2.3.4.2
+        name: fooName2
+`),
+			result: MyMetrics{[]MetricsConfig{
+				{
+					MIB:  "FOO-MIB",
+					OID:  "1.2.3.4",
+					Name: "fooName",
+				},
+				{
+					MIB: "FOO-MIB",
+					Symbol: SymbolConfig{
+						OID:  "1.2.3.4",
+						Name: "fooName",
+					},
+				},
+				{
+					MIB: "FOO-MIB",
+					Table: SymbolConfig{
+						OID:  "1.2.3.4",
+						Name: "fooTable",
+					},
+					Symbols: []SymbolConfig{
+						{
+							OID:  "1.2.3.4.1",
+							Name: "fooName1",
+						},
+						{
+							OID:  "1.2.3.4.2",
+							Name: "fooName2",
+						},
+					},
+				},
+			}},
+		},
+		{
+			name: "symbol declared in the legacy way with MIB specified",
+			data: []byte(`
+metrics:
+  - MIB: FOO-MIB
+    OID: 1.2.3.4
+    symbol: fooName
+`),
+			expectedErrors: []string{
+				"line 5: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
+				"legacy symbol type 'string' is not supported with the Core loader",
+			},
+		},
+		{
+			name: "symbol declared in the legacy way without MIB specified",
+			data: []byte(`
+metrics:
+  - OID: 1.2.3.4
+    symbol: fooName
+`),
+			expectedErrors: []string{
+				"line 4: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
+			},
+		},
+		{
+			name: "symbol declared in the legacy way with MIB empty",
+			data: []byte(`
+metrics:
+  - MIB:
+    OID: 1.2.3.4
+    symbol: fooName
+`),
+			expectedErrors: []string{
+				"line 5: cannot unmarshal !!str `fooName` into profiledefinition.SymbolConfig",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			myStruct := MyMetrics{}
+			err := yaml.Unmarshal(tt.data, &myStruct)
+			if len(tt.expectedErrors) > 0 {
+				for _, expectedError := range tt.expectedErrors {
+					assert.ErrorContains(t, err, expectedError)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.result, myStruct)
+			}
+		})
+	}
 }

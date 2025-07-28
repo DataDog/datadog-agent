@@ -13,21 +13,18 @@ permissions: {}
 jobs:
   chase_release_managers:
     runs-on: ubuntu-latest
+    environment:
+      name: main
     steps:
     - name: Checkout repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       with:
         ref: ${{ github.head_ref }}
         persist-credentials: false
-    - name: Install python
-      uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+    - name: Install dda
+      uses: ./.github/actions/install-dda
       with:
-        python-version-file: .python-version
-        cache: "pip"
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt -r tasks/libs/requirements-github.txt -r tasks/requirements_release_tasks.txt
+        features: legacy-tasks
     - name: Chase release managers
       env:
         ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}
@@ -35,4 +32,4 @@ jobs:
         SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         VERSION: ${{ github.event.inputs.version }}
       run: |
-        inv -e release.chase-release-managers --version "$VERSION"
+        dda inv -- -e release.chase-release-managers --version "$VERSION"

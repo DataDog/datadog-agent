@@ -2,13 +2,13 @@
     "debian": {
         "x86_64": {
             "debian-9": "ami-0182559468c1975fe",
-            "debian-10": "ami-067a196d70cb53732",
-            "debian-11": "ami-0698acab5370075a9",
+            "debian-10": "ami-0ea3c9b1a2bcdabfc",
+            "debian-11": "ami-03039e227b7b461b5",
             "debian-12": "ami-0eef9d92ec044bc94"
         },
         "arm64": {
-            "debian-10": "ami-0b6ee4b8f4aa91fb4",
-            "debian-11": "ami-0eec63b0513577808",
+            "debian-10": "ami-0497a51e798361d65",
+            "debian-11": "ami-05f3f532b93bba0b3",
             "debian-12": "ami-02aab8d5301cb8d68"
         }
     },

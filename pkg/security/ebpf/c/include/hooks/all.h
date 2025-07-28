@@ -8,7 +8,6 @@
 #include "commit_creds.h"
 #include "dentry_resolver.h"
 #include "exec.h"
-#include "filename.h"
 #include "ioctl.h"
 #include "iouring.h"
 #include "link.h"
@@ -27,6 +26,7 @@
 #include "rmdir.h"
 #include "selinux.h"
 #include "setattr.h"
+#include "setsockopt.h"
 #include "setxattr.h"
 #include "signal.h"
 #include "splice.h"
@@ -36,6 +36,7 @@
 #include "utimes.h"
 #include "on_demand.h"
 #include "chdir.h"
+#include "setrlimit.h"
 
 #include "network/accept.h"
 #include "network/bind.h"

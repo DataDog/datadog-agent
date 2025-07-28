@@ -15,11 +15,12 @@ var EventsRingbuffer *ebpf.Map
 
 // DIEvent represents a single invocation of a function and it's captured information
 type DIEvent struct {
-	ProbeID  string
-	PID      uint32
-	UID      uint32
-	Argdata  []*Param
-	StackPCs []uint64
+	ProbeID       string
+	PID           uint32
+	UID           uint32
+	Argdata       []*Param
+	StackPCs      []uint64
+	ParamIndicies []uint64
 }
 
 // Param is the representation of a single function parameter after being parsed from

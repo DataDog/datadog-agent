@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -84,6 +85,7 @@ func getTestInventoryHost(t *testing.T) *gpuHost {
 		Log:        logmock.New(t),
 		Config:     configmock.New(t),
 		Serializer: serializermock.NewMetricSerializer(t),
+		Hostname:   hostnameimpl.NewHostnameService(),
 	})
 	return p.Comp.(*gpuHost)
 }
@@ -123,16 +125,17 @@ func TestGetPayload(t *testing.T) {
 		},
 	}
 
-	p := gh.getPayload().(*Payload)
+	p, ok := gh.getPayload().(*Payload)
+	assert.True(t, ok)
 	assert.Equal(t, expectedMetadata, p.Metadata)
 }
 
-func TestGetPayloadError(t *testing.T) {
+func TestGetEmptyPayload(t *testing.T) {
 	gh := getTestInventoryHost(t)
 	gh.wmeta = &wmsErrorMock{}
 
-	p := gh.getPayload().(*Payload)
-	assert.Equal(t, &hostGPUMetadata{}, p.Metadata)
+	p := gh.getPayload()
+	assert.Nil(t, p)
 }
 
 func TestFlareProviderFilename(t *testing.T) {

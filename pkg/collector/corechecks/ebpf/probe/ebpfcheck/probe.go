@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"math/rand"
 	"strings"
 	"syscall"
 	"time"
@@ -44,7 +45,17 @@ import (
 // 4.15 required for map names from kernel
 var minimumKernelVersion = kernel.VersionCode(5, 5, 0)
 
-const maxMapsTracked = 20
+var kernelAddresses = []string{
+	"perf_fops",
+	"perf_kprobe",
+	"__per_cpu_offset",
+	"kprobe_funcs",
+	"kretprobe_funcs",
+}
+
+const (
+	maxMapsTracked = 20
+)
 
 // Probe is the eBPF side of the eBPF check
 type Probe struct {
@@ -52,6 +63,8 @@ type Probe struct {
 	coll                  *ebpf.Collection
 	perfBufferMap         *ebpf.Map
 	ringBufferMap         *ebpf.Map
+	cookieToKprobeStats   *ebpf.Map
+	cookieToQueryError    *ebpf.Map
 	pidMap                *ebpf.Map
 	links                 []link.Link
 	mapBuffers            entryCountBuffers
@@ -142,6 +155,40 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 		delete(collSpec.Programs, "k_map_create")
 	}
 
+	// version 6.2.0 is when the kfunc for bpf_rcu_read_lock/unlock was introduced
+	// which is used in the bpf program for collecting kprobe statistics
+	if !kprobeMissCollectionSupported() {
+		delete(collSpec.Programs, "k_do_vfs_ioctl")
+		delete(collSpec.Maps, "cookie_to_trace_kprobe")
+		delete(collSpec.Maps, "cookie_to_uprobe_event")
+		delete(collSpec.Maps, "cookie_to_kprobe_stats")
+		delete(collSpec.Maps, "cookie_to_query_error")
+	} else {
+		kaddrs, err := ddebpf.GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
+		}
+
+		constants := make(map[string]uint64)
+		for ksym, addr := range kaddrs {
+			constants[ksym] = addr
+		}
+		constants["nr_cpus"] = uint64(cpus)
+
+		for k, v := range constants {
+			vs, ok := collSpec.Variables[k]
+			if !ok {
+				return nil, fmt.Errorf("missing ebpf variable %s", k)
+			}
+			if !vs.Constant() {
+				return nil, fmt.Errorf("non-constant ebpf variable %s", k)
+			}
+			if err := vs.Set(v); err != nil {
+				return nil, fmt.Errorf("failed to set ebpf variable %s: %w", k, err)
+			}
+		}
+	}
+
 	p := Probe{nrcpus: nrcpus}
 	p.coll, err = ebpf.NewCollectionWithOptions(collSpec, opts.VerifierOptions)
 	if err != nil {
@@ -154,6 +201,8 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 	p.perfBufferMap = p.coll.Maps["perf_buffers"]
 	p.ringBufferMap = p.coll.Maps["ring_buffers"]
 	p.pidMap = p.coll.Maps["map_pids"]
+	p.cookieToKprobeStats = p.coll.Maps["cookie_to_kprobe_stats"]
+	p.cookieToQueryError = p.coll.Maps["cookie_to_query_error"]
 	ddebpf.AddNameMappingsCollection(p.coll, "ebpf_check")
 
 	if err := p.attach(collSpec); err != nil {
@@ -186,9 +235,11 @@ func (k *Probe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 				k.links = append(k.links, l)
 			} else if strings.HasPrefix(spec.SectionName, kretprobePrefix) {
 				attachPoint := spec.SectionName[len(kretprobePrefix):]
+				manager.TraceFSLock.Lock()
 				l, err := link.Kretprobe(attachPoint, prog, &link.KprobeOptions{
 					TraceFSPrefix: "ddebpfc",
 				})
+				manager.TraceFSLock.Unlock()
 				if err != nil {
 					return fmt.Errorf("link kretprobe %s to %s: %s", spec.Name, attachPoint, err)
 				}
@@ -235,10 +286,16 @@ func (k *Probe) GetAndFlush() (results model.EBPFStats) {
 		log.Debugf("error getting map stats: %s", err)
 		return
 	}
-	if err := k.getProgramStats(&results); err != nil {
+
+	programs := make(map[programKey]ebpf.ProgramID)
+	if err := k.getProgramStats(&results, programs); err != nil {
 		log.Debugf("error getting program stats: %s", err)
-		return
 	}
+
+	if err := k.getKprobeMisses(&results, programs); err != nil {
+		log.Warnf("error getting kprobe miss stats: %s", err)
+	}
+
 	return
 }
 
@@ -246,17 +303,63 @@ type programKey struct {
 	name, typ, module string
 }
 
-func progKey(ps model.EBPFProgramStats) programKey {
+func progKey(ps *model.EBPFProgramStats) programKey {
 	return programKey{
 		name:   ps.Name,
-		typ:    ps.Type.String(),
+		typ:    ps.Type,
 		module: ps.Module,
 	}
 }
 
-func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
+func (k *Probe) readSingleProgram(progid ebpf.ProgramID) (*model.EBPFProgramStats, error) {
+	fd, err := ProgGetFdByID(&ProgGetFdByIDAttr{ID: uint32(progid)})
+	if err != nil {
+		return nil, fmt.Errorf("error getting program fd prog_id=%d: %s", progid, err)
+	}
+	defer func() {
+		err := syscall.Close(int(fd))
+		if err != nil {
+			log.Debugf("error closing fd %d: %s", fd, err)
+		}
+	}()
+
+	var info ProgInfo
+	if err := ProgObjInfo(fd, &info); err != nil {
+		return nil, fmt.Errorf("error getting program info prog_id=%d: %s", progid, err)
+	}
+
+	name := unix.ByteSliceToString(info.Name[:])
+	if pn, err := ddebpf.GetProgNameFromProgID(uint32(progid)); err == nil {
+		name = pn
+	}
+	// we require a name, so use program type for unnamed programs
+	if name == "" {
+		name = strings.ToLower(ebpf.ProgramType(info.Type).String())
+	}
+	module := "unknown"
+	if mod, err := ddebpf.GetModuleFromProgID(uint32(progid)); err == nil {
+		module = mod
+	}
+
+	tag := hex.EncodeToString(info.Tag[:])
+	ps := model.EBPFProgramStats{
+		ID:              uint32(progid),
+		Name:            name,
+		Module:          module,
+		Tag:             tag,
+		Type:            ebpf.ProgramType(info.Type).String(),
+		XlatedProgLen:   info.XlatedProgLen,
+		RSS:             uint64(roundUp(info.XlatedProgLen, uint32(pageSize))),
+		VerifiedInsns:   info.VerifiedInsns,
+		Runtime:         time.Duration(info.RunTimeNs),
+		RunCount:        info.RunCnt,
+		RecursionMisses: info.RecursionMisses,
+	}
+	return &ps, nil
+}
+
+func (k *Probe) getProgramStats(stats *model.EBPFStats, uniquePrograms map[programKey]ebpf.ProgramID) error {
 	var err error
-	uniquePrograms := make(map[programKey]struct{})
 	progid := ebpf.ProgramID(0)
 	for progid, err = ebpf.ProgramGetNextID(progid); err == nil; progid, err = ebpf.ProgramGetNextID(progid) {
 		// skip programs generated on the flight for hash map entry counting with helper
@@ -264,74 +367,267 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 			continue
 		}
 
-		fd, err := ProgGetFdByID(&ProgGetFdByIDAttr{ID: uint32(progid)})
+		ps, err := k.readSingleProgram(progid)
 		if err != nil {
-			log.Debugf("error getting program fd prog_id=%d: %s", progid, err)
+			log.Debug(err)
 			continue
-		}
-		defer func() {
-			err := syscall.Close(int(fd))
-			if err != nil {
-				log.Debugf("error closing fd %d: %s", fd, err)
-			}
-		}()
-
-		var info ProgInfo
-		if err := ProgObjInfo(fd, &info); err != nil {
-			log.Debugf("error getting program info prog_id=%d: %s", progid, err)
-			continue
-		}
-
-		name := unix.ByteSliceToString(info.Name[:])
-		if pn, err := ddebpf.GetProgNameFromProgID(uint32(progid)); err == nil {
-			name = pn
-		}
-		// we require a name, so use program type for unnamed programs
-		if name == "" {
-			name = strings.ToLower(ebpf.ProgramType(info.Type).String())
-		}
-		module := "unknown"
-		if mod, err := ddebpf.GetModuleFromProgID(uint32(progid)); err == nil {
-			module = mod
-		}
-
-		tag := hex.EncodeToString(info.Tag[:])
-		ps := model.EBPFProgramStats{
-			ID:              uint32(progid),
-			Name:            name,
-			Module:          module,
-			Tag:             tag,
-			Type:            ebpf.ProgramType(info.Type),
-			XlatedProgLen:   info.XlatedProgLen,
-			RSS:             uint64(roundUp(info.XlatedProgLen, uint32(pageSize))),
-			VerifiedInsns:   info.VerifiedInsns,
-			Runtime:         time.Duration(info.RunTimeNs),
-			RunCount:        info.RunCnt,
-			RecursionMisses: info.RecursionMisses,
 		}
 		key := progKey(ps)
 		if _, ok := uniquePrograms[key]; ok {
 			continue
 		}
-		uniquePrograms[key] = struct{}{}
-		stats.Programs = append(stats.Programs, ps)
+		uniquePrograms[key] = progid
+		stats.Programs = append(stats.Programs, *ps)
 	}
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("found %d programs", len(stats.Programs))
 		for _, ps := range stats.Programs {
-			log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
+			log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type)
 		}
 	}
 
 	return nil
 }
 
+func kprobeMissCollectionSupported() bool {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return false
+	}
+
+	if kv < kernel.VersionCode(6, 3, 0) {
+		return false
+	}
+
+	return true
+}
+
+func (k *Probe) getKprobeMisses(ebpfStats *model.EBPFStats, uniquePrograms map[programKey]ebpf.ProgramID) error {
+	if !kprobeMissCollectionSupported() {
+		return nil
+	}
+
+	queryID := uint32(rand.Int31())
+
+	cookies := make(map[cookie]programKey)
+	for progKey, probeID := range uniquePrograms {
+		c := cookie{
+			Kprobe_id: uint32(probeID),
+			Query_id:  queryID,
+		}
+
+		cookies[c] = progKey
+	}
+
+	retryCnt := 0
+
+	// we attempt to collect kprobe stats with retries due to the use of
+	// bpf_probe_read_user in the ebpf program. This may flake, so we try
+	// a few times before giving up.
+retry:
+	retryCnt++
+
+	for c := range cookies {
+		perfEventFD, err := ddebpf.GetPerfEventFDByProbeID(ebpf.ProgramID(c.Kprobe_id))
+		// not all programs have associated perf events
+		if err != nil {
+			continue
+		}
+
+		/* the ebpf program will take care to skip u[ret]probes */
+
+		// call ioctl with correct command and cookie pointer
+		cookiePtr := unsafe.Pointer(&c)
+		_, _, _ = syscall.Syscall(syscall.SYS_IOCTL, uintptr(perfEventFD), ioctlCollectKprobeMissedStatsCmd, uintptr(cookiePtr))
+	}
+
+	statsGenericMap, err := ddmaps.Map[cookie, kprobeKernelStats](k.cookieToKprobeStats)
+	if err != nil {
+		return fmt.Errorf("unable to create generic map: %w", err)
+	}
+
+	// we pay the cost of multiple syscalls with single item iteration
+	// instead of paying for the higher memory usage due to batched iteration
+	entries := statsGenericMap.Iterate()
+	key, stats := &cookie{}, &kprobeKernelStats{}
+
+	var toDelete []cookie
+	for entries.Next(key, stats) {
+		// record this key to be deleted later on
+		toDelete = append(toDelete, *key)
+
+		if key.Query_id != queryID {
+			continue
+		}
+
+		progKey, progKeyExists := cookies[*key]
+		delete(cookies, *key)
+
+		name, err := ddebpf.GetProgNameFromProgID(key.Kprobe_id)
+		if err != nil {
+			log.Errorf("unable to get program name for kprobe id %d: %v", key.Kprobe_id, err)
+			continue
+		}
+
+		module := "unknown"
+		if mod, err := ddebpf.GetModuleFromProgID(key.Kprobe_id); err == nil {
+			module = mod
+		}
+
+		if !progKeyExists {
+			log.Errorf("unable to find type for program with kprobe id %d (%s)", key.Kprobe_id, name)
+			continue
+		}
+
+		ebpfStats.KprobeStats = append(ebpfStats.KprobeStats, model.KprobeStats{
+			Type:                     progKey.typ,
+			Name:                     name,
+			Module:                   module,
+			KprobeMisses:             stats.Kprobe_nesting_misses,
+			KretprobeMaxActiveMisses: stats.Kretprobe_maxactive_misses,
+			KprobeHits:               stats.Kprobe_hits,
+		})
+
+	}
+
+	// we do not expect any errors including iteration aborted errors, since ebpf check
+	// does not execute concurrently. This means the map should never be modified while
+	// iterating.
+	if err := entries.Err(); err != nil {
+		log.Errorf("error iterating kprobe stats map %s: %s", statsGenericMap, err)
+	}
+
+	// since we already have the keys in memory, take advantage and use batch delete
+	_, err = statsGenericMap.BatchDelete(toDelete)
+	if err != nil {
+		log.Errorf("unable to batch delete cookies from map %s: %s", statsGenericMap, err)
+	}
+
+	// If we have leftover cookies, then it means the eBPF program could not record their stats
+	// inspect the error map and decide if we want to retry collection
+	//
+	// The cookies for which we recorded errors are skipped during retry. If a cookie is also missing
+	// from the error map, then it means that we could not read the cookie value from userspace due
+	// to bpf_probe_read_user failing. We have to retry for this case.
+	errorsGenericMap, err := ddmaps.Map[cookie, kprobeStatsErrors](k.cookieToQueryError)
+	if err != nil {
+		return fmt.Errorf("unable to create generic map: %w", err)
+	}
+
+	var errorsToDelete []cookie
+	// similar to above lets pay the cost of single item iteration and save on memory
+	errorEntries := errorsGenericMap.Iterate()
+	key = &cookie{}
+	bpfError := &kprobeStatsErrors{}
+
+	for errorEntries.Next(key, bpfError) {
+		// could not record stats for this cookie due to errors
+		errorsToDelete = append(errorsToDelete, *key)
+		if key.Query_id != queryID {
+			continue
+		}
+
+		name, err := ddebpf.GetProgNameFromProgID(key.Kprobe_id)
+		if err != nil {
+			log.Errorf("unable to get program name for kprobe id %d: %s", key.Kprobe_id, err)
+		} else {
+			log.Warnf("error in eBPF program while recording kprobe statistics for %s: %s", name, bpfError)
+		}
+
+		delete(cookies, *key)
+	}
+
+	if err := errorEntries.Err(); err != nil {
+		log.Errorf("error iterating kprobe error map: %s: %s", errorsGenericMap, err)
+	}
+
+	_, err = errorsGenericMap.BatchDelete(errorsToDelete)
+	if err != nil {
+		log.Errorf("unable to batch delete cookies from map %s: %s", errorsGenericMap, err)
+	}
+
+	// return if all cookies are accounted for or exceed retry limit
+	if len(cookies) == 0 || retryCnt >= 3 {
+		return nil
+	}
+
+	goto retry
+}
+
+func (k *Probe) readSingleMap(mapid ebpf.MapID) (*model.EBPFMapStats, error) {
+	mp, err := ebpf.NewMapFromID(mapid)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get map map_id=%d: %s", mapid, err)
+	}
+	defer func() { _ = mp.Close() }()
+
+	// TODO this call was already done by cilium/ebpf internally
+	// we could maybe avoid the duplicate call by doing the id->fd->info chain ourselves
+	info, err := mp.Info()
+	if err != nil {
+		return nil, fmt.Errorf("error getting map info map_id=%d: %s", mapid, err)
+	}
+	name := info.Name
+	if mn, err := ddebpf.GetMapNameFromMapID(uint32(mapid)); err == nil {
+		name = mn
+	}
+	if name == "" {
+		name = info.Type.String()
+	}
+	module := "unknown"
+	if mod, err := ddebpf.GetModuleFromMapID(uint32(mapid)); err == nil {
+		module = mod
+	}
+
+	baseMapStats := model.EBPFMapStats{
+		ID:         uint32(mapid),
+		Name:       name,
+		Module:     module,
+		Type:       info.Type.String(),
+		MaxEntries: info.MaxEntries,
+		Entries:    -1, // Indicates no entries were calculated
+	}
+
+	switch info.Type {
+	case ebpf.PerfEventArray:
+		err := perfBufferMemoryUsage(&baseMapStats, info, k)
+		if err != nil {
+			return nil, err
+		}
+	case ebpf.RingBuf:
+		err := ringBufferMemoryUsage(&baseMapStats, info, k)
+		if err != nil {
+			return nil, err
+		}
+	case ebpf.Hash, ebpf.LRUHash, ebpf.PerCPUHash, ebpf.LRUCPUHash, ebpf.HashOfMaps:
+		baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
+		if module != "unknown" {
+			// hashMapNumberOfEntries might allocate memory, so we only do it if we have a module name, as
+			// unknown modules get discarded anyway (only RSS is used for total counts)
+			baseMapStats.Entries = hashMapNumberOfEntries(mp, mapid, k.mphCache, &k.mapBuffers, k.entryCountMaxRestarts)
+		}
+	case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
+		baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
+	case ebpf.LPMTrie:
+		baseMapStats.MaxSize, baseMapStats.RSS = trieMemoryUsage(info, uint64(k.nrcpus))
+	// TODO other map types
+	//case ebpf.Stack:
+	//case ebpf.ReusePortSockArray:
+	//case ebpf.CPUMap:
+	//case ebpf.DevMap, ebpf.DevMapHash:
+	//case ebpf.Queue:
+	//case ebpf.StructOpsMap:
+	//case ebpf.CGroupStorage:
+	//case ebpf.TaskStorage, ebpf.SkStorage, ebpf.InodeStorage:
+	default:
+		return nil, fmt.Errorf("unsupported map %s(%d) type %s", name, mapid, info.Type.String())
+	}
+	return &baseMapStats, nil
+}
+
 func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	var err error
-	mapCount := 0
-	ebpfmaps := make(map[string]*model.EBPFMapStats)
-	defer clear(ebpfmaps)
 
 	// instruct the cache to start a new iteration
 	k.mphCache.clearLiveMapIDs()
@@ -339,84 +635,15 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	mapid := ebpf.MapID(0)
 	for mapid, err = ebpf.MapGetNextID(mapid); err == nil; mapid, err = ebpf.MapGetNextID(mapid) {
 		k.mphCache.addLiveMapID(mapid)
-
-		mp, err := ebpf.NewMapFromID(mapid)
+		baseMapStats, err := k.readSingleMap(mapid)
 		if err != nil {
-			log.Debugf("unable to get map map_id=%d: %s", mapid, err)
+			log.Debug(err)
 			continue
 		}
-		mapCount++
-
-		// TODO this call was already done by cilium/ebpf internally
-		// we could maybe avoid the duplicate call by doing the id->fd->info chain ourselves
-		info, err := mp.Info()
-		if err != nil {
-			log.Debugf("error getting map info map_id=%d: %s", mapid, err)
-			continue
-		}
-		name := info.Name
-		if mn, err := ddebpf.GetMapNameFromMapID(uint32(mapid)); err == nil {
-			name = mn
-		}
-		if name == "" {
-			name = info.Type.String()
-		}
-		module := "unknown"
-		if mod, err := ddebpf.GetModuleFromMapID(uint32(mapid)); err == nil {
-			module = mod
-		}
-
-		baseMapStats := model.EBPFMapStats{
-			ID:         uint32(mapid),
-			Name:       name,
-			Module:     module,
-			Type:       info.Type,
-			MaxEntries: info.MaxEntries,
-			Entries:    -1, // Indicates no entries were calculated
-		}
-		ebpfmaps[baseMapStats.Name] = &baseMapStats
-
-		switch info.Type {
-		case ebpf.PerfEventArray:
-			err := perfBufferMemoryUsage(&baseMapStats, info, k)
-			if err != nil {
-				log.Debug(err.Error())
-				continue
-			}
-		case ebpf.RingBuf:
-			err := ringBufferMemoryUsage(&baseMapStats, info, k)
-			if err != nil {
-				log.Debug(err.Error())
-				continue
-			}
-		case ebpf.Hash, ebpf.LRUHash, ebpf.PerCPUHash, ebpf.LRUCPUHash, ebpf.HashOfMaps:
-			baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
-			if module != "unknown" {
-				// hashMapNumberOfEntries might allocate memory, so we only do it if we have a module name, as
-				// unknown modules get discarded anyway (only RSS is used for total counts)
-				baseMapStats.Entries = hashMapNumberOfEntries(mp, mapid, k.mphCache, &k.mapBuffers, k.entryCountMaxRestarts)
-			}
-		case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
-			baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
-		case ebpf.LPMTrie:
-			baseMapStats.MaxSize, baseMapStats.RSS = trieMemoryUsage(info, uint64(k.nrcpus))
-		// TODO other map types
-		//case ebpf.Stack:
-		//case ebpf.ReusePortSockArray:
-		//case ebpf.CPUMap:
-		//case ebpf.DevMap, ebpf.DevMapHash:
-		//case ebpf.Queue:
-		//case ebpf.StructOpsMap:
-		//case ebpf.CGroupStorage:
-		//case ebpf.TaskStorage, ebpf.SkStorage, ebpf.InodeStorage:
-		default:
-			log.Debugf("unsupported map %s(%d) type %s", name, mapid, info.Type.String())
-			continue
-		}
-		stats.Maps = append(stats.Maps, baseMapStats)
+		stats.Maps = append(stats.Maps, *baseMapStats)
 	}
 
-	log.Tracef("found %d maps", mapCount)
+	log.Tracef("found %d maps", len(stats.Maps))
 	deduplicateMapNames(stats)
 	for _, mp := range stats.Maps {
 		log.Tracef("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)

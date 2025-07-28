@@ -17,16 +17,12 @@ import (
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // StatusResponse is the response to the status endpoint.
 type StatusResponse struct {
 	APIResponse
-	Version            string                  `json:"version"`
-	Packages           map[string]PackageState `json:"packages"`
-	ApmInjectionStatus APMInjectionStatus      `json:"apm_injection_status"`
-	RemoteConfigState  []*pbgo.PackageState    `json:"remote_config_state"`
+	RemoteConfigState []*pbgo.PackageState `json:"remote_config_state"`
 }
 
 // APMInjectionStatus contains the instrumentation status of the APM injection.
@@ -80,8 +76,8 @@ func (l *localAPIImpl) handler() http.Handler {
 	r := mux.NewRouter().Headers("Content-Type", "application/json").Subrouter()
 	r.HandleFunc("/status", l.status).Methods(http.MethodGet)
 	r.HandleFunc("/catalog", l.setCatalog).Methods(http.MethodPost)
+	r.HandleFunc("/config_catalog", l.setConfigCatalog).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/{package}/experiment/start-installer", l.startInstallerExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/config_experiment/start", l.startConfigExperiment).Methods(http.MethodPost)
@@ -92,30 +88,14 @@ func (l *localAPIImpl) handler() http.Handler {
 	return r
 }
 
-func (l *localAPIImpl) status(w http.ResponseWriter, r *http.Request) {
+func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var response StatusResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
-	ctx := r.Context()
-	packages, err := l.daemon.GetState(ctx)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
-	apmStatus, err := l.daemon.GetAPMInjectionStatus()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
 	response = StatusResponse{
-		Version:            version.AgentVersion,
-		Packages:           packages,
-		ApmInjectionStatus: apmStatus,
-		RemoteConfigState:  l.daemon.GetRemoteConfigState().Packages,
+		RemoteConfigState: l.daemon.GetRemoteConfigState().Packages,
 	}
 }
 
@@ -134,6 +114,23 @@ func (l *localAPIImpl) setCatalog(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Infof("Received local request to set catalog")
 	l.daemon.SetCatalog(catalog)
+}
+
+func (l *localAPIImpl) setConfigCatalog(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var configs map[string]installerConfig
+	var response APIResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	err := json.NewDecoder(r.Body).Decode(&configs)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+	log.Infof("Received local request to set config catalog")
+	l.daemon.SetConfigCatalog(configs)
 }
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/start -d '{"version":"1.21.5"}'
@@ -159,36 +156,6 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = l.daemon.StartExperiment(r.Context(), catalogPkg.URL)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
-}
-
-// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/experiment/start-installer -d '{}'
-func (l *localAPIImpl) startInstallerExperiment(w http.ResponseWriter, r *http.Request) {
-	pkg := mux.Vars(r)["package"]
-	w.Header().Set("Content-Type", "application/json")
-	var request experimentTaskParams
-	var response APIResponse
-	defer func() {
-		_ = json.NewEncoder(w).Encode(response)
-	}()
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
-	log.Infof("Received local request to start installer experiment for package %s version %s", pkg, request.Version)
-	catalogPkg, err := l.daemon.GetPackage(pkg, request.Version)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
-	err = l.daemon.StartInstallerExperiment(r.Context(), catalogPkg.URL)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -355,10 +322,10 @@ type LocalAPIClient interface {
 	Status() (StatusResponse, error)
 
 	SetCatalog(catalog string) error
+	SetConfigCatalog(configs string) error
 	Install(pkg, version string) error
 	Remove(pkg string) error
 	StartExperiment(pkg, version string) error
-	StartInstallerExperiment(pkg, version string) error
 	StopExperiment(pkg string) error
 	PromoteExperiment(pkg string) error
 	StartConfigExperiment(pkg, version string) error
@@ -420,6 +387,30 @@ func (c *localAPIClientImpl) SetCatalog(catalog string) error {
 	return nil
 }
 
+// SetConfigCatalog sets the config catalog for the daemon.
+func (c *localAPIClientImpl) SetConfigCatalog(configs string) error {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/config_catalog", c.addr), bytes.NewBuffer([]byte(configs)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error setting config catalog: %s", response.Error.Message)
+	}
+	return nil
+}
+
 // StartExperiment starts an experiment for a package.
 func (c *localAPIClientImpl) StartExperiment(pkg, version string) error {
 	params := experimentTaskParams{
@@ -447,37 +438,6 @@ func (c *localAPIClientImpl) StartExperiment(pkg, version string) error {
 	}
 	if response.Error != nil {
 		return fmt.Errorf("error starting experiment: %s", response.Error.Message)
-	}
-	return nil
-}
-
-// StartInstallerExperiment starts an experiment for a installer package.
-func (c *localAPIClientImpl) StartInstallerExperiment(pkg, version string) error {
-	params := experimentTaskParams{
-		Version: version,
-	}
-	body, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/experiment/start-installer", c.addr, pkg), bytes.NewBuffer(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	var response APIResponse
-	err = json.NewDecoder(resp.Body).Decode(&response)
-	if err != nil {
-		return err
-	}
-	if response.Error != nil {
-		return fmt.Errorf("error starting installer experiment: %s", response.Error.Message)
 	}
 	return nil
 }

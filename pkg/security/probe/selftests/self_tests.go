@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
 const (
@@ -33,9 +32,8 @@ const (
 // SelfTestEvent is used to report a self test result
 type SelfTestEvent struct {
 	events.CustomEventCommonFields
-	Success    []eval.RuleID                                `json:"succeeded_tests"`
-	Fails      []eval.RuleID                                `json:"failed_tests"`
-	TestEvents map[eval.RuleID]*serializers.EventSerializer `json:"test_events"`
+	Success []eval.RuleID `json:"succeeded_tests"`
+	Fails   []eval.RuleID `json:"failed_tests"`
 }
 
 // ToJSON marshal using json format
@@ -52,11 +50,10 @@ func (t SelfTestEvent) ToJSON() ([]byte, error) {
 }
 
 // NewSelfTestEvent returns the rule and the result of the self test
-func NewSelfTestEvent(acc *events.AgentContainerContext, success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) (*rules.Rule, *events.CustomEvent) {
+func NewSelfTestEvent(acc *events.AgentContainerContext, success []eval.RuleID, fails []eval.RuleID) (*rules.Rule, *events.CustomEvent) {
 	evt := SelfTestEvent{
-		Success:    success,
-		Fails:      fails,
-		TestEvents: testEvents,
+		Success: success,
+		Fails:   fails,
 	}
 	evt.FillCustomEventCommonFields(acc)
 
@@ -74,7 +71,7 @@ func (t *SelfTester) Type() string {
 }
 
 // RuleMatch implement the rule engine interface
-func (t *SelfTester) RuleMatch(rule *rules.Rule, event eval.Event) bool {
+func (t *SelfTester) RuleMatch(_ *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	// send if not selftest related events
 	return !t.IsExpectedEvent(rule, event, t.probe)
 }

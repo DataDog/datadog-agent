@@ -69,8 +69,7 @@ HOOK_SYSCALL_EXIT(mprotect) {
     return sys_mprotect_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
-SEC("tracepoint/handle_sys_mprotect_exit")
-int tracepoint_handle_sys_mprotect_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_mprotect_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_mprotect_ret(args, args->ret);
 }
 

@@ -11,81 +11,89 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestBuildSNMPParams(t *testing.T) {
-	config := Config{
-		Network: "192.168.0.0/24",
-	}
-	_, err := config.BuildSNMPParams("192.168.0.1")
+	authentication := Authentication{}
+	_, err := authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "No authentication mechanism specified", err.Error())
 
-	config = Config{
-		Network: "192.168.0.0/24",
+	authentication = Authentication{
 		User:    "admin",
 		Version: "4",
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "SNMP version not supported: 4", err.Error())
 
-	config = Config{
-		Network:   "192.168.0.0/24",
+	authentication = Authentication{
 		Community: "public",
 	}
-	params, _ := config.BuildSNMPParams("192.168.0.1")
+	params, _ := authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, gosnmp.Version2c, params.Version)
 	assert.Equal(t, "192.168.0.1", params.Target)
 
-	config = Config{
-		Network: "192.168.0.0/24",
-		User:    "admin",
+	authentication = Authentication{
+		User: "admin",
 	}
-	params, _ = config.BuildSNMPParams("192.168.0.2")
+	params, _ = authentication.BuildSNMPParams("192.168.0.2", 0)
 	assert.Equal(t, gosnmp.Version3, params.Version)
 	assert.Equal(t, gosnmp.NoAuthNoPriv, params.MsgFlags)
 	assert.Equal(t, "192.168.0.2", params.Target)
 
 	for _, authProto := range []string{"", "md5", "sha", "sha224", "sha256", "sha384", "sha512"} {
-		config = Config{
-			Network:      "192.168.0.0/24",
+		authentication = Authentication{
 			User:         "admin",
 			AuthProtocol: authProto,
 		}
-		_, err = config.BuildSNMPParams("192.168.0.1")
+		_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 		assert.NoError(t, err)
-		assert.Equal(t, authProto, config.AuthProtocol)
+		assert.Equal(t, authProto, authentication.AuthProtocol)
 	}
 
 	for _, privProto := range []string{"", "des", "aes", "aes192", "aes192c", "aes256", "aes256c"} {
-		config = Config{
-			Network:      "192.168.0.0/24",
+		authentication = Authentication{
 			User:         "admin",
 			PrivProtocol: privProto,
 		}
-		_, err = config.BuildSNMPParams("192.168.0.1")
+		_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 		assert.NoError(t, err)
-		assert.Equal(t, privProto, config.PrivProtocol)
+		assert.Equal(t, privProto, authentication.PrivProtocol)
 	}
 
-	config = Config{
-		Network:      "192.168.0.0/24",
+	authentication = Authentication{
 		User:         "admin",
 		AuthProtocol: "foo",
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "unsupported authentication protocol: foo", err.Error())
 
-	config = Config{
-		Network:      "192.168.0.0/24",
+	authentication = Authentication{
 		User:         "admin",
 		PrivProtocol: "bar",
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "unsupported privacy protocol: bar", err.Error())
+
+	authentications := []Authentication{
+		{
+			Community: "myCommunityString1",
+		},
+		{
+			Community: "myCommunityString2",
+		},
+		{
+			Community: "myCommunityString3",
+		},
+	}
+	for _, authentication = range authentications {
+		params, _ = authentication.BuildSNMPParams("192.168.0.1", 0)
+		assert.Equal(t, authentication.Community, params.Community)
+		assert.Equal(t, gosnmp.Version2c, params.Version)
+		assert.Equal(t, "192.168.0.1", params.Target)
+	}
 }
 
 func TestNewListenerConfig(t *testing.T) {
@@ -155,7 +163,7 @@ snmp_listener:
 }
 
 func TestNewNetworkDevicesListenerConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
+	configmock.SetDefaultConfigType(t, "yaml")
 
 	// default collect_device_metadata should be true
 	configmock.NewFromYAML(t, `
@@ -227,7 +235,7 @@ network_devices:
 }
 
 func TestBothListenersConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
+	configmock.SetDefaultConfigType(t, "yaml")
 
 	// check that network_devices config override the snmp_listener config
 	configmock.NewFromYAML(t, `
@@ -303,6 +311,80 @@ network_devices:
 
 	conf, err = NewListenerConfig()
 	assert.Error(t, err)
+}
+
+func Test_AuthenticationsConfig(t *testing.T) {
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network_address: 127.1.0.0/30
+       authentications:
+        - community_string: someCommunityString1
+        - user: someUser
+          authProtocol: someAuthProtocol
+          authKey: someAuthKey
+          privProtocol: somePrivProtocol
+          privKey: somePrivKey
+        - community_string: someCommunityString2
+          snmp_version: someSnmpVersion
+`)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	networkConf := conf.Configs[0]
+	assert.Equal(t, "someCommunityString1", networkConf.Authentications[0].Community)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[0].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[0].Retries)
+	assert.Equal(t, "someUser", networkConf.Authentications[1].User)
+	assert.Equal(t, "someAuthProtocol", networkConf.Authentications[1].AuthProtocol)
+	assert.Equal(t, "someAuthKey", networkConf.Authentications[1].AuthKey)
+	assert.Equal(t, "somePrivProtocol", networkConf.Authentications[1].PrivProtocol)
+	assert.Equal(t, "somePrivKey", networkConf.Authentications[1].PrivKey)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[1].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[1].Retries)
+	assert.Equal(t, "someCommunityString2", networkConf.Authentications[2].Community)
+	assert.Equal(t, "someSnmpVersion", networkConf.Authentications[2].Version)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[2].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[2].Retries)
+
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network_address: 127.1.0.0/30
+       user: someUser1
+       authProtocol: someAuthProtocol1
+       authKey: someAuthKey1
+       privProtocol: somePrivProtocol1
+       privKey: somePrivKey1
+       snmp_version: someSnmpVersion
+       authentications:
+        - community_string: someCommunityString
+        - user: someUser2
+          authProtocol: someAuthProtocol2
+          authKey: someAuthKey2
+          privProtocol: somePrivProtocol2
+          privKey: somePrivKey2
+`)
+
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+
+	networkConf = conf.Configs[0]
+	assert.Equal(t, "someUser1", networkConf.Authentications[0].User)
+	assert.Equal(t, "someAuthProtocol1", networkConf.Authentications[0].AuthProtocol)
+	assert.Equal(t, "someAuthKey1", networkConf.Authentications[0].AuthKey)
+	assert.Equal(t, "somePrivProtocol1", networkConf.Authentications[0].PrivProtocol)
+	assert.Equal(t, "somePrivKey1", networkConf.Authentications[0].PrivKey)
+	assert.Equal(t, "someSnmpVersion", networkConf.Authentications[0].Version)
+	assert.Equal(t, "someCommunityString", networkConf.Authentications[1].Community)
+	assert.Equal(t, "someUser2", networkConf.Authentications[2].User)
+	assert.Equal(t, "someAuthProtocol2", networkConf.Authentications[2].AuthProtocol)
+	assert.Equal(t, "someAuthKey2", networkConf.Authentications[2].AuthKey)
+	assert.Equal(t, "somePrivProtocol2", networkConf.Authentications[2].PrivProtocol)
+	assert.Equal(t, "somePrivKey2", networkConf.Authentications[2].PrivKey)
 }
 
 func Test_LoaderConfig(t *testing.T) {
@@ -419,7 +501,7 @@ network_devices:
 	/////////////////
 	// legacy configs
 	/////////////////
-	configmock.NewFromYAML(t, `
+	corecfg := configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     allowed_failures: 15
@@ -444,6 +526,8 @@ network_devices:
 	assert.Equal(t, "legacyCommunityString", legacyConfig.Community)
 	assert.Equal(t, "legacySnmpVersion", legacyConfig.Version)
 	assert.Equal(t, "127.2.0.0/30", legacyConfig.Network)
+	warnings := corecfg.Warnings()
+	assert.Equal(t, 0, warnings.Count())
 }
 
 func Test_NamespaceConfig(t *testing.T) {
@@ -581,6 +665,74 @@ network_devices:
 	assert.Equal(t, true, conf.Configs[2].CollectTopology)
 }
 
+func Test_CollectVPN(t *testing.T) {
+	tests := []struct {
+		name                string
+		config              string
+		expectedCollectVPNs []bool
+	}{
+		{
+			name: "root collect_vpn false",
+			config: `
+network_devices:
+  autodiscovery:
+    collect_vpn: false
+    configs:
+     - network: 127.1.0.0/30
+       collect_vpn: true
+     - network: 127.2.0.0/30
+       collect_vpn: false
+     - network: 127.3.0.0/30
+`,
+			expectedCollectVPNs: []bool{true, false, false},
+		},
+		{
+			name: "root collect_vpn true",
+			config: `
+network_devices:
+  autodiscovery:
+    collect_vpn: true
+    configs:
+     - network: 127.1.0.0/30
+       collect_vpn: true
+     - network: 127.2.0.0/30
+       collect_vpn: false
+     - network: 127.3.0.0/30
+`,
+			expectedCollectVPNs: []bool{true, false, true},
+		},
+		{
+			name: "root collect_vpn unset",
+			config: `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+       collect_vpn: true
+     - network: 127.2.0.0/30
+       collect_vpn: false
+     - network: 127.3.0.0/30
+`,
+			expectedCollectVPNs: []bool{true, false, false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configmock.NewFromYAML(t, tt.config)
+
+			conf, err := NewListenerConfig()
+			assert.NoError(t, err)
+
+			collectVPNs := make([]bool, len(conf.Configs))
+			for i, config := range conf.Configs {
+				collectVPNs[i] = config.CollectVPN
+			}
+			assert.Equal(t, tt.expectedCollectVPNs, collectVPNs)
+		})
+	}
+}
+
 func TestConfig_Digest(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -711,4 +863,18 @@ func TestConfig_Digest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_UseDeduplicationConfig(t *testing.T) {
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+`)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.False(t, conf.Deduplicate)
 }

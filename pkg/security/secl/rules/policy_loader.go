@@ -66,7 +66,7 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 		}
 
 		for _, policy := range policies {
-			if policy.Name == DefaultPolicyName {
+			if policy.Info.Name == DefaultPolicyName {
 				if defaultPolicy == nil {
 					defaultPolicy = policy // only load the first seen default policy
 				}

@@ -8,11 +8,11 @@
 package kubelet
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("Kubelet availability", diagnose)
+	diagnoseComp.RegisterMetadataAvail("Kubelet availability", diagnose)
 }
 
 // diagnose the API server availability

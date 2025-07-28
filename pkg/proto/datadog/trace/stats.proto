@@ -49,6 +49,10 @@ message ClientStatsPayload {
 	string git_commit_sha = 13;
 	// The image tag is obtained from a container's set of tags.
 	string image_tag = 14;
+        // The process tags hash is used as a key for agent stats agregation.
+        uint64 process_tags_hash = 15;
+        // The process tags contains a list of tags that are specific to the process.
+        string process_tags = 16;
 }
 
 // ClientStatsBucket is a time bucket containing aggregated stats.

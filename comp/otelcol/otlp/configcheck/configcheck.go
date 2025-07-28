@@ -52,10 +52,25 @@ func ReadConfigSection(cfg config.Reader, section string) *confmap.Conf {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
 			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
 			// deep copy since `cfg.Get` returns a reference
-			stringMap[mapKey] = deepcopy.Copy(cfg.Get(key))
+			var val interface{}
+			if _, ok := intConfigs[key]; ok {
+				val = deepcopy.Copy(cfg.GetInt(key)) // ensure to get an int even if it is set as a string in env vars
+			} else {
+				val = deepcopy.Copy(cfg.Get(key))
+			}
+			stringMap[mapKey] = val
 		}
 	}
 	return confmap.NewFromStringMap(stringMap)
+}
+
+// intConfigs has the known config keys that may need a type cast to int by calling cfg.GetInt
+var intConfigs = map[string]struct{}{
+	"otlp_config.receiver.protocols.grpc.max_concurrent_streams": {},
+	"otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib":  {},
+	"otlp_config.receiver.protocols.grpc.read_buffer_size":       {},
+	"otlp_config.receiver.protocols.grpc.write_buffer_size":      {},
+	"otlp_config.receiver.protocols.http.max_request_body_size":  {},
 }
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.

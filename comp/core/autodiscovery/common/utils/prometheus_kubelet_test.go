@@ -10,10 +10,12 @@ package utils
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 
 	"github.com/stretchr/testify/assert"
@@ -21,12 +23,12 @@ import (
 
 func TestConfigsForPod(t *testing.T) {
 	tests := []struct {
-		name    string
-		check   *types.PrometheusCheck
-		version int
-		pod     *kubelet.Pod
-		want    []integration.Config
-		matched bool
+		name        string
+		check       *types.PrometheusCheck
+		version     int
+		pod         *kubelet.Pod
+		want        []integration.Config
+		expectError bool
 	}{
 		{
 			name:    "nominal case v1",
@@ -401,6 +403,104 @@ func TestConfigsForPod(t *testing.T) {
 			},
 		},
 		{
+			name:    "multi containers, none match the port in the annotation",
+			check:   types.DefaultPrometheusCheck,
+			version: 2,
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name: "foo-pod",
+					Annotations: map[string]string{
+						"prometheus.io/scrape": "true",
+						"prometheus.io/port":   "9999",
+					},
+				},
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{
+						{
+							Name: "foo-ctr1",
+							Ports: []kubelet.ContainerPortSpec{
+								{
+									ContainerPort: 8080, // Doesn't match
+								},
+							},
+						},
+						{
+							Name: "foo-ctr2",
+							Ports: []kubelet.ContainerPortSpec{
+								{
+									ContainerPort: 8081, // Doesn't match
+								},
+							},
+						},
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr1",
+							ID:   "foo-ctr1-id",
+						},
+						{
+							Name: "foo-ctr2",
+							ID:   "foo-ctr2-id",
+						},
+					},
+					AllContainers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr1",
+							ID:   "foo-ctr1-id",
+						},
+						{
+							Name: "foo-ctr2",
+							ID:   "foo-ctr2-id",
+						},
+					},
+				},
+			},
+			want:        nil,
+			expectError: true, // No containers match the port in the annotation
+		},
+		{
+			name:    "invalid port in annotation",
+			check:   types.DefaultPrometheusCheck,
+			version: 2,
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Name: "foo-pod",
+					Annotations: map[string]string{
+						"prometheus.io/scrape": "true",
+						"prometheus.io/port":   "invalid",
+					},
+				},
+				Spec: kubelet.Spec{
+					Containers: []kubelet.ContainerSpec{
+						{
+							Name: "foo-ctr1",
+							Ports: []kubelet.ContainerPortSpec{
+								{
+									ContainerPort: 8080, // Doesn't match
+								},
+							},
+						},
+					},
+				},
+				Status: kubelet.Status{
+					Containers: []kubelet.ContainerStatus{
+						{
+							Name: "foo-ctr1",
+							ID:   "foo-ctr1-id",
+						},
+						{
+							Name: "foo-ctr2",
+							ID:   "foo-ctr2-id",
+						},
+					},
+				},
+			},
+			want:        nil,
+			expectError: true, // Invalid port in annotation
+		},
+		{
 			name: "container name mismatch",
 			check: &types.PrometheusCheck{
 				AD: &types.ADConfig{
@@ -515,9 +615,18 @@ func TestConfigsForPod(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkgconfigsetup.Datadog().SetWithoutSource("prometheus_scrape.version", tt.version)
+			cfg := mock.New(t)
+			cfg.SetWithoutSource("prometheus_scrape.version", tt.version)
 			tt.check.Init(tt.version)
-			assert.ElementsMatch(t, tt.want, ConfigsForPod(tt.check, tt.pod))
+
+			configs, err := ConfigsForPod(tt.check, tt.pod)
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.want, configs)
 		})
 	}
 }

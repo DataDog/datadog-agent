@@ -8,16 +8,17 @@ To recap from the [previous page](creating-components.md), a component was creat
 
 This is the component's interface:
 
-=== ":octicons-file-code-16: comp/compression/def/component.go"
-    ```go
-    type Component interface {
-        // Compress compresses the input data.
-        Compress([]byte) ([]byte, error)
+/// tab | :octicons-file-code-16: comp/compression/def/component.go
+```go
+type Component interface {
+    // Compress compresses the input data.
+    Compress([]byte) ([]byte, error)
 
-        // Decompress decompresses the input data.
-        Decompress([]byte) ([]byte, error)
-    }
-    ```
+    // Decompress decompresses the input data.
+    Decompress([]byte) ([]byte, error)
+}
+```
+///
 
 Ensure the `Compress` and `Decompress` functions behave correctly.
 
@@ -31,131 +32,134 @@ All components expect a `Requires` struct with all the necessary dependencies. T
 
 The `Requires` struct declares a dependency on the config component and the log component. The following code snippet shows how to create the `Require` struct:
 
-=== ":octicons-file-code-16: comp/compression/impl-zstd/component_test.go"
-    ```go
-    package implzstd
-    
-    import (
-      "testing"
+/// tab | :octicons-file-code-16: comp/compression/impl-zstd/component_test.go
+```go
+package implzstd
 
-      configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
-      logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-    )
-    
-    func TestCompress(t *testing.T) {
-      logComponent := configmock.New(t)
-      configComponent := logmock.New(t)
-      
-      requires := Requires{
+import (
+    "testing"
+
+    configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+    logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+)
+
+func TestCompress(t *testing.T) {
+    logComponent := configmock.New(t)
+    configComponent := logmock.New(t)
+
+    requires := Requires{
         Conf: configComponent,
         Log: logComponent,
-      }
-      // [...]
     }
-    ```
-    
+    // [...]
+}
+```
+///
+
 To create the log and config component, use their respective mocks. The [mock package](creating-components.md#the-mock-folder) was mentioned previously in the [Creating a Component page](creating-components.md).
-    
+
 
 ### Testing the component's interface
 
 Now that the `Require` struct is created, an instance of the component can be created and its functionality tested:
 
-=== ":octicons-file-code-16: comp/compression/impl-zstd/component_test.go"
-    ```go
-    package implzstd
-    
-    import (
-      "testing"
+/// tab | :octicons-file-code-16: comp/compression/impl-zstd/component_test.go
+```go
+package implzstd
 
-      configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
-      logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-    )
-    
-    func TestCompress(t *testing.T) {
-      logComponent := configmock.New(t)
-      configComponent := logmock.New(t)
-      
-      requires := Requires{
+import (
+    "testing"
+
+    configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
+    logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+)
+
+func TestCompress(t *testing.T) {
+    logComponent := configmock.New(t)
+    configComponent := logmock.New(t)
+
+    requires := Requires{
         Conf: configComponent,
         Log: logComponent,
-      }
-      
-      provides := NewComponent(requires)
-      component := provides.Comp
-      
-      result, err := component.Compress([]byte("Hello World"))
-      assert.Nil(t, err)
-  
-      assert.Equal(t, ..., result)
     }
-    ```
+
+    provides := NewComponent(requires)
+    component := provides.Comp
+
+    result, err := component.Compress([]byte("Hello World"))
+    assert.Nil(t, err)
+
+    assert.Equal(t, ..., result)
+}
+```
+///
 
 ### Testing lifecycle hooks
 
-Sometimes a component uses [Fx lifecycle](fx.md#lifecycle) to add hooks. It is a good practice to test the hooks as well. 
+Sometimes a component uses [Fx lifecycle](fx.md#lifecycle) to add hooks. It is a good practice to test the hooks as well.
 
 For this example, imagine a component wants to add some hooks into the app lifecycle. Some code is omitted for simplicity:
 
-=== ":octicons-file-code-16: comp/somecomponent/impl/component.go"
-    ```go
-    package impl
+/// tab | :octicons-file-code-16: comp/somecomponent/impl/component.go
+```go
+package impl
 
-    import (
-      "context"
-      
-      somecomponent "github.com/DataDog/datadog-agent/comp/somecomponent/def"
-      compdef "github.com/DataDog/datadog-agent/comp/def"
-    )
+import (
+    "context"
 
-    type Requires struct {
-      Lc      compdef.Lifecycle
-    }
+    somecomponent "github.com/DataDog/datadog-agent/comp/somecomponent/def"
+    compdef "github.com/DataDog/datadog-agent/comp/def"
+)
 
-    type Provides struct {
-      Comp somecomponent.Component
-    }
+type Requires struct {
+    Lc      compdef.Lifecycle
+}
 
-    type component struct {
-      started  bool
-      stopped bool
-    }
+type Provides struct {
+    Comp somecomponent.Component
+}
 
-    func (c *component) start() error {
-      // [...]
-      
-      c.started = true
+type component struct {
+    started  bool
+    stopped bool
+}
 
-      return nil
-    }
+func (c *component) start() error {
+    // [...]
 
-    func (h *healthprobe) stop() error {
-      // [...]
-      
-      c.stopped = true
-      c.started = false
+    c.started = true
 
-      return nil
-    }
+    return nil
+}
 
-    // NewComponent creates a new healthprobe component
-    func NewComponent(reqs Requires) (Provides, error) {
-      provides := Provides{}
-      comp := &component{}
+func (h *healthprobe) stop() error {
+    // [...]
 
-      reqs.Lc.Append(compdef.Hook{
+    c.stopped = true
+    c.started = false
+
+    return nil
+}
+
+// NewComponent creates a new healthprobe component
+func NewComponent(reqs Requires) (Provides, error) {
+    provides := Provides{}
+    comp := &component{}
+
+    reqs.Lc.Append(compdef.Hook{
         OnStart: func(ctx context.Context) error {
-          return comp.start()
+            return comp.start()
         },
         OnStop: func(ctx context.Context) error {
-          return comp.stop()
+            return comp.stop()
         },
-      })
+    })
 
-      provides.Comp = comp
-      return provides, nil
-    }
-    ```
+    provides.Comp = comp
+    return provides, nil
+}
+```
+///
 
 The goal is to test that the component updates the `started` and `stopped` fields.
 
@@ -163,41 +167,43 @@ To accomplish this, create a new lifecycle instance, create a `Require` struct i
 
 To create a lifecycle instance, use the helper function `compdef.NewTestLifecycle(t *testing.T)`. The function returns a lifecycle wrapper that can be used to populate the `Requires` struct. The `Start` and `Stop` functions can also be called.
 
-!!! Info 
-    You can see the `NewTestLifecycle` function [here](https://github.com/DataDog/datadog-agent/blob/c9395595e34c6a96de9446083b8b1d0423bed991/comp/def/lifecycle_mock.go#L21)
+/// info
+You can see the `NewTestLifecycle` function [here](https://github.com/DataDog/datadog-agent/blob/c9395595e34c6a96de9446083b8b1d0423bed991/comp/def/lifecycle_mock.go#L21).
+///
 
-=== ":octicons-file-code-16: comp/somecomponent/impl/component_test.go"
-    ```go
-    package impl
+/// tab | :octicons-file-code-16: comp/somecomponent/impl/component_test.go
+```go
+package impl
 
-    import (
-      "context"
-      "testing"
+import (
+    "context"
+    "testing"
 
-      compdef "github.com/DataDog/datadog-agent/comp/def"
-      "github.com/stretchr/testify/assert"
-    )
+    compdef "github.com/DataDog/datadog-agent/comp/def"
+    "github.com/stretchr/testify/assert"
+)
 
-    func TestStartHook(t *testing.T) {
-      lc := compdef.NewTestLifecycle(t)
+func TestStartHook(t *testing.T) {
+    lc := compdef.NewTestLifecycle(t)
 
-      requires := Requires{
+    requires := Requires{
         Lc:  lc,
-      }
-
-      provides, err := NewComponent(requires)
-
-      assert.NoError(t, err)
-
-      assert.NotNil(t, provides.Comp)
-      internalComponent := provides.Comp.(*component)
-
-      ctx := context.Background()
-      lc.AssertHooksNumber(1)
-      assert.NoError(t, lc.Start(ctx))
-
-      assert.True(t, internalComponent.started)
     }
-    ```
-    
+
+    provides, err := NewComponent(requires)
+
+    assert.NoError(t, err)
+
+    assert.NotNil(t, provides.Comp)
+    internalComponent := provides.Comp.(*component)
+
+    ctx := context.Background()
+    lc.AssertHooksNumber(1)
+    assert.NoError(t, lc.Start(ctx))
+
+    assert.True(t, internalComponent.started)
+}
+```
+///
+
 For this example, a type cast operation had to be performed because the `started` field is private. Depending on the component, this may not be necessary.

@@ -68,7 +68,7 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 		outputErr, _ = io.ReadAll(stderr)
 	}()
 
-	cmd.Start() //nolint:errcheck
+	_ = cmd.Start()
 
 	// Wait for the pipes to be closed *before* waiting for the cmd to exit, as per os.exec docs
 	wg.Wait()

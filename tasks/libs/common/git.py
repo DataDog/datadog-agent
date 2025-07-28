@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -15,6 +16,9 @@ from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+TAG_BATCH_SIZE = 3
+RE_RELEASE_BRANCH = re.compile(r'(\d+)\.(\d+)\.x')
 
 
 @contextmanager
@@ -32,19 +36,39 @@ def clone(ctx, repo, branch, options=""):
         os.chdir(current_dir)
 
 
-def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterable[str]:
+def get_staged_files(ctx, commit="HEAD", include_deleted_files=False, relative_path=False) -> Iterable[str]:
     """
     Get the list of staged (to be committed) files in the repository compared to the `commit` commit.
     """
 
     files = ctx.run(f"git diff --name-only --staged {commit}", hide=True).stdout.strip().splitlines()
+    repo_root = ctx.run("git rev-parse --show-toplevel", hide=True).stdout.strip() if not relative_path else ""
 
-    if include_deleted_files:
-        yield from files
-    else:
-        for file in files:
-            if os.path.isfile(file):
-                yield file
+    for file in files:
+        if include_deleted_files or os.path.isfile(file):
+            yield os.path.join(repo_root, file)
+
+
+def get_unstaged_files(ctx, re_filter=None, include_deleted_files=False) -> Iterable[str]:
+    """
+    Get the list of unstaged files in the repository.
+    """
+
+    files = ctx.run("git diff --name-only", hide=True).stdout.splitlines()
+
+    for file in files:
+        if (re_filter is None or re_filter.search(file)) and (include_deleted_files or os.path.isfile(file)):
+            yield file
+
+
+def get_untracked_files(ctx, re_filter=None) -> Iterable[str]:
+    """
+    Get the list of untracked files in the repository.
+    """
+    files = ctx.run("git ls-files --others --exclude-standard", hide=True).stdout.splitlines()
+    for file in files:
+        if re_filter is None or re_filter.search(file):
+            yield file
 
 
 def get_file_modifications(
@@ -102,6 +126,12 @@ def get_modified_files(ctx, base_branch=None) -> list[str]:
 
 def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+
+def is_a_release_branch(ctx, branch=None) -> bool:
+    if not branch:
+        branch = get_current_branch(ctx)
+    return RE_RELEASE_BRANCH.match(branch) is not None
 
 
 def is_agent6(ctx) -> bool:
@@ -303,21 +333,41 @@ def get_last_release_tag(ctx, repo, pattern):
     return last_tag_commit, last_tag_name
 
 
-def get_git_config(ctx, key):
-    try:
-        result = ctx.run(f'git config --get {key}')
-    except Exit:
-        return None
-    return result.stdout.strip() if result.return_code == 0 else None
-
-
 def set_git_config(ctx, key, value):
     ctx.run(f'git config {key} {value}')
 
 
-def revert_git_config(ctx, original_config):
-    for key, value in original_config.items():
-        if value is None:
-            ctx.run(f'git config --unset {key}', hide=True)
-        else:
-            ctx.run(f'git config {key} {value}', hide=True)
+def create_tree(ctx, base_branch):
+    """
+    Create a tree on all the local staged files
+    """
+    base = get_common_ancestor(ctx, "HEAD", base_branch)
+    tree = {"base_tree": base, "tree": []}
+    template = {"path": None, "mode": "100644", "type": "blob", "content": None}
+    for file in get_staged_files(ctx, include_deleted_files=True, relative_path=True):
+        blob = template.copy()
+        blob["path"] = file
+        content = ""
+        if os.path.isfile(file):
+            with open(file) as f:
+                content = f.read()
+        blob["content"] = content
+        tree["tree"].append(blob)
+    return tree
+
+
+def push_tags_in_batches(ctx, tags, force_option="", delete=False):
+    """
+    Push or delete tags to remote in batches
+    """
+    if not tags:
+        return
+
+    tags_list = ' '.join(tags)
+    command = "push --delete" if delete else "push"
+
+    for idx in range(0, len(tags), TAG_BATCH_SIZE):
+        batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
+        ctx.run(f"git {command} origin {' '.join(batch_tags)}{force_option}")
+
+    print(f"{'Deleted' if delete else 'Pushed'} tags: {tags_list}")

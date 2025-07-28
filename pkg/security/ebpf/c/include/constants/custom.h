@@ -35,11 +35,12 @@
 #define DR_MAX_SEGMENT_LENGTH 255
 #define DR_NO_CALLBACK -1
 
-#define DR_KPROBE_OR_FENTRY 1
-#define DR_TRACEPOINT 2
+enum TAIL_CALL_PROG_TYPE {
+    KPROBE_OR_FENTRY_TYPE = 0,
+    TRACEPOINT_TYPE = 1,
+};
 
-enum DENTRY_RESOLVER_KEYS
-{
+enum DENTRY_RESOLVER_KEYS {
     DR_DENTRY_RESOLVER_KERN_KEY,
     DR_AD_FILTER_KEY,
     DR_DENTRY_RESOLVER_KERN_INPUTS,
@@ -48,8 +49,7 @@ enum DENTRY_RESOLVER_KEYS
 
 #define DR_ERPC_BUFFER_LENGTH 8 * 4096
 
-enum DENTRY_ERPC_RESOLUTION_CODE
-{
+enum DENTRY_ERPC_RESOLUTION_CODE {
     DR_ERPC_OK,
     DR_ERPC_CACHE_MISS,
     DR_ERPC_BUFFER_SIZE,
@@ -59,11 +59,11 @@ enum DENTRY_ERPC_RESOLUTION_CODE
     DR_ERPC_UNKNOWN_ERROR,
 };
 
-enum TC_TAIL_CALL_KEYS
-{
+enum TC_TAIL_CALL_KEYS {
     DNS_REQUEST = 1,
     DNS_REQUEST_PARSER,
     IMDS_REQUEST,
+    DNS_RESPONSE
 };
 
 enum TC_RAWPACKET_KEYS {
@@ -72,12 +72,11 @@ enum TC_RAWPACKET_KEYS {
 };
 
 #define DNS_MAX_LENGTH 256
+#define DNS_RECEIVE_MAX_LENGTH 512
 #define DNS_EVENT_KEY 0
 
 #define EGRESS 1
 #define INGRESS 2
-#define ACT_OK TC_ACT_UNSPEC
-#define ACT_SHOT TC_ACT_SHOT
 #define PACKET_KEY 0
 #define IMDS_EVENT_KEY 0
 #define IMDS_MAX_LENGTH 2048
@@ -190,15 +189,17 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
     return imds_ip;
 };
 
+#define CGROUP_MANAGER_UNDEFINED 0
 #define CGROUP_MANAGER_DOCKER 1
 #define CGROUP_MANAGER_CRIO 2
 #define CGROUP_MANAGER_PODMAN 3
 #define CGROUP_MANAGER_CRI 4
 #define CGROUP_MANAGER_SYSTEMD 5
 
-#define CGROUP_MANAGER_MASK 0b111
-#define CGROUP_SYSTEMD_SERVICE (0 << 8)
-#define CGROUP_SYSTEMD_SCOPE   (1 << 8)
+#define CGROUP_MANAGER_MASK 0xff
+
+#define CGROUP_SYSTEMD_SERVICE (1 << 8)
+#define CGROUP_SYSTEMD_SCOPE (1 << 8) + 1
 
 #define ACTIVE_FLOWS_MAX_SIZE 128
 
@@ -234,7 +235,7 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
     return is_network_flow_monitor_enabled;
 }
 
-#define SYSCTL_OK       1
+#define SYSCTL_OK 1
 
 #define MAX_SYSCTL_BUFFER_LEN 1024
 #define MAX_SYSCTL_OBJ_LEN 256
@@ -243,11 +244,42 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
 #define SYSCTL_NAME_TRUNCATED (1 << 0)
 #define SYSCTL_OLD_VALUE_TRUNCATED (1 << 1)
 #define SYSCTL_NEW_VALUE_TRUNCATED (1 << 2)
+#define MAX_BPF_FILTER_SIZE (511 * sizeof(struct sock_filter))
+
 
 static __attribute__((always_inline)) u64 has_tracing_helpers_in_cgroup_sysctl() {
     u64 tracing_helpers_in_cgroup_sysctl;
     LOAD_CONSTANT("tracing_helpers_in_cgroup_sysctl", tracing_helpers_in_cgroup_sysctl);
     return tracing_helpers_in_cgroup_sysctl;
 }
+
+enum link_target_dentry_origin {
+    ORIGIN_UNSET = 0,
+    ORIGIN_RETHOOK_FILENAME_CREATE,
+    ORIGIN_RETHOOK___LOOKUP_HASH,
+};
+
+enum global_rate_limiter_type {
+    RAW_PACKET_LIMITER = 0,
+};
+
+#define TAIL_CALL_FNC_NAME(name, ...) tail_call_##name(__VA_ARGS__)
+#define TAIL_CALL_FNC(name, ...) TAIL_CALL_TARGET("\"" #name "\"") \
+	int TAIL_CALL_FNC_NAME(name, __VA_ARGS__)
+
+#define TAIL_CALL_TRACEPOINT_FNC_NAME(name, ...) tail_call_tracepoint_##name(__VA_ARGS__)
+#define TAIL_CALL_TRACEPOINT_TARGET(name) SEC("tracepoint/" name)
+#define TAIL_CALL_TRACEPOINT_FNC(name, ...) TAIL_CALL_TRACEPOINT_TARGET("\"" #name "\"") \
+    int TAIL_CALL_TRACEPOINT_FNC_NAME(name, __VA_ARGS__)
+
+#define TAIL_CALL_FNC_WITH_HOOK_POINT(hookpoint, name, ...) TAIL_CALL_TARGET_WITH_HOOK_POINT(hookpoint) \
+    int TAIL_CALL_FNC_NAME(name, __VA_ARGS__)
+
+#define TAIL_CALL_CLASSIFIER_FNC_NAME(name, ...) tail_call_classifier_##name(__VA_ARGS__)
+#define TAIL_CALL_CLASSIFIER_TARGET(name) SEC("classifier/" name)
+#define TAIL_CALL_CLASSIFIER_FNC(name, ...) TAIL_CALL_CLASSIFIER_TARGET("\"" #name "\"") \
+    int TAIL_CALL_CLASSIFIER_FNC_NAME(name, __VA_ARGS__)
+
+#define OPEN_TREE_CLONE 1
 
 #endif

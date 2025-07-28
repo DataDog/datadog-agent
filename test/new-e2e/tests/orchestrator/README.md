@@ -11,7 +11,7 @@ To invoke locally, run:
 ```bash
 cd ~/dd/datadog-agent # run from the repo root, not the new-e2e project root
 aws-vault exec sso-agent-sandbox-account-admin -- zsh
-inv new-e2e-tests.run --targets=./tests/orchestrator
+dda inv new-e2e-tests.run --targets=./tests/orchestrator
 ```
 
 You can supply `--keep-stacks` to keep the pulumi stacks after the tests are done. This will allow you to use inspect
@@ -80,7 +80,7 @@ Diagnostics:
 To fix this, run:
 
 ```bash
-inv -e new-e2e-tests.clean -s
+dda inv -e new-e2e-tests.clean -s
 ```
 
 It may take a while, but will completely reset your pulumi stack config/state/resources.
@@ -94,7 +94,7 @@ You can specify your own agent version as well, otherwise it will run with lates
 ```bash
 img_repo="registry.hub.docker.com/datadog"
 img_tag="fisher-cap-1436-explicit-type-values-py3-jmx"
-inv new-e2e-tests.run \
+dda inv new-e2e-tests.run \
   -c ddagent:fullImagePath=$img_repo/agent-dev:$img_tag \
   -c ddagent:clusterAgentFullImagePath=$img_repo/cluster-agent-dev:$img_tag \
   --targets=./tests/orchestrator

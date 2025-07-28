@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
@@ -369,18 +369,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		tagList.AddLow(tags.KubeAutoscalerKind, "datadogpodautoscaler")
 	}
 
-	kubeServiceDisabled := false
-	for _, disabledTag := range pkgconfigsetup.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
-		if disabledTag == "kube_service" {
-			kubeServiceDisabled = true
-			break
-		}
-	}
-	for _, disabledTag := range strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ",") {
-		if disabledTag == "kube_service" {
-			kubeServiceDisabled = true
-			break
-		}
+	kubeServiceDisabled := slices.Contains(pkgconfigsetup.Datadog().GetStringSlice("kubernetes_ad_tags_disabled"), "kube_service")
+	if slices.Contains(strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ","), "kube_service") {
+		kubeServiceDisabled = true
 	}
 	if !kubeServiceDisabled {
 		for _, svc := range pod.KubeServices {
@@ -464,16 +455,19 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.TaskName, task.Family)
 	taskTags.AddLow(tags.TaskFamily, task.Family)
 	taskTags.AddLow(tags.TaskVersion, task.Version)
-	taskTags.AddLow(tags.AwsAccount, strconv.Itoa(task.AWSAccountID))
+	taskTags.AddLow(tags.AwsAccount, task.AWSAccountID)
 	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 
+	clusterTags := taglist.NewTagList()
 	if task.ClusterName != "" {
+		// only add cluster_name to the task level tags, not global
 		if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
 			taskTags.AddLow(tags.ClusterName, task.ClusterName)
 		}
-		taskTags.AddLow(tags.EcsClusterName, task.ClusterName)
+		clusterTags.AddLow(tags.EcsClusterName, task.ClusterName)
 	}
+	clusterLow, clusterOrch, clusterHigh, clusterStandard := clusterTags.Compute()
 
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
 		taskTags.AddLow(tags.AvailabilityZoneDeprecated, task.AvailabilityZone) // Deprecated
@@ -488,6 +482,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	}
 
 	tagInfos := make([]*types.TagInfo, 0, len(task.Containers))
+
 	for _, taskContainer := range task.Containers {
 		container, err := c.store.GetContainer(taskContainer.ID)
 		if err != nil {
@@ -509,7 +504,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			EntityID:             common.BuildTaggerEntityID(container.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
-			LowCardTags:          low,
+			LowCardTags:          append(low, clusterLow...),
 			StandardTags:         standard,
 		})
 	}
@@ -521,8 +516,20 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			EntityID:             types.GetGlobalEntityID(),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
-			LowCardTags:          low,
+			LowCardTags:          append(low, clusterLow...),
 			StandardTags:         standard,
+		})
+	}
+
+	// add global cluster tags to EC2
+	if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 {
+		tagInfos = append(tagInfos, &types.TagInfo{
+			Source:               taskSource,
+			EntityID:             types.GetGlobalEntityID(),
+			HighCardTags:         clusterHigh,
+			OrchestratorCardTags: clusterOrch,
+			LowCardTags:          clusterLow,
+			StandardTags:         clusterStandard,
 		})
 	}
 
@@ -631,9 +638,10 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 
 	tagList := taglist.NewTagList()
 
-	tagList.AddLow(tags.KubeGPUVendor, gpu.Vendor)
-	tagList.AddLow(tags.KubeGPUDevice, gpu.Device)
-	tagList.AddLow(tags.KubeGPUUUID, gpu.ID)
+	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
+	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
+	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
+	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 
 	low, orch, high, standard := tagList.Compute()
 

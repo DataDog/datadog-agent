@@ -8,13 +8,12 @@
 package workload
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/clock"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -24,7 +23,7 @@ type mockRCClient struct {
 	subscribers map[string][]rcCallbackFunc
 }
 
-func (m *mockRCClient) Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+func (m *mockRCClient) SubscribeIgnoreExpiration(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 	if m.subscribers == nil {
 		m.subscribers = make(map[string][]rcCallbackFunc)
 	}
@@ -39,14 +38,12 @@ func (m *mockRCClient) triggerUpdate(product string, update map[string]state.Raw
 	}
 }
 
-func newMockConfigRetriever(t *testing.T, isLeader bool, clock clock.Clock) (*ConfigRetriever, *mockRCClient) {
+func newMockConfigRetriever(t *testing.T, isLeader func() bool, store *store, clock clock.WithTicker) (*ConfigRetriever, *mockRCClient) {
 	t.Helper()
 
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	mockRCClient := &mockRCClient{}
 
-	cr, err := NewConfigRetriever(store, func() bool { return isLeader }, mockRCClient)
-	cr.clock = clock
+	cr, err := NewConfigRetriever(context.Background(), clock, store, isLeader, mockRCClient)
 	assert.NoError(t, err)
 
 	return cr, mockRCClient

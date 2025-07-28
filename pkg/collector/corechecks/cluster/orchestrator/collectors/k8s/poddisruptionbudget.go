@@ -9,6 +9,8 @@ package k8s
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+
 	"k8s.io/apimachinery/pkg/labels"
 	v1policyinformer "k8s.io/client-go/informers/policy/v1"
 	v1policylister "k8s.io/client-go/listers/policy/v1"
@@ -52,6 +54,7 @@ func NewPodDisruptionBudgetCollectorVersion(metadataAsTags utils.MetadataAsTags)
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 podDisruptionBudgetName,
+			Kind:                                 kubernetes.PodDisruptionBudgetKind,
 			NodeType:                             orchestrator.K8sPodDisruptionBudget,
 			Version:                              podDisruptionBudgetVersion,
 			LabelsAsTags:                         labelsAsTags,
@@ -92,7 +95,7 @@ func (c *PodDisruptionBudgetCollector) Run(rcfg *collectors.CollectorRunConfig) 
 func (c *PodDisruptionBudgetCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -100,7 +103,7 @@ func (c *PodDisruptionBudgetCollector) Process(rcfg *collectors.CollectorRunConf
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

@@ -12,10 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// LocalProcessCollectorIsEnabled returns whether the local process collector is enabled
+// ProcessLanguageCollectorIsEnabled returns whether the local process collector is enabled
 // based on agent flavor and config values. This prevents any conflict between the process collectors
 // and unnecessary data collection. Always returns false outside of linux.
-func LocalProcessCollectorIsEnabled() bool {
+func ProcessLanguageCollectorIsEnabled() bool {
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return false
 	}

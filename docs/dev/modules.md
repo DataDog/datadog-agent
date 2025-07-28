@@ -46,7 +46,7 @@ After you have refactored, if needed, and listed the packages that you want to e
         - ./comp
     ```
 
-1. Run `inv modules.go-work` to generate the updated `go.work` file.
+1. Run `dda inv modules.go-work` to generate the updated `go.work` file.
 
 ## Go nested modules tooling
 
@@ -86,4 +86,4 @@ modules:
 `default` is for modules with default attribute values and `ignored` for ignored modules.
 To create a special configuration, the attributes of `GoModule` can be overriden. Attributes details are located within the `GoModule` class.
 
-This file is linted with `inv modules.validate [--fix-format]`.
+This file is linted with `dda inv modules.validate [--fix-format]`.

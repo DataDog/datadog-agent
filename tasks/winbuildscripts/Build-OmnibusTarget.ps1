@@ -5,9 +5,6 @@ Builds an Omnibus project for Windows.
 .DESCRIPTION
 This script builds an Omnibus Project for Windows, with options to configure the build environment.
 
-.PARAMETER ReleaseVersion
-Specifies the release version of the build. Default is the value of the environment variable RELEASE_VERSION.
-
 .PARAMETER Flavor
 Specifies the flavor of the agent. Default is the value of the environment variable AGENT_FLAVOR.
 
@@ -40,7 +37,6 @@ param(
     [bool] $BuildOutOfSource = $false,
     [nullable[bool]] $CheckGoVersion,
     [bool] $InstallDeps = $true,
-    [string] $ReleaseVersion = $env:RELEASE_VERSION,
     [string] $TargetProject = $env:OMNIBUS_TARGET
 )
 
@@ -54,11 +50,6 @@ Invoke-BuildScript `
     $inv_args = @(
         "--skip-deps"
     )
-    if ($ReleaseVersion) {
-        $inv_args += "--release-version"
-        $inv_args += $ReleaseVersion
-        $env:RELEASE_VERSION=$ReleaseVersion
-    }
 
     if ($TargetProject) {
         $inv_args += "--target-project"
@@ -70,8 +61,8 @@ Invoke-BuildScript `
         exit 1
     }
 
-    Write-Host "inv -e omnibus.build $inv_args"
-    inv -e omnibus.build @inv_args
+    Write-Host "dda inv -- -e omnibus.build $inv_args"
+    dda inv -- -e omnibus.build @inv_args
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build the agent package"
         exit 1
@@ -84,7 +75,7 @@ Invoke-BuildScript `
 
     if ($BuildOutOfSource) {
         # Copy the resulting package to the mnt directory
-        mkdir C:\mnt\omnibus\pkg -Force -ErrorAction Stop | Out-Null
-        Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg" -Force -ErrorAction Stop
+        mkdir C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID -Force -ErrorAction Stop | Out-Null
+        Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID" -Force -ErrorAction Stop
     }
 }

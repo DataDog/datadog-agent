@@ -12,13 +12,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	// Importing the discovery package to register the expvar
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestStatus(t *testing.T) {
@@ -100,8 +101,8 @@ func TestStatusWithProfileError(t *testing.T) {
   foobar: error1
 error2`
 
-			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			assert.Contains(t, output, expectedResult)
 
 			fmt.Printf("%s", b.String())
@@ -119,8 +120,8 @@ error2
   </span>
 </div>`
 
-			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			assert.Contains(t, output, expectedResult)
 
 			fmt.Printf("%s", b.String())
@@ -150,10 +151,28 @@ func TestStatusAutodiscoveryMultipleSubnets(t *testing.T) {
 	}
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("network_devices.autodiscovery", snmp.ListenerConfig{
-		Configs: []snmp.Config{mockSnmpConfig1, mockSnmpConfig2, mockSnmpConfig3},
-		Workers: 1,
-	})
+	mockListenerConfig := map[string]interface{}{
+		"configs": []interface{}{
+			map[string]interface{}{
+				"network":   mockSnmpConfig1.Network,
+				"community": mockSnmpConfig1.Community,
+				"port":      mockSnmpConfig1.Port,
+			},
+			map[string]interface{}{
+				"network":   mockSnmpConfig2.Network,
+				"community": mockSnmpConfig2.Community,
+				"port":      mockSnmpConfig2.Port,
+			},
+			map[string]interface{}{
+				"network":   mockSnmpConfig3.Network,
+				"community": mockSnmpConfig3.Community,
+				"port":      mockSnmpConfig3.Port,
+			},
+		},
+		"workers": 1,
+	}
+
+	mockConfig.SetWithoutSource("network_devices.autodiscovery", mockListenerConfig)
 
 	listenerConfig, _ := snmp.NewListenerConfig()
 
@@ -205,8 +224,8 @@ func TestStatusAutodiscoveryMultipleSubnets(t *testing.T) {
   No IPs found in the subnet.
 `
 
-			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			assert.Contains(t, output, expectedResult)
 
 			fmt.Printf("%s", b.String())
@@ -233,8 +252,8 @@ func TestStatusAutodiscoveryMultipleSubnets(t *testing.T) {
 </span>
 </div>`
 
-			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			assert.Contains(t, output, expectedResult)
 
 			fmt.Printf("%s", b.String())
@@ -303,9 +322,9 @@ func TestStatusLegacyDiscoveryMultipleSubnets(t *testing.T) {
   No IPs found in the subnet.`,
 			}
 
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			for _, expectedTextOutput := range expectedTextOutputs {
-				expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
 				assert.Contains(t, output, expectedResult)
 			}
 
@@ -326,9 +345,9 @@ func TestStatusLegacyDiscoveryMultipleSubnets(t *testing.T) {
 				`Subnet 127.0.10.1/30 scanned.</br>
     Found no IPs in the subnet.</br>`,
 			}
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			for _, expectedTextOutput := range expectedTextOutputs {
-				expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
 				assert.Contains(t, output, expectedResult)
 			}
 			fmt.Printf("%s", b.String())

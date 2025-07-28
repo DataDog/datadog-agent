@@ -7,17 +7,16 @@ package fetch
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
@@ -39,9 +38,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSi
 				retValues[columnOid] = instanceOids
 				continue
 			}
-			for oid, value := range instanceOids {
-				retValues[columnOid][oid] = value
-			}
+			maps.Copy(retValues[columnOid], instanceOids)
 		}
 	}
 	return retValues, nil

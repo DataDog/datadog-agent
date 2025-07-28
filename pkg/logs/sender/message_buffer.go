@@ -9,9 +9,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// MessageBuffer accumulates messages to a buffer until the max capacity is reached.
+// MessageBuffer accumulates message metadata to a buffer until the max capacity is reached.
 type MessageBuffer struct {
-	messageBuffer    []*message.Message
+	messageBuffer    []*message.MessageMetadata
 	contentSize      int
 	contentSizeLimit int
 }
@@ -19,7 +19,7 @@ type MessageBuffer struct {
 // NewMessageBuffer returns a new MessageBuffer.
 func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int) *MessageBuffer {
 	return &MessageBuffer{
-		messageBuffer:    make([]*message.Message, 0, batchSizeLimit),
+		messageBuffer:    make([]*message.MessageMetadata, 0, batchSizeLimit),
 		contentSizeLimit: contentSizeLimit,
 	}
 }
@@ -29,7 +29,8 @@ func NewMessageBuffer(batchSizeLimit int, contentSizeLimit int) *MessageBuffer {
 func (p *MessageBuffer) AddMessage(message *message.Message) bool {
 	contentSize := len(message.GetContent())
 	if len(p.messageBuffer) < cap(p.messageBuffer) && p.contentSize+contentSize <= p.contentSizeLimit {
-		p.messageBuffer = append(p.messageBuffer, message)
+		meta := message.MessageMetadata // Copy metadata instead of taking reference
+		p.messageBuffer = append(p.messageBuffer, &meta)
 		p.contentSize += contentSize
 		return true
 	}
@@ -39,12 +40,12 @@ func (p *MessageBuffer) AddMessage(message *message.Message) bool {
 // Clear reinitializes the buffer.
 func (p *MessageBuffer) Clear() {
 	// create a new buffer to avoid race conditions
-	p.messageBuffer = make([]*message.Message, 0, cap(p.messageBuffer))
+	p.messageBuffer = make([]*message.MessageMetadata, 0, cap(p.messageBuffer))
 	p.contentSize = 0
 }
 
 // GetMessages returns the messages stored in the buffer.
-func (p *MessageBuffer) GetMessages() []*message.Message {
+func (p *MessageBuffer) GetMessages() []*message.MessageMetadata {
 	return p.messageBuffer
 }
 

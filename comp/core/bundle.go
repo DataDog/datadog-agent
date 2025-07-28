@@ -45,5 +45,6 @@ func Bundle() fxutil.BundleOptions {
 		sysprobeconfigimpl.Module(),
 		telemetryimpl.Module(),
 		hostnameimpl.Module(),
-		pidimpl.Module()) // You must supply pidimpl.NewParams in order to use it
+		pidimpl.Module(), // You must supply pidimpl.NewParams in order to use it
+	)
 }

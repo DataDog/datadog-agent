@@ -50,7 +50,7 @@ type stickyLock struct {
 
 // PythonStatsEntry are entries for specific object type memory usage
 //
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type PythonStatsEntry struct {
 	Reference string
 	NObjects  int
@@ -59,7 +59,7 @@ type PythonStatsEntry struct {
 
 // PythonStats contains python memory statistics
 //
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type PythonStats struct {
 	Type     string
 	NObjects int
@@ -204,9 +204,7 @@ func GetPythonIntegrationList() ([]string, error) {
 	return ddPythonPackages, nil
 }
 
-// GetIntepreterMemoryUsage collects a python interpreter memory usage snapshot
-//
-//nolint:revive // TODO(AML) Fix revive linter
+// GetPythonInterpreterMemoryUsage collects a python interpreter memory usage snapshot
 func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 	glock, err := newStickyLock()
 	if err != nil {

@@ -15,7 +15,6 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,6 +40,8 @@ type safeConfig struct {
 	envKeyReplacer *strings.Replacer
 
 	notificationReceivers []model.NotificationReceiver
+	notificationChannel   chan model.ConfigChangeNotification
+	sequenceID            uint64
 
 	// Proxy settings
 	proxies *model.Proxy
@@ -55,6 +56,9 @@ type safeConfig struct {
 
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
+
+	// warnings contains the warnings that were logged during the configuration loading
+	warnings []error
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -66,10 +70,21 @@ func (c *safeConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
-func getCallerLocation(nbStack int) string {
-	_, file, line, _ := runtime.Caller(nbStack + 1)
-	fileParts := strings.Split(file, "DataDog/datadog-agent/")
-	return fmt.Sprintf("%s:%d", fileParts[len(fileParts)-1], line)
+func (c *safeConfig) sendNotification(key string, source model.Source, oldValue, newValue interface{}, sequenceID uint64) {
+	if len(c.notificationReceivers) == 0 {
+		return
+	}
+
+	notification := model.ConfigChangeNotification{
+		Key:           key,
+		Source:        source,
+		PreviousValue: oldValue,
+		NewValue:      newValue,
+		SequenceID:    sequenceID,
+		Receivers:     slices.Clone(c.notificationReceivers),
+	}
+
+	c.notificationChannel <- notification
 }
 
 // Set wraps Viper for concurrent access
@@ -79,10 +94,8 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 		return
 	}
 
-	// modify the config then release the lock to avoid deadlocks while notifying
-	var receivers []model.NotificationReceiver
 	c.Lock()
-
+	defer c.Unlock()
 	oldValue := c.Viper.Get(key)
 
 	// First we check if the layer changed
@@ -93,7 +106,6 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	} else {
 		// nothing changed:w
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
-		c.Unlock()
 		return
 	}
 
@@ -102,18 +114,13 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	latestValue := c.Viper.Get(key)
 	if !reflect.DeepEqual(oldValue, latestValue) {
 		log.Debugf("Updating setting '%s' for source '%s' with new value. notifying %d listeners", key, source, len(c.notificationReceivers))
-		// if the value has not changed, do not duplicate the slice so that no callback is called
-		receivers = slices.Clone(c.notificationReceivers)
 	} else {
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
+		return
 	}
-	c.Unlock()
-
-	// notifying all receiver about the updated setting
-	for _, receiver := range receivers {
-		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
-		receiver(key, oldValue, latestValue)
-	}
+	// Increment the sequence ID only if the value has changed
+	c.sequenceID++
+	c.sendNotification(key, source, oldValue, latestValue, c.sequenceID)
 }
 
 // SetWithoutSource sets the given value using source Unknown
@@ -131,22 +138,15 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 
 // UnsetForSource unsets a config entry for a given source
 func (c *safeConfig) UnsetForSource(key string, source model.Source) {
-	// modify the config then release the lock to avoid deadlocks while notifying
-	var receivers []model.NotificationReceiver
 	c.Lock()
+	defer c.Unlock()
 	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
-	if previousValue != nil {
-		// if the value has not changed, do not duplicate the slice so that no callback is called
-		receivers = slices.Clone(c.notificationReceivers)
-	}
-	c.Unlock()
-
-	// notifying all receiver about the updated setting
-	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue)
+	if previousValue != nil && !reflect.DeepEqual(previousValue, newValue) {
+		c.sequenceID++
+		c.sendNotification(key, source, previousValue, newValue, c.sequenceID)
 	}
 }
 
@@ -201,8 +201,8 @@ func (c *safeConfig) checkKnownKey(key string) {
 	c.unknownKeys[key] = struct{}{}
 	c.Unlock()
 
-	// log without holding the lock
-	log.Warnf("config key %v is unknown", key)
+	// log without holding the lock. We use stack depth +3 to use the caller function location instead of checkKnownKey
+	log.WarnfStackDepth(3, "config key %q is unknown", key)
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
@@ -222,34 +222,39 @@ func (c *safeConfig) BuildSchema() {
 	// pass
 }
 
-// ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
-func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
+func (c *safeConfig) setEnvTransformer(key string, fn func(string) interface{}) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+
+	// We need to set it on both the final config and the env layer. If not, when setting something at runtime the
+	// mergeViperInstances will pull the value from SourceEnvVar and overwrites it in c.Viper changing the type.
+	//
+	// This is yet another edge case of working with Viper, this edge cases is already handled by the nodetremodel
+	// replacement.
+	c.configSources[model.SourceEnvVar].SetEnvKeyTransformer(key, fn)
+	c.Viper.SetEnvKeyTransformer(key, fn)
+}
+
+// ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
+func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
+	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
 // ParseEnvAsMapStringInterface registers a transformer function to parse an an environment variables as a
 // map[string]interface{}.
 func (c *safeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
 // ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
 func (c *safeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
 // ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
 // []interface{}.
 func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
 // IsSet wraps Viper for concurrent access
@@ -680,6 +685,13 @@ func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
+// AllSettingsWithSequenceID returns the settings and the sequence ID.
+func (c *safeConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+	c.RLock()
+	defer c.RUnlock()
+	return c.Viper.AllSettings(), c.sequenceID
+}
+
 // AddConfigPath wraps Viper for concurrent access
 func (c *safeConfig) AddConfigPath(in string) {
 	c.Lock()
@@ -775,20 +787,28 @@ func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars .
 }
 
 func (c *safeConfig) Warnings() *model.Warnings {
-	return nil
+	return &model.Warnings{Errors: c.warnings}
 }
 
 func (c *safeConfig) Object() model.Reader {
 	return c
 }
 
-// NewConfig returns a new Config object.
+// NewConfig returns a new viper config
+// Deprecated: instead use pkg/config/create.NewConfig or NewViperConfig
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+	return NewViperConfig(name, envPrefix, envKeyReplacer)
+}
+
+// NewViperConfig returns a new Config object.
+func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := safeConfig{
-		Viper:         viper.New(),
-		configSources: map[model.Source]*viper.Viper{},
-		configEnvVars: map[string]struct{}{},
-		unknownKeys:   map[string]struct{}{},
+		Viper:               viper.New(),
+		configSources:       map[model.Source]*viper.Viper{},
+		sequenceID:          0,
+		configEnvVars:       map[string]struct{}{},
+		unknownKeys:         map[string]struct{}{},
+		notificationChannel: make(chan model.ConfigChangeNotification, 1000),
 	}
 
 	// load one Viper instance per source of setting change
@@ -801,11 +821,13 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 	config.SetEnvPrefix(envPrefix)
 	config.SetEnvKeyReplacer(envKeyReplacer)
 
+	go config.processNotifications()
+
 	return &config
 }
 
 // Stringify stringifies the config, but only for nodetremodel with the test build tag
-func (c *safeConfig) Stringify(_ model.Source) string {
+func (c *safeConfig) Stringify(_ model.Source, _ ...model.StringifyOption) string {
 	return "safeConfig{...}"
 }
 
@@ -838,4 +860,22 @@ func (c *safeConfig) ExtraConfigFilesUsed() []string {
 	res := make([]string, len(c.extraConfigFilePaths))
 	copy(res, c.extraConfigFilePaths)
 	return res
+}
+
+func (c *safeConfig) SetTestOnlyDynamicSchema(_ bool) {
+}
+
+func (c *safeConfig) GetSequenceID() uint64 {
+	c.RLock()
+	defer c.RUnlock()
+	return c.sequenceID
+}
+
+func (c *safeConfig) processNotifications() {
+	for notification := range c.notificationChannel {
+		// notifying all receivers about the updated setting
+		for _, receiver := range notification.Receivers {
+			receiver(notification.Key, notification.Source, notification.PreviousValue, notification.NewValue, notification.SequenceID)
+		}
+	}
 }

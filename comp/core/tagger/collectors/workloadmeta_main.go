@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -37,7 +38,7 @@ const (
 	deploymentSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
 	gpuSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
 
-	clusterTagNamePrefix = "kube_cluster_name"
+	clusterTagNamePrefix = tags.KubeClusterName
 )
 
 // CollectorPriorities holds collector priorities
@@ -57,7 +58,7 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
-	staticTags                    map[string][]string // for ECS and EKS Fargate
+	staticTags                    map[string][]string // for ECS, EKS Fargate, and DCA
 	k8sResourcesAnnotationsAsTags map[string]map[string]string
 	k8sResourcesLabelsAsTags      map[string]map[string]string
 	globContainerLabels           map[string]glob.Glob
@@ -105,15 +106,12 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 			if c.staticTags == nil {
 				c.staticTags = make(map[string][]string, 1)
 			}
-			if _, exists := c.staticTags[clusterTagNamePrefix]; !exists {
-				c.staticTags[clusterTagNamePrefix] = []string{}
-			}
-			c.staticTags[clusterTagNamePrefix] = append(c.staticTags[clusterTagNamePrefix], cluster)
+			c.staticTags[clusterTagNamePrefix] = []string{cluster}
 		}
 	}
 	// These are the global tags that should only be applied to the internal global entity on DCA.
 	// Whereas the static tags are applied to containers and pods directly as well.
-	globalEnvTags := tagutil.GetGlobalEnvTags(datadogConfig)
+	globalEnvTags := tagutil.GetClusterAgentStaticTags(datadogConfig)
 
 	tagList := taglist.NewTagList()
 

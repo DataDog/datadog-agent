@@ -16,6 +16,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
@@ -54,6 +55,7 @@ func NewUnassignedPodCollector(cfg config.Component, store workloadmeta.Componen
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 podName,
+			Kind:                                 kubernetes.PodKind,
 			NodeType:                             orchestrator.K8sPod,
 			Version:                              podVersion,
 			LabelsAsTags:                         labelsAsTags,
@@ -94,7 +96,7 @@ func (c *UnassignedPodCollector) Run(rcfg *collectors.CollectorRunConfig) (*coll
 func (c *UnassignedPodCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -102,7 +104,7 @@ func (c *UnassignedPodCollector) Process(rcfg *collectors.CollectorRunConfig, li
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

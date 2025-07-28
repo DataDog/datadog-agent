@@ -31,10 +31,16 @@ type Opts struct {
 	TTYFallbackEnabled bool
 	// EBPFLessEnabled use ebpfless source
 	EBPFLessEnabled bool
+	// DNSPort allows to change the DNS port where the events are captured from
+	DNSPort uint16
 }
 
 func (o *Opts) normalize() {
 	if o.StatsdClient == nil {
 		o.StatsdClient = &statsd.NoOpClient{}
+	}
+
+	if o.DNSPort == 0 {
+		o.DNSPort = 53
 	}
 }

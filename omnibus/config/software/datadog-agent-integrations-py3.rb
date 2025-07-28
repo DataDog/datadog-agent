@@ -18,12 +18,10 @@ python_version = "3.12"
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python#{python_version}/site-packages/.libsaerospike"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/aerospike.libs"
-whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg2"
+whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg_binary.libs"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
-
-always_build true
 
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
@@ -88,7 +86,7 @@ build do
     when linux_target?
       arm_target? ? "linux-aarch64" : "linux-x86_64"
     when osx_target?
-      "macos-x86_64"
+      arm_target? ? "macos-aarch64" : "macos-x86_64"
     when windows_target?
       "windows-x86_64"
   end + "_#{python_version}.txt"
@@ -100,7 +98,7 @@ build do
   build_deps_dir = windows_safe_path(project_dir, ".build_deps")
   # We download build dependencies to make them available without an index when installing integrations
   command "#{python} -m pip download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
-  command "#{python} -m pip download --dest #{build_deps_dir} setuptools==66.1.1", :env => pre_build_env # Version from ./setuptools3.rb
+  command "#{python} -m pip download --dest #{build_deps_dir} setuptools==75.1.0", :env => pre_build_env # Version from ./setuptools3.rb
   build_env = {
     "PIP_FIND_LINKS" => build_deps_dir,
     "PIP_CONFIG_FILE" => pip_config_file,
@@ -132,15 +130,15 @@ build do
     tasks_dir_in = windows_safe_path(Dir.pwd)
     # Collect integrations to install
     checks_to_install = (
-      shellout! "inv agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
+      shellout! "dda inv -- agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
                 :cwd => tasks_dir_in
     ).stdout.split()
     # Retrieving integrations from cache
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
-    cache_branch = (shellout! "inv release.get-release-json-value base_branch --no-worktree", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
+    cache_branch = (shellout! "dda inv -- release.get-release-json-value base_branch --no-worktree", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
     if cache_bucket != ''
       mkdir cached_wheels_dir
-      shellout! "inv -e agent.get-integrations-from-cache " \
+      shellout! "dda inv -- -e agent.get-integrations-from-cache " \
                 "--python 3 --bucket #{cache_bucket} " \
                 "--branch #{cache_branch || 'main'} " \
                 "--integrations-dir #{windows_safe_path(project_dir)} " \
@@ -188,7 +186,7 @@ build do
         end
         shellout! "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
-          shellout! "inv -e agent.upload-integration-to-cache " \
+          shellout! "dda inv -- -e agent.upload-integration-to-cache " \
                     "--python 3 --bucket #{cache_bucket} " \
                     "--branch #{cache_branch} " \
                     "--integrations-dir #{windows_safe_path(project_dir)} " \
@@ -237,12 +235,16 @@ build do
     'Cryptodome/SelfTest',
     'gssapi/tests',
     'keystoneauth1/tests',
+    'lazy_loader/tests',
     'openstack/tests',
     'os_service_types/tests',
     'pbr/tests',
     'pkg_resources/tests',
+    'pip/_vendor/colorama/tests',
     'psutil/tests',
+    'requests_unixsocket/tests',
     'securesystemslib/_vendor/ed25519/test_data',
+    'setuptools/_distutils/compilers/C/tests',
     'setuptools/_distutils/tests',
     'setuptools/tests',
     'simplejson/tests',
@@ -251,6 +253,7 @@ build do
     'test', # cm-client
     'vertica_python/tests',
     'websocket/tests',
+    'win32com/test',
   ]
   test_folders.each do |test_folder|
     delete "#{site_packages_path}/#{test_folder}/"
@@ -285,20 +288,27 @@ build do
         FileUtils.rm([libssl_match, libcrypto_match])
       end
     elsif windows_target?
-      dll_folder = File.join(install_dir, "embedded3", "DLLS")
       # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
-      # We first need to copy some files around (we need the .lib files for building)
-      copy File.join(install_dir, "embedded3", "lib", "libssl.dll.a"),
+      lib_folder = File.join(install_dir, "embedded3", "lib")
+      dll_folder = File.join(install_dir, "embedded3", "DLLS")
+      include_folder = File.join(install_dir, "embedded3", "include")
+
+      # We first need create links to some files around such that cryptography finds .lib files
+      link File.join(lib_folder, "libssl.dll.a"),
            File.join(dll_folder, "libssl-3-x64.lib")
-      copy File.join(install_dir, "embedded3", "lib", "libcrypto.dll.a"),
+      link File.join(lib_folder, "libcrypto.dll.a"),
            File.join(dll_folder, "libcrypto-3-x64.lib")
 
-      command "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography cryptography==43.0.1",
-              env: {
-                "OPENSSL_LIB_DIR" => dll_folder,
-                "OPENSSL_INCLUDE_DIR" => File.join(install_dir, "embedded3", "include"),
-                "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
-              }
+      block "Build cryptopgraphy library against Agent's OpenSSL" do
+        cryptography_requirement = (shellout! "#{python} -m pip list --format=freeze").stdout[/cryptography==.*?$/]
+
+        shellout! "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
+                env: {
+                  "OPENSSL_LIB_DIR" => dll_folder,
+                  "OPENSSL_INCLUDE_DIR" => include_folder,
+                  "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
+                }
+      end
       # Python extensions on windows require this to find their DLL dependencies,
       # we abuse the `.pth` loading system to inject it
       block "Inject dll path for Python extensions" do
@@ -309,10 +319,19 @@ build do
     end
   end
 
+  # These are files containing Python type annotations which aren't used at runtime
+  libraries = [
+    'krb5',
+    'Cryptodome',
+    'ddtrace',
+    'pyVmomi',
+    'gssapi',
+  ]
   block "Remove type annotations files" do
-    # These are files containing Python type annotations which aren't used at runtime
-    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/*.pyi"))
-    FileUtils.rm_f(Dir.glob("#{site_packages_path}/**/py.typed"))
+    libraries.each do |library|
+      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/*.pyi"))
+      FileUtils.rm_f(Dir.glob("#{site_packages_path}/#{library}/**/py.typed"))
+    end
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent

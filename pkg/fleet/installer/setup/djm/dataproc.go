@@ -7,39 +7,29 @@
 package djm
 
 import (
-	"cloud.google.com/go/compute/metadata"
 	"context"
 	"fmt"
 	"os"
 
+	"cloud.google.com/go/compute/metadata"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	dataprocInjectorVersion   = "0.26.0-1"
-	dataprocJavaTracerVersion = "1.45.2-1"
-	dataprocAgentVersion      = "7.62.2-1"
+	dataprocInjectorVersion   = "0.43.1-1"
+	dataprocJavaTracerVersion = "1.51.1-1"
+	dataprocAgentVersion      = "7.68.2-1"
 )
 
 var (
-	tracerEnvConfigDataproc = []common.InjectTracerConfigEnvVar{
-		{
-			Key:   "DD_DATA_JOBS_ENABLED",
-			Value: "true",
-		},
-		{
-			Key:   "DD_INTEGRATIONS_ENABLED",
-			Value: "false",
-		},
-		{
-			Key:   "DD_DATA_JOBS_COMMAND_PATTERN",
-			Value: ".*org.apache.spark.deploy.*",
-		},
-		{
-			Key:   "DD_SPARK_APP_NAME_AS_SERVICE",
-			Value: "true",
-		},
+	tracerConfigDataproc = config.APMConfigurationDefault{
+		DataJobsEnabled:               config.BoolToPtr(true),
+		IntegrationsEnabled:           config.BoolToPtr(false),
+		DataJobsCommandPattern:        ".*org.apache.spark.deploy.*",
+		DataJobsSparkAppNameAsService: config.BoolToPtr(true),
 	}
 )
 
@@ -60,7 +50,13 @@ func SetupDataproc(s *common.Setup) error {
 	}
 	s.Config.DatadogYAML.Hostname = hostname
 	s.Config.DatadogYAML.DJM.Enabled = true
-	s.Config.InjectTracerYAML.AdditionalEnvironmentVariables = tracerEnvConfigDataproc
+	if os.Getenv("DD_TRACE_DEBUG") == "true" {
+		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
+		tracerConfigDataproc.TraceDebug = config.BoolToPtr(true)
+	}
+	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
+		Default: tracerConfigDataproc,
+	}
 
 	// Ensure tags are always attached with the metrics
 	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
@@ -82,7 +78,7 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 	if err != nil {
 		return "", "", err
 	}
-	setHostTag(s, "cluster_id", clusterID)
+	setClearHostTag(s, "cluster_id", clusterID)
 	setHostTag(s, "dataproc_cluster_id", clusterID)
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
@@ -94,8 +90,7 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 	if dataprocRole == "Master" {
 		isMaster = "true"
 	}
-	setHostTag(s, "is_master_node", isMaster)
-	s.Span.SetTag("host."+"is_master_node", isMaster)
+	setClearHostTag(s, "is_master_node", isMaster)
 
 	clusterName, err := metadataClient.InstanceAttributeValueWithContext(ctx, "dataproc-cluster-name")
 	if err != nil {
@@ -103,6 +98,7 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 		return isMaster, clusterID, nil
 	}
 	setHostTag(s, "cluster_name", clusterName)
+	addCustomHostTags(s)
 
 	return isMaster, clusterName, nil
 }

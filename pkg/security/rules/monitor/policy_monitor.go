@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -35,13 +36,6 @@ const (
 	policyMetricRate = 30 * time.Second
 )
 
-// policy describes policy related information
-type policy struct {
-	name    string
-	source  string
-	version string
-}
-
 // ruleStatus defines status of rules
 type ruleStatus = map[eval.RuleID]string
 
@@ -50,7 +44,7 @@ type PolicyMonitor struct {
 	sync.RWMutex
 
 	statsdClient         statsd.ClientInterface
-	policies             []*policy
+	policies             []*PolicyState
 	rules                ruleStatus
 	perRuleMetricEnabled bool
 }
@@ -60,24 +54,20 @@ func (pm *PolicyMonitor) SetPolicies(policies []*PolicyState) {
 	pm.Lock()
 	defer pm.Unlock()
 
-	pm.policies = make([]*policy, 0, len(policies))
 	if pm.perRuleMetricEnabled {
 		pm.rules = make(ruleStatus)
 	}
 
 	for _, p := range policies {
-		pm.policies = append(pm.policies, &policy{
-			name:    p.Name,
-			source:  p.Source,
-			version: p.Version,
-		})
-
 		if pm.perRuleMetricEnabled {
 			for _, rule := range p.Rules {
 				pm.rules[eval.RuleID(rule.ID)] = rule.Status
 			}
 		}
+		p.Rules = nil // Clear rules to avoid sending them in heartbeat events
 	}
+
+	pm.policies = policies
 }
 
 // ReportHeartbeatEvent sends HeartbeatEvents reporting the current set of policies
@@ -106,9 +96,9 @@ func (pm *PolicyMonitor) Start(ctx context.Context) {
 				pm.RLock()
 				for _, p := range pm.policies {
 					tags := []string{
-						"policy_name:" + p.name,
-						"policy_source:" + p.source,
-						"policy_version:" + p.version,
+						"policy_name:" + p.Name,
+						"policy_source:" + p.Source,
+						"policy_version:" + p.Version,
 						"agent_version:" + version.AgentVersion,
 					}
 
@@ -151,37 +141,66 @@ type RuleSetLoadedReport struct {
 }
 
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
-func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventSender, statsdClient statsd.ClientInterface, policies []*PolicyState) {
-	rule, event := newRuleSetLoadedEvent(acc, policies)
-
+func ReportRuleSetLoaded(bundle RulesetLoadedEventBundle, sender events.EventSender, statsdClient statsd.ClientInterface) {
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}
 
-	sender.SendEvent(rule, event, nil, "")
+	sender.SendEvent(bundle.Rule, bundle.Event, nil, "")
+}
+
+// PolicyMetadata contains the basic information about a policy
+type PolicyMetadata struct {
+	// Name is the name of the policy
+	Name string `json:"name"`
+	// Version is the version of the policy
+	Version string `json:"version,omitempty"`
+	// Source is the source of the policy
+	Source string `json:"source"`
 }
 
 // RuleState defines a loaded rule
 // easyjson:json
 type RuleState struct {
-	ID          string            `json:"id"`
-	Version     string            `json:"version,omitempty"`
-	Expression  string            `json:"expression"`
-	Status      string            `json:"status"`
-	Message     string            `json:"message,omitempty"`
-	Tags        map[string]string `json:"tags,omitempty"`
-	ProductTags []string          `json:"product_tags,omitempty"`
-	Actions     []RuleAction      `json:"actions,omitempty"`
-	ModifiedBy  []*PolicyState    `json:"modified_by,omitempty"`
+	ID                     string            `json:"id"`
+	Version                string            `json:"version,omitempty"`
+	Expression             string            `json:"expression"`
+	Status                 string            `json:"status"`
+	Message                string            `json:"message,omitempty"`
+	FilterType             string            `json:"filter_type,omitempty"`
+	AgentVersionConstraint string            `json:"agent_version,omitempty"`
+	Filters                []string          `json:"filters,omitempty"`
+	Tags                   map[string]string `json:"tags,omitempty"`
+	ProductTags            []string          `json:"product_tags,omitempty"`
+	Actions                []RuleAction      `json:"actions,omitempty"`
+	ModifiedBy             []*PolicyMetadata `json:"modified_by,omitempty"`
 }
+
+// PolicyStatus defines the status of a policy
+type PolicyStatus string
+
+const (
+	// PolicyStatusLoaded indicates that the policy was loaded successfully
+	PolicyStatusLoaded PolicyStatus = "loaded"
+	// PolicyStatusPartiallyFiltered indicates that some rules in the policy were filtered out
+	PolicyStatusPartiallyFiltered PolicyStatus = "partially_filtered"
+	// PolicyStatusPartiallyLoaded indicates that some rules in the policy couldn't be loaded
+	PolicyStatusPartiallyLoaded PolicyStatus = "partially_loaded"
+	// PolicyStatusFullyRejected indicates that all rules in the policy couldn't be loaded
+	PolicyStatusFullyRejected PolicyStatus = "fully_rejected"
+	// PolicyStatusFullyFiltered indicates that all rules in the policy were filtered out
+	PolicyStatusFullyFiltered PolicyStatus = "fully_filtered"
+	// PolicyStatusError indicates that the policy was not loaded due to an error
+	PolicyStatusError PolicyStatus = "error"
+)
 
 // PolicyState is used to report policy was loaded
 // easyjson:json
 type PolicyState struct {
-	Name    string       `json:"name"`
-	Version string       `json:"version"`
-	Source  string       `json:"source"`
-	Rules   []*RuleState `json:"rules"`
+	PolicyMetadata
+	Status  PolicyStatus `json:"status"`
+	Message string       `json:"message,omitempty"`
+	Rules   []*RuleState `json:"rules,omitempty"`
 }
 
 // RuleAction is used to report policy was loaded
@@ -192,6 +211,7 @@ type RuleAction struct {
 	Kill     *RuleKillAction `json:"kill,omitempty"`
 	Hash     *HashAction     `json:"hash,omitempty"`
 	CoreDump *CoreDumpAction `json:"coredump,omitempty"`
+	Log      *LogAction      `json:"log,omitempty"`
 }
 
 // HashAction is used to report 'hash' action
@@ -203,11 +223,17 @@ type HashAction struct {
 // RuleSetAction is used to report 'set' action
 // easyjson:json
 type RuleSetAction struct {
-	Name   string      `json:"name,omitempty"`
-	Value  interface{} `json:"value,omitempty"`
-	Field  string      `json:"field,omitempty"`
-	Append bool        `json:"append,omitempty"`
-	Scope  string      `json:"scope,omitempty"`
+	Name         string      `json:"name,omitempty"`
+	Value        interface{} `json:"value,omitempty"`
+	DefaultValue interface{} `json:"default_value,omitempty"`
+	Field        string      `json:"field,omitempty"`
+	Expression   string      `json:"expression,omitempty"`
+	Append       bool        `json:"append,omitempty"`
+	Scope        string      `json:"scope,omitempty"`
+	ScopeField   string      `json:"scope_field,omitempty"`
+	Size         int         `json:"size,omitempty"`
+	TTL          string      `json:"ttl,omitempty"`
+	Inherited    bool        `json:"inherited,omitempty"`
 }
 
 // RuleKillAction is used to report the 'kill' action
@@ -226,11 +252,20 @@ type CoreDumpAction struct {
 	NoCompression bool `json:"no_compression,omitempty"`
 }
 
+// LogAction is used to report the 'log' action
+// easyjson:json
+type LogAction struct {
+	Level   string `json:"level,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
 	events.CustomEventCommonFields
-	Policies []*PolicyState `json:"policies"`
+	Policies       []*PolicyState         `json:"policies"`
+	Filters        *kfilters.FilterReport `json:"filters,omitempty"`
+	MonitoredFiles []string               `json:"monitored_files,omitempty"`
 }
 
 // ToJSON marshal using json format
@@ -250,25 +285,36 @@ func (e HeartbeatEvent) ToJSON() ([]byte, error) {
 	return utils.MarshalEasyJSON(e)
 }
 
-// PolicyStateFromRule returns a policy state based on the rule definition
-func PolicyStateFromRule(rule *rules.PolicyRule) *PolicyState {
+// NewPolicyMetadata returns a new policy metadata object
+func NewPolicyMetadata(name, source, version string) *PolicyMetadata {
+	return &PolicyMetadata{
+		Name:    name,
+		Version: version,
+		Source:  source,
+	}
+}
+
+// NewPolicyState returns a policy state based on the policy info
+func NewPolicyState(name, source, version string, status PolicyStatus, message string) *PolicyState {
 	return &PolicyState{
-		Name:    rule.Policy.Name,
-		Version: rule.Policy.Def.Version,
-		Source:  rule.Policy.Source,
+		PolicyMetadata: *NewPolicyMetadata(name, source, version),
+		Status:         status,
+		Message:        message,
 	}
 }
 
 // RuleStateFromRule returns a rule state based on the given rule
-func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *RuleState {
+func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status string, message string) *RuleState {
 	ruleState := &RuleState{
-		ID:          rule.Def.ID,
-		Version:     rule.Policy.Def.Version,
-		Expression:  rule.Def.Expression,
-		Status:      status,
-		Message:     message,
-		Tags:        rule.Def.Tags,
-		ProductTags: rule.Def.ProductTags,
+		ID:                     rule.Def.ID,
+		Version:                rule.Policy.Version,
+		Expression:             rule.Def.Expression,
+		Status:                 status,
+		Message:                message,
+		Tags:                   rule.Def.Tags,
+		ProductTags:            rule.Def.ProductTags,
+		AgentVersionConstraint: rule.Def.AgentVersionConstraint,
+		Filters:                rule.Def.Filters,
 	}
 
 	for _, action := range rule.Actions {
@@ -281,11 +327,19 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 			}
 		case action.Def.Set != nil:
 			ruleAction.Set = &RuleSetAction{
-				Name:   action.Def.Set.Name,
-				Value:  action.Def.Set.Value,
-				Field:  action.Def.Set.Field,
-				Append: action.Def.Set.Append,
-				Scope:  string(action.Def.Set.Scope),
+				Name:         action.Def.Set.Name,
+				Value:        action.Def.Set.Value,
+				DefaultValue: action.Def.Set.DefaultValue,
+				Field:        action.Def.Set.Field,
+				Expression:   action.Def.Set.Expression,
+				Append:       action.Def.Set.Append,
+				Scope:        string(action.Def.Set.Scope),
+				Size:         action.Def.Set.Size,
+				Inherited:    action.Def.Set.Inherited,
+				ScopeField:   action.Def.Set.ScopeField,
+			}
+			if action.Def.Set.TTL != nil {
+				ruleAction.Set.TTL = action.Def.Set.TTL.String()
 			}
 		case action.Def.Hash != nil:
 			ruleAction.Hash = &HashAction{
@@ -298,35 +352,53 @@ func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *R
 				Dentry:        action.Def.CoreDump.Dentry,
 				NoCompression: action.Def.CoreDump.NoCompression,
 			}
+		case action.Def.Log != nil:
+			ruleAction.Log = &LogAction{
+				Level:   action.Def.Log.Level,
+				Message: action.Def.Log.Message,
+			}
 		}
 		ruleState.Actions = append(ruleState.Actions, ruleAction)
 	}
 
-	for _, modRule := range rule.ModifiedBy {
-		ruleState.ModifiedBy = append(ruleState.ModifiedBy, PolicyStateFromRule(modRule))
+	for _, pInfo := range rule.ModifiedBy {
+		// The policy of an override rule is listed in both the UsedBy and ModifiedBy fields of the rule
+		// In that case we want to avoid reporting the ModifiedBy field for the rule with the override field
+		if policy.Equals(&pInfo) {
+			continue
+		}
+		ruleState.ModifiedBy = append(ruleState.ModifiedBy, NewPolicyMetadata(pInfo.Name, pInfo.Source, pInfo.Version))
+	}
+
+	if !rule.Accepted {
+		ruleState.FilterType = string(rule.FilterType)
+		switch rule.FilterType {
+		case rules.FilterTypeRuleID:
+			ruleState.Message = "rule ID was filtered out"
+		case rules.FilterTypeAgentVersion:
+			ruleState.Message = "this agent version doesn't support this rule"
+		case rules.FilterTypeRuleFilter:
+			ruleState.Message = "none of the rule filters matched the host or configuration of this agent"
+		}
 	}
 
 	return ruleState
 }
 
 // NewPoliciesState returns the states of policies and rules
-func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalPolicies bool) []*PolicyState {
+func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err *multierror.Error, includeInternalPolicies bool) []*PolicyState {
 	mp := make(map[string]*PolicyState)
 
 	var policyState *PolicyState
 	var exists bool
 
 	for _, rule := range rs.GetRules() {
-		if rule.Policy.IsInternal && !includeInternalPolicies {
-			continue
-		}
-
-		for _, policy := range rule.UsedBy {
-			if policyState, exists = mp[policy.Name]; !exists {
-				policyState = PolicyStateFromRule(rule.PolicyRule)
-				mp[policy.Name] = policyState
+		for pInfo := range rule.Policies(includeInternalPolicies) {
+			if policyState, exists = mp[pInfo.Name]; !exists {
+				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusLoaded, "")
+				mp[pInfo.Name] = policyState
 			}
-			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, pInfo, "loaded", ""))
 		}
 	}
 
@@ -334,19 +406,42 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-				if rerr.Rule.Policy.IsInternal && !includeInternalPolicies {
-					continue
+				for pInfo := range rerr.Rule.Policies(includeInternalPolicies) {
+					policyName := pInfo.Name
+					if policyState, exists = mp[policyName]; !exists {
+						// if the policy is not in the map, this means that no rule from this policy was loaded successfully
+						policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusFullyRejected, "")
+						mp[policyName] = policyState
+					} else if policyState.Status == PolicyStatusLoaded {
+						policyState.Status = PolicyStatusPartiallyLoaded
+					}
+					policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, pInfo, string(rerr.Type()), rerr.Err.Error()))
 				}
-				policyName := rerr.Rule.Policy.Name
-
-				if _, exists := mp[policyName]; !exists {
-					policyState = PolicyStateFromRule(rerr.Rule)
-					mp[policyName] = policyState
-				} else {
-					policyState = mp[policyName]
+			} else if pErr, ok := err.(*rules.ErrPolicyLoad); ok {
+				policyName := pErr.Name
+				if policyState, exists = mp[policyName]; !exists {
+					mp[policyName] = NewPolicyState(pErr.Name, pErr.Source, pErr.Version, PolicyStatusError, pErr.Err.Error())
+				} else { // this case shouldn't happen, but just in case it does let's update the policy status
+					policyState.Status = PolicyStatusError
+					if policyState.Message == "" {
+						policyState.Message = pErr.Err.Error()
+					}
 				}
-				policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, string(rerr.Type()), rerr.Err.Error()))
 			}
+		}
+	}
+
+	for _, rule := range filteredRules {
+		for pInfo := range rule.Policies(includeInternalPolicies) {
+			policyName := pInfo.Name
+			if policyState, exists = mp[policyName]; !exists {
+				// if the policy is not in the map, this means that no rule from this policy was loaded successfully
+				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusFullyFiltered, "")
+				mp[policyName] = policyState
+			} else if policyState.Status == PolicyStatusLoaded {
+				policyState.Status = PolicyStatusPartiallyFiltered
+			}
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule, pInfo, "filtered", ""))
 		}
 	}
 
@@ -358,31 +453,34 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	return policies
 }
 
-// newRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func newRuleSetLoadedEvent(acc *events.AgentContainerContext, policies []*PolicyState) (*rules.Rule, *events.CustomEvent) {
+// RulesetLoadedEventBundle is used to report a ruleset loaded event
+type RulesetLoadedEventBundle struct {
+	Rule  *rules.Rule
+	Event *events.CustomEvent
+}
+
+// NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
+func NewRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) RulesetLoadedEventBundle {
 	evt := RulesetLoadedEvent{
-		Policies: policies,
+		Policies:       policies,
+		Filters:        filterReport,
+		MonitoredFiles: extractMonitoredFilesAndFolders(rs),
 	}
 	evt.FillCustomEventCommonFields(acc)
 
-	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
-		events.NewCustomEvent(model.CustomEventType, evt)
+	return RulesetLoadedEventBundle{
+		Rule:  events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
+		Event: events.NewCustomEvent(model.CustomEventType, evt),
+	}
 }
 
 // newHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
-func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*policy) (*rules.Rule, []*events.CustomEvent) {
+func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*PolicyState) (*rules.Rule, []*events.CustomEvent) {
 	var evts []*events.CustomEvent
 
 	for _, policy := range policies {
-		var policyState = PolicyState{
-			Name:    policy.name,
-			Version: policy.version,
-			Source:  policy.source,
-			Rules:   nil, // The rules that have been loaded at startup are not reported in the heartbeat event
-		}
-
 		evt := HeartbeatEvent{
-			Policy: &policyState,
+			Policy: policy,
 		}
 		evt.FillCustomEventCommonFields(acc)
 		evts = append(evts, events.NewCustomEvent(model.CustomEventType, evt))
@@ -390,4 +488,85 @@ func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*policy) (
 
 	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc),
 		evts
+}
+
+// extractMonitoredFilesAndFolders extracts file and folder paths from rule expressions
+func extractMonitoredFilesAndFolders(rs *rules.RuleSet) []string {
+	if rs == nil {
+		return nil
+	}
+
+	pathsSet := make(map[string]bool)
+
+	// Get FIM events
+	fimEvents := model.GetEventTypePerCategory(model.FIMCategory)[model.FIMCategory]
+
+	// Check both file.name and file.path for each FIM event
+	for _, event := range fimEvents {
+		for _, suffix := range []string{".file.name", ".file.path"} {
+			field := event + suffix
+			// Get all rules that use this field
+			for _, rule := range rs.GetRules() {
+				values := rule.GetFieldValues(field)
+				for _, value := range values {
+					path, ok := value.Value.(string)
+					if !ok || path == "" {
+						continue
+					}
+
+					// Check if this value is used positively in the rule expression (NO: not in or !=)
+					if isPositivelyUsed(rule, field, value, rs) {
+						pathsSet[path] = true
+					}
+				}
+			}
+		}
+	}
+
+	if len(pathsSet) == 0 {
+		return nil
+	}
+
+	monitored := make([]string, 0, len(pathsSet))
+	for path := range pathsSet {
+		monitored = append(monitored, path)
+	}
+
+	return monitored
+}
+
+// isPositivelyUsed checks if a field value is used positively
+func isPositivelyUsed(rule *rules.Rule, field eval.Field, value eval.FieldValue, rs *rules.RuleSet) bool {
+	fakeEvent := rs.NewFakeEvent()
+	ctx := eval.NewContext(fakeEvent)
+
+	// Test with the actual value
+	err := fakeEvent.SetFieldValue(field, value.Value)
+	if err != nil {
+		return false
+	}
+
+	origResult, err := rule.PartialEval(ctx, field)
+	if err != nil {
+		return false
+	}
+
+	// Test with a different value to see if the rule behavior changes
+	notValue, err := eval.NotOfValue(value.Value)
+	if err != nil {
+		return false
+	}
+
+	err = fakeEvent.SetFieldValue(field, notValue)
+	if err != nil {
+		return false
+	}
+
+	notResult, err := rule.PartialEval(ctx, field)
+	if err != nil {
+		return false
+	}
+
+	// If the results are different, this means the field is used positively
+	return origResult != notResult
 }

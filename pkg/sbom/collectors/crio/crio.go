@@ -78,6 +78,10 @@ func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.
 
 // Scan performs the scan using CRI-O methods
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
+	if !c.opts.OverlayFsScan {
+		return sbom.ScanResult{Error: fmt.Errorf("overlayfs direct scan is not enabled, but required to scan CRI-O images")}
+	}
+
 	imageID := request.ID()
 
 	if c.crioClient == nil {

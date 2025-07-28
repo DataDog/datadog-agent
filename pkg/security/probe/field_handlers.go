@@ -11,6 +11,7 @@ package probe
 import (
 	"cmp"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -108,7 +109,8 @@ func NewBaseFieldHandlers(cfg *config.Config, hostname string) (*BaseFieldHandle
 // ResolveIsIPPublic resolves if the IP is public
 func (bfh *BaseFieldHandlers) ResolveIsIPPublic(_ *model.Event, ipCtx *model.IPPortContext) bool {
 	if !ipCtx.IsPublicResolved {
-		ipCtx.IsPublic = !bfh.privateCIDRs.Contains(&ipCtx.IPNet)
+		isPrivate, _ := bfh.privateCIDRs.Contains(&ipCtx.IPNet)
+		ipCtx.IsPublic = !isPrivate
 		ipCtx.IsPublicResolved = true
 	}
 	return ipCtx.IsPublic
@@ -136,4 +138,14 @@ func (bfh *BaseFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent
 	}
 
 	return service
+}
+
+// ResolveFileExtension resolves the extension of a file
+func (bfh *BaseFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
+	if f.Extension == "" {
+		if baseName := ev.FieldHandlers.ResolveFileBasename(ev, f); baseName != "" {
+			f.Extension = filepath.Ext(baseName)
+		}
+	}
+	return f.Extension
 }

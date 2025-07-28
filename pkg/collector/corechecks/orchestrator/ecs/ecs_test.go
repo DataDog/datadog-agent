@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build orchestrator && test
 
 package ecs
 
@@ -30,22 +30,23 @@ import (
 func TestGetRegionAndAWSAccountID(t *testing.T) {
 	region, id := getRegionAndAWSAccountID("arn:aws:ecs:us-east-1:123427279990:container-instance/ecs-my-cluster/123412345abcdefgh34999999")
 	require.Equal(t, "us-east-1", region)
-	require.Equal(t, 123427279990, id)
+	require.Equal(t, "123427279990", id)
 }
+
 func TestInitClusterID(t *testing.T) {
-	id1 := initClusterID(123456789012, "us-east-1", "ecs-cluster-1")
+	id1 := initClusterID("123456789012", "us-east-1", "ecs-cluster-1")
 	require.Equal(t, "34616234-6562-3536-3733-656534636532", id1)
 
 	// same account, same region, different cluster name
-	id2 := initClusterID(123456789012, "us-east-1", "ecs-cluster-2")
+	id2 := initClusterID("123456789012", "us-east-1", "ecs-cluster-2")
 	require.Equal(t, "31643131-3131-3263-3331-383136383336", id2)
 
 	// same account, different region, same cluster name
-	id3 := initClusterID(123456789012, "us-east-2", "ecs-cluster-1")
+	id3 := initClusterID("123456789012", "us-east-2", "ecs-cluster-1")
 	require.Equal(t, "64663464-6662-3232-3635-646166613230", id3)
 
 	// different account, same region, same cluster name
-	id4 := initClusterID(123456789013, "us-east-1", "ecs-cluster-1")
+	id4 := initClusterID("123456789013", "us-east-1", "ecs-cluster-1")
 	require.Equal(t, "61623431-6137-6231-3136-366464643761", id4)
 }
 
@@ -156,7 +157,7 @@ func testECS(v4 bool, t *testing.T) {
 func prepareTest(t *testing.T, v4 bool, env string) (*Check, *fakeWorkloadmetaStore, *fakeSender) {
 	t.Helper()
 
-	orchConfig := oconfig.NewDefaultOrchestratorConfig()
+	orchConfig := oconfig.NewDefaultOrchestratorConfig(nil)
 	orchConfig.OrchestrationCollectionEnabled = true
 
 	store := &fakeWorkloadmetaStore{
@@ -209,7 +210,7 @@ func task(v4 bool, id string) *workloadmeta.ECSTask {
 	}
 
 	if v4 {
-		ecsTask.AWSAccountID = 123456789012
+		ecsTask.AWSAccountID = "123456789012"
 		ecsTask.Region = "us-east-1"
 		ecsTask.DesiredStatus = "RUNNING"
 		ecsTask.KnownStatus = "RUNNING"

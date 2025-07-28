@@ -91,7 +91,7 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(mgr *manager.Manager, cfg *c
 	}
 
 	terminatedConnectionsMap := make(map[netebpf.ConnTuple]struct{})
-	mapCleaner.Clean(cfg.HTTP2DynamicTableMapCleanerInterval,
+	mapCleaner.Start(cfg.HTTP2DynamicTableMapCleanerInterval,
 		func() bool {
 			dt.terminatedConnectionsEventsConsumer.Sync()
 			dt.terminatedConnectionMux.Lock()

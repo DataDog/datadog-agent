@@ -16,7 +16,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -272,10 +272,11 @@ func TestDatadogExternalQuery(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
 			datadogClientComp := datadogclientmock.New(t).Comp
 			datadogClientComp.SetQueryMetricsFunc(test.queryfunc)
 			p := Processor{datadogClient: datadogClientComp}
-			points, err := p.queryDatadogExternal(testTime, test.queries, time.Duration(pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.bucket_size"))*time.Second)
+			points, err := p.queryDatadogExternal(testTime, test.queries, time.Duration(mockConfig.GetInt64("external_metrics_provider.bucket_size"))*time.Second)
 			if test.err != nil {
 				assert.EqualError(t, test.err, err.Error())
 			}

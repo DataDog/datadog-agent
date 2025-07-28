@@ -63,7 +63,7 @@ int hook_set_fs_pwd(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, int dr_type) {
+int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CHDIR);
     if (!syscall) {
         return 0;
@@ -80,11 +80,11 @@ int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, int dr_t
     syscall->resolver.key = syscall->chdir.file.path_key;
     syscall->resolver.dentry = syscall->chdir.dentry;
     syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
-    syscall->resolver.callback = select_dr_key(dr_type, DR_CHDIR_CALLBACK_KPROBE_KEY, DR_CHDIR_CALLBACK_TRACEPOINT_KEY);
+    syscall->resolver.callback = select_dr_key(prog_type, DR_CHDIR_CALLBACK_KPROBE_KEY, DR_CHDIR_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, dr_type);
+    resolve_dentry(ctx, prog_type);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_CHDIR);
@@ -93,17 +93,17 @@ int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, int dr_t
 
 HOOK_SYSCALL_EXIT(chdir) {
     int retval = SYSCALL_PARMRET(ctx);
-    return sys_chdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+    return sys_chdir_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(fchdir) {
     int retval = SYSCALL_PARMRET(ctx);
-    return sys_chdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+    return sys_chdir_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
-SEC("tracepoint/handle_sys_chdir_exit")
-int tracepoint_handle_sys_chdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_chdir_ret(args, args->ret, DR_TRACEPOINT);
+
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_chdir_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_chdir_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
 int __attribute__((always_inline)) dr_chdir_callback(void *ctx) {
@@ -138,13 +138,11 @@ int __attribute__((always_inline)) dr_chdir_callback(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_chdir_callback")
-int tail_call_target_dr_chdir_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_chdir_callback, ctx_t *ctx) {
     return dr_chdir_callback(ctx);
 }
 
-SEC("tracepoint/dr_chdir_callback")
-int tracepoint_dr_chdir_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(dr_chdir_callback, struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_chdir_callback(args);
 }
 

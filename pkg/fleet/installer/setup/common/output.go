@@ -14,5 +14,7 @@ type Output struct {
 
 // WriteString writes a string to the output.
 func (o *Output) WriteString(s string) {
-	_, _ = o.tty.Write([]byte(s))
+	if o.tty != nil {
+		_, _ = o.tty.Write([]byte(s))
+	}
 }

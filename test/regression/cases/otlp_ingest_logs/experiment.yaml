@@ -1,0 +1,35 @@
+optimization_goal: memory
+erratic: false
+
+target:
+  name: datadog-agent
+  cpu_allotment: 4
+  memory_allotment: 2GiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-regression
+
+  profiling_environment:
+    # internal profiling
+    DD_INTERNAL_PROFILING_ENABLED: true
+
+    # run all the time
+    DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    # destination
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    
+    # tags
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:otlp_ingest_logs
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:otlp_ingest_logs
+
+    DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+
+    # ddprof options
+    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+    DD_PROFILING_WAIT_PROFILE: true

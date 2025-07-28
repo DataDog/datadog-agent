@@ -62,7 +62,7 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 		require.Eventually(t, func() bool {
 			stats := probe.GetAndFlush()
 			for _, s := range stats.Maps {
-				if s.Type == ebpf.PerfEventArray && s.Name == "ebpf_test_perf" {
+				if s.Type == ebpf.PerfEventArray.String() && s.Name == "ebpf_test_perf" {
 					result = s
 					return true
 				}

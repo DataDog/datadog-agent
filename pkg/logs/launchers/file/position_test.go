@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 )
 
 func TestPosition(t *testing.T) {
-	registry := mock.NewRegistry()
+	registry := auditorMock.NewMockRegistry()
 
 	var err error
 	var offset int64
@@ -32,38 +32,38 @@ func TestPosition(t *testing.T) {
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
-	registry.SetOffset("123456789")
-	offset, whence, err = Position(registry, "", config.End)
+	registry.SetOffset("test", "123456789")
+	offset, whence, err = Position(registry, "test", config.End)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(123456789), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
-	registry.SetOffset("987654321")
-	offset, whence, err = Position(registry, "", config.Beginning)
+	registry.SetOffset("test", "987654321")
+	offset, whence, err = Position(registry, "test", config.Beginning)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(987654321), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
-	registry.SetOffset("foo")
-	offset, whence, err = Position(registry, "", config.End)
+	registry.SetOffset("test", "foo")
+	offset, whence, err = Position(registry, "test", config.End)
 	assert.NotNil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 
-	registry.SetOffset("bar")
-	offset, whence, err = Position(registry, "", config.Beginning)
+	registry.SetOffset("test", "bar")
+	offset, whence, err = Position(registry, "test", config.Beginning)
 	assert.NotNil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
-	registry.SetOffset("123456789")
-	offset, whence, err = Position(registry, "", config.ForceBeginning)
+	registry.SetOffset("test", "123456789")
+	offset, whence, err = Position(registry, "test", config.ForceBeginning)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
-	registry.SetOffset("987654321")
-	offset, whence, err = Position(registry, "", config.ForceEnd)
+	registry.SetOffset("test", "987654321")
+	offset, whence, err = Position(registry, "test", config.ForceEnd)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)

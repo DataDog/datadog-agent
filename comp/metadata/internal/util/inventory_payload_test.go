@@ -46,6 +46,17 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *Invent
 	return &i
 }
 
+func getEmptyInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
+	i := CreateInventoryPayload(
+		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
+		logmock.New(t),
+		serializermock.NewMetricSerializer(t),
+		func() marshaler.JSONMarshaler { return nil },
+		"testempty.json",
+	)
+	return &i
+}
+
 func TestEnabled(t *testing.T) {
 	i := getTestInventoryPayload(t, map[string]any{
 		"inventories_enabled": true,
@@ -221,4 +232,19 @@ func TestCollect(t *testing.T) {
 	i.collect(context.Background())
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 	assert.False(t, i.forceRefresh.Load())
+}
+
+func TestCollectEmptyPayload(t *testing.T) {
+	i := getEmptyInventoryPayload(t, nil)
+
+	// Ensure calls to collect do not fail the check for createdAt
+	i.createdAt = time.Now().Add(-2 * time.Minute)
+	// Make sure the minInterval between two payload has expired
+	i.LastCollect = time.Now().Add(-1 * time.Hour)
+
+	now := time.Now()
+	interval := i.collect(context.Background())
+	assert.Equal(t, defaultMinInterval, interval)
+	assert.False(t, i.LastCollect.Before(now))
+	i.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata")
 }

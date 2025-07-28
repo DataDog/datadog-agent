@@ -88,9 +88,19 @@
 /*
  * Helper macros to manipulate data structures
  */
+
+
+// ensure we do not carry over definitions of offsetof which do not
+// preserve CORE relocation information
+#ifdef COMPILE_CORE
+#undef offsetof
+#undef container_of
+#endif
+
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER)	((unsigned long)&((TYPE *)0)->MEMBER)
 #endif
+
 #ifndef container_of
 #define container_of(ptr, type, member)				\
 	({							\

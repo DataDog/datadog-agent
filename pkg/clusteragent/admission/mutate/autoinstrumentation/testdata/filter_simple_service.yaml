@@ -8,7 +8,7 @@ apm_config:
           matchLabels:
             language: "python"
         ddTraceVersions:
-          python: "v2"
+          python: "v3"
         ddTraceConfigs:
           - name: "DD_SERVICE"
             value: "best-service"

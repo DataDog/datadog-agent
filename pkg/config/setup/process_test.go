@@ -20,7 +20,7 @@ import (
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
 func TestProcessDefaultConfig(t *testing.T) {
-	cfg := newTestConf()
+	cfg := newTestConf(t)
 
 	for _, tc := range []struct {
 		key          string
@@ -40,14 +40,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.ignore_zombie_processes",
-			defaultValue: false,
-		},
-		{
-			key:          "process_config.remote_tagger",
-			defaultValue: false,
-		},
-		{
-			key:          "process_config.remote_workloadmeta",
 			defaultValue: false,
 		},
 		{
@@ -146,6 +138,11 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.intervals.connections",
 			defaultValue: nil,
 		},
+		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+		{
+			key:          "process_config.process_collection.use_wlm",
+			defaultValue: false,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -155,7 +152,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_CONFIG` prefix, there is a `DD_PROCESS_AGENT` prefix as well.
 func TestProcessAgentPrefixes(t *testing.T) {
-	envVarSlice := newTestConf().GetEnvVars()
+	envVarSlice := newTestConf(t).GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
 		envVars[envVar] = struct{}{}
@@ -176,7 +173,7 @@ func TestProcessAgentPrefixes(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_AGENT` prefix, there is a `DD_PROCESS_CONFIG` prefix as well.
 func TestProcessConfigPrefixes(t *testing.T) {
-	envVarSlice := newTestConf().GetEnvVars()
+	envVarSlice := newTestConf(t).GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
 		envVars[envVar] = struct{}{}
@@ -237,12 +234,6 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS",
 			value:    "1",
 			expected: 1,
-		},
-		{
-			key:      "process_config.remote_tagger",
-			env:      "DD_PROCESS_CONFIG_REMOTE_TAGGER",
-			value:    "true",
-			expected: true,
 		},
 		{
 			key:      "process_config.process_discovery.enabled",
@@ -468,6 +459,13 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "10",
 			expected: "10",
 		},
+		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+		{
+			key:      "process_config.process_collection.use_wlm",
+			env:      "DD_PROCESS_CONFIG_PROCESS_COLLECTION_USE_WLM",
+			value:    "false",
+			expected: false,
+		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
 			// internal configuration rely on a syncOnce so we have to reset if after each call
@@ -475,7 +473,7 @@ func TestEnvVarOverride(t *testing.T) {
 
 			t.Setenv(tc.env, tc.value)
 
-			cfg := newTestConf()
+			cfg := newTestConf(t)
 			assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 		})
 
@@ -485,13 +483,13 @@ func TestEnvVarOverride(t *testing.T) {
 			t.Run(env, func(t *testing.T) {
 				t.Setenv(env, tc.value)
 
-				cfg := newTestConf()
+				cfg := newTestConf(t)
 				assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 			})
 		}
 	}
 
-	cfg := newTestConf()
+	cfg := newTestConf(t)
 	// StringMapStringSlice can't be converted by `Config.Get` so we need to test this separately
 	t.Run("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
 		t.Setenv("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", `{"https://process.datadoghq.com": ["fakeAPIKey"]}`)
@@ -524,7 +522,7 @@ func readCfgWithType(cfg pkgconfigmodel.Config, key, expType string) interface{}
 }
 
 func TestEnvVarCustomSensitiveWords(t *testing.T) {
-	cfg := newTestConf()
+	cfg := newTestConf(t)
 	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
 
 	for i, tc := range []struct {
@@ -556,7 +554,7 @@ func TestEnvVarCustomSensitiveWords(t *testing.T) {
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {
-	cfg := newTestConf()
+	cfg := newTestConf(t)
 	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
 
 	envs := map[string]struct{}{}
@@ -575,7 +573,7 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 }
 
 func TestProcBindEnv(t *testing.T) {
-	cfg := newTestConf()
+	cfg := newTestConf(t)
 	procBindEnv(cfg, "process_config.foo.bar")
 
 	envs := map[string]struct{}{}
@@ -620,7 +618,7 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 		},
 	} {
 		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
-			cfg := newTestConf()
+			cfg := newTestConf(t)
 			cfg.SetWithoutSource("process_config.enabled", tc.procConfigEnabled)
 			loadProcessTransforms(cfg)
 

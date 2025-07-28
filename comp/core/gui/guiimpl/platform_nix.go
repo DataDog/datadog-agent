@@ -9,7 +9,8 @@ package guiimpl
 
 import (
 	"fmt"
-	"html/template"
+
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
 
 const docURL template.URL = template.URL("https://docs.datadoghq.com/agent/basic_agent_usage/?tab=Linux#datadog-agent-manager-gui")

@@ -7,13 +7,16 @@ package obfuscate
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sqllexer "github.com/DataDog/go-sqllexer"
+	"github.com/outcaste-io/ristretto/z"
 )
 
 var questionMark = []byte("?")
@@ -41,7 +44,7 @@ type metadataFinderFilter struct {
 func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
 	if f.collectComments && token == Comment {
 		// A comment with line-breaks will be brought to a single line.
-		comment := strings.TrimSpace(strings.Replace(string(buffer), "\n", " ", -1))
+		comment := strings.TrimSpace(strings.ReplaceAll(string(buffer), "\n", " "))
 		f.size += int64(len(comment))
 		f.comments = append(f.comments, comment)
 	}
@@ -295,7 +298,7 @@ func isSQLLexer(obfuscationMode ObfuscationMode) bool {
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
-	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL)
+	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL, o.sqlOptsStr)
 }
 
 // ObfuscateSQLStringForDBMS quantizes and obfuscates the given input SQL query string for a specific DBMS.
@@ -303,20 +306,33 @@ func (o *Obfuscator) ObfuscateSQLStringForDBMS(in string, dbms string) (*Obfusca
 	if isSQLLexer(o.opts.SQL.ObfuscationMode) {
 		o.opts.SQL.DBMS = dbms
 	}
-	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL)
+	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL, o.sqlOptsStr)
 }
 
 // ObfuscateSQLStringWithOptions accepts an optional SQLOptions to change the behavior of the obfuscator
 // to quantize and obfuscate the given input SQL query string. Quantization removes some elements such as comments
 // and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
-	cacheKey := fmt.Sprintf("%v:%s", opts, in)
-	if v, ok := o.queryCache.Get(cacheKey); ok {
-		return v.(*ObfuscatedQuery), nil
+func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig, optsStr string) (oq *ObfuscatedQuery, err error) {
+	var optsStrError error
+	if optsStr == "" {
+		var optsBytes []byte
+		// Ideally we should never fallback to this because it's expensive
+		log.Warn("falling back to JSON marshalling of SQLConfig options, this should be avoided if possible")
+		optsBytes, optsStrError = json.Marshal(opts)
+		optsStr = string(optsBytes)
 	}
+	if optsStrError == nil && o.queryCache.Cache != nil {
+		cacheKey := z.MemHashString(in) ^ z.MemHashString(optsStr)
+		if v, ok := o.queryCache.Get(cacheKey); ok {
+			return v.(*ObfuscatedQuery), nil
+		}
 
-	var oq *ObfuscatedQuery
-	var err error
+		defer func() {
+			if oq != nil && err == nil {
+				o.queryCache.Set(cacheKey, oq, oq.Cost())
+			}
+		}()
+	}
 
 	if opts.ObfuscationMode != "" {
 		// If obfuscation mode is specified, we will use go-sqllexer pkg
@@ -330,7 +346,6 @@ func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (
 		return oq, err
 	}
 
-	o.queryCache.Set(cacheKey, oq, oq.Cost())
 	return oq, nil
 }
 

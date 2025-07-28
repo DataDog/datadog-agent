@@ -34,16 +34,6 @@ class IntegrationTestsConfig:
     is_windows_supported: bool = True
 
 
-CORE_AGENT_LINUX_IT_CONF = IntegrationTestsConfig(
-    name="Core Agent Linux",
-    go_build_tags=get_default_build_tags(build="test"),
-    tests=[
-        IntegrationTest(prefix="./test/integration/config_providers/..."),
-        IntegrationTest(prefix="./test/integration/listeners/..."),
-    ],
-    is_windows_supported=False,
-)
-
 CORE_AGENT_WINDOWS_IT_CONF = IntegrationTestsConfig(
     name="Core Agent Windows",
     go_build_tags=get_default_build_tags(build="test"),
@@ -121,16 +111,18 @@ def integration_tests(ctx, race=False, remote_docker=False, timeout="", only: li
     Args:
         only: Filter tests to run.
     """
-    core_agent_conf = CORE_AGENT_WINDOWS_IT_CONF if sys.platform == 'win32' else CORE_AGENT_LINUX_IT_CONF
+
     tests = {
-        "Agent Core": lambda: containerized_integration_tests(
-            ctx, core_agent_conf, race=race, remote_docker=remote_docker, timeout=timeout
-        ),
         "Cluster Agent": lambda: containerized_integration_tests(
             ctx, CLUSTER_AGENT_IT_CONF, race=race, remote_docker=remote_docker, timeout=timeout
         ),
         "Trace Agent": lambda: containerized_integration_tests(ctx, TRACE_AGENT_IT_CONF, race=race, timeout=timeout),
     }
+
+    if sys.platform == 'win32':
+        tests["Agent Core"] = lambda: containerized_integration_tests(
+            ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, remote_docker=remote_docker, timeout=timeout
+        )
 
     if only:
         tests = {name: tests[name] for name in tests if name in only}

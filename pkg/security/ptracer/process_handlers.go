@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
@@ -157,6 +158,10 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 		}
 	}
 
+	if !strings.HasPrefix(filename, "memfd:") {
+		filename = evalProcessSymlinks(process, filename)
+	}
+
 	args, err := tracer.ReadArgStringArray(process.Pid, regs, 2)
 	if err != nil {
 		return err
@@ -197,6 +202,8 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	if err != nil {
 		return err
 	}
+
+	filename = evalProcessSymlinks(process, filename)
 
 	args, err := tracer.ReadArgStringArray(process.Pid, regs, 1)
 	if err != nil {
@@ -443,7 +450,7 @@ func handleDeleteModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallM
 
 func handleChdirRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	if ret := tracer.ReadRet(regs); msg.Chdir != nil && ret >= 0 {
-		process.FsRes.Cwd = msg.Chdir.Dir.Filename
+		process.FsRes.Cwd = evalProcessSymlinks(process, msg.Chdir.Dir.Filename)
 	}
 	return nil
 }

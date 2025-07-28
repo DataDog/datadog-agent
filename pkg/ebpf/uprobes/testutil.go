@@ -22,9 +22,11 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	consumertestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
 // === Mocks
@@ -248,7 +250,12 @@ func waitAndRetryIfFail(t *testing.T, setupFunc func(), testFunc func() bool, re
 		}
 	}
 
-	require.Fail(t, "condition not met after %d retries", maxRetries, msgAndArgs)
+	extraFmt := ""
+	if len(msgAndArgs) > 0 {
+		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
+	}
+
+	require.Fail(t, "condition not met", "%scondition not met after %d retries", extraFmt, maxRetries)
 }
 
 // processMonitorProxy is a wrapper around a ProcessMonitor that stores the
@@ -304,4 +311,15 @@ func (o *processMonitorProxy) Reset() {
 
 	o.execCallbacks = make(map[*func(uint32)]struct{})
 	o.exitCallbacks = make(map[*func(uint32)]struct{})
+}
+
+func launchProcessMonitor(t *testing.T, useEventStream bool) *monitor.ProcessMonitor {
+	pm := monitor.GetProcessMonitor()
+	t.Cleanup(pm.Stop)
+	require.NoError(t, pm.Initialize(useEventStream))
+	if useEventStream {
+		monitor.InitializeEventConsumer(consumertestutil.NewTestProcessConsumer(t))
+	}
+
+	return pm
 }

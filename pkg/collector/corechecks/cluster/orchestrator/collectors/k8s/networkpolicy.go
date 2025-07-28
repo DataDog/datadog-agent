@@ -9,6 +9,8 @@ package k8s
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+
 	"k8s.io/apimachinery/pkg/labels"
 	networkingv1Informers "k8s.io/client-go/informers/networking/v1"
 	networkingv1Listers "k8s.io/client-go/listers/networking/v1"
@@ -50,6 +52,7 @@ func NewNetworkPolicyCollector(metadataAsTags utils.MetadataAsTags) *NetworkPoli
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
 			Name:                                 networkPolicyName,
+			Kind:                                 kubernetes.NetworkPolicyKind,
 			NodeType:                             orchestrator.K8sNetworkPolicy,
 			Version:                              networkPolicyVersion,
 			LabelsAsTags:                         labelsAsTags,
@@ -90,7 +93,7 @@ func (c *NetworkPolicyCollector) Run(rcfg *collectors.CollectorRunConfig) (*coll
 func (c *NetworkPolicyCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -98,7 +101,7 @@ func (c *NetworkPolicyCollector) Process(rcfg *collectors.CollectorRunConfig, li
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

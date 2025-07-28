@@ -7,6 +7,7 @@ package autodiscoveryimpl
 
 import (
 	"expvar"
+	"maps"
 	"sync"
 
 	"github.com/mohae/deepcopy"
@@ -63,9 +64,7 @@ func (es *acErrorStats) getConfigErrors() map[string]string {
 	defer es.m.RUnlock()
 
 	configCopy := make(map[string]string)
-	for k, v := range es.config {
-		configCopy[k] = v
-	}
+	maps.Copy(configCopy, es.config)
 
 	return configCopy
 }

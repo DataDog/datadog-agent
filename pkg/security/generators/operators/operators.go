@@ -29,6 +29,8 @@ type Operator struct {
 	ValueType      string
 	Commutative    bool
 	RangeLimit     string
+	StoreValue     bool
+	OriginField    bool
 }
 
 func main() {
@@ -51,14 +53,14 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	isDc := isArithmDeterministic(a, b, state)
 	{{ end }}
 
-	if a.Field != "" {
-		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: {{ .ValueType }}}); err != nil {
+	if field := a.OriginField(); field != "" {
+		if err := state.UpdateFieldValues(field, FieldValue{Value: b.Value, Type: {{ .ValueType }}}); err != nil {
 			return nil, err
 		}
 	}
 
-	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: {{ .ValueType }}}); err != nil {
+	if field := b.OriginField(); field != "" {
+		if err := state.UpdateFieldValues(field, FieldValue{Value: a.Value, Type: {{ .ValueType }}}); err != nil {
 			return nil, err
 		}
 	}
@@ -96,7 +98,16 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		{{ end }}
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			return {{ call .Op "ea(ctx)" "eb(ctx)" }}
+			{{- if and .StoreValue (eq .EvalReturnType "bool") }}
+				va, vb := ea(ctx), eb(ctx)
+				res := {{ call .Op "va" "vb" }}
+				if res {
+					ctx.AddMatchingSubExpr( MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
+				}
+				return res
+			{{- else }}
+				return {{ call .Op "ea(ctx)" "eb(ctx)" }}
+			{{- end }}
 		}
 
 		return &{{ .FuncReturnType }}{
@@ -112,7 +123,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 
 		ctx := NewContext(nil)
 		_ = ctx
-		
+
 		return &{{ .FuncReturnType }}{
 			Value: {{ call .Op "ea" "eb" }},
 			isDeterministic: isDc,
@@ -136,14 +147,25 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		{{ end }}
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			return {{ call .Op "ea(ctx)" "eb" }}
+			{{- if and .StoreValue (eq .EvalReturnType "bool") }}
+				va, vb := ea(ctx), eb
+				res := {{ call .Op "va" "vb" }}
+				if res {
+					ctx.AddMatchingSubExpr( MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vb, Offset: b.Offset})
+				}
+				return res
+			{{- else }}
+				return {{ call .Op "ea(ctx)" "eb" }}
+			{{- end }}
 		}
 
 		return &{{ .FuncReturnType }}{
 			EvalFnc: evalFnc,
-			Field: a.Field,
 			Weight: a.Weight,
 			isDeterministic: isDc,
+			{{- if .OriginField }}
+			originField: a.OriginField(),
+			{{- end }}
 		}, nil
 	}
 
@@ -163,14 +185,25 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	{{ end }}
 
 	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-		return {{ call .Op "ea" "eb(ctx)" }}
+		{{- if and .StoreValue (eq .EvalReturnType "bool") }}
+			va, vb := ea, eb(ctx)
+			res := {{ call .Op "va" "vb" }}
+			if res {
+				ctx.AddMatchingSubExpr( MatchingValue{Value: va}, MatchingValue{Field: b.Field, Value: vb, Offset: b.Offset})
+			}
+			return res
+		{{- else }}
+			return {{ call .Op "ea" "eb(ctx)" }}
+		{{- end }}
 	}
 
 	return &{{ .FuncReturnType }}{
 		EvalFnc: evalFnc,
-		Field: b.Field,
 		Weight: b.Weight,
 		isDeterministic: isDc,
+		{{- if .OriginField }}
+		originField: b.OriginField(),
+		{{- end }}
 	}, nil
 }
 {{ end }}
@@ -184,34 +217,39 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	isDc := isArithmDeterministic(a, b, state)
 	{{ end }}
 
-	if a.Field != "" {
+	if field := a.OriginField(); field != "" {
 		for _, value := range b.Values {
-			if err := state.UpdateFieldValues(a.Field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
+			if err := state.UpdateFieldValues(field, FieldValue{Value: value, Type: ScalarValueType}); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	if b.Field != "" {
-		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+	if field := b.OriginField(); field != "" {
+		if err := state.UpdateFieldValues(field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
 			return nil, err
 		}
 	}
 
-	arrayOp := func(ctx *Context, a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {
+	arrayOp := func(ctx *Context, a {{ .ArrayType }}, b []{{ .ArrayType }}) (bool, {{ .ArrayType }}) {
 		for _, v := range b {
 			if {{ call .Op "a" "v" }} {
-				return true
+				return true, v
 			}
 		}
-		return false
+		return false, a
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			return arrayOp(ctx, ea(ctx), eb(ctx))
+			va, vb := ea(ctx), eb(ctx)
+			res, vm := arrayOp(ctx, va, vb)
+			if res {
+				ctx.AddMatchingSubExpr( MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Field: b.Field, Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &{{ .FuncReturnType }}{
@@ -223,12 +261,10 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
-
-		ctx := NewContext(nil)
-		_ = ctx
+		res, _ := arrayOp(nil, ea, eb)
 
 		return &{{ .FuncReturnType }}{
-			Value:     arrayOp(ctx, ea, eb),
+			Value:     res,
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
 		}, nil
@@ -238,26 +274,42 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		ea, eb := a.EvalFnc, b.Values
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			return arrayOp(ctx, ea(ctx), eb)
+			va, vb := ea(ctx), eb
+			res, vm := arrayOp(ctx, va, vb)
+			if res {
+				ctx.AddMatchingSubExpr( MatchingValue{Field: a.Field, Value: va, Offset: a.Offset}, MatchingValue{Value: vm, Offset: b.Offset})
+			}
+			return res
 		}
 
 		return &{{ .FuncReturnType }}{
 			EvalFnc:   evalFnc,
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
+			{{- if .OriginField }}
+			originField: a.OriginField(),
+			{{- end }}
 		}, nil
 	}
 
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-		return arrayOp(ctx, ea, eb(ctx))
+		va, vb := ea, eb(ctx)
+		res, vm := arrayOp(ctx, va, vb)
+		if res {
+			ctx.AddMatchingSubExpr( MatchingValue{Field: a.Field, Value: va}, MatchingValue{Field: b.Field, Value: vm, Offset: b.Offset})
+		}
+		return res
 	}
 
 	return &{{ .FuncReturnType }}{
 		EvalFnc:   evalFnc,
 		Weight:    b.Weight,
 		isDeterministic: isDc,
+		{{- if .OriginField }}
+		originField: b.OriginField(),
+		{{- end }}
 	}, nil
 }
 {{end}}
@@ -299,6 +351,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             stdCompare("=="),
 				ValueType:      "ScalarValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "IntAnd",
@@ -308,6 +361,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "int",
 				Op:             stdCompare("&"),
 				ValueType:      "BitmaskValueType",
+				OriginField:    true,
 			},
 			{
 				FuncName:       "IntOr",
@@ -317,6 +371,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "int",
 				Op:             stdCompare("|"),
 				ValueType:      "BitmaskValueType",
+				OriginField:    true,
 			},
 			{
 				FuncName:       "IntXor",
@@ -326,6 +381,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "int",
 				Op:             stdCompare("^"),
 				ValueType:      "BitmaskValueType",
+				OriginField:    true,
 			},
 			{
 				FuncName:       "IntPlus",
@@ -335,6 +391,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "int",
 				Op:             stdCompare("+"),
 				ValueType:      "ScalarValueType",
+				OriginField:    true,
 			},
 			{
 				FuncName:       "IntMinus",
@@ -344,6 +401,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "int",
 				Op:             stdCompare("-"),
 				ValueType:      "ScalarValueType",
+				OriginField:    true,
 			},
 			{
 				FuncName:       "BoolEquals",
@@ -353,6 +411,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             stdCompare("=="),
 				ValueType:      "ScalarValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "GreaterThan",
@@ -362,6 +421,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             stdCompare(">"),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "GreaterOrEqualThan",
@@ -371,6 +431,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             stdCompare(">="),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "LesserThan",
@@ -380,6 +441,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             stdCompare("<"),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "LesserOrEqualThan",
@@ -389,6 +451,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             stdCompare("<="),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationLesserThan",
@@ -398,6 +461,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompare("<"),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationLesserOrEqualThan",
@@ -407,6 +471,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompare("<="),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationGreaterThan",
@@ -416,6 +481,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompare(">"),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationGreaterOrEqualThan",
@@ -425,6 +491,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompare(">="),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationEqual",
@@ -434,6 +501,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompare("=="),
 				ValueType:      "ScalarValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationLesserThanArithmeticOperation",
@@ -443,6 +511,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompareArithmeticOperation("<"),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationLesserOrEqualThanArithmeticOperation",
@@ -452,6 +521,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompareArithmeticOperation("<="),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationGreaterThanArithmeticOperation",
@@ -461,6 +531,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompareArithmeticOperation(">"),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationGreaterOrEqualThanArithmeticOperation",
@@ -470,6 +541,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompareArithmeticOperation(">="),
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationEqualArithmeticOperation",
@@ -479,6 +551,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompareArithmeticOperation("=="),
 				ValueType:      "ScalarValueType",
+				StoreValue:     true,
 			},
 		},
 		ArrayOperators: []Operator{
@@ -491,6 +564,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				Op:             stdCompare("=="),
 				ArrayType:      "int",
 				ValueType:      "ScalarValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "BoolArrayEquals",
@@ -501,6 +575,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				Op:             stdCompare("=="),
 				ArrayType:      "bool",
 				ValueType:      "ScalarValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "IntArrayGreaterThan",
@@ -511,6 +586,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				Op:             stdCompare(">"),
 				ArrayType:      "int",
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "IntArrayGreaterOrEqualThan",
@@ -521,6 +597,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				Op:             stdCompare(">="),
 				ArrayType:      "int",
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "IntArrayLesserThan",
@@ -531,6 +608,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				Op:             stdCompare("<"),
 				ArrayType:      "int",
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "IntArrayLesserOrEqualThan",
@@ -541,6 +619,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				Op:             stdCompare("<="),
 				ArrayType:      "int",
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationArrayLesserThan",
@@ -551,6 +630,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				Op:             durationCompare("<"),
 				ArrayType:      "int",
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationArrayLesserOrEqualThan",
@@ -561,6 +641,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				Op:             durationCompare("<="),
 				ArrayType:      "int",
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationArrayGreaterThan",
@@ -571,6 +652,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				Op:             durationCompare(">"),
 				ArrayType:      "int",
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 			{
 				FuncName:       "DurationArrayGreaterOrEqualThan",
@@ -581,6 +663,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				Op:             durationCompare(">="),
 				ArrayType:      "int",
 				ValueType:      "RangeValueType",
+				StoreValue:     true,
 			},
 		},
 	}

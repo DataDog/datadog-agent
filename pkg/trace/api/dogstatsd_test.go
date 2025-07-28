@@ -37,7 +37,9 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 		{
 			"bad statsd host",
 			func(cfg *config.AgentConfig) {
-				cfg.StatsdHost = "this[is[invalid"
+				// Use a hostname that will fail to resolve even with AppGate enabled,
+				// otherwise this test will timeout
+				cfg.StatsdHost = "[invalid][host]"
 			},
 			http.StatusInternalServerError,
 		},

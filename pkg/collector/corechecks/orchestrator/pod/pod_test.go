@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,7 +26,8 @@ import (
 	"github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -113,7 +115,7 @@ type PodTestSuite struct {
 	testServer   *httptest.Server
 	sender       *fakeSender
 	kubeUtil     kubelet.KubeUtilInterface
-	tagger       mock.Mock
+	tagger       taggermock.Mock
 }
 
 func (suite *PodTestSuite) SetupSuite() {
@@ -146,14 +148,14 @@ func (suite *PodTestSuite) SetupSuite() {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	fakeTagger := mock.SetupFakeTagger(suite.T())
+	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
 
 	suite.check = &Check{
 		sender:    sender,
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(mockConfig, mockStore, fakeTagger)),
 		hostName:  testHostName,
-		config:    oconfig.NewDefaultOrchestratorConfig(),
+		config:    oconfig.NewDefaultOrchestratorConfig(nil),
 		tagger:    fakeTagger,
 	}
 }
@@ -185,4 +187,25 @@ func (suite *PodTestSuite) TestPodCheck() {
 
 	require.Len(suite.T(), suite.sender.pods[0].(*process.CollectorPod).Pods, 10)
 	require.Len(suite.T(), suite.sender.manifests[0].(*process.CollectorManifest).Manifests, 10)
+
+	require.Equal(suite.T(),
+		sorted(suite.sender.pods[0].(*process.CollectorPod).Tags...),
+		sorted("kube_api_version:v1"))
+	require.Equal(suite.T(),
+		sorted(suite.sender.pods[0].(*process.CollectorPod).Pods[0].Tags...),
+		sorted("kube_condition_podscheduled:true", "pod_status:pending"))
+
+	require.Equal(suite.T(),
+		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Tags...),
+		sorted())
+	require.Equal(suite.T(),
+		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Manifests[0].Tags...),
+		sorted("kube_api_version:v1", "kube_condition_podscheduled:true", "pod_status:pending"))
+}
+
+func sorted(l ...string) []string {
+	var s []string
+	s = append(s, l...)
+	sort.Strings(s)
+	return s
 }

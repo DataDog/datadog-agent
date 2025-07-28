@@ -28,12 +28,11 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	spconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -89,7 +88,7 @@ func (tm *testModule) HandleEvent(event *model.Event) {
 
 func (tm *testModule) HandleCustomEvent(_ *rules.Rule, _ *events.CustomEvent) {}
 
-func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
+func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
@@ -134,7 +133,7 @@ func (tm *testModule) Root() string {
 	return tm.st.root
 }
 
-func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) bool {
+func (tm *testModule) RuleMatch(_ *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	tm.eventHandlers.RLock()
 	callback := tm.eventHandlers.onRuleMatch
 	tm.eventHandlers.RUnlock()
@@ -557,7 +556,7 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev)
+	b, err := serializers.MarshalEvent(ev, nil)
 	return string(b), err
 }
 
@@ -670,10 +669,16 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 	return false
 }
 
-func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition) (string, error) {
+func setTestPolicy(dir string, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition) error {
+	if len(macroDefs) == 0 && len(ruleDefs) == 0 {
+		// No policy to set, so do nothing and return nil
+		// This is required for tests that don't need any policy to be set
+		return nil
+	}
+
 	testPolicyFile, err := os.Create(path.Join(dir, "secagent-policy.policy"))
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	fail := func(err error) error {
@@ -682,27 +687,26 @@ func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macroDe
 	}
 
 	policyDef := &rules.PolicyDef{
-		Version:            "1.2.3",
-		Macros:             macroDefs,
-		Rules:              ruleDefs,
-		OnDemandHookPoints: onDemandProbes,
+		Version: "1.2.3",
+		Macros:  macroDefs,
+		Rules:   ruleDefs,
 	}
 
 	testPolicy, err := yaml.Marshal(policyDef)
 	if err != nil {
-		return "", fail(err)
+		return fail(err)
 	}
 
 	_, err = testPolicyFile.Write(testPolicy)
 	if err != nil {
-		return "", fail(err)
+		return fail(err)
 	}
 
 	if err := testPolicyFile.Close(); err != nil {
-		return "", fail(err)
+		return fail(err)
 	}
 
-	return testPolicyFile.Name(), nil
+	return nil
 }
 
 func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.Config, error) {

@@ -11,6 +11,7 @@ package orchestrator
 import (
 	"expvar"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -52,6 +53,7 @@ type CollectorBundle struct {
 	collectorDiscovery       *discovery.DiscoveryCollector
 	activatedCollectors      map[string]struct{}
 	terminatedResourceBundle *TerminatedResourceBundle
+	initializeOnce           sync.Once
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -65,25 +67,36 @@ type CollectorBundle struct {
 // If that's not the case then it'll select all available collectors that are
 // marked as stable.
 func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
-	bundle := &CollectorBundle{
-		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
-		check:              chk,
-		inventory:          inventory.NewCollectorInventory(chk.cfg, chk.wlmStore, chk.tagger),
-		runCfg: &collectors.CollectorRunConfig{
-			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
-				APIClient:                   chk.apiClient,
-				OrchestratorInformerFactory: chk.orchestratorInformerFactory,
-			},
-			ClusterID:   chk.clusterID,
-			Config:      chk.orchestratorConfig,
-			MsgGroupRef: chk.groupID,
+	runCfg := &collectors.CollectorRunConfig{
+		K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+			APIClient:                   chk.apiClient,
+			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
 		},
-		stopCh:              chk.stopCh,
-		manifestBuffer:      NewManifestBuffer(chk),
-		collectorDiscovery:  discovery.NewDiscoveryCollectorForInventory(),
-		activatedCollectors: map[string]struct{}{},
+		ClusterID:    chk.clusterID,
+		Config:       chk.orchestratorConfig,
+		MsgGroupRef:  chk.groupID,
+		AgentVersion: chk.agentVersion,
 	}
-	bundle.terminatedResourceBundle = NewTerminatedResourceBundle(chk, bundle.runCfg, bundle.manifestBuffer)
+	terminatedResourceRunCfg := &collectors.CollectorRunConfig{
+		K8sCollectorRunConfig: runCfg.K8sCollectorRunConfig,
+		ClusterID:             runCfg.ClusterID,
+		Config:                runCfg.Config,
+		MsgGroupRef:           runCfg.MsgGroupRef,
+		TerminatedResources:   true,
+	}
+	manifestBuffer := NewManifestBuffer(chk)
+
+	bundle := &CollectorBundle{
+		discoverCollectors:       chk.orchestratorConfig.CollectorDiscoveryEnabled,
+		check:                    chk,
+		inventory:                inventory.NewCollectorInventory(chk.cfg, chk.wlmStore, chk.tagger),
+		runCfg:                   runCfg,
+		stopCh:                   chk.stopCh,
+		manifestBuffer:           manifestBuffer,
+		collectorDiscovery:       discovery.NewDiscoveryCollectorForInventory(),
+		activatedCollectors:      map[string]struct{}{},
+		terminatedResourceBundle: NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer),
+	}
 	bundle.prepare()
 
 	return bundle
@@ -271,7 +284,11 @@ func (cb *CollectorBundle) prepareExtraSyncTimeout() {
 // Initialize is used to initialize collectors part of the bundle.
 // During initialization informers are created, started and their cache is
 // synced.
-func (cb *CollectorBundle) Initialize() error {
+func (cb *CollectorBundle) Initialize() {
+	cb.initializeOnce.Do(cb.initialize)
+}
+
+func (cb *CollectorBundle) initialize() {
 	informersToSync := make(map[apiserver.InformerName]cache.SharedInformer)
 	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
 	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
@@ -316,8 +333,6 @@ func (cb *CollectorBundle) Initialize() error {
 			cb.skipCollector(informerName, err)
 		}
 	}
-
-	return nil
 }
 
 func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, err error) {

@@ -10,6 +10,7 @@ package agentimpl
 import (
 	"bytes"
 	"context"
+	"expvar"
 	"fmt"
 	"os"
 	"strings"
@@ -27,17 +28,22 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
+	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
@@ -60,14 +66,17 @@ type AgentTestSuite struct {
 	source          *sources.LogSource
 	configOverrides map[string]interface{}
 	tagger          tagger.Component
+	healthRegistrar healthdef.Component
 }
 
 type testDeps struct {
 	fx.In
 
-	Config         configComponent.Component
-	Log            log.Component
-	InventoryAgent inventoryagent.Component
+	Config          configComponent.Component
+	Log             log.Component
+	InventoryAgent  inventoryagent.Component
+	Auditor         auditor.Component
+	HealthRegistrar healthdef.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -96,7 +105,7 @@ func (suite *AgentTestSuite) SetupTest() {
 	// Shorter grace period for tests.
 	suite.configOverrides["logs_config.stop_grace_period"] = 1
 
-	fakeTagger := taggerMock.SetupFakeTagger(suite.T())
+	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
 }
 
@@ -124,9 +133,12 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
+		auditorfx.Module(),
+		fx.Provide(healthmock.NewProvides),
 	))
 
-	fakeTagger := taggerMock.SetupFakeTagger(suite.T())
+	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
+	suite.healthRegistrar = deps.HealthRegistrar
 
 	agent := &logAgent{
 		log:              deps.Log,
@@ -135,12 +147,14 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		started:          atomic.NewUint32(0),
 		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
-		sources:     sources,
-		services:    services,
-		tracker:     tailers.NewTailerTracker(),
-		endpoints:   endpoints,
-		tagger:      fakeTagger,
-		compression: compressionfx.NewMockCompressor(),
+		auditor:         deps.Auditor,
+		sources:         sources,
+		services:        services,
+		tracker:         tailers.NewTailerTracker(),
+		endpoints:       endpoints,
+		tagger:          fakeTagger,
+		flarecontroller: flareController.NewFlareController(),
+		compression:     compressionfx.NewMockCompressor(),
 	}
 
 	agent.setupAgent()
@@ -158,7 +172,9 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), zero, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), zero, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
-	assert.Equal(suite.T(), "{}", metrics.DestinationLogsDropped.String())
+	metrics.DestinationLogsDropped.Do(func(k expvar.KeyValue) {
+		assert.Equal(suite.T(), k.Value.String(), "0")
+	})
 
 	agent.startPipeline()
 	sources.AddSource(suite.source)
@@ -185,7 +201,8 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	server := http.NewTestServer(200, pkgconfigsetup.Datadog())
+	cfg := configmock.New(suite.T())
+	server := http.NewTestServer(200, cfg)
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
@@ -230,8 +247,27 @@ func (suite *AgentTestSuite) TestGetPipelineProvider() {
 
 	agent, _, _ := createAgent(suite, endpoints)
 	agent.Start()
+	defer agent.Stop()
 
 	assert.NotNil(suite.T(), agent.GetPipelineProvider())
+}
+
+func (suite *AgentTestSuite) TestAgentLiveness() {
+	server := http.NewTestServer(200, pkgconfigsetup.Datadog())
+	defer server.Stop()
+	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
+
+	agent, _, _ := createAgent(suite, endpoints)
+	agent.Start()
+	defer agent.Stop()
+
+	var count int
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 1*time.Second, func() bool {
+		count = suite.healthRegistrar.(*healthmock.Registrar).CountRegistered("logs-agent")
+		return count > 0
+	})
+
+	assert.Equal(suite.T(), 1, count, "logs-agent should be registered as healthy exactly once")
 }
 
 func (suite *AgentTestSuite) TestStatusProvider() {
@@ -326,8 +362,8 @@ func (suite *AgentTestSuite) TestStatusOut() {
     OSFileLimit: 1048576
 `
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expectedResult, output)
 		}},
@@ -347,8 +383,8 @@ func (suite *AgentTestSuite) TestStatusOut() {
 </div>
 `
 			// We replace windows line break by linux so the tests pass on every OS
-			expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 			assert.Equal(t, expectedResult, output)
 		}},
@@ -411,6 +447,8 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Provide(func() tagger.Component {
 			return suite.tagger
 		}),
+		auditorfx.Module(),
+		fx.Provide(healthmock.NewProvides),
 	))
 }
 

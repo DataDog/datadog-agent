@@ -10,10 +10,8 @@ package tests
 
 import (
 	"flag"
-	"math/rand"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,6 +44,4 @@ func init() {
 	flag.StringVar(&logLevelStr, "loglevel", log.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
-
-	rand.Seed(time.Now().UnixNano())
 }

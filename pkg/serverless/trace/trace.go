@@ -12,9 +12,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
+	authtokennoneimpl "github.com/DataDog/datadog-agent/comp/core/ipc/impl-none"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
@@ -28,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
@@ -91,7 +93,8 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger)
+
+	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger, authtokennoneimpl.NewNoopIPC().Comp)
 }
 
 // StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
@@ -101,6 +104,7 @@ type StartServerlessTraceAgentArgs struct {
 	LambdaSpanChan        chan<- *pb.Span
 	ColdStartSpanID       uint64
 	AzureContainerAppTags string
+	FunctionTags          string
 	RCService             *remoteconfig.CoreAgentService
 }
 
@@ -130,6 +134,9 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 				coldStartSpanId: args.ColdStartSpanID,
 				lambdaSpanChan:  args.LambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
+			}
+			ta.TracerPayloadModifier = &tracerPayloadModifier{
+				functionTags: args.FunctionTags,
 			}
 
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime

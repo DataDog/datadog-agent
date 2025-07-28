@@ -14,14 +14,15 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import (
-    CORE_AGENT_LINUX_IT_CONF,
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -46,15 +47,7 @@ if sys.platform == "win32":
     # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
     # This dir contains `aws.rb` which will execute if we just call `aws`,
     # so we need to be explicit about the executable extension/path
-    # NOTE: awscli seems to have a bug where running "aws.cmd", quoted, without a full path,
-    #       causes it to fail due to not searching the PATH.
-    # NOTE: The full path to `aws.cmd` is likely to contain spaces, so if the full path is
-    #       used instead, it must be quoted when passed to ctx.run.
-    # This unfortunately means that the quoting requirements are different if you use
-    # the full path or just the filename.
-    # aws.cmd -> awscli v1 from Python env
-    AWS_CMD = "aws.cmd"
-    # TODO: can we use use `aws.exe` from AWSCLIv2? E2E expects v2.
+    AWS_CMD = "aws.exe"
 else:
     AWS_CMD = "aws"
 
@@ -90,6 +83,7 @@ AGENT_CORECHECKS = [
     "network_path",
     "service_discovery",
     "gpu",
+    "wlan",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -98,6 +92,7 @@ WINDOWS_CORECHECKS = [
     "windows_registry",
     "winkmem",
     "wincrashdetect",
+    "windows_certificate",
     "winproc",
     "win32_event_log",
 ]
@@ -146,20 +141,16 @@ def build(
     bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
+    glibc=True,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv agent.build --build-exclude=systemd
+        dda inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
-
-    if flavor.is_ot():
-        # for agent build purposes the UA agent is just like base
-        flavor = AgentFlavor.base
-    fips_mode = flavor.is_fips()
 
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
@@ -214,12 +205,12 @@ def build(
 
             exclude_tags = [] if build_exclude is None else build_exclude.split(",")
             build_tags = get_build_tags(include_tags, exclude_tags)
-            build_tags = add_fips_tags(build_tags, fips_mode)
 
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
 
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    if not glibc:
+        build_tags = list(set(build_tags).difference({"nvml"}))
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
@@ -227,20 +218,21 @@ def build(
     if include_sds:
         build_tags.append("sds")
 
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
-    args = {
-        "go_mod": go_mod,
-        "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
-        "go_build_tags": " ".join(build_tags),
-        "agent_bin": agent_bin,
-        "gcflags": gcflags,
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-        "flavor": "iot-agent" if flavor.is_iot() else "agent",
-    }
+    flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
     with gitlab_section("Build agent", collapsed=True):
-        ctx.run(cmd.format(**args), env=env)
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/{flavor_cmd}",
+            mod=go_mod,
+            env=env,
+            bin_path=agent_bin,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        )
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
@@ -334,7 +326,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
 
     # System probe not supported on windows
-    if sys.platform.startswith('linux') or windows_sysprobe:
+    if sys.platform != 'win32' or windows_sysprobe:
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
@@ -399,7 +391,7 @@ def exec(
     """
     Execute 'agent <subcommand>' against the currently running Agent.
 
-    This works against an agent run via `inv agent.run`.
+    This works against an agent run via `dda inv agent.run`.
     Basically this just simplifies creating the path for both the agent binary and config.
     """
     agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
@@ -459,15 +451,24 @@ def hacky_dev_image_build(
     process_agent=False,
     trace_agent=False,
     push=False,
+    race=False,
     signed_pull=False,
+    arch=None,
 ):
+    if arch is None:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+
+    if arch is None:
+        print("Unable to determine architecture to build, please set `arch`", file=sys.stderr)
+        raise Exit(code=1)
+
     if base_image is None:
         import requests
         import semver
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list")
+        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -481,7 +482,7 @@ def hacky_dev_image_build(
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
         ctx.run(
-            f"docker run --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
+            f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
         )
 
         os.environ["DELVE"] = "1"
@@ -490,6 +491,7 @@ def hacky_dev_image_build(
         )
         build(
             ctx,
+            race=race,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(
@@ -572,14 +574,14 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build --platform linux/{arch} -t {target_image} -f {dockerfile.name} .', env=pull_env)
 
         if push:
             ctx.run(f'docker push {target_image}')
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", timeout=""):
+def integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
     """
     Run integration tests for the Agent
     """
@@ -587,14 +589,6 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="readonly", t
         return containerized_integration_tests(
             ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, go_mod=go_mod, timeout=timeout
         )
-    return containerized_integration_tests(
-        ctx,
-        CORE_AGENT_LINUX_IT_CONF,
-        race=race,
-        remote_docker=remote_docker,
-        go_mod=go_mod,
-        timeout=timeout,
-    )
 
 
 def check_supports_python_version(check_dir, python):
@@ -648,12 +642,11 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
     """
     import json
 
-    excluded = excluded.split(',')
     integrations = []
 
     for entry in os.listdir(integrations_dir):
         int_path = os.path.join(integrations_dir, entry)
-        if not os.path.isdir(int_path) or entry in excluded:
+        if not os.path.isdir(int_path) or entry in excluded.split(','):
             continue
 
         manifest_file_path = os.path.join(int_path, "manifest.json")
@@ -743,7 +736,7 @@ def version(
         # In theory we'd need to have one format for each package type (deb, rpm, msi, pkg).
         # However, there are a few things that allow us in practice to have only one variable for everything:
         # - the deb and rpm safe version formats are identical (the only difference is an additional rule on Wind River Linux, which doesn't apply to us).
-        #   Moreover, of the two rules, we actually really only use the first one (because we always use inv agent.version --url-safe).
+        #   Moreover, of the two rules, we actually really only use the first one (because we always use dda inv agent.version --url-safe).
         # - the msi version name uses the raw version string. The only difference with the deb / rpm versions
         #   is therefore that dashes are replaced by tildes. We're already doing the reverse operation in agent-release-management
         #   to get the correct msi name.
@@ -886,5 +879,4 @@ def build_remote_agent(ctx, env=None):
     """
     Builds the remote-agent example client.
     """
-    cmd = "go build -v -o bin/remote-agent ./internal/remote-agent"
-    return ctx.run(cmd, env=env or {})
+    return go_build(ctx, "./internal/remote-agent", verbose=True, bin_path="bin/remote-agent", env=env or {})

@@ -63,7 +63,7 @@ func TestServices(t *testing.T) {
 
 		entries := strings.Split(line, ",")
 		for i, s := range entries {
-			entries[i] = strings.Replace(s, "\"", "", -1)
+			entries[i] = strings.ReplaceAll(s, "\"", "")
 		}
 		pid, _ := strconv.ParseInt(entries[1], 10, 64)
 		if pid == 0 {

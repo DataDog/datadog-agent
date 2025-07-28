@@ -6,14 +6,13 @@
 package listeners
 
 import (
-	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -30,15 +29,15 @@ type ContainerPort struct {
 type Service interface {
 	Equal(Service) bool                                          // compare two services
 	GetServiceID() string                                        // unique service name
-	GetADIdentifiers(context.Context) ([]string, error)          // identifiers on which templates will be matched
-	GetHosts(context.Context) (map[string]string, error)         // network --> IP address
-	GetPorts(context.Context) ([]ContainerPort, error)           // network ports
+	GetADIdentifiers() []string                                  // identifiers on which templates will be matched
+	GetHosts() (map[string]string, error)                        // network --> IP address
+	GetPorts() ([]ContainerPort, error)                          // network ports
 	GetTags() ([]string, error)                                  // tags
 	GetTagsWithCardinality(cardinality string) ([]string, error) // tags with given cardinality
-	GetPid(context.Context) (int, error)                         // process identifier
-	GetHostname(context.Context) (string, error)                 // hostname.domainname for the entity
-	IsReady(context.Context) bool                                // is the service ready
-	HasFilter(containers.FilterType) bool                        // whether the service is excluded by metrics or logs exclusion config
+	GetPid() (int, error)                                        // process identifier
+	GetHostname() (string, error)                                // hostname.domainname for the entity
+	IsReady() bool                                               // is the service ready
+	HasFilter(workloadfilter.Scope) bool                         // whether the service is excluded by metrics or logs exclusion config
 	GetExtraConfig(string) (string, error)                       // Extra configuration values
 
 	// FilterTemplates filters the templates which will be resolved against
@@ -70,6 +69,7 @@ type ServiceListernerDeps struct {
 	Config    Config
 	Telemetry *telemetry.Store
 	Tagger    tagger.Component
+	Filter    workloadfilter.Component
 	Wmeta     option.Option[workloadmeta.Component]
 }
 

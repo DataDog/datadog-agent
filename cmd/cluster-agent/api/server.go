@@ -14,8 +14,6 @@ import (
 	"context"
 	"crypto/subtle"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	stdLog "log"
@@ -24,23 +22,27 @@ import (
 	"strings"
 	"time"
 
-	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series"
-
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series"
+	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
+	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -56,13 +58,13 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, telemetry telemetry.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp)
+	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp, diagnoseComponent, dcametadataComp, ipc)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter, w)
@@ -75,7 +77,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	series.InstallNodeMetricsEndpoints(ctx, v2ApiRouter, cfg)
 
 	// Validate token for every request
-	router.Use(validateToken)
+	router.Use(validateToken(ipc))
 
 	// get the transport we're going to use under HTTP
 	var err error
@@ -85,34 +87,13 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 		// no way we can recover from this error
 		return fmt.Errorf("unable to create the api server: %v", err)
 	}
-	// Internal token
-	util.CreateAndSetAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
 	// DCA client token
 	util.InitDCAAuthToken(pkgconfigsetup.Datadog()) //nolint:errcheck
 
-	// create cert
-	hosts := []string{"127.0.0.1", "localhost"}
-	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
-	if err != nil {
-		return fmt.Errorf("unable to start TLS server")
-	}
+	tlsConfig := ipc.GetTLSServerConfig()
 
-	// PEM encode the private key
-	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
-	})
-
-	// Create a TLS cert using the private key and certificate
-	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
-	if err != nil {
-		return fmt.Errorf("invalid key pair: %v", err)
-	}
-
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{rootTLSCert},
-		MinVersion:   tls.VersionTLS13,
-	}
+	tlsConfig.MinVersion = tls.VersionTLS13
 
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 		tlsConfig.MinVersion = tls.VersionTLS10
@@ -141,17 +122,24 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(taggerComp, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
+		taggerServer: taggerserver.NewServer(taggerComp, telemetry, maxEventSize, cfg.GetInt("remote_tagger.max_concurrent_sync")),
 	})
 
 	timeout := pkgconfigsetup.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
-	srv := grpcutil.NewMuxedGRPCServer(
+	errorLog := stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
+	srv := helpers.NewMuxedGRPCServer(
 		listener.Addr().String(),
 		tlsConfig,
 		grpcSrv,
-		grpcutil.TimeoutHandlerFunc(router, timeout),
+		// Use a recovery handler to log panics if they happen.
+		// The client will receive a 500 error.
+		handlers.RecoveryHandler(
+			handlers.PrintRecoveryStack(true),
+			handlers.RecoveryLogger(errorLog),
+		)(router),
+		timeout,
 	)
-	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
+	srv.ErrorLog = errorLog
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 
@@ -174,22 +162,28 @@ func StopServer() {
 
 // We only want to maintain 1 API and expose an external route to serve the cluster level metadata.
 // As we have 2 different tokens for the validation, we need to validate accordingly.
-func validateToken(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.String()
-		var isValid bool
-		if !isExternalPath(path) {
-			if err := util.Validate(w, r); err == nil {
-				isValid = true
+func validateToken(ipc ipc.Component) mux.MiddlewareFunc {
+	dcaTokenValidator := util.TokenValidator(util.GetDCAAuthToken)
+	localTokenGetter := util.TokenValidator(ipc.GetAuthToken)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.String()
+			var isValid bool
+			// If communication is intra-pod
+			if !isExternalPath(path) {
+				if err := localTokenGetter(w, r); err == nil {
+					isValid = true
+				}
 			}
-		}
-		if !isValid {
-			if err := util.ValidateDCARequest(w, r); err != nil {
-				return
+			if !isValid {
+				if err := dcaTokenValidator(w, r); err != nil {
+					return
+				}
 			}
-		}
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // isExternal returns whether the path is an endpoint used by Node Agents.

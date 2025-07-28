@@ -60,12 +60,14 @@ func TestAnalyzeBinary(t *testing.T) {
 
 			procInfo := ditypes.ProcessInfo{
 				BinaryPath: binPath,
-				ProbesByID: ditypes.ProbesByID{
-					testCases[i].FuncName: &ditypes.Probe{
+				ProbesByID: func() *ditypes.ProbesByID {
+					p := ditypes.NewProbesByID()
+					p.Set(testCases[i].FuncName, &ditypes.Probe{
 						ServiceName: "sample",
 						FuncName:    testCases[i].FuncName,
-					},
-				},
+					})
+					return p
+				}(),
 			}
 			err = AnalyzeBinary(&procInfo)
 			if err != nil {

@@ -6,6 +6,8 @@
 // Package metadata defines types for describing data about a device.
 package metadata
 
+import "github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+
 // PayloadMetadataBatchSize is the number of resources per event payload
 // Resources are devices, interfaces, etc
 const PayloadMetadataBatchSize = 100
@@ -34,17 +36,19 @@ const (
 
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
-	Subnet           string                 `json:"subnet,omitempty"`
-	Namespace        string                 `json:"namespace"`
-	Devices          []DeviceMetadata       `json:"devices,omitempty"`
-	Interfaces       []InterfaceMetadata    `json:"interfaces,omitempty"`
-	IPAddresses      []IPAddressMetadata    `json:"ip_addresses,omitempty"`
-	Links            []TopologyLinkMetadata `json:"links,omitempty"`
-	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
-	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
-	DeviceOIDs       []DeviceOID            `json:"device_oids,omitempty"`
-	DeviceScanStatus *ScanStatusMetadata    `json:"scan_status,omitempty"`
-	CollectTimestamp int64                  `json:"collect_timestamp"`
+	Subnet           string                   `json:"subnet,omitempty"`
+	Namespace        string                   `json:"namespace"`
+	Integration      integrations.Integration `json:"integration"`
+	Devices          []DeviceMetadata         `json:"devices,omitempty"`
+	Interfaces       []InterfaceMetadata      `json:"interfaces,omitempty"`
+	IPAddresses      []IPAddressMetadata      `json:"ip_addresses,omitempty"`
+	Links            []TopologyLinkMetadata   `json:"links,omitempty"`
+	VPNTunnels       []VPNTunnelMetadata      `json:"vpn_tunnels,omitempty"`
+	NetflowExporters []NetflowExporter        `json:"netflow_exporters,omitempty"`
+	Diagnoses        []DiagnosisMetadata      `json:"diagnoses,omitempty"`
+	DeviceOIDs       []DeviceOID              `json:"device_oids,omitempty"`
+	DeviceScanStatus *ScanStatusMetadata      `json:"scan_status,omitempty"`
+	CollectTimestamp int64                    `json:"collect_timestamp"`
 }
 
 // DeviceMetadata contains device metadata
@@ -166,6 +170,16 @@ type TopologyLinkMetadata struct {
 	Integration string            `json:"integration,omitempty"`
 	Local       *TopologyLinkSide `json:"local"`
 	Remote      *TopologyLinkSide `json:"remote"`
+}
+
+// VPNTunnelMetadata contains VPN tunnel metadata
+type VPNTunnelMetadata struct {
+	DeviceID        string   `json:"device_id"`
+	InterfaceID     string   `json:"interface_id,omitempty"`
+	LocalOutsideIP  string   `json:"local_outside_ip"`
+	RemoteOutsideIP string   `json:"remote_outside_ip"`
+	Protocol        string   `json:"protocol"`
+	RouteAddresses  []string `json:"route_addresses"`
 }
 
 // NetflowExporter contains netflow exporters info

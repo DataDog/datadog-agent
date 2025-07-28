@@ -51,7 +51,9 @@ func newSpan(name string, parentID, traceID uint64) *Span {
 		s.SetTopLevel()
 	}
 
-	globalTracer.registerSpan(s)
+	if globalTracer != nil {
+		globalTracer.registerSpan(s)
+	}
 	return s
 }
 
@@ -126,7 +128,7 @@ func (s *Span) SetTag(key string, value interface{}) {
 	case float64:
 		s.span.Metrics[key] = v
 	default:
-		s.span.Meta[key] = fmt.Sprintf("not_supported_type %T", v)
+		s.span.Meta[key] = fmt.Sprint(v)
 	}
 }
 

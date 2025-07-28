@@ -8,6 +8,7 @@ processors:
   batch:
     timeout: 5s
     send_batch_size: 100
+  infraattributes:
 
 exporters:
   debug:

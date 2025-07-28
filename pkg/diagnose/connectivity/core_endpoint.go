@@ -9,21 +9,19 @@
 package connectivity
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
 	"strings"
 
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logstcp "github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -67,14 +65,14 @@ func getLogsUseTCP() bool {
 }
 
 // Diagnose performs connectivity diagnosis
-func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
+func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 
 	// Create domain resolvers
 	keysPerDomain, err := utils.GetMultipleEndpoints(pkgconfigsetup.Datadog())
 	if err != nil {
-		return []diagnosis.Diagnosis{
+		return []diagnose.Diagnosis{
 			{
-				Result:      diagnosis.DiagnosisSuccess,
+				Status:      diagnose.DiagnosisSuccess,
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate Agent configuration",
@@ -83,9 +81,21 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 		}
 	}
 
-	var diagnoses []diagnosis.Diagnosis
-	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog())
+	var diagnoses []diagnose.Diagnosis
+	domainResolvers, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+	if err != nil {
+		return []diagnose.Diagnosis{
+			{
+				Status:      diagnose.DiagnosisSuccess,
+				Name:        "Resolver error",
+				Diagnosis:   "Unable to create domain resolver",
+				Remediation: "This is likely due to a bug",
+				RawError:    err.Error(),
+			},
+		}
+	}
+	numberOfWorkers := 1
+	client := getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
 
 	// Create diagnosis for logs
 	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
@@ -93,8 +103,8 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 		endpoints, err := getLogsEndpoints(useTCP)
 
 		if err != nil {
-			diagnoses = append(diagnoses, diagnosis.Diagnosis{
-				Result:      diagnosis.DiagnosisFail,
+			diagnoses = append(diagnoses, diagnose.Diagnosis{
+				Status:      diagnose.DiagnosisFail,
 				Name:        "Endpoints configuration",
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate agent configuration",
@@ -134,11 +144,11 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 				if endpointInfo.Method == "HEAD" {
 					logURL = endpointInfo.Endpoint.Route
-					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, clientWithOneRedirects())
+					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log, withOneRedirect()))
 				} else {
 					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
 					httpTraces = []string{}
-					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces))
+					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, false))
 
 					statusCode, responseBody, logURL, err = sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
 				}
@@ -160,17 +170,17 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func createDiagnosis(name string, logURL string, report string, err error) diagnosis.Diagnosis {
-	d := diagnosis.Diagnosis{
+func createDiagnosis(name string, logURL string, report string, err error) diagnose.Diagnosis {
+	d := diagnose.Diagnosis{
 		Name: name,
 	}
 
 	if err == nil {
-		d.Result = diagnosis.DiagnosisSuccess
+		d.Status = diagnose.DiagnosisSuccess
 		diagnosisWithoutReport := fmt.Sprintf("Connectivity to `%s` is Ok", logURL)
 		d.Diagnosis = createDiagnosisString(diagnosisWithoutReport, report)
 	} else {
-		d.Result = diagnosis.DiagnosisFail
+		d.Status = diagnose.DiagnosisFail
 		diagnosisWithoutReport := fmt.Sprintf("Connection to `%s` failed", logURL)
 		d.Diagnosis = createDiagnosisString(diagnosisWithoutReport, report)
 		d.Remediation = "Please validate Agent configuration and firewall to access " + logURL
@@ -192,35 +202,13 @@ func createDiagnosisString(diagnosis string, report string) string {
 // then sends an HTTP Request with the method and payload inside the endpoint information
 func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, string, error) {
 	url := createEndpointURL(domain, endpointInfo)
-	logURL := scrubber.ScrubLine(url)
 
-	// Create a request for the backend
-	reader := bytes.NewReader(endpointInfo.Payload)
-	req, err := http.NewRequest(endpointInfo.Method, url, reader)
-
-	if err != nil {
-		return 0, nil, logURL, fmt.Errorf("cannot create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
+	headers := map[string]string{
+		"Content-Type": endpointInfo.ContentType,
+		"DD-API-KEY":   apiKey,
 	}
 
-	// Add tracing and send the request
-	req = req.WithContext(ctx)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("DD-API-KEY", apiKey)
-
-	resp, err := client.Do(req)
-
-	if err != nil {
-		return 0, nil, logURL, fmt.Errorf("cannot send the HTTP request to '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Get the endpoint response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, nil, logURL, fmt.Errorf("fail to read the response Body: %s", scrubber.ScrubLine(err.Error()))
-	}
-
-	return resp.StatusCode, body, logURL, nil
+	return sendPost(ctx, client, url, endpointInfo.Payload, headers)
 }
 
 // createEndpointUrl joins a domain with an endpoint
@@ -230,8 +218,7 @@ func createEndpointURL(domain string, endpointInfo endpointInfo) string {
 
 // vertifyEndpointResponse interprets the endpoint response and displays information on if the connectivity
 // check was successful or not
-func verifyEndpointResponse(diagCfg diagnosis.Config, statusCode int, responseBody []byte, err error) (string, error) {
-
+func verifyEndpointResponse(diagCfg diagnose.Config, statusCode int, responseBody []byte, err error) (string, error) {
 	if err != nil {
 		return fmt.Sprintf("Could not get a response from the endpoint : %v\n%s\n",
 			scrubber.ScrubLine(err.Error()), noResponseHints(err)), err
@@ -279,24 +266,15 @@ func noResponseHints(err error) string {
 	return ""
 }
 
-func clientWithOneRedirects() *http.Client {
-	return &http.Client{
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-}
-
 // See if the URL is redirected to another URL, and return the status code of the redirection
 func sendHTTPHEADRequestToEndpoint(url string, client *http.Client) (int, error) {
-	res, err := client.Head(url)
+	statusCode, _, err := sendHead(context.Background(), client, url)
 	if err != nil {
 		return -1, err
 	}
-	defer res.Body.Close()
 	// Expected status codes are OK or a redirection
-	if res.StatusCode == http.StatusTemporaryRedirect || res.StatusCode == http.StatusPermanentRedirect || res.StatusCode == http.StatusOK {
-		return res.StatusCode, nil
+	if statusCode == http.StatusTemporaryRedirect || statusCode == http.StatusPermanentRedirect || statusCode == http.StatusOK {
+		return statusCode, nil
 	}
-	return res.StatusCode, fmt.Errorf("The request wasn't redirected nor achieving his goal: %v", res.Status)
+	return statusCode, fmt.Errorf("The request wasn't redirected nor achieving his goal: %v", statusCode)
 }

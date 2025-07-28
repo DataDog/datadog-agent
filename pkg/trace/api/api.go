@@ -28,6 +28,8 @@ import (
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
@@ -38,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // defaultReceiverBufferSize is used as a default for the initial size of http body buffer
@@ -344,6 +345,11 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+	if unixLn, ok := ln.(*net.UnixListener); ok {
+		// We do not want to unlink the socket here as we can't be sure if another trace-agent has already
+		// put a new file at the same path.
+		unixLn.SetUnlinkOnClose(false)
+	}
 	if err := os.Chmod(path, 0o722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
@@ -369,7 +375,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 
 // Stop stops the receiver and shuts down the HTTP server.
 func (r *HTTPReceiver) Stop() error {
-	if !r.conf.ReceiverEnabled || r.conf.ReceiverPort == 0 {
+	if !r.conf.ReceiverEnabled || (r.conf.ReceiverPort == 0 && r.conf.ReceiverSocket == "" && r.conf.WindowsPipeName == "") {
 		return nil
 	}
 	r.exit <- struct{}{}
@@ -379,6 +385,7 @@ func (r *HTTPReceiver) Stop() error {
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
 	defer cancel()
 	if err := r.server.Shutdown(ctx); err != nil {
+		log.Warnf("Error shutting down HTTPReceiver: %v", err)
 		return err
 	}
 	r.wg.Wait()
@@ -440,6 +447,7 @@ const (
 	// tagContainersTags specifies the name of the tag which holds key/value
 	// pairs representing information about the container (Docker, EC2, etc).
 	tagContainersTags = "_dd.tags.container"
+	tagProcessTags    = "_dd.tags.process"
 )
 
 // TagStats returns the stats and tags coinciding with the information found in header.
@@ -485,7 +493,9 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 			return nil, err
 		}
 		var traces pb.Traces
-		err = traces.UnmarshalMsgDictionary(buf.Bytes())
+		if err = traces.UnmarshalMsgDictionary(buf.Bytes()); err != nil {
+			return nil, err
+		}
 		return &pb.TracerPayload{
 			LanguageName:    lang,
 			LanguageVersion: langVersion,
@@ -572,6 +582,8 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	r.wg.Add(1)
+	defer r.wg.Done()
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
@@ -650,20 +662,28 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	ts.TracesReceived.Add(int64(len(tp.Chunks)))
 	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
 	ts.PayloadAccepted.Inc()
-
-	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID); ctags != "" {
+	ctags := getContainerTagsList(r.conf.ContainerTags, tp.ContainerID)
+	if len(ctags) > 0 {
 		if tp.Tags == nil {
 			tp.Tags = make(map[string]string)
 		}
-		tp.Tags[tagContainersTags] = ctags
+		tp.Tags[tagContainersTags] = strings.Join(ctags, ",")
 	}
-
+	ptags := getProcessTags(req.Header, tp)
+	if ptags != "" {
+		if tp.Tags == nil {
+			tp.Tags = make(map[string]string)
+		}
+		tp.Tags[tagProcessTags] = ptags
+	}
 	payload := &Payload{
 		Source:                 ts,
 		TracerPayload:          tp,
 		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
 		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		ProcessTags:            ptags,
+		ContainerTags:          ctags,
 	}
 	r.out <- payload
 }
@@ -698,6 +718,42 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 		}
 	}
 	return dropped
+}
+
+// todo:raphael cleanup unused methods of extraction once implementation
+// in all tracers is completed
+// order of priority:
+// 1. tags in the v07 payload
+// 2. tags in the first span of the first chunk
+// 3. tags in the header
+func getProcessTags(h http.Header, p *pb.TracerPayload) string {
+	if p.Tags != nil {
+		if ptags, ok := p.Tags[tagProcessTags]; ok {
+			return ptags
+		}
+	}
+	if span, ok := getFirstSpan(p); ok {
+		if ptags, ok := span.Meta[tagProcessTags]; ok {
+			return ptags
+		}
+	}
+	return h.Get(header.ProcessTags)
+}
+
+func getFirstSpan(p *pb.TracerPayload) (*pb.Span, bool) {
+	if len(p.Chunks) == 0 {
+		return nil, false
+	}
+	for _, chunk := range p.Chunks {
+		if chunk == nil || len(chunk.Spans) == 0 {
+			continue
+		}
+		if chunk.Spans[0] == nil {
+			continue
+		}
+		return chunk.Spans[0], true
+	}
+	return nil, false
 }
 
 // handleServices handle a request with a list of several services
@@ -873,23 +929,28 @@ func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
 	return traceChunks
 }
 
-// getContainerTag returns container and orchestrator tags belonging to containerID. If containerID
-// is empty or no tags are found, an empty string is returned.
-func getContainerTags(fn func(string) ([]string, error), containerID string) string {
+func getContainerTagsList(fn func(string) ([]string, error), containerID string) []string {
 	if containerID == "" {
-		return ""
+		return nil
 	}
 	if fn == nil {
 		log.Warn("ContainerTags not configured")
-		return ""
+		return nil
 	}
 	list, err := fn(containerID)
 	if err != nil {
 		log.Tracef("Getting container tags for ID %q: %v", containerID, err)
-		return ""
+		return nil
 	}
 	log.Tracef("Getting container tags for ID %q: %v", containerID, list)
-	return strings.Join(list, ",")
+	return list
+}
+
+// getContainerTag returns container and orchestrator tags belonging to containerID. If containerID
+// is empty or no tags are found, an empty string is returned.
+func getContainerTags(fn func(string) ([]string, error), containerID string) string {
+	ctags := getContainerTagsList(fn, containerID)
+	return strings.Join(ctags, ",")
 }
 
 // getMediaType attempts to return the media type from the Content-Type MIME header. If it fails

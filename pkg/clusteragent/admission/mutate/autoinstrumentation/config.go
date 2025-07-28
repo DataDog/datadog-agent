@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -37,22 +38,54 @@ type Config struct {
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
-	// precomputed mutators for the security and profiling products
-	securityClientLibraryPodMutators  []podMutator
-	profilingClientLibraryPodMutators []podMutator
+	// precomputed containerMutators for the security and profiling products
+	securityClientLibraryMutator  containerMutator
+	profilingClientLibraryMutator containerMutator
 
-	// initResources is the resource requirements for the init container
+	// containerFilter is a pre-computed filter function
+	// to be passed to the different mutators that dictates
+	// whether or not given pod containers should be mutated by
+	// this webhook.
+	//
+	// At the moment it is based on [[excludedContainerNames]].
+	// See [[excludedContainerNamesContainerFilter]].
+	//
+	// This should be used in conjunction with containerMutators
+	// via [[filteredContainerMutator]] and [[mutatePodContainers]]
+	// to make sure we aren't applying mutations to containers we
+	// should be skipping.
+	containerFilter containerFilter
+
+	// initResources is the resource requirements for the init containers.
 	initResources initResourceRequirementConfiguration
 
-	// initSecurityContext is the security context for the init container
+	// initSecurityContext is the security context for the init containers.
 	initSecurityContext *corev1.SecurityContext
 
-	// defaultResourceRequirements is the default resource requirements for the init container
+	// defaultResourceRequirements is the default resource requirements
+	// for the init containers.
 	defaultResourceRequirements initResourceRequirementConfiguration
 
-	// version is the version of the autoinstrumentation logic to use. We don't expose this option to the user, and V1
+	// podMetaAsTags is the unified configuration from [[configUtils.MetadataAsTags]]
+	// filtered to pod annotations and pod labels.
+	//
+	// This is used for picking a default service name for a given pod,
+	// see [[serviceNameMutator]].
+	podMetaAsTags podMetaAsTags
+
+	// version is the version of the autoinstrumentation logic to use.
+	// We don't expose this option to the user, and [[instrumentationV1]]
 	// is deprecated and slated for removal.
 	version version
+}
+
+var excludedContainerNames = map[string]bool{
+	"istio-proxy": true, // https://datadoghq.atlassian.net/browse/INPLAT-454
+}
+
+func excludedContainerNamesContainerFilter(c *corev1.Container) bool {
+	_, exclude := excludedContainerNames[c.Name]
+	return !exclude
 }
 
 // NewConfig creates a new Config from the datadog config. It returns an error if the configuration is invalid.
@@ -84,16 +117,18 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
 	return &Config{
-		Webhook:                           NewWebhookConfig(datadogConfig),
-		LanguageDetection:                 NewLanguageDetectionConfig(datadogConfig),
-		Instrumentation:                   instrumentationConfig,
-		containerRegistry:                 containerRegistry,
-		initResources:                     initResources,
-		initSecurityContext:               initSecurityContext,
-		defaultResourceRequirements:       defaultResourceRequirements,
-		securityClientLibraryPodMutators:  securityClientLibraryConfigMutators(datadogConfig),
-		profilingClientLibraryPodMutators: profilingClientLibraryConfigMutators(datadogConfig),
-		version:                           version,
+		Webhook:                       NewWebhookConfig(datadogConfig),
+		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
+		Instrumentation:               instrumentationConfig,
+		containerRegistry:             containerRegistry,
+		initResources:                 initResources,
+		initSecurityContext:           initSecurityContext,
+		defaultResourceRequirements:   defaultResourceRequirements,
+		securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
+		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
+		containerFilter:               excludedContainerNamesContainerFilter,
+		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
+		version:                       version,
 	}, nil
 }
 
@@ -304,16 +339,19 @@ func (n NamespaceSelector) AsLabelSelector() (labels.Selector, error) {
 // variables to the workload that matches targeting.
 type TracerConfig struct {
 	// Name is the name of the environment variable.
-	Name string `mapstructure:"name" json:"name"`
+	Name string `json:"name,omitempty"`
 	// Value is the value to use.
-	Value string `mapstructure:"value" json:"value"`
+	Value string `json:"value,omitempty"`
+	// ValueFrom is the source for the environment variable's value.
+	ValueFrom *corev1.EnvVarSource `json:"valueFrom,omitempty"`
 }
 
 // AsEnvVar converts the TracerConfig to a corev1.EnvVar.
 func (c *TracerConfig) AsEnvVar() corev1.EnvVar {
 	return corev1.EnvVar{
-		Name:  c.Name,
-		Value: c.Value,
+		Name:      c.Name,
+		Value:     c.Value,
+		ValueFrom: c.ValueFrom,
 	}
 }
 
@@ -408,17 +446,29 @@ func initDefaultResources(datadogConfig config.Component) (initResourceRequireme
 	return conf, nil
 }
 
-func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityContext, error) {
-	securityContext := corev1.SecurityContext{}
-	confKey := "admission_controller.auto_instrumentation.init_security_context"
+var defaultRestrictedSecurityContext = &corev1.SecurityContext{
+	AllowPrivilegeEscalation: ptr.To(false),
+	RunAsNonRoot:             ptr.To(true),
+	SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+	Capabilities: &corev1.Capabilities{
+		Drop: []corev1.Capability{
+			"ALL",
+		},
+	},
+}
 
+func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityContext, error) {
+	confKey := "admission_controller.auto_instrumentation.init_security_context"
 	if datadogConfig.IsSet(confKey) {
 		confValue := datadogConfig.GetString(confKey)
+		var securityContext corev1.SecurityContext
 		err := json.Unmarshal([]byte(confValue), &securityContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get init security context from configuration, %s=`%s`: %v", confKey, confValue, err)
 		}
+
+		return &securityContext, nil
 	}
 
-	return &securityContext, nil
+	return nil, nil
 }

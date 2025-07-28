@@ -46,7 +46,9 @@ func (c *eventCollector) tryRecordEvent(event any) {
 
 	marshaled, err := json.Marshal(event)
 	if err != nil {
-		log.Warnf("Failed to marshal event: %v", err)
+		if logLimitProbe.ShouldLog() {
+			log.Warnf("Failed to marshal event: %v", err)
+		}
 		return
 	}
 

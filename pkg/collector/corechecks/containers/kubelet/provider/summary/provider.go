@@ -12,6 +12,7 @@ import (
 	"context"
 	"regexp"
 	"runtime"
+	"time"
 
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
@@ -63,7 +64,9 @@ func NewProvider(filter *containers.Filter,
 
 // Provide processes metrics and reports
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
-	statsSummary, err := kc.GetLocalStatsSummary(context.TODO())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.config.Timeout)*time.Second)
+	statsSummary, err := kc.GetLocalStatsSummary(ctx)
+	cancel()
 	if err != nil || statsSummary == nil {
 		return err
 	}

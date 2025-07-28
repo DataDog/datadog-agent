@@ -16,35 +16,40 @@ import (
 )
 
 // GetProfileProvider returns a Provider that knows the on-disk profiles as well as any overrides from the initConfig.
-func GetProfileProvider(initConfigProfiles ProfileConfigMap) (Provider, error) {
-	profiles, err := loadProfiles(initConfigProfiles)
+func GetProfileProvider(initConfigProfiles ProfileConfigMap) (Provider, bool, error) {
+	profiles, haveLegacyProfile, err := loadProfiles(initConfigProfiles)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return StaticProvider(profiles), nil
+	return StaticProvider(profiles), haveLegacyProfile, nil
 }
 
-func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
+func loadProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, error) {
 	var profiles ProfileConfigMap
+	var haveLegacyProfile bool
+
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
-		customProfiles, err := loadInitConfigProfiles(initConfigProfiles)
+		customProfiles, haveLegacyCustomProfile, err := loadInitConfigProfiles(initConfigProfiles)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load profiles from initConfig: %w", err)
+			return nil, haveLegacyCustomProfile, fmt.Errorf("failed to load profiles from initConfig: %w", err)
 		}
 		profiles = customProfiles
+		haveLegacyProfile = haveLegacyCustomProfile
 	} else {
-		defaultProfiles, err := loadYamlProfiles()
+		defaultProfiles, haveLegacyYamlProfile, err := loadYamlProfiles()
 		if err != nil {
-			return nil, fmt.Errorf("failed to load yaml profiles: %w", err)
+			return nil, haveLegacyYamlProfile, fmt.Errorf("failed to load yaml profiles: %w", err)
 		}
 		profiles = defaultProfiles
+		haveLegacyProfile = haveLegacyYamlProfile
 	}
 	for _, profileDef := range profiles {
 		profiledefinition.NormalizeMetrics(profileDef.Definition.Metrics)
 	}
-	return profiles, nil
+
+	return profiles, haveLegacyProfile, nil
 }
 
 // getProfileForSysObjectID return a profile for a sys object id

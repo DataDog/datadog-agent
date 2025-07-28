@@ -10,21 +10,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/fatih/color"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
 // GetTaggerList display in a human readable format the Tagger entities into the io.Write w.
-func GetTaggerList(w io.Writer, url string) error {
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string) error {
 
 	// get the tagger-list from server
-	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)
+	r, err := c.Get(url, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(w, "The agent ran into an error while getting tags list: %s\n", string(r))
@@ -54,9 +54,7 @@ func printTaggerEntities(w io.Writer, tr *types.TaggerListResponse) {
 		}
 
 		// sort sources for deterministic output
-		sort.Slice(sources, func(i, j int) bool {
-			return sources[i] < sources[j]
-		})
+		slices.Sort(sources)
 
 		for _, source := range sources {
 			fmt.Fprintf(w, "== Source %s =\n=", source)
@@ -65,9 +63,7 @@ func printTaggerEntities(w io.Writer, tr *types.TaggerListResponse) {
 
 			// sort tags for easy comparison
 			tags := tagItem.Tags[source]
-			sort.Slice(tags, func(i, j int) bool {
-				return tags[i] < tags[j]
-			})
+			slices.Sort(tags)
 
 			for i, tag := range tags {
 				tagInfo := strings.Split(tag, ":")

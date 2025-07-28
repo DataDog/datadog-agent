@@ -17,6 +17,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostgpu "github.com/DataDog/datadog-agent/comp/metadata/hostgpu/def"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
@@ -90,6 +90,7 @@ type Requires struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
 }
 
 // Provides defines the output of the hostgpu component
@@ -102,7 +103,7 @@ type Provides struct {
 
 // NewGPUHostProvider creates a new hostgpu component
 func NewGPUHostProvider(deps Requires) Provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	gh := &gpuHost{
 		conf:     deps.Config,
 		log:      deps.Log,
@@ -151,6 +152,10 @@ func (gh *gpuHost) fillData() {
 
 func (gh *gpuHost) getPayload() marshaler.JSONMarshaler {
 	gh.fillData()
+
+	if len(gh.data.Devices) == 0 {
+		return nil
+	}
 
 	return &Payload{
 		Hostname:  gh.hostname,

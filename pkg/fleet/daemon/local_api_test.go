@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// for now the installer is not supported on windows
-//go:build !windows
-
 package daemon
 
 import (
@@ -18,9 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type testDaemon struct {
@@ -48,11 +43,6 @@ func (m *testDaemon) Remove(ctx context.Context, pkg string) error {
 }
 
 func (m *testDaemon) StartExperiment(ctx context.Context, url string) error {
-	args := m.Called(ctx, url)
-	return args.Error(0)
-}
-
-func (m *testDaemon) StartInstallerExperiment(ctx context.Context, url string) error {
 	args := m.Called(ctx, url)
 	return args.Error(0)
 }
@@ -106,6 +96,10 @@ func (m *testDaemon) SetCatalog(catalog catalog) {
 	m.Called(catalog)
 }
 
+func (m *testDaemon) SetConfigCatalog(configs map[string]installerConfig) {
+	m.Called(configs)
+}
+
 type testLocalAPI struct {
 	i *testDaemon
 	s *localAPIImpl
@@ -137,24 +131,23 @@ func TestAPIStatus(t *testing.T) {
 	api := newTestLocalAPI(t)
 	defer api.Stop()
 
-	installerState := map[string]PackageState{
-		"pkg1": {
-			Version: repository.State{
-				Stable:     "1.0.0",
-				Experiment: "2.0.0",
+	remoteConfigState := &pbgo.ClientUpdater{
+		Packages: []*pbgo.PackageState{
+			{
+				Package: "test-package",
+				Task: &pbgo.PackageStateTask{
+					State: pbgo.TaskState_DONE,
+				},
 			},
 		},
 	}
-	api.i.On("GetState", mock.Anything).Return(installerState, nil)
-	api.i.On("GetRemoteConfigState").Return(&pbgo.ClientUpdater{}, nil)
-	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
+	api.i.On("GetRemoteConfigState").Return(remoteConfigState, nil)
 
 	resp, err := api.c.Status()
 
 	assert.NoError(t, err)
 	assert.Nil(t, resp.Error)
-	assert.Equal(t, version.AgentVersion, resp.Version)
-	assert.Equal(t, installerState, resp.Packages)
+	assert.Equal(t, resp.RemoteConfigState, remoteConfigState.Packages)
 }
 
 func TestAPIInstall(t *testing.T) {
@@ -187,23 +180,6 @@ func TestAPIStartExperiment(t *testing.T) {
 	api.i.On("StartExperiment", mock.Anything, testPackage.URL).Return(nil)
 
 	err := api.c.StartExperiment(testPackage.Name, testPackage.Version)
-
-	assert.NoError(t, err)
-}
-
-func TestAPIStartInstallerExperiment(t *testing.T) {
-	api := newTestLocalAPI(t)
-	defer api.Stop()
-
-	testPackage := Package{
-		Name:    "test-package",
-		Version: "1.0.0",
-		URL:     "oci://example.com/test-package@5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
-	}
-	api.i.On("GetPackage", testPackage.Name, testPackage.Version).Return(testPackage, nil)
-	api.i.On("StartInstallerExperiment", mock.Anything, testPackage.URL).Return(nil)
-
-	err := api.c.StartInstallerExperiment(testPackage.Name, testPackage.Version)
 
 	assert.NoError(t, err)
 }

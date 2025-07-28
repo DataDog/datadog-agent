@@ -28,9 +28,8 @@ class TestCompareToItself(unittest.TestCase):
     @staticmethod
     def side(x):
         if x == "c0mm1t":
-            return MagicMock(author_name=pipeline.BOT_NAME)
-        else:
-            return MagicMock(author_name="Aimee Jaquet")
+            return MagicMock(author_name=pipeline.BOT_NAME, title="Commit to compare to itself")
+        return MagicMock(author_name="Aimee Jaquet")
 
     def setUp(self) -> None:
         self.gh = MagicMock()
@@ -59,7 +58,7 @@ class TestCompareToItself(unittest.TestCase):
         agent.commits = self.commits
         repo_mock.return_value = agent
         pipeline.compare_to_itself(self.context)
-        self.assertEqual(3, agent.pipelines.list.call_count)
+        self.assertEqual(4, agent.pipelines.list.call_count)
 
     @patch('tasks.pipeline.gitlab_configuration_is_modified', new=MagicMock(return_value=True))
     @patch('builtins.open', new=MagicMock())
@@ -74,7 +73,7 @@ class TestCompareToItself(unittest.TestCase):
         gh_mock.return_value = self.gh
         release_mock.return_value = {"base_branch": "main"}
         pipelines = MagicMock()
-        pipelines.list.side_effect = [[], [], [], [], [], []]
+        pipelines.list.side_effect = [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]
         agent = MagicMock()
         agent.pipelines = pipelines
         agent.commits = self.commits
@@ -97,7 +96,26 @@ class TestCompareToItself(unittest.TestCase):
         pipelines = MagicMock()
         compare_to = MagicMock(sha="w4lo0")
         compare_to.jobs.list.return_value = [1, 2, 3]
-        pipelines.list.side_effect = [[], [], [compare_to], [], [], []]
+        pipelines.list.side_effect = [
+            [],
+            [],
+            [compare_to],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [compare_to],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [compare_to],
+            [],
+            [],
+            [],
+        ]
         agent = MagicMock()
         agent.pipelines = pipelines
         agent.commits = self.commits

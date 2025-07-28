@@ -76,6 +76,8 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSockCommonStructSKCNum:          14,
 		OffsetNameFlowI4StructProto:               18,
 		OffsetNameFlowI6StructProto:               18,
+		SizeOfPipeBuffer:                          40,
+		OffsetNamePipeBufferStructFlags:           24,
 	}
 }
 
@@ -121,6 +123,8 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFileFinode:                  getFileFinodeOffset,
 		OffsetNameFileFpath:                   getFileFpathOffset,
 		OffsetNameMountMntID:                  getMountIDOffset,
+		OffsetNameDeviceStructNdNet:           getDeviceStructNdNet,
+		OffsetNameSockStructSKProtocol:        getSockStructSKProtocolOffset,
 	}
 }
 
@@ -966,5 +970,37 @@ func getMountIDOffset(kv *kernel.Version) uint64 {
 		return 268
 	default:
 		return 284
+	}
+}
+
+func getDeviceStructNdNet(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel():
+		return 1000
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		return 1256
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
+		return 1312
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 1256
+	default:
+		return 1264
+	}
+}
+
+func getSockStructSKProtocolOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel():
+		return 337
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		return 505
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 513
+	case kv.IsSuse12Kernel():
+		return 505
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
+		return 505
+	default:
+		return ErrorSentinel
 	}
 }

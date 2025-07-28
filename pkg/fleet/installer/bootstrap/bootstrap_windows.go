@@ -11,12 +11,14 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -26,7 +28,7 @@ import (
 )
 
 func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
-	err := paths.CreateInstallerDataDir()
+	err := paths.EnsureInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("failed to create installer data directory: %w", err)
 	}
@@ -41,7 +43,7 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	defer os.RemoveAll(tmpDir)
 	cmd, err := downloadInstaller(ctx, env, url, tmpDir)
 	if err != nil {
-		return fmt.Errorf("failed to download installer: %w", err)
+		return err
 	}
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)
@@ -56,8 +58,8 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)
 	}
-	if downloadedPackage.Name != InstallerPackage {
-		return nil, fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, InstallerPackage)
+	if downloadedPackage.Name != AgentPackage {
+		return getLocalInstaller(env)
 	}
 
 	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "layout")
@@ -75,18 +77,37 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
 
-	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-installer-*-1-x86_64.msi"))
+	installPath, err := getInstallerPath(ctx, tmpDir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get installer path: %w", err)
 	}
-	if len(msis) > 1 {
-		return nil, fmt.Errorf("too many MSIs in package")
-	} else if len(msis) == 0 {
-		return nil, fmt.Errorf("no MSIs in package")
+
+	return iexec.NewInstallerExec(env, installPath), nil
+}
+
+func getInstallerPath(ctx context.Context, tmpDir string) (string, error) {
+	installPath, msiErr := getInstallerFromMSI(ctx, tmpDir)
+	if msiErr != nil {
+		var err error
+		installPath, err = getInstallerFromOCI(tmpDir)
+		if err != nil {
+			return "", fmt.Errorf("%w, %w ", err, msiErr)
+		}
+	}
+	return installPath, nil
+}
+
+func getInstallerFromMSI(ctx context.Context, tmpDir string) (string, error) {
+	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-agent-*-x86_64.msi"))
+	if err != nil {
+		return "", err
+	}
+
+	if len(msis) != 1 {
+		return "", fmt.Errorf("inncorect number of MSIs found %d in %s", len(msis), tmpDir)
 	}
 
 	adminInstallDir := path.Join(tmpDir, "datadog-installer")
-
 	cmd, err := msi.Cmd(
 		msi.AdministrativeInstall(),
 		msi.WithMsi(msis[0]),
@@ -94,11 +115,42 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	)
 	var output []byte
 	if err == nil {
-		output, err = cmd.Run()
+		output, err = cmd.Run(ctx)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
+		return "", fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
 	}
-	return iexec.NewInstallerExec(env, path.Join(adminInstallDir, "ProgramFiles64Folder", "Datadog", "Datadog Installer", "datadog-installer.exe")), nil
+	return paths.GetAdminInstallerBinaryPath(adminInstallDir), nil
+
+}
+
+func getInstallerFromOCI(tmpDir string) (string, error) {
+	installers, err := filepath.Glob(filepath.Join(tmpDir, "datadog-installer.exe"))
+	if err != nil {
+		return "", err
+	}
+	if len(installers) == 0 {
+		return "", fmt.Errorf("no installer found in %s: %w", tmpDir, fs.ErrNotExist)
+	}
+	return installers[0], nil
+}
+
+func getInstallerOCI(_ context.Context, env *env.Env) (string, error) {
+	agentVersion := env.GetAgentVersion()
+	if agentVersion != "latest" {
+		ver, err := version.New(agentVersion, "")
+		if err != nil {
+			return "", fmt.Errorf("failed to parse agent version: %w", err)
+		}
+		if ver.Major < 7 || (ver.Major == 7 && ver.Minor < 65) {
+			return "", fmt.Errorf("agent version %s does not support fleet automation", agentVersion)
+		}
+	}
+	// This override is used for testing purposes
+	// It allows us to specify a pipeline version to install
+	if env.DefaultPackagesVersionOverride[AgentPackage] != "" {
+		agentVersion = env.DefaultPackagesVersionOverride[AgentPackage]
+	}
+	return oci.PackageURL(env, AgentPackage, agentVersion), nil
 }

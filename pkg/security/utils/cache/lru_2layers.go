@@ -7,9 +7,11 @@
 package cache
 
 import (
+	"iter"
 	"sync"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
+
 	"go.uber.org/atomic"
 )
 
@@ -88,26 +90,47 @@ func (tll *TwoLayersLRU[K1, K2, V]) RemoveKey1(k1 K1) bool {
 	return true
 }
 
-// RemoveKey2 remove the entry in the second layer
-func (tll *TwoLayersLRU[K1, K2, V]) RemoveKey2(k1 K1, k2 K2) bool {
+// RemoveKey2 removes the entry in the second layer for the given K1 keys.
+// If no keys are provided, the function will try to remove the entry for all the keys.
+// Returns the total number of entries that were removed from the cache.
+func (tll *TwoLayersLRU[K1, K2, V]) RemoveKey2(k2 K2, keys ...K1) int {
 	tll.Lock()
 	defer tll.Unlock()
 
-	l2LRU, exists := tll.cache.Peek(k1)
-	if !exists {
-		return false
-	}
-	if !l2LRU.Remove(k2) {
-		return false
+	var k1Iter iter.Seq[K1]
+	if len(keys) == 0 {
+		k1Iter = tll.cache.KeysIter()
+	} else {
+		k1Iter = func(yield func(K1) bool) {
+			for _, k := range keys {
+				if !yield(k) {
+					return
+				}
+			}
+		}
 	}
 
-	if l2LRU.Len() == 0 {
-		tll.cache.Remove(k1)
+	removed := 0
+	for k1 := range k1Iter {
+		l2LRU, exists := tll.cache.Peek(k1)
+		if !exists {
+			continue
+		}
+
+		if !l2LRU.Remove(k2) {
+			continue
+		}
+
+		if l2LRU.Len() == 0 {
+			tll.cache.Remove(k1)
+		}
+
+		removed++
 	}
 
-	tll.len.Dec()
+	tll.len.Sub(uint64(removed))
 
-	return true
+	return removed
 }
 
 // RemoveOldest removes the oldest element
@@ -160,11 +183,27 @@ func (tll *TwoLayersLRU[K1, K2, V]) Walk(cb func(k1 K1, k2 K2, v V)) {
 	tll.RLock()
 	defer tll.RUnlock()
 
-	for _, k1 := range tll.cache.Keys() {
+	for k1 := range tll.cache.KeysIter() {
 		if l2LRU, exists := tll.cache.Peek(k1); exists {
-			for _, k2 := range l2LRU.Keys() {
+			for k2 := range l2LRU.KeysIter() {
 				if value, exists := l2LRU.Peek(k2); exists {
 					cb(k1, k2, value)
+				}
+			}
+		}
+	}
+}
+
+// WalkInner through all the keys of the inner LRU
+func (tll *TwoLayersLRU[K1, K2, V]) WalkInner(k1 K1, cb func(k2 K2, v V) bool) {
+	tll.RLock()
+	defer tll.RUnlock()
+
+	if l2LRU, exists := tll.cache.Peek(k1); exists {
+		for k2 := range l2LRU.KeysIter() {
+			if value, exists := l2LRU.Peek(k2); exists {
+				if continu := cb(k2, value); !continu {
+					return
 				}
 			}
 		}

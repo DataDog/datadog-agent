@@ -8,11 +8,9 @@ target-version = "py311"
 exclude = [
     ".git",
     ".github",
-    ".circleci",
     "chocolatey",
     "Dockerfiles",
     "docs",
-    "google-marketplace",
     "omnibus",
     "releasenotes",
     "vendor",
@@ -84,3 +82,7 @@ disable_error_code = [
 ignore_decorators = ["@task"]
 ignore_names = ["test_*", "Test*"]
 paths = ["tasks"]
+
+[tool.ddev]
+repo = "agent"
+

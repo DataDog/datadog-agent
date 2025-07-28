@@ -1,0 +1,140 @@
+{
+    "resourceMetrics": [
+      {
+        "resource": {
+          "attributes": [
+            {
+              "key": "datadog.host.name",
+              "value": {
+                "stringValue": "res-hostname"
+              }
+            }
+          ]
+        },
+        "scopeMetrics": [
+          {
+            "scope": {
+              "name": "foo",
+              "version": "1.0.0"
+            },
+            "metrics": [
+              {
+                "name": "with-source",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "with-source-2",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "resource": {
+          "attributes": []
+        },
+        "scopeMetrics": [
+          {
+            "scope": {
+              "name": "foo",
+              "version": "1.0.0"
+            },
+            "metrics": [
+              {
+                "name": "missing-source-1",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "missing-source-2",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "scope": {
+              "name": "bar",
+              "version": "2.0.0"
+            },
+            "metrics": [
+              {
+                "name": "missing-source-3",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "missing-source-4",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "scope": {
+              "name": "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
+            },
+            "metrics": [
+              {
+                "name": "datadog.otlp_translator.metrics.missing_source",
+                "gauge": {
+                  "dataPoints": [
+                    {
+                      "attributes": [],
+                      "timeUnixNano": "1667560641226420924",
+                      "asInt": 37
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }

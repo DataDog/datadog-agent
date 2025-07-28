@@ -31,25 +31,20 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
         print(f'{color_message("Info", Color.BLUE)}: Cloning datadog agent into {WORKTREE_DIRECTORY}', file=sys.stderr)
         remote = ctx.run("git remote get-url origin", hide=True).stdout.strip()
         # Try to use this option to reduce cloning time
-        if all(
-            not ctx.run(
-                f"git clone '{remote}' '{WORKTREE_DIRECTORY}' -b {branch or 'main'} {filter_option}",
-                warn=True,
-                hide=True,
-            )
-            for filter_option in ["--filter=blob:none", ""]
+        if not ctx.run(
+            f"git clone '{remote}' '{WORKTREE_DIRECTORY}' -b {branch or 'main'}",
+            warn=True,
+            hide=True,
         ):
             raise Exit(
-                f'{color_message("Error", Color.RED)}: Cannot initialize worktree environment. You might want to reset the worktree directory with `inv worktree.remove`',
+                f'{color_message("Error", Color.RED)}: Cannot initialize worktree environment. You might want to reset the worktree directory with `dda inv worktree.remove`',
                 code=1,
             )
 
     # Copy the configuration file
     ctx.run(f"cp {LOCAL_DIRECTORY}/.git/config {WORKTREE_DIRECTORY}/.git/config", hide=True)
-    ctx.run(
-        f"git -C '{WORKTREE_DIRECTORY}' branch --set-upstream-to=origin/{branch or 'main'} {branch or 'main'}",
-        hide=True,
-    )
+    # Be sure the target branch is present locally and set up to track the remote branch
+    ctx.run(f"git -C '{WORKTREE_DIRECTORY}' branch {branch or 'main'} origin/{branch or 'main'} || true", hide=True)
     # If the state is not clean, clean it
     if ctx.run(f"git -C '{WORKTREE_DIRECTORY}' status --porcelain", hide=True).stdout.strip():
         print(f'{color_message("Info", Color.BLUE)}: Cleaning worktree directory', file=sys.stderr)
@@ -72,14 +67,14 @@ def init_env(ctx, branch: str | None = None, commit: str | None = None):
                             f'{color_message("Warning", Color.ORANGE)}: Git branch not found in the local worktree folder, fetching repository',
                             file=sys.stderr,
                         )
-                        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch", hide=True)
+                        ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch --set-upstream origin", hide=True)
 
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
-            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull", hide=True)
+            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' pull --set-upstream origin '{branch}'", hide=True)
 
     if commit:
         if not os.environ.get("AGENT_WORKTREE_NO_PULL"):
-            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch", hide=True)
+            ctx.run(f"git -C '{WORKTREE_DIRECTORY}' fetch --set-upstream origin", hide=True)
 
         ctx.run(f"git -C '{WORKTREE_DIRECTORY}' checkout '{commit}'", hide=True)
 
@@ -112,7 +107,7 @@ def enter_env(ctx, branch: str | None, skip_checkout=False, commit: str | None =
         current_branch = get_current_branch(ctx)
         assert (
             current_branch == branch
-        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}. You should check out the branch before using this command, this can be safely done with `inv worktree.checkout {branch}`."
+        ), f"skip_checkout is True but the current branch ({current_branch}) is not {branch}. You should check out the branch before using this command, this can be safely done with `dda inv worktree.checkout {branch}`."
 
 
 def exit_env():

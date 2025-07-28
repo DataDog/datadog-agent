@@ -93,12 +93,12 @@ func applyFargateOverrides(pod *corev1.Pod) (bool, error) {
 	mutated := deleteConfigWebhookVolumesAndMounts(pod)
 
 	volume, volumeMount := socketsVolume()
-	injected := common.InjectVolume(pod, volume, volumeMount)
-	if injected {
+	injectedVol, injectedMount := common.InjectVolume(pod, volume, volumeMount)
+	if injectedVol {
 		common.MarkVolumeAsSafeToEvictForAutoscaler(pod, volume.Name)
 	}
 
-	mutated = mutated || injected
+	mutated = mutated || injectedVol || injectedMount
 
 	// ShareProcessNamespace is required for the process collection feature
 	if pod.Spec.ShareProcessNamespace == nil || !*pod.Spec.ShareProcessNamespace {

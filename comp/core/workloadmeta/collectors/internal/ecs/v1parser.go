@@ -9,6 +9,7 @@ package ecs
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -50,13 +51,14 @@ func (c *collector) parseTasksFromV1Endpoint(ctx context.Context) ([]workloadmet
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: taskID,
 			},
-			ClusterName:  c.clusterName,
-			Family:       task.Family,
-			Version:      task.Version,
-			Region:       taskRegion,
-			AWSAccountID: taskAccountID,
-			LaunchType:   workloadmeta.ECSLaunchTypeEC2,
-			Containers:   taskContainers,
+			ClusterName:          c.clusterName,
+			ContainerInstanceARN: c.containerInstanceARN,
+			Family:               task.Family,
+			Version:              task.Version,
+			Region:               taskRegion,
+			AWSAccountID:         taskAccountID,
+			LaunchType:           workloadmeta.ECSLaunchTypeEC2,
+			Containers:           taskContainers,
 		}
 
 		// Only fetch tags if they're both available and used
@@ -192,8 +194,14 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 
 	metaV3orV4 := c.metaV3or4(metaURI, metaVersion)
 	taskWithTags, err := metaV3orV4.GetTaskWithTags(ctx)
+
 	if err != nil {
-		log.Errorf("failed to get task with tags from metadata %s API: %s", metaVersion, err)
+		// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
+		if errors.Is(err, context.DeadlineExceeded) {
+			log.Debugf("timeout while getting task with tags from metadata %s API: %s", metaVersion, err)
+		} else {
+			log.Warnf("failed to get task with tags from metadata %s API: %s", metaVersion, err)
+		}
 		return rt
 	}
 

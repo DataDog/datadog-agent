@@ -36,8 +36,8 @@ const (
 	// systemProbeStartLog is the log corresponding to a successful start of the system-probe
 	systemProbeStartLog = "runtime security started"
 
-	// securityAgentPath is the path of the security-agent binary
-	securityAgentPath = "/opt/datadog-agent/embedded/bin/security-agent"
+	// systemProbePath is the path of the system-probe binary
+	systemProbePath = "/opt/datadog-agent/embedded/bin/system-probe"
 
 	// policiesPath is the path of the default runtime security policies
 	policiesPath = "/etc/datadog-agent/runtime-security.d/test.policy"
@@ -157,7 +157,7 @@ func (a *agentSuite) Test03OpenSignal() {
 
 	var policies string
 	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download >| temp.txt && cat temp.txt", appKey, apiKey, securityAgentPath))
+		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download >| temp.txt && cat temp.txt", appKey, apiKey, systemProbePath))
 		assert.NotEmpty(c, policies, "should not be empty")
 	}, 1*time.Minute, 1*time.Second)
 
@@ -170,7 +170,7 @@ func (a *agentSuite) Test03OpenSignal() {
 	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", securityAgentPath))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", systemProbePath))
 
 	// Check if the policy is loaded
 	policyName := path.Base(policiesPath)

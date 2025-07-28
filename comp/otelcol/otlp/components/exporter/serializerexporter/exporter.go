@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
@@ -39,7 +41,7 @@ func newDefaultConfig() component.Config {
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueConfig: exporterhelper.NewDefaultQueueConfig(),
+		QueueBatchConfig: exporterhelper.NewDefaultQueueConfig(),
 
 		Metrics:      mcfg,
 		API:          pkgmcfg.API,
@@ -81,6 +83,8 @@ type Exporter struct {
 	params          exporter.Settings
 	hostmetadata    datadogconfig.HostMetadataConfig
 	reporter        *inframetadata.Reporter
+	gatewayUsage    otel.GatewayUsage
+	usageMetric     telemetry.Gauge
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -120,7 +124,7 @@ func translatorFromConfig(
 	}
 
 	if cfg.ExporterConfig.InstrumentationScopeMetadataAsTags {
-		options = append(options, metrics.WithInstrumentationLibraryMetadataAsTags())
+		options = append(options, metrics.WithInstrumentationScopeMetadataAsTags())
 	}
 
 	var numberMode metrics.NumberMode
@@ -147,6 +151,8 @@ func NewExporter(
 	tr *metrics.Translator,
 	params exporter.Settings,
 	reporter *inframetadata.Reporter,
+	gatewayUsage otel.GatewayUsage,
+	usageMetric telemetry.Gauge,
 ) (*Exporter, error) {
 	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {
@@ -172,6 +178,8 @@ func NewExporter(
 		params:          params,
 		hostmetadata:    cfg.HostMetadata,
 		reporter:        reporter,
+		gatewayUsage:    gatewayUsage,
+		usageMetric:     usageMetric,
 	}, nil
 }
 
@@ -185,7 +193,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		}
 	}
 	consumer := e.createConsumer(e.enricher, e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
-	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, nil)
+	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())
 	if err != nil {
 		return err
 	}
@@ -194,8 +202,9 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return err
 	}
 
-	consumer.addTelemetryMetric(hostname)
+	consumer.addTelemetryMetric(hostname, e.params, e.usageMetric)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
+	consumer.addGatewayUsage(hostname, e.gatewayUsage)
 	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}

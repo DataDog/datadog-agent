@@ -8,6 +8,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
@@ -24,6 +25,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+type testBoostrapper struct {
+	mock.Mock
+}
+
+func (b *testBoostrapper) InstallExperiment(ctx context.Context, env *env.Env, url string) error {
+	args := b.Called(ctx, env, url)
+	return args.Error(0)
+}
 
 type testPackageManager struct {
 	mock.Mock
@@ -93,8 +103,8 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
-func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error {
-	args := m.Called(ctx, pkg, version, rawConfig)
+func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
+	args := m.Called(ctx, pkg, version, rawConfigs)
 	return args.Error(0)
 }
 
@@ -110,6 +120,11 @@ func (m *testPackageManager) PromoteConfigExperiment(ctx context.Context, pkg st
 
 func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
 	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) SetupInstaller(ctx context.Context, path string) error {
+	args := m.Called(ctx, path)
 	return args.Error(0)
 }
 
@@ -206,24 +221,31 @@ type testInstaller struct {
 	*daemonImpl
 	rcc *testRemoteConfigClient
 	pm  *testPackageManager
+	bm  *testBoostrapper
 }
 
 func newTestInstaller(t *testing.T) *testInstaller {
+	bm := &testBoostrapper{}
+	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
 	pm.On("States", mock.Anything).Return(map[string]repository.State{}, nil)
 	pm.On("ConfigStates", mock.Anything).Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
 	daemon := newDaemon(
 		rc,
 		func(_ *env.Env) installer.Installer { return pm },
 		&env.Env{RemoteUpdates: true},
+		taskDB,
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,
 		rcc:        rcc,
 		pm:         pm,
+		bm:         bm,
 	}
 	i.Start(context.Background())
 	return i
@@ -253,7 +275,7 @@ func TestStartExperiment(t *testing.T) {
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
-	i.pm.On("InstallExperiment", mock.Anything, testURL).Return(nil).Once()
+	i.bm.On("InstallExperiment", mock.Anything, mock.Anything, testURL).Return(nil).Once()
 
 	err := i.StartExperiment(context.Background(), testURL)
 	if err != nil {
@@ -349,7 +371,7 @@ func TestRemoteRequest(t *testing.T) {
 	}
 	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
 	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
-	i.pm.On("InstallExperiment", mock.Anything, testExperimentPackage.URL).Return(nil).Once()
+	i.bm.On("InstallExperiment", mock.Anything, mock.Anything, testExperimentPackage.URL).Return(nil).Once()
 	i.rcc.SubmitRequest(testRequest)
 	i.requestsWG.Wait()
 

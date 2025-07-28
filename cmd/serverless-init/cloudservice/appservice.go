@@ -7,6 +7,8 @@
 package cloudservice
 
 import (
+	"fmt"
+	"maps"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -24,6 +26,9 @@ const (
 	WebsiteStack = "WEBSITE_STACK"
 	//nolint:revive // TODO(SERV) Fix revive linter
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
+
+	// AppServiceOrigin origin tag value
+	AppServiceOrigin = "appservice"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -34,13 +39,11 @@ func (a *AppService) GetTags() map[string]string {
 	tags := map[string]string{
 		"app_name":   appName,
 		"region":     region,
-		"origin":     a.GetOrigin(),
-		"_dd.origin": a.GetOrigin(),
+		"origin":     AppServiceOrigin,
+		"_dd.origin": AppServiceOrigin,
 	}
 
-	for key, value := range traceutil.GetAppServicesTags() {
-		tags[key] = value
-	}
+	maps.Copy(tags, traceutil.GetAppServicesTags())
 
 	return tags
 }
@@ -48,7 +51,7 @@ func (a *AppService) GetTags() map[string]string {
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (a *AppService) GetOrigin() string {
-	return "appservice"
+	return AppServiceOrigin
 }
 
 // GetPrefix returns the prefix that we're prefixing all
@@ -60,6 +63,11 @@ func (a *AppService) GetPrefix() string {
 // Init is empty for AppService
 func (a *AppService) Init() error {
 	return nil
+}
+
+// GetStartMetricName returns the metric name for container start (coldstart) events
+func (a *AppService) GetStartMetricName() string {
+	return fmt.Sprintf("%s.enhanced.cold_start", a.GetPrefix())
 }
 
 func isAppService() bool {
