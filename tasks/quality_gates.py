@@ -16,7 +16,14 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
+from tasks.static_quality_gates.gates import (
+    GateMetricHandler,
+    QualityGateFactory,
+    StaticQualityGate,
+    StaticQualityGateFailed,
+    byte_to_string,
+)
+from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
 
 BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
@@ -152,60 +159,92 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
 
 
 @task
-def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
+def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[StaticQualityGate]:
     """
-    Parse and executes static quality gates
+    Parse and executes static quality gates using composition pattern
     :param ctx: Invoke context
     :param config_path: Static quality gates configuration file path
-    :return:
+    :return: List of quality gates
     """
-    with open(config_path) as file:
-        config = yaml.safe_load(file)
-
-    gate_list = list(config.keys())
-    quality_gates_mod = __import__("tasks.static_quality_gates", fromlist=gate_list)
-    print(f"{config_path} correctly parsed !")
+    final_state = "success"
+    gate_states = []
     metric_handler = GateMetricHandler(
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
-    newline_tab = "\n\t"
-    print(f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate_list)}")
-    final_state = "success"
-    gate_states = []
+    gate_list = QualityGateFactory.create_gates_from_config(config_path)
+
+    print(color_message(f"Starting {len(gate_list)} quality gates...", "cyan"))
+    print(color_message(f"Gates to run: {'\n'.join(gate.config.gate_name for gate in gate_list)}", "cyan"))
 
     nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
     branch = os.environ["CI_COMMIT_BRANCH"]
 
     for gate in gate_list:
-        gate_inputs = config[gate]
-        gate_inputs["ctx"] = ctx
-        gate_inputs["metricHandler"] = metric_handler
-        gate_inputs["nightly"] = nightly_run
+        result = None
         try:
-            gate_mod = getattr(quality_gates_mod, gate)
-            gate_mod.entrypoint(**gate_inputs)
-            print(f"Gate {gate} succeeded !")
-            gate_states.append({"name": gate, "state": True, "error_type": None, "message": None})
-        except AssertionError as e:
-            print(f"Gate {gate} failed ! (AssertionError)")
+            result = gate.execute_gate(ctx)
+            gate_states.append({"name": result.config.gate_name, "state": True, "error_type": None, "message": None})
+        except StaticQualityGateFailed as e:
             final_state = "failure"
-            gate_states.append({"name": gate, "state": False, "error_type": "AssertionError", "message": str(e)})
+            gate_states.append(
+                {
+                    "name": gate.config.gate_name,
+                    "state": False,
+                    "error_type": "StaticQualityGateFailed",
+                    "message": str(e),
+                }
+            )
         except InfraError as e:
-            print(f"Gate {gate} flaked ! (InfraError)\n Restarting the job...")
+            print(f"Gate {gate.config.gate_name} flaked ! (InfraError)\n Restarting the job...")
             traceback.print_exception(e)
             ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
             raise Exit(code=42) from e
         except Exception:
-            print(f"Gate {gate} failed ! (StackTrace)")
             final_state = "failure"
             gate_states.append(
-                {"name": gate, "state": False, "error_type": "StackTrace", "message": traceback.format_exc()}
+                {
+                    "name": gate.config.gate_name,
+                    "state": False,
+                    "error_type": "StackTrace",
+                    "message": traceback.format_exc(),
+                }
             )
+        finally:
+            metric_handler.register_gate_tags(
+                gate.config.gate_name,
+                gate_name=gate.config.gate_name,
+                arch=gate.config.arch,
+                os=gate.config.os,
+                pipeline_id=os.environ["CI_PIPELINE_ID"],
+                ci_commit_ref_slug=os.environ["CI_COMMIT_REF_SLUG"],
+                ci_commit_sha=os.environ["CI_COMMIT_SHA"],
+            )
+            metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
+            metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
+
+            # Only register current sizes if gate executed successfully and we have a result
+            if result is not None:
+                metric_handler.register_metric(
+                    gate.config.gate_name, "current_on_wire_size", result.measurement.on_wire_size
+                )
+                metric_handler.register_metric(
+                    gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
+                )
+
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
-    _print_quality_gates_report(gate_states)
-
+    # Reporting part
+    # Send metrics to Datadog
+    # and then print the summary table
+    # in the job's log
     metric_handler.send_metrics_to_datadog()
+
+    # Print summary table directly with composition-based gates and metric handler
+    QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, metric_handler)
+
+    # Then print the traditional report for any failures
+    if final_state != "success":
+        _print_quality_gates_report(gate_states)
 
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
@@ -223,6 +262,8 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
             raise Exit(code=1)
     # We are generating our metric reports at the end to include relative size metrics
     metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
+
+    return gate_list
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, exception_bump=False):
