@@ -189,16 +189,20 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
+		failoverActive := p.failoverConfig.isFailoverActive
 		allowlist := p.failoverConfig.failoverAllowlist
-		failoverSettingsSet := len(allowlist) > 0
-		failoverActiveForMRF := p.failoverConfig.isFailoverActive && failoverSettingsSet
+		failoverAllowlistSet := len(allowlist) > 0
 
-		if failoverActiveForMRF {
+		// Only filter messages when an allowlist is set, otherwise failover
+		// everything
+		if failoverActive && failoverAllowlistSet {
 			_, sourceIsFailover := allowlist[msg.Origin.Service()]
 
 			if sourceIsFailover {
 				msg.IsMRFAllow = true
 			}
+		} else if failoverActive {
+			msg.IsMRFAllow = true
 		}
 
 		// encode the message to its final format, it is done in-place
