@@ -121,7 +121,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ inventoryagent.Component,
 			_ inventoryhost.Component,
 			_ inventoryotel.Component,
-			_ softwareinventory.Component,
 			_ haagentmetadata.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
