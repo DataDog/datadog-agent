@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
 	"golang.org/x/text/encoding/unicode"

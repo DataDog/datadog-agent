@@ -458,6 +458,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 		WithIdentity(identity)
 }
 
+// TestUpgradeWithHostNameChange tests that the agent can be upgraded when the host name changes.
 func (s *testAgentUpgradeSuite) TestUpgradeWithHostNameChange() {
 	// Arrange
 	s.setAgentConfig()

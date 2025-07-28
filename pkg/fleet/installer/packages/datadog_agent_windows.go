@@ -108,8 +108,25 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 func preStartExperimentDatadogAgent(_ HookContext) error {
 	env := getenv()
 	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
+	if err == nil {
+		return nil
+	}
+
+	// if the user is not the Datadog user, we need to check if the user is the service user
+	sid, errService := winutil.GetServiceUserSID("datadogagent")
+	if errService != nil {
+		return fmt.Errorf("cannot start remote update: %w, %w", err, errService)
+	}
+
+	// convert the SID to a username to get the full name
+	username, domain, _, err := sid.LookupAccount("")
 	if err != nil {
-		return fmt.Errorf("cannot start remote update: %w", err)
+		return fmt.Errorf("cannot start remote update: %w, %w", err, errService)
+	}
+	env.MsiParams.AgentUserName = fmt.Sprintf("%s\\%s", domain, username)
+	errService = windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
+	if errService != nil {
+		return fmt.Errorf("cannot start remote update: %w, %w", err, errService)
 	}
 	return nil
 }
