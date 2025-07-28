@@ -311,7 +311,7 @@ func (d *Decoder) encodeValueFields(
 			return err
 		}
 		structure := irType.(*ir.StructureType)
-		for _, field := range structure.Fields {
+		for field := range structure.Fields() {
 			if err = writeTokens(enc, jsontext.String(field.Name)); err != nil {
 				return err
 			}
@@ -441,7 +441,7 @@ func (d *Decoder) encodeValueFields(
 			address       uint64
 			fieldByteSize uint32
 		)
-		for _, field := range v.Fields {
+		for _, field := range v.RawFields {
 			if field.Name == "str" {
 				fieldByteSize = field.Type.GetByteSize()
 				if fieldByteSize != 8 || len(data) < int(field.Offset+fieldByteSize) {

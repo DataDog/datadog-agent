@@ -17,11 +17,12 @@ import (
 )
 
 type remoteAgentDetails struct {
-	lastSeen     time.Time
-	displayName  string
-	apiEndpoint  string
-	client       pb.RemoteAgentClient
-	configStream *configStream
+	lastSeen             time.Time
+	displayName          string
+	sanatizedDisplayName string
+	apiEndpoint          string
+	client               pb.RemoteAgentClient
+	configStream         *configStream
 }
 
 func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData, config config.Component) (*remoteAgentDetails, error) {
@@ -31,10 +32,11 @@ func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData, c
 	}
 
 	rad := &remoteAgentDetails{
-		displayName: registration.DisplayName,
-		apiEndpoint: registration.APIEndpoint,
-		client:      client,
-		lastSeen:    time.Now(),
+		displayName:          registration.DisplayName,
+		apiEndpoint:          registration.APIEndpoint,
+		sanatizedDisplayName: sanatizeString(registration.DisplayName),
+		client:               client,
+		lastSeen:             time.Now(),
 	}
 
 	if err := rad.startConfigStream(config); err != nil {

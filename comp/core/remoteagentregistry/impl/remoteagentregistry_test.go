@@ -101,6 +101,7 @@ func TestGetRegisteredAgents(t *testing.T) {
 	agents := component.GetRegisteredAgents()
 	require.Len(t, agents, 1)
 	require.Equal(t, "Test Agent", agents[0].DisplayName)
+	require.Equal(t, "test-agent", agents[0].SanatizedDisplayName)
 }
 
 func TestGetRegisteredAgentStatuses(t *testing.T) {

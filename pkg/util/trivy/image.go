@@ -130,9 +130,10 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 		Container:     img.inspect.Container,
 		Created:       v1.Time{Time: created},
 		DockerVersion: img.inspect.DockerVersion,
-		Config:        img.imageConfig(img.inspect.Config),
-		History:       img.history,
-		OS:            img.inspect.Os,
+		//nolint:staticcheck
+		Config:  img.imageConfig(img.inspect.ContainerConfig),
+		History: img.history,
+		OS:      img.inspect.Os,
 		RootFS: v1.RootFS{
 			Type:    img.inspect.RootFS.Type,
 			DiffIDs: diffIDs,
