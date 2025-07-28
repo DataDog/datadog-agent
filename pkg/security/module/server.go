@@ -542,6 +542,7 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 	if err := a.cwsConsumer.ruleEngine.ReloadPolicies(); err != nil {
 		return nil, err
 	}
+
 	return &api.ReloadPoliciesResultMessage{}, nil
 }
 

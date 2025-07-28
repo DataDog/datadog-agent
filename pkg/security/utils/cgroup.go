@@ -178,13 +178,13 @@ var once sync.Once
 // DefaultCGroupFS returns a singleton instance of CGroupFS
 func DefaultCGroupFS() *CGroupFS {
 	once.Do(func() {
-		defaultCGroupFS = NewCGroupFS()
+		defaultCGroupFS = newCGroupFS()
 	})
 	return defaultCGroupFS
 }
 
-// NewCGroupFS creates a new CGroupFS instance
-func NewCGroupFS() *CGroupFS {
+// newCGroupFS creates a new CGroupFS instance
+func newCGroupFS() *CGroupFS {
 	cfs := &CGroupFS{}
 
 	for _, mountpoint := range defaultCGroupMountpoints {
@@ -214,7 +214,9 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 	)
 
 	err := parseProcControlGroups(tgid, pid, func(_, ctrl, path string) (bool, error) {
-		if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
+		if path == "/" && cfs.rootCGroupPath == "" {
+			return false, nil
+		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
 			// On cgroup v1 we choose to take the "name" ctrl entry (ID 1), as the ID 0 could be empty
 			// On cgroup v2, it's only a single line with ID 0 and no ctrl
 			// (Cf unit tests for examples)

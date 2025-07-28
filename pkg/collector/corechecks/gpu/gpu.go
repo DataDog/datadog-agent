@@ -135,7 +135,7 @@ func (c *Check) ensureInitCollectors() error {
 	}
 
 	if err := c.ensureInitDeviceCache(); err != nil {
-		return err
+		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
 	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{DeviceCache: c.deviceCache})
@@ -165,6 +165,10 @@ func (c *Check) Run() error {
 	}
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
+
+	if err := c.ensureInitDeviceCache(); err != nil {
+		return fmt.Errorf("failed to initialize device cache: %w", err)
+	}
 
 	// build the mapping of GPU devices -> containers to allow tagging device
 	// metrics with the tags of containers that are using them
