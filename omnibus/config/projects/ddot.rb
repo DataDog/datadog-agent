@@ -33,7 +33,14 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
 
-INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
+if windows_target?
+  # Note: this is the path used by Omnibus to build the agent, the final install
+  # dir will be determined by the Windows installer. This path must not contain
+  # spaces because Omnibus doesn't quote the Git commands it launches.
+  INSTALL_DIR = 'C:/opt/datadog-agent/'
+else
+  INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
+end
 
 install_dir INSTALL_DIR
 
@@ -85,7 +92,7 @@ exclude 'bundler\/git'
 # the stripper will drop the symbols in a `.debug` folder in the installdir
 # we want to make sure that directory is not in the main build, while present
 # in the debug package.
-strip_build do_build
+strip_build windows_target? || do_build
 debug_path ".debug"  # the strip symbols will be in here
 
 # ------------------------------------
@@ -93,7 +100,9 @@ debug_path ".debug"  # the strip symbols will be in here
 # ------------------------------------
 
 # Maintainer names are chosen to match those on agent.rb
-if debian_target?
+if windows_target?
+  maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
+elsif debian_target?
   maintainer 'Datadog Packages <package@datadoghq.com>'
   # Use sanitized version to ensure it matches the actual version used for datadog-agent
   safe_version = Omnibus::Packager::DEB::safe_version(build_version)
@@ -144,6 +153,10 @@ package :rpm do
       gpg_key_name "#{ENV['RPM_GPG_KEY_NAME']}"
     end
   end
+end
+
+package :msi do
+  skip_packager true
 end
 
 package :xz do
