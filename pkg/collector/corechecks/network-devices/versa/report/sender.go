@@ -202,6 +202,45 @@ func (s *Sender) SendLinkStatusMetrics(linkStatusMetrics []client.LinkStatusMetr
 	}
 }
 
+// SendApplicationsByApplianceMetrics sends applications by appliance metrics retrieved from Versa Analytics
+func (s *Sender) SendApplicationsByApplianceMetrics(appsByApplianceMetrics []client.ApplicationsByApplianceMetrics, deviceNameToIDMap map[string]string) {
+	for _, appMetric := range appsByApplianceMetrics {
+		var tags = []string{
+			"site:" + appMetric.Site,
+			"app_id:" + appMetric.AppID,
+		}
+		if deviceIP, ok := deviceNameToIDMap[appMetric.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+		s.Gauge(versaMetricPrefix+"app.sessions", appMetric.Sessions, "", tags)
+		s.Gauge(versaMetricPrefix+"app.volume_tx", appMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.volume_rx", appMetric.VolumeRx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.bandwidth_tx", appMetric.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.bandwidth_rx", appMetric.BandwidthRx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.bandwidth", appMetric.Bandwidth, "", tags)
+	}
+}
+
+// SendTopUserMetrics sends applications by appliance metrics retrieved from Versa Analytics
+// TODO: should the prefix for these metrics differ from the other application metrics?
+func (s *Sender) SendTopUserMetrics(topUserMetrics []client.TopUserMetrics, deviceNameToIDMap map[string]string) {
+	for _, topUser := range topUserMetrics {
+		var tags = []string{
+			"site:" + topUser.Site,
+			"user:" + topUser.User,
+		}
+		if deviceIP, ok := deviceNameToIDMap[topUser.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+		s.Gauge(versaMetricPrefix+"user.sessions", topUser.Sessions, "", tags)
+		s.Gauge(versaMetricPrefix+"user.volume_tx", topUser.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"user.volume_rx", topUser.VolumeRx, "", tags)
+		s.Gauge(versaMetricPrefix+"user.bandwidth_tx", topUser.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"user.bandwidth_rx", topUser.BandwidthRx, "", tags)
+		s.Gauge(versaMetricPrefix+"user.bandwidth", topUser.Bandwidth, "", tags)
+	}
+}
+
 // SendTunnelMetrics sends tunnel metrics retrieved from Versa Analytics
 func (s *Sender) SendTunnelMetrics(tunnelMetrics []client.TunnelMetrics, deviceNameToIDMap map[string]string) {
 	for _, tunnelMetric := range tunnelMetrics {

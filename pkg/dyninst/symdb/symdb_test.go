@@ -32,7 +32,7 @@ func TestSymDB(t *testing.T) {
 			t.Logf("exploring binary: %s", binaryPath)
 			symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
 			require.NoError(t, err)
-			symbols, err := symBuilder.ExtractSymbols()
+			symbols, err := symBuilder.ExtractSymbols(symdb.ExtractScopeAllSymbols)
 			require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 			require.NotEmpty(t, symbols.Packages)
 
@@ -73,16 +73,13 @@ func TestSymDBSnapshot(t *testing.T) {
 					t.Logf("exploring binary: %s", binaryPath)
 					symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
 					require.NoError(t, err)
-					symbols, err := symBuilder.ExtractSymbols()
+					symbols, err := symBuilder.ExtractSymbols(symdb.ExtractScopeMainModuleOnly)
 					require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 					require.NotEmpty(t, symbols.Packages)
 
 					var sb strings.Builder
 					symbols.Serialize(symdbutil.MakePanickingWriter(&sb),
 						symdb.SerializationOptions{
-							// Keep the size of the snapshot small by only
-							// including the main module.
-							OnlyMainModule: true,
 							PackageSerializationOptions: symdb.PackageSerializationOptions{
 								// Make the snapshot machine-independent by
 								// removing local file paths (given that the

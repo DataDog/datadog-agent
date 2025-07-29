@@ -469,9 +469,46 @@ func parseSLAMetrics(data [][]interface{}) ([]SLAMetrics, error) {
 	return rows, nil
 }
 
+// parseApplicationsByApplianceMetrics parses the raw AaData response into ApplicationsByApplianceMetrics structs
+func parseApplicationsByApplianceMetrics(data [][]interface{}) ([]ApplicationsByApplianceMetrics, error) {
+	var rows []ApplicationsByApplianceMetrics
+	for _, row := range data {
+		m := ApplicationsByApplianceMetrics{}
+		if len(row) != 9 {
+			return nil, fmt.Errorf("expected 9 columns, got %d", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for DrillKey")
+		}
+		if m.Site, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for Site")
+		}
+		if m.AppID, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for AppId")
+		}
+
+		// Floats from index 3–8
+		floatFields := []*float64{
+			&m.Sessions, &m.VolumeTx, &m.VolumeRx,
+			&m.BandwidthTx, &m.BandwidthRx, &m.Bandwidth,
+		}
+		for i, ptr := range floatFields {
+			if val, ok := row[i+3].(float64); ok {
+				*ptr = val
+			} else {
+				return nil, fmt.Errorf("expected float64 at index %d", i+3)
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
+}
+
 // GetSLAMetrics retrieves SLA metrics from the Versa Analytics API
 func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
-	analyticsURL := client.buildAnalyticsPath(tenant, "SDWAN", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
+	analyticsURL := buildAnalyticsPath(tenant, "SDWAN", client.lookback, "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
 		"delay",
 		"fwdDelayVar",
 		"revDelayVar",
@@ -521,7 +558,7 @@ func parseLinkStatusMetrics(data [][]interface{}) ([]LinkStatusMetrics, error) {
 
 // GetLinkStatusMetrics retrieves link status metrics from the Versa Analytics API
 func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, error) {
-	analyticsURL := client.buildAnalyticsPath(tenant, "SDWAN", "linkstatus(site,accckt)", "tableData", []string{
+	analyticsURL := buildAnalyticsPath(tenant, "SDWAN", client.lookback, "linkstatus(site,accckt)", "tableData", []string{
 		"availability",
 	})
 
@@ -593,7 +630,7 @@ func parseLinkUsageMetrics(data [][]interface{}) ([]LinkUsageMetrics, error) {
 
 // GetLinkUsageMetrics gets link metrics for a Versa tenant
 func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, error) {
-	analyticsURL := client.buildAnalyticsPath(tenant, "SDWAN", "linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,accckt.ip,accckt.isp)", "tableData", []string{
+	analyticsURL := buildAnalyticsPath(tenant, "SDWAN", client.lookback, "linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,accckt.ip,accckt.isp)", "tableData", []string{
 		"volume-tx",
 		"volume-rx",
 		"bw-tx",
@@ -610,6 +647,92 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 		return nil, fmt.Errorf("failed to parse link usage metrics: %v", err)
 	}
 	return metrics, nil
+}
+
+// GetApplicationsByAppliance retrieves applications by appliance metrics from the Versa Analytics API
+func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsByApplianceMetrics, error) {
+	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
+	analyticsURL := buildAnalyticsPath(tenant, "SDWAN", "1daysAgo", "app(site,appId)", "tableData", []string{
+		"sessions",
+		"volume-tx",
+		"volume-rx",
+		"bw-tx",
+		"bw-rx",
+		"bandwidth",
+	})
+
+	resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get applications by appliance metrics: %v", err)
+	}
+	aaData := resp.AaData
+	metrics, err := parseApplicationsByApplianceMetrics(aaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse applications by appliance metrics: %v", err)
+	}
+	return metrics, nil
+}
+
+// GetTopUsers retrieves top users of applications by appliance from the Versa Analytics API
+func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
+	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
+	analyticsURL := buildAnalyticsPath(tenant, "SDWAN", "1daysAgo", "appUser(site,user)", "tableData", []string{
+		"sessions",
+		"volume-tx",
+		"volume-rx",
+		"bw-tx",
+		"bw-rx",
+		"bandwidth",
+	})
+
+	resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get top user metrics: %v", err)
+	}
+	aaData := resp.AaData
+	metrics, err := parseTopUserMetrics(aaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse top user metrics: %v", err)
+	}
+	return metrics, nil
+}
+
+// parseTopUserMetrics parses the raw AaData response into TopUser structs
+// TODO: can I use a shared struct for the response for application metrics?
+func parseTopUserMetrics(data [][]interface{}) ([]TopUserMetrics, error) {
+	var rows []TopUserMetrics
+	for _, row := range data {
+		m := TopUserMetrics{}
+		if len(row) != 9 {
+			return nil, fmt.Errorf("expected 9 columns, got %d", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for DrillKey")
+		}
+		if m.Site, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for Site")
+		}
+		if m.User, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for User")
+		}
+
+		// Floats from index 3–8
+		floatFields := []*float64{
+			&m.Sessions, &m.VolumeTx, &m.VolumeRx,
+			&m.BandwidthTx, &m.BandwidthRx, &m.Bandwidth,
+		}
+		for i, ptr := range floatFields {
+			if val, ok := row[i+3].(float64); ok {
+				*ptr = val
+			} else {
+				return nil, fmt.Errorf("expected float64 at index %d", i+3)
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
 }
 
 // parseTunnelMetrics parses the raw AaData response into TunnelMetrics structs
@@ -650,7 +773,6 @@ func parseTunnelMetrics(data [][]interface{}) ([]TunnelMetrics, error) {
 		} else {
 			return nil, fmt.Errorf("expected float64 for VolumeTx at index 6")
 		}
-
 		rows = append(rows, m)
 	}
 	return rows, nil
@@ -662,7 +784,7 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 		return nil, fmt.Errorf("tenant cannot be empty")
 	}
 
-	analyticsURL := client.buildAnalyticsPath(tenant, "SYSTEM", "tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)", "tableData", []string{
+	analyticsURL := buildAnalyticsPath(tenant, "SYSTEM", client.lookback, "tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)", "tableData", []string{
 		"volume-tx",
 		"volume-rx",
 	})
@@ -684,17 +806,17 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 // Parameters:
 //   - tenant: tenant name within the environment (e.g., "datadog")
 //   - feature: category of analytics metrics (e.g., "SDWAN, "SYSTEM", "CGNAT", etc.).
-//   - startDate: relative start date (e.g., "15minutesAgo", "1h", "24h").
+//   - lookback: relative start date (e.g., "15minutesAgo", "1h", "24h").
 //   - query: Versa query expression (e.g., "slam(...columns...)").
 //   - queryType: type of query (e.g., "tableData", "table", "summary").
 //   - metrics: list of metric strings (e.g., "delay", "fwdLossRatio").
 //
 // Returns the full encoded URL string.
-func (client *Client) buildAnalyticsPath(tenant string, feature string, query string, queryType string, metrics []string) string {
+func buildAnalyticsPath(tenant string, feature string, lookback string, query string, queryType string, metrics []string) string {
 	baseAnalyticsPath := "/versa/analytics/v1.0.0/data/provider"
 	path := fmt.Sprintf("%s/tenants/%s/features/%s", baseAnalyticsPath, tenant, feature)
 	params := url.Values{
-		"start-date": []string{client.lookback},
+		"start-date": []string{lookback},
 		"qt":         []string{queryType},
 		"q":          []string{query},
 		"ds":         []string{"aggregate"}, // this seems to be the only datastore supported (from docs)
