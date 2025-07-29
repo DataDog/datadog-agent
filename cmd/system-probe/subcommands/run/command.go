@@ -101,9 +101,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// This is necessary because the 'software_inventory.enabled' setting is defined in the Datadog configuration.
 				// Without this explicit dependency, FX might initialize System Probe's config first, causing pkgconfigsetup.Datadog().GetBool()
 				// to return default values instead of the actual configuration.
-			    fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
-				    return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))
-			    }),
+				fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
+					return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))
+				}),
 				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 				fx.Supply(option.None[secrets.Component]()),
