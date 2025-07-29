@@ -25,8 +25,7 @@ impl AgentCheck {
         AgentCheck { check_id, aggregator }
     }
 
-    // TODO: maybe use Into<String> trait to allow passing any type of string that can be converted to String ???
-    // use Option for optional arguments (tags, hostname, flush_first_value)
+    // TODO: use Option for optional arguments (tags, hostname, flush_first_value)
 
     // metric functions
     pub fn gauge(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {

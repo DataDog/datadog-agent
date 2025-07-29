@@ -22,14 +22,14 @@ use x509_parser::parse_x509_certificate;
 // }
 #[unsafe(no_mangle)]
 pub extern "C" fn Run(check_id: CheckID) {
-    // create the check instance that will handle everything
+    // create the check instance that will run the check
     let check = AgentCheck::new(check_id);
 
     // run the custom implementation
     // TODO: change prints to logs
     match check.check() {
-        Ok(_) => {
-            println!("[SharedLibraryCheck] Check completed successfully.");
+        Ok(()) => {
+            //println!("[SharedLibraryCheck] Check completed successfully.");
         }
         Err(e) => {
             eprintln!("[SharedLibraryCheck] Error when running check: {e}");
@@ -54,12 +54,6 @@ impl AgentCheck {
         let ssl_expire = true;
         let uri_scheme = "https";
         let use_cert_from_response = true;
-        
-        // useful when there will be an instance that will gather all custom variables
-        // let seconds_warning = None;
-        // let seconds_critical = None;
-        // let days_warning = None;
-        // let days_critical = None;
 
         let mut tags = Vec::<String>::new();
 
