@@ -115,6 +115,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getSysCtlProbes(cgroup2MountPoint)...)
 	allProbes = append(allProbes, getSetSockOptProbe(fentry)...)
 	allProbes = append(allProbes, getSetrlimitProbes(fentry)...)
+	allProbes = append(allProbes, getCapabilitiesMonitoringProbes()...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -176,7 +177,6 @@ func AllMaps() []*manager.Map {
 func AllBPFForEachMapElemProgramFunctions() []string {
 	return []string{
 		"network_stats_worker",
-		"capabilities_usage_ticker",
 	}
 }
 
