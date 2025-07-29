@@ -165,8 +165,7 @@ def get_omnibus_env(
 
 
 def _passthrough_env_for_os(starting_env: dict[str, str], platform: str) -> dict[str, str]:
-    expected_env = ENV_PASSHTROUGH | OS_SPECIFIC_ENV_PASSTHROUGH[platform]
-    print(list(os.environ.keys()))
+    expected_env = set(ENV_PASSHTROUGH) | set(OS_SPECIFIC_ENV_PASSTHROUGH[platform])
 
     missing_env = expected_env - set(starting_env)
     if missing_env:
