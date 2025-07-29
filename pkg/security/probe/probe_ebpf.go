@@ -373,6 +373,11 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
+	if p.config.Probe.CapabilitiesMonitoringEnabled && p.config.Probe.CapabilitiesMonitoringPeriod < 1*time.Second {
+		seclog.Warnf("The capabilities monitoring period is too short (minimum is 1 second), setting event_monitoring_config.capabilities_monitoring.period to 1 second")
+		p.config.Probe.CapabilitiesMonitoringPeriod = 1 * time.Second
+	}
+
 	return nil
 }
 
