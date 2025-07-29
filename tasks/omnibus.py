@@ -98,7 +98,7 @@ def get_omnibus_env(
     env = load_dependencies(ctx)
 
     # Discard windows variables when not on Windows
-    if sys.platform != 'windows':
+    if sys.platform != 'win32':
         windows_only_vars = [
             'WINDOWS_DDNPM_DRIVER',
             'WINDOWS_DDNPM_VERSION',
