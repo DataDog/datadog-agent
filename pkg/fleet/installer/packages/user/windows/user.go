@@ -332,6 +332,32 @@ func GetAgentUserNameFromRegistry() (string, error) {
 	return user, nil
 }
 
+// SetAgentUserNameInRegistry sets the agent user name in the registry
+//
+// This is used to store the agent user name in the registry after the agent is installed
+// so we can use it for remote updates.
+// needed to update the environment with the new username that we validated for remote update
+// enables golden image scenario where the hostname changes and the agent user name is not updated
+func SetAgentUserNameInRegistry(domain, user string) error {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Agent", registry.SET_VALUE)
+	if err != nil {
+		return err
+	}
+	defer k.Close()
+
+	err = k.SetStringValue("installedDomain", domain)
+	if err != nil {
+		return fmt.Errorf("could not set installedDomain in registry: %w", err)
+	}
+
+	err = k.SetStringValue("installedUser", user)
+	if err != nil {
+		return fmt.Errorf("could not set installedUser in registry: %w", err)
+	}
+
+	return nil
+}
+
 func lookupSID(name string) (*windows.SID, string, error) {
 	sid, domain, _, err := windows.LookupSID("", name)
 	if err != nil {

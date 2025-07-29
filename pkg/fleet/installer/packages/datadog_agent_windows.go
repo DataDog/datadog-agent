@@ -123,11 +123,19 @@ func preStartExperimentDatadogAgent(_ HookContext) error {
 	if err != nil {
 		return fmt.Errorf("cannot start remote update: %w, %w", err, errService)
 	}
+
 	env.MsiParams.AgentUserName = fmt.Sprintf("%s\\%s", domain, username)
 	errService = windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
 	if errService != nil {
 		return fmt.Errorf("cannot start remote update: %w, %w", err, errService)
 	}
+
+	// update the environment with the new username that we validated for remote update
+	err = windowsuser.SetAgentUserNameInRegistry(domain, username)
+	if err != nil {
+		return fmt.Errorf("cannot start remote update: %w, %w", err, errService)
+	}
+
 	return nil
 }
 
