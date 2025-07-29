@@ -508,45 +508,22 @@ func parseApplicationsByApplianceMetrics(data [][]interface{}) ([]ApplicationsBy
 
 // GetSLAMetrics retrieves SLA metrics from the Versa Analytics API
 func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
-	// TODO: store client.maxCount as both string and int?
-	maxCount, err := strconv.Atoi(client.maxCount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
-	}
-
-	var allMetrics []SLAMetrics
-
-	// Paginate through the results
-	for page := 0; page < client.maxPages; page++ {
-		fromCount := page * maxCount
-		analyticsURL := buildAnalyticsPath(tenant, "SDWAN", client.lookback, "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"slam(localsite,remotesite,localaccckt,remoteaccckt,fc)",
+		[]string{
 			"delay",
 			"fwdDelayVar",
 			"revDelayVar",
 			"fwdLossRatio",
 			"revLossRatio",
 			"pduLossRatio",
-		}, maxCount, fromCount)
-
-		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get SLA metrics page %d: %v", page+1, err)
-		}
-
-		metrics, err := parseSLAMetrics(resp.AaData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse SLA metrics page %d: %v", page+1, err)
-		}
-
-		allMetrics = append(allMetrics, metrics...)
-
-		// If we got fewer results than maxCount, we've reached the end
-		if len(metrics) < maxCount {
-			break
-		}
-	}
-
-	return allMetrics, nil
+		},
+		parseSLAMetrics,
+	)
 }
 
 // parseLinkStatusMetrics parses the raw AaData response into LinkStatusMetrics structs
@@ -578,40 +555,17 @@ func parseLinkStatusMetrics(data [][]interface{}) ([]LinkStatusMetrics, error) {
 
 // GetLinkStatusMetrics retrieves link status metrics from the Versa Analytics API
 func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, error) {
-	// TODO: store client.maxCount as both string and int?
-	maxCount, err := strconv.Atoi(client.maxCount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
-	}
-
-	var allMetrics []LinkStatusMetrics
-
-	// Paginate through the results
-	for page := 0; page < client.maxPages; page++ {
-		fromCount := page * maxCount
-		analyticsURL := buildAnalyticsPath(tenant, "SDWAN", client.lookback, "linkstatus(site,accckt)", "tableData", []string{
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"linkstatus(site,accckt)",
+		[]string{
 			"availability",
-		}, maxCount, fromCount)
-
-		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get Link Status Metrics page %d: %v", page+1, err)
-		}
-
-		metrics, err := parseLinkStatusMetrics(resp.AaData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse Link Status metrics page %d: %v", page+1, err)
-		}
-
-		allMetrics = append(allMetrics, metrics...)
-
-		// If we got fewer results than maxCount, we've reached the end
-		if len(metrics) < maxCount {
-			break
-		}
-	}
-
-	return allMetrics, nil
+		},
+		parseLinkStatusMetrics,
+	)
 }
 
 // parseLinkUsageMetrics parses the raw AaData response into LinkUsageMetrics structs
@@ -670,131 +624,62 @@ func parseLinkUsageMetrics(data [][]interface{}) ([]LinkUsageMetrics, error) {
 
 // GetLinkUsageMetrics gets link metrics for a Versa tenant
 func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, error) {
-	// TODO: store client.maxCount as both string and int?
-	maxCount, err := strconv.Atoi(client.maxCount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
-	}
-
-	var allMetrics []LinkUsageMetrics
-
-	// Paginate through the results
-	for page := 0; page < client.maxPages; page++ {
-		fromCount := page * maxCount
-		analyticsURL := buildAnalyticsPath(tenant, "SDWAN", client.lookback, "linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,accckt.ip,accckt.isp)", "tableData", []string{
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,accckt.ip,accckt.isp)",
+		[]string{
 			"volume-tx",
 			"volume-rx",
 			"bw-tx",
 			"bw-rx",
-		}, maxCount, fromCount)
-
-		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get link usage metrics page %d: %v", page+1, err)
-		}
-
-		metrics, err := parseLinkUsageMetrics(resp.AaData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse link usage metrics page %d: %v", page+1, err)
-		}
-
-		allMetrics = append(allMetrics, metrics...)
-
-		// If we got fewer results than maxCount, we've reached the end
-		if len(metrics) < maxCount {
-			break
-		}
-	}
-
-	return allMetrics, nil
+		},
+		parseLinkUsageMetrics,
+	)
 }
 
 // GetApplicationsByAppliance retrieves applications by appliance metrics from the Versa Analytics API
 func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsByApplianceMetrics, error) {
-	// TODO: store client.maxCount as both string and int?
-	maxCount, err := strconv.Atoi(client.maxCount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
-	}
-
-	var allMetrics []ApplicationsByApplianceMetrics
-
-	// Paginate through the results
-	for page := 0; page < client.maxPages; page++ {
-		fromCount := page * maxCount
-		// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
-		analyticsURL := buildAnalyticsPath(tenant, "SDWAN", "1daysAgo", "app(site,appId)", "tableData", []string{
+	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		"1daysAgo",
+		"app(site,appId)",
+		[]string{
 			"sessions",
 			"volume-tx",
 			"volume-rx",
 			"bw-tx",
 			"bw-rx",
 			"bandwidth",
-		}, maxCount, fromCount)
-
-		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get applications by appliance metrics page %d: %v", page+1, err)
-		}
-
-		metrics, err := parseApplicationsByApplianceMetrics(resp.AaData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse applications by appliance metrics page %d: %v", page+1, err)
-		}
-
-		allMetrics = append(allMetrics, metrics...)
-
-		// If we got fewer results than maxCount, we've reached the end
-		if len(metrics) < maxCount {
-			break
-		}
-	}
-
-	return allMetrics, nil
+		},
+		parseApplicationsByApplianceMetrics,
+	)
 }
 
 // GetTopUsers retrieves top users of applications by appliance from the Versa Analytics API
 func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
-	// TODO: store client.maxCount as both string and int?
-	maxCount, err := strconv.Atoi(client.maxCount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
-	}
-
-	var allMetrics []TopUserMetrics
-
-	// Paginate through the results
-	for page := 0; page < client.maxPages; page++ {
-		fromCount := page * maxCount
-		// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
-		analyticsURL := buildAnalyticsPath(tenant, "SDWAN", "1daysAgo", "appUser(site,user)", "tableData", []string{
+	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		"1daysAgo",
+		"appUser(site,user)",
+		[]string{
 			"sessions",
 			"volume-tx",
 			"volume-rx",
 			"bw-tx",
 			"bw-rx",
 			"bandwidth",
-		}, maxCount, fromCount)
-
-		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get top user metrics page %d: %v", page+1, err)
-		}
-
-		metrics, err := parseTopUserMetrics(resp.AaData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse top user metrics page %d: %v", page+1, err)
-		}
-
-		allMetrics = append(allMetrics, metrics...)
-
-		// If we got fewer results than maxCount, we've reached the end
-		if len(metrics) < maxCount {
-			break
-		}
-	}
-
-	return allMetrics, nil
+		},
+		parseTopUserMetrics,
+	)
 }
 
 // parseTopUserMetrics parses the raw AaData response into TopUser structs
@@ -884,41 +769,18 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 		return nil, fmt.Errorf("tenant cannot be empty")
 	}
 
-	// TODO: store client.maxCount as both string and int?
-	maxCount, err := strconv.Atoi(client.maxCount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
-	}
-
-	var allMetrics []TunnelMetrics
-
-	// Paginate through the results
-	for page := 0; page < client.maxPages; page++ {
-		fromCount := page * maxCount
-		analyticsURL := buildAnalyticsPath(tenant, "SYSTEM", client.lookback, "tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)", "tableData", []string{
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SYSTEM",
+		client.lookback,
+		"tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)",
+		[]string{
 			"volume-tx",
 			"volume-rx",
-		}, maxCount, fromCount)
-
-		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get tunnel metrics page %d: %v", page+1, err)
-		}
-
-		metrics, err := parseTunnelMetrics(resp.AaData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse tunnel metrics page %d: %v", page+1, err)
-		}
-
-		allMetrics = append(allMetrics, metrics...)
-
-		// If we got fewer results than maxCount, we've reached the end
-		if len(metrics) < maxCount {
-			break
-		}
-	}
-
-	return allMetrics, nil
+		},
+		parseTunnelMetrics,
+	)
 }
 
 // buildAnalyticsPath constructs a Versa Analytics query path in a cleaner way so multiple metrics can be added.
