@@ -1202,7 +1202,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("core_agent.enabled", true)
 
 	// Software Inventory
-	config.BindEnvAndSetDefault("software_inventory.enabled", false, "SOFTWARE_INVENTORY_ENABLED")
+	config.BindEnvAndSetDefault("software_inventory.enabled", false)
 
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
