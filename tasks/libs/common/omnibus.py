@@ -27,6 +27,8 @@ ENV_PASSHTROUGH = {
     'GEM_PATH': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'HOME': 'Home directory might be used by invoked programs such as git',
     'INSTALL_DIR': 'Used by Omnibus to determine the target install directory when building the package',
+    'INTEGRATION_WHEELS_CACHE_BUCKET': 'Bucket where integration wheels are cached',
+    'INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD': 'Setting that skips uploading integration wheels to cache',
     'MY_RUBY_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'OMNIBUS_FORCE_PACKAGES': '',
     'OMNIBUS_GIT_CACHE_DIR': 'Local directory used by Omnibus for the local git cache',
@@ -44,8 +46,10 @@ ENV_PASSHTROUGH = {
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
-    "win32": {},
-    "linux": {
+    'win32': {
+        'SSL_CERT_FILE': 'Used to point Ruby at the certificate for OpenSSL',
+    },
+    'linux': {
         'DEB_GPG_KEY': 'Used to sign packages',
         'DEB_GPG_KEY_NAME': 'Used to sign packages',
         'DEB_SIGNING_PASSPHRASE': 'Used to sign packages',
@@ -53,7 +57,7 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'RPM_GPG_KEY_NAME': 'Used to sign packages',
         'RPM_SIGNING_PASSPHRASE': 'Used to sign packages',
     },
-    "darwin": {},
+    'darwin': {},
 }
 
 
