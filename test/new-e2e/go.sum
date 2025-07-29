@@ -16,6 +16,8 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYx
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/test-infra-definitions v0.0.4-0.20250724181230-50bd688a448c h1:IMg5Iduo0ECjAvqsdyBcit8vS0Bz1VuxhIo6UuI5F28=
 github.com/DataDog/test-infra-definitions v0.0.4-0.20250724181230-50bd688a448c/go.mod h1:OuceITbReRYk6VgKwO02OxxwQLA/86Ym3Ej7llLBMiM=
+github.com/DataDog/test-infra-definitions v0.0.4-0.20250729065456-ff62f5639ccc h1:+VpKh7UGkITwGUIb8pW8udsw1s8wXCEwN9eYDFUU9fs=
+github.com/DataDog/test-infra-definitions v0.0.4-0.20250729065456-ff62f5639ccc/go.mod h1:3u3LGs/yqtW+Y1ZB6a/6Ti1EwYjmavIzNZ40d+IFEzQ=
 github.com/DataDog/zstd v1.5.6 h1:LbEglqepa/ipmmQJUDnSsfvA8e8IStVcGaFWDuxvGOY=
 github.com/DataDog/zstd v1.5.6/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
@@ -385,6 +387,8 @@ github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 h1:vkHw5I/plNdTr435
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231/go.mod h1:murToZ2N9hNJzewjHBgfFdXhZKjY3z5cYC1VXk+lbFE=
 github.com/pulumi/esc v0.11.1 h1:Ky07sE4lQmB6Ve2A3M3g+i0Y2No4nRVbDaCjTccuLII=
 github.com/pulumi/esc v0.11.1/go.mod h1:iCs5bP1xvleSzcMDwfNc1Ym/6EJ2P6xmrjy0iqb0ATs=
+github.com/pulumi/esc v0.14.3 h1:Zli+9LiSDT/W+Fsfr8tITxCo+5wn969tLrE4KLv44G8=
+github.com/pulumi/esc v0.14.3/go.mod h1:XnSxlt5NkmuAj304l/gK4pRErFbtqq6XpfX1tYT9Jbc=
 github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2 h1:mHiPVwdSQp5VjpvCdPy52FeMiNcscKvJP+len/mfqdU=
 github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2/go.mod h1:C+L8LtajPSwGsZiGgknkCwClUzXk+ZXzSGkOZTQMp3U=
 github.com/pulumi/pulumi-awsx/sdk/v2 v2.19.0 h1:jil2EBzZnKsRDrLfvx2gnAaq17HQLrTbpPsIb3h+98U=
@@ -419,6 +423,8 @@ github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 h1:tXemWrzeVTqG8zq6hBdv1TdPFXjgZ+dob
 github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1/go.mod h1:hODo3iEmmXDFOXqPK+V+vwI0a3Ww7BLjs5Tgamp86Ng=
 github.com/pulumi/pulumi/sdk/v3 v3.145.0 h1:r5iOgz67RElFXJt4GVVY2SBGh5sR24mL9NOcKBiBi/k=
 github.com/pulumi/pulumi/sdk/v3 v3.145.0/go.mod h1:5pZySnw3RiQKddx8orThjEFmWsXkGAY3ktKOxZj2Ym4=
+github.com/pulumi/pulumi/sdk/v3 v3.181.0 h1:6XeYlG/mymtutRXlggcCLtxqBJPGCHNUGgoj4mapZQw=
+github.com/pulumi/pulumi/sdk/v3 v3.181.0/go.mod h1:YS7uQ+eoIV/Fco804Upv3jmz5pwo/MkLYmbGH3VgA9c=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0 h1:xfi9HKDgV+GgDxQ23oSv9KxC3DQqViGTcMrJICRgJv0=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0/go.mod h1:NUa1zA74DF002WrM6iF111A6UjX9knPpXufVRvBwNyg=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
