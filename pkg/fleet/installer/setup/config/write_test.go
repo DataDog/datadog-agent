@@ -54,10 +54,9 @@ func TestWriteConfig(t *testing.T) {
 		{
 			name:        "write new config file",
 			initialYAML: "",
-			config:      simpleConfig{Site: "datadoghq.com", APIKey: "abc123"},
+			config:      simpleConfig{Site: "datadoghq.com"},
 			merge:       false,
 			expectedYAML: `site: datadoghq.com
-api_key: abc123
 `,
 		},
 		{
@@ -178,6 +177,17 @@ other: value
 			expectedYAML: `# unrelated comment
 site: merged
 # another comment
+`,
+		},
+		{
+			name: "value starts with #",
+			initialYAML: `
+api_key: "#value"
+`,
+			config: simpleConfig{Site: "datadoghq.com", APIKey: "#newkey"},
+			merge:  true,
+			expectedYAML: `api_key: '#newkey'
+site: datadoghq.com
 `,
 		},
 	}

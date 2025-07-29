@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	activeKeyCommentRegex  = regexp.MustCompile(`^(\s*)([\w\-]+)\s*:\s*([^\n#]*?)(\s*)(#.*)?$`)
+	activeKeyCommentRegex  = regexp.MustCompile(`^(\s*)([\w\-]+)\s*:\s*([^\n#]*?)(\s*)(#[^\"\']*)?$`)
 	commentedKeyValueRegex = regexp.MustCompile(`^(\s*)#\s*([\w\-]+)\s*:\s*(.*?)(\s*)(#.*)?$`)
 )
 
@@ -60,14 +60,14 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 		return err
 	}
 
-	// Step 5: Merge the updated `config` node tree into the original YAML
+	// Step 4: Merge the updated `config` node tree into the original YAML
 	if len(root.Content) > 0 && len(updatedRoot.Content) > 0 {
 		mergeNodes(root.Content[0], updatedRoot.Content[0])
 	} else if len(root.Content) == 0 {
 		root = updatedRoot
 	}
 
-	// Attach any inline comments to final YAML node
+	// Step 5: Attach any inline comments to final YAML node
 	attachInlineCommentsToNodes(&root, inlineComments)
 
 	// Step 6: Save result
