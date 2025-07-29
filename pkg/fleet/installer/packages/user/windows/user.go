@@ -329,27 +329,6 @@ func GetAgentUserNameFromRegistry() (string, error) {
 		user = domain + `\` + user
 	}
 
-	sid, _, err := k.GetStringValue("installedSID")
-	if err != nil {
-		// if we error here then we don't have a SID, continue to lookup SID from LSA
-		return user, nil
-	}
-
-	// Try and look up the username form the SID
-	sidPtr, err := windows.StringToSid(sid)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert SID to string: %w", err)
-	}
-
-	account, domain, _, err := sidPtr.LookupAccount("")
-	if err != nil {
-		// failed to lookup account name for SID, return the user name from the registry
-		return user, nil
-	}
-	if domain != "" {
-		user = domain + `\` + account
-	}
-
 	return user, nil
 }
 
