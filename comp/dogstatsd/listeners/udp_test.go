@@ -163,7 +163,7 @@ func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
 	assert.Nil(t, err)
 	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	conn, err := net.ListenUDP("udp", address)
-	assert.NotNil(t, conn)
+	require.NotNil(t, conn)
 	assert.Nil(t, err)
 	defer conn.Close()
 
