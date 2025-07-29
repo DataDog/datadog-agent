@@ -17,7 +17,6 @@ CACHE_VERSION = 2
 
 
 ENV_PASSHTROUGH = {
-    'BUCKET_BRANCH': 'Differentiate a nightly pipeline from a release pipeline',
     'CI': 'dda may rely on this to be able to tell whether it\'s running on CI and adapt behavior',
     'DD_CC': 'Points at cc compiler',
     'DD_CXX': 'Points at c++ compiler',
@@ -67,7 +66,24 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
     Compute a hash from the environment after excluding irrelevant/insecure
     environment variables to ensure we don't omit a variable
     """
-    excluded_variables = set()
+    excluded_variables = {
+        'DEB_GPG_KEY',
+        'DEB_SIGNING_PASSPHRASE',
+        'GEM_HOME',
+        'GEM_PATH',
+        'HOME',
+        'MY_RUBY_HOME',
+        'OMNIBUS_WORKERS_OVERRIDE',
+        'PACKAGE_VERSION',
+        'PYTHONUTF8',
+        'RPM_GPG_KEY',
+        'RPM_GPG_KEY_NAME',
+        'RPM_SIGNING_PASSPHRASE',
+        'rvm_bin_path',
+        'rvm_path',
+        'rvm_prefix',
+        'rvm_version',
+    }
     return {k: v for k, v in env.items() if k not in excluded_variables}
 
 

@@ -46,7 +46,8 @@ def _run_calls_to_string(mock_calls):
     clear=True,
 )
 @mock.patch(
-    'tasks.omnibus.ENV_PASSHTROUGH', set(),
+    'tasks.omnibus.ENV_PASSHTROUGH',
+    set(),
 )
 class TestOmnibusCache(unittest.TestCase):
     def setUp(self):
@@ -317,7 +318,8 @@ class TestRpathEdit(unittest.TestCase):
 
 
 @mock.patch(
-    'tasks.omnibus.ENV_PASSHTROUGH', set(),
+    'tasks.omnibus.ENV_PASSHTROUGH',
+    set(),
 )
 class TestBuildRepackagedAgent(unittest.TestCase):
     def test_package_parsing(self):

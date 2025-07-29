@@ -14,14 +14,14 @@ from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.check_tools_version import expected_go_repo_v
 from tasks.libs.common.omnibus import (
+    ENV_PASSHTROUGH,
+    OS_SPECIFIC_ENV_PASSTHROUGH,
     install_dir_for_project,
     omnibus_compute_cache_key,
     send_build_metrics,
     send_cache_miss_event,
     send_cache_mutation_event,
     should_retry_bundle_install,
-    ENV_PASSHTROUGH,
-    OS_SPECIFIC_ENV_PASSTHROUGH,
 )
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
@@ -95,7 +95,6 @@ def get_omnibus_env(
     custom_config_dir=None,
     fips_mode=False,
 ):
-
     env = load_dependencies(ctx)
 
     # If the host has a GOMODCACHE set, try to reuse it
