@@ -1858,6 +1858,10 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
+	if p.config.Probe.CapabilitiesMonitoringEnabled {
+		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
+	}
+
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType) || p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
@@ -2671,6 +2675,11 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 	if !p.config.RuntimeSecurity.SysCtlEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
+
+	if !p.config.Probe.CapabilitiesMonitoringEnabled {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
+	}
+
 	return nil
 }
 
@@ -2695,6 +2704,10 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 		}
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
+
+	if p.config.Probe.CapabilitiesMonitoringEnabled {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
+	}
 }
 
 // initManagerOptions initializes the eBPF manager options
