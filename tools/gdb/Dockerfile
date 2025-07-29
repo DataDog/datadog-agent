@@ -1,4 +1,4 @@
-ARG AGENT_VERSION
+ARG AGENT_VERSION=7
 FROM datadog/agent:${AGENT_VERSION}
 
 RUN apt-get update
