@@ -890,21 +890,35 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
 	}
 
-	analyticsURL := buildAnalyticsPath(tenant, "SYSTEM", client.lookback, "tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)", "tableData", []string{
-		"volume-tx",
-		"volume-rx",
-	}, maxCount, 0)
+	var allMetrics []TunnelMetrics
 
-	resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tunnel metrics: %v", err)
+	// Paginate through the results
+	for page := 0; page < client.maxPages; page++ {
+		fromCount := page * maxCount
+		analyticsURL := buildAnalyticsPath(tenant, "SYSTEM", client.lookback, "tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)", "tableData", []string{
+			"volume-tx",
+			"volume-rx",
+		}, maxCount, fromCount)
+
+		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get tunnel metrics page %d: %v", page+1, err)
+		}
+
+		metrics, err := parseTunnelMetrics(resp.AaData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse tunnel metrics page %d: %v", page+1, err)
+		}
+
+		allMetrics = append(allMetrics, metrics...)
+
+		// If we got fewer results than maxCount, we've reached the end
+		if len(metrics) < maxCount {
+			break
+		}
 	}
-	aaData := resp.AaData
-	metrics, err := parseTunnelMetrics(aaData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse tunnel metrics: %v", err)
-	}
-	return metrics, nil
+
+	return allMetrics, nil
 }
 
 // buildAnalyticsPath constructs a Versa Analytics query path in a cleaner way so multiple metrics can be added.
