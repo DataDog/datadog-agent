@@ -664,7 +664,6 @@ func TestFlowPidBindLeak(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	defer fmt.Println("DEFER FlowPidBindLeak test completed successfully")
 
 	t.Run("test_sock_ipv4_udp_bind_99.99.99.99:2234", func(t *testing.T) {
 		boundPort := make(chan int)
@@ -851,11 +850,11 @@ func TestMultipleProtocols(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "bind_multiple_udp",
-			Expression: `bind.addr.family == AF_INET && bind.protocol == 17 && bind.addr.port == 2236`,
+			Expression: `bind.addr.family == AF_INET && bind.protocol == 17 && bind.addr.port == 2663`,
 		},
 		{
 			ID:         "bind_multiple_tcp",
-			Expression: `bind.addr.family == AF_INET && bind.protocol == 6 && bind.addr.port == 2236`,
+			Expression: `bind.addr.family == AF_INET && bind.protocol == 6 && bind.addr.port == 2663`,
 		},
 		// This rule is used to ensure that the flow <-> pid tracking probes are loaded
 		{
@@ -881,7 +880,7 @@ func TestMultipleProtocols(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			go func() {
-				args := []string{"bind-and-listen", "2236", "tcp"}
+				args := []string{"bind-and-listen", "2663", "tcp"}
 				cmd := cmdFunc(syscallTester, args, nil)
 
 				stdout, err := cmd.StdoutPipe()
@@ -937,7 +936,7 @@ func TestMultipleProtocols(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			go func() {
-				args := []string{"bind-and-listen", "2236", "udp"}
+				args := []string{"bind-and-listen", "2663", "udp"}
 				cmd := cmdFunc(syscallTester, args, nil)
 
 				stdout, err := cmd.StdoutPipe()
@@ -1019,7 +1018,7 @@ func TestMultipleProtocols(t *testing.T) {
 			t.Fatalf("failed to get current netns: %v", err)
 		}
 
-		expectedPort := uint16(2236)
+		expectedPort := uint16(2663)
 		htonsPort := htons(expectedPort)
 
 		tcpKey := FlowPid{
@@ -1071,13 +1070,13 @@ func TestMultipleProtocols(t *testing.T) {
 		}
 
 		time.Sleep(1 * time.Second)
-		if connTCP, err := net.Dial("tcp", "127.0.0.1:2236"); err != nil {
+		if connTCP, err := net.Dial("tcp", "127.0.0.1:2663"); err != nil {
 			t.Errorf("failed to connect to TCP socket: %v", err)
 		} else {
 			_, _ = connTCP.Write([]byte("CLOSE\n"))
 			_ = connTCP.Close()
 		}
-		if connUDP, err := net.Dial("udp", "127.0.0.1:2236"); err != nil {
+		if connUDP, err := net.Dial("udp", "127.0.0.1:2663"); err != nil {
 			t.Errorf("failed to connect to UDP socket: %v", err)
 		} else {
 			_, _ = connUDP.Write([]byte("CLOSE\n"))
