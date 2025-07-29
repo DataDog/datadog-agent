@@ -611,6 +611,7 @@ new-e2e-installer:
     - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
     - deploy_agent_oci
+    - installer-install-scripts
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -669,6 +670,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
+      - EXTRA_PARAMS: --run "TestUpgradeWithMissingPassword$/TestUpgradeWithMissingPassword$"
       # agent config experiment
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"

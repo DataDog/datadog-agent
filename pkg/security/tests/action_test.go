@@ -225,14 +225,15 @@ func TestActionKillExcludeBinary(t *testing.T) {
 	}
 	defer test.Close()
 
+	sleepCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	killed := atomic.NewBool(false)
 
 	err = test.GetEventSent(t, func() error {
 		go func() {
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
 
-			cmd := exec.CommandContext(timeoutCtx, "sleep", "1234567")
+			cmd := exec.CommandContext(sleepCtx, "sleep", "1234567")
 			_ = cmd.Run()
 
 			killed.Store(true)

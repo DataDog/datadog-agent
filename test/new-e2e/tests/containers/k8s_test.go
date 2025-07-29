@@ -389,8 +389,30 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Contains(stdout, "Collector")
 		suite.Contains(stdout, "Running Checks")
 		suite.Contains(stdout, "kubernetes_state_core")
+		if suite.Env().Agent.FIPSEnabled {
+			// Verify FIPS mode is reported as enabled
+			suite.Contains(stdout, "FIPS Mode: enabled", "Cluster agent should report FIPS Mode as enabled")
+			suite.T().Logf("Cluster agent correctly reports FIPS status as enabled")
+		} else {
+			suite.NotContains(stdout, "FIPS Mode: enabled", "Cluster agent should not report FIPS Mode as enabled")
+		}
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("cluster-agent version", func() {
+		if suite.Env().Agent.FIPSEnabled {
+			stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "version"})
+			suite.Require().NoError(err)
+			suite.Empty(stderr, "Standard error of `datadog-cluster-agent version` should be empty")
+			suite.Contains(stdout, "Cluster Agent")
+			// Verify cluster agent is built with Go-Boring SSL (X:boringcrypto)
+			suite.Contains(stdout, "X:boringcrypto", "Cluster agent must be built with Go-Boring SSL")
+			suite.T().Logf("Cluster agent correctly reports Go-Boring SSL via X:boringcrypto flag")
+			if suite.T().Failed() {
+				suite.T().Log(stdout)
+			}
 		}
 	})
 

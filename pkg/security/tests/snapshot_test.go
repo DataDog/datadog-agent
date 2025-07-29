@@ -8,6 +8,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -77,8 +78,10 @@ func TestSnapshot(t *testing.T) {
 		}
 		defer dockerWrapper.stop()
 
+		sleepCtx, cancel := context.WithCancel(context.Background())
+
 		go func() {
-			cmd := dockerWrapper.Command("sh", []string{"-c", "sleep 123"}, nil)
+			cmd := dockerWrapper.CommandContext(sleepCtx, "sh", []string{"-c", "sleep 123"}, nil)
 			_ = cmd.Run()
 		}()
 
@@ -100,6 +103,9 @@ func TestSnapshot(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer test.Close()
+
+		// make sure the cancel happens before the test module is closed
+		defer cancel()
 
 		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
 	})
