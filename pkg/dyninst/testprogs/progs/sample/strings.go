@@ -40,6 +40,14 @@ func testOneStringInStructPointer(a *oneStringStruct) {}
 func testMassiveString(x string) {}
 
 //nolint:all
+//go:noinline
+func testUnitializedString(x string) {}
+
+//nolint:all
+//go:noinline
+func testEmptyString(x string) {}
+
+//nolint:all
 func executeStringFuncs() {
 	testSingleString("abc")
 	testThreeStrings("abc", "def", "ghi")
@@ -47,6 +55,10 @@ func executeStringFuncs() {
 	testThreeStringsInStructPointer(&threeStringStruct{a: "abc", b: "def", c: "ghi"})
 	testOneStringInStructPointer(&oneStringStruct{a: "omg"})
 	testMassiveString(x)
+
+	var uninitializedString string
+	testUnitializedString(uninitializedString)
+	testEmptyString("")
 }
 
 var x = `

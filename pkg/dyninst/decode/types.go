@@ -860,8 +860,8 @@ func (s *goStringHeaderType) encodeValueFields(
 	address := binary.NativeEndian.Uint64(data[s.strFieldOffset : s.strFieldOffset+uint32(s.strFieldSize)])
 	if address == 0 {
 		return writeTokens(enc,
-			jsontext.String("isNull"),
-			jsontext.Bool(true),
+			jsontext.String("value"),
+			jsontext.String(""),
 		)
 	}
 	stringValue, ok := d.dataItems[typeAndAddr{

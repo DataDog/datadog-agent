@@ -119,12 +119,26 @@ probes:
   where:
     methodName: main.testSingleString
   captureSnapshot: true
+- id: testUnitializedString
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testUnitializedString
+  captureSnapshot: true
 - id: testMassiveString
   type: LOG_PROBE
   tags:
     - "foo:bar"
   where:
     methodName: main.testMassiveString
+  captureSnapshot: true
+- id: testEmptyString
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testEmptyString
   captureSnapshot: true
 - id: testThreeStrings
   type: LOG_PROBE

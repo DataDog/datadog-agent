@@ -34,7 +34,6 @@
                 "fields": {
                   "Method": {
                     "type": "string",
-                    "size": 3,
                     "value": "GET"
                   },
                   "URL": {
@@ -43,13 +42,11 @@
                     "fields": {
                       "Scheme": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "Opaque": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "User": {
                         "type": "*net/url.Userinfo",
@@ -57,18 +54,15 @@
                       },
                       "Host": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": "[host network address]"
                       },
                       "Path": {
                         "type": "string",
-                        "size": 2,
                         "value": "/0"
                       },
                       "RawPath": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "OmitHost": {
                         "type": "bool",
@@ -80,24 +74,20 @@
                       },
                       "RawQuery": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "Fragment": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "RawFragment": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       }
                     }
                   },
                   "Proto": {
                     "type": "string",
-                    "size": 8,
                     "value": "HTTP/1.1"
                   },
                   "ProtoMajor": {
@@ -112,8 +102,38 @@
                     "type": "net/http.Header",
                     "size": 2,
                     "entries": [
-                      "notCapturedReason",
-                      "pruned"
+                      [
+                        {
+                          "type": "string",
+                          "value": "Accept-Encoding"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": 1,
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "gzip"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "User-Agent"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": 1,
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "Go-http-client/1.1"
+                            }
+                          ]
+                        }
+                      ]
                     ]
                   },
                   "Body": {
@@ -138,7 +158,6 @@
                   },
                   "Host": {
                     "type": "string",
-                    "size": 15,
                     "value": "[host network address]"
                   },
                   "Form": {
@@ -159,12 +178,10 @@
                   },
                   "RemoteAddr": {
                     "type": "string",
-                    "size": 15,
                     "value": "[remote network address]"
                   },
                   "RequestURI": {
                     "type": "string",
-                    "size": 2,
                     "value": "/0"
                   },
                   "TLS": {
@@ -181,7 +198,6 @@
                   },
                   "Pattern": {
                     "type": "string",
-                    "size": 1,
                     "value": "/"
                   },
                   "ctx": {
@@ -194,17 +210,14 @@
                     "fields": {
                       "str": {
                         "type": "string",
-                        "size": 1,
                         "value": "/"
                       },
                       "method": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "host": {
                         "type": "string",
-                        "size": 0,
                         "value": "/"
                       },
                       "segments": {
@@ -216,8 +229,7 @@
                             "fields": {
                               "s": {
                                 "type": "string",
-                                "size": 0,
-                                "isNull": true
+                                "value": ""
                               },
                               "wild": {
                                 "type": "bool",
@@ -233,7 +245,6 @@
                       },
                       "loc": {
                         "type": "string",
-                        "size": 76,
                         "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
                       }
                     }
@@ -282,7 +293,6 @@
             "arguments": {
               "path": {
                 "type": "string",
-                "size": 2,
                 "value": "/0"
               }
             }
@@ -327,7 +337,6 @@
                 "fields": {
                   "Method": {
                     "type": "string",
-                    "size": 3,
                     "value": "GET"
                   },
                   "URL": {
@@ -336,13 +345,11 @@
                     "fields": {
                       "Scheme": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "Opaque": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "User": {
                         "type": "*net/url.Userinfo",
@@ -350,18 +357,15 @@
                       },
                       "Host": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": "[host network address]"
                       },
                       "Path": {
                         "type": "string",
-                        "size": 2,
                         "value": "/1"
                       },
                       "RawPath": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "OmitHost": {
                         "type": "bool",
@@ -373,24 +377,20 @@
                       },
                       "RawQuery": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "Fragment": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "RawFragment": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       }
                     }
                   },
                   "Proto": {
                     "type": "string",
-                    "size": 8,
                     "value": "HTTP/1.1"
                   },
                   "ProtoMajor": {
@@ -405,8 +405,38 @@
                     "type": "net/http.Header",
                     "size": 2,
                     "entries": [
-                      "notCapturedReason",
-                      "pruned"
+                      [
+                        {
+                          "type": "string",
+                          "value": "Accept-Encoding"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": 1,
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "gzip"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "User-Agent"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": 1,
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "Go-http-client/1.1"
+                            }
+                          ]
+                        }
+                      ]
                     ]
                   },
                   "Body": {
@@ -431,7 +461,6 @@
                   },
                   "Host": {
                     "type": "string",
-                    "size": 15,
                     "value": "[host network address]"
                   },
                   "Form": {
@@ -452,12 +481,10 @@
                   },
                   "RemoteAddr": {
                     "type": "string",
-                    "size": 15,
                     "value": "[remote network address]"
                   },
                   "RequestURI": {
                     "type": "string",
-                    "size": 2,
                     "value": "/1"
                   },
                   "TLS": {
@@ -474,7 +501,6 @@
                   },
                   "Pattern": {
                     "type": "string",
-                    "size": 1,
                     "value": "/"
                   },
                   "ctx": {
@@ -487,17 +513,14 @@
                     "fields": {
                       "str": {
                         "type": "string",
-                        "size": 1,
                         "value": "/"
                       },
                       "method": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "host": {
                         "type": "string",
-                        "size": 0,
                         "value": "/"
                       },
                       "segments": {
@@ -509,8 +532,7 @@
                             "fields": {
                               "s": {
                                 "type": "string",
-                                "size": 0,
-                                "isNull": true
+                                "value": ""
                               },
                               "wild": {
                                 "type": "bool",
@@ -526,7 +548,6 @@
                       },
                       "loc": {
                         "type": "string",
-                        "size": 76,
                         "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
                       }
                     }
@@ -575,7 +596,6 @@
             "arguments": {
               "path": {
                 "type": "string",
-                "size": 2,
                 "value": "/1"
               }
             }
@@ -620,7 +640,6 @@
                 "fields": {
                   "Method": {
                     "type": "string",
-                    "size": 3,
                     "value": "GET"
                   },
                   "URL": {
@@ -629,13 +648,11 @@
                     "fields": {
                       "Scheme": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "Opaque": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "User": {
                         "type": "*net/url.Userinfo",
@@ -643,18 +660,15 @@
                       },
                       "Host": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": "[host network address]"
                       },
                       "Path": {
                         "type": "string",
-                        "size": 2,
                         "value": "/2"
                       },
                       "RawPath": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "OmitHost": {
                         "type": "bool",
@@ -666,24 +680,20 @@
                       },
                       "RawQuery": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "Fragment": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "RawFragment": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       }
                     }
                   },
                   "Proto": {
                     "type": "string",
-                    "size": 8,
                     "value": "HTTP/1.1"
                   },
                   "ProtoMajor": {
@@ -698,8 +708,38 @@
                     "type": "net/http.Header",
                     "size": 2,
                     "entries": [
-                      "notCapturedReason",
-                      "pruned"
+                      [
+                        {
+                          "type": "string",
+                          "value": "Accept-Encoding"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": 1,
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "gzip"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "User-Agent"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": 1,
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "Go-http-client/1.1"
+                            }
+                          ]
+                        }
+                      ]
                     ]
                   },
                   "Body": {
@@ -724,7 +764,6 @@
                   },
                   "Host": {
                     "type": "string",
-                    "size": 15,
                     "value": "[host network address]"
                   },
                   "Form": {
@@ -745,12 +784,10 @@
                   },
                   "RemoteAddr": {
                     "type": "string",
-                    "size": 15,
                     "value": "[remote network address]"
                   },
                   "RequestURI": {
                     "type": "string",
-                    "size": 2,
                     "value": "/2"
                   },
                   "TLS": {
@@ -767,7 +804,6 @@
                   },
                   "Pattern": {
                     "type": "string",
-                    "size": 1,
                     "value": "/"
                   },
                   "ctx": {
@@ -780,17 +816,14 @@
                     "fields": {
                       "str": {
                         "type": "string",
-                        "size": 1,
                         "value": "/"
                       },
                       "method": {
                         "type": "string",
-                        "size": 0,
-                        "isNull": true
+                        "value": ""
                       },
                       "host": {
                         "type": "string",
-                        "size": 0,
                         "value": "/"
                       },
                       "segments": {
@@ -802,8 +835,7 @@
                             "fields": {
                               "s": {
                                 "type": "string",
-                                "size": 0,
-                                "isNull": true
+                                "value": ""
                               },
                               "wild": {
                                 "type": "bool",
@@ -819,8 +851,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "size": 76,
-                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0006\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0004\u0000\u0000\u0000\u0005\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\f\u0000\u0000\u0000\u000e\u0000\u0000\u0000\u000f\u0000\u0000\u0000\u0010\u0000\u0000\u0000\u0011\u0000\u0000\u0000\u000b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\n\u0000\u0000\u0000\f\u0000\u0000\u0000\r\u0000\u0000\u0000 \u0000\u0000\u0000 \u0000\u0000\u0000*\u0000\u0000\u0000*\u0000\u0000\u00000\u0000\u0000\u00009\u0000\u0000\u0000X\u0000\u0000\u0000X\u0000\u0000\u0000v\u0000\u0000\u0000v\u0000\u0000\u0000x\u0000\u0000\u0000x\u0000\u0000\u0000|\u0000\u0000\u0000|\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\n\u0000\u0000\u0000\f\u0000\u0000\u0000\r\u0000\u0000\u0000 \u0000\u0000\u0000 \u0000\u0000\u0000*\u0000\u0000\u0000*\u0000\u0000\u00000\u0000\u0000\u00009\u0000\u0000\u0000X\u0000\u0000\u0000X\u0000\u0000\u0000v\u0000\u0000\u0000v\u0000\u0000\u0000x\u0000\u0000\u0000x\u0000\u0000\u0000|\u0000\u0000\u0000|\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\n\u0000\u0000\u0000\f\u0000\u0000\u0000\r\u0000\u0000\u0000 \u0000\u0000\u0000 \u0000\u0000\u0000*\u0000\u0000\u0000*\u0000\u0000\u00000\u0000\u0000\u00009\u0000\u0000\u0000X\u0000\u0000\u0000X\u0000\u0000\u0000v\u0000\u0000\u0000v\u0000\u0000\u0000x\u0000\u0000\u0000x\u0000\u0000\u0000|\u0000\u0000\u0000|\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\n\u0000\u0000\u0000\f\u0000\u0000\u0000\r\u0000\u0000\u0000 \u0000\u0000\u0000 \u0000\u0000\u0000*\u0000\u0000\u0000*\u0000\u0000\u0000"
                       }
                     }
                   },
@@ -868,7 +899,6 @@
             "arguments": {
               "path": {
                 "type": "string",
-                "size": 2,
                 "value": "/2"
               }
             }
