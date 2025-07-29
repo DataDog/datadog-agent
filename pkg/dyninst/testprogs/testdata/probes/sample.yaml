@@ -642,3 +642,17 @@ probes:
   where:
     methodName: main.testPointerToMap
   captureSnapshot: true
+- id: testInlinedPrint
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedPrint
+  captureSnapshot: true
+- id: testInlinedBBC
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedBBB
+  captureSnapshot: true
