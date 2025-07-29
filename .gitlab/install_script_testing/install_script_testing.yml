@@ -17,6 +17,5 @@ test_install_script:
       --variable TESTING_KEYS_URL
       --variable TEST_PIPELINE_ID"
   needs: ["deploy_deb_testing-a7_x64", "deploy_rpm_testing-a7_x64", "deploy_suse_rpm_testing_x64-a7"]
-  # TODO: uncomment this before merging
-  # rules:
-  #   - !reference [.on_deploy]
+  rules:
+    - !reference [.on_deploy]
