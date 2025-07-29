@@ -1,7 +1,5 @@
 import glob
 import os
-from dataclasses import dataclass
-from re import I
 import tempfile
 
 import yaml
@@ -11,6 +9,15 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import color_message
 from tasks.libs.package.size import directory_size, extract_package, file_size
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, read_byte_input
+
+
+class StaticQualityGateFailed(Exception):
+    """
+    Exception raised when a static quality gate fails
+    """
+    def __init__(self, message: str):
+        self.message = color_message(message, "red")
+        super().__init__(self.message)
 
 class StaticQualityGate:
     """
@@ -104,6 +111,8 @@ class StaticQualityGate:
     def _calculate_package_size(self) -> None:
         """
         Calculate the size of the package on wire and on disk
+        TODO: Think of testing this function, unit tests are not possible because real
+        packages are used.
         """
         with tempfile.TemporaryDirectory() as extract_dir:
             extract_package(ctx=self.ctx, package_os=self.os, package_path=self.artifact_path, extract_dir=extract_dir)
@@ -122,29 +131,33 @@ class StaticQualityGate:
         error_message = ""
         if self.artifact_on_wire_size > self.max_on_wire_size:
             err_msg = f"Package size on wire (compressed package size) {self.artifact_on_wire_size} is higher than the maximum allowed {self.max_on_wire_size} by the gate !\n"
+            error_message += err_msg
+
+        if self.artifact_on_disk_size > self.max_on_disk_size:
+            err_msg = f"Package size on disk (uncompressed package size) {self.artifact_on_disk_size} is higher than the maximum allowed {self.max_on_disk_size} by the gate !\n"
             print(color_message(err_msg, "red"))
             error_message += err_msg
-        else:
-            print(
+
+        if error_message:
+            raise StaticQualityGateFailed(error_message)
+
+    def print_results(self) -> None:
+        """
+        Print the results of the gate
+        in case of success
+        """
+        print(
                 color_message(
                 f"package_on_wire_size <= max_on_wire_size, ({self.artifact_on_wire_size}) <= ({self.max_on_wire_size})",
                 "green",
             )
         )
-        if self.artifact_on_disk_size > self.max_on_disk_size:
-            err_msg = f"Package size on disk (uncompressed package size) {self.artifact_on_disk_size} is higher than the maximum allowed {self.max_on_disk_size} by the gate !\n"
-            print(color_message(err_msg, "red"))
-            error_message += err_msg
-        else:
-            print(
+        print(
                 color_message(
                 f"package_on_disk_size <= max_on_disk_size, ({self.artifact_on_disk_size}) <= ({self.max_on_disk_size})",
                 "green",
             )
         )
-        if error_message != "":
-            raise AssertionError(error_message)
-
     def entrypoint(self):
         """
         Entrypoint for the gate to measure the size of the package
@@ -156,7 +169,7 @@ class StaticQualityGate:
             self._calculate_package_size()
             print(f"Package size calculated: {self.artifact_on_wire_size} on wire, {self.artifact_on_disk_size} on disk")
             self._check_package_size()
-            print(color_message(f"✅ Package size check passed for {self.gate_name}", "green"))
+            print(color_message(f"✅ Package size check passed for {self.gate_name}", "green")) 
         if self.os == "windows":
             # TODO: trigger MSI quality gate
             pass

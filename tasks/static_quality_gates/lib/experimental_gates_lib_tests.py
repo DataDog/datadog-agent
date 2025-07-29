@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from tasks.static_quality_gates.lib.gates_lib import find_package_path
+
 @patch.dict(
         'os.environ',
         {
@@ -8,6 +10,7 @@ from unittest.mock import MagicMock, patch
             'CI_COMMIT_BRANCH': 'sequoia',
             'CI_COMMIT_REF_SLUG': 'pikachu',
             'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/opt/datadog-agent',
         },
 )
 class TestExperimentalGatesLib(unittest.TestCase):
@@ -67,15 +70,6 @@ class TestExperimentalGatesLib(unittest.TestCase):
         self.assertEqual(gate.max_on_wire_size, 100)
         self.assertEqual(gate.max_on_disk_size, 350)
 
-    @patch.dict(
-        'os.environ',
-        {
-            'OMNIBUS_PACKAGE_DIR': '/opt/datadog-agent',
-            'CI_COMMIT_REF_SLUG': 'pikachu',
-            'CI_PIPELINE_ID': '1234567890',
-            'BUCKET_BRANCH': 'dev',
-        },
-    )
     def test_find_package_path(self):
         from tasks.static_quality_gates.lib.experimental_gates_lib import StaticQualityGate
 
@@ -96,3 +90,13 @@ class TestExperimentalGatesLib(unittest.TestCase):
 
                 actual_pattern = mock_glob.call_args[0][0]
                 self.assertEqual(actual_pattern, expected_pattern)
+
+    def test_check_package_size(self):
+        from tasks.static_quality_gates.lib.experimental_gates_lib import StaticQualityGate
+
+        gate = StaticQualityGate(
+            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 350}, MagicMock()
+        )
+        gate.artifact_on_wire_size = 100
+        gate.artifact_on_disk_size = 350
+        gate._check_package_size()
