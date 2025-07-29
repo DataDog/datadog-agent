@@ -26,14 +26,14 @@ var hashPool = sync.Pool{
 // Flow contains flow info used for aggregation
 // json annotations are used in AsJSONString() for debugging purpose
 type Flow struct {
-	Namespace    string
+	Namespace    string // FLOW KEY
 	FlowType     FlowType
 	SequenceNum  uint32
 	SamplingRate uint64
 	Direction    uint32
 
 	// Exporter information
-	ExporterAddr []byte
+	ExporterAddr []byte // FLOW KEY
 
 	// Flow time
 	StartTimestamp uint64 // in seconds
@@ -80,7 +80,7 @@ type Flow struct {
 	// Ethernet information
 	Tos uint32 // FLOW KEY
 
-	NextHop []byte // FLOW KEY
+	NextHop []byte
 
 	// Configured fields
 	AdditionalFields AdditionalFields
