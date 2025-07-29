@@ -83,6 +83,12 @@ func setupCommonServerMux() *http.ServeMux {
 	// 	return int(h.Calls.Load())
 	// }
 	mux := http.NewServeMux()
+
+	// mock session auth
+	mux.HandleFunc("/versa/analytics/auth/user", fixtureHandler("{}"))
+	mux.HandleFunc("/versa/j_spring_security_check", fixtureHandler("{}"))
+	mux.HandleFunc("/versa/analytics/login", fixtureHandler("{}"))
+
 	return mux
 }
 
@@ -140,17 +146,12 @@ func SetupMockAPIServer() *httptest.Server {
 		}
 	})
 
-	// mock session auth
-	mux.HandleFunc("/versa/analytics/auth/user", fixtureHandler("{}"))
-	mux.HandleFunc("/versa/j_spring_security_check", fixtureHandler("{}"))
-	mux.HandleFunc("/versa/analytics/login", fixtureHandler("{}"))
-
 	return httptest.NewServer(mux)
 }
 
 // SetupPaginationMockAPIServer creates a mock server that handles pagination for analytics endpoints
 func SetupPaginationMockAPIServer() *httptest.Server {
-	mux := http.NewServeMux()
+	mux := setupCommonServerMux()
 
 	// Setup pagination-aware analytics endpoint
 	mux.HandleFunc(AnalyticsSDWANMetricsURL, func(w http.ResponseWriter, r *http.Request) {
@@ -213,11 +214,6 @@ func SetupPaginationMockAPIServer() *httptest.Server {
 			}
 		}
 	})
-
-	// mock session auth
-	mux.HandleFunc("/versa/analytics/auth/user", fixtureHandler("{}"))
-	mux.HandleFunc("/versa/j_spring_security_check", fixtureHandler("{}"))
-	mux.HandleFunc("/versa/analytics/login", fixtureHandler("{}"))
 
 	server := httptest.NewServer(mux)
 	return server
