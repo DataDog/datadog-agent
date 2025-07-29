@@ -3,7 +3,7 @@
   <div class="stat_data inventory-scrollbox" style="max-height: 400px; overflow-y: auto;">
     {{- $swMap := index . "software_inventory_metadata" }}
     {{- if index $swMap "error" }}
-      <div><strong>Error refreshing software inventory: {{ index $swMap "error" }}</strong></div>
+      <div>Error refreshing software inventory: {{ index $swMap "error" }}</div>
     {{- else }}
       {{- range $productCode, $meta := $swMap }}
         <details>
