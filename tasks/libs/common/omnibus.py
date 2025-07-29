@@ -18,13 +18,14 @@ CACHE_VERSION = 2
 
 ENV_PASSHTROUGH = {
     'BUCKET_BRANCH': 'Differentiate a nightly pipeline from a release pipeline',
+    'CI': 'dda may rely on this to be able to tell whether it\'s running on CI and adapt behavior',
     'DD_CC': 'Points at cc compiler',
     'DD_CXX': 'Points at c++ compiler',
     'DD_CMAKE_TOOLCHAIN': 'Points at cmake toolchain',
+    'DDA_NO_DYNAMIC_DEPS': 'ariable affecting dda behavior',
     'DEPLOY_AGENT': 'Used to apply higher compression level for deployed artifacts',
     'GEM_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'GEM_PATH': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
-    'GOPATH': '',
     'HOME': 'Home directory might be used by invoked programs such as git',
     'INSTALL_DIR': 'Used by Omnibus to determine the target install directory when building the package',
     'MY_RUBY_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
@@ -35,6 +36,7 @@ ENV_PASSHTROUGH = {
     'PATH': 'Needed to find binaries',
     'PKG_CONFIG_LIBDIR': '',
     'PYTHONUTF8': '',
+    'RUBY_VERSION': 'Used by Omnibus / Gemspec',
     'S3_OMNIBUS_CACHE_BUCKET': 'Points at bucket used for Omnibus source artifacts',
     'rvm_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_bin_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
@@ -44,7 +46,14 @@ ENV_PASSHTROUGH = {
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
     "win32": {},
-    "linux": {},
+    "linux": {
+        'DEB_GPG_KEY': 'Used to sign packages',
+        'DEB_GPG_KEY_NAME': 'Used to sign packages',
+        'DEB_SIGNING_PASSPHRASE': 'Used to sign packages',
+        'RPM_GPG_KEY': 'Used to sign packages',
+        'RPM_GPG_KEY_NAME': 'Used to sign packages',
+        'RPM_SIGNING_PASSPHRASE': 'Used to sign packages',
+    },
     "darwin": {},
 }
 
