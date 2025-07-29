@@ -367,3 +367,26 @@ cert_chain_validation:
 	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
 	m.AssertNumberOfCalls(t, "Commit", 1)
 }
+
+func TestCRLIssuerTags(t *testing.T) {
+	issuer := "L=Internet\r\n O=\"VeriSign, Inc.\"\r\n OU=VeriSign Commercial Software Publishers CA"
+	tags := getCrlIssuerTags(issuer)
+	require.Equal(t, []string{"crl_issuer_L:Internet", "crl_issuer_O:VeriSign, Inc.", "crl_issuer_OU:VeriSign Commercial Software Publishers CA"}, tags)
+
+	issuer = "L=Internet\r\n O=\"VeriSign, Inc.\"\r\n OU=VeriSign Commercial Software Publishers CA\r\n CN=VeriSign Class 3 Public Primary Certification Authority - G5"
+	tags = getCrlIssuerTags(issuer)
+	require.Equal(t, []string{"crl_issuer_L:Internet", "crl_issuer_O:VeriSign, Inc.", "crl_issuer_OU:VeriSign Commercial Software Publishers CA", "crl_issuer_CN:VeriSign Class 3 Public Primary Certification Authority - G5"}, tags)
+
+	issuer = "CN=GlobalSign Root CA\r\n OU=GlobalSign\r\n O=GlobalSign nv-sa\r\n C=BE"
+	tags = getCrlIssuerTags(issuer)
+	require.Equal(t, []string{"crl_issuer_CN:GlobalSign Root CA", "crl_issuer_OU:GlobalSign", "crl_issuer_O:GlobalSign nv-sa", "crl_issuer_C:BE"}, tags)
+
+	issuer = "C=US\r\n S=Arizona\r\n L=Scottsdale\r\n O=\"GoDaddy.com, Inc.\"\r\n OU=http://certificates.godaddy.com/repository\r\n CN=Go Daddy Secure Certification Authority\r\n SERIALNUMBER=07969287"
+	tags = getCrlIssuerTags(issuer)
+	require.Equal(t, []string{"crl_issuer_C:US", "crl_issuer_S:Arizona",
+		"crl_issuer_L:Scottsdale",
+		"crl_issuer_O:GoDaddy.com, Inc.",
+		"crl_issuer_OU:http://certificates.godaddy.com/repository",
+		"crl_issuer_CN:Go Daddy Secure Certification Authority",
+		"crl_issuer_SERIALNUMBER:07969287"}, tags)
+}
