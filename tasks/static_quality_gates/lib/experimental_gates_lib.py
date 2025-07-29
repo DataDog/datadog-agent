@@ -1,16 +1,17 @@
 import glob
 import os
 from dataclasses import dataclass
+from re import I
+import tempfile
 
 import yaml
 from invoke import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
+from tasks.libs.package.size import directory_size, extract_package, file_size
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, read_byte_input
 
-
-@dataclass
 class StaticQualityGate:
     """
     Base class for all static quality gates
@@ -23,15 +24,19 @@ class StaticQualityGate:
     metric_handler: GateMetricHandler
     max_on_wire_size: int
     max_on_disk_size: int
+    artifact_on_disk_size: int
+    artifact_on_wire_size: int
+    artifact_path: str # Path to the artifact to be used for the gate
     ctx: Context
 
-    def __init__(self, gate_name: str, gate_max_size_values: dict):
+    def __init__(self, gate_name: str, gate_max_size_values: dict, ctx: Context):
         self.gate_name = gate_name
         self.max_on_wire_size = read_byte_input(gate_max_size_values["max_on_wire_size"])
         self.max_on_disk_size = read_byte_input(gate_max_size_values["max_on_disk_size"])
         self._set_arch(gate_name)
         self._set_os(gate_name)
         self._register_gate_metrics()
+        self.ctx = ctx
 
     def _set_arch(self, gate_name: str):
         if "amd64" in gate_name:
@@ -65,7 +70,7 @@ class StaticQualityGate:
         self.metric_handler.register_metric(self.gate_name, "max_on_wire_size", self.max_on_wire_size)
         self.metric_handler.register_metric(self.gate_name, "max_on_disk_size", self.max_on_disk_size)
 
-    def _find_package_path(self, extension: str = None) -> str:
+    def _find_package_path(self, extension: str = None) -> None:
         """
         Find the package path based on os, arch and flavor
         of the agent.
@@ -94,13 +99,70 @@ class StaticQualityGate:
             raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
         elif len(package_paths) == 0:
             raise Exit(code=1, message=color_message(f"Couldn't find any file matching {glob_pattern}", "red"))
-        return package_paths[0]
+        self.artifact_path = package_paths[0]
+
+    def _calculate_package_size(self) -> None:
+        """
+        Calculate the size of the package on wire and on disk
+        """
+        with tempfile.TemporaryDirectory() as extract_dir:
+            extract_package(ctx=self.ctx, package_os=self.os, package_path=self.artifact_path, extract_dir=extract_dir)
+            package_on_wire_size = file_size(path=self.artifact_path)
+            package_on_disk_size = directory_size(path=extract_dir)
+
+        self.metric_handler.register_metric(self.gate_name, "current_on_wire_size", package_on_wire_size)
+        self.metric_handler.register_metric(self.gate_name, "current_on_disk_size", package_on_disk_size)
+        self.artifact_on_wire_size = package_on_wire_size
+        self.artifact_on_disk_size = package_on_disk_size
+
+    def _check_package_size(self):
+        """
+        Check the size of the package on wire and on disk
+        """
+        error_message = ""
+        if self.artifact_on_wire_size > self.max_on_wire_size:
+            err_msg = f"Package size on wire (compressed package size) {self.artifact_on_wire_size} is higher than the maximum allowed {self.max_on_wire_size} by the gate !\n"
+            print(color_message(err_msg, "red"))
+            error_message += err_msg
+        else:
+            print(
+                color_message(
+                f"package_on_wire_size <= max_on_wire_size, ({self.artifact_on_wire_size}) <= ({self.max_on_wire_size})",
+                "green",
+            )
+        )
+        if self.artifact_on_disk_size > self.max_on_disk_size:
+            err_msg = f"Package size on disk (uncompressed package size) {self.artifact_on_disk_size} is higher than the maximum allowed {self.max_on_disk_size} by the gate !\n"
+            print(color_message(err_msg, "red"))
+            error_message += err_msg
+        else:
+            print(
+                color_message(
+                f"package_on_disk_size <= max_on_disk_size, ({self.artifact_on_disk_size}) <= ({self.max_on_disk_size})",
+                "green",
+            )
+        )
+        if error_message != "":
+            raise AssertionError(error_message)
 
     def entrypoint(self):
         """
         Entrypoint for the gate to measure the size of the package
         """
-        pass
+        if self.os not in ["docker", "windows"]:
+            print(f"Triggering package quality gate for {self.gate_name}")
+            self._find_package_path()
+            print(f"Package path found: {self.artifact_path}")
+            self._calculate_package_size()
+            print(f"Package size calculated: {self.artifact_on_wire_size} on wire, {self.artifact_on_disk_size} on disk")
+            self._check_package_size()
+            print(color_message(f"✅ Package size check passed for {self.gate_name}", "green"))
+        if self.os == "windows":
+            # TODO: trigger MSI quality gate
+            pass
+        if self.os == "docker":
+            # TODO: trigger docker quality gate
+            pass
 
     def debug_entrypoint(self):
         """
@@ -117,20 +179,7 @@ GATE_METRIC_HANDLER = GateMetricHandler(
 )
 
 
-def parse_gate_config(gate_name: str, gate_max_size_values: dict) -> StaticQualityGate:
-    """
-    Parse the gate configuration
-    param: config: the configuration dictionary
-    return: a StaticQualityGate object
-    """
-    is_fips = 'fips' in gate_name
-
-    # print(gate_name)
-    # print(gate_max_size_values)
-    return None
-
-
-def get_quality_gates_list(config_path: str) -> list[StaticQualityGate]:
+def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQualityGate]:
     """
     Get the list of quality gates from the configuration file
     param: config_path: the path to the configuration file
@@ -138,10 +187,8 @@ def get_quality_gates_list(config_path: str) -> list[StaticQualityGate]:
     """
     with open(config_path) as file:
         config = yaml.safe_load(file)
-
-    for key in config:
-        gate = parse_gate_config(key, config[key])
-    return []
-
-
-get_quality_gates_list("test/static/static_quality_gates.yml")
+    print(f"{config_path} correctly parsed !")
+    gates = [StaticQualityGate(gate_name, config[gate_name], ctx) for gate_name in config]
+    newline_tab = "\n\t"
+    print(f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate.gate_name for gate in gates)}")
+    return gates
