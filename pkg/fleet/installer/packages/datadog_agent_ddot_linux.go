@@ -47,6 +47,7 @@ var (
 	// ddotConfigUninstallPaths are the files that are deleted during an uninstall
 	ddotConfigUninstallPaths = file.Paths{
 		"otel-config.yaml.example",
+		"otel-config.yaml",
 	}
 
 	// agentDDOTService are the services that are part of the DDOT package
