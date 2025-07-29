@@ -14,10 +14,6 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/test-infra-definitions v0.0.4-0.20250724181230-50bd688a448c h1:IMg5Iduo0ECjAvqsdyBcit8vS0Bz1VuxhIo6UuI5F28=
-github.com/DataDog/test-infra-definitions v0.0.4-0.20250724181230-50bd688a448c/go.mod h1:OuceITbReRYk6VgKwO02OxxwQLA/86Ym3Ej7llLBMiM=
-github.com/DataDog/test-infra-definitions v0.0.4-0.20250729065456-ff62f5639ccc h1:+VpKh7UGkITwGUIb8pW8udsw1s8wXCEwN9eYDFUU9fs=
-github.com/DataDog/test-infra-definitions v0.0.4-0.20250729065456-ff62f5639ccc/go.mod h1:3u3LGs/yqtW+Y1ZB6a/6Ti1EwYjmavIzNZ40d+IFEzQ=
 github.com/DataDog/test-infra-definitions v0.0.4-0.20250729220957-df11df88dd15 h1:hJoty1+aHGBjN4K+PhsxLmXYrcy047zsQS00dFtrvLI=
 github.com/DataDog/test-infra-definitions v0.0.4-0.20250729220957-df11df88dd15/go.mod h1:OuceITbReRYk6VgKwO02OxxwQLA/86Ym3Ej7llLBMiM=
 github.com/DataDog/zstd v1.5.6 h1:LbEglqepa/ipmmQJUDnSsfvA8e8IStVcGaFWDuxvGOY=
