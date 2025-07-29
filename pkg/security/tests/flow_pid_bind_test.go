@@ -664,6 +664,7 @@ func TestFlowPidBindLeak(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+	defer fmt.Println("DEFER FlowPidBindLeak test completed successfully")
 
 	t.Run("test_sock_ipv4_udp_bind_99.99.99.99:2234", func(t *testing.T) {
 		boundPort := make(chan int)
@@ -681,8 +682,11 @@ func TestFlowPidBindLeak(t *testing.T) {
 			true,
 		)
 
-		<-boundPort
-
+		select {
+		case <-boundPort:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for test_sock_ipv4_udp_bind_99.99.99.99:2234")
+		}
 		checkBindFlowPidEntry(
 			t,
 			test,
@@ -718,8 +722,11 @@ func TestFlowPidBindLeak(t *testing.T) {
 			true,
 		)
 
-		<-boundPort
-
+		select {
+		case <-boundPort:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for test_sock_ipv4_tcp_bind_99.99.99.99:2235")
+		}
 		checkBindFlowPidEntry(
 			t,
 			test,
@@ -758,8 +765,11 @@ func TestFlowPidBindLeak(t *testing.T) {
 			clientSocketClosed,
 			true,
 		)
-
-		<-boundPort
+		select {
+		case <-boundPort:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for test_sock_ipv6_udp_bind_[99*]:2236")
+		}
 
 		checkBindFlowPidEntry(
 			t,
@@ -801,7 +811,11 @@ func TestFlowPidBindLeak(t *testing.T) {
 			true,
 		)
 
-		<-boundPort
+		select {
+		case <-boundPort:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for test_sock_ipv6_tcp_bind_[99*]:2237")
+		}
 
 		checkBindFlowPidEntry(
 			t,
@@ -821,6 +835,7 @@ func TestFlowPidBindLeak(t *testing.T) {
 			clientSocketClosed,
 			true,
 		)
+		fmt.Println("FlowPidBindLeak test completed successfully")
 	})
 }
 func TestMultipleProtocols(t *testing.T) {
@@ -976,8 +991,17 @@ func TestMultipleProtocols(t *testing.T) {
 
 		//  --- TEST ---
 		// Wait for both TCP and UDP bind to be ready
-		tcpPid = <-tcpbindReady
-		udpPid = <-udpbindReady
+		select {
+		case tcpPid = <-tcpbindReady:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for TCP PID in MultipleProtocols test")
+		}
+
+		select {
+		case udpPid = <-udpbindReady:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for UDP PID in MultipleProtocols test")
+		}
 
 		p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
 		if !ok {
@@ -1035,8 +1059,17 @@ func TestMultipleProtocols(t *testing.T) {
 
 		// Close sockets
 		// Wait for both TCP and UDP listen/wait to be ready
-		<-tcplistenReady
-		<-udpwaitReady
+		select {
+		case <-tcplistenReady:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for TCP listen in MultipleProtocols test")
+		}
+		select {
+		case <-udpwaitReady:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for UDP listen in MultipleProtocols test")
+		}
+
 		time.Sleep(1 * time.Second)
 		if connTCP, err := net.Dial("tcp", "127.0.0.1:2236"); err != nil {
 			t.Errorf("failed to connect to TCP socket: %v", err)
@@ -1051,8 +1084,17 @@ func TestMultipleProtocols(t *testing.T) {
 			_ = connUDP.Close()
 		}
 		// Check that entries are removed
-		<-tcpCloseReady
-		<-udpCloseReady
+		select {
+		case <-tcpCloseReady:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for TCP close in MultipleProtocols test")
+		}
+		select {
+		case <-udpCloseReady:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for UDP close in MultipleProtocols test")
+		}
+
 		time.Sleep(1 * time.Second)
 		if err := m.Lookup(&tcpKey, &tcpVal); err == nil {
 			dumpMap(t, m)
