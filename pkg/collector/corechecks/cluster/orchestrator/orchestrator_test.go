@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/fake"
+	cr "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
@@ -76,11 +78,13 @@ func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
 // TestOrchestratorCheckSafeReSchedule close simulates the check being unscheduled and rescheduled again
 func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	var wg sync.WaitGroup
+	var scheme = kscheme.Scheme
 
 	client := fake.NewSimpleClientset()
 	vpaClient := vpa.NewSimpleClientset()
 	crdClient := crd.NewSimpleClientset()
-	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient}
+	crClient := cr.NewSimpleDynamicClient(scheme)
+	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient, DynamicInformerCl: crClient}
 
 	cfg := mockconfig.New(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
