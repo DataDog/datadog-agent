@@ -41,11 +41,6 @@ type analysisResult struct {
 	processAnalysis
 }
 
-type event interface{ event() }
-
-func (e *processEvent) event()   {}
-func (r *analysisResult) event() {}
-
 // effects holds the side-effects the pure state machine can trigger.
 // All its methods are synchronous from the point of view of Handle, so the
 // heavy work (analyzeProcess) should start goroutines internally.
@@ -77,53 +72,53 @@ type state struct {
 	removals []ProcessID
 }
 
-func newState() *state {
-	return &state{
+func makeState() state {
+	return state{
 		alive:   make(map[uint32]struct{}),
 		pending: make(map[uint32]struct{}),
 	}
 }
 
-func (s *state) handle(ev event, eff effects) {
-	switch e := ev.(type) {
-	case *processEvent:
-		switch e.kind {
-		case processEventKindExec:
-			if _, ok := s.alive[e.pid]; !ok {
-				s.alive[e.pid] = struct{}{}
-				s.pending[e.pid] = struct{}{}
-				s.queued = append(s.queued, e.pid)
-			}
-		case processEventKindExit:
-			if _, ok := s.alive[e.pid]; ok {
-				delete(s.alive, e.pid)
-				if _, ok := s.pending[e.pid]; !ok {
-					pid := ProcessID{PID: int32(e.pid)}
-					s.removals = append(s.removals, pid)
-				}
-			}
-			delete(s.pending, e.pid)
-		}
-	case *analysisResult:
-		s.inFlight = false
-		if e.err != nil || !e.interesting {
-			delete(s.alive, uint32(e.pid))
-			delete(s.pending, uint32(e.pid))
-		} else if _, ok := s.alive[e.pid]; ok {
-			delete(s.pending, e.pid)
-			s.updates = append(s.updates, ProcessUpdate{
-				ProcessID: ProcessID{
-					PID: int32(e.pid),
-				},
-				Executable: e.exe,
-				Service:    e.service,
-				GitInfo:    e.gitInfo,
-				Container:  e.containerInfo,
-			})
-		}
+func (s *state) handleAnalysisResult(e analysisResult) {
+	s.inFlight = false
+	if e.err != nil || !e.interesting {
+		delete(s.alive, uint32(e.pid))
+		delete(s.pending, uint32(e.pid))
+	} else if _, ok := s.alive[e.pid]; ok {
+		delete(s.pending, e.pid)
+		s.updates = append(s.updates, ProcessUpdate{
+			ProcessID: ProcessID{
+				PID: int32(e.pid),
+			},
+			Executable: e.exe,
+			Service:    e.service,
+			GitInfo:    e.gitInfo,
+			Container:  e.containerInfo,
+		})
 	}
+}
 
-	// Start the next analysis if idle.
+func (s *state) handleProcessEvent(e processEvent) {
+	switch e.kind {
+	case processEventKindExec:
+		if _, ok := s.alive[e.pid]; !ok {
+			s.alive[e.pid] = struct{}{}
+			s.pending[e.pid] = struct{}{}
+			s.queued = append(s.queued, e.pid)
+		}
+	case processEventKindExit:
+		if _, ok := s.alive[e.pid]; ok {
+			delete(s.alive, e.pid)
+			if _, ok := s.pending[e.pid]; !ok {
+				pid := ProcessID{PID: int32(e.pid)}
+				s.removals = append(s.removals, pid)
+			}
+		}
+		delete(s.pending, e.pid)
+	}
+}
+
+func (s *state) analyzeOrReport(eff effects) {
 	for !s.inFlight && len(s.queued) > 0 {
 		pid := s.queued[0]
 		s.queued = s.queued[1:]
