@@ -13,3 +13,4 @@ tracer.go
 usm.go
 gpu.go
 discovery-net.go
+dynamicinstrumentation.go
