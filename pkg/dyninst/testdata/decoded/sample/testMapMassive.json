@@ -1,0 +1,978 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapMassive",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testMapMassive",
+          "location": {
+            "method": "main.testMapMassive"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[string][]main.structWithMap",
+                "size": 163,
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo29"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo37"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo44"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo72"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo90"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo92"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo121"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo132"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [],
+                              "notCapturedReason": "depth"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "notCapturedReason",
+                  "pruned"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

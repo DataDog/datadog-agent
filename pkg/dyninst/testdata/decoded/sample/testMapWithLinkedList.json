@@ -1,0 +1,59 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapWithLinkedList",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testMapWithLinkedList",
+          "location": {
+            "method": "main.testMapWithLinkedList"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[bool]main.node",
+                "size": 1,
+                "entries": [
+                  [
+                    {
+                      "type": "bool",
+                      "value": "true"
+                    },
+                    {
+                      "type": "main.node",
+                      "fields": {
+                        "val": {
+                          "type": "int",
+                          "value": "72057594037927936"
+                        },
+                        "b": {
+                          "type": "*main.node",
+                          "notCapturedReason": "depth"
+                        }
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

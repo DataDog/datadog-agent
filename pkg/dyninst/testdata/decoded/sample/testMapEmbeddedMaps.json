@@ -1,0 +1,928 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapEmbeddedMaps",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testMapEmbeddedMaps",
+          "location": {
+            "method": "main.testMapEmbeddedMaps"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[string][]main.structWithMap",
+                "size": 4,
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "bar"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "1"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "1"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "2"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "2"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "3"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "3"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "4"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "4"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "5"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "5"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "6"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "6"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "7"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "7"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "8"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "8"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "9"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "9"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "10"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "10"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "baz"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "1"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "1"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "2"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "2"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "3"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "3"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "4"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "4"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "5"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "5"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "6"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "6"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "7"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "7"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "8"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "8"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "9"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "9"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "10"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "10"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "1"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "1"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "2"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "2"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "3"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "3"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "4"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "4"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "5"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "5"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "6"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "6"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "7"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "7"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "8"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "8"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "9"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "9"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "10"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "10"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "qux"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": 10,
+                      "elements": [
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "1"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "1"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "2"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "2"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "3"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "3"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "4"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "4"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "5"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "5"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "6"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "6"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "7"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "7"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "8"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "8"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "9"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "9"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "main.structWithMap",
+                          "fields": {
+                            "m": {
+                              "type": "map[int]int",
+                              "size": 1,
+                              "entries": [
+                                [
+                                  {
+                                    "type": "int",
+                                    "value": "10"
+                                  },
+                                  {
+                                    "type": "int",
+                                    "value": "10"
+                                  }
+                                ]
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

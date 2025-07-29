@@ -544,3 +544,24 @@ probes:
   where:
     methodName: main.testMapStringToStruct
   captureSnapshot: true
+- id: testMapMassive
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapMassive
+  captureSnapshot: true
+- id: testMapEmbeddedMaps
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapEmbeddedMaps
+  captureSnapshot: true
+- id: testMapWithLinkedList
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapWithLinkedList
+  captureSnapshot: true
