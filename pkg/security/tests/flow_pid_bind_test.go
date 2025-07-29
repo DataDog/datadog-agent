@@ -889,6 +889,11 @@ func TestMultipleProtocols(t *testing.T) {
 					return
 				}
 				stderr, err := cmd.StderrPipe()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "unable to start StderrPipe: %s", err)
+					return
+				}
+
 				errscanner := bufio.NewScanner(stderr)
 				go func() {
 					for errscanner.Scan() {
@@ -945,6 +950,10 @@ func TestMultipleProtocols(t *testing.T) {
 					return
 				}
 				stderr, err := cmd.StderrPipe()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "unable to start StderrPipe: %s", err)
+					return
+				}
 				errscanner := bufio.NewScanner(stderr)
 				go func() {
 					for errscanner.Scan() {
