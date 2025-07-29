@@ -55,23 +55,16 @@ func TLSSupported(c *config.Config) bool {
 	return kversion >= MinimumKernelVersion
 }
 
-// UretprobeTLSSupported returns true if TLS monitoring using uretprobes is supported.
-// This includes general TLS platform support plus checking for the kernel bug that
-// causes segfaults with uretprobes and seccomp filters
-func UretprobeTLSSupported(c *config.Config) bool {
-	// First check general TLS platform support
-	if !TLSSupported(c) {
-		return false
-	}
-
-	// Check for kernel bug that causes segfaults with uretprobes and seccomp
+// UretprobeSupported returns true if uretprobes are supported on this system.
+// This checks for the kernel bug that causes segfaults with uretprobes and seccomp filters.
+func UretprobeSupported() bool {
 	hasUretprobeBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
 	if err != nil {
 		log.Errorf("failed to check for uretprobe syscall seccomp bug: %v", err)
 		return false
 	}
 	if hasUretprobeBug {
-		log.Warn("uretprobe-based TLS monitoring disabled due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
+		log.Warn("uretprobe-based monitoring disabled due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
 		return false
 	}
 
