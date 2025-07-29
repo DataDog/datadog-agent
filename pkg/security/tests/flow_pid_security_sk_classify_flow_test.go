@@ -5616,7 +5616,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		tcpCloseReady := make(chan struct{})
 		udpCloseReady := make(chan struct{})
 		go startDualProtocolServer(
-			2236,
+			9004,
 			serverReady,
 			udpReceived,
 			tcpReceived,
@@ -5631,7 +5631,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		}
 		// Connect the TCP to the server
 		go func() {
-			args := []string{"connect-and-send", "2236", "tcp", "2345", "1234"}
+			args := []string{"connect-and-send", "9004", "tcp", "9005", "4321"}
 			cmd := cmdFunc(syscallTester, args, nil)
 			stdout, err := cmd.StdoutPipe()
 			stderr, err := cmd.StderrPipe()
@@ -5682,7 +5682,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		// Connect the UDP to the server
 		go func() {
 			// args are "connect-and-send", port_server_listens, protocol, port_where_c_prog_listens, port_client_sends
-			args := []string{"connect-and-send", "2236", "udp", "2345", "1234"}
+			args := []string{"connect-and-send", "9004", "udp", "9005", "4321"}
 			cmd := cmdFunc(syscallTester, args, nil)
 			stdout, err := cmd.StdoutPipe()
 			stderr, err := cmd.StderrPipe()
@@ -5752,8 +5752,8 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		}
 
 		// Set up the expected ports
-		portToSend := uint16(1234)
-		portForReceive := uint16(2236)
+		portToSend := uint16(4321)
+		portForReceive := uint16(9004)
 
 		// Retrieve the PIDs from the channels
 		var udpClientPidV int
@@ -5829,13 +5829,13 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		// Close sockets
 		<-tcpListenReady
 		<-udpListenReady
-		if connTCP, err := net.Dial("tcp", "127.0.0.1:2345"); err != nil {
+		if connTCP, err := net.Dial("tcp", "127.0.0.1:9005"); err != nil {
 			t.Errorf("failed to connect to TCP socket: %v", err)
 		} else {
 			_, _ = connTCP.Write([]byte("CLOSE\n"))
 			_ = connTCP.Close()
 		}
-		if connUDP, err := net.Dial("udp", "127.0.0.1:2345"); err != nil {
+		if connUDP, err := net.Dial("udp", "127.0.0.1:9005"); err != nil {
 			t.Errorf("failed to connect to UDP socket: %v", err)
 		} else {
 			_, _ = connUDP.Write([]byte("CLOSE\n"))
