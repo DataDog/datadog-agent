@@ -54,6 +54,9 @@ type FlowAggregator struct {
 	TimeNowFunction              func() time.Time // Allows to mock time in tests
 	dropFlowsBeforeAggregator    bool             // config option to drop flows before aggregation for performance testing
 	dropFlowsBeforeEPForwarder   bool             // config option to drop flows before sending to EP forwarder for performance testing
+	getMemoryStats               bool             // config option to enable memory statistics collection and metrics
+	flowSizeBytes                uint64
+	flowSizeCount                uint64
 
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
@@ -88,7 +91,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, config.SkipHashCollisionDetection, config.AggregationHashUseSyncPool, config.PortRollupUseFixedSizeKey, logger, rdnsQuerier),
+		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, config.SkipHashCollisionDetection, config.AggregationHashUseSyncPool, config.PortRollupUseFixedSizeKey, config.GetMemoryStats, logger, rdnsQuerier),
 		FlushFlowsToSendInterval:     flushFlowsToSendInterval,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
@@ -103,6 +106,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		TimeNowFunction:              time.Now,
 		dropFlowsBeforeAggregator:    config.DropFlowsBeforeAggregator,
 		dropFlowsBeforeEPForwarder:   config.DropFlowsBeforeEPForwarder,
+		getMemoryStats:               config.GetMemoryStats,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
 	}
@@ -141,7 +145,19 @@ func (agg *FlowAggregator) run() {
 		case flow := <-agg.flowIn:
 			agg.ReceivedFlowCount.Inc()
 			if !agg.dropFlowsBeforeAggregator {
-				agg.flowAcc.add(flow)
+				memUsage := agg.flowAcc.add(flow)
+
+				// Only track memory stats and send metrics if enabled in config
+				if agg.getMemoryStats {
+					agg.logger.Tracef("Flow added - Size: %d bytes", memUsage.FlowSizeBytes)
+
+					// Send distribution metrics
+					if memUsage.FlowSizeBytes > 0 {
+						agg.flowSizeBytes += memUsage.FlowSizeBytes
+						agg.flowSizeCount++
+						//JMWagg.sender.Count("datadog.netflow.aggregator.flow_size_bytes", float64(memUsage.FlowSizeBytes), "", nil)
+					}
+				}
 			} else {
 				droppedFlowCount++
 				// Log every 1000000 dropped flows for visibility
@@ -310,6 +326,15 @@ func (agg *FlowAggregator) flush() int {
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.portRollup.GetNewStoreSize()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(cap(agg.flowIn)), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.length", float64(len(agg.flowIn)), "", nil)
+
+	if agg.getMemoryStats {
+		if agg.flowSizeBytes > 0 {
+			agg.sender.Count("datadog.netflow.aggregator.flow_size_bytes", float64(agg.flowSizeBytes), "", nil)
+			agg.sender.Count("datadog.netflow.aggregator.flow_size_count", float64(agg.flowSizeCount), "", nil)
+			agg.flowSizeBytes = 0
+			agg.flowSizeCount = 0
+		}
+	}
 
 	err := agg.submitCollectorMetrics()
 	if err != nil {

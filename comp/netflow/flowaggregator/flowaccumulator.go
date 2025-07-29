@@ -19,6 +19,11 @@ import (
 
 var timeNow = time.Now
 
+// MemoryUsage contains flow size measurements when adding a flow
+type MemoryUsage struct {
+	FlowSizeBytes uint64 // Size of the flow being added (using Sizeof)
+}
+
 // flowContext contains flow information and additional flush related data
 type flowContext struct {
 	flow                *common.Flow
@@ -41,12 +46,14 @@ type flowAccumulator struct {
 	portRollupDisabled  bool
 
 	hashCollisionFlowCount *atomic.Uint64
+	memoryStatsSampleCount *atomic.Uint64
 
 	logger      log.Component
 	rdnsQuerier rdnsquerier.Component
 
 	skipHashCollisionDetection bool
 	aggregationHashUseSyncPool bool
+	getMemoryStats             bool
 }
 
 func newFlowContext(flow *common.Flow) flowContext {
@@ -57,7 +64,7 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, getMemoryStats bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                      make(map[uint64]flowContext),
 		flowFlushInterval:          aggregatorFlushInterval,
@@ -66,10 +73,12 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 		portRollupThreshold:        portRollupThreshold,
 		portRollupDisabled:         portRollupDisabled,
 		hashCollisionFlowCount:     atomic.NewUint64(0),
+		memoryStatsSampleCount:     atomic.NewUint64(0),
 		logger:                     logger,
 		rdnsQuerier:                rdnsQuerier,
 		skipHashCollisionDetection: skipHashCollisionDetection,
 		aggregationHashUseSyncPool: aggregationHashUseSyncPool,
+		getMemoryStats:             getMemoryStats,
 	}
 }
 
@@ -118,8 +127,19 @@ func (f *flowAccumulator) getAggregationHash(flow *common.Flow) uint64 {
 	return flow.AggregationHashOriginal()
 }
 
-func (f *flowAccumulator) add(flowToAdd *common.Flow) {
+// shouldSampleMemoryStats returns true for 1/100 calls to sample memory statistics
+func (f *flowAccumulator) shouldSampleMemoryStats() bool {
+	if !f.getMemoryStats {
+		return false
+	}
+	// Sample every 100th call (1% sampling rate)
+	return f.memoryStatsSampleCount.Inc()%100 == 0
+}
+
+func (f *flowAccumulator) add(flowToAdd *common.Flow) MemoryUsage {
 	f.logger.Tracef("Add new flow: %+v", flowToAdd)
+
+	var flowSizeBytes uint64
 
 	if !f.portRollupDisabled {
 		// Handle port rollup
@@ -141,12 +161,30 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	if !ok {
 		f.flows[aggHash] = newFlowContext(flowToAdd)
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
-		return
+
+		if f.shouldSampleMemoryStats() {
+			// Calculate the size of the flow being added (sampled 1/100 calls)
+			flowSizeBytes = common.Sizeof(f.flows[aggHash])
+			return MemoryUsage{
+				FlowSizeBytes: flowSizeBytes,
+			}
+		}
+		return MemoryUsage{}
 	}
 	if aggFlow.flow == nil {
 		// flowToAdd is for the same hash as an aggregated flow that has been flushed
 		aggFlow.flow = flowToAdd
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+		f.flows[aggHash] = aggFlow
+
+		if f.shouldSampleMemoryStats() {
+			// Calculate the size of the flow being added (sampled 1/100 calls)
+			flowSizeBytes = common.Sizeof(f.flows[aggHash])
+			return MemoryUsage{
+				FlowSizeBytes: flowSizeBytes,
+			}
+		}
+		return MemoryUsage{}
 	} else {
 		// use go routine for hash collision detection to avoid blocking critical path
 		if !f.skipHashCollisionDetection {
@@ -175,6 +213,15 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		}
 	}
 	f.flows[aggHash] = aggFlow
+
+	if f.shouldSampleMemoryStats() {
+		// Calculate the size of the accumulated flow (sampled 1/100 calls)
+		flowSizeBytes = common.Sizeof(f.flows[aggHash])
+		return MemoryUsage{
+			FlowSizeBytes: flowSizeBytes,
+		}
+	}
+	return MemoryUsage{}
 }
 
 func (f *flowAccumulator) setSrcReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {
