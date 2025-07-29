@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -458,6 +460,15 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 		WithIdentity(identity)
 }
 
+func (s *testAgentUpgradeSuite) getNewHostname() string {
+	// add a random string to the hostname
+	randomString := uuid.New().String()
+
+	// truncate to 15 characters
+	// this is to deal with the fact that the hostname is limited to 15 characters
+	return randomString[0:15]
+}
+
 // TestUpgradeWithHostNameChange tests that the agent can be upgraded when the host name changes.
 func (s *testAgentUpgradeSuite) TestUpgradeWithHostNameChange() {
 	// Arrange
@@ -466,12 +477,15 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithHostNameChange() {
 
 	// Act
 	// change the host name
-	windowscommon.RenameComputer(s.Env().RemoteHost, "TEST-HOSTNAME")
+	newHostname := s.getNewHostname()
+	// this also deals with retries as it will always make it a new hostname
+	err := windowscommon.RenameComputer(s.Env().RemoteHost, newHostname)
+	s.Require().NoError(err)
 
 	// start experiment
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	_, err = s.Installer().PromoteExperiment(consts.AgentPackage)
 	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 

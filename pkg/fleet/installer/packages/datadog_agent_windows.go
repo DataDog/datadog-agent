@@ -527,6 +527,7 @@ func getenv() *env.Env {
 	env := env.FromEnv()
 
 	// fallback to service user for agent user
+	// Using service allows for remote updates to work when the hostname changes
 	if env.MsiParams.AgentUserName == "" {
 		user, err := windowsuser.GetAgentUserFromService()
 		if err != nil {

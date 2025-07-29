@@ -310,7 +310,6 @@ func AgentUserPasswordPresent() (bool, error) {
 
 // GetAgentUserNameFromRegistry returns the user name for the Agent, stored in the registry by the Agent MSI
 func GetAgentUserNameFromRegistry() (string, error) {
-	// start by getting SID from registry
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Agent", registry.QUERY_VALUE)
 	if err != nil {
 		return "", err

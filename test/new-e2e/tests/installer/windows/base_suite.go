@@ -374,7 +374,7 @@ func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	s.T().Helper()
 
-	// wait for the agent to start
+	// this is to ensure that the agent is running before we start the experiment
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
