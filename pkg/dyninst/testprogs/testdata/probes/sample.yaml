@@ -467,3 +467,17 @@ probes:
   where:
     methodName: main.testPointerToSimpleStruct
   captureSnapshot: true
+- id: testEsotericStack
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testEsotericStack
+  captureSnapshot: true
+- id: testEsotericHeap
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testEsotericHeap
+  captureSnapshot: true

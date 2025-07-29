@@ -11,26 +11,44 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"runtime/trace"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	pprofPort  = flag.Int("pprof-port", 8081, "Port for pprof server.")
-	binaryPath = flag.String("binary-path", "", "Path to the binary to analyze.")
+	binaryPath     = flag.String("binary-path", "", "Path to the binary to analyze.")
+	silent         = flag.Bool("silent", false, "If set, the collected symbols are not printed.")
+	onlyFirstParty = flag.Bool("only-1stparty", false,
+		"Only output symbols for \"1st party\" code (i.e. code from modules belonging "+
+			"to the same GitHub org as the main one).")
+
+	pprofPort = flag.Int("pprof-port", 8081, "Port for pprof server.")
+	traceFile = flag.String("trace", "", "Path to the file to save an execution trace to.")
 )
 
 func main() {
 	flag.Parse()
 	if *binaryPath == "" {
-		fmt.Println("Usage: symdbcli --binary-path <path-to-binary> [--pprof-port <port>]")
+		fmt.Print(`Usage: symdbcli --binary-path <path-to-binary> [--only-1stparty] [--silent]
+
+The symbols from the specified binary will be extracted and printed to stdout
+(unless --silent is specified).
+`)
 		os.Exit(1)
 	}
+
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	log.SetupLogger(log.Default(), logLevel)
 
 	// Start the pprof server.
 	go func() {
@@ -38,27 +56,50 @@ func main() {
 	}()
 
 	if err := run(*binaryPath); err != nil {
-		log.Fatalf("Error: %v", err)
+		log.Errorf("Error: %v", err)
+		os.Exit(1)
 	}
 }
 
 func run(binaryPath string) error {
-	log.Printf("Analyzing binary: %s", binaryPath)
+	log.Infof("Analyzing binary: %s", binaryPath)
+	start := time.Now()
+	symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
+	if err != nil {
+		return err
+	}
+	opt := symdb.ExtractScopeAllSymbols
+	if *onlyFirstParty {
+		log.Infof("Extracting only 1st party symbols")
+		opt = symdb.ExtractScopeModulesFromSameOrg
+	}
 
-	file, err := object.OpenElfFile(binaryPath)
+	// Start tracing if we were asked to.
+	tracing := *traceFile != ""
+	if tracing {
+		log.Infof("Tracing symbol extraction to %s", *traceFile)
+		f, err := os.OpenFile(*traceFile, os.O_WRONLY|os.O_CREATE, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open trace file %s: %w", *traceFile, err)
+		}
+		defer func() {
+			_ = f.Close()
+		}()
+		if err := trace.Start(f); err != nil {
+			return fmt.Errorf("failed to start trace: %w", err)
+		}
+		defer trace.Stop()
+	}
+
+	symbols, err := symBuilder.ExtractSymbols(opt)
 	if err != nil {
 		return err
 	}
-	symBuilder, err := symdb.NewSymDBBuilder(file)
-	if err != nil {
-		return err
-	}
-	symbols, err := symBuilder.ExtractSymbols()
-	if err != nil {
-		return err
-	}
+	trace.Stop()
+	log.Infof("Symbol extraction completed in %s.", time.Since(start))
 	stats := statsFromSymbols(symbols)
-	log.Printf("Symbol statistics for %s: %+v", binaryPath, stats)
+	log.Infof("Symbol statistics for %s: %+v", binaryPath, stats)
+
 	return nil
 }
 
@@ -76,17 +117,22 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 		numFunctions:   0,
 		numSourceFiles: 0,
 	}
-	sourceFiles := make(map[string]struct{})
 	for _, pkg := range s.Packages {
-		stats.numTypes += len(pkg.Types)
-		stats.numFunctions += len(pkg.Functions)
-		for _, f := range pkg.Functions {
-			_, ok := sourceFiles[f.File]
-			if !ok {
-				sourceFiles[f.File] = struct{}{}
-				stats.numSourceFiles++
-			}
-		}
+		s := pkg.Stats()
+		stats.numTypes += s.NumTypes
+		stats.numFunctions += s.NumFunctions
+		stats.numSourceFiles += s.NumSourceFiles
 	}
+
+	if !*silent {
+		s.Serialize(symdbutil.MakePanickingWriter(os.Stdout), symdb.SerializationOptions{
+			PackageSerializationOptions: symdb.PackageSerializationOptions{
+				StripLocalFilePrefix: false,
+			},
+		})
+	} else {
+		log.Infof("--silent specified; symbols not serialized.")
+	}
+
 	return stats
 }
