@@ -47,9 +47,9 @@ type goSliceDataType ir.GoSliceDataType
 type goStringHeaderType struct {
 	*ir.GoStringHeaderType
 	strFieldOffset uint32
-	strFieldSize   uint8
+	strFieldSize   uint32
 	lenFieldOffset uint32
-	lenFieldSize   uint8
+	lenFieldSize   uint32
 }
 type goStringDataType ir.GoStringDataType
 type goMapType ir.GoMapType
@@ -57,32 +57,32 @@ type goHMapHeaderType ir.GoHMapHeaderType
 type goHMapBucketType ir.GoHMapBucketType
 type goSwissMapHeaderType struct {
 	*ir.GoSwissMapHeaderType
-	// Fields related to user defined key and value types
+	// User-defined key and value type information
 	keyTypeID     ir.TypeID
-	valueTypeID   ir.TypeID
-	keyTypeSize   uint32
-	valueTypeSize uint32
 	keyTypeName   string
+	keyTypeSize   uint32
+	valueTypeID   ir.TypeID
 	valueTypeName string
-
-	// Fields in go swiss map internal representation
-	dirLenOffset     uint32
-	dirLenSize       uint8
+	valueTypeSize uint32
+	// Internal Go swiss map representation fields
 	dirPtrOffset     uint32
-	dirPtrSize       uint8
+	dirPtrSize       uint32
+	dirLenOffset     uint32
+	dirLenSize       uint32
+	usedOffset       uint32
+	usedSize         uint32
 	ctrlOffset       uint32
-	ctrlSize         uint8
+	ctrlSize         uint32
 	slotsOffset      uint32
 	slotsSize        uint32
 	groupFieldOffset uint32
-	groupFieldSize   uint8
+	groupFieldSize   uint32
 	dataFieldOffset  uint32
-	dataFieldSize    uint8
+	dataFieldSize    uint32
 	tableTypeID      ir.TypeID
 	groupTypeID      ir.TypeID
+	groupSliceTypeID ir.TypeID
 	elementTypeSize  uint32
-	usedOffset       uint32
-	usedSize         uint8
 }
 type goSwissMapGroupsType ir.GoSwissMapGroupsType
 type goChannelType ir.GoChannelType
@@ -190,24 +190,6 @@ func newDecoderType(
 		}
 		dataFieldOffset := dataField.Offset
 		dataFieldSize := dataField.Type.GetByteSize()
-		var sizeChecks = []struct {
-			name  string
-			value uint32
-		}{
-			{"dirLenSize", dirLenSize},
-			{"dirPtrSize", dirPtrSize},
-			{"ctrlSize", ctrlSize},
-			{"groupFieldSize", groupFieldSize},
-			{"dataFieldSize", dataFieldSize},
-			{"usedSize", usedSize},
-		}
-		for _, check := range sizeChecks {
-			// We cast to uint8 expecting that the values are going to be small enough, given they
-			// are known to go swiss map implementation, but check just in case.
-			if check.value > math.MaxUint8 {
-				return nil, fmt.Errorf("%s is too large: %d", check.name, check.value)
-			}
-		}
 		return &goSwissMapHeaderType{
 			GoSwissMapHeaderType: s,
 			// Fields related to user defined key and value types
@@ -221,22 +203,23 @@ func newDecoderType(
 			// Fields in go swiss map internal representation
 			// Seehttps://github.com/golang/go/blob/cd3655a8243b5f52b6a274a0aba5e01d998906c0/src/internal/runtime/maps/map.go#L195
 			dirLenOffset:     dirLenOffset,
-			dirLenSize:       uint8(dirLenSize),
+			dirLenSize:       dirLenSize,
 			dirPtrOffset:     dirPtrOffset,
-			dirPtrSize:       uint8(dirPtrSize),
+			dirPtrSize:       dirPtrSize,
 			ctrlOffset:       ctrlOffset,
-			ctrlSize:         uint8(ctrlSize),
+			ctrlSize:         ctrlSize,
 			slotsOffset:      slotsField.Offset,
 			slotsSize:        slotsFieldType.GetByteSize(),
 			groupFieldOffset: groupFieldOffset,
-			groupFieldSize:   uint8(groupFieldSize),
+			groupFieldSize:   groupFieldSize,
 			dataFieldOffset:  dataFieldOffset,
-			dataFieldSize:    uint8(dataFieldSize),
+			dataFieldSize:    dataFieldSize,
 			tableTypeID:      tablePtrType.Pointee.GetID(),
 			groupTypeID:      s.GroupType.GetID(),
+			groupSliceTypeID: groupType.GroupSliceType.GetID(),
 			elementTypeSize:  uint32(groupType.GroupSliceType.Element.GetByteSize()),
 			usedOffset:       usedOffset,
-			usedSize:         uint8(usedSize),
+			usedSize:         usedSize,
 		}, nil
 	case *ir.BaseType:
 		return (*baseType)(s), nil
@@ -264,9 +247,9 @@ func newDecoderType(
 		return &goStringHeaderType{
 			GoStringHeaderType: s,
 			strFieldOffset:     strField.Offset,
-			strFieldSize:       uint8(strField.Type.GetByteSize()),
+			strFieldSize:       strField.Type.GetByteSize(),
 			lenFieldOffset:     lenField.Offset,
-			lenFieldSize:       uint8(lenField.Type.GetByteSize()),
+			lenFieldSize:       lenField.Type.GetByteSize(),
 		}, nil
 	case *ir.GoStringDataType:
 		return (*goStringDataType)(s), nil

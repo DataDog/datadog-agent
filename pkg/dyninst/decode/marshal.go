@@ -242,7 +242,7 @@ func (s *goSwissMapHeaderType) encodeSwissMapTables(
 		groupData := tableDataItem.Data()[s.groupFieldOffset : s.groupFieldOffset+uint32(s.groupFieldSize)]
 		groupAddress := groupData[s.dataFieldOffset : s.dataFieldOffset+uint32(s.dataFieldSize)]
 		groupDataItem, ok := d.dataItems[typeAndAddr{
-			irType: uint32(s.groupTypeID),
+			irType: uint32(s.groupSliceTypeID),
 			addr:   binary.NativeEndian.Uint64(groupAddress),
 		}]
 		if !ok {
