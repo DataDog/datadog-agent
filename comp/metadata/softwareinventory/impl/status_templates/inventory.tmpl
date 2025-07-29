@@ -1,6 +1,6 @@
 {{- $swMap := index . "software_inventory_metadata" }}
-{{- if not $swMap }}
-No software inventory metadata - is System Probe running?
+{{- if index $swMap "error" }}
+Error refreshing software inventory: {{ index $swMap "error" }}
 {{- else }}
 {{- $count := 0 }}
 {{- range $productCode, $meta := $swMap }}

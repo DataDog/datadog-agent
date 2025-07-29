@@ -2,10 +2,10 @@
   <span class="stat_title">Software Inventory Metadata</span>
   <div class="stat_data inventory-scrollbox" style="max-height: 400px; overflow-y: auto;">
     {{- $swMap := index . "software_inventory_metadata" }}
-    {{- if not $swMap }}
-      <div style="font-weight: bold; padding: 1em;">No software inventory metadata - is System Probe running?</div>
+    {{- if index $swMap "error" }}
+      <div><strong>Error refreshing software inventory: {{ index $swMap "error" }}</strong></div>
     {{- else }}
-      {{- range $, $meta := $swMap }}
+      {{- range $productCode, $meta := $swMap }}
         <details>
           <summary>
           {{- if $meta.DisplayName }}{{ $meta.DisplayName }}{{ if $meta.Version }} {{ $meta.Version }}{{ end }}{{- else }}{{ $meta.ProductCode }}{{- end }}

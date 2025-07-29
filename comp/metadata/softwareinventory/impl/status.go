@@ -73,8 +73,10 @@ func (is *softwareInventory) populateStatus(status map[string]interface{}) {
 	if is.cachedInventory == nil {
 		err := is.refreshCachedValues()
 		if err != nil {
-			// Log the error but continue - we'll still try to use any data that might be in cachedInventory
 			_ = is.log.Warnf("Failed to refresh software inventory cache: %v", err)
+			data["error"] = err.Error()
+			status["software_inventory_metadata"] = data
+			return
 		}
 	}
 	for _, inventory := range is.cachedInventory {
