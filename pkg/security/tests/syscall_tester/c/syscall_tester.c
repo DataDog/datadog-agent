@@ -92,6 +92,26 @@ __int128 atouint128(char *s) {
     return val;
 }
 
+uint32_t get_pid_from_host() {
+    const char *procRoot = "/host/proc";
+    char path[256];
+    snprintf(path, sizeof(path), "%s/self", procRoot);
+
+    char link_target[256];
+    ssize_t len = readlink(path, link_target, sizeof(link_target) - 1);
+    if (len != -1) {
+        link_target[len] = '\0'; // Null-terminate the string
+        // Convert the link target to a PID
+        char *endptr;
+        long pid = strtol(link_target, &endptr, 10);
+        if (*endptr == '\0' && pid != 0) {
+            return (uint32_t)pid;
+        }
+    }
+    // If we are not in a container, we can use getpid directly
+    return getpid();
+}
+
 static void *thread_span_exec(void *data) {
     struct thread_opts *opts = (struct thread_opts *)data;
 
@@ -1397,7 +1417,7 @@ int test_bind_and_listen(int argc, char **argv) {
         close(s);
         return EXIT_FAILURE;
     }
-    printf("PID: %d\n", getpid());
+    printf("PID: %d\n", get_pid_from_host());
     fflush(stdout);  // Send Pid to GO and syncrhonize with it
 
     // If TCP, listen for incoming connections
@@ -1518,7 +1538,7 @@ int test_connect_and_send(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    printf("PID: %d\n", getpid());
+    printf("PID: %d\n", get_pid_from_host());
     fflush(stdout);  // Send Pid to GO and synchronize with it
 
     // Setup socket for communication with GO
