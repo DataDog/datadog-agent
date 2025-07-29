@@ -24,9 +24,21 @@ import (
 // content for tailers capable of processing both unstructured and structured content.
 const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured_processing"
 
+var severities = map[string]int{
+	message.StatusEmergency: 7,
+	message.StatusAlert:     6,
+	message.StatusCritical:  5,
+	message.StatusError:     4,
+	message.StatusWarning:   3,
+	message.StatusNotice:    2,
+	message.StatusInfo:      1,
+	message.StatusDebug:     0,
+}
+
 type failoverConfig struct {
-	isFailoverActive  bool
-	failoverAllowlist map[string]struct{}
+	isFailoverActive         bool
+	failoverServiceAllowlist map[string]struct{}
+	failoverMinLevel         int
 }
 
 // A Processor updates messages from an inputChan and pushes
@@ -84,7 +96,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 // onLogsFailoverSettingChanged is called when any config value changes
 func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64) {
 	// Only update if the changed setting affects failover configuration
-	failoverSettingChanged := setting == "multi_region_failover.failover_logs" || setting == "multi_region_failover.logs_allowlist"
+	failoverSettingChanged := setting == "multi_region_failover.failover_logs" || setting == "multi_region_failover.logs_service_allowlist" || setting == "multi_region_failover.logs_min_level"
 	if failoverSettingChanged {
 		p.updateFailoverConfig()
 	}
@@ -100,15 +112,25 @@ func (p *Processor) updateFailoverConfig() {
 
 	conf.isFailoverActive = p.config.GetBool("multi_region_failover.failover_logs")
 
-	var allowlist map[string]struct{}
-	if conf.isFailoverActive && p.config.IsConfigured("multi_region_failover.logs_allowlist") {
-		rawList := p.config.GetStringSlice("multi_region_failover.logs_allowlist")
-		allowlist = make(map[string]struct{}, len(rawList))
+	var serviceAllowlist map[string]struct{}
+	if conf.isFailoverActive && p.config.IsConfigured("multi_region_failover.logs_service_allowlist") {
+		rawList := p.config.GetStringSlice("multi_region_failover.logs_service_allowlist")
+		serviceAllowlist = make(map[string]struct{}, len(rawList))
 		for _, allowed := range rawList {
-			allowlist[allowed] = struct{}{}
+			serviceAllowlist[allowed] = struct{}{}
 		}
 
-		conf.failoverAllowlist = allowlist
+		conf.failoverServiceAllowlist = serviceAllowlist
+	}
+
+	conf.failoverMinLevel = -1 // Default to not set
+	if conf.isFailoverActive && p.config.IsConfigured("multi_region_failover.logs_min_level") {
+		levelStr := p.config.GetString("multi_region_failover.logs_min_level")
+		if severity, exists := severities[levelStr]; exists {
+			conf.failoverMinLevel = severity
+		} else {
+			log.Warnf("Invalid value for multi_region_failover.logs_min_level: %s", levelStr)
+		}
 	}
 
 	p.configChan <- conf
@@ -189,20 +211,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
-		failoverActive := p.failoverConfig.isFailoverActive
-		allowlist := p.failoverConfig.failoverAllowlist
-		failoverAllowlistSet := len(allowlist) > 0
-
-		// Only filter messages when an allowlist is set, otherwise failover
-		// everything
-		if failoverActive && failoverAllowlistSet {
-			_, sourceIsFailover := allowlist[msg.Origin.Service()]
-
-			if sourceIsFailover {
-				msg.IsMRFAllow = true
-			}
-		} else if failoverActive {
-			msg.IsMRFAllow = true
+		if p.failoverConfig.isFailoverActive {
+			p.filterMRFMessages(msg)
 		}
 
 		// encode the message to its final format, it is done in-place
@@ -215,7 +225,26 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
 	}
+}
 
+// filterMRFMessages applies an MRF tag to messages that should be sent to MRF
+// destinations
+func (p *Processor) filterMRFMessages(msg *message.Message) {
+	serviceAllowlist := p.failoverConfig.failoverServiceAllowlist
+	minLevel := p.failoverConfig.failoverMinLevel
+
+	// Tag the message for failover if:
+	// 1. No allowlists are configured (failover all).
+	// 2. The message service is in the service allowlist.
+	// 3. The message status is at or above the configured minimum log level.
+	noFilters := len(serviceAllowlist) == 0 && minLevel < 0
+	_, serviceMatch := serviceAllowlist[msg.Origin.Service()]
+	msgSeverity, hasSeverity := severities[msg.GetStatus()]
+	statusMatch := minLevel >= 0 && hasSeverity && msgSeverity >= minLevel
+
+	if noFilters || serviceMatch || statusMatch {
+		msg.IsMRFAllow = true
+	}
 }
 
 // applyRedactingRules returns given a message if we should process it or not,
