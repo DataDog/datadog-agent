@@ -79,12 +79,20 @@ func (p Package) Stats(sourceFiles map[string]struct{}) PackageStats {
 	}
 	res.NumTypes += len(p.Types)
 	res.NumFunctions += len(p.Functions)
-	for _, f := range p.Functions {
-		_, ok := sourceFiles[f.File]
-		if !ok {
-			sourceFiles[f.File] = struct{}{}
+	recordFile := func(file string) {
+		if _, ok := sourceFiles[file]; !ok {
+			sourceFiles[file] = struct{}{}
 			res.NumSourceFiles++
 		}
+	}
+	for _, t := range p.Types {
+		res.NumFunctions += len(t.Methods)
+		for _, f := range t.Methods {
+			recordFile(f.File)
+		}
+	}
+	for _, f := range p.Functions {
+		recordFile(f.File)
 	}
 	return res
 }
@@ -312,7 +320,9 @@ type SymDBBuilder struct {
 	currentCompileUnit        *dwarf.Entry
 	filesInCurrentCompileUnit []string
 
-	types typesCollection
+	abstractFunctions map[dwarf.Offset]abstractFunction
+	packages          map[string]*Package
+	types             typesCollection
 
 	// Stack of blocks currently being explored. Variable location lists can
 	// make references to the current block and its PC ranges; they will look at
@@ -321,6 +331,32 @@ type SymDBBuilder struct {
 
 	// cleanupFuncs holds functions to be called on Close() to clean up resources.
 	cleanupFuncs []func()
+}
+
+type abstractFunction struct {
+	pkg           string
+	name          string
+	receiver      string
+	qualifiedName string
+
+	variables map[dwarf.Offset]abstractVariable
+	instances []inlinedInstance
+}
+
+type abstractVariable struct {
+	Variable
+	typeSize uint32
+}
+
+type inlinedInstance struct {
+	unit      *dwarf.Entry
+	lines     map[string]gosym.FunctionLines
+	variables []inlinedVariable
+}
+
+type inlinedVariable struct {
+	block codeBlock
+	entry *dwarf.Entry
 }
 
 type typesCollection struct {
@@ -584,16 +620,20 @@ func NewSymDBBuilder(binaryPath string) (*SymDBBuilder, error) {
 	}
 
 	b := &SymDBBuilder{
-		dwarfData:     obj.DwarfData(),
-		sym:           symTable,
-		loclistReader: obj.LoclistReader(),
-		pointerSize:   int(obj.PointerSize()),
-		mainModule:    mainModule,
-		cleanupFuncs:  []func(){func() { _ = goDebugSections.Close() }, func() { _ = obj.Close() }},
+		dwarfData:         obj.DwarfData(),
+		sym:               symTable,
+		loclistReader:     obj.LoclistReader(),
+		pointerSize:       int(obj.PointerSize()),
+		mainModule:        mainModule,
+		abstractFunctions: make(map[dwarf.Offset]abstractFunction),
+		packages:          make(map[string]*Package),
+		types: typesCollection{
+			typesCache: dwarfutils.NewTypeFinder(obj.DwarfData()),
+			types:      make(map[string]*Type),
+			packages:   make(map[string][]*Type),
+		},
+		cleanupFuncs: []func(){func() { _ = goDebugSections.Close() }, func() { _ = obj.Close() }},
 	}
-	b.types.typesCache = dwarfutils.NewTypeFinder(obj.DwarfData())
-	b.types.packages = make(map[string][]*Type)
-	b.types.types = make(map[string]*Type)
 	return b, nil
 }
 
@@ -623,10 +663,6 @@ const (
 // ExtractSymbols walks the DWARF data and accumulates the symbols to send to
 // SymDB.
 func (b *SymDBBuilder) ExtractSymbols(opt ExtractScope) (Symbols, error) {
-	res := Symbols{
-		MainModule: b.mainModule,
-		Packages:   nil,
-	}
 	entryReader := b.dwarfData.Reader()
 	// Figure out the package path prefix that corresponds to "1st party code"
 	// (as opposed to 3rd party dependencies), in case we're asked to filter for
@@ -697,15 +733,124 @@ func (b *SymDBBuilder) ExtractSymbols(opt ExtractScope) (Symbols, error) {
 		if err != nil {
 			return Symbols{}, err
 		}
-		// Skip zero-value packages, and also packages that have no symbols in
-		// them. The latter happens for 3rd party packages when we're asking for
-		// 1st party code only.
-		if pkg.Name != "" && (len(pkg.Types) > 0 || len(pkg.Functions) > 0) {
-			res.Packages = append(res.Packages, pkg)
+		if pkg.Name != "" {
+			if existingPkg, ok := b.packages[pkg.Name]; ok {
+				existingPkg.Functions = append(existingPkg.Functions, pkg.Functions...)
+				existingPkg.Types = append(existingPkg.Types, pkg.Types...)
+			} else {
+				b.packages[pkg.Name] = &pkg
+			}
 		}
 	}
-
+	err := b.reconcileAbstractFunctions()
+	if err != nil {
+		return Symbols{}, err
+	}
+	res := Symbols{
+		MainModule: b.mainModule,
+		Packages:   nil,
+	}
+	for pkgName, types := range b.types.packages {
+		pkg := b.packages[pkgName]
+		if pkg != nil {
+			for _, t := range types {
+				pkg.Types = append(pkg.Types, *t)
+			}
+		}
+	}
+	for _, pkg := range b.packages {
+		if len(pkg.Types) > 0 || len(pkg.Functions) > 0 {
+			res.Packages = append(res.Packages, *pkg)
+		}
+	}
 	return res, nil
+}
+
+func (b *SymDBBuilder) reconcileAbstractFunctions() error {
+	for _, af := range b.abstractFunctions {
+		if af.name == "" {
+			// Abstract definition has not be collected, which is legitimate due to filtering.
+			continue
+		}
+		var file string
+		var startLine uint32
+		var endLine uint32
+		for _, instance := range af.instances {
+			if file == "" {
+				file = instance.lines[af.qualifiedName].File
+			}
+			lines := instance.lines[af.qualifiedName].Lines
+			for _, line := range lines {
+				if startLine == 0 || line.Line < startLine {
+					startLine = line.Line
+				}
+				if line.Line > endLine {
+					endLine = line.Line
+				}
+			}
+			for _, v := range instance.variables {
+				origin, ok := v.entry.Val(dwarf.AttrAbstractOrigin).(dwarf.Offset)
+				if !ok {
+					return fmt.Errorf("inlined variable without abstract origin at 0x%x", v.entry.Offset)
+				}
+				av, ok := af.variables[origin]
+				if !ok {
+					return fmt.Errorf("inlined variable with unknown abstract origin at 0x%x", v.entry.Offset)
+				}
+				var err error
+				av.AvailableLineRanges, err = b.parseVariableLocations(
+					instance.unit,
+					v.block,
+					v.entry,
+					av.typeSize,
+					lines,
+					av.AvailableLineRanges,
+				)
+				if err != nil {
+					return fmt.Errorf("failed to parse variable locations for inlined variable at 0x%x: %w", v.entry.Offset, err)
+				}
+				af.variables[origin] = av
+			}
+		}
+
+		variables := make([]Variable, 0, len(af.variables))
+		for _, v := range af.variables {
+			v.Variable.AvailableLineRanges = coalesceLineRanges(v.AvailableLineRanges)
+			variables = append(variables, v.Variable)
+		}
+		f := Function{
+			Name:          af.name,
+			QualifiedName: af.qualifiedName,
+			File:          file,
+			Scope: Scope{
+				StartLine: int(startLine),
+				EndLine:   int(endLine),
+				Scopes:    nil,
+				Variables: variables,
+			},
+		}
+		if af.receiver != "" {
+			t := b.types.getType(af.receiver)
+			if t == nil {
+				// Some types are empty structures, and functions that
+				// use them as receivers don't actually have a parameter
+				// of the receiver type. Thus we end up without a type.
+				// Just make one up.
+				t = &Type{
+					Name: af.receiver,
+				}
+				b.types.types[af.receiver] = t
+				b.types.packages[af.pkg] = append(b.types.packages[af.pkg], t)
+			}
+			t.Methods = append(t.Methods, f)
+		} else {
+			p := b.packages[af.pkg]
+			if p != nil {
+				p.Functions = append(p.Functions, f)
+			}
+		}
+	}
+	return nil
 }
 
 func (b *SymDBBuilder) currentBlock() codeBlock {
@@ -817,15 +962,6 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 			reader.SkipChildren()
 		}
 	}
-
-	// Copy the types in this package from b.types. By now these types have all
-	// their methods populated, since their methods have to be defined in this
-	// compile unit.
-	res.Types = make([]Type, len(b.types.packages[res.Name]))
-	for i, t := range b.types.packages[res.Name] {
-		res.Types[i] = *t
-	}
-
 	duration := time.Since(start)
 	if duration > 5*time.Second {
 		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats(nil))
@@ -848,7 +984,7 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 // children. If an error is returned, the reader is left at an undefined
 // position inside the program.
 func (b *SymDBBuilder) exploreSubprogram(
-	subprogEntry *dwarf.Entry, reader *dwarf.Reader,
+	entry *dwarf.Entry, reader *dwarf.Reader,
 ) (Function, error) {
 	// When returning early, we need to consume all the children of the subprogram
 	// entry. Note that this utility can only be used before the reader is advanced.
@@ -857,8 +993,8 @@ func (b *SymDBBuilder) exploreSubprogram(
 		return Function{}, nil
 	}
 
-	if subprogEntry.Tag != dwarf.TagSubprogram {
-		return Function{}, fmt.Errorf("expected TagSubprogram, got %s", subprogEntry.Tag)
+	if entry.Tag != dwarf.TagSubprogram {
+		return Function{}, fmt.Errorf("expected TagSubprogram, got %s", entry.Tag)
 	}
 
 	// Ignore auto-generated functions, marked as trampolines. There are a few
@@ -866,61 +1002,27 @@ func (b *SymDBBuilder) exploreSubprogram(
 	// - methods with value receivers that are called through an interface that
 	// boxes a pointer value.
 	// - "deferwrap" functions
-	if subprogEntry.AttrField(dwarf.AttrTrampoline) != nil {
+	if entry.AttrField(dwarf.AttrTrampoline) != nil {
 		return earlyExit()
 	}
 
-	// If this is a "concrete-out-of-line" instance of a subprogram, the
-	// variables inside it will reference the abstract origin. We don't handle
-	// that at the moment, so skip these functions.
-	// TODO: handle concrete-out-of-line instances of functions.
-	if subprogEntry.AttrField(dwarf.AttrAbstractOrigin) != nil {
-		return earlyExit()
-	}
-
-	fileIdx, ok := subprogEntry.Val(dwarf.AttrDeclFile).(int64)
-	if !ok || fileIdx == 0 { // fileIdx == 0 means unknown file, as per DWARF spec
-		// TODO: log if this ever happens. I haven't seen it.
-		return earlyExit()
-	}
-	if fileIdx < 0 || int(fileIdx) >= len(b.filesInCurrentCompileUnit) {
-		return Function{}, fmt.Errorf(
-			"subprogram at 0x%x has invalid file index %d, expected in range [0, %d)",
-			subprogEntry.Offset, fileIdx, len(b.filesInCurrentCompileUnit),
-		)
-	}
-	fileName := b.filesInCurrentCompileUnit[fileIdx]
-	// If configured with a filter, check if the file should be ignored.
-	for _, filter := range b.filesFilter {
-		if strings.HasPrefix(fileName, filter) {
-			return earlyExit()
+	if entry.AttrField(dwarf.AttrAbstractOrigin) != nil {
+		// "out-of-line" instance of an abstract subprogram.
+		lowpc, ok := entry.Val(dwarf.AttrLowpc).(uint64)
+		if !ok {
+			return Function{}, fmt.Errorf("subprogram without lowpc at 0x%x", entry.Offset)
 		}
+		lines, err := b.sym.FunctionLines(lowpc)
+		if err != nil {
+			return Function{}, fmt.Errorf("failed to resolve function lines for function pc 0x%x: %w", lowpc, err)
+		}
+		return Function{}, b.exploreInlinedInstance(entry, reader, lines)
 	}
 
-	inline, ok := subprogEntry.Val(dwarf.AttrInline).(int64)
-	if ok && inline == dwarf2.DW_INL_inlined {
-		// This function is inlined; its variables don't have location lists here;
-		// instead, each inlined instance will have them. Nothing to do.
-		//
-		// Note that, if the function is not *always* inlined, there will also be a
-		// "concrete out-of-line" instance of this subprogram, which will have
-		// AttrAbstractOrigin pointing here.
-		return earlyExit()
-	}
-
-	funcQualifiedName, ok := subprogEntry.Val(dwarf.AttrName).(string)
+	funcQualifiedName, ok := entry.Val(dwarf.AttrName).(string)
 	if !ok {
-		return Function{}, fmt.Errorf("subprogram without name at 0x%x (%s)", subprogEntry.Offset, subprogEntry.Tag)
+		return Function{}, fmt.Errorf("subprogram without name at 0x%x (%s)", entry.Offset, entry.Tag)
 	}
-
-	// There are some funky auto-generated functions that we can't deal with
-	// because we can't parse their names (e.g.
-	// type:.eq.sync/atomic.Pointer[os.dirInfo]). Skip everything
-	// auto-generated.
-	if fileName == "<autogenerated>" {
-		return earlyExit()
-	}
-
 	parseRes, err := parseFuncName(funcQualifiedName)
 	if err != nil {
 		// Note that we do not return an error here; we simply ignore the
@@ -934,11 +1036,59 @@ func (b *SymDBBuilder) exploreSubprogram(
 	}
 	funcName := parseRes.funcName
 
-	lowpc, ok := subprogEntry.Val(dwarf.AttrLowpc).(uint64)
+	inline, ok := entry.Val(dwarf.AttrInline).(int64)
+	if ok && inline == dwarf2.DW_INL_inlined {
+		// Abstract function definition
+		variables, err := b.exploreAbstractFunction(reader)
+		if err != nil {
+			return Function{}, err
+		}
+		var receiver string
+		if funcName.Type != "" {
+			receiver = funcName.Package + "." + funcName.Type
+		}
+		b.abstractFunctions[entry.Offset] = abstractFunction{
+			pkg:           funcName.Package,
+			name:          funcName.Name,
+			receiver:      receiver,
+			qualifiedName: funcQualifiedName,
+			variables:     variables,
+			instances:     b.abstractFunctions[entry.Offset].instances,
+		}
+		return Function{}, nil
+	}
+
+	fileIdx, ok := entry.Val(dwarf.AttrDeclFile).(int64)
+	if !ok || fileIdx == 0 { // fileIdx == 0 means unknown file, as per DWARF spec
+		// TODO: log if this ever happens. I haven't seen it.
+		return earlyExit()
+	}
+	if fileIdx < 0 || int(fileIdx) >= len(b.filesInCurrentCompileUnit) {
+		return Function{}, fmt.Errorf(
+			"subprogram at 0x%x has invalid file index %d, expected in range [0, %d)",
+			entry.Offset, fileIdx, len(b.filesInCurrentCompileUnit),
+		)
+	}
+	fileName := b.filesInCurrentCompileUnit[fileIdx]
+	// If configured with a filter, check if the file should be ignored.
+	for _, filter := range b.filesFilter {
+		if strings.HasPrefix(fileName, filter) {
+			return earlyExit()
+		}
+	}
+	// There are some funky auto-generated functions that we can't deal with
+	// because we can't parse their names (e.g.
+	// type:.eq.sync/atomic.Pointer[os.dirInfo]). Skip everything
+	// auto-generated.
+	if fileName == "<autogenerated>" {
+		return earlyExit()
+	}
+
+	lowpc, ok := entry.Val(dwarf.AttrLowpc).(uint64)
 	if !ok {
 		return Function{}, fmt.Errorf("subprogram without lowpc: %s", funcQualifiedName)
 	}
-	highpc, ok := subprogEntry.Val(dwarf.AttrHighpc).(uint64)
+	highpc, ok := entry.Val(dwarf.AttrHighpc).(uint64)
 	if !ok {
 		return Function{}, errors.New("subprogram without highpc")
 	}
@@ -947,7 +1097,6 @@ func (b *SymDBBuilder) exploreSubprogram(
 	if err != nil {
 		return Function{}, fmt.Errorf("failed to resolve function lines for function %s at PC 0x%x: %w", funcQualifiedName, lowpc, err)
 	}
-	// For now ignore inlined functions.
 	selfLines, ok := lines[funcQualifiedName]
 	if !ok {
 		return Function{}, fmt.Errorf("missing self function lines for function %s at PC 0x%x", funcQualifiedName, lowpc)
@@ -974,7 +1123,7 @@ func (b *SymDBBuilder) exploreSubprogram(
 	// want to export to SymDB, this also has the side effect of resolving the
 	// types of all the function arguments; in particular, we rely below on the
 	// type of the receiver having been resolved.
-	inner, err := b.exploreCode(reader, selfLines.Lines)
+	inner, err := b.exploreCode(reader, funcQualifiedName, lines)
 	if err != nil {
 		return Function{}, err
 	}
@@ -1001,7 +1150,7 @@ func (b *SymDBBuilder) exploreSubprogram(
 		if typ == nil {
 			return Function{}, fmt.Errorf(
 				"%s is a method of type %s, but that type is missing from the cache. DWARF offset: 0x%x",
-				funcQualifiedName, typeQualifiedName, subprogEntry.Offset,
+				funcQualifiedName, typeQualifiedName, entry.Offset,
 			)
 		}
 		typ.Methods = append(typ.Methods, res)
@@ -1011,19 +1160,104 @@ func (b *SymDBBuilder) exploreSubprogram(
 	return res, nil
 }
 
-func (b *SymDBBuilder) exploreInlinedSubroutine(inlinedEntry *dwarf.Entry, reader *dwarf.Reader) error {
-	if inlinedEntry.Tag != dwarf.TagInlinedSubroutine {
-		return fmt.Errorf("expected TagInlinedSubroutine, got %s", inlinedEntry.Tag)
+func (b *SymDBBuilder) exploreAbstractFunction(reader *dwarf.Reader) (map[dwarf.Offset]abstractVariable, error) {
+	variables := make(map[dwarf.Offset]abstractVariable)
+	for child, err := reader.Next(); child != nil; child, err = reader.Next() {
+		if err != nil {
+			return nil, err
+		}
+		if dwarfutil.IsEntryNull(child) {
+			break // end of child nodes
+		}
+
+		switch child.Tag {
+		case dwarf.TagFormalParameter, dwarf.TagVariable:
+			v, typ, err := b.parseAbstractVariable(child)
+			if err != nil {
+				return nil, err
+			}
+			variables[child.Offset] = abstractVariable{
+				Variable: v,
+				typeSize: uint32(typ.size),
+			}
+		default:
+			return nil, fmt.Errorf("unexpected child tag %s in abstract function at 0x%x", child.Tag, child.Offset)
+		}
 	}
-	// TODO: accumulate variable availability data and join it with the other
-	// inlined and out-of-line instances.
-	// TODO: Resolve the declaration file of the inlined function, if we haven't
-	// already done it for another inlined instance of this function. Go doesn't
-	// annotate the DWARF abstract function definitions with the declaration file,
-	// so we have to figure it out from the line programs of one of the inlined
-	// instances.
-	reader.SkipChildren()
+	return variables, nil
+}
+
+// Explores inlined instances of an abstract function (both InlinedSubroutines and out-of-line Subprogram instances).
+func (b *SymDBBuilder) exploreInlinedInstance(
+	entry *dwarf.Entry,
+	reader *dwarf.Reader,
+	lines map[string]gosym.FunctionLines,
+) error {
+	origin, ok := entry.Val(dwarf.AttrAbstractOrigin).(dwarf.Offset)
+	if !ok {
+		return fmt.Errorf("inlined instance without abstract origin at 0x%x", entry.Offset)
+	}
+	variables, err := b.exploreInlinedCode(entry, reader, lines, nil)
+	if err != nil {
+		return err
+	}
+	af := b.abstractFunctions[origin]
+	af.instances = append(af.instances,
+		inlinedInstance{
+			unit:      b.currentCompileUnit,
+			lines:     lines,
+			variables: variables,
+		},
+	)
+	b.abstractFunctions[origin] = af
 	return nil
+}
+
+func (b *SymDBBuilder) exploreInlinedCode(
+	entry *dwarf.Entry,
+	reader *dwarf.Reader,
+	lines map[string]gosym.FunctionLines,
+	out []inlinedVariable,
+) ([]inlinedVariable, error) {
+	block := &dwarfBlock{entry: entry}
+	b.pushBlock(block)
+	defer b.popBlock()
+
+	for child, err := reader.Next(); child != nil; child, err = reader.Next() {
+		if err != nil {
+			return nil, err
+		}
+		if dwarfutil.IsEntryNull(child) {
+			break // end of child nodes
+		}
+
+		switch child.Tag {
+		case dwarf.TagFormalParameter, dwarf.TagVariable:
+			// Inlined instance sometimes have non-abstract variables, like
+			// named return parameters. We don't collect these currently.
+			if child.AttrField(dwarf.AttrAbstractOrigin) != nil {
+				out = append(out, inlinedVariable{
+					block: b.currentBlock(),
+					entry: child,
+				})
+			}
+
+		case dwarf.TagLexDwarfBlock:
+			out, err = b.exploreInlinedCode(child, reader, lines, out)
+			if err != nil {
+				return nil, err
+			}
+
+		case dwarf.TagInlinedSubroutine:
+			err := b.exploreInlinedInstance(child, reader, lines)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("unexpected child tag %s in inlined instance at 0x%x", child.Tag, child.Offset)
+		}
+	}
+	return out, nil
 }
 
 // exploreLexicalBlock processes a lexical block entry. If the block contains
@@ -1031,7 +1265,10 @@ func (b *SymDBBuilder) exploreInlinedSubroutine(inlinedEntry *dwarf.Entry, reade
 // If the block does not contain any variables, it returns any sub-blocks that
 // do contain variables (if any).
 func (b *SymDBBuilder) exploreLexicalBlock(
-	blockEntry *dwarf.Entry, reader *dwarf.Reader, lines []gosym.LineRange,
+	blockEntry *dwarf.Entry,
+	reader *dwarf.Reader,
+	functionName string,
+	lines map[string]gosym.FunctionLines,
 ) ([]Scope, error) {
 	if blockEntry.Tag != dwarf.TagLexDwarfBlock {
 		return nil, fmt.Errorf("expected TagLexDwarfBlock, got %s", blockEntry.Tag)
@@ -1042,7 +1279,7 @@ func (b *SymDBBuilder) exploreLexicalBlock(
 	b.pushBlock(currentBlock)
 	defer b.popBlock()
 
-	inner, err := b.exploreCode(reader, lines)
+	inner, err := b.exploreCode(reader, functionName, lines)
 	if err != nil {
 		return nil, fmt.Errorf("error exploring code in lexical block: %w", err)
 	}
@@ -1051,7 +1288,7 @@ func (b *SymDBBuilder) exploreLexicalBlock(
 	// doesn't, then inner scopes (if any), are returned directly, to be added
 	// as direct children of the caller's block.
 	if len(inner.vars) != 0 {
-		blockLineRange, err := currentBlock.resolveLines(b.dwarfData, lines)
+		blockLineRange, err := currentBlock.resolveLines(b.dwarfData, lines[functionName].Lines)
 		if err != nil {
 			return nil, fmt.Errorf("error resolving lines for lexical block: %w (0x%x)",
 				err, currentBlock.entry.Offset)
@@ -1098,71 +1335,52 @@ func pcRangeToLines(r dwarfutil.PCRange, lines []gosym.LineRange) (LineRange, bo
 	return LineRange{int(lineLo), int(lineHi)}, true
 }
 
-// parseVariable parses a variable or formal parameter entry.
-func (b *SymDBBuilder) parseVariable(varEntry *dwarf.Entry, lines []gosym.LineRange) (Variable, error) {
-	varName, ok := varEntry.Val(dwarf.AttrName).(string)
-	if !ok {
-		return Variable{}, fmt.Errorf("formal parameter without name at 0x%x", varEntry.Offset)
-	}
-	declLine, ok := varEntry.Val(dwarf.AttrDeclLine).(int64)
-	if !ok {
-		return Variable{}, errors.New("formal parameter without declaration line")
-	}
-	typeOffset, ok := varEntry.Val(dwarf.AttrType).(dwarf.Offset)
-	if !ok {
-		return Variable{}, errors.New("formal parameter without type")
-	}
-	typ, err := b.types.resolveType(typeOffset)
+// exploreVariable processes a variable or formal parameter entry.
+func (b *SymDBBuilder) exploreVariable(entry *dwarf.Entry, lines []gosym.LineRange) (Variable, error) {
+	v, typ, err := b.parseAbstractVariable(entry)
 	if err != nil {
 		return Variable{}, err
 	}
-
-	// Parse the line availability for the variable.
-	var availableLineRanges []LineRange
-	if locField := varEntry.AttrField(dwarf.AttrLocation); locField != nil {
-		pcRanges, err := b.processLocations(locField, uint32(typ.size))
-		if err != nil {
-			return Variable{}, fmt.Errorf(
-				"error processing locations for variable %q: %w", varName, err,
-			)
-		}
-		for _, r := range pcRanges {
-			lineRange, ok := pcRangeToLines(r, lines)
-			if ok {
-				availableLineRanges = append(availableLineRanges, lineRange)
-			}
-		}
+	availableLineRanges, err := b.parseVariableLocations(
+		b.currentCompileUnit,
+		b.currentBlock(),
+		entry,
+		uint32(typ.size),
+		lines,
+		nil,
+	)
+	if err != nil {
+		return Variable{}, err
 	}
+	v.AvailableLineRanges = coalesceLineRanges(availableLineRanges)
+	return v, nil
+}
 
-	// Merge the available lines into disjoint ranges.
-	if len(availableLineRanges) > 0 {
-		sort.Slice(availableLineRanges, func(i, j int) bool {
-			return availableLineRanges[i][0] < availableLineRanges[j][0]
-		})
-		merged := make([]LineRange, 0, len(availableLineRanges))
-		merged = append(merged, availableLineRanges[0])
-		for _, curr := range availableLineRanges[1:] {
-			last := &merged[len(merged)-1]
-			if curr[0] <= (*last)[1] {
-				if curr[1] > last[1] {
-					// curr extends last.
-					last[1] = curr[1]
-				}
-			} else {
-				// curr is disjoint from last, so add it.
-				merged = append(merged, curr)
-			}
-		}
-		availableLineRanges = merged
+func (b *SymDBBuilder) parseAbstractVariable(entry *dwarf.Entry) (Variable, typeInfo, error) {
+	name, ok := entry.Val(dwarf.AttrName).(string)
+	if !ok {
+		return Variable{}, typeInfo{}, fmt.Errorf("variable without name at 0x%x", entry.Offset)
+	}
+	declLine, ok := entry.Val(dwarf.AttrDeclLine).(int64)
+	if !ok {
+		declLine = 0
+	}
+	typeOffset, ok := entry.Val(dwarf.AttrType).(dwarf.Offset)
+	if !ok {
+		return Variable{}, typeInfo{}, fmt.Errorf("variable without type at 0x%x", entry.Offset)
+	}
+	typ, err := b.types.resolveType(typeOffset)
+	if err != nil {
+		return Variable{}, typeInfo{}, err
 	}
 
 	// Decide whether this variable is a function argument or a regular variable.
 	// Note that return values are represented DW_TAG_formal_parameter with
 	// attribute DW_AT_variable_parameter = 1. We don't mark return values as
 	// function arguments.
-	functionArgument := varEntry.Tag == dwarf.TagFormalParameter
+	functionArgument := entry.Tag == dwarf.TagFormalParameter
 	if functionArgument {
-		if varParamField := varEntry.AttrField(dwarf.AttrVarParam); varParamField != nil {
+		if varParamField := entry.AttrField(dwarf.AttrVarParam); varParamField != nil {
 			varParamValue, ok := varParamField.Val.(int)
 			if ok && varParamValue == 1 {
 				functionArgument = false
@@ -1171,12 +1389,64 @@ func (b *SymDBBuilder) parseVariable(varEntry *dwarf.Entry, lines []gosym.LineRa
 	}
 
 	return Variable{
-		Name:                varName,
-		DeclLine:            int(declLine),
-		TypeName:            typ.name,
-		FunctionArgument:    functionArgument,
-		AvailableLineRanges: availableLineRanges,
-	}, nil
+		Name:             name,
+		DeclLine:         int(declLine),
+		TypeName:         typ.name,
+		FunctionArgument: functionArgument,
+	}, typ, nil
+}
+
+// The parsed locations are appended to the out slice, that is then returned.
+func (b *SymDBBuilder) parseVariableLocations(
+	unit *dwarf.Entry,
+	block codeBlock,
+	entry *dwarf.Entry,
+	typeSize uint32,
+	lines []gosym.LineRange,
+	out []LineRange,
+) ([]LineRange, error) {
+	locField := entry.AttrField(dwarf.AttrLocation)
+	if locField == nil {
+		return out, nil
+	}
+	pcRanges, err := b.processLocations(unit, block, locField, typeSize)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error processing locations for variable at 0x%x: %w", entry.Offset, err,
+		)
+	}
+	for _, r := range pcRanges {
+		lineRange, ok := pcRangeToLines(r, lines)
+		if ok {
+			out = append(out, lineRange)
+		}
+	}
+	return out, nil
+}
+
+// Coalesce the available lines into disjoint ranges.
+func coalesceLineRanges(ranges []LineRange) []LineRange {
+	if len(ranges) == 0 {
+		return nil
+	}
+	sort.Slice(ranges, func(i, j int) bool {
+		return ranges[i][0] < ranges[j][0]
+	})
+	merged := make([]LineRange, 0, len(ranges))
+	merged = append(merged, ranges[0])
+	for _, curr := range ranges[1:] {
+		last := &merged[len(merged)-1]
+		if curr[0] <= (*last)[1] {
+			if curr[1] > last[1] {
+				// curr extends last.
+				last[1] = curr[1]
+			}
+		} else {
+			// curr is disjoint from last, so add it.
+			merged = append(merged, curr)
+		}
+	}
+	return merged
 }
 
 // processLocations goes through a list of location lists and returns the PC
@@ -1185,17 +1455,19 @@ func (b *SymDBBuilder) parseVariable(varEntry *dwarf.Entry, lines []gosym.LineRa
 //
 // totalSize is the size of the type that this location list is describing.
 func (b *SymDBBuilder) processLocations(
+	unit *dwarf.Entry,
+	block codeBlock,
 	locField *dwarf.Field,
 	totalSize uint32,
 ) ([]dwarfutil.PCRange, error) {
 	// TODO: resolving these PC ranges is only necessary for variables that use
 	// dwarf.ClassExprLoc; it's not necessary for other variables. It might be
 	// worth it to make the computation lazy.
-	pcRanges, err := b.currentBlock().resolvePCRanges(b.dwarfData)
+	pcRanges, err := block.resolvePCRanges(b.dwarfData)
 	if err != nil {
 		return nil, err
 	}
-	loclists, err := dwarfutil.ProcessLocations(locField, b.currentCompileUnit, b.loclistReader, pcRanges, totalSize, uint8(b.pointerSize))
+	loclists, err := dwarfutil.ProcessLocations(locField, unit, b.loclistReader, pcRanges, totalSize, uint8(b.pointerSize))
 	if err != nil {
 		return nil, err
 	}
@@ -1218,7 +1490,11 @@ type exploreCodeResult struct {
 // inlined subprograms.
 //
 // pcIt is a PC iterator for the function containing this code.
-func (b *SymDBBuilder) exploreCode(reader *dwarf.Reader, lines []gosym.LineRange) (exploreCodeResult, error) {
+func (b *SymDBBuilder) exploreCode(
+	reader *dwarf.Reader,
+	functionName string,
+	lines map[string]gosym.FunctionLines,
+) (exploreCodeResult, error) {
 	var res exploreCodeResult
 	for child, err := reader.Next(); child != nil; child, err = reader.Next() {
 		if err != nil {
@@ -1231,25 +1507,25 @@ func (b *SymDBBuilder) exploreCode(reader *dwarf.Reader, lines []gosym.LineRange
 		// We recognize formal parameters, variables, lexical blocks and inlined subroutines.
 		switch child.Tag {
 		case dwarf.TagFormalParameter:
-			v, err := b.parseVariable(child, lines)
+			v, err := b.exploreVariable(child, lines[functionName].Lines)
 			if err != nil {
 				return exploreCodeResult{}, err
 			}
 			res.vars = append(res.vars, v)
 		case dwarf.TagVariable:
-			v, err := b.parseVariable(child, lines)
+			v, err := b.exploreVariable(child, lines[functionName].Lines)
 			if err != nil {
 				return exploreCodeResult{}, err
 			}
 			res.vars = append(res.vars, v)
 		case dwarf.TagLexDwarfBlock:
-			scopes, err := b.exploreLexicalBlock(child, reader, lines)
+			scopes, err := b.exploreLexicalBlock(child, reader, functionName, lines)
 			if err != nil {
 				return exploreCodeResult{}, err
 			}
 			res.scopes = append(res.scopes, scopes...)
 		case dwarf.TagInlinedSubroutine:
-			err := b.exploreInlinedSubroutine(child, reader)
+			err := b.exploreInlinedInstance(child, reader, lines)
 			if err != nil {
 				return exploreCodeResult{}, err
 			}
