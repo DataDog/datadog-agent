@@ -161,7 +161,11 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 		}
 	}
 
-	payloads := make([]*transaction.BytesPayload, 0, len(pbs))
+	totalPayloads := 0
+	for _, pb := range pbs {
+		totalPayloads += len(pb.payloads)
+	}
+	payloads := make([]*transaction.BytesPayload, 0, totalPayloads)
 	for _, pb := range pbs {
 		payloads = append(payloads, pb.payloads...)
 	}
