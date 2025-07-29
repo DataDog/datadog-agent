@@ -213,6 +213,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "process.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.ancestors.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -253,9 +258,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "process.ancestors.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "process.ancestors.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "process.ancestors.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "process.ancestors.file.name",
@@ -343,6 +358,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "process.ancestors.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.ancestors.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -383,9 +403,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "process.ancestors.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "process.ancestors.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "process.ancestors.interpreter.file.name",
@@ -628,6 +658,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "process.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -668,9 +703,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "process.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "process.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "process.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "process.file.name",
@@ -758,6 +803,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "process.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -798,9 +848,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "process.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "process.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "process.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "process.interpreter.file.name",
@@ -993,6 +1053,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "process.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.parent.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -1033,9 +1098,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "process.parent.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "process.parent.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "process.parent.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "process.parent.file.name",
@@ -1123,6 +1198,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "process.parent.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.parent.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -1163,9 +1243,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "process.parent.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "process.parent.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "process.parent.interpreter.file.name",
@@ -1488,6 +1578,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "cgroup_write.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "cgroup_write.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -1528,9 +1623,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "cgroup_write.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "cgroup_write.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "cgroup_write.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "cgroup_write.file.name",
@@ -1602,6 +1707,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "chdir.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "chdir.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -1642,9 +1752,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "chdir.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "chdir.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "chdir.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "chdir.file.name",
@@ -1731,6 +1851,11 @@
           "property_doc_link": "chmod-file-destination-rights-doc"
         },
         {
+          "name": "chmod.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "chmod.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -1771,9 +1896,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "chmod.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "chmod.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "chmod.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "chmod.file.name",
@@ -1875,6 +2010,11 @@
           "property_doc_link": "chown-file-destination-user-doc"
         },
         {
+          "name": "chown.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "chown.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -1915,9 +2055,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "chown.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "chown.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "chown.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "chown.file.name",
@@ -2272,6 +2422,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "exec.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "exec.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -2352,9 +2507,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "exec.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "exec.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "exec.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "exec.file.name",
@@ -2442,6 +2607,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "exec.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "exec.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -2482,9 +2652,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "exec.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "exec.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "exec.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "exec.interpreter.file.name",
@@ -2746,6 +2926,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "exit.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "exit.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -2786,9 +2971,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "exit.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "exit.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "exit.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "exit.file.name",
@@ -2876,6 +3071,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "exit.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "exit.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -2916,9 +3116,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "exit.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "exit.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "exit.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "exit.interpreter.file.name",
@@ -3154,6 +3364,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "link.file.destination.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "link.file.destination.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -3194,9 +3409,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "link.file.destination.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "link.file.destination.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "link.file.destination.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "link.file.destination.name",
@@ -3249,6 +3474,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "link.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "link.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -3289,9 +3519,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "link.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "link.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "link.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "link.file.name",
@@ -3388,6 +3628,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "load_module.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "load_module.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -3428,9 +3673,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "load_module.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "load_module.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "load_module.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "load_module.file.name",
@@ -3522,6 +3777,11 @@
           "property_doc_link": "mkdir-file-destination-rights-doc"
         },
         {
+          "name": "mkdir.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "mkdir.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -3562,9 +3822,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "mkdir.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "mkdir.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "mkdir.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "mkdir.file.name",
@@ -3646,6 +3916,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "mmap.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "mmap.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -3686,9 +3961,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "mmap.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "mmap.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "mmap.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "mmap.file.name",
@@ -3765,6 +4050,11 @@
       "experimental": true,
       "properties": [
         {
+          "name": "mount.detached",
+          "definition": "Mount is detached from the VFS",
+          "property_doc_link": "mount-detached-doc"
+        },
+        {
           "name": "mount.fs_type",
           "definition": "Type of the mounted file system",
           "property_doc_link": "mount-fs_type-doc"
@@ -3803,6 +4093,11 @@
           "name": "mount.syscall.source.path",
           "definition": "Source path argument of the syscall",
           "property_doc_link": "mount-syscall-source-path-doc"
+        },
+        {
+          "name": "mount.visible",
+          "definition": "Mount is not visible in the VFS",
+          "property_doc_link": "mount-visible-doc"
         }
       ]
     },
@@ -3927,6 +4222,11 @@
           "property_doc_link": "open-file-destination-mode-doc"
         },
         {
+          "name": "open.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "open.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -3967,9 +4267,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "open.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "open.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "open.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "open.file.name",
@@ -4265,6 +4575,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -4305,9 +4620,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.file.name",
@@ -4395,6 +4720,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -4435,9 +4765,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.name",
@@ -4680,6 +5020,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "ptrace.tracee.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "ptrace.tracee.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -4720,9 +5065,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "ptrace.tracee.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "ptrace.tracee.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "ptrace.tracee.file.name",
@@ -4810,6 +5165,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "ptrace.tracee.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "ptrace.tracee.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -4850,9 +5210,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "ptrace.tracee.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "ptrace.tracee.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "ptrace.tracee.interpreter.file.name",
@@ -5045,6 +5415,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "ptrace.tracee.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -5085,9 +5460,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "ptrace.tracee.parent.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "ptrace.tracee.parent.file.name",
@@ -5175,6 +5560,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "ptrace.tracee.parent.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -5215,9 +5605,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "ptrace.tracee.parent.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.name",
@@ -5399,6 +5799,11 @@
           "property_doc_link": "common-setxattrevent-file-destination-namespace-doc"
         },
         {
+          "name": "removexattr.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "removexattr.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -5439,9 +5844,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "removexattr.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "removexattr.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "removexattr.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "removexattr.file.name",
@@ -5518,6 +5933,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "rename.file.destination.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "rename.file.destination.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -5558,9 +5978,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "rename.file.destination.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "rename.file.destination.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "rename.file.destination.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "rename.file.destination.name",
@@ -5613,6 +6043,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "rename.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "rename.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -5653,9 +6088,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "rename.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "rename.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "rename.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "rename.file.name",
@@ -5737,6 +6182,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "rmdir.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "rmdir.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -5777,9 +6227,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "rmdir.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "rmdir.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "rmdir.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "rmdir.file.name",
@@ -6064,6 +6524,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -6104,9 +6569,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "setrlimit.target.ancestors.file.name",
@@ -6194,6 +6669,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -6234,9 +6714,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "setrlimit.target.ancestors.interpreter.file.name",
@@ -6479,6 +6969,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "setrlimit.target.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "setrlimit.target.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -6519,9 +7014,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "setrlimit.target.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "setrlimit.target.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "setrlimit.target.file.name",
@@ -6609,6 +7114,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "setrlimit.target.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "setrlimit.target.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -6649,9 +7159,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "setrlimit.target.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "setrlimit.target.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "setrlimit.target.interpreter.file.name",
@@ -6844,6 +7364,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "setrlimit.target.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "setrlimit.target.parent.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -6884,9 +7409,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "setrlimit.target.parent.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "setrlimit.target.parent.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "setrlimit.target.parent.file.name",
@@ -6974,6 +7509,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "setrlimit.target.parent.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "setrlimit.target.parent.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -7014,9 +7554,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "setrlimit.target.parent.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "setrlimit.target.parent.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "setrlimit.target.parent.interpreter.file.name",
@@ -7296,6 +7846,11 @@
           "property_doc_link": "common-setxattrevent-file-destination-namespace-doc"
         },
         {
+          "name": "setxattr.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "setxattr.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -7336,9 +7891,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "setxattr.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "setxattr.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setxattr.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "setxattr.file.name",
@@ -7540,6 +8105,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "signal.target.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "signal.target.ancestors.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -7580,9 +8150,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "signal.target.ancestors.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "signal.target.ancestors.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "signal.target.ancestors.file.name",
@@ -7670,6 +8250,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "signal.target.ancestors.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "signal.target.ancestors.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -7710,9 +8295,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "signal.target.ancestors.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "signal.target.ancestors.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "signal.target.ancestors.interpreter.file.name",
@@ -7955,6 +8550,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "signal.target.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "signal.target.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -7995,9 +8595,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "signal.target.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "signal.target.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "signal.target.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "signal.target.file.name",
@@ -8085,6 +8695,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "signal.target.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "signal.target.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -8125,9 +8740,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "signal.target.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "signal.target.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "signal.target.interpreter.file.name",
@@ -8320,6 +8945,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "signal.target.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "signal.target.parent.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -8360,9 +8990,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "signal.target.parent.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "signal.target.parent.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "signal.target.parent.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "signal.target.parent.file.name",
@@ -8450,6 +9090,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "signal.target.parent.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "signal.target.parent.interpreter.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -8490,9 +9135,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "signal.target.parent.interpreter.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "signal.target.parent.interpreter.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "signal.target.parent.interpreter.file.name",
@@ -8669,6 +9324,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "splice.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "splice.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -8709,9 +9369,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "splice.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "splice.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "splice.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "splice.file.name",
@@ -8842,6 +9512,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "unlink.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "unlink.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -8882,9 +9557,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "unlink.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "unlink.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "unlink.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "unlink.file.name",
@@ -8995,6 +9680,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "utimes.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "utimes.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -9035,9 +9725,19 @@
           "property_doc_link": "common-filefields-modification_time-doc"
         },
         {
+          "name": "utimes.file.mount_detached",
+          "definition": "Indicates whether the file's mount is detached from the VFS",
+          "property_doc_link": "common-fileevent-mount_detached-doc"
+        },
+        {
           "name": "utimes.file.mount_id",
           "definition": "Mount ID of the file",
           "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "utimes.file.mount_visible",
+          "definition": "Indicates whether the file's mount is visible in the VFS",
+          "property_doc_link": "common-fileevent-mount_visible-doc"
         },
         {
           "name": "utimes.file.name",
@@ -9667,6 +10367,63 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.extension",
+      "link": "common-fileevent-extension-doc",
+      "type": "string",
+      "definition": "File's extension",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
       ],
       "constants": "",
       "constants_link": "",
@@ -10711,6 +11468,63 @@
       "examples": []
     },
     {
+      "name": "*.mount_detached",
+      "link": "common-fileevent-mount_detached-doc",
+      "type": "bool",
+      "definition": "Indicates whether the file's mount is detached from the VFS",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.mount_id",
       "link": "common-pathkey-mount_id-doc",
       "type": "int",
@@ -10772,6 +11586,63 @@
         "signal.target.file",
         "signal.target.interpreter.file",
         "signal.target.parent.cgroup.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.mount_visible",
+      "link": "common-fileevent-mount_visible-doc",
+      "type": "bool",
+      "definition": "Indicates whether the file's mount is visible in the VFS",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
         "signal.target.parent.file",
         "signal.target.parent.interpreter.file",
         "splice.file",
@@ -12490,6 +13361,18 @@
       "examples": []
     },
     {
+      "name": "mount.detached",
+      "link": "mount-detached-doc",
+      "type": "bool",
+      "definition": "Mount is detached from the VFS",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mount.fs_type",
       "link": "mount-fs_type-doc",
       "type": "string",
@@ -12566,6 +13449,18 @@
       "link": "mount-syscall-source-path-doc",
       "type": "string",
       "definition": "Source path argument of the syscall",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.visible",
+      "link": "mount-visible-doc",
+      "type": "bool",
+      "definition": "Mount is not visible in the VFS",
       "prefixes": [
         "mount"
       ],

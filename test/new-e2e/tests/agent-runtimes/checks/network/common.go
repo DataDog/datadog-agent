@@ -7,7 +7,6 @@
 package checknetwork
 
 import (
-	"math"
 	"slices"
 
 	gocmp "github.com/google/go-cmp/cmp"
@@ -26,8 +25,7 @@ import (
 type networkCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
 	descriptor                  e2eos.Descriptor
-	metricCompareFraction       float64
-	metricCompareDecimals       int
+	metricCompareDistance       int
 	excludedFromValueComparison []string
 }
 
@@ -67,19 +65,39 @@ instances:
 			``,
 			true, // this setting is not only for Linux but the windows python check is missing some metrics
 		},
+		// XXX: unfortunately the python version does not initialize all of the queue metrics so we cannot reliably compare them without them being "new"
+		//{
+		//	"collect connection queues",
+		//	`init_config:
+		//instances:
+		//  - collect_connection_state: true
+		//    collect_connection_queues: true
+		//`,
+		//	``,
+		//	true,
+		//},
 		{
-			"collect connection queues",
+			"collect ethtool metrics",
 			`init_config:
 instances:
-  - collect_connection_state: true
-    collect_connection_queues: true
+  - collect_ethtool_stats: true
+    collect_ethtool_metrics: true
+`,
+			``,
+			true,
+		},
+		{
+			"collect aws ena metrics",
+			`init_config:
+instances:
+  - collect_ethtool_stats: true
+    collect_aws_ena_metrics: true
 `,
 			``,
 			true,
 		},
 	}
 
-	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
 		if testCase.onlyLinux && v.descriptor.Family() != e2eos.LinuxFamily {
 			continue
@@ -102,7 +120,7 @@ instances:
 					}
 					aValue := a.Points[0][1]
 					bValue := b.Points[0][1]
-					return checkUtils.CompareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
+					return checkUtils.CompareValuesWithDistance(aValue, bValue, v.metricCompareDistance)
 				}),
 				gocmpopts.SortSlices(checkUtils.MetricPayloadCompare), // sort metrics
 			)

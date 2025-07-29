@@ -23,8 +23,7 @@ func TestLinuxNetworkSuite(t *testing.T) {
 	suite := &linuxNetworkCheckSuite{
 		networkCheckSuite{
 			descriptor:            e2eos.UbuntuDefault,
-			metricCompareFraction: 0.2, // 20% is a lot of margin but otherwise would error with 4 vs 5 counts
-			metricCompareDecimals: 1,
+			metricCompareDistance: 3,
 			excludedFromValueComparison: []string{
 				"system.net.tcp.recv_q.count",
 				"system.net.tcp.recv_q.95percentile",

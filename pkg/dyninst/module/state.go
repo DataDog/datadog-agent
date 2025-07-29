@@ -73,6 +73,9 @@ func (ps *processStore) ensureExists(update *rcscrape.ProcessUpdate) procRuntime
 		if update.GitInfo != (procmon.GitInfo{}) {
 			proc.procRuntimeID.gitInfo = &proc.gitInfo
 		}
+		if update.Container != (procmon.ContainerInfo{}) {
+			proc.procRuntimeID.containerInfo = &update.Container
+		}
 		ps.processes[update.ProcessID] = proc
 	}
 	return proc.procRuntimeID

@@ -7,14 +7,12 @@
 package servicetest
 
 import (
-	"context"
 	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -28,7 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"gopkg.in/zorkian/go-datadog-api.v2"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"testing"
 
@@ -407,21 +406,22 @@ func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agen
 		awsHostWindows.WithAgentClientOptions(
 			agentclientparams.WithSkipWaitForAgentReady(),
 		),
+		awsHostWindows.WithEC2InstanceOptions(
+			ec2.WithAMI("ami-0345f44fe05216fc4", e2eos.WindowsServer2022, e2eos.AMD64Arch),
+		),
 	))}
 	e2e.Run(t, s, opts...)
 }
 
 type baseStartStopSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	startAgentCommand         func(host *components.RemoteHost) error
-	stopAgentCommand          func(host *components.RemoteHost) error
-	runningUserServices       func() []string
-	runningServices           func() []string
-	dumpFolder                string
-	cancelMetricCollection    context.CancelFunc
-	waitGroupMetricCollection sync.WaitGroup
-	enableDriverVerifier      bool
-	timeoutScale              time.Duration
+	startAgentCommand    func(host *components.RemoteHost) error
+	stopAgentCommand     func(host *components.RemoteHost) error
+	runningUserServices  func() []string
+	runningServices      func() []string
+	dumpFolder           string
+	enableDriverVerifier bool
+	timeoutScale         time.Duration
 }
 
 // TestAgentStartsAllServices tests that starting the agent starts all services (as enabled)
@@ -538,42 +538,12 @@ func (s *baseStartStopSuite) SetupSuite() {
 		return s.getInstalledServices()
 	}
 
-	// TODO(WINA-1320): log the system memory to help debug
-	// Start in background goroutine to reduce affect on timing of other
-	// commands being run.
-	// Stop the goroutine when the test ends
-	ctx, cancel := context.WithCancel(context.Background())
-	s.cancelMetricCollection = cancel
-	s.waitGroupMetricCollection.Add(1)
-	go func() {
-		defer s.waitGroupMetricCollection.Done()
-		// Collect metrics at most every 5 seconds
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				s.T().Log("Stopping host memory metrics collection")
-				return
-			case <-ticker.C:
-				s.sendHostMemoryMetrics(host)
-			}
-		}
-	}()
-
 	// By default driver verifier is disabled.
 	s.enableDriverVerifier = false
 	s.timeoutScale = defaultTimeoutScale
 }
 
 func (s *baseStartStopSuite) TearDownSuite() {
-	// Must stop metric collector so the host connection is no longer in use
-	// before destroying the environment, else reconnect may fail require() in host.go
-	if s.cancelMetricCollection != nil {
-		s.cancelMetricCollection()
-		s.waitGroupMetricCollection.Wait()
-	}
-
 	s.T().Log("Tearing down environment")
 	s.BaseSuite.TearDownSuite()
 }
@@ -800,47 +770,6 @@ func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommo
 	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
 	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)
 	return windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filter)
-}
-
-// sendHostMemoryMetrics sends the host memory metrics to Datadog
-//
-// TODO(WINA-1320): collect metrics to help debug a crash
-func (s *baseStartStopSuite) sendHostMemoryMetrics(host *components.RemoteHost) {
-	metrics := []datadog.Metric{}
-
-	systemMetrics, err := getSystemMemoryMetrics(host)
-	if err != nil {
-		s.T().Logf("failed to get system memory metrics: %s", err)
-	} else {
-		metrics = append(metrics, systemMetrics...)
-	}
-	processMetrics, err := getTopProcessMemoryMetrics(host)
-	if err != nil {
-		s.T().Logf("failed to get process memory metrics: %s", err)
-	} else {
-		metrics = append(metrics, processMetrics...)
-	}
-	tags := []string{
-		// test info
-		"testname:" + s.T().Name(),
-		// pipeline info
-		"project:datadog-agent",
-		"job:" + os.Getenv("CI_JOB_ID"),
-		"pipeline:" + s.Env().Environment.PipelineID(),
-	}
-	// update Host and Tags in each metric
-	for i := range metrics {
-		metrics[i].Host = datadog.String(host.Address)
-		metrics[i].Tags = append(metrics[i].Tags, tags...)
-	}
-
-	// submit the metrics to dddev
-	err = s.DatadogClient().PostMetrics(metrics)
-	if err != nil {
-		s.T().Logf("failed to post memory metrics: %s", err)
-	} else {
-		s.T().Logf("posted memory metrics")
-	}
 }
 
 // captureLiveKernelDump sends a command to the host to create a live kernel dump and downloads it.

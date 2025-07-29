@@ -8,6 +8,7 @@
 package ir
 
 import (
+	"iter"
 	"reflect"
 )
 
@@ -58,6 +59,7 @@ var (
 	_ Type = (*StructureType)(nil)
 	_ Type = (*ArrayType)(nil)
 
+	_ Type = (*VoidPointerType)(nil)
 	_ Type = (*GoSliceHeaderType)(nil)
 	_ Type = (*GoSliceDataType)(nil)
 	_ Type = (*GoStringHeaderType)(nil)
@@ -108,6 +110,15 @@ type BaseType struct {
 
 func (t *BaseType) irType() {}
 
+// VoidPointerType is a type that represents a pointer to a value of an unknown type.
+// unsafe.Pointer is such a type.
+type VoidPointerType struct {
+	TypeCommon
+	GoTypeAttributes
+}
+
+func (t *VoidPointerType) irType() {}
+
 // PointerType is a pointer type in the target program.
 type PointerType struct {
 	TypeCommon
@@ -124,13 +135,28 @@ type StructureType struct {
 	TypeCommon
 	GoTypeAttributes
 
-	// Fields contains the fields of the structure.
-	Fields []Field
+	// RawFields contains all the fields of the structure.
+	// Use Fields() method to filter out uninteresting fields.
+	RawFields []Field
 }
 
 var _ Type = &StructureType{}
 
 func (t *StructureType) irType() {}
+
+// Fields returns interesting fields of the structure.
+func (t *StructureType) Fields() iter.Seq[Field] {
+	return func(yield func(Field) bool) {
+		for _, f := range t.RawFields {
+			if f.Name == "_" {
+				continue
+			}
+			if !yield(f) {
+				return
+			}
+		}
+	}
+}
 
 // Field is a field in a structure.
 type Field struct {

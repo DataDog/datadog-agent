@@ -201,7 +201,8 @@ func (d *Decoder) encodeValue(
 	); err != nil {
 		return err
 	}
-	if err := d.encodeValueFields(enc,
+	if err := d.encodeValueFields(
+		enc,
 		dataItems,
 		currentlyEncoding,
 		irType,
@@ -233,6 +234,14 @@ func (d *Decoder) encodeValueFields(
 			return err
 		}
 		return encodeBaseTypeValue(enc, v, data)
+	case *ir.VoidPointerType:
+		if len(data) != 8 {
+			return errors.New("passed data not long enough for void pointer")
+		}
+		return writeTokens(enc,
+			jsontext.String("address"),
+			jsontext.String("0x"+strconv.FormatUint(binary.NativeEndian.Uint64(data), 16)),
+		)
 	case *ir.PointerType:
 		if len(data) < int(v.GetByteSize()) {
 			return errors.New("passed data not long enough for pointer")
@@ -302,7 +311,7 @@ func (d *Decoder) encodeValueFields(
 			return err
 		}
 		structure := irType.(*ir.StructureType)
-		for _, field := range structure.Fields {
+		for field := range structure.Fields() {
 			if err = writeTokens(enc, jsontext.String(field.Name)); err != nil {
 				return err
 			}
@@ -432,7 +441,7 @@ func (d *Decoder) encodeValueFields(
 			address       uint64
 			fieldByteSize uint32
 		)
-		for _, field := range v.Fields {
+		for _, field := range v.RawFields {
 			if field.Name == "str" {
 				fieldByteSize = field.Type.GetByteSize()
 				if fieldByteSize != 8 || len(data) < int(field.Offset+fieldByteSize) {

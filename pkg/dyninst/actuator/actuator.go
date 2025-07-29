@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,18 +53,23 @@ type Actuator struct {
 
 // Tenant is a tenant of the Actuator.
 type Tenant struct {
-	name       string
-	id         tenantID
-	a          *Actuator
-	reporter   Reporter
-	genOptions []irgen.Option
+	name        string
+	id          tenantID
+	a           *Actuator
+	reporter    Reporter
+	irGenerator IRGenerator
 }
 
 // NewTenant creates a new tenant of the Actuator.
 func (a *Actuator) NewTenant(
-	name string, reporter Reporter, options ...irgen.Option,
+	name string, reporter Reporter, irGenerator IRGenerator,
 ) *Tenant {
-	t := &Tenant{a: a, name: name, reporter: reporter, genOptions: options}
+	t := &Tenant{
+		a:           a,
+		name:        name,
+		reporter:    reporter,
+		irGenerator: irGenerator,
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.mu.maxTenantID++
@@ -239,9 +243,7 @@ func (a *effects) loadProgram(
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		ir, err := generateIR(
-			programID, executable, probes, tenant.genOptions...,
-		)
+		ir, err := generateIR(tenant.irGenerator, programID, executable, probes)
 		if err == nil && len(ir.Probes) == 0 {
 			err = &NoSuccessfulProbesError{Issues: ir.Issues}
 		}
@@ -328,27 +330,20 @@ func (a *effects) unloadProgram(lp *loadedProgram) {
 }
 
 func generateIR(
+	irGenerator IRGenerator,
 	programID ir.ProgramID,
 	executable Executable,
 	probes []ir.ProbeDefinition,
-	options ...irgen.Option,
 ) (*ir.Program, error) {
-	elfFile, err := safeelf.Open(executable.Path)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to open executable %s: %w", executable.Path, err,
-		)
-	}
-	defer elfFile.Close()
-
-	objFile, err := object.NewElfObject(elfFile)
+	elfFile, err := object.OpenElfFile(executable.Path)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to read object file for %s: %w", executable.Path, err,
 		)
 	}
+	defer elfFile.Close()
 
-	ir, err := irgen.GenerateIR(programID, objFile, probes, options...)
+	ir, err := irGenerator.GenerateIR(programID, elfFile, probes)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to generate IR for %s: %w", executable.Path, err,
@@ -510,7 +505,7 @@ func (a *Actuator) shutdown(err error) {
 	a.shutdownOnce.Do(func() {
 		defer log.Debugf("actuator shut down")
 		if err != nil {
-			log.Infof("shutting down actuator due to error: %v", err)
+			log.Warnf("shutting down actuator due to error: %v", err)
 		} else {
 			log.Debugf("shutting down actuator")
 		}

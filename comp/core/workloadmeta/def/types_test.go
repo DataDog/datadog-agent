@@ -183,6 +183,10 @@ Creation time: 2023-01-01 12:00:00 +0000 UTC
 					Ports:                    []uint16{8080},
 					APMInstrumentation:       "enabled",
 					Type:                     "web_service",
+					LogFiles: []string{
+						"/var/log/app_access.log",
+						"/var/log/app_error.log",
+					},
 				},
 			},
 			expected: `----------- Entity ID -----------
@@ -200,6 +204,9 @@ Service DD Service Injected: true
 Service Ports: [8080]
 Service APM Instrumentation: enabled
 Service Type: web_service
+----------- Log Files -----------
+/var/log/app_access.log
+/var/log/app_error.log
 `,
 		},
 	}

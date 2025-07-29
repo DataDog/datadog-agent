@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
@@ -30,9 +31,9 @@ import (
 type Module struct {
 	procMon       *procmon.ProcessMonitor
 	actuator      *actuator.Actuator
-	controller    *controller
+	controller    *Controller
 	cancel        context.CancelFunc
-	logUploader   *uploader.LogsUploader
+	logUploader   *uploader.LogsUploaderFactory
 	diagsUploader *uploader.DiagnosticsUploader
 
 	close struct {
@@ -43,7 +44,10 @@ type Module struct {
 }
 
 // NewModule creates a new dynamic instrumentation module
-func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr error) {
+func NewModule(
+	config *Config,
+	subscriber process.Subscriber,
+) (_ *Module, retErr error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		if retErr != nil {
@@ -55,7 +59,7 @@ func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr
 	if err != nil {
 		return nil, fmt.Errorf("error parsing log uploader URL: %w", err)
 	}
-	logUploader := uploader.NewLogsUploader(uploader.WithURL(logUploaderURL))
+	logUploader := uploader.NewLogsUploaderFactory(uploader.WithURL(logUploaderURL))
 
 	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)
 	if err != nil {
@@ -70,9 +74,10 @@ func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr
 
 	actuator := actuator.NewActuator(loader)
 	rcScraper := rcscrape.NewScraper(actuator)
-	controller := newController(actuator, logUploader, diagsUploader, rcScraper)
+	controller := NewController(
+		actuator, logUploader, diagsUploader, rcScraper, DefaultDecoderFactory{},
+	)
 	procMon := procmon.NewProcessMonitor(&processHandler{
-		actuator:       controller.actuator,
 		scraperHandler: rcScraper.AsProcMonHandler(),
 		controller:     controller,
 	})
@@ -87,12 +92,26 @@ func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr
 
 	m.close.unsubscribeExec = subscriber.SubscribeExec(procMon.NotifyExec)
 	m.close.unsubscribeExit = subscriber.SubscribeExit(procMon.NotifyExit)
+	const syncInterval = 30 * time.Second
 	go func() {
-		if err := subscriber.Sync(); err != nil {
-			log.Errorf("error syncing process monitor: %v", err)
+		timer := time.NewTimer(0) // sync immediately on startup
+		defer timer.Stop()
+		for {
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := subscriber.Sync(); err != nil {
+				log.Errorf("error syncing process monitor: %v", err)
+			}
+			timer.Reset(jitter(syncInterval, 0.2))
 		}
 	}()
-	go controller.Run(ctx)
+	// This is arbitrary. It's fast enough to not be a major source of
+	// latency and slow enough to not be a problem.
+	const defaultInterval = 200 * time.Millisecond
+	go controller.Run(ctx, defaultInterval)
 	return m, nil
 }
 

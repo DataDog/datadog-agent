@@ -238,12 +238,14 @@ func TestLogsUploader(t *testing.T) {
 		ts := newTestServer()
 		defer ts.Close()
 
-		uploaderFactory := NewLogsUploader(
+		uploaderFactory := NewLogsUploaderFactory(
 			WithURL(ts.serverURL),
 			WithMaxBatchItems(2),
 		)
 		defer uploaderFactory.Stop()
-		uploader := uploaderFactory.GetUploader("service:test")
+		uploader := uploaderFactory.GetUploader(LogsUploaderMetadata{
+			Tags: "service:test",
+		})
 
 		msg1 := json.RawMessage(`{"key":"value1"}`)
 		msg2 := json.RawMessage(`{"key":"value2"}`)
@@ -273,12 +275,14 @@ func TestLogsUploader(t *testing.T) {
 		ts := newTestServer()
 		defer ts.Close()
 
-		uploaderFactory := NewLogsUploader(
+		uploaderFactory := NewLogsUploaderFactory(
 			WithURL(ts.serverURL),
 			WithMaxBatchItems(1),
 		)
 		defer uploaderFactory.Stop()
-		uploader := uploaderFactory.GetUploader("service:test")
+		uploader := uploaderFactory.GetUploader(LogsUploaderMetadata{
+			Tags: "service:test",
+		})
 
 		msg1 := json.RawMessage(`{"key":"value1"}`)
 		uploader.Enqueue(msg1)

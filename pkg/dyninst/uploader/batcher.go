@@ -114,12 +114,12 @@ func (b *batcher) run() {
 			}
 		case result := <-b.sendResultCh:
 			if result.err != nil {
-				log.Debugf(
+				log.Tracef(
 					"uploader %s: batch outcome id=%d: err=%v",
 					b.name, result.id, result.err,
 				)
 			} else {
-				log.Debugf(
+				log.Tracef(
 					"uploader %s: batch outcome id=%d: success",
 					b.name, result.id,
 				)

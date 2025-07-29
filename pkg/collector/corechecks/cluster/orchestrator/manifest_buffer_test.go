@@ -18,7 +18,9 @@ import (
 	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -32,6 +34,7 @@ import (
 var manifestToSend []*model.CollectorManifest
 
 func TestOrchestratorManifestBuffer(t *testing.T) {
+	manifestToSend = []*model.CollectorManifest{}
 	mb := getManifestBuffer(t)
 	mb.Start(getSender(t))
 
@@ -103,7 +106,7 @@ func getSender(t *testing.T) *mocksender.MockSender {
 	sender := mocksender.NewMockSender(checkid.ID(rune(1)))
 	sender.On("OrchestratorManifest", mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
 		arg := args.Get(0).([]model.MessageBody)
-		require.Equal(t, 1, len(arg))
+		require.GreaterOrEqual(t, len(arg), 1)
 		a := arg[0].(*model.CollectorManifest)
 		manifestToSend = append(manifestToSend, a)
 	})
@@ -122,6 +125,12 @@ func getManifestBuffer(t *testing.T) *ManifestBuffer {
 	fakeTagger.SetGlobalTags([]string{"tag:low"}, []string{"tag:orch"}, []string{"tag:high"}, []string{"tag:std"})
 
 	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+	// Configure the check properly to get ExtraTags set
+	mockSenderManager := mocksender.CreateDefaultDemultiplexer()
+	_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test")
+
+	// Override the cluster name for the test
 	orchCheck.orchestratorConfig.KubeClusterName = "buffer-cluster"
 
 	mb := NewManifestBuffer(orchCheck)

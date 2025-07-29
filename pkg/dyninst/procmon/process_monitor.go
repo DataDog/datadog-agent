@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,6 +40,16 @@ type ProcessUpdate struct {
 	Executable Executable
 	Service    string
 	GitInfo    GitInfo
+	Container  ContainerInfo
+}
+
+// ContainerInfo is information about the container the process is running in.
+type ContainerInfo struct {
+	// EntityID is the entity id of the process. It is either derived from the
+	// container id or inode of the cgroup root.
+	EntityID string
+	// ContainerID is the container id of the process.
+	ContainerID string
 }
 
 // GitInfo is information about the git repository and commit sha of the process.
@@ -53,11 +64,16 @@ type GitInfo struct {
 // monitor and translating them into actuator.ProcessesUpdate calls to the
 // actuator.
 type ProcessMonitor struct {
-	handler    Handler
-	procfsRoot string
+	handler            Handler
+	procfsRoot         string
+	resolver           ContainerResolver
+	executableAnalyzer executableAnalyzer
 
-	eventsCh chan event
-	doneCh   chan struct{}
+	mu struct {
+		sync.Mutex
+		state    state
+		shutdown bool
+	}
 
 	wg           sync.WaitGroup
 	shutdownOnce sync.Once
@@ -66,48 +82,71 @@ type ProcessMonitor struct {
 // NewProcessMonitor creates a new ProcessMonitor that will send updates to the
 // given Actuator.
 func NewProcessMonitor(h Handler) *ProcessMonitor {
-	return newProcessMonitor(h, kernel.ProcFSRoot())
+	return newProcessMonitor(h, kernel.ProcFSRoot(), container.New())
 }
 
 // NotifyExec is a callback to notify the monitor that a process has started.
 func (pm *ProcessMonitor) NotifyExec(pid uint32) {
-	pm.sendEvent(&processEvent{kind: processEventKindExec, pid: pid})
+	pm.handleProcessEvent(processEvent{kind: processEventKindExec, pid: pid})
 }
 
 // NotifyExit is a callback to notify the monitor that a process has exited.
 func (pm *ProcessMonitor) NotifyExit(pid uint32) {
-	pm.sendEvent(&processEvent{kind: processEventKindExit, pid: pid})
+	pm.handleProcessEvent(processEvent{kind: processEventKindExit, pid: pid})
 }
 
-// newProcessMonitor is injectable with a fake FS for tests.
-func newProcessMonitor(h Handler, procFS string) *ProcessMonitor {
-	pm := &ProcessMonitor{
-		handler:    h,
-		procfsRoot: procFS,
-		eventsCh:   make(chan event, 1024),
-		doneCh:     make(chan struct{}),
-	}
+// cacheSize is the size of the cache for the executable analyzer.
+//
+// This value balances performance and memory usage:
+//   - Avoids redundant analysis when processes are created/destroyed frequently
+//   - Limits memory usage to approximately 32KiB for both caches combined
+//
+// Memory calculation (approximate):
+//
+//	FileKey: 32 bytes (16 for FileHandle + 16 for LastModified)
+//	HashCacheEntry: 32 bytes (16 for string header + 16 for string data)
+//	LRU overhead: ~48 bytes per entry
+//	Map overhead: ~56 bytes per entry (~32 bytes for the key, ~8 bytes for
+//	 			  the value, and conservatively ~16 bytes for the map
+//	 			  overhead and load factor)
+//
+//	Total per entry: ~144 bytes (32 + 8 + 48 + 56)
+//	At 64 entries: ~9KiB from entries + constant overheads < 16KiB per cache
+const cacheSize = 64
 
-	pm.wg.Add(1)
-	go func() {
-		defer pm.wg.Done()
-		run(pm.eventsCh, pm.doneCh, pm)
-	}()
+// newProcessMonitor is injectable with a fake FS for tests.
+func newProcessMonitor(
+	h Handler, procFS string, resolver ContainerResolver,
+) *ProcessMonitor {
+	pm := &ProcessMonitor{
+		handler:            h,
+		procfsRoot:         procFS,
+		resolver:           resolver,
+		executableAnalyzer: makeExecutableAnalyzer(cacheSize),
+	}
+	pm.mu.state = makeState()
 
 	return pm
 }
 
-// sendEvent attempts to send an event to the state machine unless we're
-// already shutting down.
-func (pm *ProcessMonitor) sendEvent(ev event) {
-	select {
-	case <-pm.doneCh:
-	default:
-		select {
-		case pm.eventsCh <- ev:
-		case <-pm.doneCh:
-		}
+func (pm *ProcessMonitor) handleProcessEvent(ev processEvent) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if pm.mu.shutdown {
+		return
 	}
+	pm.mu.state.handleProcessEvent(ev)
+	pm.mu.state.analyzeOrReport(pm)
+}
+
+func (pm *ProcessMonitor) handleAnalysisResult(ev analysisResult) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	if pm.mu.shutdown {
+		return
+	}
+	pm.mu.state.handleAnalysisResult(ev)
+	pm.mu.state.analyzeOrReport(pm)
 }
 
 // Close requests an orderly shutdown and waits for completion.
@@ -115,9 +154,15 @@ func (pm *ProcessMonitor) Close() {
 	pm.shutdownOnce.Do(func() {
 		log.Debugf("closing process monitor")
 		defer log.Debugf("process monitor closed")
-		close(pm.doneCh)
+		pm.markShutdown()
 		pm.wg.Wait()
 	})
+}
+
+func (pm *ProcessMonitor) markShutdown() {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	pm.mu.shutdown = true
 }
 
 // analysisFailureLogLimiter is used to limit the rate of logging analysis
@@ -126,20 +171,31 @@ func (pm *ProcessMonitor) Close() {
 // It is set to infinite in tests.
 var analysisFailureLogLimiter = rate.NewLimiter(rate.Every(1*time.Second), 10)
 
+// Limit the rate of logging permission errors, because if we see them, we'll
+// probably see a lot of them.
+var analysisFailurePermissionLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+
 // analyzeProcess analyzes the process with the given PID and sends the result
 // to the state machine.
 func (pm *ProcessMonitor) analyzeProcess(pid uint32) {
 	pm.wg.Add(1)
 	go func() {
 		defer pm.wg.Done()
-		pa, err := analyzeProcess(pid, pm.procfsRoot)
-		shouldLog := err != nil &&
-			!os.IsNotExist(err) &&
-			analysisFailureLogLimiter.Allow()
+		pa, err := analyzeProcess(
+			pid, pm.procfsRoot, pm.resolver, pm.executableAnalyzer,
+		)
+		shouldLog := err != nil && analysisFailureLogLimiter.Allow()
 		if shouldLog {
-			log.Infof("failed to analyze process %d: %v", pid, err)
+			pid := pid
+			if os.IsPermission(err) && !analysisFailurePermissionLogLimiter.Allow() {
+				// We don't want to be too noisy about permission errors, but we
+				// do want to learn about them as they are a sign of a problem.
+				log.Debugf("failed to analyze process %d: %v", pid, err)
+			} else {
+				log.Infof("failed to analyze process %d: %v", pid, err)
+			}
 		}
-		pm.sendEvent(&analysisResult{
+		pm.handleAnalysisResult(analysisResult{
 			pid:             pid,
 			err:             err,
 			processAnalysis: pa,
@@ -153,15 +209,3 @@ func (pm *ProcessMonitor) reportProcessesUpdate(u ProcessesUpdate) {
 
 // Ensure ProcessMonitor implements smEffects.
 var _ effects = (*ProcessMonitor)(nil)
-
-func run(eventsCh <-chan event, doneCh <-chan struct{}, eff effects) {
-	state := newState()
-	for {
-		select {
-		case ev := <-eventsCh:
-			state.handle(ev, eff)
-		case <-doneCh:
-			return
-		}
-	}
-}
