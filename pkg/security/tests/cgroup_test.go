@@ -246,7 +246,7 @@ func TestCGroupSnapshot(t *testing.T) {
 
 	SkipIfNotAvailable(t)
 
-	cfs := utils.NewCGroupFS()
+	cfs := utils.DefaultCGroupFS()
 
 	_, cgroupContext, _, err := cfs.FindCGroupContext(uint32(os.Getpid()), uint32(os.Getpid()))
 	if err != nil {
@@ -314,13 +314,7 @@ func TestCGroupSnapshot(t *testing.T) {
 	var cmd *exec.Cmd
 	test.WaitSignal(t, func() error {
 		cmd = exec.Command(syscallTester, "open", testFile)
-		pipe, err := cmd.StdinPipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer pipe.Close()
-
-		if err := cmd.Start(); err != nil {
+		if err := cmd.Run(); err != nil {
 			t.Fatal(err)
 		}
 
@@ -343,7 +337,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		assert.Equal(t, testsuiteEntry.CGroup.CGroupFile, syscallTesterEntry.CGroup.CGroupFile)
 
 		// Check that we have the right cgroup inode
-		cgroupFS := utils.NewCGroupFS()
+		cgroupFS := utils.DefaultCGroupFS()
 		_, _, cgroupSysFSPath, err := cgroupFS.FindCGroupContext(uint32(os.Getpid()), uint32(os.Getpid()))
 		if err != nil {
 			t.Error(err)
@@ -378,10 +372,6 @@ func TestCGroupSnapshot(t *testing.T) {
 			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupFile.Inode)
 		}
 	})
-
-	if cmd != nil {
-		cmd.Process.Kill()
-	}
 }
 
 func TestCGroupVariables(t *testing.T) {
