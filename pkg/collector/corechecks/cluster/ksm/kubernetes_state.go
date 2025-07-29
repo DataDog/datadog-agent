@@ -774,7 +774,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		if label.key == namespaceKey {
 			resourceNamespace = label.value
 		}
-		
+
 		switch label.key {
 		case createdByKindKey, ownerKindKey:
 			ownerKind = label.value
@@ -809,7 +809,6 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	} else {
 		tagList = append(tagList, namespaceTags...)
 	}
-
 
 	return hostname, tagList
 }
