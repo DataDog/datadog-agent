@@ -110,7 +110,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	metric.Add(cloudService.GetShutdownMetricName(), 1.0, cloudService.GetSource(), *metricAgent)
 	cloudService.Shutdown(*metricAgent)
 
-	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
+	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 
 	return err
 }
