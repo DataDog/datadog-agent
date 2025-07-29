@@ -53,6 +53,7 @@ const (
 	resourceName      = "resource_name"
 	functionTarget    = "build_function_target"
 	functionSignature = "function_signature_type"
+	cloudRunPrefix    = "gpc.run"
 )
 
 var metadataHelperFunc = GetMetaData
@@ -136,12 +137,6 @@ func (c *CloudRun) GetOrigin() string {
 	return CloudRunOrigin
 }
 
-// GetPrefix returns the prefix that we're prefixing all
-// metrics with.
-func (c *CloudRun) GetPrefix() string {
-	return "gcp.run"
-}
-
 // GetSource returns the metrics source
 func (c *CloudRun) GetSource() metrics.MetricSource {
 	return metrics.MetricSourceGoogleCloudRunEnhanced
@@ -157,12 +152,12 @@ func (c *CloudRun) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (c *CloudRun) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", c.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.cold_start", cloudRunPrefix)
 }
 
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (c *CloudRun) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.shutdown", c.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix)
 }
 
 func isCloudRunService() bool {

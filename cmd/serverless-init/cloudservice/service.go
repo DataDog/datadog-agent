@@ -21,12 +21,6 @@ type CloudService interface {
 	// all logs, traces, and metrics.
 	GetOrigin() string
 
-	// GetPrefix returns the prefix that we're prefixing all
-	// metrics with. For example, for cloudrun, we're using
-	// gcp.run.{metric_name}. In this example, `gcp.run` is the
-	// prefix.
-	GetPrefix() string
-
 	// GetSource returns the metrics source
 	GetSource() metrics.MetricSource
 
@@ -46,6 +40,8 @@ type CloudService interface {
 //nolint:revive // TODO(SERV) Fix revive linter
 type LocalService struct{}
 
+const defaultPrefix = "datadog.serverless_agent"
+
 // GetTags is a default implementation that returns a local empty tag set
 func (l *LocalService) GetTags() map[string]string {
 	return map[string]string{}
@@ -54,11 +50,6 @@ func (l *LocalService) GetTags() map[string]string {
 // GetOrigin is a default implementation that returns a local empty origin
 func (l *LocalService) GetOrigin() string {
 	return "local"
-}
-
-// GetPrefix is a default implementation that returns a local prefix
-func (l *LocalService) GetPrefix() string {
-	return "datadog.serverless_agent"
 }
 
 // GetSource is a default implementation that returns a metrics source
@@ -76,12 +67,12 @@ func (l *LocalService) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (l *LocalService) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", l.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.cold_start", defaultPrefix)
 }
 
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (l *LocalService) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.shutdown", l.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.shutdown", defaultPrefix)
 }
 
 // GetCloudServiceType TODO: Refactor to avoid leaking individual service implementation details into the interface layer

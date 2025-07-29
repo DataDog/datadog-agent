@@ -48,6 +48,8 @@ const (
 
 	// ContainerAppOrigin origin tag value
 	ContainerAppOrigin = "containerapp"
+
+	containerAppPrefix = "azure.containerapp"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -105,12 +107,6 @@ func (c *ContainerApp) GetOrigin() string {
 	return ContainerAppOrigin
 }
 
-// GetPrefix returns the prefix that we're prefixing all
-// metrics with.
-func (c *ContainerApp) GetPrefix() string {
-	return "azure.containerapp"
-}
-
 // GetSource returns the metrics source
 func (c *ContainerApp) GetSource() metrics.MetricSource {
 	return metrics.MetricSourceAzureContainerAppEnhanced
@@ -151,12 +147,12 @@ func (c *ContainerApp) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (c *ContainerApp) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", c.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.cold_start", containerAppPrefix)
 }
 
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (c *ContainerApp) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.shutdown", c.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.shutdown", containerAppPrefix)
 }
 
 func isContainerAppService() bool {

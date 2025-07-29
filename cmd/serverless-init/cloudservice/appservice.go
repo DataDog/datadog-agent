@@ -31,6 +31,8 @@ const (
 
 	// AppServiceOrigin origin tag value
 	AppServiceOrigin = "appservice"
+
+	appServicePrefix = "azure.appservice"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -56,12 +58,6 @@ func (a *AppService) GetOrigin() string {
 	return AppServiceOrigin
 }
 
-// GetPrefix returns the prefix that we're prefixing all
-// metrics with.
-func (a *AppService) GetPrefix() string {
-	return "azure.appservice"
-}
-
 // GetSource returns the metrics source
 func (a *AppService) GetSource() metrics.MetricSource {
 	return metrics.MetricSourceAzureAppServiceEnhanced
@@ -77,12 +73,12 @@ func (a *AppService) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (a *AppService) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", a.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.cold_start", appServicePrefix)
 }
 
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (a *AppService) GetShutdownMetricName() string {
-	return fmt.Sprintf("%s.enhanced.shutdown", a.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.shutdown", appServicePrefix)
 }
 
 func isAppService() bool {
