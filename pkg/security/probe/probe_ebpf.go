@@ -2358,6 +2358,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS()),
 		},
 		manager.ConstantEditor{
+			Name:  "capabilities_monitoring_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.CapabilitiesMonitoringEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_period",
 			Value: uint64(p.config.Probe.CapabilitiesMonitoringPeriod.Nanoseconds()),
 		},

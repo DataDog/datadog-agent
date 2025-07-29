@@ -39,10 +39,17 @@ __attribute__((always_inline)) void send_capabilities_usage_event(void *ctx, str
 }
 
 __attribute__((always_inline)) void flush_capabilities_usage(void *ctx, u32 tgid, u64 cookie) {
+    u64 capabilities_monitoring_enabled = 0;
+    LOAD_CONSTANT("capabilities_monitoring_enabled", capabilities_monitoring_enabled);
+    if (!capabilities_monitoring_enabled) {
+        return;
+    }
+
     struct capabilities_usage_key_t key = {
         .cookie = cookie,
         .tgid = tgid,
     };
+
     struct capabilities_usage_entry_t *entry = bpf_map_lookup_elem(&capabilities_usage, &key);
     if (!entry) {
         return; // No entry to flush
