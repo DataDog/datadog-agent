@@ -19,16 +19,21 @@ import (
 	"time"
 	"unsafe"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type SharedLibraryCheck struct {
 	senderManager sender.SenderManager
 	id            checkid.ID
+	interval      time.Duration
 	libName       string
 	libPtr        unsafe.Pointer // pointer to the shared library (unsued in RTLoader because it only needs the symbols)
 	libRunPtr     *C.run_check_t // pointer to the function symbol that runs the check
@@ -37,6 +42,7 @@ type SharedLibraryCheck struct {
 func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libPtr unsafe.Pointer, libRunPtr *C.run_check_t) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
 		senderManager: senderManager,
+		interval:      defaults.DefaultCheckInterval,
 		libName:       name,
 		libPtr:        libPtr,
 		libRunPtr:     libRunPtr,
@@ -77,6 +83,17 @@ func (c *SharedLibraryCheck) ConfigSource() string {
 func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
+	commonOptions := integration.CommonInstanceConfig{}
+	if err := yaml.Unmarshal(data, &commonOptions); err != nil {
+		log.Errorf("invalid instance section for check %s: %s", string(c.id), err)
+		return err
+	}
+
+	// See if a collection interval was specified
+	if commonOptions.MinCollectionInterval > 0 {
+		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
+	}
+
 	return nil
 }
 
@@ -110,7 +127,7 @@ func (c *SharedLibraryCheck) Loader() string {
 	return SharedLibraryCheckLoaderName
 }
 func (c *SharedLibraryCheck) Interval() time.Duration {
-	return 15 * time.Second
+	return c.interval
 }
 
 func (c *SharedLibraryCheck) Version() string {
