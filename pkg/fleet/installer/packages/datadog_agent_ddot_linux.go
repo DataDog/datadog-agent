@@ -168,15 +168,12 @@ func enableOtelCollectorConfig() error {
 	// Read existing config
 	var existingConfig map[string]interface{}
 	data, err := os.ReadFile(datadogYamlPath)
-	if err != nil && !os.IsNotExist(err) {
+	if os.IsNotExist(err) {
+		// File doesn't exist which is fine - continue with nil config
+	} else if err != nil {
 		return fmt.Errorf("failed to read datadog.yaml: %w", err)
-	}
-
-	if err == nil {
-		err = yaml.Unmarshal(data, &existingConfig)
-		if err != nil {
-			return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
-		}
+	} else if err = yaml.Unmarshal(data, &existingConfig); err != nil {
+		return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
 	}
 
 	// Config is empty
