@@ -5634,7 +5634,15 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			args := []string{"connect-and-send", "9004", "tcp", "9005", "4321"}
 			cmd := cmdFunc(syscallTester, args, nil)
 			stdout, err := cmd.StdoutPipe()
+			if err != nil {
+				t.Errorf("TCP: failed to get stdout pipe: %v", err)
+				return
+			}
 			stderr, err := cmd.StderrPipe()
+			if err != nil {
+				t.Errorf("TCP: failed to get stderr pipe: %v", err)
+				return
+			}
 			errscanner := bufio.NewScanner(stderr)
 			go func() {
 				for errscanner.Scan() {
@@ -5685,7 +5693,15 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			args := []string{"connect-and-send", "9004", "udp", "9005", "4321"}
 			cmd := cmdFunc(syscallTester, args, nil)
 			stdout, err := cmd.StdoutPipe()
+			if err != nil {
+				t.Errorf("UDP: failed to get stdout pipe: %v", err)
+				return
+			}
 			stderr, err := cmd.StderrPipe()
+			if err != nil {
+				t.Errorf("UDP: failed to get stderr pipe: %v", err)
+				return
+			}
 			errscanner := bufio.NewScanner(stderr)
 			go func() {
 				for errscanner.Scan() {
