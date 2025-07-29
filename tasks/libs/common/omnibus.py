@@ -17,38 +17,35 @@ CACHE_VERSION = 2
 
 
 ENV_PASSHTROUGH = {
-    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
-    'DEPLOY_AGENT',
-    # Forward the BUCKET_BRANCH variable to differentiate a nightly pipeline from a release pipeline
-    'BUCKET_BRANCH',
-    'PACKAGE_ARCH',
-    'INSTALL_DIR',
-    'DD_CC',
-    'DD_CXX',
-    'DD_CMAKE_TOOLCHAIN',
-    'PKG_CONFIG_LIBDIR',
-    'PYTHONUTF8',
-    'OMNIBUS_FORCE_PACKAGES',
-    'OMNIBUS_PACKAGE_ARTIFACT_DIR',
-    'S3_OMNIBUS_CACHE_BUCKET',  # For cached Omnibus source artifacts
-    'OMNIBUS_GIT_CACHE_DIR',  # Used by Omnibus to find the local git cache
-    'PATH',
-    'HOME',
-    'GOPATH',
-    # rvm / Ruby stuff to make sure Omnibus itself runs correctly
-    'GEM_HOME',
-    'GEM_PATH',
-    'MY_RUBY_HOME',
-    'rvm_path',
-    'rvm_bin_path',
-    'rvm_prefix',
-    'rvm_version',
+    'BUCKET_BRANCH': 'Differentiate a nightly pipeline from a release pipeline',
+    'DD_CC': 'Points at cc compiler',
+    'DD_CXX': 'Points at c++ compiler',
+    'DD_CMAKE_TOOLCHAIN': 'Points at cmake toolchain',
+    'DEPLOY_AGENT': 'Used to apply higher compression level for deployed artifacts',
+    'GEM_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
+    'GEM_PATH': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
+    'GOPATH': '',
+    'HOME': 'Home directory might be used by invoked programs such as git',
+    'INSTALL_DIR': 'Used by Omnibus to determine the target install directory when building the package',
+    'MY_RUBY_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
+    'OMNIBUS_FORCE_PACKAGES': '',
+    'OMNIBUS_GIT_CACHE_DIR': 'Local directory used by Omnibus for the local git cache',
+    'OMNIBUS_PACKAGE_ARTIFACT_DIR': '',
+    'PACKAGE_ARCH': '',
+    'PATH': 'Needed to find binaries',
+    'PKG_CONFIG_LIBDIR': '',
+    'PYTHONUTF8': '',
+    'S3_OMNIBUS_CACHE_BUCKET': 'Points at bucket used for Omnibus source artifacts',
+    'rvm_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
+    'rvm_bin_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
+    'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
+    'rvm_version': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
-    "win32": set(),
-    "linux": set(),
-    "darwin": set(),
+    "win32": {},
+    "linux": {},
+    "darwin": {},
 }
 
 
