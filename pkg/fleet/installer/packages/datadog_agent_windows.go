@@ -108,32 +108,8 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 func preStartExperimentDatadogAgent(_ HookContext) error {
 	env := getenv()
 	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
-	if err == nil {
-		return nil
-	}
-
-	// if the user is not the Datadog user, we need to check if the user is the service user
-	sid, errService := winutil.GetServiceUserSID("datadogagent")
-	if errService != nil {
-		return fmt.Errorf("cannot start remote update: %w, %w", err, errService)
-	}
-
-	// convert the SID to a username to get the full name
-	username, domain, _, err := sid.LookupAccount("")
 	if err != nil {
-		return fmt.Errorf("cannot start remote update: %w, %w", err, errService)
-	}
-
-	env.MsiParams.AgentUserName = fmt.Sprintf("%s\\%s", domain, username)
-	errService = windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
-	if errService != nil {
-		return fmt.Errorf("cannot start remote update: %w, %w", err, errService)
-	}
-
-	// update the environment with the new username that we validated for remote update
-	err = windowsuser.SetAgentUserNameInRegistry(domain, username)
-	if err != nil {
-		return fmt.Errorf("cannot start remote update: %w, %w", err, errService)
+		return fmt.Errorf("cannot start remote update: %w", err)
 	}
 
 	return nil
@@ -550,11 +526,11 @@ func getWatchdogTimeout() time.Duration {
 func getenv() *env.Env {
 	env := env.FromEnv()
 
-	// fallback to registry for agent user
+	// fallback to service user for agent user
 	if env.MsiParams.AgentUserName == "" {
-		user, err := windowsuser.GetAgentUserNameFromRegistry()
+		user, err := windowsuser.GetAgentUserFromService()
 		if err != nil {
-			log.Warnf("Could not read Agent user from registry: %v", err)
+			log.Warnf("Could not read Agent user from service: %v", err)
 		} else {
 			env.MsiParams.AgentUserName = user
 		}

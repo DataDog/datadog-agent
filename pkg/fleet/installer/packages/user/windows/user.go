@@ -21,6 +21,8 @@ import (
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // ErrPrivateDataNotFound is returned when LSARetrievePrivateData returns STATUS_OBJECT_NAME_NOT_FOUND
@@ -332,30 +334,20 @@ func GetAgentUserNameFromRegistry() (string, error) {
 	return user, nil
 }
 
-// SetAgentUserNameInRegistry sets the agent user name in the registry
-//
-// This is used to store the agent user name in the registry after the agent is installed
-// so we can use it for remote updates.
-// needed to update the environment with the new username that we validated for remote update
-// enables golden image scenario where the hostname changes and the agent user name is not updated
-func SetAgentUserNameInRegistry(domain, user string) error {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Agent", registry.SET_VALUE)
-	if err != nil {
-		return err
-	}
-	defer k.Close()
-
-	err = k.SetStringValue("installedDomain", domain)
-	if err != nil {
-		return fmt.Errorf("could not set installedDomain in registry: %w", err)
+// GetAgentUserFromService returns the username for the Agent service user
+func GetAgentUserFromService() (string, error) {
+	sid, errService := winutil.GetServiceUserSID("datadogagent")
+	if errService != nil {
+		return "", fmt.Errorf("cannot get service user SID: %w", errService)
 	}
 
-	err = k.SetStringValue("installedUser", user)
+	// convert the SID to a username to get the full name
+	username, domain, _, err := sid.LookupAccount("")
 	if err != nil {
-		return fmt.Errorf("could not set installedUser in registry: %w", err)
+		return "", fmt.Errorf("cannot lookup account name for SID %s: %w", sid.String(), err)
 	}
 
-	return nil
+	return fmt.Sprintf("%s\\%s", domain, username), nil
 }
 
 func lookupSID(name string) (*windows.SID, string, error) {
