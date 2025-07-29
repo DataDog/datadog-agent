@@ -38,7 +38,9 @@ ENV_PASSHTROUGH = {
     'PKG_CONFIG_LIBDIR': '',
     'PYTHONUTF8': '',
     'RUBY_VERSION': 'Used by Omnibus / Gemspec',
+    'S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS': 'Use to determine whether Omnibus can write to the artifact cache',
     'S3_OMNIBUS_CACHE_BUCKET': 'Points at bucket used for Omnibus source artifacts',
+    'SYSTEM_PROBE_BIN': 'Used to find system-probe binaries',
     'rvm_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_bin_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
@@ -47,7 +49,13 @@ ENV_PASSHTROUGH = {
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
     'win32': {
+        'SIGN_WINDOWS_DD_WCS': 'Determines whether to sign Windows artifacts',
         'SSL_CERT_FILE': 'Used to point Ruby at the certificate for OpenSSL',
+        "SYSTEMDRIVE": "goes with SYSTEMROOT",
+        "SYSTEMROOT": "git: fatal: getaddrinfo() thread failed to start",
+        'VCINSTALLDIR': 'For symbol inspector',
+        'VSTUDIO_ROOT': 'For symbol inspector',
+        'WINDOWS_BUILDER': 'Used to decide whether to assume a role for S3 access',
     },
     'linux': {
         'DEB_GPG_KEY': 'Used to sign packages',
@@ -84,6 +92,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'RPM_GPG_KEY',
         'RPM_GPG_KEY_NAME',
         'RPM_SIGNING_PASSPHRASE',
+        'S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS',
         'rvm_bin_path',
         'rvm_path',
         'rvm_prefix',
