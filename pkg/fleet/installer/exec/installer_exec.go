@@ -153,12 +153,24 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 }
 
 // InstallConfigExperiment installs an experiment.
-func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) (err error) {
+func (i *InstallerExec) InstallConfigExperiment(
+	ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string,
+) (err error) {
 	if len(rawConfigs) == 0 {
 		return fmt.Errorf("no configs provided")
 	}
 
 	var cmdLineArgs = []string{pkg, version}
+
+	// Add config order as a JSON-encoded string if provided
+	if len(configOrder) > 0 {
+		configOrderJSON, err := json.Marshal(configOrder)
+		if err != nil {
+			return fmt.Errorf("could not marshal config order: %w", err)
+		}
+		cmdLineArgs = append(cmdLineArgs, "--config-order", string(configOrderJSON))
+	}
+
 	for _, config := range rawConfigs {
 		cmdLineArgs = append(cmdLineArgs, string(config))
 	}
