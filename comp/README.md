@@ -72,19 +72,19 @@ Package checks implements the "checks" bundle, for all of the component based ag
 
 ### [comp/checks/agentcrashdetect](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 
 ### [comp/checks/windowseventlog](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/windowseventlog)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package windowseventlog defines the Windows Event Log check component
 
 ### [comp/checks/winregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/winregistry)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package winregistry implements the Windows Registry check
 
@@ -609,7 +609,7 @@ component system.
 
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/systray) (Component Bundle)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package systray implements the Datadog Agent Manager System Tray
 
@@ -638,7 +638,7 @@ component temporarily wraps pkg/trace/config.
 
 ### [comp/trace/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/etwtracer)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package etwtracer provides ETW events to the .Net tracer
 
@@ -648,7 +648,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
-*Datadog Team*: fleet windows-agent
+*Datadog Team*: fleet windows-products
 
 Package updater implements the updater component.
 
@@ -695,7 +695,7 @@ Package connectivitychecker is responsible for running connectivity checks that 
 
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package etw provides an ETW tracing interface
 

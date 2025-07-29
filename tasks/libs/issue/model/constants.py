@@ -43,5 +43,5 @@ TEAMS = (
     'single-machine-performance',
     'triage',
     'universal-service-monitoring',
-    'windows-agent',
+    'windows-products',
 )
