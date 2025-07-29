@@ -11,15 +11,20 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -119,4 +124,81 @@ func rawConnect(ctx context.Context, t *testing.T, host, port string) {
 			}
 		}
 	}
+}
+
+func copyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	return err
+}
+
+func linkFile(t *testing.T, src, dst string) error {
+	t.Helper()
+	_ = os.Remove(dst)
+	if err := copyFile(src, dst); err != nil {
+		return err
+	}
+	t.Cleanup(func() { os.Remove(dst) })
+	return nil
+}
+
+// HTTPPythonServerContainer launches an HTTPs server written in Python inside a container.
+func HTTPPythonServerContainer(t *testing.T, key, cert, serverPort string) error {
+	t.Helper()
+	dir, _ := CurDir()
+
+	// Set up certificates
+	if err := linkFile(t, key, dir+"/testdata/certs/srv.key"); err != nil {
+		return err
+	}
+	if err := linkFile(t, cert, dir+"/testdata/certs/srv.crt"); err != nil {
+		return err
+	}
+
+	// Create Python script using existing format
+	certPath := "/v/certs/srv.crt"
+	keyPath := "/v/certs/srv.key"
+	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, "0.0.0.0", "4141", certPath, keyPath)
+	scriptFile, err := writeTempFile("python_container_script", pythonSSLServer)
+	require.NoError(t, err)
+
+	// Copy script to testdata directory so it can be mounted
+	if err := linkFile(t, scriptFile.Name(), dir+"/testdata/server.py"); err != nil {
+		return err
+	}
+
+	env := []string{
+		"ADDR=0.0.0.0",
+		"PORT=" + serverPort,
+		"CERTS_DIR=/v/certs",
+		"TESTDIR=" + dir + "/testdata",
+	}
+
+	scanner, err := globalutils.NewScanner(regexp.MustCompile("Server running at https.*"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"python-server",
+			scanner,
+			dockerutils.WithEnv(env),
+		),
+		path.Join(dir, "testdata", "docker-compose.yml"))
+	return dockerutils.Run(t, dockerCfg)
+}
+
+// GetPythonDockerPID returns the PID of the python docker container.
+func GetPythonDockerPID() (int64, error) {
+	return dockerutils.GetMainPID("python-python-1")
 }
