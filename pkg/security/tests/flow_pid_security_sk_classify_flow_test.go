@@ -5624,7 +5624,11 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			serverClosed,
 			serverErr,
 		)
-		<-serverReady
+		select {
+		case <-serverReady:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("server did not start in time")
+		}
 		// Connect the TCP to the server
 		go func() {
 			args := []string{"connect-and-send", "2236", "tcp", "2345", "1234"}
@@ -5736,15 +5740,36 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			t.Fatalf("failed to get the network namespace: %v", err)
 		}
 		// Check if map is populated with the expected entries
-		<-udpReceived
-		<-tcpReceived
+		select {
+		case <-tcpListenReady:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("TCP listener did not start in time")
+		}
+		select {
+		case <-udpListenReady:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("UDP listener did not start in time")
+		}
 
 		// Set up the expected ports
 		portToSend := uint16(1234)
 		portForReceive := uint16(2236)
 
-		udpClientPidValue := uint32(<-udpClientPid)
-		tcpClientPidValue := uint32(<-tcpClientPid)
+		// Retrieve the PIDs from the channels
+		var udpClientPidV int
+		select {
+		case udpClientPidV = <-udpClientPid:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("UDP client did not send PID in time")
+		}
+		var tcpClientPidV int
+		select {
+		case tcpClientPidV = <-tcpClientPid:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("TCP client did not send PID in time")
+		}
+		udpClientPidValue := uint32(udpClientPidV)
+		tcpClientPidValue := uint32(tcpClientPidV)
 		serverPidValue := uint32(utils.Getpid())
 		// check client udp flow_pid entry
 		assertFlowPidEntry(
@@ -5818,9 +5843,21 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		}
 
 		// Wait for the close ready signals
-		<-tcpCloseReady
-		<-udpCloseReady
-		<-serverClosed
+		select {
+		case <-tcpCloseReady:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("TCP close did not complete in time")
+		}
+		select {
+		case <-udpCloseReady:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("UDP close did not complete in time")
+		}
+		select {
+		case <-serverClosed:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("Server did not close in time")
+		}
 		// Wait 1 second to ensure all goroutines are done
 		time.Sleep(1 * time.Second)
 
