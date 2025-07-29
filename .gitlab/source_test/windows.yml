@@ -59,6 +59,7 @@
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
+  retry: !reference [.retry_only_infra_failure, retry]
 
 tests_windows-x64:
   extends: .tests_windows_base

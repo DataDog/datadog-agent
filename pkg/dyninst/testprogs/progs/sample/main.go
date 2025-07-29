@@ -11,6 +11,8 @@ import (
 	"os"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib"
 )
 
 func main() {
@@ -30,11 +32,12 @@ func main() {
 	executeStackAndInlining()
 	executePointerFuncs()
 	executeComplexFuncs()
+	lib.Foo()
 
-	// unsupported for MVP, should not cause crashes
+	// unsupported for MVP, should not cause failures
+	executeEsoteric()
 	executeGenericFuncs()
 	executeMapFuncs()
 	executeInterfaceFuncs()
 	go returnGoroutineId()
-
 }
