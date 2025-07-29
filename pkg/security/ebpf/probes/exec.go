@@ -172,30 +172,6 @@ func getExecProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_cgroup1_tasks_write",
 			},
 		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_security_capable",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "rethook_security_capable",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_override_creds",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_revert_creds",
-			},
-		},
 	}
 
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
