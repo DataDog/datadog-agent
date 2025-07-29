@@ -7,18 +7,11 @@
 #                                                                        #
 ##########################################################################
 
-INSTALLER_DEB=/opt/datadog-agent/embedded/bin/installer
-INSTALLER_OCI=/opt/datadog-package/datadog-agent/stable/embedded/bin/installer
-
 # Run the prerm. See pkg/fleet/installer/packages/datadog_agent_ddot_linux.go
-if [ -f ${INSTALLER_DEB} ] && [ "$1" = "remove" ]; then
-    ${INSTALLER_DEB} prerm datadog-agent-ddot deb || true
-elif [ -f ${INSTALLER_DEB} ] && [ "$1" = "upgrade" ]; then
-    ${INSTALLER_DEB} prerm --upgrade datadog-agent-ddot deb || true
-elif [ -f ${INSTALLER_OCI} ] && [ "$1" = "remove" ]; then
-    ${INSTALLER_OCI} prerm datadog-agent-ddot || true
-elif [ -f ${INSTALLER_OCI} ] && [ "$1" = "upgrade" ]; then
-    ${INSTALLER_OCI} prerm --upgrade datadog-agent-ddot || true
+if [ "$1" = "remove" ]; then
+    datadog-installer prerm datadog-agent-ddot deb || true
+elif [ "$1" = "upgrade" ]; then
+    datadog-installer prerm --upgrade datadog-agent-ddot deb || true
 fi
 
 exit 0
