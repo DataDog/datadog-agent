@@ -97,6 +97,20 @@ def get_omnibus_env(
 ):
     env = load_dependencies(ctx)
 
+    # Discard windows variables when not on Windows
+    if sys.platform != 'windows':
+        windows_only_vars = [
+            'WINDOWS_DDNPM_DRIVER',
+            'WINDOWS_DDNPM_VERSION',
+            'WINDOWS_DDNPM_SHASUM',
+            'WINDOWS_DDPROCMON_DRIVER',
+            'WINDOWS_DDPROCMON_VERSION',
+            'WINDOWS_DDPROCMON_SHASUM',
+        ]
+        for var in windows_only_vars:
+            if var in env:
+                del env[var]
+
     # If the host has a GOMODCACHE set, try to reuse it
     if not go_mod_cache and os.environ.get('GOMODCACHE'):
         go_mod_cache = os.environ.get('GOMODCACHE')
@@ -114,10 +128,10 @@ def get_omnibus_env(
     if sys.platform == 'darwin':
         env['MACOSX_DEPLOYMENT_TARGET'] = '11.0' if os.uname().machine == "arm64" else '10.12'
 
-    if skip_sign:
-        env['SKIP_SIGN_MAC'] = 'true'
-    if hardened_runtime:
-        env['HARDENED_RUNTIME_MAC'] = 'true'
+        if skip_sign:
+            env['SKIP_SIGN_MAC'] = 'true'
+        if hardened_runtime:
+            env['HARDENED_RUNTIME_MAC'] = 'true'
 
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True

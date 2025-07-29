@@ -68,6 +68,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
     """
     excluded_variables = {
         'DEB_GPG_KEY',
+        'DEB_GPG_KEY_NAME',
         'DEB_SIGNING_PASSPHRASE',
         'GEM_HOME',
         'GEM_PATH',
