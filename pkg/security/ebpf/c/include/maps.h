@@ -92,7 +92,7 @@ BPF_LRU_MAP(capabilities_usage, struct capabilities_usage_key_t, struct capabili
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // edited
-BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 4096, BPF_F_NO_COMMON_LRU)
+BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
 
