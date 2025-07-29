@@ -74,8 +74,9 @@ func (p *hybridRolloutProvider) bootstrap(statefulSets []*appsv1.StatefulSet, de
 
 // getStatefulSetRolloutDuration implements the hybrid lookup strategy
 func (p *hybridRolloutProvider) getStatefulSetRolloutDuration(sts *appsv1.StatefulSet) float64 {
-	// Early return for no rollout
-	if sts.Status.CurrentRevision == sts.Status.UpdateRevision {
+	// Early return for no rollout - check both revision match AND all replicas ready
+	if sts.Status.CurrentRevision == sts.Status.UpdateRevision &&
+		sts.Status.ReadyReplicas == sts.Status.Replicas {
 		return 0
 	}
 	
@@ -115,8 +116,9 @@ func (p *hybridRolloutProvider) getStatefulSetRolloutDuration(sts *appsv1.Statef
 
 // getDeploymentRolloutDuration implements the hybrid lookup strategy
 func (p *hybridRolloutProvider) getDeploymentRolloutDuration(dep *appsv1.Deployment) float64 {
-	// Early return for no rollout
-	if dep.Generation == dep.Status.ObservedGeneration {
+	// Early return for no rollout - check both generation match AND all replicas ready
+	if dep.Generation == dep.Status.ObservedGeneration &&
+		(dep.Spec.Replicas == nil || dep.Status.ReadyReplicas == *dep.Spec.Replicas) {
 		return 0
 	}
 

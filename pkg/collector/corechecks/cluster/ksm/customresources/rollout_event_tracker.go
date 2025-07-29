@@ -117,8 +117,9 @@ func (t *rolloutEventTracker) onStatefulSetUpdate(old, new *appsv1.StatefulSet) 
 		return
 	}
 
-	// Check if rollout completed
-	if new.Status.CurrentRevision == new.Status.UpdateRevision {
+	// Check if rollout completed - both revision match AND all replicas ready
+	if new.Status.CurrentRevision == new.Status.UpdateRevision &&
+		new.Status.ReadyReplicas == new.Status.Replicas {
 		if _, exists := t.activeRollouts[key]; exists {
 			log.Debugf("StatefulSet rollout completed: %s", key)
 			delete(t.activeRollouts, key)
@@ -158,8 +159,9 @@ func (t *rolloutEventTracker) onDeploymentUpdate(old, new *appsv1.Deployment) {
 		return
 	}
 
-	// Check if rollout completed
-	if new.Generation == new.Status.ObservedGeneration {
+	// Check if rollout completed - both generation match AND all replicas ready
+	if new.Generation == new.Status.ObservedGeneration &&
+		(new.Spec.Replicas == nil || new.Status.ReadyReplicas == *new.Spec.Replicas) {
 		if _, exists := t.activeRollouts[key]; exists {
 			log.Debugf("Deployment rollout completed: %s", key)
 			delete(t.activeRollouts, key)
@@ -255,7 +257,8 @@ func (t *rolloutEventTracker) bootstrapExistingRollouts(statefulSets []*appsv1.S
 	// Bootstrap StatefulSet rollouts
 	for _, sts := range statefulSets {
 		if sts.Status.CurrentRevision != sts.Status.UpdateRevision && 
-			sts.Status.UpdateRevision != "" {
+			sts.Status.UpdateRevision != "" &&
+			sts.Status.ReadyReplicas != sts.Status.Replicas {
 			
 			key := fmt.Sprintf("%s/%s", sts.Namespace, sts.Name)
 			
@@ -278,7 +281,8 @@ func (t *rolloutEventTracker) bootstrapExistingRollouts(statefulSets []*appsv1.S
 	
 	// Bootstrap Deployment rollouts
 	for _, dep := range deployments {
-		if dep.Generation != dep.Status.ObservedGeneration {
+		if dep.Generation != dep.Status.ObservedGeneration &&
+			(dep.Spec.Replicas == nil || dep.Status.ReadyReplicas != *dep.Spec.Replicas) {
 			key := fmt.Sprintf("%s/%s", dep.Namespace, dep.Name)
 			
 			// Don't overwrite event-tracked rollouts

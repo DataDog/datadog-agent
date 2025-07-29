@@ -251,6 +251,8 @@ func TestHybridRolloutProvider_Bootstrap(t *testing.T) {
 			Status: appsv1.StatefulSetStatus{
 				CurrentRevision: "sts1-abc",
 				UpdateRevision:  "sts1-def", // Rollout in progress
+				Replicas:        3,
+				ReadyReplicas:   2, // Not all ready
 			},
 		},
 		{
@@ -265,6 +267,7 @@ func TestHybridRolloutProvider_Bootstrap(t *testing.T) {
 		},
 	}
 
+	replicaCount := int32(3)
 	deployments := []*appsv1.Deployment{
 		{
 			ObjectMeta: metav1.ObjectMeta{
@@ -272,8 +275,12 @@ func TestHybridRolloutProvider_Bootstrap(t *testing.T) {
 				Namespace:  "default",
 				Generation: 2,
 			},
+			Spec: appsv1.DeploymentSpec{
+				Replicas: &replicaCount,
+			},
 			Status: appsv1.DeploymentStatus{
 				ObservedGeneration: 1, // Rollout in progress
+				ReadyReplicas:      2, // Not all ready
 			},
 		},
 	}
