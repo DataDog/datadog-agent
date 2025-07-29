@@ -504,7 +504,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
 
 			if payload.Destination == transaction.PreaggrOnly {
-				preaggURL := f.config.GetString("preaggr_dd_url")
+				preaggURL := f.config.GetString("preaggregation.dd_url")
 				primaryURL := f.config.GetString("dd_url")
 				
 				// If preaggr uses same URL as primary, allow all primary resolvers
@@ -514,7 +514,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				}
 				endpoint = endpoints.PreaggrSeriesEndpoint
 			}
-			// TODO(?): If the preaggr_dd_url is the same as the primary dd_url,
+			// TODO(?): If the preaggregation.dd_url is the same as the primary dd_url,
 			// we will also inherit any additional API keys from the
 			// configuration of that site, meaning we'll send preaggr payloads
 			// for each of those orgs. Not sure if this is a problem or not.

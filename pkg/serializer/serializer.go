@@ -346,7 +346,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		})
 	}
 
-	if s.config.GetBool("enable_preaggr_pipeline") {
+	if s.config.GetBool("preaggregation.enabled") {
 		pipelines = append(pipelines, metricsserializer.Pipeline{
 			FilterFunc: func(s *metrics.Serie) bool {
 				return true

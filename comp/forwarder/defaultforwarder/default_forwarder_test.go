@@ -186,9 +186,9 @@ func TestPreaggregationPipelineTransactionCreation(t *testing.T) {
 			mockConfig.Set("dd_url", tc.primaryURL, pkgconfigmodel.SourceAgentRuntime)
 			
 			if tc.enablePreaggr {
-				mockConfig.Set("enable_preaggr_pipeline", true, pkgconfigmodel.SourceAgentRuntime)
-				mockConfig.Set("preaggr_dd_url", tc.preaggrURL, pkgconfigmodel.SourceAgentRuntime)
-				mockConfig.Set("preaggr_api_key", "preaggr_test_key", pkgconfigmodel.SourceAgentRuntime)
+				mockConfig.Set("preaggregation.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+				mockConfig.Set("preaggregation.dd_url", tc.preaggrURL, pkgconfigmodel.SourceAgentRuntime)
+				mockConfig.Set("preaggregation.api_key", "preaggr_test_key", pkgconfigmodel.SourceAgentRuntime)
 			}
 
 			// Use configuration-based endpoint setup to reproduce real behavior
@@ -232,7 +232,7 @@ func TestPreaggregationDomainComparison(t *testing.T) {
 			preaggrURL:         "https://app.datadoghq.com",
 			primaryURL:         "https://app.datadoghq.com",
 			expectTransactions: 1,
-			bugDescription:     "Primary domain gets agent version prefix (7-59-0-app.agent.datadoghq.com) but preaggr_dd_url remains raw",
+			bugDescription:     "Primary domain gets agent version prefix (7-59-0-app.agent.datadoghq.com) but preaggregation.dd_url remains raw",
 		},
 		{
 			name:               "custom_domain_no_prefix",
@@ -255,9 +255,9 @@ func TestPreaggregationDomainComparison(t *testing.T) {
 			mockConfig := config.NewMock(t)
 			mockConfig.Set("api_key", "test_api_key", pkgconfigmodel.SourceAgentRuntime)
 			mockConfig.Set("dd_url", tc.primaryURL, pkgconfigmodel.SourceAgentRuntime)
-			mockConfig.Set("enable_preaggr_pipeline", true, pkgconfigmodel.SourceAgentRuntime)
-			mockConfig.Set("preaggr_dd_url", tc.preaggrURL, pkgconfigmodel.SourceAgentRuntime)
-			mockConfig.Set("preaggr_api_key", "preaggr_test_key", pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("preaggregation.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("preaggregation.dd_url", tc.preaggrURL, pkgconfigmodel.SourceAgentRuntime)
+			mockConfig.Set("preaggregation.api_key", "preaggr_test_key", pkgconfigmodel.SourceAgentRuntime)
 
 			keysPerDomains, err := utils.GetMultipleEndpoints(mockConfig)
 			require.NoError(t, err)
@@ -280,7 +280,7 @@ func TestPreaggregationDomainComparison(t *testing.T) {
 					resolved, _ := dr.Resolve(endpoints.SeriesEndpoint)
 					t.Logf("Domain resolver: %s -> %s", domain, resolved)
 				}
-				t.Logf("preaggr_dd_url config: %s", mockConfig.GetString("preaggr_dd_url"))
+				t.Logf("preaggregation.dd_url config: %s", mockConfig.GetString("preaggregation.dd_url"))
 			}
 			
 			assert.Equal(t, tc.expectTransactions, len(transactions),
@@ -301,13 +301,13 @@ func TestPreaggregationConfigurationEdgeCases(t *testing.T) {
 		description    string
 	}{
 		{
-			name: "missing_preaggr_api_key",
+			name: "missing_preaggregation_api_key",
 			setupConfig: func(cfg config.Component) {
 				cfg.Set("api_key", "main_key", pkgconfigmodel.SourceAgentRuntime)
 				cfg.Set("dd_url", "https://app.datadoghq.com", pkgconfigmodel.SourceAgentRuntime)
-				cfg.Set("enable_preaggr_pipeline", true, pkgconfigmodel.SourceAgentRuntime)
-				cfg.Set("preaggr_dd_url", "https://preaggr.datadoghq.com", pkgconfigmodel.SourceAgentRuntime)
-				// Deliberately omit preaggr_api_key
+				cfg.Set("preaggregation.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+				cfg.Set("preaggregation.dd_url", "https://preaggr.datadoghq.com", pkgconfigmodel.SourceAgentRuntime)
+				// Deliberately omit preaggregation.api_key
 			},
 			payloadDest: transaction.PreaggrOnly,
 			expectError: false,
@@ -319,9 +319,9 @@ func TestPreaggregationConfigurationEdgeCases(t *testing.T) {
 			setupConfig: func(cfg config.Component) {
 				cfg.Set("api_key", "main_key", pkgconfigmodel.SourceAgentRuntime)
 				cfg.Set("dd_url", "https://app.datadoghq.com", pkgconfigmodel.SourceAgentRuntime)
-				cfg.Set("enable_preaggr_pipeline", true, pkgconfigmodel.SourceAgentRuntime)
-				cfg.Set("preaggr_dd_url", "", pkgconfigmodel.SourceAgentRuntime)
-				cfg.Set("preaggr_api_key", "preaggr_key", pkgconfigmodel.SourceAgentRuntime)
+				cfg.Set("preaggregation.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+				cfg.Set("preaggregation.dd_url", "", pkgconfigmodel.SourceAgentRuntime)
+				cfg.Set("preaggregation.api_key", "preaggr_key", pkgconfigmodel.SourceAgentRuntime)
 			},
 			payloadDest: transaction.PreaggrOnly,
 			expectError: false,
@@ -333,9 +333,9 @@ func TestPreaggregationConfigurationEdgeCases(t *testing.T) {
 			setupConfig: func(cfg config.Component) {
 				cfg.Set("api_key", "main_key", pkgconfigmodel.SourceAgentRuntime)
 				cfg.Set("dd_url", "https://app.datadoghq.com", pkgconfigmodel.SourceAgentRuntime)
-				cfg.Set("enable_preaggr_pipeline", true, pkgconfigmodel.SourceAgentRuntime)
-				cfg.Set("preaggr_dd_url", "not-a-valid-url", pkgconfigmodel.SourceAgentRuntime)
-				cfg.Set("preaggr_api_key", "preaggr_key", pkgconfigmodel.SourceAgentRuntime)
+				cfg.Set("preaggregation.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+				cfg.Set("preaggregation.dd_url", "not-a-valid-url", pkgconfigmodel.SourceAgentRuntime)
+				cfg.Set("preaggregation.api_key", "preaggr_key", pkgconfigmodel.SourceAgentRuntime)
 			},
 			payloadDest: transaction.PreaggrOnly,
 			expectError: false,

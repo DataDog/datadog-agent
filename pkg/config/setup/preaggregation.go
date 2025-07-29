@@ -10,7 +10,7 @@ import (
 )
 
 func setupPreaggregation(config pkgconfigmodel.Setup) {
-	config.BindEnvAndSetDefault("enable_preaggr_pipeline", false)
-	config.BindEnvAndSetDefault("preaggr_dd_url", "https://api.datad0g.com")
-	config.BindEnv("preaggr_api_key")
+	config.BindEnvAndSetDefault("preaggregation.enabled", false)
+	config.BindEnvAndSetDefault("preaggregation.dd_url", "https://api.datad0g.com")
+	config.BindEnv("preaggregation.api_key")
 }
