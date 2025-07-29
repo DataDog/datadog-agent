@@ -137,6 +137,9 @@ instances:
 					if !checkUtils.EqualMetrics(a, b) {
 						return false
 					}
+					v.T().Logf("metric: %s", a.Metric)
+					v.T().Logf("excludedFromValueComparison: %v", v.excludedFromValueComparison)
+					v.T().Logf("slices.Contains(v.excludedFromValueComparison, a.Metric): %v", slices.Contains(v.excludedFromValueComparison, a.Metric))
 					if slices.Contains(v.excludedFromValueComparison, a.Metric) {
 						return true
 					}
