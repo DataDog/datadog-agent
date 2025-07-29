@@ -417,6 +417,11 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	require.NoError(t, err)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
 
+	// when the forwarder is started, the health checker will send 2 requests to check the
+	// validity of the two api_keys
+	numReqs := int64(2)
+	wg.Add(2)
+
 	f.Start()
 	defer f.Stop()
 
@@ -426,38 +431,32 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	// - 2 requests to check the validity of the two api_key
-	numReqs := int64(2)
-	wg.Add(2)
+	incRequests := func(num int64) {
+		numReqs += num
+		wg.Add(int(num))
+	}
 
 	// for each call, we send 2 payloads * 2 api_keys
+	incRequests(4)
 	assert.Nil(t, f.SubmitV1Series(payload, headers))
-	numReqs += 4
-	wg.Add(4)
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitSeries(payload, headers))
-	numReqs += 4
-	wg.Add(4)
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitV1Intake(payload, transaction.Series, headers))
-	numReqs += 4
-	wg.Add(4)
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
-	numReqs += 4
-	wg.Add(4)
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitSketchSeries(payload, headers))
-	numReqs += 4
-	wg.Add(4)
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitHostMetadata(payload, headers))
-	numReqs += 4
-	wg.Add(4)
 
+	incRequests(4)
 	assert.Nil(t, f.SubmitMetadata(payload, headers))
-	numReqs += 4
-	wg.Add(4)
 
 	// Wait for all the requests to have been received.
 	// Timeout after 5 seconds.
