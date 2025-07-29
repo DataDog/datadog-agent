@@ -15,7 +15,7 @@ RUN /go/bin/go install github.com/go-delve/delve/cmd/dlv@latest
 
 # Install datadog-agent-dbg at the right version
 RUN apt-get install -o Dpkg::Options::="--force-confold" --no-install-recommends -y gnupg dirmngr ca-certificates \
- && apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 33EE313BAD9589B7
+ && apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 E6266D4AC0962C7D
 ARG AGENT_VERSION
 ARG APT_REPO=apt.datadoghq.com
 ARG APT_DISTRIBUTION=stable
