@@ -6,7 +6,7 @@ The `datadog-secret-backend` utility currently supports the following Hashicorp 
 
 | Backend Type | Hashicorp Service |
 | --- | --- |
-| [hashicorp.vault](vault.md) | [Hashicorp Vault](https://learn.hashicorp.com/tutorials/vault/static-secrets) |
+| [hashicorp.vault](vault.md) | [Hashicorp Vault (Secrets Engine Version 1)](https://learn.hashicorp.com/tutorials/vault/static-secrets) |
 
 
 ## Hashicorp auth Session
@@ -22,7 +22,7 @@ Using environment variables are more complex as they must be configured within t
 ## General Instructions to set up Hashicorp Vault
 1. Run your Hashicorp Vault. For more information on how to do this, please look at the [official Hashicorp Vault documentation](https://www.hashicorp.com/en/products/vault). 
 2. When running the vault, you should have received the variables `VAULT_ADDR` and `VAULT_TOKEN`. Export them as environment variables.
-3. To store your secrets in a certain path, run `vault secrets enable -path=<your path> kv`
+3. To store your secrets in a certain path, run `vault secrets enable -path=<your path> -version=1 kv` *NOTE*: As of now, only version 1 of the Hashicrop Secrets Engine is supported.
 4. To add your key, run `vault kv put <your path> apikey=your_real_datadog_api_key`. You can conversely run `vault kv get ...` to get said key.
 5. Now you need to write a policy to give permission to pull secrets from your vault. Create a *.hcl file, and include the following permission:
 ```
