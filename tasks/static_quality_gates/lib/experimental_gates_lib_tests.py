@@ -1,23 +1,22 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from tasks.static_quality_gates.lib.gates_lib import find_package_path
 
 @patch.dict(
-        'os.environ',
-        {
-            'CI_COMMIT_REF_NAME': 'pikachu',
-            'CI_COMMIT_BRANCH': 'sequoia',
-            'CI_COMMIT_REF_SLUG': 'pikachu',
-            'BUCKET_BRANCH': 'main',
-            'OMNIBUS_PACKAGE_DIR': '/opt/datadog-agent',
-        },
+    'os.environ',
+    {
+        'CI_COMMIT_REF_NAME': 'pikachu',
+        'CI_COMMIT_BRANCH': 'sequoia',
+        'CI_COMMIT_REF_SLUG': 'pikachu',
+        'BUCKET_BRANCH': 'main',
+        'OMNIBUS_PACKAGE_DIR': '/opt/datadog-agent',
+    },
 )
 class TestExperimentalGatesLib(unittest.TestCase):
-
     @patch("tasks.static_quality_gates.lib.experimental_gates_lib.GateMetricHandler", new=MagicMock())
     def test_get_quality_gates_list(self):
         from tasks.static_quality_gates.lib.experimental_gates_lib import get_quality_gates_list
+
         gates = get_quality_gates_list("tasks/static_quality_gates/lib/static_quality_gates_test.yaml", MagicMock())
         assert len(gates) == 21
 
@@ -58,7 +57,9 @@ class TestExperimentalGatesLib(unittest.TestCase):
         self.assertEqual(gate.os, "suse")
         with self.assertRaises(ValueError):
             gate = StaticQualityGate(
-                "static_quality_gate_agent_unknown_unknown", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+                "static_quality_gate_agent_unknown_unknown",
+                {"max_on_wire_size": 100, "max_on_disk_size": 100},
+                MagicMock(),
             )
 
     def test_max_sizes(self):
