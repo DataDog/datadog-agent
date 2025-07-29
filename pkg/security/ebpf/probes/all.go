@@ -191,16 +191,17 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 
 // MapSpecEditorOpts defines some options of the map spec editor
 type MapSpecEditorOpts struct {
-	TracedCgroupSize          int
-	UseMmapableMaps           bool
-	UseRingBuffers            bool
-	RingBufferSize            uint32
-	PathResolutionEnabled     bool
-	SecurityProfileMaxCount   int
-	ReducedProcPidCacheSize   bool
-	NetworkFlowMonitorEnabled bool
-	NetworkSkStorageEnabled   bool
-	SpanTrackMaxCount         int
+	TracedCgroupSize              int
+	UseMmapableMaps               bool
+	UseRingBuffers                bool
+	RingBufferSize                uint32
+	PathResolutionEnabled         bool
+	SecurityProfileMaxCount       int
+	ReducedProcPidCacheSize       bool
+	NetworkFlowMonitorEnabled     bool
+	NetworkSkStorageEnabled       bool
+	SpanTrackMaxCount             int
+	CapabilitiesMonitoringEnabled bool
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -219,6 +220,15 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	} else {
 		activeFlowsMaxEntries = 1
 		nsFlowToNetworkStats = 1
+	}
+
+	var capabilitiesUsageMaxEntries, capabilitiesContextsMaxEntries uint32
+	if opts.CapabilitiesMonitoringEnabled {
+		capabilitiesUsageMaxEntries = procPidCacheMaxEntries
+		capabilitiesContextsMaxEntries = 4096
+	} else {
+		capabilitiesUsageMaxEntries = 1
+		capabilitiesContextsMaxEntries = 1
 	}
 
 	editors := map[string]manager.MapSpecEditor{
@@ -279,7 +289,11 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"capabilities_usage": {
-			MaxEntries: procPidCacheMaxEntries,
+			MaxEntries: capabilitiesUsageMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"capabilities_contexts": {
+			MaxEntries: capabilitiesContextsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
