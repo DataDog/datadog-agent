@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/iceber/iouring-go"
 	"github.com/stretchr/testify/assert"
@@ -92,6 +93,9 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 
 	go listener.Accept()
 
+	// Wait 1 sec to ensure the listener is ready
+	time.Sleep(1 * time.Second)
+
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
 	if err != nil {
 		t.Fatal(err)
@@ -123,8 +127,12 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 		if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 			return err
 		}
-
-		result := <-ch
+		var result iouring.Result
+		select {
+		case result = <-ch:
+		case <-time.After(8 * time.Second):
+			return fmt.Errorf("timeout waiting for io_uring connect")
+		}
 		ret, err := result.ReturnInt()
 		if err != nil {
 			if err == syscall.EBADF || err == syscall.EINVAL {
