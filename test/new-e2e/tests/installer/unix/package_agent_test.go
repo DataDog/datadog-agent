@@ -477,18 +477,18 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 
 	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
-
 	// Substitute API & site into otel-config.yaml
 	s.host.Run("sudo sh -c \"sed -i -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml\"")
 
 	s.host.WaitForUnitActive(s.T(), ddotUnit)
 
-	// Verify running
 	state := s.host.State()
+	// Verify running
 	s.assertUnits(state, false)
-	s.assertDdotUnits(state, false)
+	s.assertDDOTUnits(state, false)
 
 	// Verify files exist
+	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0644, "dd-agent", "dd-agent")
 
 	state.AssertDirExists("/opt/datadog-packages/datadog-agent-ddot/stable", 0755, "dd-agent", "dd-agent")
@@ -498,7 +498,7 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 }
 
 // Verify ddot service running
-func (s *packageAgentSuite) assertDdotUnits(state host.State, oldUnits bool) {
+func (s *packageAgentSuite) assertDDOTUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(ddotUnit)
 	state.AssertUnitsRunning(ddotUnit)
 
