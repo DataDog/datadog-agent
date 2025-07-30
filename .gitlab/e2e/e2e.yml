@@ -228,7 +228,6 @@ new-e2e-containers-eks:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -432,7 +431,6 @@ new-e2e-npm-eks:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-npm:
   extends: .new_e2e_template
@@ -850,7 +848,6 @@ new-e2e-otel-eks:
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
     E2E_PRE_INITIALIZED: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-otel:
   extends: .new_e2e_template
