@@ -491,6 +491,12 @@ func fmtProcesses(
 
 		// Hide disallow-listed args if the Scrubber is enabled
 		fp.Cmdline = scrubber.ScrubProcessCommand(fp)
+
+		// service info will be nil for non-linux platforms so safely access/assign portinfo
+		var ports []uint16
+		if fp.Service != nil {
+			ports = fp.Service.Ports
+		}
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
@@ -506,6 +512,10 @@ func fmtProcesses(
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
+			// SERVICE DISCOVERY FIELDS
+			PortInfo:         formatPorts(ports),                 // only populated if service discovery is enabled + linux
+			Language:         formatLanguage(fp.Language),        // only populated if language detection is enabled + linux
+			ServiceDiscovery: formatServiceDiscovery(fp.Service), // only populated if service discovery is enabled + linux
 		}
 
 		if tags, ok := pidToGPUTags[fp.Pid]; ok {

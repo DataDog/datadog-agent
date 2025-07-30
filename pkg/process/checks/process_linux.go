@@ -8,7 +8,11 @@
 package checks
 
 import (
+	model "github.com/DataDog/agent-payload/v5/process"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -52,17 +56,151 @@ func (p *ProcessCheck) processesByPID(collectStats bool) (map[int32]*procutil.Pr
 }
 
 func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) *procutil.Process {
+	var service *procutil.Service
+	if wlmProc.Service != nil {
+		service = &procutil.Service{
+			GeneratedName:            wlmProc.Service.GeneratedName,
+			GeneratedNameSource:      wlmProc.Service.GeneratedNameSource,
+			AdditionalGeneratedNames: wlmProc.Service.AdditionalGeneratedNames,
+			TracerMetadata:           wlmProc.Service.TracerMetadata,
+			DDService:                wlmProc.Service.DDService,
+			Ports:                    wlmProc.Service.Ports,
+			APMInstrumentation:       wlmProc.Service.APMInstrumentation,
+		}
+	}
 	return &procutil.Process{
-		Pid:     wlmProc.Pid,
-		Ppid:    wlmProc.Ppid,
-		NsPid:   wlmProc.NsPid,
-		Name:    wlmProc.Name,
-		Cwd:     wlmProc.Cwd,
-		Exe:     wlmProc.Exe,
-		Comm:    wlmProc.Comm,
-		Cmdline: wlmProc.Cmdline,
-		Uids:    wlmProc.Uids,
-		Gids:    wlmProc.Gids,
-		Stats:   stats,
+		Pid:      wlmProc.Pid,
+		Ppid:     wlmProc.Ppid,
+		NsPid:    wlmProc.NsPid,
+		Name:     wlmProc.Name,
+		Cwd:      wlmProc.Cwd,
+		Exe:      wlmProc.Exe,
+		Comm:     wlmProc.Comm,
+		Cmdline:  wlmProc.Cmdline,
+		Uids:     wlmProc.Uids,
+		Gids:     wlmProc.Gids,
+		Stats:    stats,
+		Language: wlmProc.Language,
+		Service:  service,
+	}
+}
+
+// formatPorts converts a list of uin16 ports to a int32 PortInfo
+// TODO: because the service discovery response does not distinguish between tcp and udp currently, we currently send everything as TCP
+func formatPorts(ports []uint16) *model.PortInfo {
+	// if ports were not collected, we want to semantically indicate that no data was collected instead of
+	// returning no open ports
+	if ports == nil {
+		return nil
+	}
+	newPorts := make([]int32, len(ports))
+	for i, port := range ports {
+		newPorts[i] = int32(port)
+	}
+	return &model.PortInfo{
+		Tcp: newPorts,
+	}
+}
+
+var languageMap = map[languagemodels.LanguageName]model.Language{
+	languagemodels.Unknown: model.Language_LANGUAGE_UNKNOWN,
+	languagemodels.Go:      model.Language_LANGUAGE_GO,
+	languagemodels.Node:    model.Language_LANGUAGE_NODE,
+	languagemodels.Dotnet:  model.Language_LANGUAGE_DOTNET,
+	languagemodels.Python:  model.Language_LANGUAGE_PYTHON,
+	languagemodels.Java:    model.Language_LANGUAGE_JAVA,
+	languagemodels.Ruby:    model.Language_LANGUAGE_RUBY,
+	languagemodels.PHP:     model.Language_LANGUAGE_PHP,
+	languagemodels.CPP:     model.Language_LANGUAGE_CPP,
+}
+
+// formatLanguage converts a process language to the equivalent payload type
+func formatLanguage(language *languagemodels.Language) model.Language {
+	if language == nil {
+		return model.Language_LANGUAGE_UNKNOWN
+	}
+	if lang, ok := languageMap[language.Name]; ok {
+		return lang
+	}
+	return model.Language_LANGUAGE_UNKNOWN
+}
+
+var serviceNameSourceMap = map[string]model.ServiceNameSource{
+	"":                      model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+	string(usm.CommandLine): model.ServiceNameSource_SERVICE_NAME_SOURCE_COMMAND_LINE,
+	string(usm.Laravel):     model.ServiceNameSource_SERVICE_NAME_SOURCE_LARAVEL,
+	string(usm.Python):      model.ServiceNameSource_SERVICE_NAME_SOURCE_PYTHON,
+	string(usm.Nodejs):      model.ServiceNameSource_SERVICE_NAME_SOURCE_NODEJS,
+	string(usm.Gunicorn):    model.ServiceNameSource_SERVICE_NAME_SOURCE_GUNICORN,
+	string(usm.Rails):       model.ServiceNameSource_SERVICE_NAME_SOURCE_RAILS,
+	string(usm.Spring):      model.ServiceNameSource_SERVICE_NAME_SOURCE_SPRING,
+	string(usm.JBoss):       model.ServiceNameSource_SERVICE_NAME_SOURCE_JBOSS,
+	string(usm.Tomcat):      model.ServiceNameSource_SERVICE_NAME_SOURCE_TOMCAT,
+	string(usm.WebLogic):    model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBLOGIC,
+	string(usm.WebSphere):   model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBSPHERE,
+}
+
+// serviceNameSource maps a process's generated service name source to the equivalent agent payload type
+func serviceNameSource(source string) model.ServiceNameSource {
+	if modelSource, ok := serviceNameSourceMap[source]; ok {
+		return modelSource
+	}
+	return model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN
+}
+
+// apmInstrumentation maps the apm instrumentation value to the agent payload type
+func apmInstrumentation(instrumentation string) bool {
+	// the instrumentation only has 2 states we need to worry about: "provided" and "none"
+	// TODO: `injected` is not used or planned to be used in the future, so it should be removed
+	switch instrumentation {
+	case string(apm.Provided):
+		return true
+	case string(apm.None):
+		return false
+	default:
+		return false
+	}
+}
+
+// formatServiceDiscovery converts collected service data into the equivalent agent payload type
+func formatServiceDiscovery(service *procutil.Service) *model.ServiceDiscovery {
+	if service == nil {
+		return nil
+	}
+	var serviceNames []*model.ServiceName
+	source := serviceNameSource(service.GeneratedNameSource)
+
+	// Add generated name
+	serviceNames = append(serviceNames, &model.ServiceName{
+		Name:   service.GeneratedName,
+		Source: source,
+	})
+
+	// add dd service name
+	serviceNames = append(serviceNames, &model.ServiceName{
+		Name:   service.DDService,
+		Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_DD_SERVICE,
+	})
+
+	// add additional generated names
+	for _, name := range service.AdditionalGeneratedNames {
+		serviceNames = append(serviceNames, &model.ServiceName{
+			Name:   name,
+			Source: source,
+		})
+	}
+
+	// add additional names
+	tracerMetadata := make([]*model.TracerMetadata, len(service.TracerMetadata))
+	for i, tm := range service.TracerMetadata {
+		tracerMetadata[i] = &model.TracerMetadata{
+			RuntimeId:   tm.RuntimeID,
+			ServiceName: tm.ServiceName,
+		}
+	}
+
+	return &model.ServiceDiscovery{
+		ServiceNames: serviceNames, TracerMetadata: tracerMetadata,
+		ApmInstrumentation: apmInstrumentation(service.APMInstrumentation),
 	}
 }
