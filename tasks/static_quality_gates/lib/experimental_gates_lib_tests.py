@@ -135,13 +135,13 @@ class TestExperimentalGatesLib(unittest.TestCase):
         gate = StaticQualityGateDocker(
             "static_quality_gate_docker_agent_windows_2022_servercore_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
         )
-        self.assertEqual(gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-winltsc2022-servercore-amd64")
+        self.assertEqual(gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-winltsc2022-servercore-amd64")
         gate = StaticQualityGateDocker(
             "static_quality_gate_docker_agent_windows_1809_servercore_arm64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
         )
-        self.assertEqual(gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-win1809-servercore-arm64")
-        with patch.dict('os.environ', {"BRANCH_BUCKET": "nightly"}):
+        self.assertEqual(gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-win1809-servercore-arm64")
+        with patch.dict('os.environ', {"BUCKET_BRANCH": "nightly"}):
             gate = StaticQualityGateDocker(
                 "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
             )
-            self.assertEqual(gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent-nightly:v71580015-668844-amd64")
+            self.assertEqual(gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent-nightly:v71580015-668844-7-amd64")
