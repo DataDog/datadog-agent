@@ -49,6 +49,7 @@ The symbols from the specified binary will be extracted and printed to stdout
 		logLevel = "info"
 	}
 	log.SetupLogger(log.Default(), logLevel)
+	defer log.Flush()
 
 	// Start the pprof server.
 	go func() {
@@ -57,6 +58,7 @@ The symbols from the specified binary will be extracted and printed to stdout
 
 	if err := run(*binaryPath); err != nil {
 		log.Errorf("Error: %v", err)
+		log.Flush()
 		os.Exit(1)
 	}
 }
