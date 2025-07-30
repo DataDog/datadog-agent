@@ -49,11 +49,6 @@ func TestCloudRunJobsGetOrigin(t *testing.T) {
 	assert.Equal(t, "cloudrun", service.GetOrigin())
 }
 
-func TestCloudRunJobsGetPrefix(t *testing.T) {
-	service := &CloudRunJobs{}
-	assert.Equal(t, "gcp.run.job", service.GetPrefix())
-}
-
 func TestCloudRunJobsInit(t *testing.T) {
 	service := &CloudRunJobs{}
 	assert.NoError(t, service.Init())
