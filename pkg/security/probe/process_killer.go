@@ -331,6 +331,8 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 						stats := p.getRuleStats(disarmer.ruleID)
 						stats.killQueuedDiscardedByDisarm += int64(len(disarmer.killQueue))
 						p.perRuleStatsLock.Unlock()
+						// clear kill queue list map if not empty
+						disarmer.killQueue = nil
 					}
 				}
 				disarmer.m.Unlock()
@@ -362,6 +364,8 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 					stats := p.getRuleStats(disarmer.ruleID)
 					stats.killQueuedDiscardedByDisarm += int64(len(disarmer.killQueue))
 					p.perRuleStatsLock.Unlock()
+					// clear kill queue list map if not empty
+					disarmer.killQueue = nil
 				}
 			}
 			disarmer.m.Unlock()
@@ -815,10 +819,6 @@ func (rd *ruleDisarmer) allow(cache *disarmerCache[string, bool], key string) (b
 			rd.disarmed = true
 			if time.Now().Before(rd.warmupEnd) {
 				rd.dismantled = true
-			}
-			// clear kill queue list map if not empty
-			if len(rd.killQueue) > 0 {
-				rd.killQueue = nil
 			}
 		}
 	}
