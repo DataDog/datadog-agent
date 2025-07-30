@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/benbjohnson/clock"
 	"github.com/golang/mock/gomock"
@@ -72,9 +73,10 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}, sy
 	// mock language detection system probe config
 	mockSystemProbeConfig := fxutil.Test[sysprobeconfig.Component](t, fx.Options(
 		sysprobeconfigimpl.MockModule(),
-		fx.Replace(config.MockParams{Overrides: sysProbeConfigOverrides}),
+		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysProbeConfigOverrides}),
 	))
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, mockConfig, mockSystemProbeConfig)
+	processCollector.containerProvider = mockContainerProvider
 	processCollector.sysProbeClient = &http.Client{}
 
 	return collectorTest{&processCollector, mockProbe, mockConfig, mockSystemProbeConfig, mockClock, mockStore, mockContainerProvider}
@@ -622,6 +624,85 @@ func TestProcessLifecycleCollection(t *testing.T) {
 
 				}
 			}, time.Second, time.Millisecond*100)
+		})
+	}
+}
+
+func TestStartConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		description        string
+		configOverrides    map[string]interface{}
+		sysConfigOverrides map[string]interface{}
+		expectedError      error
+	}{
+		{
+			description: "everything enabled correctly",
+			configOverrides: map[string]interface{}{
+				"process_config.run_in_core_agent.enabled":  true,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"system_probe_config.enabled": true,
+				"discovery.enabled":           true,
+			},
+			expectedError: nil,
+		},
+		{
+			description: "not running in core agent",
+			configOverrides: map[string]interface{}{
+				"process_config.run_in_core_agent.enabled":  false,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"system_probe_config.enabled": true,
+				"discovery.enabled":           true,
+			},
+			expectedError: errors.NewDisabled(componentName, "core process collection not running in core agent"),
+		},
+		{
+			description: "only process collection not enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.run_in_core_agent.enabled":  true,
+				"process_config.process_collection.use_wlm": false,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"system_probe_config.enabled": true,
+				"discovery.enabled":           true,
+			},
+			expectedError: nil,
+		},
+		{
+			description: "only service discovery not enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.run_in_core_agent.enabled":  true,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"system_probe_config.enabled": false,
+				"discovery.enabled":           false,
+			},
+			expectedError: nil,
+		},
+		{
+			description: "process collection and service discovery not enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.run_in_core_agent.enabled":  true,
+				"process_config.process_collection.use_wlm": false,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"system_probe_config.enabled": false,
+				"discovery.enabled":           false,
+			},
+			expectedError: errors.NewDisabled(componentName, "process collection and service discovery are disabled"),
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			c := setUpCollectorTest(t, tc.configOverrides, tc.sysConfigOverrides, nil)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.Equal(t, tc.expectedError, err)
 		})
 	}
 }

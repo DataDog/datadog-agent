@@ -8,6 +8,8 @@
 package checks
 
 import (
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,4 +29,19 @@ func (p *ProcessCheck) processesByPID(collectStats bool) (map[int32]*procutil.Pr
 		return nil, err
 	}
 	return procs, nil
+}
+
+// formatPorts is a stub for non-linux platforms
+func formatPorts(_ []uint16) *model.PortInfo {
+	return nil
+}
+
+// formatLanguage is a stub for non-linux platforms
+func formatLanguage(_ *languagemodels.Language) model.Language {
+	return model.Language_LANGUAGE_UNKNOWN
+}
+
+// formatServiceDiscovery is a stub for non-linux platforms
+func formatServiceDiscovery(_ *procutil.Service) *model.ServiceDiscovery {
+	return nil
 }

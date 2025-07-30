@@ -14,10 +14,15 @@ import (
 	"testing"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	probemocks "github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -62,7 +67,7 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			proc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowSeconds)
 			proc2 := wlmProcessWithCreateTime(2, "mine-bitcoins -all -x", nowSeconds-1)
 			proc3 := wlmProcessWithCreateTime(3, "datadog-agent --cfgpath datadog.conf", nowSeconds+2)
-			proc4 := wlmProcessWithCreateTime(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds-3)
+			proc4 := wlmProcessWithServiceDiscovery(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds-3)
 			procs := []*wmdef.Process{proc1, proc2, proc3, proc4}
 			statsByPid := make(map[int32]*procutil.Stats)
 			for _, p := range procs {
@@ -90,6 +95,265 @@ func TestProcessesByPIDWLM(t *testing.T) {
 	}
 }
 
+// TODO: service discovery does not yet distinguish between tcp and udp, so everything is sent as TCP
+func TestFormatPorts(t *testing.T) {
+	for _, tc := range []struct {
+		description      string
+		ports            []uint16
+		expectedPortInfo *model.PortInfo
+	}{
+		{
+			description: "normal ports",
+			ports:       []uint16{80, 443},
+			expectedPortInfo: &model.PortInfo{
+				Tcp: []int32{80, 443},
+			},
+		},
+		{
+			description: "empty ports",
+			ports:       []uint16{},
+			expectedPortInfo: &model.PortInfo{
+				Tcp: []int32{},
+			},
+		},
+		{
+			description:      "ports not collected",
+			ports:            nil,
+			expectedPortInfo: nil,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			actual := formatPorts(tc.ports)
+			assert.Equal(t, tc.expectedPortInfo, actual)
+		})
+	}
+}
+
+func TestFormatLanguage(t *testing.T) {
+	for _, tc := range []struct {
+		description      string
+		language         *languagemodels.Language
+		expectedLanguage model.Language
+	}{
+		{
+			description: "go",
+			language: &languagemodels.Language{
+				Name: languagemodels.Go,
+			},
+		},
+		{
+			description: "node",
+			language: &languagemodels.Language{
+				Name: languagemodels.Node,
+			},
+			expectedLanguage: model.Language_LANGUAGE_NODE,
+		},
+		{
+			description: "dotnet",
+			language: &languagemodels.Language{
+				Name: languagemodels.Dotnet,
+			},
+			expectedLanguage: model.Language_LANGUAGE_DOTNET,
+		},
+		{
+			description: "python",
+			language: &languagemodels.Language{
+				Name: languagemodels.Python,
+			},
+			expectedLanguage: model.Language_LANGUAGE_PYTHON,
+		},
+		{
+			description: "java",
+			language: &languagemodels.Language{
+				Name: languagemodels.Java,
+			},
+			expectedLanguage: model.Language_LANGUAGE_JAVA,
+		},
+		{
+			description: "ruby",
+			language: &languagemodels.Language{
+				Name: languagemodels.Ruby,
+			},
+			expectedLanguage: model.Language_LANGUAGE_RUBY,
+		},
+		{
+			description: "php",
+			language: &languagemodels.Language{
+				Name: languagemodels.PHP,
+			},
+			expectedLanguage: model.Language_LANGUAGE_PHP,
+		},
+		{
+			description: "cpp",
+			language: &languagemodels.Language{
+				Name: languagemodels.CPP,
+			},
+			expectedLanguage: model.Language_LANGUAGE_CPP,
+		},
+		{
+			description: "unknown",
+			language: &languagemodels.Language{
+				Name: languagemodels.Unknown,
+			},
+			expectedLanguage: model.Language_LANGUAGE_UNKNOWN,
+		},
+		{
+			description:      "not collected",
+			language:         nil,
+			expectedLanguage: model.Language_LANGUAGE_UNKNOWN,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			actual := formatLanguage(tc.language)
+			assert.Equal(t, tc.expectedLanguage, actual)
+		})
+	}
+}
+
+func TestServiceNameSourceMap(t *testing.T) {
+	for _, tc := range []struct {
+		description               string
+		serviceNameSource         string
+		expectedServiceNameSource model.ServiceNameSource
+	}{
+		{
+			description:               "command line",
+			serviceNameSource:         string(usm.CommandLine),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_COMMAND_LINE,
+		},
+		{
+			description:               "laravel",
+			serviceNameSource:         string(usm.Laravel),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_LARAVEL,
+		},
+		{
+			description:               "python",
+			serviceNameSource:         string(usm.Python),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_PYTHON,
+		},
+		{
+			description:               "nodejs",
+			serviceNameSource:         string(usm.Nodejs),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_NODEJS,
+		},
+		{
+			description:               "gunicorn",
+			serviceNameSource:         string(usm.Gunicorn),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_GUNICORN,
+		},
+		{
+			description:               "rails",
+			serviceNameSource:         string(usm.Rails),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_RAILS,
+		},
+		{
+			description:               "spring",
+			serviceNameSource:         string(usm.Spring),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_SPRING,
+		},
+		{
+			description:               "jboss",
+			serviceNameSource:         string(usm.JBoss),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_JBOSS,
+		},
+		{
+			description:               "tomcat",
+			serviceNameSource:         string(usm.Tomcat),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_TOMCAT,
+		},
+		{
+			description:               "weblogic",
+			serviceNameSource:         string(usm.WebLogic),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBLOGIC,
+		},
+		{
+			description:               "websphere",
+			serviceNameSource:         string(usm.WebSphere),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBSPHERE,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			actual := serviceNameSource(tc.serviceNameSource)
+			assert.Equal(t, tc.expectedServiceNameSource, actual)
+		})
+	}
+}
+
+func TestFormatServiceDiscovery(t *testing.T) {
+	for _, tc := range []struct {
+		description     string
+		service         *procutil.Service
+		expectedService *model.ServiceDiscovery
+	}{
+		{
+			description: "complete service",
+			service: &procutil.Service{
+				GeneratedName:            "gen_name",
+				GeneratedNameSource:      "unknown",
+				AdditionalGeneratedNames: []string{"additional_name1", "additional_name2"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{
+						RuntimeID:   "run_id1",
+						ServiceName: "service_name1",
+					},
+					{
+						RuntimeID:   "run_id2",
+						ServiceName: "service_name2",
+					},
+				},
+				DDService:          "dd_service_name",
+				APMInstrumentation: "provided",
+			},
+			expectedService: &model.ServiceDiscovery{
+				ServiceNames: []*model.ServiceName{
+					{
+						Name:   "gen_name",
+						Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+					},
+					{
+						Name:   "additional_name1",
+						Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+					},
+					{
+						Name:   "additional_name2",
+						Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+					},
+					{
+						Name:   "dd_service_name",
+						Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_DD_SERVICE,
+					},
+				},
+				TracerMetadata: []*model.TracerMetadata{
+					{
+						RuntimeId:   "run_id1",
+						ServiceName: "service_name1",
+					},
+					{
+						RuntimeId:   "run_id2",
+						ServiceName: "service_name2",
+					},
+				},
+				ApmInstrumentation: true,
+			},
+		},
+		{
+			description:     "empty service",
+			service:         &procutil.Service{},
+			expectedService: &model.ServiceDiscovery{},
+		},
+		{
+			description:     "service not collected",
+			service:         nil,
+			expectedService: nil,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			actual := formatServiceDiscovery(tc.service)
+			assert.Equal(t, tc.expectedService, actual)
+		})
+	}
+}
+
 func wlmProcessWithCreateTime(pid int32, spaceSeparatedCmdline string, creationTime int64) *wmdef.Process {
 	return &wmdef.Process{
 		EntityID: wmdef.EntityID{
@@ -100,6 +364,25 @@ func wlmProcessWithCreateTime(pid int32, spaceSeparatedCmdline string, creationT
 		Cmdline:      strings.Split(spaceSeparatedCmdline, " "),
 		CreationTime: time.Unix(creationTime, 0),
 	}
+}
+
+func wlmProcessWithServiceDiscovery(pid int32, spaceSeparatedCmdline string, creationTime int64) *wmdef.Process {
+	proc := wlmProcessWithCreateTime(pid, spaceSeparatedCmdline, creationTime)
+	proc.Service = &wmdef.Service{
+		GeneratedName:            "some generated name",
+		GeneratedNameSource:      string(usm.CommandLine),
+		AdditionalGeneratedNames: []string{"some additional name", "another additional name"},
+		TracerMetadata: []tracermetadata.TracerMetadata{
+			{
+				RuntimeID:   "some-runtime-id",
+				ServiceName: "some-tracer-service",
+			},
+		},
+		DDService:          "dd service name",
+		Ports:              []uint16{6400, 5200},
+		APMInstrumentation: string(apm.Provided),
+	}
+	return proc
 }
 
 func createTestWLMProcessStats(wlmProcs []*wmdef.Process, elevatedPermissions bool) map[int32]*procutil.Stats {
