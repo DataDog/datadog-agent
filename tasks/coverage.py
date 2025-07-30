@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 import platform
@@ -9,6 +10,7 @@ from invoke import Context, task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.coverage import upload_codecov
 from tasks.libs.common.git import get_commit_sha, get_main_parent_commit
 from tasks.libs.common.utils import get_distro, gitlab_section
 
@@ -97,11 +99,25 @@ powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
 
 
 @task
+def convert_coverage_folder_to_txt(
+    ctx: Context,
+    coverage_folder: str,
+    coverage_file: str,
+):
+    """
+    Convert the coverage folder to a txt file.
+    """
+    ctx.run(f"go tool covdata textfmt -i={coverage_folder} -o={coverage_file}")
+
+
+@task(iterable=['extra_tag'])
 def upload_to_codecov(
     ctx: Context,
+    coverage_file: str = PROFILE_COV,
     pull_coverage_cache: bool = False,
     push_coverage_cache: bool = False,
     debug_cache: bool = False,
+    extra_tag=None,
 ):
     """
     Uploads coverage data of all modules to Codecov.
@@ -121,8 +137,6 @@ def upload_to_codecov(
             color_message("Error: Can't use both --pull-missing-coverage and --push-coverage-cache flags.", Color.RED),
             code=1,
         )
-    distro_tag = get_distro()
-    codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
 
     if pull_coverage_cache:
         with gitlab_section("Applying missing coverage cache from S3", collapsed=True):
@@ -130,10 +144,78 @@ def upload_to_codecov(
     if push_coverage_cache:
         with gitlab_section("Uploading coverage files to S3", collapsed=True):
             upload_coverage_to_s3(ctx)
-
     with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
-        # macOS jobs clone from GitLab => `Repository not found`: force `--git-service=github` (safe for other jobs)
-        ctx.run(f"{codecov_binary} --git-service=github -f {PROFILE_COV} -F {distro_tag}", warn=True, timeout=2 * 60)
+        upload_codecov(ctx=ctx, coverage_file=coverage_file, extra_tag=extra_tag)
+
+
+@task
+def process_e2e_coverage_folders(ctx: Context, coverage_output_dir: str):
+    """
+    Process each folder in the coverage output directory.
+    For each folder, convert the coverage data to text format and upload it with the job name as tag.
+
+    Args:
+        coverage_output_dir: Path to the directory containing coverage folders
+    """
+    coverage_path = pathlib.Path(coverage_output_dir)
+
+    if not coverage_path.exists():
+        print(color_message(f"Coverage output directory {coverage_output_dir} does not exist", Color.ORANGE))
+        return
+
+    if not coverage_path.is_dir():
+        raise Exit(color_message(f"{coverage_output_dir} is not a directory", Color.RED), code=1)
+
+    # Process each subdirectory in the coverage output directory
+    for folder in coverage_path.iterdir():
+        if not folder.is_dir():
+            continue
+
+        print(color_message(f"Processing coverage folder: {folder.name}", Color.GREEN))
+
+        # Look for coverage folder and metadata.json in this directory
+        coverage_folder = folder / "coverage"
+        metadata_file = folder / "metadata.json"
+
+        if not coverage_folder.exists():
+            print(color_message(f"No coverage folder found in {folder.name}, skipping", Color.ORANGE))
+            continue
+
+        if not metadata_file.exists():
+            print(color_message(f"No metadata.json found in {folder.name}, skipping", Color.ORANGE))
+            continue
+
+        # Read job name from metadata.json
+        try:
+            with open(metadata_file) as f:
+                metadata = json.load(f)
+                job_name = metadata.get('job_name', folder.name)
+        except (json.JSONDecodeError, KeyError) as e:
+            print(
+                color_message(
+                    f"Error reading metadata.json in {folder.name}: {e}, using folder name as tag", Color.ORANGE
+                )
+            )
+            job_name = folder.name
+
+        # Convert coverage folder to text format
+        coverage_txt_file = folder / "coverage.txt"
+        try:
+            with gitlab_section(f"Converting coverage data for {folder.name}", collapsed=True):
+                ctx.run(f"go tool covdata textfmt -i={coverage_folder} -o={coverage_txt_file}", echo=True)
+        except Exception as e:
+            print(color_message(f"Error converting coverage data for {folder.name}: {e}", Color.RED))
+            continue
+
+        # Upload coverage with job name as tag
+        try:
+            with gitlab_section(f"Uploading coverage for {folder.name} with tag: {job_name}", collapsed=True):
+                upload_codecov(ctx=ctx, coverage_file=str(coverage_txt_file), extra_tag=[job_name])
+        except Exception as e:
+            print(color_message(f"Error uploading coverage for {folder.name}: {e}", Color.RED))
+            continue
+
+        print(color_message(f"Successfully processed coverage for {folder.name}", Color.GREEN))
 
 
 def produce_coverage_tar(files, archive_name):
