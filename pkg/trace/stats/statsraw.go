@@ -79,6 +79,8 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		PeerTags:       s.peerTags,
 		IsTraceRoot:    a.IsTraceRoot,
 		GRPCStatusCode: a.GRPCStatusCode,
+		HTTPMethod:     a.HTTPMethod,
+		Endpoint:       a.Endpoint,
 	}, nil
 }
 
