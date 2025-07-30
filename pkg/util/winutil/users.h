@@ -4,29 +4,32 @@
 
 //go:build windows
 
-#ifndef USERS_H_INCLUDED
-#define USERS_H_INCLUDED
+#ifndef WINUTIL_USERS_H
+#define WINUTIL_USERS_H
 
-#include <stdlib.h>
+#include <windows.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// getLocalUserGroups retrieves local groups for a given username
-// Returns a comma-separated string of group names, or NULL on error
-// The returned string must be freed by the caller
-// error_code will be set to the specific error code if an error occurs (can be NULL if not needed)
-char* getLocalUserGroups(const char* username, int* error_code);
+// Custom error codes for when DLLs are not available
+#define ERROR_DLL_NOT_AVAILABLE 0x80070002L // ERROR_FILE_NOT_FOUND
+#define ERROR_FUNCTION_NOT_AVAILABLE 0x80070127L // ERROR_PROC_NOT_FOUND
 
-// getLocalAccountRights retrieves account rights for a given username
-// Returns a comma-separated string of right names, or NULL on error
-// The returned string must be freed by the caller
-// error_code will be set to the specific error code if an error occurs (can be NULL if not needed)
+// Main functionality functions
+char* getLocalUserGroups(const char* username, int* error_code);
 char* getLocalAccountRights(const char* username, int* error_code);
+
+// API availability check functions
+BOOL isNetApi32Available();
+BOOL isAdvApi32Available();
+
+// Cleanup function
+void cleanupWinUtilLibraries();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // USERS_H_INCLUDED 
+#endif // WINUTIL_USERS_H 

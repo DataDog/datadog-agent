@@ -44,6 +44,16 @@ func createGroupsDiagnosis(actualGroups []string, hasDesired bool, err error) di
 	}
 
 	if err != nil {
+		if isDllNotAvailable(err) {
+			return diagnose.Diagnosis{
+				Status:      diagnose.DiagnosisWarning,
+				Name:        name,
+				Diagnosis:   fmt.Sprintf("Cannot verify agent user account group membership due to missing Windows APIs.\n  Expected: %v\n  Detected: unable to check due to missing APIs (such as Windows Nano Server)", requiredGroups),
+				Category:    category,
+				RawError:    err.Error(),
+				Remediation: "This is expected on systems such as Windows Nano Server. Group membership verification is not available on this platform.",
+			}
+		}
 		// access denied should not happen to user groups check, so we skip the specific error check
 
 		if isAgentNotInstalled(err) {
@@ -98,6 +108,16 @@ func createRightsDiagnosis(actualRights []string, hasDesired bool, err error) di
 	}
 
 	if err != nil {
+		if isDllNotAvailable(err) {
+			return diagnose.Diagnosis{
+				Status:      diagnose.DiagnosisWarning,
+				Name:        name,
+				Diagnosis:   fmt.Sprintf("Cannot verify agent user account rights due to missing Windows APIs.\n  Expected: %v\n  Detected: unable to check due to missing APIs (such as Windows Nano Server)", requiredRights),
+				Category:    category,
+				RawError:    err.Error(),
+				Remediation: "This is expected on systems such as Windows Nano Server. Account rights verification is not available on this platform.",
+			}
+		}
 		if isAccessDenied(err) {
 			return diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisWarning,
@@ -152,6 +172,13 @@ func isAccessDenied(err error) bool {
 	errMsg := err.Error()
 	return strings.Contains(errMsg, "access denied") ||
 		strings.Contains(errMsg, "administrator privileges may be required")
+}
+
+// isDllNotAvailable checks if the error is due to missing Windows DLLs (e.g., Windows Nano Server)
+func isDllNotAvailable(err error) bool {
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "Required Windows APIs not available") ||
+		strings.Contains(errMsg, "likely running on systems such as Windows Nano Server")
 }
 
 // isAgentNotInstalled checks if the error is due to missing agent installation
