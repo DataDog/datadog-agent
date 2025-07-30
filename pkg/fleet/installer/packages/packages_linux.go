@@ -13,6 +13,7 @@ var (
 		"datadog-agent":      datadogAgentPackage,
 		"datadog-installer":  datadogInstallerPackage,
 		"datadog-apm-inject": apmInjectPackage,
+		"datadog-agent-ddot": datadogAgentDDOTPackage,
 	}
 
 	// AsyncPreRemoveHooks is called before a package is removed from the disk.
