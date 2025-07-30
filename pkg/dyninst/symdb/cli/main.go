@@ -125,11 +125,7 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 	}
 
 	if !*silent {
-		s.Serialize(symdbutil.MakePanickingWriter(os.Stdout), symdb.SerializationOptions{
-			PackageSerializationOptions: symdb.PackageSerializationOptions{
-				StripLocalFilePrefix: false,
-			},
-		})
+		s.Serialize(symdbutil.MakePanickingWriter(os.Stdout))
 	} else {
 		log.Infof("--silent specified; symbols not serialized.")
 	}
