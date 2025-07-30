@@ -14,6 +14,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -182,7 +183,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 		return nil, fmt.Errorf("cannot retrieve data for container %s: %s", containerID, err)
 	}
 
-	filteredDevices, err := matchContainerDevices(container, devices)
+	filteredDevices, err := containers.MatchContainerDevices(container, devices)
 
 	// Found matching devices, return them
 	if len(filteredDevices) > 0 {
