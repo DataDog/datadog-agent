@@ -47,7 +47,7 @@ func testMapIntToInt(m map[int]int) {}
 
 //nolint:all
 //go:noinline
-func testMapMassive(m map[string][]structWithMap) {}
+func testMapMassive(redactMyEntries map[string][]structWithMap) {}
 
 //nolint:all
 //go:noinline

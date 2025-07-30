@@ -88,6 +88,10 @@ var defaultRedactors = []jsonRedactor{
 		replacement(`"[addr]"`),
 	),
 	redactor(
+		prefixSuffixMatcher{"/debugger/snapshot/captures/entry/arguments/redactMyEntries", "/entries"},
+		replacement(`"[redacted-entries]"`),
+	),
+	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/entries"},
 		entriesSorter{},
 	),

@@ -478,7 +478,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	used := int64(binary.NativeEndian.Uint64(data[s.usedOffset : s.usedOffset+uint32(s.usedSize)]))
 	if err := writeTokens(enc,
 		jsontext.String("size"),
-		jsontext.Int(used),
+		jsontext.String(strconv.FormatInt(used, 10)),
 	); err != nil {
 		return err
 	}
@@ -545,12 +545,11 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 			return err
 		}
 		if used > int64(totalElementsEncoded) {
-			if err := writeTokens(enc,
+			return writeTokens(enc,
+				jsontext.EndArray,
 				notCapturedReason,
 				notCapturedReasonPruned,
-			); err != nil {
-				return err
-			}
+			)
 		}
 	}
 	return writeTokens(enc, jsontext.EndArray)
@@ -693,7 +692,7 @@ func (a *arrayType) encodeValueFields(
 	numElements := int(a.Count)
 	if err = writeTokens(enc,
 		jsontext.String("size"),
-		jsontext.String(strconv.Itoa(numElements)),
+		jsontext.String(strconv.FormatInt(int64(numElements), 10)),
 		jsontext.String("elements"),
 		jsontext.BeginArray); err != nil {
 		return err
@@ -762,7 +761,8 @@ func (s *goSliceHeaderType) encodeValueFields(
 	}
 	if err := writeTokens(enc,
 		jsontext.String("size"),
-		jsontext.Uint(length)); err != nil {
+		jsontext.String(strconv.FormatInt(int64(length), 10)),
+	); err != nil {
 		return err
 	}
 
@@ -864,7 +864,7 @@ func (s *goStringHeaderType) encodeValueFields(
 		// We captured partial data for the string, report truncation
 		if err := writeTokens(enc,
 			jsontext.String("size"),
-			jsontext.Uint(realLength),
+			jsontext.String(strconv.FormatInt(int64(realLength), 10)),
 			truncated,
 			jsontext.Bool(true),
 		); err != nil {
