@@ -226,17 +226,19 @@ deploy_windows_testing-a7-fips:
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-export_testing_public_key:
-  rules:
-    - !reference [.manual]
-  needs: []
-  stage: e2e_deploy
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
-  script:
-    - *setup_signing
-    - /usr/bin/gpg-vault export-public-key $GPG_TEST_KEY_ID > gpg-testing-public-key.asc
-  artifacts:
-    paths:
-      - gpg-testing-public-key.asc
-    expire_in: 1 day
+# Uncomment this to add a job to export the testing public GPG key
+# Needed after rotating the testing GPG key
+# export_testing_public_key:
+#   rules:
+#     - !reference [.manual]
+#   needs: []
+#   stage: e2e_deploy
+#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+#   tags: ["arch:amd64"]
+#   script:
+#     - *setup_signing
+#     - /usr/bin/gpg-vault export-public-key $GPG_TEST_KEY_ID > gpg-testing-public-key.asc
+#   artifacts:
+#     paths:
+#       - gpg-testing-public-key.asc
+#     expire_in: 1 day
