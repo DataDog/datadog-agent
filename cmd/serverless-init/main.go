@@ -108,9 +108,10 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	err := modeConf.Runner(logConfig)
 
 	metric.Add(cloudService.GetShutdownMetricName(), 1.0, cloudService.GetSource(), *metricAgent)
-	cloudService.Shutdown(*metricAgent)
 
+	// Defers are LIFO
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
+	defer cloudService.Shutdown(*metricAgent)
 
 	return err
 }
