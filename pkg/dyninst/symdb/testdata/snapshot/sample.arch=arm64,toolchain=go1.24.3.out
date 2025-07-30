@@ -457,12 +457,12 @@ Package: main
 		Var: sta: main.structWithTwoArrays (declared at line 170, available: [103-182])
 		Var: .autotmp_13: [0]uint8 (declared at line 125, available: [103-182])
 		Var: .autotmp_33: main.emptyStruct (declared at line 158, available: [103-182])
+	Function: executeStack (main.executeStack) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [30:30]
 	Function: testInlinedBBB (main.testInlinedBBB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [48:48]
 	Function: testInlinedBCA (main.testInlinedBCA) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [62:62]
-	Function: executeStack (main.executeStack) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [30:30]
+	Function: testInlinedBCB (main.testInlinedBCB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [66:66]
 	Function: testInlinedPrint (main.testInlinedPrint) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [13:15]
 		Arg: x: int (declared at line 0, available: [13-14])
-	Function: testInlinedBCB (main.testInlinedBCB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [66:66]
 	Type: main.firstBehavior
 		Field: s: string
 		Function: DoSomething (main.firstBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [26:27]

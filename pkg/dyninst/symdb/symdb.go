@@ -728,15 +728,25 @@ func (b *SymDBBuilder) ExtractSymbols(opt ExtractScope) (Symbols, error) {
 			res.Packages = append(res.Packages, *pkg)
 		}
 	}
+	sort.Slice(res.Packages, func(i, j int) bool {
+		return res.Packages[i].Name < res.Packages[j].Name
+	})
 	return res, nil
 }
 
 func (b *SymDBBuilder) reconcileAbstractFunctions() error {
+	abstractFunctions := make([]abstractFunction, 0, len(b.abstractFunctions))
 	for _, af := range b.abstractFunctions {
 		if af.name == "" {
 			// Abstract definition has not be collected, which is legitimate due to filtering.
 			continue
 		}
+		abstractFunctions = append(abstractFunctions, af)
+	}
+	sort.Slice(abstractFunctions, func(i, j int) bool {
+		return abstractFunctions[i].name < abstractFunctions[j].name
+	})
+	for _, af := range abstractFunctions {
 		var file string
 		var startLine uint32
 		var endLine uint32
@@ -783,6 +793,9 @@ func (b *SymDBBuilder) reconcileAbstractFunctions() error {
 			v.Variable.AvailableLineRanges = coalesceLineRanges(v.AvailableLineRanges)
 			variables = append(variables, v.Variable)
 		}
+		sort.Slice(variables, func(i, j int) bool {
+			return variables[i].Name < variables[j].Name
+		})
 		f := Function{
 			Name:          af.name,
 			QualifiedName: af.qualifiedName,
