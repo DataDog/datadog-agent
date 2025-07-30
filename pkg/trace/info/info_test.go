@@ -138,7 +138,8 @@ func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
 	conf.EVPProxy.APIKey = "evp_api_key"
 	conf.EVPProxy.ApplicationKey = "evp_app_key"
 	conf.EVPProxy.AdditionalEndpoints = clearAddEp
-	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
+	conf.ProfilingProxy.Endpoints[0].APIKey = "key1"
+	conf.ProfilingProxy.Endpoints = append(conf.ProfilingProxy.Endpoints, &config.Endpoint{Host: clearAddEp["ep"][0], APIKey: clearAddEp["ep"][1]})
 	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
 
 	// creating in-memory auth artifacts
@@ -450,7 +451,7 @@ func TestInfoConfig(t *testing.T) {
 
 	// Any key-like data should scrubbed
 	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
-	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
+	conf.ProfilingProxy.Endpoints = []*config.Endpoint{conf.Endpoints[0], {Host: scrubbedAddEp["ep"][0], APIKey: ""}}
 
 	conf.ContainerTags = nil
 	conf.ContainerIDFromOriginInfo = nil
@@ -605,5 +606,5 @@ func TestScrubCreds(t *testing.T) {
 	assert.NoError(err)
 
 	assert.EqualValues(got.EVPProxy.AdditionalEndpoints, scrubbedAddEp)
-	assert.EqualValues(got.ProfilingProxy.AdditionalEndpoints, scrubbedAddEp)
+	assert.EqualValues(got.ProfilingProxy.Endpoints, []*config.Endpoint{got.Endpoints[0], {Host: scrubbedAddEp["ep"][0], APIKey: ""}})
 }

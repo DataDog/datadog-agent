@@ -266,7 +266,8 @@ func TestMRFUpdateCallback(t *testing.T) {
 
 	// Test enabling MRF
 	mrfConfig := map[string]interface{}{
-		"failover_apm": true,
+		"failover_apm":       true,
+		"failover_profiling": true,
 	}
 	raw, _ := json.Marshal(mrfConfig)
 	config := state.RawConfig{
@@ -274,10 +275,12 @@ func TestMRFUpdateCallback(t *testing.T) {
 	}
 	h.mrfUpdateCallback(map[string]state.RawConfig{"datadog/2/AGENT_FAILOVER/config": config}, applyEmpty)
 	assert.True(t, h.agentConfig.MRFFailoverAPM())
+	assert.True(t, h.agentConfig.MRFFailoverProfiling())
 
 	// Test disabling MRF
 	mrfConfig = map[string]interface{}{
-		"failover_apm": false,
+		"failover_apm":       false,
+		"failover_profiling": false,
 	}
 	raw, _ = json.Marshal(mrfConfig)
 	config = state.RawConfig{
@@ -285,6 +288,7 @@ func TestMRFUpdateCallback(t *testing.T) {
 	}
 	h.mrfUpdateCallback(map[string]state.RawConfig{"datadog/2/AGENT_FAILOVER/config": config}, applyEmpty)
 	assert.False(t, h.agentConfig.MRFFailoverAPM())
+	assert.False(t, h.agentConfig.MRFFailoverProfiling())
 
 	// Test empty updates
 	h.mrfUpdateCallback(map[string]state.RawConfig{}, applyEmpty)
@@ -318,10 +322,12 @@ func TestMRFUpdateCallbackWithMultipleConfigs(t *testing.T) {
 	enableAPM1 := true
 	enableAPM2 := false
 	mrfConfig1 := map[string]interface{}{
-		"failover_apm": &enableAPM1,
+		"failover_apm":       &enableAPM1,
+		"failover_profiling": &enableAPM1,
 	}
 	mrfConfig2 := map[string]interface{}{
-		"failover_apm": &enableAPM2,
+		"failover_apm":       &enableAPM2,
+		"failover_profiling": &enableAPM2,
 	}
 	raw1, _ := json.Marshal(mrfConfig1)
 	raw2, _ := json.Marshal(mrfConfig2)
@@ -333,4 +339,5 @@ func TestMRFUpdateCallbackWithMultipleConfigs(t *testing.T) {
 		"datadog/2/AGENT_FAILOVER/config2": config2,
 	}, applyEmpty)
 	assert.True(t, h.agentConfig.MRFFailoverAPM())
+	assert.True(t, h.agentConfig.MRFFailoverProfiling())
 }

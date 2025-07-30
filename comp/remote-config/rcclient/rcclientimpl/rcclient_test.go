@@ -73,9 +73,10 @@ type MockComponent interface {
 type MockComponentImplMrf struct {
 	settings.Component
 
-	logs    *bool
-	metrics *bool
-	apm     *bool
+	logs      *bool
+	metrics   *bool
+	apm       *bool
+	profiling *bool
 }
 
 func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface{}, _ model.Source) error {
@@ -91,6 +92,8 @@ func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface
 		m.logs = &v
 	case "multi_region_failover.failover_apm":
 		m.apm = &v
+	case "multi_region_failover.failover_profiling":
+		m.profiling = &v
 	default:
 		return &settings.SettingNotFoundError{Name: setting}
 	}
@@ -271,6 +274,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	noLogs := state.RawConfig{Config: []byte(`{"name": "nologs", "failover_logs": false}`)}
 	activeMetrics := state.RawConfig{Config: []byte(`{"name": "yesmetrics", "failover_metrics": true}`)}
 	activeAPM := state.RawConfig{Config: []byte(`{"name": "yesapm", "failover_apm": true}`)}
+	activeProfiling := state.RawConfig{Config: []byte(`{"name": "yesprofiling", "failover_profiling": true}`)}
 
 	structRC := rc.(rcClient)
 
@@ -290,14 +294,16 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 
 	// Should enable metrics failover and disable logs failover
 	structRC.mrfUpdateCallback(map[string]state.RawConfig{
-		"datadog/2/AGENT_FAILOVER/none/configname":       allInactive,
-		"datadog/2/AGENT_FAILOVER/nologs/configname":     noLogs,
-		"datadog/2/AGENT_FAILOVER/yesmetrics/configname": activeMetrics,
-		"datadog/2/AGENT_FAILOVER/yesapm/configname":     activeAPM,
+		"datadog/2/AGENT_FAILOVER/none/configname":         allInactive,
+		"datadog/2/AGENT_FAILOVER/nologs/configname":       noLogs,
+		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":   activeMetrics,
+		"datadog/2/AGENT_FAILOVER/yesapm/configname":       activeAPM,
+		"datadog/2/AGENT_FAILOVER/yesprofiling/configname": activeProfiling,
 	}, applyEmpty)
 
 	cmpntSettings := structRC.settingsComponent.(*MockComponentImplMrf)
 	assert.True(t, *cmpntSettings.metrics)
 	assert.False(t, *cmpntSettings.logs)
 	assert.True(t, *cmpntSettings.apm)
+	assert.True(t, *cmpntSettings.profiling)
 }

@@ -11,11 +11,12 @@ import (
 )
 
 // multiRegionFailoverConfig is a deserialized Multi-Region Failover configuration file
-// Note: This type only deserializes failover_apm, but failover_metrics and failover_logs
-// mat also be present on the payload. See the core agent's implementation for reference:
+// Note: This type only deserializes failover_apm and failover_profiling, but failover_metrics and failover_logs
+// may also be present on the payload. See the core agent's implementation for reference:
 // comp/remote-config/rcclient/rcclientimpl/agent_failover.go
 type multiRegionFailoverConfig struct {
-	FailoverAPM *bool `json:"failover_apm"`
+	FailoverAPM       *bool `json:"failover_apm"`
+	FailoverProfiling *bool `json:"failover_profiling"`
 }
 
 // parseMultiRegionFailoverConfig parses an AGENT_FAILOVER Multi-Region Failover configuration file

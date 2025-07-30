@@ -325,7 +325,7 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 // so we remove it.
 // Real legit empty lines contain no space.
 func CleanInfoExtraLines(info string) string {
-	var indentedEmptyLines = regexp.MustCompile("\n( +\n)+")
+	indentedEmptyLines := regexp.MustCompile("\n( +\n)+")
 	return indentedEmptyLines.ReplaceAllString(info, "\n")
 }
 
@@ -364,6 +364,10 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	c.Endpoints = make([]*config.Endpoint, len(conf.Endpoints))
 	for i, e := range conf.Endpoints {
 		c.Endpoints[i] = &config.Endpoint{Host: e.Host, NoProxy: e.NoProxy}
+	}
+	c.ProfilingProxy.Endpoints = make([]*config.Endpoint, len(conf.ProfilingProxy.Endpoints))
+	for i, e := range conf.ProfilingProxy.Endpoints {
+		c.ProfilingProxy.Endpoints[i] = &config.Endpoint{Host: e.Host, NoProxy: e.NoProxy}
 	}
 
 	// Remove the TLS configs and AuthToken to avoid exposing sensitive data

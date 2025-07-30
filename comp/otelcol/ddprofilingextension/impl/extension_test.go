@@ -99,9 +99,9 @@ func TestAgentExtension(t *testing.T) {
 	// create agent
 	tcfg := config.New()
 	tcfg.ReceiverEnabled = false
-	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.DecoderTimeout = 10000
-	tcfg.ProfilingProxy = config.ProfilingProxyConfig{DDURL: server.URL}
+	tcfg.ProfilingProxy.Endpoints[0].Host = server.URL
+	tcfg.ProfilingProxy.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	ctx := context.Background()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 

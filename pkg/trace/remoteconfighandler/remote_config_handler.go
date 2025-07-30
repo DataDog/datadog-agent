@@ -100,12 +100,12 @@ func (h *RemoteConfigHandler) Start() {
 }
 
 // mrfUpdateCallback is the callback function for the AGENT_FAILOVER configs.
-// It fetches all the configs targeting the agent and applies the failover_apm settings.
-// Note: we only care about APM (failover_apm) configuration, but Logs (failover_logs) and Metrics (failover_metrics)
+// It fetches all the configs targeting the agent and applies the failover_apm and failover_profiling settings.
+// Note: we only care about APM (failover_apm/failover_profiling) configuration, but Logs (failover_logs) and Metrics (failover_metrics)
 // may also be present on the MRF configuration. These are handled on the core agent RC.
 func (h *RemoteConfigHandler) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	var failoverAPM *bool
-	var failoverAPMCfgPth string
+	var failoverAPM, failoverProfiling *bool
+	var failoverAPMCfgPth, failoverProfilingCfgPth string
 	for cfgPath, update := range updates {
 		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
 		if err != nil {
@@ -117,24 +117,30 @@ func (h *RemoteConfigHandler) mrfUpdateCallback(updates map[string]state.RawConf
 			continue
 		}
 
-		if mrfUpdate == nil || mrfUpdate.FailoverAPM == nil {
+		if mrfUpdate == nil || (mrfUpdate.FailoverAPM == nil && mrfUpdate.FailoverProfiling == nil) {
 			continue
 		}
 
-		if failoverAPM == nil || *mrfUpdate.FailoverAPM {
+		if failoverAPM == nil && *mrfUpdate.FailoverAPM {
 			failoverAPM = mrfUpdate.FailoverAPM
 			failoverAPMCfgPth = cfgPath
+		}
 
-			if *mrfUpdate.FailoverAPM {
-				break
-			}
+		if failoverProfiling == nil && *mrfUpdate.FailoverProfiling {
+			failoverProfiling = mrfUpdate.FailoverProfiling
+			failoverProfilingCfgPth = cfgPath
 		}
 	}
 
 	h.agentConfig.MRFFailoverAPMRC = failoverAPM
+	h.agentConfig.MRFFailoverProfilingRC = failoverProfiling
 	if failoverAPM != nil {
 		pkglog.Infof("Setting `multi_region_failover.failover_apm: %t` through remote config", *failoverAPM)
 		applyStateCallback(failoverAPMCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	}
+	if failoverAPM != nil {
+		pkglog.Infof("Setting `multi_region_failover.failover_profiling: %t` through remote config", *failoverProfiling)
+		applyStateCallback(failoverProfilingCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 }
 
