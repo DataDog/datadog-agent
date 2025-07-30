@@ -100,7 +100,7 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "size": 2,
+                    "size": "2",
                     "entries": [
                       [
                         {
@@ -109,7 +109,7 @@
                         },
                         {
                           "type": "[]string",
-                          "size": 1,
+                          "size": "1",
                           "elements": [
                             {
                               "type": "string",
@@ -125,7 +125,7 @@
                         },
                         {
                           "type": "[]string",
-                          "size": 1,
+                          "size": "1",
                           "elements": [
                             {
                               "type": "string",
@@ -222,7 +222,7 @@
                       },
                       "segments": {
                         "type": "[]net/http.segment",
-                        "size": 1,
+                        "size": "1",
                         "elements": [
                           {
                             "type": "net/http.segment",
@@ -403,7 +403,7 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "size": 2,
+                    "size": "2",
                     "entries": [
                       [
                         {
@@ -412,7 +412,7 @@
                         },
                         {
                           "type": "[]string",
-                          "size": 1,
+                          "size": "1",
                           "elements": [
                             {
                               "type": "string",
@@ -428,7 +428,7 @@
                         },
                         {
                           "type": "[]string",
-                          "size": 1,
+                          "size": "1",
                           "elements": [
                             {
                               "type": "string",
@@ -525,7 +525,7 @@
                       },
                       "segments": {
                         "type": "[]net/http.segment",
-                        "size": 1,
+                        "size": "1",
                         "elements": [
                           {
                             "type": "net/http.segment",
@@ -706,7 +706,7 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "size": 2,
+                    "size": "2",
                     "entries": [
                       [
                         {
@@ -715,7 +715,7 @@
                         },
                         {
                           "type": "[]string",
-                          "size": 1,
+                          "size": "1",
                           "elements": [
                             {
                               "type": "string",
@@ -731,7 +731,7 @@
                         },
                         {
                           "type": "[]string",
-                          "size": 1,
+                          "size": "1",
                           "elements": [
                             {
                               "type": "string",
@@ -828,7 +828,7 @@
                       },
                       "segments": {
                         "type": "[]net/http.segment",
-                        "size": 1,
+                        "size": "1",
                         "elements": [
                           {
                             "type": "net/http.segment",

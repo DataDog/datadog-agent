@@ -31,7 +31,7 @@ func testMapStringToSlice(m map[string][]string) {}
 
 //nolint:all
 //go:noinline
-func testMapArrayToArray(redactMyEntries map[[4]string][2]int) {}
+func testMapArrayToArray(m map[[4]string][2]int) {}
 
 //nolint:all
 //go:noinline
@@ -55,18 +55,18 @@ func testMapMassive(redactMyEntries map[string][]structWithMap) {}
 
 //nolint:all
 //go:noinline
-func testMapEmbeddedMaps(redactMyEntries map[string][]structWithMap) {}
+func testMapEmbeddedMaps(m map[string][]structWithMap) {}
 
 //nolint:all
 //go:noinline
-func testMapWithLinkedList(redactMyEntries map[bool]node) {}
+func testMapWithLinkedList(m map[bool]node) {}
 
 // generateEmbeddedMaps creates a map for testMapEmbeddedMaps programmatically
 func generateEmbeddedMaps(entriesCount int) map[string][]structWithMap {
 	result := make(map[string][]structWithMap)
 	for i := range entriesCount {
 		key := fmt.Sprintf("key%d", i)
-		slice := make([]structWithMap, 10)
+		slice := make([]structWithMap, 5)
 		for j := range 5 {
 			slice[j] = structWithMap{map[int]int{j + 1: j + 1}}
 		}

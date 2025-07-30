@@ -58,12 +58,15 @@ type goHMapBucketType ir.GoHMapBucketType
 type goSwissMapHeaderType struct {
 	*ir.GoSwissMapHeaderType
 	// User-defined key and value type information
-	keyTypeID     ir.TypeID
-	keyTypeName   string
-	keyTypeSize   uint32
-	valueTypeID   ir.TypeID
-	valueTypeName string
-	valueTypeSize uint32
+	keyTypeID        ir.TypeID
+	keyTypeName      string
+	keyTypeSize      uint32
+	valueTypeID      ir.TypeID
+	valueTypeName    string
+	valueTypeSize    uint32
+	keyFieldOffset   uint32
+	valueFieldOffset uint32
+
 	// Internal Go swiss map representation fields
 	dirPtrOffset     uint32
 	dirPtrSize       uint32
@@ -190,6 +193,10 @@ func newDecoderType(
 		}
 		dataFieldOffset := dataField.Offset
 		dataFieldSize := dataField.Type.GetByteSize()
+
+		keyFieldOffset := keyField.Offset
+		valueFieldOffset := elem.Offset
+
 		return &goSwissMapHeaderType{
 			GoSwissMapHeaderType: s,
 			// Fields related to user defined key and value types
@@ -199,6 +206,9 @@ func newDecoderType(
 			valueTypeSize: elem.Type.GetByteSize(),
 			keyTypeName:   keyField.Type.GetName(),
 			valueTypeName: elem.Type.GetName(),
+
+			keyFieldOffset:   keyFieldOffset,
+			valueFieldOffset: valueFieldOffset,
 
 			// Fields in go swiss map internal representation
 			// Seehttps://github.com/golang/go/blob/cd3655a8243b5f52b6a274a0aba5e01d998906c0/src/internal/runtime/maps/map.go#L195
