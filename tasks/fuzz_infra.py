@@ -51,7 +51,7 @@ def get_slack_channel_for_directory(directory_path: str) -> str:
 
     except Exception as e:
         print(
-            f"{color_message('Warning', Color.YELLOW)}: Could not determine slack channel for {directory_path}: {e}",
+            f"{color_message('Warning', Color.ORANGE)}: Could not determine slack channel for {directory_path}: {e}",
             file=sys.stderr,
         )
         return DEFAULT_FUZZING_SLACK_CHANNEL
