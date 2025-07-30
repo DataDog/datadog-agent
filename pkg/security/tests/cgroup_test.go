@@ -314,13 +314,7 @@ func TestCGroupSnapshot(t *testing.T) {
 	var cmd *exec.Cmd
 	test.WaitSignal(t, func() error {
 		cmd = exec.Command(syscallTester, "open", testFile)
-		pipe, err := cmd.StdinPipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer pipe.Close()
-
-		if err := cmd.Start(); err != nil {
+		if err := cmd.Run(); err != nil {
 			t.Fatal(err)
 		}
 
@@ -378,10 +372,6 @@ func TestCGroupSnapshot(t *testing.T) {
 			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupFile.Inode)
 		}
 	})
-
-	if cmd != nil {
-		cmd.Process.Kill()
-	}
 }
 
 func TestCGroupVariables(t *testing.T) {

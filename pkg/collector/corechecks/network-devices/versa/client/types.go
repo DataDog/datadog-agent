@@ -440,3 +440,40 @@ type LinkStatusMetrics struct {
 	AccessCircuit string
 	Availability  float64
 }
+
+// ApplicationsByApplianceMetrics represents the columns to parse from the ApplicationsByApplianceMetricsResponse
+type ApplicationsByApplianceMetrics struct {
+	DrillKey    string
+	Site        string
+	AppID       string
+	Sessions    float64
+	VolumeTx    float64
+	VolumeRx    float64
+	BandwidthTx float64
+	BandwidthRx float64
+	Bandwidth   float64
+}
+
+// TopUserMetrics represents the columns to parse from the TopUserMetricsResponse
+type TopUserMetrics struct {
+	DrillKey    string
+	Site        string
+	User        string
+	Sessions    float64
+	VolumeTx    float64
+	VolumeRx    float64
+	BandwidthTx float64
+	BandwidthRx float64
+	Bandwidth   float64
+}
+
+// TunnelMetrics represents the columns to parse from the TunnelMetricsResponse
+type TunnelMetrics struct {
+	DrillKey    string
+	Appliance   string
+	LocalIP     string
+	RemoteIP    string
+	VpnProfName string
+	VolumeRx    float64
+	VolumeTx    float64
+}

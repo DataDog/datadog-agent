@@ -6,6 +6,7 @@
 package server
 
 import (
+	"math"
 	"strconv"
 	"testing"
 
@@ -109,4 +110,127 @@ func TestUnsafeParseInt(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, integer, unsafeInteger)
+}
+
+// FuzzParseFloat64 tests the parseFloat64 function with arbitrary input.
+// The function should behave identically to strconv.ParseFloat and never panic.
+func FuzzParseFloat64(f *testing.F) {
+	// Add seed corpus based on existing tests
+	f.Add([]byte("1.1234"))
+	f.Add([]byte("0"))
+	f.Add([]byte("-1.1234"))
+	f.Add([]byte("1e10"))
+	f.Add([]byte("1.7976931348623157e+308"))  // Max float64
+	f.Add([]byte("-1.7976931348623157e+308")) // Min float64
+	f.Add([]byte("2.2250738585072014e-308"))  // Smallest positive normal
+	f.Add([]byte("NaN"))
+	f.Add([]byte("Inf"))
+	f.Add([]byte("-Inf"))
+	f.Add([]byte(""))
+	f.Add([]byte(" "))
+	f.Add([]byte("invalid"))
+	f.Add([]byte("1.234.567"))
+	f.Add([]byte("1,234"))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Test that parseFloat64 behaves identically to strconv.ParseFloat
+		unsafeResult, unsafeErr := parseFloat64(data)
+
+		// Create a string from the data to use with strconv
+		str := string(data)
+		stdResult, stdErr := strconv.ParseFloat(str, 64)
+
+		// Both should either succeed or fail together
+		if (unsafeErr == nil) != (stdErr == nil) {
+			t.Errorf("parseFloat64(%q): error mismatch. unsafe error: %v, std error: %v", data, unsafeErr, stdErr)
+		}
+
+		// If both succeeded, results should match
+		if unsafeErr == nil && stdErr == nil {
+			if unsafeResult != stdResult {
+				// Special case for NaN - both should be NaN
+				if !(math.IsNaN(unsafeResult) && math.IsNaN(stdResult)) {
+					t.Errorf("parseFloat64(%q): result mismatch. unsafe: %v, std: %v", data, unsafeResult, stdResult)
+				}
+			}
+		}
+	})
+}
+
+// FuzzParseInt64 tests the parseInt64 function with arbitrary input.
+// The function should behave identically to strconv.ParseInt and never panic.
+func FuzzParseInt64(f *testing.F) {
+	// Add seed corpus based on existing tests
+	f.Add([]byte("123"))
+	f.Add([]byte("0"))
+	f.Add([]byte("-123"))
+	f.Add([]byte("9223372036854775807"))  // Max int64
+	f.Add([]byte("-9223372036854775808")) // Min int64
+	f.Add([]byte(""))
+	f.Add([]byte(" "))
+	f.Add([]byte("invalid"))
+	f.Add([]byte("123.456"))
+	f.Add([]byte("0x123"))
+	f.Add([]byte("123abc"))
+	f.Add([]byte("abc123"))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Test that parseInt64 behaves identically to strconv.ParseInt
+		unsafeResult, unsafeErr := parseInt64(data)
+
+		// Create a string from the data to use with strconv
+		str := string(data)
+		stdResult, stdErr := strconv.ParseInt(str, 10, 64)
+
+		// Both should either succeed or fail together
+		if (unsafeErr == nil) != (stdErr == nil) {
+			t.Errorf("parseInt64(%q): error mismatch. unsafe error: %v, std error: %v", data, unsafeErr, stdErr)
+		}
+
+		// If both succeeded, results should match
+		if unsafeErr == nil && stdErr == nil {
+			if unsafeResult != stdResult {
+				t.Errorf("parseInt64(%q): result mismatch. unsafe: %v, std: %v", data, unsafeResult, stdResult)
+			}
+		}
+	})
+}
+
+// FuzzParseInt tests the parseInt function with arbitrary input.
+// The function should behave identically to strconv.Atoi and never panic.
+func FuzzParseInt(f *testing.F) {
+	// Add seed corpus based on existing tests
+	f.Add([]byte("123"))
+	f.Add([]byte("0"))
+	f.Add([]byte("-123"))
+	f.Add([]byte("2147483647"))  // Max int32 (common int size)
+	f.Add([]byte("-2147483648")) // Min int32
+	f.Add([]byte(""))
+	f.Add([]byte(" "))
+	f.Add([]byte("invalid"))
+	f.Add([]byte("123.456"))
+	f.Add([]byte("0x123"))
+	f.Add([]byte("123abc"))
+	f.Add([]byte("abc123"))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Test that parseInt behaves identically to strconv.Atoi
+		unsafeResult, unsafeErr := parseInt(data)
+
+		// Create a string from the data to use with strconv
+		str := string(data)
+		stdResult, stdErr := strconv.Atoi(str)
+
+		// Both should either succeed or fail together
+		if (unsafeErr == nil) != (stdErr == nil) {
+			t.Errorf("parseInt(%q): error mismatch. unsafe error: %v, std error: %v", data, unsafeErr, stdErr)
+		}
+
+		// If both succeeded, results should match
+		if unsafeErr == nil && stdErr == nil {
+			if unsafeResult != stdResult {
+				t.Errorf("parseInt(%q): result mismatch. unsafe: %v, std: %v", data, unsafeResult, stdResult)
+			}
+		}
+	})
 }
