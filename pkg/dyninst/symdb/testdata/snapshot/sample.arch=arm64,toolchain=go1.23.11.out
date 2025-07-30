@@ -109,6 +109,7 @@ Package: main
 		Arg: b: error (declared at line 93, available: )
 		Arg: c: uint (declared at line 93, available: )
 	Function: executeComplexFuncs (main.executeComplexFuncs) in /git/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [96:146]
+		Var: o: main.outer (declared at line 97, available: )
 		Var: s: []*string (declared at line 108, available: )
 		Var: str: string (declared at line 107, available: )
 		Var: circ: main.circularReferenceType (declared at line 129, available: )
@@ -136,6 +137,7 @@ Package: main
 		Arg: e: error (declared at line 60, available: )
 	Function: executeInterfaceFuncs (main.executeInterfaceFuncs) in /git/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [63:67]
 	Function: main (main.main) in /git/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [18:43]
+		Var: scanner: *bufio.Scanner (declared at line 22, available: )
 	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/!data!dog/dd-trace-go/v2@v2.0.1/ddtrace/tracer/option.go [975:978]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 975, available: [975-977])
 		Var: name: string (declared at line 976, available: [976-978])
@@ -281,7 +283,9 @@ Package: main
 	Function: testPointerToPointer (main.testPointerToPointer) in /git/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go [103:103]
 		Arg: u: **int (declared at line 103, available: )
 	Function: executePointerFuncs (main.executePointerFuncs) in /git/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go [106:171]
+		Var: upp: **int (declared at line 163, available: )
 		Var: self: *main.node (declared at line 166, available: [167-171])
+		Var: swp: main.structWithPointer (declared at line 108, available: )
 		Var: z: main.spws (declared at line 112, available: )
 		Var: r: string (declared at line 111, available: )
 		Var: ssaw: main.swsp (declared at line 120, available: )
@@ -390,6 +394,7 @@ Package: main
 	Function: testLotsOfFields (main.testLotsOfFields) in /git/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [100:100]
 		Arg: l: main.lotsOfFields (declared at line 100, available: )
 	Function: executeStructFuncs (main.executeStructFuncs) in /git/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [103:182]
+		Var: ptrRcvr: *main.receiver (declared at line 167, available: )
 		Var: n: main.nStruct (declared at line 107, available: )
 		Var: ns: main.structWithNoStrings (declared at line 116, available: )
 		Var: cs: main.cStruct (declared at line 117, available: )
