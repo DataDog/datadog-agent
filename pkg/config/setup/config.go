@@ -48,7 +48,7 @@ const (
 
 	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
 	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
-	DefaultFingerprintingMaxBytes = 256
+	DefaultFingerprintingMaxBytes = 102400
 
 	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
 	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.

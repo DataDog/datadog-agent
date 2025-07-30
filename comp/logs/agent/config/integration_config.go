@@ -401,7 +401,7 @@ func (c *LogsConfig) validateFingerprintConfig() error {
 		}
 
 		// If global config exists, populate fingerprint config with those values.
-		// If not, populate with fingerprint with default global values (256 bytes, 1 line, 0 to skip)
+		// If not, populate with fingerprint with default global values (100 kibibytes, 1 line, 0 to skip)
 		if globalConfig != nil {
 			c.FingerprintConfig = *globalConfig
 		}
