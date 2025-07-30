@@ -9,7 +9,6 @@ package listeners
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -30,7 +29,7 @@ type DBMRdsListener struct {
 	delService   chan<- Service
 	stop         chan bool
 	services     map[string]Service
-	config       map[string]interface{}
+	config       rds.Config
 	awsRdsClient aws.RdsClient
 	// ticks is used primarily for testing purposes so
 	// the frequency the discovers loop iterates can be controlled
@@ -51,31 +50,19 @@ type DBMRdsService struct {
 
 // NewDBMRdsListener returns a new DBMRdsListener
 func NewDBMRdsListener(ServiceListernerDeps) (ServiceListener, error) {
-	rdsConfig, err := rds.NewRdsAutodiscoveryConfig()
+	config, err := rds.NewRdsAutodiscoveryConfig()
 	if err != nil {
 		return nil, err
 	}
-	data, err := json.Marshal(rdsConfig)
-	if err != nil {
-		return nil, fmt.Errorf("marshal rdsConfig: %w", err)
-	}
-	var config map[string]interface{}
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("unmarshal to map: %w", err)
-	}
-	region, ok := config["region"].(string)
-	if !ok {
-		region = ""
-	}
-	client, region, err := aws.NewRdsClient(region)
+	client, region, err := aws.NewRdsClient(config.Region)
 	if err != nil {
 		return nil, err
 	}
-	config["region"] = region
+	config.Region = region
 	return newDBMRdsListener(config, client, nil), nil
 }
 
-func newDBMRdsListener(config map[string]interface{}, awsClient aws.RdsClient, ticks <-chan time.Time) ServiceListener {
+func newDBMRdsListener(config rds.Config, awsClient aws.RdsClient, ticks <-chan time.Time) ServiceListener {
 	l := &DBMRdsListener{
 		config:       config,
 		services:     make(map[string]Service),
@@ -83,12 +70,8 @@ func newDBMRdsListener(config map[string]interface{}, awsClient aws.RdsClient, t
 		awsRdsClient: awsClient,
 		ticks:        ticks,
 	}
-	discoveryInterval, ok := config["discovery_interval"].(int)
-	if !ok {
-		discoveryInterval = 0
-	}
 	if l.ticks == nil {
-		l.ticker = time.NewTicker(time.Duration(discoveryInterval) * time.Second)
+		l.ticker = time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 		l.ticks = l.ticker.C
 	}
 	return l
@@ -123,30 +106,18 @@ func (l *DBMRdsListener) run() {
 
 // discoverRdsInstances discovers rds instances according to the configuration
 func (l *DBMRdsListener) discoverRdsInstances() {
-	queryTimeout, ok := l.config["query_timeout"].(int)
-	if !ok {
-		queryTimeout = 0
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(queryTimeout)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(l.config.QueryTimeout)*time.Second)
 	defer cancel()
-	tags, ok := l.config["tags"].([]string)
-	if !ok {
-		tags = []string{}
-	}
-	dbmTag, ok := l.config["dbm_tag"].(string)
-	if !ok {
-		dbmTag = ""
-	}
-	instances, err := l.awsRdsClient.GetRdsInstancesFromTags(ctx, tags, dbmTag)
+	instances, err := l.awsRdsClient.GetRdsInstancesFromTags(ctx, l.config.Tags, l.config.DbmTag)
 	if err != nil {
 		_ = log.Error(err)
 		return
 	}
 	if len(instances) == 0 {
-		log.Debugf("no rds instances found with provided tags %v", tags)
+		log.Debugf("no rds instances found with provided tags %v", l.config.Tags)
 		return
 	}
-	log.Debugf("found %d rds instances with provided tags %v", len(instances), tags)
+	log.Debugf("found %d rds instances with provided tags %v", len(instances), l.config.Tags)
 	discoveredServices := make(map[string]struct{})
 	for _, instance := range instances {
 		log.Debugf("found rds instance %v", instance)
@@ -168,7 +139,7 @@ func (l *DBMRdsListener) createService(entityID string, instance aws.Instance) {
 		entityID:     entityID,
 		checkName:    engineToIntegrationType[instance.Engine],
 		instance:     &instance,
-		region:       l.config["region"].(string),
+		region:       l.config.Region,
 	}
 	l.services[entityID] = svc
 	l.newService <- svc
