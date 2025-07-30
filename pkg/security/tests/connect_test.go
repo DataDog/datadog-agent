@@ -89,6 +89,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fmt.Printf("Listener created on port 4243: %+v\n", listener)
 	defer listener.Close()
 
 	go listener.Accept()
@@ -100,6 +101,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	fmt.Printf("Socket created with fd: %d\n", fd)
 	defer unix.Close(fd)
 
 	iour, err := iouring.New(1)
@@ -109,6 +111,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 		}
 		t.Skip("io_uring not supported")
 	}
+	fmt.Printf("io_uring initialized: %+v\n", iour)
 	defer iour.Close()
 
 	sa := unix.SockaddrInet4{
@@ -120,13 +123,14 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	fmt.Printf("Prepared connect request: %+v\n", prepRequest)
 	ch := make(chan iouring.Result, 1)
 
 	test.WaitSignal(t, func() error {
 		if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 			return err
 		}
+		fmt.Printf("Submitted connect request to io_uring: %+v\n", prepRequest)
 		var result iouring.Result
 		select {
 		case result = <-ch:
