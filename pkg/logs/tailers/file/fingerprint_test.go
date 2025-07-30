@@ -880,11 +880,11 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Equal(0, config.ToSkip)
 	tailer := suite.createTailer()
 	tailer.fingerprintingEnabled = true
-	tailer.fingerprint = ComputeFingerprint(tailer.file.Path, config)
+	tailer.fingerprint.Store(ComputeFingerprint(tailer.file.Path, config))
 
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum([]byte("line 1"), table)
-	suite.Equal(expectedChecksum, tailer.fingerprint)
+	suite.Equal(expectedChecksum, tailer.fingerprint.Load())
 
 	// 2. Immediately check for rotation. It should be false as the file is unchanged.
 	suite.T().Log("Checking for rotation on unchanged file")
@@ -912,10 +912,10 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	// This tailer now considers the current content ("a completely new file") as its baseline.
 	tailer = suite.createTailer()
 	tailer.fingerprintingEnabled = true
-	tailer.fingerprint = ComputeFingerprint(tailer.file.Path, config)
+	tailer.fingerprint.Store(ComputeFingerprint(tailer.file.Path, config))
 
 	expectedChecksum = crc64.Checksum([]byte("a completely new file"), table)
-	suite.Equal(expectedChecksum, tailer.fingerprint)
+	suite.Equal(expectedChecksum, tailer.fingerprint.Load())
 
 	// Check for rotation immediately after re-arming. Since the file hasn't changed
 	// since the tailer was created, it should report no rotation. Its internal fingerprint
@@ -925,7 +925,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.False(rotated, "Should not detect rotation immediately after creating a new tailer on a file")
 
 	expectedChecksum = crc64.Checksum([]byte("a completely new file"), table)
-	suite.Equal(expectedChecksum, tailer.fingerprint)
+	suite.Equal(expectedChecksum, tailer.fingerprint.Load())
 
 	// Now, modify the file again. This change *should* be detected as a rotation.
 	suite.T().Log("Simulating another rotation on the new file")
@@ -952,8 +952,8 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(suite.testFile.Sync())
 	tailer = suite.createTailer()
 	tailer.fingerprintingEnabled = true
-	tailer.fingerprint = ComputeFingerprint(tailer.file.Path, config)
-	suite.Zero(tailer.fingerprint, "Fingerprint of an empty file should be 0")
+	tailer.fingerprint.Store(ComputeFingerprint(tailer.file.Path, config))
+	suite.Zero(tailer.fingerprint.Load(), "Fingerprint of an empty file should be 0")
 
 	// `DidRotateViaFingerprint` is designed to return `false` if the original
 	// fingerprint was 0, to avoid false positives.

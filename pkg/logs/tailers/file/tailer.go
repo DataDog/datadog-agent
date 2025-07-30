@@ -121,7 +121,7 @@ type Tailer struct {
 	bytesRead             *status.CountInfo
 	movingSum             *util.MovingSum
 	fingerprintConfig     *logsconfig.FingerprintConfig
-	fingerprint           uint64
+	fingerprint           *atomic.Uint64
 	fingerprintingEnabled bool
 	registry              auditor.Registry
 	CapacityMonitor       *metrics.CapacityMonitor
@@ -197,7 +197,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
 		fingerprintConfig:      fingerprintConfig,
-		fingerprint:            0,
+		fingerprint:            atomic.NewUint64(0),
 		fingerprintingEnabled:  fingerprintingEnabled,
 		CapacityMonitor:        opts.CapacityMonitor,
 		registry:               opts.Registry,
@@ -207,7 +207,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		addToTailerInfo("Last Rotation Date", getFormattedTime(), t.info)
 	}
 	if t.fingerprintingEnabled {
-		t.fingerprint = ComputeFingerprint(t.file.Path, t.fingerprintConfig)
+		t.fingerprint.Store(ComputeFingerprint(t.file.Path, t.fingerprintConfig))
 	}
 	return t
 }
@@ -333,13 +333,13 @@ func (t *Tailer) readForever() {
 			return
 		}
 
-		if n > 0 && t.fingerprintingEnabled && t.fingerprint == 0 {
+		if n > 0 && t.fingerprintingEnabled && t.fingerprint.Load() == 0 {
 			identifier := t.Identifier()
 			if len(identifier) > 5 {
 				filePath := identifier[5:]
-				t.fingerprint = ComputeFingerprint(filePath, t.fingerprintConfig)
+				t.fingerprint.Store(ComputeFingerprint(filePath, t.fingerprintConfig))
 			}
-			if t.fingerprint != 0 {
+			if t.fingerprint.Load() != 0 {
 				log.Infof("Successfully computed fingerprint for file %q on retry", t.file.Path)
 			}
 		}
@@ -397,7 +397,7 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.FilePath = t.file.Path
-		origin.Fingerprint = t.fingerprint
+		origin.Fingerprint = t.fingerprint.Load()
 
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
