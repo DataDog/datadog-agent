@@ -7,6 +7,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/network/stats.h"
 #include "constants/fentry_macro.h"
+#include "helpers/caps.h"
 
 int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
     // use the fist 56 bits of ktime to simulate a somewhat monotonic id
@@ -295,6 +296,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
+            flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
         } else if (is_current_kworker_dying()) {
             pop_syscall(EVENT_ANY);
             return 0;
@@ -375,6 +377,18 @@ int hook_exit_itimers(ctx_t *ctx) {
             bpf_probe_read_str(pc->entry.tty_name, TTY_NAME_LEN, (char *)tty + tty_name_offset);
         }
     }
+
+    return 0;
+}
+
+int __attribute__((always_inline)) fill_exec_context() {
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
+    if (!syscall) {
+        return 0;
+    }
+
+    // call it here before the memory get replaced
+    fill_span_context(&syscall->exec.span_context);
 
     return 0;
 }
@@ -661,6 +675,13 @@ int hook_setup_arg_pages(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
+    }
+
+    u64 tgid_tid = bpf_get_current_pid_tgid();
+    u32 tgid = tgid_tid >> 32;
+    struct pid_cache_t *pid_entry = get_pid_cache(tgid);
+    if (pid_entry) {
+        flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
     }
 
     if (syscall->exec.args_envs_ctx.envs_offset != 0) {

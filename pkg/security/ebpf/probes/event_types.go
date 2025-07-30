@@ -102,6 +102,26 @@ func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
 	}
 }
 
+// GetCapabilitiesMonitoringSelectors returns the list of probes that should be activated for capabilities monitoring
+func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
+	return []manager.ProbesSelector{
+		&manager.AllOf{
+			Selectors: []manager.ProbesSelector{
+				hookFunc("hook_security_capable"),
+				hookFunc("rethook_security_capable"),
+				hookFunc("hook_override_creds"),
+				hookFunc("hook_revert_creds"),
+				&manager.ProbeSelector{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						UID:          SecurityAgentUID,
+						EBPFFuncName: "capabilities_usage_ticker",
+					},
+				},
+			},
+		},
+	}
+}
+
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
 func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSelector {
 	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
