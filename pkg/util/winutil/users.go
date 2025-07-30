@@ -35,6 +35,9 @@ const (
 	// Network API error codes (keep these as they're specific to NetAPI)
 	NerrUserNotFound  = 2221
 	NerrInternalError = 2140
+
+	// Custom error codes for DLL availability (from users.c)
+	ErrorDllNotAvailable = 0x80070002 // ERROR_FILE_NOT_FOUND - DLL not available (e.g., Windows Nano)
 )
 
 // Use standard Windows constants from golang.org/x/sys/windows for common Win32 errors
@@ -325,6 +328,10 @@ func DoesAgentUserHaveDesiredRights() ([]string, bool, error) {
 // NTSTATUS: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781
 func handleUserError(operation, username string, errorCode int) error {
 	switch uint32(errorCode) {
+	case ErrorDllNotAvailable:
+		// Return an error that can be detected by diagnosis system as a warning (like access denied)
+		return fmt.Errorf("Required Windows APIs not available for %s operation (user '%s'): likely running on systems such as Windows Nano Server", operation, username)
+
 	case StatusAccessDenied:
 		return fmt.Errorf("access denied while trying to %s for user '%s': administrator privileges may be required", operation, username)
 
