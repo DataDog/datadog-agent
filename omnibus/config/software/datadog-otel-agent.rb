@@ -41,7 +41,11 @@ build do
     # include embedded path (mostly for `pkg-config` binary)
     env = with_standard_compiler_flags(with_embedded_path(env))
 
-    conf_dir = "/etc/datadog-agent"
+    if windows_target?
+      conf_dir = "#{install_dir}/etc/datadog-agent"
+    else
+      conf_dir = "/etc/datadog-agent"
+    end
     embedded_bin_dir = "#{install_dir}/embedded/bin"
 
     mkdir conf_dir
