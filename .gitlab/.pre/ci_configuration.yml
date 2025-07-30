@@ -21,10 +21,6 @@ test_gitlab_compare_to:
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - !reference [.setup_agent_github_app]
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - dda self dep sync -f legacy-tasks
     - dda inv -- pipeline.compare-to-itself
 
