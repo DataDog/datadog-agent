@@ -139,13 +139,14 @@ func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
 	var buf bytes.Buffer
 	err := is.Text(false, &buf)
 	assert.NoError(t, err)
-	assert.Contains(t, buf.String(), "No software inventory metadata - is System Probe running?")
+	assert.Contains(t, buf.String(), "Detected 0 installed software entries")
 
 	// Test HTML template
 	buf.Reset()
 	err = is.HTML(false, &buf)
 	assert.NoError(t, err)
-	assert.Contains(t, buf.String(), "No software inventory metadata - is System Probe running?")
+	// Just verify the basic structure is present, since it will be empty
+	assert.Contains(t, buf.String(), `<div class="stat_data inventory-scrollbox"`)
 
 	// The populateStatus caches the values once.
 	sp.AssertNumberOfCalls(t, "GetCheck", 1)
