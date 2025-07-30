@@ -244,7 +244,7 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   // Recurse if there is more to capture object of this type.
   sm->pointer_chasing_ttl = item.ttl;
   sm->di_0 = item.di;
-  sm->di_0.length = info->byte_len;
+  sm->di_0.length = item.di.length;
   if (!info->enqueue_pc) {
     return false;
   }
