@@ -105,9 +105,7 @@ end
 # ------------------------------------
 
 # Maintainer names are chosen to match those on agent.rb
-if windows_target?
-  maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
-elsif debian_target?
+if debian_target?
   maintainer 'Datadog Packages <package@datadoghq.com>'
   # Use sanitized version to ensure it matches the actual version used for datadog-agent
   safe_version = Omnibus::Packager::DEB::safe_version(build_version)
