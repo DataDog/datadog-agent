@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winsoftware
+package software
 
 import (
 	"errors"
@@ -51,34 +51,33 @@ var (
 	}
 )
 
-// MSICollector implements SoftwareCollector for Windows Installer
-type MSICollector struct{}
+// MSICollector implements Collector for Windows Installer
+type mSICollector struct{}
 
 // Collect enumerates all products in the Windows Installer database.
-// Note: Some entries may only exist in MSI and not in the registry. This can happen with:
-//   - A non-ARP MSI install, e.g. (ARPNOREMOVE=1, ARPNOREPAIR=1, ARPSYSTEMCOMPONENT=1).
-//     This suppresses Add/Remove Programs listing without uninstalling the software.
-//     The product is still fully installed and active.
+// Note: Some entries may exist in the MSI database but not in the registry in these cases:
 //   - A broken/unregistered Uninstall key. If an MSI install was interrupted or rolled back,
 //     the product might remain in "UserData\Products" but not under "Uninstall".
-//   - An intentional exclusion (e.g., via ARPSYSTEMCOMPONENT). Some enterprise MSIs never register under ARP because:
-//     They're intended for scripting or automation and / or they don't want to be visible to end users.
-//     These apps still have valid MSI registration but no Uninstall entry.
-func (mc *MSICollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
+//   - If the Uninstall registry key was manually deleted after installation.
+//   - Per-user installations when checking the wrong registry hive (HKLM vs HKCU).
+//
+// The ARPSYSTEMCOMPONENT=1 flag only hides the product from Add/Remove Programs,
+// but does not prevent the creation of registry entries.
+func (mc *mSICollector) Collect() ([]*Entry, []*Warning, error) {
 	// When making multiple calls to MsiEnumProducts to enumerate all the products, each call should be made from the same thread.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
 	var index uint32
 	var warnings []*Warning
-	var entries []*SoftwareEntry
+	var entries []*Entry
 	for {
 		var productCodeBuf [39]uint16
 		var context uint32
 		var sidBuf [256]uint16
 		sidLen := uint32(len(sidBuf))
 
-		ret := msiEnumProducts(index, &productCodeBuf[0], &context, &sidBuf[0], &sidLen)
+		ret := msiEnumProductsEx(index, &productCodeBuf[0], &context, &sidBuf[0], &sidLen)
 
 		if errors.Is(ret, windows.ERROR_NO_MORE_ITEMS) {
 			break
@@ -99,14 +98,14 @@ func (mc *MSICollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 		if context == MSIINSTALLCONTEXT_USERMANAGED || context == MSIINSTALLCONTEXT_USERUNMANAGED {
 			entry.UserSID = windows.UTF16ToString(sidBuf[:sidLen])
 		}
-		entry.Properties[msiProductCode] = msiProductCode
+		entry.ProductCode = msiProductCode
 		entries = append(entries, entry)
 		index++
 	}
 	return entries, warnings, nil
 }
 
-func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*SoftwareEntry, error) {
+func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*Entry, error) {
 	// Helper to fetch a property
 	getProp := func(propName string) (string, error) {
 		bufLen := uint32(windows.MAX_PATH)
@@ -162,11 +161,21 @@ func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*Softw
 		version = properties[msiVersionString]
 	}
 
-	return &SoftwareEntry{
+	// Format the timestamp to something the backend will understand
+	date, err := convertTimestamp(mappedProperties[installDate])
+	if err != nil {
+		date = mappedProperties[installDate]
+	}
+
+	return &Entry{
 		DisplayName: name,
 		Version:     version,
-		InstallDate: mappedProperties[installDate],
-		Source:      fmt.Sprintf("%s[%s]", softwareTypeDesktop, sourceMSI),
-		Properties:  mappedProperties,
+		InstallDate: date,
+		Publisher:   mappedProperties[publisher],
+		Source:      softwareTypeDesktop,
+		Status:      "installed",
+		// We don't currently have a way to detect that from the MSI database.
+		// Set it to true by default, the registry collector will take precedence anyway.
+		Is64Bit: true,
 	}, nil
 }
