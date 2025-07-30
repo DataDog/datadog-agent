@@ -549,6 +549,10 @@ func waitForLogMessages(
 	{
 		redactors := append(make([]jsonRedactor, 0, len(defaultRedactors)), defaultRedactors...)
 		redactors = append(redactors, redactor(
+			prefixMatcher("/debugger/snapshot/stack"),
+			replacement(`"[stack]"`),
+		))
+		redactors = append(redactors, redactor(
 			prefixSuffixMatcher{
 				"/debugger/snapshot/captures/",
 				"/RemoteAddr/value",

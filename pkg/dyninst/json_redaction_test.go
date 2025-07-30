@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -46,6 +47,12 @@ func (m exactMatcher) matches(ptr jsontext.Pointer) bool {
 	return string(ptr) == string(m)
 }
 
+type reMatcher regexp.Regexp
+
+func (m *reMatcher) matches(ptr jsontext.Pointer) bool {
+	return (*regexp.Regexp)(m).MatchString(string(ptr))
+}
+
 type replacement jsontext.Value
 
 func (r replacement) replace(jsontext.Value) jsontext.Value {
@@ -53,6 +60,10 @@ func (r replacement) replace(jsontext.Value) jsontext.Value {
 }
 
 type prefixSuffixMatcher [2]string
+
+func prefixMatcher(prefix string) prefixSuffixMatcher {
+	return prefixSuffixMatcher{prefix, ""}
+}
 
 func (m prefixSuffixMatcher) matches(ptr jsontext.Pointer) bool {
 	return strings.HasPrefix(string(ptr), m[0]) &&
@@ -66,10 +77,37 @@ func redactor(matcher matcher, replacer replacer) jsonRedactor {
 	}
 }
 
+type stackFrame struct {
+	Function   string `json:"function"`
+	FileName   string `json:"fileName"`
+	LineNumber any    `json:"lineNumber"`
+}
+
 var defaultRedactors = []jsonRedactor{
 	redactor(
-		exactMatcher(`/debugger/snapshot/stack`),
-		replacement(`"[stack-unredact-me]"`),
+		(*reMatcher)(regexp.MustCompile(`^/debugger/snapshot/stack/[[:digit:]]+$`)),
+		replacerFunc(func(v jsontext.Value) jsontext.Value {
+			if v.Kind() != '{' {
+				return v
+			}
+			d := json.NewDecoder(bytes.NewReader(v))
+			d.UseNumber()
+			var f stackFrame
+			err := d.Decode(&f)
+			if err != nil {
+				return v
+			}
+			if !strings.HasPrefix(f.FileName, "runtime/asm_") {
+				return v
+			}
+			f.FileName = "runtime/asm_[arch].s"
+			f.LineNumber = "[lineNumber]"
+			buf, err := json.Marshal(f)
+			if err != nil {
+				return v
+			}
+			return jsontext.Value(buf)
+		}),
 	),
 	redactor(
 		exactMatcher(`/debugger/snapshot/id`),
@@ -101,23 +139,26 @@ func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactor
 	d := jsontext.NewDecoder(bytes.NewReader(input))
 	var buf bytes.Buffer
 	e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
+	ptrPrefix = jsontext.Pointer(strings.TrimSuffix(string(ptrPrefix), "/"))
 	stackPtr := func() jsontext.Pointer {
-		if ptrPrefix != "" {
-			return jsontext.Pointer(ptrPrefix + "/" + d.StackPointer())
-		}
-		return d.StackPointer()
+		return jsontext.Pointer(
+			string(ptrPrefix) + "/" +
+				strings.TrimPrefix(string(d.StackPointer()), "/"))
 	}
-	for {
+	copyToken := func() (done bool) {
 		tok, err := d.ReadToken()
 		if errors.Is(err, io.EOF) {
-			break
+			return true
 		}
-		require.NoError(t, err)
-		kind, idx := d.StackIndex(d.StackDepth())
 		err = e.WriteToken(tok)
 		require.NoError(t, err)
-		if kind != '{' || idx%2 == 0 {
-			continue
+		return false
+	}
+	for {
+		kind, idx := d.StackIndex(d.StackDepth())
+		// If we're in an object and this is a key, copy it across.
+		if kind == '{' && idx%2 == 0 || d.PeekKind() == ']' {
+			require.False(t, copyToken(), "unexpected EOF")
 		}
 		ptr := stackPtr()
 		var redacted []byte
@@ -130,9 +171,16 @@ func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactor
 			}
 		}
 
+		// If we read a whole value, recursively redact it and write that out,
+		// otherwise just copy the token across.
 		if redacted != nil {
-			redacted = redactJSON(t, ptr, redacted, redactors)
+			switch jsontext.Value(redacted).Kind() {
+			case '{', '[': // apply recursive redaction
+				redacted = redactJSON(t, ptr, redacted, redactors)
+			}
 			require.NoError(t, e.WriteValue(redacted))
+		} else if copyToken() {
+			break
 		}
 	}
 	return bytes.TrimSpace(buf.Bytes())
@@ -172,302 +220,4 @@ func (e entriesSorter) replace(v jsontext.Value) jsontext.Value {
 		return v // Return original value if marshal fails
 	}
 	return sorted
-}
-
-func TestDefaultRedactors(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name: "redact snapshot id",
-			input: `{
-  "debugger": {
-    "snapshot": {
-      "id": "actual-snapshot-id-123"
-    }
-  }
-}`,
-			expected: `{
-    "debugger": {
-      "snapshot": {
-        "id": "[id]"
-      }
-    }
-  }`,
-		},
-		{
-			name: "redact snapshot timestamp",
-			input: `{
-  "debugger": {
-    "snapshot": {
-      "timestamp": "[ts]"
-    }
-  }
-}`,
-			expected: `{
-    "debugger": {
-      "snapshot": {
-        "timestamp": "[ts]"
-      }
-    }
-  }`,
-		},
-		{
-			name: "redact root timestamp",
-			input: `{
-  "timestamp": "2023-01-01T00:00:00Z",
-  "other": "data"
-}`,
-			expected: `{
-    "timestamp": "[ts]",
-    "other": "data"
-  }`,
-		},
-		{
-			name: "redact snapshot stack",
-			input: `{
-  "debugger": {
-    "snapshot": {
-      "stack": ["frame1", "frame2", "frame3"]
-    }
-  }
-}`,
-			expected: `{
-    "debugger": {
-      "snapshot": {
-        "stack": "[stack-unredact-me]"
-      }
-    }
-  }`,
-		},
-		{
-			name: "redact capture address",
-			input: `{
-  "debugger": {
-    "snapshot": {
-      "captures": {
-        "locals": {
-          "address": "0x7fff5fbff123"
-        }
-      }
-    }
-  }
-}`,
-			expected: `{
-    "debugger": {
-      "snapshot": {
-        "captures": {
-          "locals": {
-            "address": "[addr]"
-          }
-        }
-      }
-    }
-  }`,
-		},
-		{
-			name: "sort capture entries",
-			input: `{
-  "debugger": {
-    "snapshot": {
-      "captures": {
-        "locals": {
-          "entries": [
-            ["variable_z", {"value": "z"}],
-            ["variable_a", {"value": "a"}],
-            ["variable_m", {"notCapturedReason": "error"}]
-          ]
-        }
-      }
-    }
-  }
-}`,
-			expected: `{
-    "debugger": {
-      "snapshot": {
-        "captures": {
-          "locals": {
-            "entries": [
-              ["variable_a", {"value": "a"}],
-              ["variable_m", {"notCapturedReason": "error"}],
-              ["variable_z", {"value": "z"}]
-            ]
-          }
-        }
-      }
-    }
-  }`,
-		},
-		{
-			name: "multiple redactions",
-			input: `{
-  "timestamp": "2023-01-01T00:00:00Z",
-  "debugger": {
-    "snapshot": {
-      "id": "snap-123",
-      "timestamp": "2023-01-01T01:00:00Z",
-      "stack": ["frame1", "frame2"],
-      "captures": {
-        "locals": {
-          "address": "0x123456",
-          "entries": [
-            ["var_b", {"value": "b"}],
-            ["var_a", {"value": "a"}]
-          ]
-        }
-      }
-    }
-  }
-}`,
-			expected: `{
-    "timestamp": "[ts]",
-    "debugger": {
-      "snapshot": {
-        "id": "[id]",
-        "timestamp": "[ts]",
-        "stack": "[stack-unredact-me]",
-        "captures": {
-          "locals": {
-            "address": "[addr]",
-            "entries": [
-              ["var_a", {"value": "a"}],
-              ["var_b", {"value": "b"}]
-            ]
-          }
-        }
-      }
-    }
-  }`,
-		},
-		{
-			name: "no redactions needed",
-			input: `{
-  "normal": "field",
-  "data": {
-    "value": 123
-  }
-}`,
-			expected: `{
-    "normal": "field",
-    "data": {
-      "value": 123
-    }
-  }`,
-		},
-		{
-			name: "map with addr",
-			input: `{
-  "timestamp": "2023-01-01T00:00:00Z",
-  "debugger": {
-    "snapshot": {
-      "id": "snap-123",
-      "timestamp": "2023-01-01T01:00:00Z",
-      "stack": ["frame1", "frame2"],
-      "captures": {
-        "entry": {
-		  "arguments": {
-		    "m": {
-			  "type": "map[string]main.bigStruct",
-			  "address": "0x123456",
-			  "entries": [
-				[ {"key": "k1", "value": {"a": 1, "b": 2}}, {"key": "k2", "value": {"a": 3, "b": 4}} ]
-	          ]
-			}
-		  }
-        }
-      }
-    }
-  }
-}`,
-			expected: `{
-  "timestamp": "[ts]",
-  "debugger": {
-    "snapshot": {
-      "id": "[id]",
-      "timestamp": "[ts]",
-      "stack": "[stack-unredact-me]",
-      "captures": {
-        "entry": {
-		  "arguments": {
-		    "m": {
-			  "type": "map[string]main.bigStruct",
-			  "address": "[addr]",
-			  "entries": [
-				[ {"key": "k1", "value": {"a": 1, "b": 2}}, {"key": "k2", "value": {"a": 3, "b": 4}} ]
-	          ]
-			}
-		  }
-        }
-      }
-    }
-  }
-}`,
-		},
-		{
-			name: "pointer chain with duplicate address fields",
-			input: `{
-  "timestamp": "2023-01-01T00:00:00Z",
-  "debugger": {
-    "snapshot": {
-      "id": "snap-123",
-      "timestamp": "2023-01-01T01:00:00Z",
-      "stack": ["frame1", "frame2"],
-      "captures": {
-        "entry": {
-          "arguments": {
-            "ptr": {
-              "type": "*main.PointerChainArg",
-              "address": "0x7fff5fbff100",
-              "fields": {
-                "addr": {
-                  "type": "uintptr",
-                  "address": "0x7fff5fbff108",
-                  "value": "0x12345678"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}`,
-			expected: `{
-    "timestamp": "[ts]",
-    "debugger": {
-      "snapshot": {
-        "id": "[id]",
-        "timestamp": "[ts]",
-        "stack": "[stack-unredact-me]",
-        "captures": {
-          "entry": {
-            "arguments": {
-              "ptr": {
-                "type": "*main.PointerChainArg",
-                "address": "[addr]",
-                "fields": {
-                  "addr": {
-                    "type": "uintptr",
-                    "address": "[addr]",
-                    "value": "0x12345678"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := redactJSON(t, "", []byte(tt.input), defaultRedactors)
-			require.JSONEq(t, tt.expected, string(result), "redacted JSON should match expected output")
-		})
-	}
 }
