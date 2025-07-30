@@ -596,7 +596,7 @@ def ninja_define_rules(
     nw.rule(name="copyextra", command="cp -r $in $out")
     nw.rule(
         name="gobin",
-        command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
+        command="$chdir && $env $go build -o $out $tags $extra_arguments $ldflags $in $tool",
     )
     nw.rule(name="copyfiles", command="mkdir -p $$(dirname $out) && install $in $out $mode")
 

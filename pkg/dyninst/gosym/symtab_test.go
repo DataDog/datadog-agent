@@ -16,7 +16,6 @@ import (
 	"path"
 	"runtime"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -103,10 +102,7 @@ func runTest(
 			require.NotEmpty(t, locations)
 			fmt.Fprintf(&out, "pc: 0x%x\n", pc)
 			for _, location := range locations {
-				// Hide path prefixes that depends on toolchain,repository, and GOPATH locations.
-				// Just use the file name, which is the last path component, replaces the leading path with *
-				i := strings.LastIndex(location.File, "/")
-				fmt.Fprintf(&out, "\t%s@*%s:%d\n", location.Function, location.File[i:], location.Line)
+				fmt.Fprintf(&out, "\t%s@%s:%d\n", location.Function, location.File, location.Line)
 			}
 
 			// Check that funcResolver.PCToLine() agrees with symtab.LocatePC().
