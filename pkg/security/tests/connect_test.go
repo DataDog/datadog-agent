@@ -32,7 +32,7 @@ func TestConnectEventAFIntetTCP(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect_af_inet",
-			Expression: `connect.addr.family == AF_INET && process.file.name == "syscall_tester"`,
+			Expression: `connect.addr.port == 4242 && connect.addr.family == AF_INET && process.file.name == "syscall_tester"`,
 		},
 	}
 
@@ -55,7 +55,7 @@ func TestConnectEventAFIntetTCP(t *testing.T) {
 	go listener.Accept()
 
 	test.WaitSignal(t, func() error {
-		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "tcp"); err != nil {
+		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "tcp", "4242"); err != nil {
 			return err
 		}
 		return err
@@ -75,7 +75,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect_af_inet_io_uring",
-			Expression: `connect.addr.port == 4242 && connect.addr.family == AF_INET && process.file.name == "testsuite"`,
+			Expression: `connect.addr.port == 4243 && connect.addr.family == AF_INET && process.file.name == "testsuite"`,
 		},
 	}
 
@@ -84,7 +84,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	listener, err := net.Listen("tcp", ":4242")
+	listener, err := net.Listen("tcp", ":4243")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 	defer iour.Close()
 
 	sa := unix.SockaddrInet4{
-		Port: 4242,
+		Port: 4243,
 		Addr: [4]byte(net.IPv4(0, 0, 0, 0)),
 	}
 
@@ -143,7 +143,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 		assertTriggeredRule(t, rule, "test_connect_af_inet_io_uring")
 		assert.Equal(t, uint16(unix.AF_INET), event.Connect.AddrFamily, "wrong address family")
 		assert.Equal(t, "testsuite", event.ProcessContext.FileEvent.BasenameStr, "wrong process name")
-		assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
+		assert.Equal(t, uint16(4243), event.Connect.Addr.Port, "wrong address port")
 		assert.Equal(t, string("0.0.0.0/32"), event.Connect.Addr.IPNet.String(), "wrong address")
 		assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Connect.Protocol, "wrong protocol")
 		assert.Contains(t, []int64{0, -int64(syscall.EAGAIN)}, event.Connect.Retval, "wrong retval")
@@ -155,7 +155,7 @@ func TestConnectEventAFInetAnyUDP(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect_af_inet",
-			Expression: `connect.addr.family == AF_INET && process.file.name == "syscall_tester"`,
+			Expression: `connect.addr.port == 4244 && connect.addr.family == AF_INET && process.file.name == "syscall_tester"`,
 		},
 	}
 
@@ -170,21 +170,21 @@ func TestConnectEventAFInetAnyUDP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conn, err := net.ListenPacket("udp", ":4242")
+	conn, err := net.ListenPacket("udp", ":4244")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer conn.Close()
 
 	test.WaitSignal(t, func() error {
-		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "udp"); err != nil {
+		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "udp", "4244"); err != nil {
 			return err
 		}
 		return err
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "connect", event.GetType(), "wrong event type")
 		assert.Equal(t, uint16(unix.AF_INET), event.Connect.AddrFamily, "wrong address family")
-		assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
+		assert.Equal(t, uint16(4244), event.Connect.Addr.Port, "wrong address port")
 		assert.Equal(t, string("0.0.0.0/32"), event.Connect.Addr.IPNet.String(), "wrong address")
 		assert.Equal(t, uint16(unix.IPPROTO_UDP), event.Connect.Protocol, "wrong protocol")
 		assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
@@ -196,7 +196,7 @@ func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect_af_inet6",
-			Expression: `connect.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
+			Expression: `connect.addr.port == 4245 && connect.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
 		},
 	}
 
@@ -215,7 +215,7 @@ func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 		t.Skip("IPv6 is not supported")
 	}
 
-	listener, err := net.Listen("tcp", ":4242")
+	listener, err := net.Listen("tcp", ":4245")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,14 +224,14 @@ func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 	go listener.Accept()
 
 	test.WaitSignal(t, func() error {
-		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "tcp"); err != nil {
+		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "tcp", "4245"); err != nil {
 			return err
 		}
 		return err
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "connect", event.GetType(), "wrong event type")
 		assert.Equal(t, uint16(unix.AF_INET6), event.Connect.AddrFamily, "wrong address family")
-		assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
+		assert.Equal(t, uint16(4245), event.Connect.Addr.Port, "wrong address port")
 		assert.Equal(t, string("::/128"), event.Connect.Addr.IPNet.String(), "wrong address")
 		assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Connect.Protocol, "wrong protocol")
 		assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
@@ -243,7 +243,7 @@ func TestConnectEventAFInet6AnyUDP(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect_af_inet6",
-			Expression: `connect.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
+			Expression: `connect.addr.port == 4246 && connect.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
 		},
 	}
 
@@ -262,21 +262,21 @@ func TestConnectEventAFInet6AnyUDP(t *testing.T) {
 		t.Skip("IPv6 is not supported")
 	}
 
-	conn, err := net.ListenPacket("udp", ":4242")
+	conn, err := net.ListenPacket("udp", ":4246")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer conn.Close()
 
 	test.WaitSignal(t, func() error {
-		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "udp"); err != nil {
+		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "udp", "4246"); err != nil {
 			return err
 		}
 		return err
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "connect", event.GetType(), "wrong event type")
 		assert.Equal(t, uint16(unix.AF_INET6), event.Connect.AddrFamily, "wrong address family")
-		assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
+		assert.Equal(t, uint16(4246), event.Connect.Addr.Port, "wrong address port")
 		assert.Equal(t, string("::/128"), event.Connect.Addr.IPNet.String(), "wrong address")
 		assert.Equal(t, uint16(unix.IPPROTO_UDP), event.Connect.Protocol, "wrong protocol")
 		assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
