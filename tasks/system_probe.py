@@ -480,7 +480,6 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
-        "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
         "pkg/gpu/compile.go": "gpu",
     }
 
@@ -600,7 +599,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
-            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/base_event.h"],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
             ],
@@ -2167,7 +2165,7 @@ def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bo
         nw.pool(name="gobuild", depth=go_parallelism)
         nw.rule(
             name="gobin",
-            command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
+            command="$chdir && $env $go build -o $out $extra_arguments $tags $ldflags $in $tool",
         )
         ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
     ctx.run(f"ninja -d explain -v -f {nf_path}")
@@ -2248,6 +2246,7 @@ def ninja_add_dyninst_test_programs(
             pool="gobuild",
             variables={
                 "go": go_path,
+                "extra_arguments": "-trimpath",
                 # Run from within the package directory so that the go build
                 # command finds the go.mod file.
                 "chdir": f"cd {pkg_path}",
