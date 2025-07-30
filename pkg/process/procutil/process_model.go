@@ -28,6 +28,10 @@ type Process struct {
 	Gids     []int32
 	Language *languagemodels.Language
 
+	// ports are stored on the process because they may/should be collected by default in the future
+	// however, currently this data is collected by service discovery collection
+	Ports []uint16
+
 	Stats   *Stats
 	Service *Service
 }
@@ -119,9 +123,6 @@ type Service struct {
 
 	// DDService is the value from DD_SERVICE environment variable
 	DDService string
-
-	// Ports is the list of ports the service is listening on
-	Ports []uint16
 
 	// APMInstrumentation indicates the APM instrumentation status
 	APMInstrumentation string

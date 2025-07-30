@@ -135,13 +135,11 @@ func GetFxOptions() fx.Option {
 }
 
 // isProcessCollectionEnabled returns a boolean indicating if the process collector is enabled
-func (c *collector) isRunningInCoreAgent() bool {
-	return c.config.GetBool("process_config.run_in_core_agent.enabled")
-}
-
-// isProcessCollectionEnabled returns a boolean indicating if the process collector is enabled
 func (c *collector) isProcessCollectionEnabled() bool {
-	return c.config.GetBool("process_config.process_collection.use_wlm")
+	return c.config.GetBool("process_config.run_in_core_agent.enabled") &&
+		c.config.GetBool("process_config.process_collection.enabled") &&
+		// TODO: process_config.process_collection.use_wlm is temporary and will eventually be removed
+		c.config.GetBool("process_config.process_collection.use_wlm")
 }
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled
@@ -164,10 +162,6 @@ func (c *collector) collectionIntervalConfig() time.Duration {
 // is done. It also gets a reference to the store that started it so it
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !c.isRunningInCoreAgent() {
-		return errors.NewDisabled(componentName, "core process collection not running in core agent")
-	}
-
 	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
 		return errors.NewDisabled(componentName, "process collection and service discovery are disabled")
 	}

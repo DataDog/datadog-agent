@@ -16,6 +16,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
+// languageMap is used to manually map from internal language type to the equivalent agent payload language type
+// if a new language is added it must be added here as well, perhaps we can use an enum generator which can be used
+// in tests to fail if not added here
+var languageMap = map[languagemodels.LanguageName]model.Language{
+	languagemodels.Unknown: model.Language_LANGUAGE_UNKNOWN,
+	languagemodels.Go:      model.Language_LANGUAGE_GO,
+	languagemodels.Node:    model.Language_LANGUAGE_NODE,
+	languagemodels.Dotnet:  model.Language_LANGUAGE_DOTNET,
+	languagemodels.Python:  model.Language_LANGUAGE_PYTHON,
+	languagemodels.Java:    model.Language_LANGUAGE_JAVA,
+	languagemodels.Ruby:    model.Language_LANGUAGE_RUBY,
+	languagemodels.PHP:     model.Language_LANGUAGE_PHP,
+	languagemodels.CPP:     model.Language_LANGUAGE_CPP,
+}
+
+// serviceNameSourceMap is used to manually map from internal service name source type to the equivalent agent payload service name source type
+// if a new source is added it must be added here as well, perhaps we can use an enum generator which can be used
+// in tests to fail if not added here
+var serviceNameSourceMap = map[string]model.ServiceNameSource{
+	"":                      model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+	string(usm.CommandLine): model.ServiceNameSource_SERVICE_NAME_SOURCE_COMMAND_LINE,
+	string(usm.Laravel):     model.ServiceNameSource_SERVICE_NAME_SOURCE_LARAVEL,
+	string(usm.Python):      model.ServiceNameSource_SERVICE_NAME_SOURCE_PYTHON,
+	string(usm.Nodejs):      model.ServiceNameSource_SERVICE_NAME_SOURCE_NODEJS,
+	string(usm.Gunicorn):    model.ServiceNameSource_SERVICE_NAME_SOURCE_GUNICORN,
+	string(usm.Rails):       model.ServiceNameSource_SERVICE_NAME_SOURCE_RAILS,
+	string(usm.Spring):      model.ServiceNameSource_SERVICE_NAME_SOURCE_SPRING,
+	string(usm.JBoss):       model.ServiceNameSource_SERVICE_NAME_SOURCE_JBOSS,
+	string(usm.Tomcat):      model.ServiceNameSource_SERVICE_NAME_SOURCE_TOMCAT,
+	string(usm.WebLogic):    model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBLOGIC,
+	string(usm.WebSphere):   model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBSPHERE,
+}
+
 // useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
 // TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
 func (p *ProcessCheck) useWLMCollection() bool {
@@ -55,8 +88,10 @@ func (p *ProcessCheck) processesByPID(collectStats bool) (map[int32]*procutil.Pr
 	return procs, nil
 }
 
+// mapWLMProcToProc maps the workloadmeta process entity to an intermediate representation used in the process check
 func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) *procutil.Process {
 	var service *procutil.Service
+	var ports []uint16
 	if wlmProc.Service != nil {
 		service = &procutil.Service{
 			GeneratedName:            wlmProc.Service.GeneratedName,
@@ -64,9 +99,9 @@ func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) 
 			AdditionalGeneratedNames: wlmProc.Service.AdditionalGeneratedNames,
 			TracerMetadata:           wlmProc.Service.TracerMetadata,
 			DDService:                wlmProc.Service.DDService,
-			Ports:                    wlmProc.Service.Ports,
 			APMInstrumentation:       wlmProc.Service.APMInstrumentation,
 		}
+		ports = wlmProc.Service.Ports
 	}
 	return &procutil.Process{
 		Pid:      wlmProc.Pid,
@@ -80,6 +115,7 @@ func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) 
 		Uids:     wlmProc.Uids,
 		Gids:     wlmProc.Gids,
 		Stats:    stats,
+		Ports:    ports,
 		Language: wlmProc.Language,
 		Service:  service,
 	}
@@ -102,18 +138,6 @@ func formatPorts(ports []uint16) *model.PortInfo {
 	}
 }
 
-var languageMap = map[languagemodels.LanguageName]model.Language{
-	languagemodels.Unknown: model.Language_LANGUAGE_UNKNOWN,
-	languagemodels.Go:      model.Language_LANGUAGE_GO,
-	languagemodels.Node:    model.Language_LANGUAGE_NODE,
-	languagemodels.Dotnet:  model.Language_LANGUAGE_DOTNET,
-	languagemodels.Python:  model.Language_LANGUAGE_PYTHON,
-	languagemodels.Java:    model.Language_LANGUAGE_JAVA,
-	languagemodels.Ruby:    model.Language_LANGUAGE_RUBY,
-	languagemodels.PHP:     model.Language_LANGUAGE_PHP,
-	languagemodels.CPP:     model.Language_LANGUAGE_CPP,
-}
-
 // formatLanguage converts a process language to the equivalent payload type
 func formatLanguage(language *languagemodels.Language) model.Language {
 	if language == nil {
@@ -123,21 +147,6 @@ func formatLanguage(language *languagemodels.Language) model.Language {
 		return lang
 	}
 	return model.Language_LANGUAGE_UNKNOWN
-}
-
-var serviceNameSourceMap = map[string]model.ServiceNameSource{
-	"":                      model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
-	string(usm.CommandLine): model.ServiceNameSource_SERVICE_NAME_SOURCE_COMMAND_LINE,
-	string(usm.Laravel):     model.ServiceNameSource_SERVICE_NAME_SOURCE_LARAVEL,
-	string(usm.Python):      model.ServiceNameSource_SERVICE_NAME_SOURCE_PYTHON,
-	string(usm.Nodejs):      model.ServiceNameSource_SERVICE_NAME_SOURCE_NODEJS,
-	string(usm.Gunicorn):    model.ServiceNameSource_SERVICE_NAME_SOURCE_GUNICORN,
-	string(usm.Rails):       model.ServiceNameSource_SERVICE_NAME_SOURCE_RAILS,
-	string(usm.Spring):      model.ServiceNameSource_SERVICE_NAME_SOURCE_SPRING,
-	string(usm.JBoss):       model.ServiceNameSource_SERVICE_NAME_SOURCE_JBOSS,
-	string(usm.Tomcat):      model.ServiceNameSource_SERVICE_NAME_SOURCE_TOMCAT,
-	string(usm.WebLogic):    model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBLOGIC,
-	string(usm.WebSphere):   model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBSPHERE,
 }
 
 // serviceNameSource maps a process's generated service name source to the equivalent agent payload type
