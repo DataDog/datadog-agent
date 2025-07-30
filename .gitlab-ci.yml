@@ -93,7 +93,7 @@ stages:
 variables:
   # Special variable that allows us to set the pipeline to compute the code coverage of the e2e tests. It will impact several jobs so that
   # the agent is build with a special flag that allow computing code coverage of the binary when it is running.
-  E2E_COVERAGE_PIPELINE: false
+  E2E_COVERAGE_PIPELINE: true
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus

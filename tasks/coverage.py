@@ -97,11 +97,25 @@ powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
 
 
 @task
+def convert_coverage_folder_to_txt(
+    ctx: Context,
+    coverage_folder: str,
+    coverage_file: str,
+):
+    """
+    Convert the coverage folder to a txt file.
+    """
+    ctx.run(f"go tool covdata textfmt -i={coverage_folder} -o={coverage_file}")
+
+
+@task(iterable=['extra_tag'])
 def upload_to_codecov(
     ctx: Context,
+    coverage_file: str = PROFILE_COV,
     pull_coverage_cache: bool = False,
     push_coverage_cache: bool = False,
     debug_cache: bool = False,
+    extra_tag: list[str] | None = None,
 ):
     """
     Uploads coverage data of all modules to Codecov.
@@ -118,7 +132,14 @@ def upload_to_codecov(
             code=1,
         )
     distro_tag = get_distro()
+    tags = [distro_tag]
     codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
+
+    if extra_tag:
+        tags.extend(extra_tag)
+
+    # Build the flags string with all tags
+    flags_string = " ".join([f"-F {tag}" for tag in tags])
 
     if pull_coverage_cache:
         with gitlab_section("Applying missing coverage cache from S3", collapsed=True):
@@ -128,7 +149,7 @@ def upload_to_codecov(
             upload_coverage_to_s3(ctx)
 
     with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
-        ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True, timeout=2 * 60)
+        ctx.run(f"{codecov_binary} -f {coverage_file} {flags_string}", warn=True, timeout=2 * 60)
 
 
 def produce_coverage_tar(files, archive_name):
