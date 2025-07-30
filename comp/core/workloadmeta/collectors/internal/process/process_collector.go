@@ -486,8 +486,11 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		return nil, nil
 	}
 
+	log.Debugf("[sd-agent] Found injected PIDs: %+v", resp.InjectedPIDs)
+	log.Debugf("[sd-agent] Processing %d services from sd-agent response", len(resp.Services))
 	for i, service := range resp.Services {
 		pidsToService[int32(service.PID)] = &resp.Services[i]
+		log.Debugf("[sd-agent] Mapped service: PID=%d -> %s", service.PID, service.GeneratedName)
 	}
 
 	// Convert InjectedPIDs to PidSet for efficient lookup
