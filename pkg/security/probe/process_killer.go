@@ -144,27 +144,34 @@ func (p *ProcessKiller) KillQueuedPidsAndSetNextAlarm() {
 
 	now := time.Now()
 	var nextAlarm *time.Time
-	for ruleID, ruleDisarmer := range p.ruleDisarmers {
-		ruleDisarmer.m.Lock()
-		if ruleDisarmer.disarmed || len(ruleDisarmer.killQueue) == 0 {
-			ruleDisarmer.m.Unlock()
-			continue
-		}
-		if now.After(ruleDisarmer.killQueueAlarm) {
-			p.KillProcesses(false, ruleID, ruleDisarmer.killSignal, ruleDisarmer.killQueue)
-			p.updatePendingReportKillPerformed(now, &ruleDisarmer.killQueue)
-		} else {
-			if nextAlarm == nil || ruleDisarmer.killQueueAlarm.Before(*nextAlarm) {
-				nextAlarm = &ruleDisarmer.killQueueAlarm
-			}
-		}
-		ruleDisarmer.m.Unlock()
+	for _, ruleDisarmer := range p.ruleDisarmers {
+		nextAlarm = p.killQueuedPidsAndGetNextAlarm(ruleDisarmer, now, nextAlarm)
 	}
 	if nextAlarm != nil {
 		p.setKillQueueAlarm(nextAlarm)
 	} else {
 		p.disableKillQueueAlarm()
 	}
+}
+
+func (p *ProcessKiller) killQueuedPidsAndGetNextAlarm(disarmer *ruleDisarmer, now time.Time, nextAlarm *time.Time) *time.Time {
+	disarmer.m.Lock()
+	defer disarmer.m.Unlock()
+
+	if disarmer.disarmed || len(disarmer.killQueue) == 0 {
+		return nextAlarm
+	}
+
+	if now.After(disarmer.killQueueAlarm) {
+		p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, disarmer.killQueue)
+		p.updatePendingReportKillPerformed(now, &disarmer.killQueue)
+	} else {
+		if nextAlarm == nil || disarmer.killQueueAlarm.Before(*nextAlarm) {
+			return &disarmer.killQueueAlarm
+		}
+	}
+
+	return nextAlarm
 }
 
 // SetState sets the state - enabled or disabled - for the process killer
