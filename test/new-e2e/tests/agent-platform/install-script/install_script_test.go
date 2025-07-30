@@ -230,7 +230,15 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 	unixHelper := helpers.NewUnixDogstatsd()
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
-	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
+	installOptions := []installparams.Option{
+		installparams.WithArch(*architecture),
+		installparams.WithFlavor(*flavor),
+	}
+
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	install.Unix(is.T(), client, installOptions...)
 
 	common.CheckInstallation(is.T(), client)
 	common.CheckSigningKeys(is.T(), client)
