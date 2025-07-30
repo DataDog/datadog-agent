@@ -1,30 +1,40 @@
 // this file is only used as a sketch for the future implementation in lib.rs
 
-mod utils;
-use utils::base::{AgentCheck, CheckID, ServiceCheckStatus};
+mod agent_check;
+use agent_check::base::{ServiceCheckStatus};
 
-use std::any::Any;
-use std::error::Error;
-use std::io::{Read, Write, ErrorKind};
-use std::net::{TcpStream, ToSocketAddrs};
+use std::time::Instant;
 use std::sync::Arc;
-use std::time::{Instant, Duration};
+use std::net::{TcpStream, ToSocketAddrs};
+use std::io::{ErrorKind, Read, Write};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rustls::{KeyLogFile, ClientConnection, RootCertStore, Stream};
+use rustls::pki_types::CertificateDer;
 use webpki_roots::TLS_SERVER_ROOTS;
+use x509_parser::parse_x509_certificate;
 
 fn main() {
+    // consts
+    const DEFAULT_EXPIRE_DAYS_WARNING: i32 = 14;
+    const DEFAULT_EXPIRE_DAYS_CRITICAL: i32 = 7;
+    const DEFAULT_EXPIRE_WARNING: i32 = DEFAULT_EXPIRE_DAYS_WARNING * 24 * 3600;
+    const DEFAULT_EXPIRE_CRITICAL: i32 = DEFAULT_EXPIRE_DAYS_CRITICAL * 24 * 3600;
+            
     // hardcoded variables (should be passed as parameters inside a struct)
     let url = "datadog.com";
     let response_time = true;
     let ssl_expire = true;
     let uri_scheme = "https";
+    let use_cert_from_response = true;
 
     let mut tags = Vec::<String>::new();
 
+    // ssl certs
+    let mut peer_cert: Option<CertificateDer> = None;
+
     // list service checks and their custom tags
     let mut service_checks = Vec::<(String, ServiceCheckStatus, String)>::new();
-    let service_checks_tags = Vec::<String>::new(); // need to be set equal to the tags list at the beginning
 
     // connection configuration
     let root_store = RootCertStore { roots: TLS_SERVER_ROOTS.into() };
@@ -48,12 +58,7 @@ fn main() {
         .next().unwrap();
 
     match TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
-        Ok(mut sock) => {
-            // Set timeouts
-            // TODO: handle timeout errors later in the code
-            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-            sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
-            
+        Ok(mut sock) => {                
             // Create the TLS stream
             let mut tls = Stream::new(&mut conn, &mut sock);
 
@@ -70,67 +75,222 @@ fn main() {
             let response_result = tls.write_all(request_header.as_bytes());
             let elapsed_time = start_time.elapsed();
 
-            println!("Elapsed time: {}ms", elapsed_time.as_millis());
-
             match response_result {
                 Ok(()) => {
-                    // Read the response from the TLS stream
-                    let mut response = Vec::new();
+                    // retrieve the first ssl certificate from the response if the option is enabled
+                    if use_cert_from_response {
+                        match tls.conn.peer_certificates() {
+                            Some(certs) => peer_cert = Some(certs[0].clone()),
+                            None => println!("No peer certificates found in the reponse."),
+                        }
+                    }
 
-                    match tls.read_to_end(&mut response) {
-                        Ok(_) => {/* The server response has been successfuly read */},
-                        Err(e) => {
-                            println!("Error kind: {}", e.kind());
-                            if e.kind() == ErrorKind::TimedOut {
-                                println!("Timeout while reading server response: {e}")
+                    // add URL in tags list if not already present
+                    let url_tag = format!("url:{}", url);
+
+                    if !tags.contains(&url_tag) {
+                        tags.push(url_tag);
+                    }
+
+                    // submit response time metric if enabled
+                    if response_time  && service_checks.is_empty() {
+                        //self.gauge("network.http.response_time", elapsed_time.as_secs_f64(), &tags, "", false);
+                    }
+
+                    // read response from the TLS stream
+                    let mut response_raw = Vec::new();
+
+                    match tls.read_to_end(&mut response_raw) {
+                        Ok(_) => {
+                            let response = String::from_utf8(response_raw).unwrap();
+
+                            // status code
+                            let first_line = response.lines().nth(0).unwrap();
+                            let status_code: u32 = first_line
+                                .split_whitespace()
+                                .nth(1).unwrap()
+                                .parse().unwrap();
+
+                            // check for client or server http error
+                            if status_code >= 400 {
+                                service_checks.push((
+                                    "http.can_connect".to_string(),
+                                    ServiceCheckStatus::CRITICAL,
+                                    format!("Incorrect HTTP return code for url {url}. Expected 1xx or 2xx or 3xx, got {status_code}"),
+                                ));
                             } else {
-                                println!("Error while reading server response: {e}")
+                                // TODO: content matching
+                                service_checks.push((
+                                    "http.can_connect".to_string(),
+                                    ServiceCheckStatus::OK,
+                                    "UP".to_string(),
+                                ));
+                            }
+                        },
+                        Err(e) => {
+                            // NOTE: ErrorKind::WouldBlock is often linked to a timeout
+                            // but not sure if it needs to belong to this if statement
+                            if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock {
+                                // timeout error
+                                service_checks.push((
+                                    "http.can_connect".to_string(),
+                                    ServiceCheckStatus::CRITICAL,
+                                    format!("Timeout error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                                ));
+                            } else {
+                                // connection error
+                                service_checks.push((
+                                    "http.can_connect".to_string(),
+                                    ServiceCheckStatus::CRITICAL,
+                                    format!("Connection error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                                ));
                             }
                         },
                     }
-                    let response = String::from_utf8(response[..].to_vec()).unwrap();
-
-                    // Handling of status code
-                    let first_line = response.lines().nth(0).unwrap();
-                    let status_code: u32 = first_line
-                        .split_whitespace()
-                        .nth(1).unwrap()
-                        .parse().unwrap();
-
-
-                    if status_code >= 400 {
-                        println!("HTTP Error: {}", status_code);
-                    }
-
-                    // TODO: handle SSL certificates here
-                    match tls.conn.peer_certificates() {
-                        Some(certs) => {
-                            for _cert in certs {
-                                //println!("Certificate: {:?}", _cert);
-                            }
-                        }
-                        None => {
-                            println!("No peer certificates found.");
-                        }
-                    }
                 },
                 Err(e) => {
-                    println!("Error kind: {}", e.kind());
-                    if e.kind() == ErrorKind::TimedOut {
-                        println!("Timeout while sending request: {e}")
+                    // NOTE: ErrorKind::WouldBlock is often linked to a timeout
+                    // but not sure if it needs to belong to this if statement
+                    if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock {
+                        // timeout error
+                        service_checks.push((
+                            "http.can_connect".to_string(),
+                            ServiceCheckStatus::CRITICAL,
+                            format!("Timeout error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                        ));
                     } else {
-                        println!("Error while sending request: {e}");
+                        // connection error
+                        service_checks.push((
+                            "http.can_connect".to_string(),
+                            ServiceCheckStatus::CRITICAL,
+                            format!("Connection error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                        ));
                     }
                 },
             }
         },
         Err(e) => {
-            if e.kind() == ErrorKind::TimedOut {
-                println!("Timeout while sending request: {e}")
+            let elapsed_time = start_time.elapsed();
+
+            // NOTE: ErrorKind::WouldBlock is often linked to a timeout
+            // but not sure if it needs to belong to this if statement
+            if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock {
+                // timeout error
+                service_checks.push((
+                    "http.can_connect".to_string(),
+                    ServiceCheckStatus::CRITICAL,
+                    format!("Timeout error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                ));
             } else {
                 // connection error
-                println!("Error while connecting to the server: {e}");
+                service_checks.push((
+                    "http.can_connect".to_string(),
+                    ServiceCheckStatus::CRITICAL,
+                    format!("Connection error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                ));
             }
         },
+    }
+
+    // submit can connect metrics
+    // (by looking at the above implementation, this if statement is useless because service_checks will always have at least one element)
+    if !service_checks.is_empty() {
+        // can connect metrics depend on the status of the first service check
+        let (can_connect, cant_connect) = match service_checks[0].1 {
+            ServiceCheckStatus::OK => (1.0, 0.0),
+            _ => (0.0, 1.0),
+        };
+
+        //self.gauge("network.http.can_connect", can_connect, &tags, "", false);
+        //self.gauge("network.http.cant_connect", cant_connect, &tags, "", true);
+    }
+
+    // handle ssl certificate expiration
+    if ssl_expire && uri_scheme == "https" {
+        // certificate expiration info check result
+        let (status, days_left, seconds_left, msg) = match peer_cert {
+            Some(cert) => inspect_cert(&cert),
+            None => (
+                ServiceCheckStatus::UNKNOWN,
+                None,
+                None,
+                "Empty or no certificate found.".to_string(),
+            ),
+        };
+
+        // submit ssl metrics if there's a value
+        if let Some(days_left) = days_left {
+            //self.gauge("http.ssl.days_left", days_left as f64, &tags, "", false);
+        }
+
+        if let Some(seconds_left) = seconds_left {
+            //self.gauge("http.ssl.seconds_left", seconds_left as f64, &tags, "", true);
+        }
+
+        // ssl service check
+        service_checks.push((
+            "http.ssl_cert".to_string(),
+            status,
+            msg,
+        ));
+    }
+
+    // submit every service check collected throughout the check
+    for (sc_name, status, message) in service_checks {
+        //self.service_check(&sc_name, status, &service_checks_tags, "", &message);
+    }
+
+
+    // retrieve certificate expiration information and returns info for metric and service check
+    fn inspect_cert(cert: &CertificateDer) -> (ServiceCheckStatus, Option<u64>, Option<u64>, String) {
+        match parse_x509_certificate(cert) {
+            Ok((_, x509)) => {
+                // get certificate remaining time before expiration
+                let expiration_timestamp = x509.validity().not_after.timestamp() as u64;
+                let current_timestamp = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+
+                let seconds_left = expiration_timestamp - current_timestamp;
+                let days_left = seconds_left / (24 * 3600);
+
+                // compare the time left before expiration to thresholds and return the corresponding service check
+                // TODO: check for several variables setup before taking the constants (need to pass an instance like in python to retrieve custom variables)
+                let seconds_warning = DEFAULT_EXPIRE_WARNING as u64;
+                let seconds_critical = DEFAULT_EXPIRE_CRITICAL as u64;
+
+                if seconds_left < seconds_critical {
+                    (
+                        ServiceCheckStatus::CRITICAL,
+                        Some(days_left),
+                        Some(seconds_left),
+                        format!("This cert TTL is critical: only {days_left} days before it expires"),
+                    )
+                } else if seconds_left < seconds_warning {
+                    (
+                        ServiceCheckStatus::WARNING,
+                        Some(days_left),
+                        Some(seconds_left),
+                        format!("This cert is almost expired, only {days_left} days left"),
+                    )
+                } else {
+                    (
+                        ServiceCheckStatus::OK,
+                        Some(days_left),
+                        Some(seconds_left),
+                        format!("Days left: {days_left}"),
+                    )
+                }
+            }
+            Err(e) => {
+                (
+                    ServiceCheckStatus::UNKNOWN,
+                    None,
+                    None,
+                    e.to_string(),
+                )
+            },
+        }
     }
 }

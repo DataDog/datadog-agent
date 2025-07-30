@@ -1,5 +1,5 @@
-mod utils;
-use utils::base::{CheckID, AgentCheck, ServiceCheckStatus};
+mod agent_check;
+use agent_check::base::{CheckID, AgentCheck, ServiceCheckStatus};
 
 use std::error::Error;
 use std::time::Instant;
@@ -22,10 +22,10 @@ use x509_parser::parse_x509_certificate;
 // }
 #[unsafe(no_mangle)]
 pub extern "C" fn Run(check_id: CheckID) {
-    // create the check instance that will run the check
+    // create the instance that will run the check
     let check = AgentCheck::new(check_id);
 
-    // run the custom implementation
+    // run the custom check implementation
     // TODO: change prints to logs
     match check.check() {
         Ok(()) => {
@@ -50,11 +50,6 @@ impl AgentCheck {
                 
         // hardcoded variables (should be passed as parameters inside a struct)
         let url = "datadog.com";
-        let response_time = true;
-        let ssl_expire = true;
-        let uri_scheme = "https";
-        let use_cert_from_response = true;
-
         let mut tags = Vec::<String>::new();
 
         // ssl certs
@@ -86,11 +81,7 @@ impl AgentCheck {
             .next().unwrap();
 
         match TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
-            Ok(mut sock) => {
-                // Set timeouts
-                sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-                sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
-                
+            Ok(mut sock) => {                
                 // Create the TLS stream
                 let mut tls = Stream::new(&mut conn, &mut sock);
 
@@ -109,23 +100,20 @@ impl AgentCheck {
 
                 match response_result {
                     Ok(()) => {
-                        // retrieve the first ssl certificate from the response if the option is enabled
-                        if use_cert_from_response {
-                            match tls.conn.peer_certificates() {
-                                Some(certs) => peer_cert = Some(certs[0].clone()),
-                                None => println!("No peer certificates found in the reponse."),
-                            }
+                        // retrieve the first ssl certificate from the response
+                        if let Some(certs) = tls.conn.peer_certificates() {
+                            peer_cert = Some(certs[0].clone());
                         }
 
                         // add URL in tags list if not already present
-                        let url_tag = format!("url:{}", url);
+                        let url_tag = format!("url:{url}");
 
                         if !tags.contains(&url_tag) {
                             tags.push(url_tag);
                         }
 
-                        // submit response time metric if enabled
-                        if response_time  && service_checks.is_empty() {
+                        // submit response time metric
+                        if service_checks.is_empty() {
                             self.gauge("network.http.response_time", elapsed_time.as_secs_f64(), &tags, "", false);
                         }
 
@@ -161,7 +149,7 @@ impl AgentCheck {
                             },
                             Err(e) => {
                                 // NOTE: ErrorKind::WouldBlock is often linked to a timeout
-                                // but not sure if it needs to belong to this if statement
+                                // but not sure if we need to check for this error too
                                 if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock {
                                     // timeout error
                                     service_checks.push((
@@ -182,7 +170,7 @@ impl AgentCheck {
                     },
                     Err(e) => {
                         // NOTE: ErrorKind::WouldBlock is often linked to a timeout
-                        // but not sure if it needs to belong to this if statement
+                        // but not sure if we need to check for this error too
                         if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock {
                             // timeout error
                             service_checks.push((
@@ -205,7 +193,7 @@ impl AgentCheck {
                 let elapsed_time = start_time.elapsed();
 
                 // NOTE: ErrorKind::WouldBlock is often linked to a timeout
-                // but not sure if it needs to belong to this if statement
+                // but not sure if we need to check for this error too
                 if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock {
                     // timeout error
                     service_checks.push((
@@ -237,35 +225,32 @@ impl AgentCheck {
             self.gauge("network.http.cant_connect", cant_connect, &tags, "", true);
         }
 
-        // handle ssl certificate expiration
-        if ssl_expire && uri_scheme == "https" {
-            // certificate expiration info check result
-            let (status, days_left, seconds_left, msg) = match peer_cert {
-                Some(cert) => inspect_cert(&cert),
-                None => (
-                    ServiceCheckStatus::UNKNOWN,
-                    None,
-                    None,
-                    "Empty or no certificate found.".to_string(),
-                ),
-            };
+        // get certificate expiration info
+        let (status, days_left, seconds_left, msg) = match peer_cert {
+            Some(cert) => inspect_cert(&cert),
+            None => (
+                ServiceCheckStatus::UNKNOWN,
+                None,
+                None,
+                "Empty or no certificate found.".to_string(),
+            ),
+        };
 
-            // submit ssl metrics if there's a value
-            if let Some(days_left) = days_left {
-                self.gauge("http.ssl.days_left", days_left as f64, &tags, "", false);
-            }
-
-            if let Some(seconds_left) = seconds_left {
-                self.gauge("http.ssl.seconds_left", seconds_left as f64, &tags, "", true);
-            }
-
-            // ssl service check
-            service_checks.push((
-                "http.ssl_cert".to_string(),
-                status,
-                msg,
-            ));
+        // submit ssl metrics if an expiration date was found
+        if let Some(days_left) = days_left {
+            self.gauge("http.ssl.days_left", days_left as f64, &tags, "", false);
         }
+
+        if let Some(seconds_left) = seconds_left {
+            self.gauge("http.ssl.seconds_left", seconds_left as f64, &tags, "", true);
+        }
+
+        // add ssl service check for certificate expiration
+        service_checks.push((
+            "http.ssl_cert".to_string(),
+            status,
+            msg,
+        ));
 
         // submit every service check collected throughout the check
         for (sc_name, status, message) in service_checks {

@@ -1,6 +1,6 @@
 use super::aggregator::{MetricType, Aggregator};
 
-use std::ffi::{c_char, CString};
+use std::ffi::{c_char, CStr};
 
 pub type CheckID = *mut c_char;
 
@@ -19,13 +19,13 @@ pub struct AgentCheck {
 
 impl AgentCheck {
     pub fn new(check_id: *mut c_char) -> Self {
-        let check_id  = unsafe { CString::from_raw(check_id) }.into_string().expect("Failed to convert check_id to String");
+        let check_id  = unsafe { CStr::from_ptr(check_id) }.to_string_lossy().into_owned();
         let aggregator = Aggregator::new();
         
         AgentCheck { check_id, aggregator }
     }
 
-    // TODO: use Option for optional arguments (tags, hostname, flush_first_value)
+    // TODO: maybe use Option for optional arguments (tags, hostname, flush_first_value)
 
     // metric functions
     pub fn gauge(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {

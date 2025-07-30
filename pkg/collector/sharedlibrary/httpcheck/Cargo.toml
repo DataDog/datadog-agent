@@ -15,7 +15,7 @@ crate-type = ["cdylib"]
 
 # optimizations to reduce lib size from 3.8MB to 2.1MB
 # more here: https://github.com/DoumanAsh/xxhash-rust/issues/10#issuecomment-1121860260
-# build time takes more time due to these optimizations
+# build time takes few seconds though
 [profile.release]
 opt-level = "z"     # Optimize for size.
 lto = true          # Enable Link Time Optimization
