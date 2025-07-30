@@ -30,10 +30,11 @@ def get_slack_channel_for_directory(directory_path: str) -> str:
     """
     try:
         # Assert that the path is either relative or had the expected prefix
-        assert (
-            not directory_path.startswith('/') or
-            directory_path.startswith("/go/src/github.com/DataDog/datadog-agent/")
-        ), f"Expected relative path or path starting with '/go/src/github.com/DataDog/datadog-agent/', got: {directory_path}"
+        assert not directory_path.startswith('/') or directory_path.startswith(
+            "/go/src/github.com/DataDog/datadog-agent/"
+        ), (
+            f"Expected relative path or path starting with '/go/src/github.com/DataDog/datadog-agent/', got: {directory_path}"
+        )
 
         # Remove the leading datadog-agent prefix if it exists
         rel_path = directory_path.removeprefix("/go/src/github.com/DataDog/datadog-agent/")
@@ -52,7 +53,10 @@ def get_slack_channel_for_directory(directory_path: str) -> str:
         return GITHUB_SLACK_MAP.get(first_owner, DEFAULT_FUZZING_SLACK_CHANNEL)
 
     except Exception as e:
-        print(f"{color_message('Warning', Color.YELLOW)}: Could not determine slack channel for {directory_path}: {e}", file=sys.stderr)
+        print(
+            f"{color_message('Warning', Color.YELLOW)}: Could not determine slack channel for {directory_path}: {e}",
+            file=sys.stderr,
+        )
         return DEFAULT_FUZZING_SLACK_CHANNEL
 
 
