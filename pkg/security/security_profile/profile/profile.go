@@ -628,11 +628,7 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 func (p *Profile) Reset() {
 	p.LoadedInKernel.Store(false)
 	p.LoadedNano.Store(0)
-
-	p.InstancesLock.Lock()
 	p.Instances = nil
-	p.InstancesLock.Unlock()
-
 	// keep the profileCookie in case we end up reloading the profile from the cache
 }
 
@@ -725,10 +721,10 @@ func (p *Profile) ListAllVersionStates() {
 		}
 		fmt.Printf("Instances:\n")
 		p.InstancesLock.Lock()
+		defer p.InstancesLock.Unlock()
 		for _, instance := range p.Instances {
 			fmt.Printf("  - %+v\n", instance.ContainerID)
 		}
-		p.InstancesLock.Unlock()
 
 	}
 }
