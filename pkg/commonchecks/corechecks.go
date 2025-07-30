@@ -44,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
@@ -119,6 +118,5 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
-	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory())
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 }
