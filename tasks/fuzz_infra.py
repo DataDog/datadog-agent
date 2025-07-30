@@ -13,7 +13,6 @@ from tasks.libs.common.git import get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 
-
 DEFAULT_FUZZING_SLACK_CHANNEL = "agent-fuzz-findings"
 
 
