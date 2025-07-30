@@ -10,6 +10,18 @@ from tasks.libs.common.color import color_message
 from tasks.libs.package.size import directory_size, extract_package, file_size
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, read_byte_input
 
+# We are using the same metric handler for all gates
+# to send data to Datadog
+GATE_METRIC_HANDLER = None
+
+def _get_metric_handler() -> GateMetricHandler:
+    global GATE_METRIC_HANDLER
+    if GATE_METRIC_HANDLER is None:
+        GATE_METRIC_HANDLER = GateMetricHandler(
+            git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
+        )
+    return GATE_METRIC_HANDLER
+
 
 class StaticQualityGateFailed(Exception):
     """
@@ -43,7 +55,6 @@ class StaticQualityGate:
         self.max_on_wire_size = read_byte_input(gate_max_size_values["max_on_wire_size"])
         self.max_on_disk_size = read_byte_input(gate_max_size_values["max_on_disk_size"])
         self._set_arch()
-        self._register_gate_metrics()
         self.ctx = ctx
 
     def _set_arch(self):
@@ -61,7 +72,7 @@ class StaticQualityGate:
         Register the gate tags and metrics to the metric handler
         to send data to Datadog
         """
-        self.metric_handler = GATE_METRIC_HANDLER
+        self.metric_handler = _get_metric_handler()
         self.metric_handler.register_gate_tags(self.gate_name, gate_name=self.gate_name, arch=self.arch, os=self.os)
         self.metric_handler.register_metric(self.gate_name, "max_on_wire_size", self.max_on_wire_size)
         self.metric_handler.register_metric(self.gate_name, "max_on_disk_size", self.max_on_disk_size)
@@ -100,10 +111,11 @@ class StaticQualityGatePackage(StaticQualityGate):
             self.os = "debian"
         else:
             raise ValueError(f"Unknown os for gate: {self.gate_name}")
-    
+
     def __init__(self, gate_name: str, gate_max_size_values: dict, ctx: Context):
         super().__init__(gate_name, gate_max_size_values, ctx)
         self._set_os()
+        self._register_gate_metrics()
 
     def _find_package_path(self, extension: str = None) -> None:
         """
@@ -189,13 +201,67 @@ class StaticQualityGateDocker(StaticQualityGate):
     def __init__(self, gate_name: str, gate_max_size_values: dict, ctx: Context):
         super().__init__(gate_name, gate_max_size_values, ctx)
         self._set_os()
+        self._register_gate_metrics()
+        self._get_image_url()
 
-# We are using the same metric handler for all gates
-# to send data to Datadog
-GATE_METRIC_HANDLER = GateMetricHandler(
-    git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
-)
+    def _get_image_url(self) -> str:
+        """
+        Get the url of the docker image to be used for the gate.
+        We first determine the flavor of the image to be used.
+        Then we check if the gate is a nightly run.
+        After that we check if the docker image contains jmx.
+        Finally we check if the docker image is for windows and if so we check the version of the windows image.
+        return: the url of the docker image
+        """
 
+        if "agent" in self.gate_name:
+            flavor = "agent"
+        elif "cluster" in self.gate_name:
+            flavor = "cluster-agent"
+        elif "dogstatsd" in self.gate_name:
+            flavor = "dogstatsd"
+        elif "cws-instrumentation" in self.gate_name:
+            flavor = "cws-instrumentation"
+        else:
+            raise ValueError(f"Unknown docker image flavor for gate: {self.gate_name}")
+
+        if os.environ["BUCKET_BRANCH"] == "nightly":
+            flavor += "-nightly"
+
+        jmx = ""
+        if "jmx" in self.gate_name:
+            jmx = "-jmx"
+
+        windows_suffix = ""
+        if "windows" in self.gate_name:
+            if "1809" in self.gate_name:
+                windows_suffix += "-win1809"
+            elif "2022" in self.gate_name:
+                windows_suffix += "-winltsc2022"
+            if "core" in self.gate_name:
+                windows_suffix += "-servercore"
+
+        image_suffix = ("-7" if flavor == "agent" else "") + jmx + windows_suffix
+
+        if not os.environ["CI_PIPELINE_ID"] or not os.environ["CI_COMMIT_SHORT_SHA"]:
+            raise StaticQualityGateFailed(
+                color_message(
+                    "This gate needs to be ran from the CI environment. (Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA)",
+                    "red",
+                )
+            )
+
+        pipeline_id = os.environ["CI_PIPELINE_ID"]
+        commit_sha = os.environ["CI_COMMIT_SHORT_SHA"]
+
+        self.artifact_path = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffix}-{self.arch}"
+        return self.artifact_path
+
+
+    def execute_gate(self):
+        print(f"Triggering docker quality gate for {self.gate_name}")
+        # TODO: Implement the logic to execute the gate
+        pass
 
 def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQualityGate]:
     """
