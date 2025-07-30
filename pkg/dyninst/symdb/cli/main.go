@@ -101,6 +101,11 @@ func run(binaryPath string) error {
 	log.Infof("Symbol extraction completed in %s.", time.Since(start))
 	stats := statsFromSymbols(symbols)
 	log.Infof("Symbol statistics for %s: %+v", binaryPath, stats)
+	if !*silent {
+		symbols.Serialize(symdbutil.MakePanickingWriter(os.Stdout))
+	} else {
+		log.Infof("--silent specified; symbols not serialized.")
+	}
 
 	return nil
 }
@@ -125,12 +130,5 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 		stats.numFunctions += s.NumFunctions
 		stats.numSourceFiles += s.NumSourceFiles
 	}
-
-	if !*silent {
-		s.Serialize(symdbutil.MakePanickingWriter(os.Stdout))
-	} else {
-		log.Infof("--silent specified; symbols not serialized.")
-	}
-
 	return stats
 }
