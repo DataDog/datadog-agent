@@ -41,18 +41,8 @@ include:
 
 default:
   retry:
-    max: 2
-    exit_codes:
-      - 42
-      - 101 # Failed to extract dependencies
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
-      - unknown_failure
-      - api_failure
-      - scheduler_failure
-      - stale_schedule
-      - data_integrity_failure
+    max: 1 # Retry everything once on failure 
+    when: always
 
 stages:
   - .pre
@@ -167,31 +157,31 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v71194676-f243bb19
+  CI_IMAGE_BTF_GEN: v72007680-abe4fb3f
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v71194676-f243bb19
+  CI_IMAGE_DEB_X64: v72007680-abe4fb3f
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v71194676-f243bb19
+  CI_IMAGE_DEB_ARM64: v72007680-abe4fb3f
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v71194676-f243bb19
+  CI_IMAGE_DEB_ARMHF: v72007680-abe4fb3f
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v71194676-f243bb19
+  CI_IMAGE_DOCKER_X64: v72007680-abe4fb3f
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v71194676-f243bb19
+  CI_IMAGE_DOCKER_ARM64: v72007680-abe4fb3f
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v71194676-f243bb19
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v72007680-abe4fb3f
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v71194676-f243bb19
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v72007680-abe4fb3f
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v71194676-f243bb19
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v72007680-abe4fb3f
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v71194676-f243bb19
+  CI_IMAGE_RPM_X64: v72007680-abe4fb3f
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v71194676-f243bb19
+  CI_IMAGE_RPM_ARM64: v72007680-abe4fb3f
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v71194676-f243bb19
+  CI_IMAGE_RPM_ARMHF: v72007680-abe4fb3f
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v70289801-3a61ff42
+  CI_IMAGE_WIN_LTSC2022_X64: v72007680-abe4fb3f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -266,6 +256,7 @@ variables:
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
   FF_USE_FASTZIP: true
+  CACHE_COMPRESSION_LEVEL: slowest
 
 #
 # Condition mixins for simplification of rules
@@ -590,7 +581,6 @@ workflow:
   - pkg/network/**/*
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
-  - pkg/dynamicinstrumentation/**/*
   - pkg/dyninst/**/*
   - pkg/gpu/**/*
   - .gitlab/kernel_matrix_testing/system_probe.yml
@@ -1107,3 +1097,18 @@ workflow:
 .except_coverage_pipeline:
   - <<: *if_coverage_pipeline
     when: never
+
+.retry_only_infra_failure:
+  retry:
+    max: 2
+    exit_codes:
+      - 42
+      - 101 # Failed to extract dependencies
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+      - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure

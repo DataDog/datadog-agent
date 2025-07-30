@@ -30,6 +30,23 @@ var storeMock = &ResultValueStore{
 	},
 }
 
+func Test_resultValueStore_ContainsScalarValue(t *testing.T) {
+	assert.True(t, storeMock.ContainsScalarValue("1.1.1.1.0"))
+	assert.True(t, storeMock.ContainsScalarValue("1.1.1.2.0"))
+	assert.True(t, storeMock.ContainsScalarValue("1.1.1.3.0"))
+
+	assert.False(t, storeMock.ContainsScalarValue("1.1.1.2"))
+	assert.False(t, storeMock.ContainsScalarValue("1.1.1.10.0"))
+}
+
+func Test_resultValueStore_ContainsColumnValues(t *testing.T) {
+	assert.True(t, storeMock.ContainsColumnValues("1.1.1"))
+	assert.True(t, storeMock.ContainsColumnValues("1.1.2"))
+
+	assert.False(t, storeMock.ContainsColumnValues("1.1.6"))
+	assert.False(t, storeMock.ContainsColumnValues("1.1.1.1"))
+}
+
 func Test_resultValueStore_getColumnValueAsFloat(t *testing.T) {
 	assert.Equal(t, float64(0), storeMock.GetColumnValueAsFloat("0.0", "1"))    // wrong column
 	assert.Equal(t, float64(10), storeMock.GetColumnValueAsFloat("1.1.1", "1")) // ok float value

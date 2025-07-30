@@ -1,0 +1,16 @@
+#!/bin/sh
+##########################################################################
+#             DO NOT EDIT THIS SCRIPT DIRECTLY.                          #
+#                                                                        #
+# The installation logic is handled by the installer in the following    #
+# file: pkg/fleet/installer/packages/datadog_agent_ddot_linux.go         #
+#                                                                        #
+##########################################################################
+
+# Run the uninstall prerm. See pkg/fleet/installer/packages/datadog_agent_ddot_linux.go
+# Note: the upgrade prerm is handled in the preinst script of the new package on rpm.
+if [ "$*" = "0" ]; then
+    datadog-installer prerm datadog-agent-ddot rpm || true
+fi
+
+exit 0

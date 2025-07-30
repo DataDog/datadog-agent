@@ -2,6 +2,79 @@
 Release Notes
 =============
 
+.. _Release Notes_7.68.3:
+
+7.68.3
+======
+
+.. _Release Notes_7.68.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-07-28
+
+- Please refer to the `7.68.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7683>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.68.3_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Upgraded JMXFetch to `0.49.9 <https://github.com/DataDog/jmxfetch/releases/0.49.9>` which reverts a change that broke support for Java 7.
+  See `0.49.9  <https://github.com/DataDog/jmxfetch/releases/tag/0.49.9>` for more details.
+
+
+.. _Release Notes_7.68.3_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.24.5``.
+
+
+.. _Release Notes_7.68.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The Agent MSI no longer fails when it is unable to read the
+  version information from [MsiGetProductInfo](https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msigetproductinfow).
+  
+  When upgrading from an Agent version earlier than 7.56, a failure in ``MsiGetProductInfo``, combined with an MSI rollback, may result in missing system drivers.
+  If this occurs, repairing or reinstalling the Agent will restore the missing drivers.
+  This issue is typically caused by a corrupted Windows Installer registry.
+  To repair these issues, refer to the
+  [Microsoft Program Install and Uninstall Troubleshooter](https://support.microsoft.com/en-us/topic/fix-problems-that-block-programs-from-being-installed-or-removed-cca7d1b6-65a9-3d98-426b-e9f927e1eb4d).
+
+
+.. _Release Notes_7.68.2:
+
+7.68.2
+======
+
+.. _Release Notes_7.68.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-07-21
+
+- Please refer to the `7.68.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7682>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.68.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an issue with the Agent pre-install script that caused integrations shipped with the Agent
+  to be removed during an Agent upgrade.
+
+- Print the correct FIPS status for the Cluster Agent when running in FIPS mode.
+
+
 .. _Release Notes_7.68.1:
 
 7.68.1
