@@ -82,7 +82,7 @@ func main() {
 		localTaggerFx.Module(),
 		healthprobeFx.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Supply(coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true))),
+		fx.Supply(coreconfig.NewParams("")),
 		coreconfig.Module(),
 		logscompressionfx.Module(),
 		fx.Supply(secrets.NewEnabledParams()),

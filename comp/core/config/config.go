@@ -8,7 +8,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	"go.uber.org/fx"
 
@@ -67,10 +66,7 @@ func NewServerlessConfig(path string) (Component, error) {
 	options := []func(*Params){WithConfigName("serverless")}
 
 	_, err := os.Stat(path)
-	if os.IsNotExist(err) &&
-		(strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml")) {
-		options = append(options, WithConfigMissingOK(true))
-	} else if !os.IsNotExist(err) {
+	if !os.IsNotExist(err) {
 		options = append(options, WithConfFilePath(path))
 	}
 

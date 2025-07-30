@@ -39,7 +39,7 @@ import (
 )
 
 var mockCoreBundleParams = core.BundleParams{
-	ConfigParams: configComp.NewParams("", configComp.WithConfigMissingOK(true)),
+	ConfigParams: configComp.NewParams(""),
 	LogParams:    log.ForOneShot("PROCESS", "trace", false),
 }
 

@@ -96,7 +96,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
-				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
+				fx.Supply(config.NewAgentParams("")),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
@@ -276,7 +276,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			return nil
 		},
 		// no config file path specification in this situation
-		fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
+		fx.Supply(config.NewAgentParams("")),
 		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
 		fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
