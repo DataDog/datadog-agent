@@ -67,7 +67,7 @@ type collector struct {
 	containerProvider      proccontainers.ContainerProvider
 
 	// Service discovery fields
-	sysProbeClient           *http.Client
+	sdAgentClient            *http.Client
 	startTime                time.Time
 	startupTimeout           time.Duration
 	serviceRetries           map[int32]uint
@@ -95,6 +95,8 @@ type Event struct {
 }
 
 func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, config pkgconfigmodel.Reader, systemProbeConfig pkgconfigmodel.Reader) collector {
+	sdAgentSocket := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sd_agent_socket")
+	log.Infof("[sd-agent] Process collector initialized with sd-agent socket: %s", sdAgentSocket)
 	return collector{
 		id:                     id,
 		catalog:                catalog,
@@ -106,7 +108,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 
 		// Initialize service discovery fields
-		sysProbeClient:   sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		sdAgentClient:    sysprobeclient.Get(sdAgentSocket),
 		startTime:        clock.Now().UTC(),
 		startupTimeout:   pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
 		serviceRetries:   make(map[int32]uint),
@@ -326,8 +328,10 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 	heartbeatPids := make([]int32, 0, len(alivePids))
 	pidsToService := make(map[int32]*model.Service, len(alivePids))
 
+	log.Debugf("[sd-agent] filterPidsToRequest: evaluating %d alive PIDs", len(alivePids))
 	for pid := range alivePids {
 		if c.ignoredPids.Has(pid) {
+			log.Debugf("[sd-agent] PID %d is ignored, skipping", pid)
 			continue
 		}
 
@@ -350,6 +354,8 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 			// Since we have a pidHeartbeats entry, we know service data exists
 			heartbeatPids = append(heartbeatPids, pid)
 			pidsToService[pid] = nil
+		} else {
+			log.Debugf("[sd-agent] PID %d heartbeat is fresh (%v ago), skipping", pid, now.Sub(lastHeartbeat))
 		}
 	}
 
@@ -367,35 +373,48 @@ func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32)
 
 	jsonBody, err := params.ToJSON()
 	if err != nil {
+		log.Errorf("[sd-agent] Failed to create JSON request body: %v", err)
 		return nil, fmt.Errorf("failed to create JSON request body: %w", err)
 	}
 
 	url := getDiscoveryURL("services")
+	log.Debugf("[sd-agent] Making request to sd-agent: %s for new PIDs: %v, heartbeatPids: %v, JSON body: %s", url, newPids, heartbeatPids, string(jsonBody))
 	req, err := http.NewRequest(http.MethodGet, url, bytes.NewBuffer(jsonBody))
 	if err != nil {
+		log.Errorf("[sd-agent] Failed to create HTTP request: %v", err)
 		return nil, err
 	}
 
 	// Set content type for JSON
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.sysProbeClient.Do(req)
+	resp, err := c.sdAgentClient.Do(req)
 	if err != nil {
+		log.Errorf("[sd-agent] Failed to connect to sd-agent socket: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Errorf("[sd-agent] Failed to read response body: %v", err)
 		return nil, err
 	}
+	log.Debugf("[sd-agent] Received response: status=%d, body=%s", resp.StatusCode, string(body))
 	if resp.StatusCode != http.StatusOK {
+		log.Errorf("[sd-agent] Non-OK status code: url %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(body))
 		return nil, fmt.Errorf("non-ok status code: url %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(body))
 	}
 
 	err = json.Unmarshal(body, &responseData)
 	if err != nil {
+		log.Errorf("[sd-agent] Failed to unmarshal JSON response: %v, body: %s", err, string(body))
 		return nil, err
+	}
+
+	log.Debugf("[sd-agent] Successfully parsed response: %d services received", len(responseData.Services))
+	for _, service := range responseData.Services {
+		log.Debugf("[sd-agent] Service: %+v", service)
 	}
 
 	return &responseData, nil
@@ -510,15 +529,17 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 	resp, err := c.getDiscoveryServices(newPids, heartbeatPids)
 	if err != nil {
 		if time.Since(c.startTime) < c.startupTimeout {
-			log.Warnf("service collector: system-probe not started yet: %v", err)
+			log.Warnf("[sd-agent] service collector: sd-agent not started yet: %v", err)
 		} else {
-			log.Errorf("failed to get services: %s", err)
+			log.Errorf("[sd-agent] failed to get services: %s", err)
 		}
 		return nil, nil
 	}
 
+	log.Debugf("[sd-agent] Processing %d services from sd-agent response", len(resp.Services))
 	for i, service := range resp.Services {
 		pidsToService[int32(service.PID)] = &resp.Services[i]
+		log.Debugf("[sd-agent] Mapped service: PID=%d -> %s", service.PID, service.GeneratedName)
 	}
 
 	// Convert InjectedPIDs to PidSet for efficient lookup
@@ -638,7 +659,7 @@ func (c *collector) updateDiscoveredServicesMetric() {
 func getDiscoveryURL(endpoint string) string {
 	URL := &url.URL{
 		Scheme: "http",
-		Host:   "sysprobe",
+		Host:   "sd-agent",
 		Path:   "/discovery/" + endpoint,
 	}
 
