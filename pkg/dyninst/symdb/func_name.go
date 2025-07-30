@@ -16,43 +16,30 @@ import (
 // Utilities for parsing Go function names.
 
 var (
-	// The parsing goes as follows:
-	// - an optional package name: (((.*/)?.*?)\.)?. Consume (greedily)
-	// everything up to the last slash, and then non-greedily up to the
-	// following dot.
-	// - an optional type name: (\(?\*?(.*?)\)?\.)?. The type name maybe be
-	// between parens and also start with a '*' if it's a pointer receiver;
-	// otherwise the type name is not wrapped in parens. Note that we won't
-	// parse correctly if there is a type name and no package name. Hopefully that
-	// doesn't exist.
-	//   - note that we don't include the optional '*' in the capture group. We
-	//     don't differentiate between pointer and value receivers.
-	//   - note the lazy capture group for the type name: .*?. It's lazy because
-	//     otherwise it also captures the following ')'
-	//   - the function name: (.*)
-	parseFuncNameRE = regexp.MustCompile(`^((?P<pkg>(.*/)?.*?)\.)?(\(?\*?(?P<typ>.*?)\)?\.)?(?P<name>.*)$`)
-	pkgIdx          = parseFuncNameRE.SubexpIndex("pkg")
-	typIdx          = parseFuncNameRE.SubexpIndex("typ")
-	nameIdx         = parseFuncNameRE.SubexpIndex("name")
+	// Regex for parsing a package name. It consumes:
+	// - an optional package path (greedily up to the last slash)
+	// - everything up to the following dot (lazily)
+	// - the trailing dot, outside of the named capture
+	pkgNameRegex = `^(?P<pkg>(.*/)?[^.]*?)\.`
 
-	// Recognize anonymous functions declared inside a function that is not a method.
-	// They look like:
-	// github.com/.../pkg.myFunc.func1
-	// internal/bytealg.init.0
-	parseAnonymousFuncNameRE = regexp.MustCompile(`^((?P<pkg>(.*/)?[^(]*?)\.)?(?P<func>(\w*?\.)?((func|gowrap|(\d+)).*))$`)
-	anonPkgIdx               = parseAnonymousFuncNameRE.SubexpIndex("pkg")
-	anonNameIdx              = parseAnonymousFuncNameRE.SubexpIndex("func")
+	methodWithPtrReceiverRE = regexp.MustCompile(
+		pkgNameRegex + `\(\*(?P<type>\w*)\)\.(?P<name>.*)$`)
+	methodWithPtrReceiverREPkgIdx  = methodWithPtrReceiverRE.SubexpIndex("pkg")
+	methodWithPtrReceiverRETypeIdx = methodWithPtrReceiverRE.SubexpIndex("type")
+	methodWithPtrReceiverRENameIdx = methodWithPtrReceiverRE.SubexpIndex("name")
 
-	// Recognize funky functions corresponding to anonymous functions defined
-	// inside inlined functions. These have names like:
-	// runtime.gcMarkDone.forEachP.func5
-	// "forEachP.func5" is an anonymous function defined inside forEachP, and
-	// "runtime.gcMarkDone" is the function inside which "forEachP" is inlined.
-	//
-	// Note that we also have anonymous methods inside inlined methods, like:
-	// github.com/cockroachdb/cockroach/pkg/server.(*topLevelServer).startPersistingHLCUpperBound.func1.(*Node).SetHLCUpperBound.1
-	// The regex does not match these; they are recognized in code.
-	parseAnonFuncInsideInlinedFuncRE = regexp.MustCompile(`^((?P<pkg>(.*/)?.*?)\.)\w+(\.\w+)+\.(func)?(\d)+$`)
+	methodWithValueReceiverRE = regexp.MustCompile(
+		pkgNameRegex + `(?P<type>\w+)\.(?P<name>.*)$`)
+	methodWithValueReceiverREPkgIdx  = methodWithValueReceiverRE.SubexpIndex("pkg")
+	methodWithValueReceiverRETypeIdx = methodWithValueReceiverRE.SubexpIndex("type")
+	methodWithValueReceiverRENameIdx = methodWithValueReceiverRE.SubexpIndex("name")
+
+	anonymousFuncRE = regexp.MustCompile(`^(func)?\d+`)
+
+	standaloneFuncRE = regexp.MustCompile(
+		pkgNameRegex + `(?P<name>.*)$`)
+	standaloneFuncREPkgIdx  = standaloneFuncRE.SubexpIndex("pkg")
+	standaloneFuncRENameIdx = standaloneFuncRE.SubexpIndex("name")
 )
 
 type parseFuncNameFailureReason int
@@ -64,9 +51,6 @@ const (
 	parseFuncNameFailureReasonGenericFunction
 	// Functions like time.map.init.0 that initialize statically-defined maps.
 	parseFuncNameFailureReasonMapInit
-	// Functions like runtime.gcMarkDone.forEachP.func5, which are anonymous
-	// functions called from inlined functions.
-	parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc
 )
 
 // funcName is the result of parsing a Go function name by parseFuncName().
@@ -125,7 +109,7 @@ type parseFuncNameResult struct {
 // (we don't support these because we also confuse them with anonymous functions
 // called from inlined functions)
 func parseFuncName(qualifiedName string) (parseFuncNameResult, error) {
-	// Filter out generic functions, e.g.
+	// Ignore generic functions, e.g.
 	// os.init.OnceValue[go.shape.interface { Error() string }].func3
 	// Note that this name is weird -- os.init is neither a package nor a type,
 	// but rather it has something to do with the generic function's caller.
@@ -143,68 +127,80 @@ func parseFuncName(qualifiedName string) (parseFuncNameResult, error) {
 		}, nil
 	}
 
-	// Ignore anonymous functions declared inside inlined functions. These are
-	// DWARF entries corresponding to anonymous functions that are defined
-	// inside a function that was inlined. We don't know what to do with them
-	// because the debug info doesn't point back to the abstract origin.
-	if parseAnonFuncInsideInlinedFuncRE.FindString(qualifiedName) != "" {
-		return parseFuncNameResult{
-			failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
-		}, nil
+	// Parse the function name as either a method on a pointer receiver, a
+	// method on a value receiver, or a standalone function.
+	var pkg, typ, name string
+	groups := methodWithPtrReceiverRE.FindStringSubmatch(qualifiedName)
+	if groups != nil {
+		pkg = groups[methodWithPtrReceiverREPkgIdx]
+		typ = groups[methodWithPtrReceiverRETypeIdx]
+		name = groups[methodWithPtrReceiverRENameIdx]
+	} else if groups = methodWithValueReceiverRE.FindStringSubmatch(qualifiedName); groups != nil {
+		pkg = groups[methodWithValueReceiverREPkgIdx]
+		typ = groups[methodWithValueReceiverRETypeIdx]
+		name = groups[methodWithValueReceiverRENameIdx]
+
+		// Disambiguate between two cases:
+		// The following example function:
+		// github.com/getsentry/sentry-go.NewClient.func1
+		// could either be a method called func1 on a type called NewClient, or
+		// an anonymous function defined inside a function called NewClient. We
+		// recognize certain names as indicating anonymous functions.
+		if anonymousFuncRE.MatchString(name) {
+			name = typ + "." + name
+			typ = ""
+		}
+	} else {
+		// If the function is not a method, it should be a standalone function.
+		groups = standaloneFuncRE.FindStringSubmatch(qualifiedName)
+		if groups == nil {
+			return parseFuncNameResult{}, fmt.Errorf("failed to parse function qualified name: %s", qualifiedName)
+		}
+		pkg = groups[standaloneFuncREPkgIdx]
+		name = groups[standaloneFuncRENameIdx]
 	}
 
-	// First, we need to distinguish between the following cases:
-	// github.com/.../pkg.myType.myMethod
-	// and
-	// github.com/.../pkg.myFunc.func1
-	//
-	// The former is a method on a type called myType. The latter is a function
-	// called myFunc.func1. We recognize the former case by checking if the name
-	// starts with some known prefixes. Note that a method like:
-	// github.com/.../pkg.myType.myMethod.func1
-	// will not match our regex; it'll be handled by the general case below.
-
-	// See if the function name looks like an anonymous function declared inside a
-	// function that's not a method.
-	groups := parseAnonymousFuncNameRE.FindStringSubmatch(qualifiedName)
-	if groups != nil {
+	// Check whether we're with anonymous functions. If we are, they might have
+	// parsed as a method, but they are not actually methods, so we need to
+	// rectify the results of the parsing and wipe the type.
+	cnt := strings.Count(name, ".")
+	if cnt == 0 {
+		// This is the straight-forward case; this is a standalone function or a
+		// method, not an anonymous function.
 		return parseFuncNameResult{
 			funcName: funcName{
-				Package:       groups[anonPkgIdx],
-				Name:          groups[anonNameIdx],
+				Package:       pkg,
+				Type:          typ,
+				Name:          name,
 				QualifiedName: qualifiedName,
 			},
 		}, nil
 	}
+	// There are two possibilities (including their more deeply nested cases):
+	// 1. This is an anonymous function defined inside a function/method, like:
+	// github.com/andrei/project/pkg/mypkg.myFunc.func1
+	// github.com/andrei/project/pkg/mypkg.myType.myMethod.func1
+	// 2. This is an instantiation of an anonymous function defined inside another function
+	// that's called from a function that was inlined in our function.method, like:
+	// github.com/andrei/project/pkg/mypkg.myFunc.anotherFunc.func1
+	// github.com/andrei/project/pkg/mypkg.myType.myMethod.anotherFunc.func1
+	//
+	// In either case, this function is not a method.
+	// TODO: We should try to distinguish the second case and ignore
+	// these functions; a user shouldn't see them (ideally we'd
+	// treat them as inlined instances of the respective anonymous
+	// function, but unfortunately Go's DWARF does not provide a
+	// link to the "real" function).
 
-	// We're done with the special cases. Now parse the general case.
-	groups = parseFuncNameRE.FindStringSubmatch(qualifiedName)
-	if groups == nil {
-		return parseFuncNameResult{}, fmt.Errorf("failed to parse function qualified name: %s", qualifiedName)
+	finalName := name
+	if typ != "" {
+		finalName = typ + "." + name
 	}
-
-	// Ignore funky functions like:
-	// github.com/cockroachdb/cockroach/pkg/server.(*topLevelServer).startPersistingHLCUpperBound.func1.(*Node).SetHLCUpperBound.1
-	// This is an anonymous function ((*Node).SetHLCUpperBound.1) that is called from an inlined instance
-	// of github.com/cockroachdb/cockroach/pkg/server.(*Node).SetHLCUpperBound (inlined inside
-	// github.com/cockroachdb/cockroach/pkg/server.(*topLevelServer).startPersistingHLCUpperBound.func1).
-	// This is similar to the case handled above by parseAnonFuncInsideInlinedFuncRE.
-	// That function is parsed above as having name:
-	// startPersistingHLCUpperBound.func1.(*Node).SetHLCUpperBound.1.
-	// We recognize the case by the parens around (*Node). Note that we fail to
-	// recognize such functions when their receiver is not a pointer.
-	name := groups[nameIdx]
-	if strings.ContainsRune(name, '(') {
-		return parseFuncNameResult{
-			failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
-		}, nil
-	}
-
 	return parseFuncNameResult{
 		funcName: funcName{
-			Package:       groups[pkgIdx],
-			Type:          groups[typIdx],
-			Name:          groups[nameIdx],
+			Package:       pkg,
+			Type:          "",
+			Name:          finalName,
 			QualifiedName: qualifiedName,
 		},
 	}, nil

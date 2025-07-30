@@ -689,7 +689,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 }
 
 func getTestEndpoint(host string, port int, ssl bool) Endpoint {
-	e := NewEndpoint("123", "", host, port, ssl)
+	e := NewEndpoint("123", "", host, port, EmptyPathPrefix, ssl)
 	e.UseCompression = true
 	e.CompressionLevel = ZstdCompressionLevel // by default endpoints uses zstd
 	e.BackoffFactor = pkgconfigsetup.DefaultLogsSenderBackoffFactor
@@ -931,12 +931,13 @@ func Test_parseAddressWithScheme(t *testing.T) {
 		defaultParser defaultParseAddressFunc
 	}
 	tests := []struct {
-		name       string
-		args       args
-		wantHost   string
-		wantPort   int
-		wantUseSSL bool
-		wantErr    bool
+		name           string
+		args           args
+		wantHost       string
+		wantPort       int
+		wantPathPrefix string
+		wantUseSSL     bool
+		wantErr        bool
 	}{
 		{
 			name: "url without scheme and port",
@@ -945,10 +946,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddress,
 			},
-			wantHost:   "localhost",
-			wantPort:   8080,
-			wantUseSSL: false,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "",
+			wantUseSSL:     false,
+			wantErr:        false,
 		},
 		{
 			name: "url with https prefix",
@@ -957,10 +959,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddress,
 			},
-			wantHost:   "localhost",
-			wantPort:   0,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
 		},
 		{
 			name: "url with https prefix and port",
@@ -968,10 +971,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				address:       "https://localhost:443",
 				defaultParser: parseAddress,
 			},
-			wantHost:   "localhost",
-			wantPort:   443,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       443,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
 		},
 		{
 			name: "invalid url",
@@ -980,10 +984,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddressAsHost,
 			},
-			wantHost:   "",
-			wantPort:   0,
-			wantUseSSL: false,
-			wantErr:    true,
+			wantHost:       "",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     false,
+			wantErr:        true,
 		},
 		{
 			name: "allow emptyPort",
@@ -992,10 +997,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddressAsHost,
 			},
-			wantHost:   "localhost",
-			wantPort:   0,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
 		},
 		{
 			name: "no schema, not port emptyPort",
@@ -1004,15 +1010,54 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  false,
 				defaultParser: parseAddressAsHost,
 			},
-			wantHost:   "localhost",
-			wantPort:   0,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
+		},
+		{
+			name: "path prefix",
+			args: args{
+				address:       "https://localhost:8080/path/prefix",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "/path/prefix",
+			wantUseSSL:     true,
+			wantErr:        false,
+		},
+		{
+			name: "legacy path v1 prefix",
+			args: args{
+				address:       "https://localhost:8080/v1/input",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
+		},
+		{
+			name: "legacy path v2 prefix",
+			args: args{
+				address:       "https://localhost:8080/api/v2/logs",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotHost, gotPort, gotUseSSL, err := parseAddressWithScheme(tt.args.address, tt.args.defaultNoSSL, tt.args.defaultParser)
+			gotHost, gotPort, gotPathPrefix, gotUseSSL, err := parseAddressWithScheme(tt.args.address, tt.args.defaultNoSSL, tt.args.defaultParser)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseAddressWithScheme() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1022,6 +1067,9 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			}
 			if gotPort != tt.wantPort {
 				t.Errorf("parseAddressWithScheme() gotPort = %v, want %v", gotPort, tt.wantPort)
+			}
+			if gotPathPrefix != tt.wantPathPrefix {
+				t.Errorf("parseAddressWithScheme() gotPathPrefix = %v, want %v", gotPathPrefix, tt.wantPathPrefix)
 			}
 			if gotUseSSL != tt.wantUseSSL {
 				t.Errorf("parseAddressWithScheme() gotUseSSL = %v, want %v", gotUseSSL, tt.wantUseSSL)

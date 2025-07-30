@@ -138,7 +138,6 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 		modeConf.TagVersionMode)
 
 	origin := cloudService.GetOrigin()
-	prefix := cloudService.GetPrefix()
 
 	agentLogConfig := serverlessInitLog.CreateConfig(origin)
 
@@ -154,7 +153,8 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger)
-	metric.AddColdStartMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+
+	metric.Add(cloudService.GetStartMetricName(), origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	setupOtlpAgent(metricAgent, tagger)
 
