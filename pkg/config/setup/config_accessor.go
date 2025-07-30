@@ -18,3 +18,15 @@ func Datadog() pkgconfigmodel.Config {
 func SystemProbe() pkgconfigmodel.Config {
 	return systemProbe
 }
+
+// GlobalConfigBuilder returns a builder appropriate for initializing
+// the config. It should not be used in most places, except for code
+// that builds the config from scratch.
+func GlobalConfigBuilder() pkgconfigmodel.BuildableConfig {
+	return datadog
+}
+
+// GlobalConfigBuilder returns a builder for the system probe config
+func GlobalSystemProbeConfigBuilder() pkgconfigmodel.BuildableConfig {
+	return systemProbe
+}
