@@ -17,8 +17,8 @@ type Service struct {
 	GeneratedName              string                          `json:"generated_name"`
 	GeneratedNameSource        string                          `json:"generated_name_source"`
 	AdditionalGeneratedNames   []string                        `json:"additional_generated_names"`
-	ContainerServiceName       string                          `json:"container_service_name"`
-	ContainerServiceNameSource string                          `json:"container_service_name_source"`
+	ContainerServiceName       string                          `json:"container_service_name,omitempty"`
+	ContainerServiceNameSource string                          `json:"container_service_name_source,omitempty"`
 	ContainerTags              []string                        `json:"container_tags,omitempty"`
 	TracerMetadata             []tracermetadata.TracerMetadata `json:"tracer_metadata,omitempty"`
 	DDService                  string                          `json:"dd_service"`
@@ -29,16 +29,16 @@ type Service struct {
 	APMInstrumentation         string                          `json:"apm_instrumentation"`
 	Language                   string                          `json:"language"`
 	Type                       string                          `json:"service_type"`
-	RSS                        uint64                          `json:"rss"`
-	CommandLine                []string                        `json:"cmdline"`
-	StartTimeMilli             uint64                          `json:"start_time"`
-	CPUCores                   float64                         `json:"cpu_cores"`
-	ContainerID                string                          `json:"container_id"`
-	LastHeartbeat              int64                           `json:"last_heartbeat"`
-	RxBytes                    uint64                          `json:"rx_bytes"`
-	TxBytes                    uint64                          `json:"tx_bytes"`
-	RxBps                      float64                         `json:"rx_bps"`
-	TxBps                      float64                         `json:"tx_bps"`
+	RSS                        uint64                          `json:"rss,omitempty"`
+	CommandLine                []string                        `json:"cmdline,omitempty"`
+	StartTimeMilli             uint64                          `json:"start_time,omitempty"`
+	CPUCores                   float64                         `json:"cpu_cores,omitempty"`
+	ContainerID                string                          `json:"container_id,omitempty"`
+	LastHeartbeat              int64                           `json:"last_heartbeat,omitempty"`
+	RxBytes                    uint64                          `json:"rx_bytes,omitempty"`
+	TxBytes                    uint64                          `json:"tx_bytes,omitempty"`
+	RxBps                      float64                         `json:"rx_bps,omitempty"`
+	TxBps                      float64                         `json:"tx_bps,omitempty"`
 }
 
 // ServicesResponse is the response for the system-probe /discovery/check endpoint.
