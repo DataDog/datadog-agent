@@ -62,7 +62,7 @@ func ExamplePrintJSON() {
 	//       "ID": 1,
 	//       "Name": "Node",
 	//       "ByteSize": 16,
-	//       "Fields": [
+	//       "RawFields": [
 	//         {
 	//           "Name": "value",
 	//           "Offset": 0,
@@ -114,7 +114,7 @@ func ExamplePrintYAML() {
 	//       ID: 1
 	//       Name: Node
 	//       ByteSize: 16
-	//       Fields:
+	//       RawFields:
 	//         - Name: value
 	//           Offset: 0
 	//           Type: 2 BaseType int
@@ -150,7 +150,7 @@ func constructExampleProgram() *ir.Program {
 			Name:     "Node",
 			ByteSize: 16,
 		},
-		Fields: []ir.Field{
+		RawFields: []ir.Field{
 			{
 				Name:   "value",
 				Offset: 0,
@@ -168,7 +168,7 @@ func constructExampleProgram() *ir.Program {
 		},
 	}
 	p.Types[1] = nodeStruct
-	p.Types[2] = nodeStruct.Fields[0].Type
+	p.Types[2] = nodeStruct.RawFields[0].Type
 
 	// Create pointer to Node
 	nodePtr := &ir.PointerType{
@@ -182,7 +182,7 @@ func constructExampleProgram() *ir.Program {
 	p.Types[3] = nodePtr
 
 	// Complete the cycle
-	nodeStruct.Fields = append(nodeStruct.Fields, ir.Field{
+	nodeStruct.RawFields = append(nodeStruct.RawFields, ir.Field{
 		Name:   "next",
 		Offset: 8,
 		Type:   nodePtr,

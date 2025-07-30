@@ -23453,6 +23453,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setsockopt.used_immediates":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSetSockOptUsedImmediates(ev, &ev.SetSockOpt)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setuid.euid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -31356,6 +31367,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setsockopt.socket_family",
 		"setsockopt.socket_protocol",
 		"setsockopt.socket_type",
+		"setsockopt.used_immediates",
 		"setuid.euid",
 		"setuid.euser",
 		"setuid.fsuid",
@@ -31746,16 +31758,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.retval",
 		"utimes.syscall.path",
 	}
-}
-func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
-	m := &Model{}
-	evaluator, err := m.GetEvaluator(field, "", 0)
-	if err != nil {
-		return nil, err
-	}
-	ctx := eval.NewContext(ev)
-	value := evaluator.Eval(ctx)
-	return value, nil
 }
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
 	switch field {
@@ -34765,6 +34767,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.socket_type":
 		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.used_immediates":
+		return "setsockopt", reflect.Int, "int", nil
 	case "setuid.euid":
 		return "setuid", reflect.Int, "int", nil
 	case "setuid.euser":
@@ -35545,20 +35549,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "utimes", reflect.String, "string", nil
 	}
 	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
-}
-func (ev *Event) initProcess() {
-	if ev.BaseEvent.ProcessContext == nil {
-		ev.BaseEvent.ProcessContext = &ProcessContext{}
-	}
-	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-	}
-	if ev.BaseEvent.ProcessContext.Parent == nil {
-		ev.BaseEvent.ProcessContext.Parent = &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process
-	}
-	if ev.Exec.Process == nil {
-		ev.Exec.Process = &Process{}
-	}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
@@ -42655,6 +42645,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("setsockopt.socket_protocol", &ev.SetSockOpt.SocketProtocol, value)
 	case "setsockopt.socket_type":
 		return ev.setUint16FieldValue("setsockopt.socket_type", &ev.SetSockOpt.SocketType, value)
+	case "setsockopt.used_immediates":
+		switch rv := value.(type) {
+		case int:
+			ev.SetSockOpt.UsedImmediates = append(ev.SetSockOpt.UsedImmediates, int(rv))
+		case []int:
+			for _, i := range rv {
+				ev.SetSockOpt.UsedImmediates = append(ev.SetSockOpt.UsedImmediates, int(i))
+			}
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.used_immediates"}
+		}
+		return nil
 	case "setuid.euid":
 		return ev.setUint32FieldValue("setuid.euid", &ev.SetUID.EUID, value)
 	case "setuid.euser":
