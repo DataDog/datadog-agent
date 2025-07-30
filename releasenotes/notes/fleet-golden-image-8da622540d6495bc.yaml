@@ -8,7 +8,7 @@
 ---
 fixes:
   - |
-    Remote Agent updates on Windows now handles
-    computer name updates done after initial
-    install of the agent.This allows the use
+    Remote Agent updates on Windows now handle
+    computer name updates done after the initial
+    install of the Agent. This allows the use
     of golden images to deploy remotely updatable hosts.
