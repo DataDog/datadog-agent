@@ -6,10 +6,6 @@
 // Package secrets decodes secret values by invoking the configured executable command
 package secrets
 
-import (
-	"io"
-)
-
 // team: agent-configuration
 
 // ConfigParams holds parameters for configuration
@@ -32,8 +28,6 @@ type ConfigParams struct {
 type Component interface {
 	// Configure the executable command that is used for decoding secrets
 	Configure(config ConfigParams)
-	// Get debug information and write it to the parameter
-	GetDebugInfo(w io.Writer)
 	// Resolve resolves the secrets in the given yaml data by replacing secrets handles by their corresponding secret value
 	Resolve(data []byte, origin string) ([]byte, error)
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
