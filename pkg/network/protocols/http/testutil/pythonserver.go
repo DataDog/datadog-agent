@@ -56,6 +56,7 @@ if len(sys.argv) >= 2 and sys.argv[1].lower() in YES:
     context.load_cert_chain(certfile='%s', keyfile='%s')
     httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
 try:
+    print(f"Server running at https://{server_address[0]}:{server_address[1]}/")
     httpd.serve_forever()
 finally:
     httpd.shutdown()
@@ -154,21 +155,13 @@ func linkFile(t *testing.T, src, dst string) error {
 }
 
 // HTTPPythonServerContainer launches an HTTPs server written in Python inside a container.
-func HTTPPythonServerContainer(t *testing.T, key, cert, serverPort string) error {
+func HTTPPythonServerContainer(t *testing.T, serverPort string) error {
 	t.Helper()
 	dir, _ := CurDir()
 
-	// Set up certificates
-	if err := linkFile(t, key, dir+"/testdata/certs/srv.key"); err != nil {
-		return err
-	}
-	if err := linkFile(t, cert, dir+"/testdata/certs/srv.crt"); err != nil {
-		return err
-	}
-
-	// Create Python script using existing format
-	certPath := "/v/certs/srv.crt"
-	keyPath := "/v/certs/srv.key"
+	// Create Python script using existing format - reference original certificate files directly
+	certPath := "/v/cert.pem.0"
+	keyPath := "/v/server.key"
 	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, "0.0.0.0", "4141", certPath, keyPath)
 	scriptFile, err := writeTempFile("python_container_script", pythonSSLServer)
 	require.NoError(t, err)

@@ -1076,10 +1076,7 @@ func (s *tlsSuite) TestOpenSSLTLSContainer() {
 		serverPort          = "4445"
 	)
 
-	cert, key, err := testutil.GetCertsPaths()
-	require.NoError(t, err)
-
-	require.NoError(t, testutil.HTTPPythonServerContainer(t, key, cert, serverPort))
+	require.NoError(t, testutil.HTTPPythonServerContainer(t, serverPort))
 	pythonPID, err := testutil.GetPythonDockerPID()
 	require.NoError(t, err)
 

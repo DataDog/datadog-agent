@@ -3,7 +3,7 @@ name: python
 services:
   python:
     image: python:3-alpine
-    command: ["python3", "/v/server.py", "true"]
+    command: ["python3", "-u", "/v/server.py", "true"]
     ports:
       - ${PORT}:4141
     environment:
