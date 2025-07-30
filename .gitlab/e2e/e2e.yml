@@ -295,6 +295,7 @@ new-e2e-fips-compliance-test:
     matrix:
       - EXTRA_PARAMS: --run "TestFIPSCiphersLinuxSuite$"
       - EXTRA_PARAMS: --run "TestLinuxFIPSComplianceSuite$"
+      - EXTRA_PARAMS: --run "TestFIPSCiphersClusterAgentSuite$"
 
 new-e2e-windows-fips-compliance-test:
   extends: .new_e2e_template
