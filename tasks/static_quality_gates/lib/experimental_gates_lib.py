@@ -14,6 +14,7 @@ from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, read_byt
 # to send data to Datadog
 GATE_METRIC_HANDLER = None
 
+
 def _get_metric_handler() -> GateMetricHandler:
     global GATE_METRIC_HANDLER
     if GATE_METRIC_HANDLER is None:
@@ -94,6 +95,7 @@ class StaticQualityGate:
                 "green",
             )
         )
+
 
 class StaticQualityGatePackage(StaticQualityGate):
     """
@@ -184,17 +186,17 @@ class StaticQualityGatePackage(StaticQualityGate):
         self._find_package_path()
         print(f"Package path found: {self.artifact_path}")
         self._calculate_package_size()
-        print(
-            f"Package size calculated: {self.artifact_on_wire_size} on wire, {self.artifact_on_disk_size} on disk"
-        )
+        print(f"Package size calculated: {self.artifact_on_wire_size} on wire, {self.artifact_on_disk_size} on disk")
         self._check_package_size()
         print(color_message(f"✅ Package size check passed for {self.gate_name}", "green"))
         self.print_results()
+
 
 class StaticQualityGateDocker(StaticQualityGate):
     """
     Static quality gate for docker
     """
+
     def _set_os(self):
         self.os = "docker"
 
@@ -225,9 +227,6 @@ class StaticQualityGateDocker(StaticQualityGate):
         else:
             raise ValueError(f"Unknown docker image flavor for gate: {self.gate_name}")
 
-        if os.environ["BUCKET_BRANCH"] == "nightly":
-            flavor += "-nightly"
-
         jmx = ""
         if "jmx" in self.gate_name:
             jmx = "-jmx"
@@ -243,6 +242,9 @@ class StaticQualityGateDocker(StaticQualityGate):
 
         image_suffix = ("-7" if flavor == "agent" else "") + jmx + windows_suffix
 
+        if os.environ["BUCKET_BRANCH"] == "nightly":
+            flavor += "-nightly"
+
         if not os.environ["CI_PIPELINE_ID"] or not os.environ["CI_COMMIT_SHORT_SHA"]:
             raise StaticQualityGateFailed(
                 color_message(
@@ -254,14 +256,16 @@ class StaticQualityGateDocker(StaticQualityGate):
         pipeline_id = os.environ["CI_PIPELINE_ID"]
         commit_sha = os.environ["CI_COMMIT_SHORT_SHA"]
 
-        self.artifact_path = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffix}-{self.arch}"
+        self.artifact_path = (
+            f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffix}-{self.arch}"
+        )
         return self.artifact_path
-
 
     def execute_gate(self):
         print(f"Triggering docker quality gate for {self.gate_name}")
         # TODO: Implement the logic to execute the gate
         pass
+
 
 def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQualityGate]:
     """
