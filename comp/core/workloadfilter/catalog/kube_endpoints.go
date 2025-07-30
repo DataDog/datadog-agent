@@ -14,7 +14,7 @@ import (
 )
 
 // LegacyEndpointsMetricsProgram creates a program for filtering endpoints metrics
-func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyEndpointsMetricsProgram"
 	var initErrors []error
 
@@ -39,7 +39,7 @@ func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component
 }
 
 // LegacyEndpointsGlobalProgram creates a program for filtering endpoints globally
-func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyEndpointsGlobalProgram"
 	var initErrors []error
 

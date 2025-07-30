@@ -15,7 +15,7 @@ import (
 )
 
 // LegacyContainerMetricsProgram creates a program for filtering container metrics
-func LegacyContainerMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerMetricsProgram"
 	var initErrors []error
 
@@ -40,7 +40,7 @@ func LegacyContainerMetricsProgram(config config.Component, logger log.Component
 }
 
 // LegacyContainerLogsProgram creates a program for filtering container logs
-func LegacyContainerLogsProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerLogsProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerLogsProgram"
 	var initErrors []error
 
@@ -65,7 +65,7 @@ func LegacyContainerLogsProgram(config config.Component, logger log.Component) p
 }
 
 // LegacyContainerACExcludeProgram creates a program for excluding containers via legacy `AC` filters
-func LegacyContainerACExcludeProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerACExcludeProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerACExcludeProgram"
 	var initErrors []error
 
@@ -83,7 +83,7 @@ func LegacyContainerACExcludeProgram(config config.Component, logger log.Compone
 }
 
 // LegacyContainerACIncludeProgram creates a program for including containers via legacy `AC` filters
-func LegacyContainerACIncludeProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerACIncludeProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerACIncludeProgram"
 	var initErrors []error
 
@@ -101,7 +101,7 @@ func LegacyContainerACIncludeProgram(config config.Component, logger log.Compone
 }
 
 // LegacyContainerGlobalProgram creates a program for filtering container globally
-func LegacyContainerGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerGlobalProgram"
 	var initErrors []error
 
@@ -126,7 +126,7 @@ func LegacyContainerGlobalProgram(config config.Component, logger log.Component)
 }
 
 // LegacyContainerSBOMProgram creates a program for filtering container SBOMs
-func LegacyContainerSBOMProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerSBOMProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerSBOMProgram"
 	var initErrors []error
 
@@ -162,7 +162,7 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 }
 
 // ContainerPausedProgram creates a program for filtering paused containers
-func ContainerPausedProgram(config config.Component, logger log.Component) program.CELProgram {
+func ContainerPausedProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "ContainerPausedProgram"
 	var initErrors []error
 	var excludeList []string
