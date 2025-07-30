@@ -227,8 +227,8 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		// Nothing to process.
 
 	case *ir.StructureType:
-		ops = make([]Op, 0, 2*len(t.Fields))
-		for _, field := range t.Fields {
+		ops = make([]Op, 0, 2*len(t.RawFields))
+		for field := range t.Fields() {
 			elemFunc, elemNeeded, err := g.addTypeHandler(field.Type)
 			if err != nil {
 				return nil, false, err
@@ -290,6 +290,9 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 
 	// Pointer or fat pointer types.
 
+	case *ir.VoidPointerType:
+		// Nothing to process. We don't know what the pointee is.
+
 	case *ir.PointerType:
 		g.typeQueue = append(g.typeQueue, t.Pointee)
 		needed = true
@@ -347,7 +350,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		return nil, false, errors.New("internal: unexpected EventRootType")
 
 	default:
-		panic(fmt.Sprintf("unexpected ir.Type: %#v", t))
+		panic(fmt.Sprintf("unexpected ir.Type to handle: %#v", t))
 	}
 
 	g.typeFuncMetadata[t.GetID()] = typeFuncMetadata{
@@ -379,7 +382,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 		var err error
 		switch t := t.(type) {
 		case *ir.StructureType:
-			for _, field := range t.Fields {
+			for _, field := range t.RawFields {
 				err = collectPieces(field.Type, offset+field.Offset)
 				if err != nil {
 					return err
@@ -395,22 +398,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 			}
 
 		// Base or pointer types.
-		case *ir.BaseType:
-			pieces = append(pieces, memoryLayoutPiece{
-				PaddedOffset: offset,
-				Size:         uint32(t.GetByteSize()),
-			})
-		case *ir.GoChannelType:
-			pieces = append(pieces, memoryLayoutPiece{
-				PaddedOffset: offset,
-				Size:         uint32(t.GetByteSize()),
-			})
-		case *ir.PointerType:
-			pieces = append(pieces, memoryLayoutPiece{
-				PaddedOffset: offset,
-				Size:         uint32(t.GetByteSize()),
-			})
-		case *ir.GoMapType:
+		case *ir.BaseType, *ir.GoChannelType, *ir.PointerType, *ir.VoidPointerType, *ir.GoMapType, *ir.GoSubroutineType:
 			pieces = append(pieces, memoryLayoutPiece{
 				PaddedOffset: offset,
 				Size:         uint32(t.GetByteSize()),
@@ -442,7 +430,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 		case *ir.GoSwissMapHeaderType:
 			err = errors.Errorf("internal: unexpected GoSwissMapHeaderType: %#v", t)
 		default:
-			panic(fmt.Sprintf("unexpected ir.Type: %#v", t))
+			panic(fmt.Sprintf("unexpected ir.Type for layout: %#v", t))
 		}
 		return err
 	}
@@ -478,6 +466,9 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			break
 		}
 		for _, piece := range loclist.Pieces {
+			if layoutIdx >= len(layoutPieces) {
+				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout")
+			}
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
 			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {

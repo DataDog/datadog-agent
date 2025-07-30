@@ -28,9 +28,11 @@ type processEvent struct {
 }
 
 type processAnalysis struct {
-	service     string
-	exe         Executable
-	interesting bool
+	service       string
+	exe           Executable
+	interesting   bool
+	gitInfo       GitInfo
+	containerInfo ContainerInfo
 }
 
 type analysisResult struct {
@@ -38,11 +40,6 @@ type analysisResult struct {
 	err error
 	processAnalysis
 }
-
-type event interface{ event() }
-
-func (e *processEvent) event()   {}
-func (r *analysisResult) event() {}
 
 // effects holds the side-effects the pure state machine can trigger.
 // All its methods are synchronous from the point of view of Handle, so the
@@ -56,60 +53,72 @@ type effects interface {
 }
 
 type state struct {
-	alive    map[uint32]struct{}
-	queued   []uint32
+	// The set of processes that we have reported as alive, or that we are
+	// currently analyzing.
+	alive map[uint32]struct{}
+	// The set of processes that we have queued for analysis (excluding
+	// processes that are currently being analyzed).
+	queued []uint32
+	// True if we are currently analyzing a process.
 	inFlight bool
 
 	// The processes that are in the current update being built but have
-	// not yet been reported.
+	// not yet been reported. This map should only ever contain processes
+	// that are queued for analysis or in the update that is currently
+	// being built.
 	pending map[uint32]struct{}
 
 	updates  []ProcessUpdate
 	removals []ProcessID
 }
 
-func newState() *state {
-	return &state{
+func makeState() state {
+	return state{
 		alive:   make(map[uint32]struct{}),
 		pending: make(map[uint32]struct{}),
 	}
 }
 
-func (s *state) handle(ev event, eff effects) {
-	switch e := ev.(type) {
-	case *processEvent:
-		switch e.kind {
-		case processEventKindExec:
-			if _, ok := s.alive[e.pid]; !ok {
-				s.alive[e.pid] = struct{}{}
-				s.pending[e.pid] = struct{}{}
-				s.queued = append(s.queued, e.pid)
-			}
-		case processEventKindExit:
-			if _, ok := s.alive[e.pid]; ok {
-				delete(s.alive, e.pid)
-				if _, ok := s.pending[e.pid]; !ok {
-					pid := ProcessID{PID: int32(e.pid)}
-					s.removals = append(s.removals, pid)
-				}
-			}
-		}
-	case *analysisResult:
-		s.inFlight = false
-		if e.err != nil || !e.interesting {
-			delete(s.alive, uint32(e.pid))
-		} else {
-			s.updates = append(s.updates, ProcessUpdate{
-				ProcessID: ProcessID{
-					PID:     int32(e.pid),
-					Service: e.service,
-				},
-				Executable: e.exe,
-			})
-		}
+func (s *state) handleAnalysisResult(e analysisResult) {
+	s.inFlight = false
+	if e.err != nil || !e.interesting {
+		delete(s.alive, uint32(e.pid))
+		delete(s.pending, uint32(e.pid))
+	} else if _, ok := s.alive[e.pid]; ok {
+		delete(s.pending, e.pid)
+		s.updates = append(s.updates, ProcessUpdate{
+			ProcessID: ProcessID{
+				PID: int32(e.pid),
+			},
+			Executable: e.exe,
+			Service:    e.service,
+			GitInfo:    e.gitInfo,
+			Container:  e.containerInfo,
+		})
 	}
+}
 
-	// Start the next analysis if idle.
+func (s *state) handleProcessEvent(e processEvent) {
+	switch e.kind {
+	case processEventKindExec:
+		if _, ok := s.alive[e.pid]; !ok {
+			s.alive[e.pid] = struct{}{}
+			s.pending[e.pid] = struct{}{}
+			s.queued = append(s.queued, e.pid)
+		}
+	case processEventKindExit:
+		if _, ok := s.alive[e.pid]; ok {
+			delete(s.alive, e.pid)
+			if _, ok := s.pending[e.pid]; !ok {
+				pid := ProcessID{PID: int32(e.pid)}
+				s.removals = append(s.removals, pid)
+			}
+		}
+		delete(s.pending, e.pid)
+	}
+}
+
+func (s *state) analyzeOrReport(eff effects) {
 	for !s.inFlight && len(s.queued) > 0 {
 		pid := s.queued[0]
 		s.queued = s.queued[1:]
@@ -124,8 +133,6 @@ func (s *state) handle(ev event, eff effects) {
 	if !shouldReport {
 		return
 	}
-
-	clear(s.pending)
 
 	// Drop updates for processes that exited before we finished building.
 	isDead := func(pid uint32) bool { _, ok := s.alive[pid]; return !ok }

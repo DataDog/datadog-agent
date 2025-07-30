@@ -28,7 +28,7 @@ checks:
     description: "Memory usage"
     bounds:
       series: total_pss_bytes
-      upper_bound: "242 MiB"
+      upper_bound: "241 MiB"
 
   - name: lost_bytes
     description: "Allowable bytes not polled by log Agent"

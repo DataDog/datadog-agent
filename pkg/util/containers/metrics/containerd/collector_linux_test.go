@@ -145,6 +145,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			KernelStack:  100,
 			Pgfault:      2,
 			Pgmajfault:   1,
+			MaxUsage:     1000,
 		},
 		Io: &v2.IOStat{
 			Usage: []*v2.IOEntry{
@@ -252,6 +253,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 					Swap:         pointer.Ptr(10.0),
 					Pgfault:      pointer.Ptr(2.0),
 					Pgmajfault:   pointer.Ptr(1.0),
+					Peak:         pointer.Ptr(1000.0),
 				},
 				IO: &provider.ContainerIOStats{
 					ReadBytes:       pointer.Ptr(60.0),

@@ -65,10 +65,10 @@ deploy_deb_testing-a7_x64:
 
     - *setup_signing_keys_package
 
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 deploy_deb_testing-a7_arm64:
   rules:
@@ -84,8 +84,8 @@ deploy_deb_testing-a7_arm64:
 
     - *setup_signing_keys_package
 
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "stable-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "stable-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 .deploy_rpm_testing-a7:
   stage: e2e_deploy
@@ -184,10 +184,11 @@ deploy_windows_testing-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
+  retry: 2
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
     - $S3_CP_CMD
       --recursive
@@ -196,7 +197,7 @@ deploy_windows_testing-a7:
       --include "datadog-agent-upgrade-test-7.*.msi"
       --include "datadog-installer-*-1-x86_64.msi"
       --include "datadog-installer-*-1-x86_64.exe"
-      $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
@@ -208,15 +209,16 @@ deploy_windows_testing-a7-fips:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
+  retry: 2
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7-fips"]
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
     - $S3_CP_CMD
       --recursive
       --exclude "*"
       --include "datadog-fips-agent-7.*.msi"
-      $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732

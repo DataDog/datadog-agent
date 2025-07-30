@@ -153,8 +153,29 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 }
 
 // InstallConfigExperiment installs an experiment.
-func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) (err error) {
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg, version, string(rawConfig))
+func (i *InstallerExec) InstallConfigExperiment(
+	ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string,
+) (err error) {
+	if len(rawConfigs) == 0 {
+		return fmt.Errorf("no configs provided")
+	}
+
+	var cmdLineArgs = []string{pkg, version}
+
+	// Add config order as a JSON-encoded string if provided
+	if len(configOrder) > 0 {
+		configOrderJSON, err := json.Marshal(configOrder)
+		if err != nil {
+			return fmt.Errorf("could not marshal config order: %w", err)
+		}
+		cmdLineArgs = append(cmdLineArgs, "--config-order", string(configOrderJSON))
+	}
+
+	for _, config := range rawConfigs {
+		cmdLineArgs = append(cmdLineArgs, string(config))
+	}
+
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

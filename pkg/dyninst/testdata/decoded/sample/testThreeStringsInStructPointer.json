@@ -1,0 +1,52 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testThreeStringsInStructPointer",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testThreeStringsInStructPointer",
+          "location": {
+            "method": "main.testThreeStringsInStructPointer"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*main.threeStringStruct",
+                "address": "[addr]",
+                "fields": {
+                  "a": {
+                    "type": "string",
+                    "value": "abc"
+                  },
+                  "b": {
+                    "type": "string",
+                    "value": "def"
+                  },
+                  "c": {
+                    "type": "string",
+                    "value": "ghi"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

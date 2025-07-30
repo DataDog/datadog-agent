@@ -132,6 +132,12 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 	programName := "LegacyContainerSBOMProgram"
 	var initErrors []error
 
+	if !config.GetBool("sbom.enabled") && !config.GetBool("sbom.container_image.enabled") && !config.GetBool("sbom.container.enabled") {
+		return program.CELProgram{
+			Name: programName,
+		}
+	}
+
 	excludeList := config.GetStringSlice("sbom.container_image.container_exclude")
 	if config.GetBool("sbom.container_image.exclude_pause_container") {
 		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)
@@ -165,9 +171,9 @@ func createContainerADAnnotationsProgram(programName, annotationKey string, logg
 	// Use 'in' operator to safely check if annotation exists before accessing it
 	excludeFilter := fmt.Sprintf(`
 		(("ad.datadoghq.com/" + container.name + ".%s") in container.pod.annotations && 
-		 container.pod.annotations["ad.datadoghq.com/" + container.name + ".%s"] == "true") ||
+		 container.pod.annotations["ad.datadoghq.com/" + container.name + ".%s"] in ["1", "t", "T", "true", "TRUE", "True"]) ||
 		(("ad.datadoghq.com/%s") in container.pod.annotations && 
-		 container.pod.annotations["ad.datadoghq.com/%s"] == "true")
+		 container.pod.annotations["ad.datadoghq.com/%s"] in ["1", "t", "T", "true", "TRUE", "True"])
 	`, annotationKey, annotationKey, annotationKey, annotationKey)
 
 	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.ContainerType)

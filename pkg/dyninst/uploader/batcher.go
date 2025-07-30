@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,24 +38,20 @@ type sendResult struct {
 }
 
 type batcher struct {
-	name         string
-	enqueueCh    chan json.RawMessage
-	sendResultCh chan sendResult
-	ctx          context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
-	state        *batcherState
-	timer        *time.Timer
-	sender       sender
-	stopOnce     sync.Once
+	name          string
+	enqueueCh     chan json.RawMessage
+	sendResultCh  chan sendResult
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
+	state         *batcherState
+	timer         *time.Timer
+	sender        sender
+	stopOnce      sync.Once
+	errLogLimiter *rate.Limiter
 }
 
-func newBatcher(name string, sender sender, opts ...Option) *batcher {
-	cfg := defaultConfig()
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
+func newBatcher(name string, sender sender, batcherConfig batcherConfig) *batcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	timer := time.NewTimer(0)
 	if !timer.Stop() {
@@ -66,9 +64,14 @@ func newBatcher(name string, sender sender, opts ...Option) *batcher {
 		sendResultCh: make(chan sendResult),
 		ctx:          ctx,
 		cancel:       cancel,
-		state:        newBatcherState(cfg.batcherConfig),
+		state:        newBatcherState(batcherConfig),
 		timer:        timer,
 		sender:       sender,
+		// Used to rate-limit log messages about failed batches.
+		//
+		// TODO: Keep metrics for the number of failed batches and rate limit
+		// the actual attempts to send batches.
+		errLogLimiter: rate.NewLimiter(rate.Every(10*time.Second), 1),
 	}
 
 	b.wg.Add(1)
@@ -85,6 +88,8 @@ func (b *batcher) enqueue(data json.RawMessage) {
 
 func (b *batcher) stop() {
 	b.stopOnce.Do(func() {
+		log.Debugf("stopping batcher %s", b.name)
+		defer log.Debugf("batcher %s stopped", b.name)
 		// Cancel the run loop as well as any goroutines trying to signal it.
 		b.cancel()
 
@@ -97,46 +102,52 @@ func (b *batcher) run() {
 	defer b.wg.Done()
 	defer b.timer.Stop()
 
+	name := any(b.name) // avoid allocating a new string for each log message
 	for {
 		select {
 		case data := <-b.enqueueCh:
-			log.Debugf(
+			log.Tracef(
 				"uploader %s: received enqueue event of %d bytes",
-				b.name, len(data),
+				name, len(data),
 			)
 			b.state.handleEnqueueEvent(data, time.Now(), b)
 		case <-b.timer.C:
-			log.Debugf(
-				"uploader %s: timer fired event", b.name,
+			log.Tracef(
+				"uploader %s: timer fired event", name,
 			)
 			if err := b.state.handleTimerFiredEvent(b); err != nil {
 				log.Warnf(
 					"uploader %s: failed to handle timer fired event: %v",
-					b.name, err,
+					name, err,
 				)
 			}
 		case result := <-b.sendResultCh:
 			if result.err != nil {
-				log.Infof(
-					"uploader %s: batch outcome id=%d: err=%v",
-					b.name, result.id, result.err,
-				)
-			} else {
-				log.Debugf(
+				if b.errLogLimiter.Allow() {
+					log.Warnf(
+						"uploader %s: batch outcome id=%d: err=%v",
+						name, result.id, result.err,
+					)
+				} else if log.ShouldLog(log.DebugLvl) {
+					log.Debugf(
+						"uploader %s: batch outcome id=%d: err=%v",
+						name, result.id, result.err,
+					)
+				}
+			} else if log.ShouldLog(log.TraceLvl) {
+				log.Tracef(
 					"uploader %s: batch outcome id=%d: success",
-					b.name, result.id,
+					name, result.id,
 				)
 			}
 			if err := b.state.handleBatchOutcomeEvent(result, b); err != nil {
 				log.Warnf(
 					"uploader %s: failed to handle batch outcome event: %v",
-					b.name, err,
+					name, err,
 				)
 			}
 		case <-b.ctx.Done():
-			log.Debugf(
-				"uploader %s: received stop event", b.name,
-			)
+			log.Debugf("uploader %s: received stop event", name)
 			b.state.handleStopEvent(b)
 			return
 		}

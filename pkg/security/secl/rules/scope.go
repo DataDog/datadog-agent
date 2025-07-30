@@ -18,6 +18,8 @@ const (
 	ScopeProcess = "process"
 	// ScopeContainer is the scope for container variables
 	ScopeContainer = "container"
+	// ScopeCGroup is the scope for cgroup variables
+	ScopeCGroup = "cgroup"
 )
 
 // IsScopeVariable returns true if the variable name is a scope variable
@@ -33,7 +35,7 @@ func IsScopeVariable(varName string) bool {
 func getCommonStateScopes() map[Scope]VariableProviderFactory {
 	return map[Scope]VariableProviderFactory{
 		ScopeProcess: func() VariableProvider {
-			return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
+			return eval.NewScopedVariables(ScopeProcess, func(ctx *eval.Context) eval.VariableScope {
 				scopeEvaluator := ctx.GetScopeFieldEvaluator()
 				if scopeEvaluator != nil {
 					pid, ok := scopeEvaluator.Eval(ctx).(int)
@@ -52,7 +54,7 @@ func getCommonStateScopes() map[Scope]VariableProviderFactory {
 			})
 		},
 		ScopeContainer: func() VariableProvider {
-			return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
+			return eval.NewScopedVariables(ScopeContainer, func(ctx *eval.Context) eval.VariableScope {
 				if cc := ctx.Event.(*model.Event).ContainerContext; cc != nil {
 					return cc
 				}

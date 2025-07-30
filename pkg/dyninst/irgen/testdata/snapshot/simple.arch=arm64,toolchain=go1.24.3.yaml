@@ -382,7 +382,7 @@ Types:
       ByteSize: 16
       GoRuntimeType: 41344
       GoKind: 24
-      Fields:
+      RawFields:
         - Name: str
           Offset: 0
           Type: 44 PointerType *string.str
@@ -409,7 +409,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 37664
       GoKind: 23
-      Fields:
+      RawFields:
         - Name: array
           Offset: 0
           Type: 6 PointerType *int
@@ -435,7 +435,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 37920
       GoKind: 23
-      Fields:
+      RawFields:
         - Name: array
           Offset: 0
           Type: 13 PointerType *string
@@ -478,7 +478,7 @@ Types:
       Name: map<string,int>
       ByteSize: 48
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 18 BaseType uint64
@@ -532,7 +532,7 @@ Types:
       Name: table<string,int>
       ByteSize: 32
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 23 BaseType uint16
@@ -562,7 +562,7 @@ Types:
       Name: groupReference<string,int>
       ByteSize: 16
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: data
           Offset: 0
           Type: 25 PointerType *noalg.map.group[string]int
@@ -582,7 +582,7 @@ Types:
       ByteSize: 200
       GoRuntimeType: 74528
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: ctrl
           Offset: 0
           Type: 18 BaseType uint64
@@ -604,7 +604,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 74400
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: key
           Offset: 0
           Type: 7 GoStringHeaderType string
@@ -627,7 +627,7 @@ Types:
       Name: map<string,main.bigStruct>
       ByteSize: 48
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 18 BaseType uint64
@@ -669,7 +669,7 @@ Types:
       Name: table<string,main.bigStruct>
       ByteSize: 32
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 23 BaseType uint16
@@ -693,7 +693,7 @@ Types:
       Name: groupReference<string,main.bigStruct>
       ByteSize: 16
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: data
           Offset: 0
           Type: 36 PointerType *noalg.map.group[string]main.bigStruct
@@ -713,7 +713,7 @@ Types:
       ByteSize: 200
       GoRuntimeType: 74784
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: ctrl
           Offset: 0
           Type: 18 BaseType uint64
@@ -735,7 +735,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 74656
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: key
           Offset: 0
           Type: 7 GoStringHeaderType string
@@ -755,7 +755,7 @@ Types:
       ByteSize: 184
       GoRuntimeType: 119616
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: Field1
           Offset: 0
           Type: 1 BaseType int
@@ -842,7 +842,7 @@ Types:
       ID: 53
       Name: Probe[main.intArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -857,7 +857,7 @@ Types:
       ID: 54
       Name: Probe[main.stringArg]
       ByteSize: 17
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -872,7 +872,7 @@ Types:
       ID: 55
       Name: Probe[main.intSliceArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -887,7 +887,7 @@ Types:
       ID: 56
       Name: Probe[main.intArrayArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -902,7 +902,7 @@ Types:
       ID: 57
       Name: Probe[main.stringSliceArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -917,7 +917,7 @@ Types:
       ID: 58
       Name: Probe[main.stringArrayArg]
       ByteSize: 49
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -932,7 +932,7 @@ Types:
       ID: 59
       Name: Probe[main.stringArrayArgFrameless]
       ByteSize: 49
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -947,7 +947,7 @@ Types:
       ID: 60
       Name: Probe[main.mapArg]
       ByteSize: 1
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -962,7 +962,7 @@ Types:
       ID: 61
       Name: Probe[main.bigMapArg]
       ByteSize: 1
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -977,7 +977,7 @@ Types:
       ID: 62
       Name: Probe[main.inlined]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -992,7 +992,7 @@ Types:
       ID: 63
       Name: Probe[main.PointerChainArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ptr
           Offset: 1
@@ -1007,7 +1007,7 @@ Types:
       ID: 64
       Name: Probe[main.PointerSmallChainArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ptr
           Offset: 1

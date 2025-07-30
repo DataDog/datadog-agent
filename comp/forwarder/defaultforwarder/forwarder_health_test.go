@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -187,19 +188,33 @@ func TestUpdateAPIKey(t *testing.T) {
 	assert.True(t, fh.checkValidAPIKey())
 
 	// forwardHealth's keysPerAPIEndpoint has the given API Keys
-	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
 	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
-	assert.Equal(t, expect, string(data))
+	assert.Eventually(t, func() bool {
+		data, _ := json.Marshal(getKeysCopy(&fh))
+		return assert.Equal(t, expect, string(data))
+	}, 5*time.Second, 200*time.Millisecond)
 
 	// update the resolver first since the health checker will load the new keys from the resolver
 	r[ts1.URL].UpdateAPIKeys("path1", []utils.APIKeys{utils.NewAPIKeys("path1", "api_key4")})
 	// update the API Key
 	fh.UpdateAPIKeys(ts1.URL, []string{"api_key1"}, []string{"api_key4"})
 
-	// ensure that keysPerAPIEndpoint has the new API Key
-	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key2","api_key4"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
-	assert.Equal(t, expect, string(data))
+	assert.Eventually(t, func() bool {
+		// ensure that keysPerAPIEndpoint has the new API Key
+		data, _ := json.Marshal(getKeysCopy(&fh))
+		return assert.Equal(t, expect, string(data))
+	}, 5*time.Second, 200*time.Millisecond)
+}
+
+func getKeysCopy(fh *forwarderHealth) map[string][]string {
+	fh.keyMapMutex.Lock()
+	defer fh.keyMapMutex.Unlock()
+	keysMapCopy := make(map[string][]string, len(fh.keysPerAPIEndpoint))
+	for k, v := range fh.keysPerAPIEndpoint {
+		keysMapCopy[k] = slices.Clone(v)
+	}
+	return keysMapCopy
 }
 
 func quoteList(list []string) string {
@@ -262,41 +277,49 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	require.NoError(t, err)
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
 	fh.init()
-	assert.True(t, fh.checkValidAPIKey(), description)
+	assert.Eventually(t, func() bool {
+		return assert.True(t, fh.checkValidAPIKey(), description)
+	}, 5*time.Second, 200*time.Millisecond)
 
 	expectBeforeFmt := quoteList(expectBefore)
 	expectAfterFmt := quoteList(expectAfter)
 
 	// forwardHealth's keysPerAPIEndpoint has the given API Keys
-	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
 	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectBeforeFmt)
 
-	assert.Equal(t, expect, string(data), description)
-
+	assert.Eventually(t, func() bool {
+		data, _ := json.Marshal(getKeysCopy(&fh))
+		return assert.Equal(t, expect, string(data), description)
+	}, 5*time.Second, 200*time.Millisecond)
 	endpoints := map[string][]string{
 		ts2.URL: keysAfter,
 	}
 	// Setting the config will send the change to the resolver, which updates the health check
 	cfg.SetWithoutSource("additional_endpoints", endpoints)
 
-	// Ensure that keysPerAPIEndpoint has the new API Key
-	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectAfterFmt)
-	assert.Equal(t, expect, string(data), description)
+	assert.Eventually(t, func() bool {
+		data, _ := json.Marshal(getKeysCopy(&fh))
+		return assert.Equal(t, expect, string(data), description)
+	}, 5*time.Second, 200*time.Millisecond)
 
 	// Check the new keys are now valid
 	for _, key := range expectAfter {
-		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		assert.Eventually(t, func() bool {
+			return assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		}, 5*time.Second, 200*time.Millisecond)
 	}
 
 	// Check removed keys are not valid
 	for _, key := range expectBefore {
 		if !slices.Contains(expectAfter, key) {
-			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			assert.Eventually(t, func() bool {
+				return assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			}, 5*time.Second, 200*time.Millisecond)
 		}
 	}
 
@@ -308,21 +331,27 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	cfg.SetWithoutSource("additional_endpoints", endpoints)
 
 	// Ensure that keysPerAPIEndpoint are restored to previous
-	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectBeforeFmt)
-	assert.Equal(t, expect, string(data), description)
+	assert.Eventually(t, func() bool {
+		data, _ := json.Marshal(getKeysCopy(&fh))
+		return assert.Equal(t, expect, string(data), description)
+	}, 5*time.Second, 200*time.Millisecond)
 
 	// Check the old keys are now valid again
 	for _, key := range expectBefore {
-		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		assert.Eventually(t, func() bool {
+			return assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		}, 5*time.Second, 200*time.Millisecond)
 	}
 
 	// Check added keys are now not valid
 	for _, key := range expectAfter {
 		if !slices.Contains(expectBefore, key) {
-			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			assert.Eventually(t, func() bool {
+				return assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			}, 5*time.Second, 200*time.Millisecond)
 		}
 	}
 }

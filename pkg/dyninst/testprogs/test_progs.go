@@ -39,21 +39,21 @@ import (
 const helpMsg = "consider running `dda inv system-probe.build-dyninst-test-programs`"
 
 // MustGetCommonConfigs calls GetCommonConfigs and checks for an error..
-func MustGetCommonConfigs(t *testing.T) []Config {
+func MustGetCommonConfigs(t testing.TB) []Config {
 	cfgs, err := GetCommonConfigs()
 	require.NoError(t, err)
 	return cfgs
 }
 
 // MustGetPrograms calls GetPrograms and checks for an error.
-func MustGetPrograms(t *testing.T) []string {
+func MustGetPrograms(t testing.TB) []string {
 	programs, err := GetPrograms()
 	require.NoError(t, err)
 	return programs
 }
 
 // MustGetBinary calls GetBinary and checks for an error.
-func MustGetBinary(t *testing.T, name string, cfg Config) string {
+func MustGetBinary(t testing.TB, name string, cfg Config) string {
 	bin, err := GetBinary(name, cfg)
 	require.NoError(t, err)
 	return bin
