@@ -41,7 +41,7 @@ func (h *HashlessTagsAccumulator) Append(tags ...string) {
 	h.data = append(h.data, tags...)
 }
 
-// Append appends a list of interned strings to the accumulator
+// AppendUnique appends a list of interned strings to the accumulator
 func (h *HashlessTagsAccumulator) AppendUnique(tags []unique.Handle[string]) {
 	for _, t := range tags {
 		h.data = append(h.data, t.Value())
