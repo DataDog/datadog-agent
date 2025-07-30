@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package secretsimpl is the implementation for the secrets component
 package secretsimpl
 
 import (
@@ -79,12 +78,12 @@ func (s secretsStatus) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s secretsStatus) Text(_ bool, buffer io.Writer) error {
-	s.resolver.GetDebugInfo(buffer)
+	s.resolver.getDebugInfo(buffer)
 	return nil
 }
 
 // HTML renders the html output
 func (s secretsStatus) HTML(_ bool, buffer io.Writer) error {
-	s.resolver.GetDebugInfo(buffer)
+	s.resolver.getDebugInfo(buffer)
 	return nil
 }

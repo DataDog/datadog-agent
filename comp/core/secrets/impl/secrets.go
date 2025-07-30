@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package secretsimpl is the implementation for the secrets component
+// Package secretsimpl implements for the secrets component interface
 package secretsimpl
 
 import (
@@ -28,18 +28,17 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -48,9 +47,8 @@ const auditFileBasename = "secret-audit-file.json"
 
 var newClock = clock.New
 
-type provides struct {
-	fx.Out
-
+// Provides list the provided interfaces from the secrets Component
+type Provides struct {
 	Comp            secrets.Component
 	FlareProvider   flaretypes.Provider
 	InfoEndpoint    api.AgentEndpointProvider
@@ -58,17 +56,10 @@ type provides struct {
 	StatusProvider  status.InformationProvider
 }
 
-type dependencies struct {
-	fx.In
-
+// Requires list the required object to initializes the secrets Component
+type Requires struct {
 	Params    secrets.Params
 	Telemetry telemetry.Component
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newSecretResolverProvider))
 }
 
 type secretContext struct {
@@ -138,10 +129,11 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	}
 }
 
-func newSecretResolverProvider(deps dependencies) provides {
+// NewComponent returns the implementation for the secrets component
+func NewComponent(deps Requires) Provides {
 	resolver := newEnabledSecretResolver(deps.Telemetry)
 	resolver.enabled = deps.Params.Enabled
-	return provides{
+	return Provides{
 		Comp:            resolver,
 		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
 		InfoEndpoint:    api.NewAgentEndpointProvider(resolver.writeDebugInfo, "/secrets", "GET"),
@@ -154,15 +146,15 @@ func newSecretResolverProvider(deps dependencies) provides {
 func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	var buffer bytes.Buffer
 	writer := bufio.NewWriter(&buffer)
-	r.GetDebugInfo(writer)
+	r.getDebugInfo(writer)
 	writer.Flush()
-	fb.AddFile("secrets.log", buffer.Bytes()) //nolint:errcheck
-	fb.CopyFile(r.auditFilename)              //nolint:errcheck
+	fb.AddFile("secrets.log", buffer.Bytes())
+	fb.CopyFile(r.auditFilename)
 	return nil
 }
 
 func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
-	r.GetDebugInfo(w)
+	r.getDebugInfo(w)
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
@@ -267,15 +259,6 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 }
 
-func isEnc(str string) (bool, string) {
-	// trimming space and tabs
-	str = strings.Trim(str, " 	")
-	if strings.HasPrefix(str, "ENC[") && strings.HasSuffix(str, "]") {
-		return true, str[4 : len(str)-1]
-	}
-	return false, ""
-}
-
 func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 	if r.ticker != nil || r.refreshInterval == 0 {
 		return
@@ -345,9 +328,9 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	newHandles := []string{}
 	foundSecrets := map[string]struct{}{}
 
-	w := &walker{
-		resolver: func(path []string, value string) (string, error) {
-			if ok, handle := isEnc(value); ok {
+	w := &utils.Walker{
+		Resolver: func(path []string, value string) (string, error) {
+			if ok, handle := utils.IsEnc(value); ok {
 				// Check if we already know this secret
 				if secretValue, ok := r.cache[handle]; ok {
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
@@ -355,7 +338,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 					r.registerSecretOrigin(handle, origin, path)
 					// notify subscriptions
 					for _, sub := range r.subscriptions {
-						sub(handle, origin, path, secretValue, secretValue)
+						sub(handle, origin, path, value, secretValue)
 					}
 					foundSecrets[handle] = struct{}{}
 					return secretValue, nil
@@ -371,7 +354,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 		},
 	}
 
-	if err := w.walk(&config); err != nil {
+	if err := w.Walk(&config); err != nil {
 		return nil, err
 	}
 
@@ -394,8 +377,8 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 			return nil, err
 		}
 
-		w.resolver = func(path []string, value string) (string, error) {
-			if ok, handle := isEnc(value); ok {
+		w.Resolver = func(path []string, value string) (string, error) {
+			if ok, handle := utils.IsEnc(value); ok {
 				if secretValue, ok := secretResponse[handle]; ok {
 					log.Debugf("Secret '%s' was successfully resolved", handle)
 					// keep track of place where a handle was found
@@ -411,7 +394,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 		}
 
 		// Replace all newly resolved secrets in the config
-		if err := w.walk(&config); err != nil {
+		if err := w.Walk(&config); err != nil {
 			return nil, err
 		}
 
@@ -670,8 +653,8 @@ var secretInfoTmpl string
 //go:embed refresh.tmpl
 var secretRefreshTmpl string
 
-// GetDebugInfo exposes debug informations about secrets to be included in a flare
-func (r *secretResolver) GetDebugInfo(w io.Writer) {
+// getDebugInfo exposes debug informations about secrets to be included in a flare
+func (r *secretResolver) getDebugInfo(w io.Writer) {
 	if !r.enabled {
 		fmt.Fprintf(w, "Agent secrets is disabled by caller\n")
 		return
