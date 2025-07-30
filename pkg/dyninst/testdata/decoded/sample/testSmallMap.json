@@ -26,7 +26,7 @@
             "arguments": {
               "m": {
                 "type": "map[string]int",
-                "size": 2,
+                "size": "2",
                 "entries": [
                   [
                     {

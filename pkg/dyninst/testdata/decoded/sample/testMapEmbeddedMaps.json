@@ -26,23 +26,23 @@
             "arguments": {
               "m": {
                 "type": "map[string][]main.structWithMap",
-                "size": 4,
+                "size": "5",
                 "entries": [
                   [
                     {
                       "type": "string",
-                      "value": "bar"
+                      "value": "key0"
                     },
                     {
                       "type": "[]main.structWithMap",
-                      "size": 10,
+                      "size": "5",
                       "elements": [
                         {
                           "type": "main.structWithMap",
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -63,7 +63,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -84,7 +84,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -105,7 +105,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -126,7 +126,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -136,111 +136,6 @@
                                   {
                                     "type": "int",
                                     "value": "5"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "6"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "6"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "7"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "7"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "8"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "8"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "9"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "9"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "10"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "10"
                                   }
                                 ]
                               ]
@@ -253,18 +148,18 @@
                   [
                     {
                       "type": "string",
-                      "value": "baz"
+                      "value": "key1"
                     },
                     {
                       "type": "[]main.structWithMap",
-                      "size": 10,
+                      "size": "5",
                       "elements": [
                         {
                           "type": "main.structWithMap",
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -285,7 +180,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -306,7 +201,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -327,7 +222,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -348,7 +243,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -358,111 +253,6 @@
                                   {
                                     "type": "int",
                                     "value": "5"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "6"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "6"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "7"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "7"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "8"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "8"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "9"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "9"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "10"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "10"
                                   }
                                 ]
                               ]
@@ -475,18 +265,18 @@
                   [
                     {
                       "type": "string",
-                      "value": "foo"
+                      "value": "key2"
                     },
                     {
                       "type": "[]main.structWithMap",
-                      "size": 10,
+                      "size": "5",
                       "elements": [
                         {
                           "type": "main.structWithMap",
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -507,7 +297,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -528,7 +318,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -549,7 +339,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -570,7 +360,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -580,111 +370,6 @@
                                   {
                                     "type": "int",
                                     "value": "5"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "6"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "6"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "7"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "7"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "8"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "8"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "9"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "9"
-                                  }
-                                ]
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "type": "main.structWithMap",
-                          "fields": {
-                            "m": {
-                              "type": "map[int]int",
-                              "size": 1,
-                              "entries": [
-                                [
-                                  {
-                                    "type": "int",
-                                    "value": "10"
-                                  },
-                                  {
-                                    "type": "int",
-                                    "value": "10"
                                   }
                                 ]
                               ]
@@ -697,18 +382,18 @@
                   [
                     {
                       "type": "string",
-                      "value": "qux"
+                      "value": "key3"
                     },
                     {
                       "type": "[]main.structWithMap",
-                      "size": 10,
+                      "size": "5",
                       "elements": [
                         {
                           "type": "main.structWithMap",
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -729,7 +414,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -750,7 +435,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -771,7 +456,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -792,7 +477,7 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
@@ -807,22 +492,34 @@
                               ]
                             }
                           }
-                        },
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "key4"
+                    },
+                    {
+                      "type": "[]main.structWithMap",
+                      "size": "5",
+                      "elements": [
                         {
                           "type": "main.structWithMap",
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
                                     "type": "int",
-                                    "value": "6"
+                                    "value": "1"
                                   },
                                   {
                                     "type": "int",
-                                    "value": "6"
+                                    "value": "1"
                                   }
                                 ]
                               ]
@@ -834,16 +531,16 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
                                     "type": "int",
-                                    "value": "7"
+                                    "value": "2"
                                   },
                                   {
                                     "type": "int",
-                                    "value": "7"
+                                    "value": "2"
                                   }
                                 ]
                               ]
@@ -855,16 +552,16 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
                                     "type": "int",
-                                    "value": "8"
+                                    "value": "3"
                                   },
                                   {
                                     "type": "int",
-                                    "value": "8"
+                                    "value": "3"
                                   }
                                 ]
                               ]
@@ -876,16 +573,16 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
                                     "type": "int",
-                                    "value": "9"
+                                    "value": "4"
                                   },
                                   {
                                     "type": "int",
-                                    "value": "9"
+                                    "value": "4"
                                   }
                                 ]
                               ]
@@ -897,16 +594,16 @@
                           "fields": {
                             "m": {
                               "type": "map[int]int",
-                              "size": 1,
+                              "size": "1",
                               "entries": [
                                 [
                                   {
                                     "type": "int",
-                                    "value": "10"
+                                    "value": "5"
                                   },
                                   {
                                     "type": "int",
-                                    "value": "10"
+                                    "value": "5"
                                   }
                                 ]
                               ]

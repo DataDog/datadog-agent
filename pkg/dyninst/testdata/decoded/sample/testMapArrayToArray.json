@@ -26,8 +26,46 @@
             "arguments": {
               "m": {
                 "type": "map[[4]string][2]int",
-                "size": 3,
+                "size": "3",
                 "entries": [
+                  [
+                    {
+                      "type": "[4]string",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "string",
+                          "value": "bluh"
+                        },
+                        {
+                          "type": "string",
+                          "value": "blur"
+                        },
+                        {
+                          "type": "string",
+                          "value": "baw23"
+                        },
+                        {
+                          "type": "string",
+                          "value": "aaaa"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[2]int",
+                      "size": "2",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "5"
+                        },
+                        {
+                          "type": "int",
+                          "value": "6"
+                        }
+                      ]
+                    }
+                  ],
                   [
                     {
                       "type": "[4]string",
@@ -62,44 +100,6 @@
                         {
                           "type": "int",
                           "value": "2"
-                        }
-                      ]
-                    }
-                  ],
-                  [
-                    {
-                      "type": "[4]string",
-                      "size": "4",
-                      "elements": [
-                        {
-                          "type": "string",
-                          "value": "grault"
-                        },
-                        {
-                          "type": "string",
-                          "value": "garply"
-                        },
-                        {
-                          "type": "string",
-                          "value": "waldo"
-                        },
-                        {
-                          "type": "string",
-                          "value": "fred"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "[2]int",
-                      "size": "2",
-                      "elements": [
-                        {
-                          "type": "int",
-                          "value": "5"
-                        },
-                        {
-                          "type": "int",
-                          "value": "6"
                         }
                       ]
                     }

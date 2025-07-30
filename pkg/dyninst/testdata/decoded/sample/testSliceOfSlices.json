@@ -26,11 +26,11 @@
             "arguments": {
               "u": {
                 "type": "[][]uint",
-                "size": 3,
+                "size": "3",
                 "elements": [
                   {
                     "type": "[]uint",
-                    "size": 1,
+                    "size": "1",
                     "elements": [
                       {
                         "type": "uint",
@@ -40,7 +40,7 @@
                   },
                   {
                     "type": "[]uint",
-                    "size": 2,
+                    "size": "2",
                     "elements": [
                       {
                         "type": "uint",
@@ -54,7 +54,7 @@
                   },
                   {
                     "type": "[]uint",
-                    "size": 3,
+                    "size": "3",
                     "elements": [
                       {
                         "type": "uint",
