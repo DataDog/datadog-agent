@@ -7,6 +7,7 @@ package file
 
 import (
 	"bufio"
+	"fmt"
 	"hash/crc64"
 	"io"
 	"os"
@@ -167,24 +168,15 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	bytesRead := 0
 
 	for linesRead < maxLines && scanner.Scan() {
-		line := scanner.Text()
-		lineWithNewline := line + "\n" // Add newline back for consistency
-
-		// Check if adding this line would exceed maxBytes
-		if maxBytes > 0 && bytesRead+len(lineWithNewline) > maxBytes {
-			// Truncate the line to fit within maxBytes
-			remainingBytes := maxBytes - bytesRead
-			if remainingBytes > 0 {
-				lineWithNewline = lineWithNewline[:remainingBytes]
-				log.Debugf("Truncated line to fit within %d bytes for fingerprinting", maxBytes)
-			} else {
-				break // No more space for additional lines
-			}
-		}
-
-		buffer = append(buffer, []byte(lineWithNewline)...)
+		//TODO: Check for error here
+		line := scanner.Bytes()
+		buffer = append(buffer, line...)
 		linesRead++
-		bytesRead += len(lineWithNewline)
+		bytesRead += maxBytes - int(limitedReader.(*io.LimitedReader).N)
+
+		// Note: scanner.Bytes() strips newline characters, so bytesRead only includes
+		// the actual line content, not the newline characters. This is a limitation
+		// of using bufio.Scanner for line-based reading.
 	}
 
 	// Check for scanner errors
@@ -193,13 +185,16 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 		return 0
 	}
 
+	fmt.Println(bytesRead < maxBytes)
+	fmt.Println(bytesRead)
 	// Check if we have enough lines to create a meaningful fingerprint
-	if linesRead == 0 || (maxLines > 0 && linesRead < maxLines && maxBytes > 0 && bytesRead < maxBytes) {
-		log.Debugf("No lines available for fingerprinting file %q", filePath)
+	if linesRead == 0 || (linesRead < maxLines && bytesRead < maxBytes) {
+		log.Debugf("Not enough data for fingerprinting file %q (lines=%d, bytes=%d)", filePath, linesRead, bytesRead)
 		return 0
 	}
 
 	// Compute fingerprint
+	fmt.Println("This is the content in side the buffer: ", string(buffer))
 	checksum := crc64.Checksum(buffer, crc64Table)
 	log.Debugf("Computed line-based fingerprint 0x%x for file %q (bytes=%d, lines=%d)", checksum, filePath, len(buffer), linesRead)
 	return checksum

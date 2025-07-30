@@ -127,7 +127,8 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip1() {
 		ToSkip:   linesToSkip,
 	}
 
-	text := "first data line\nsecond data line\n"
+	text := "first data linesecond data line"
+	fmt.Println("This is the content of what we're testing against", text)
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum([]byte(text), table)
 
@@ -213,7 +214,7 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit()
 	}
 
 	//Should hash up to maxBytes (1500) which includes the 807 bytes of line1 and the first 693 bytes of line2 (which accounts for the text "line1: ", "line2: ", and the line break)
-	expectedText := "line1: " + line1Content + "\n" + "line2: " + line2Content[:685]
+	expectedText := "line1: " + line1Content + "line2: " + line2Content[:685]
 
 	table := crc64.MakeTable(crc64.ISO)
 	fmt.Println(len(expectedText))
@@ -254,7 +255,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
 		ToSkip:   linesToSkip,
 	}
 	// Expected: skip "skip1\n" and "skip2\n", then fingerprint "keep1\n" and "keep2\n"
-	expectedText := "keep1\nkeep2\n"
+	expectedText := "keep1keep2"
 
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
@@ -491,7 +492,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip3() {
 	}
 
 	// Expected: skip first line, then fingerprint remaining lines
-	expectedText := "line2\nline3\n"
+	expectedText := "line2line3"
 
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
@@ -562,7 +563,7 @@ func (suite *FingerprintTestSuite) TestLineBased_NoSkip() {
 	}
 
 	// Expected: should fingerprint all lines
-	expectedText := "line1\nline2\nline3\n"
+	expectedText := "line1line2line3"
 
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
@@ -608,7 +609,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip5() {
 	// Compute fingerprint (now returns uint64 directly)
 	fingerprint := ComputeFingerprint(tailer.file.Path, config)
 
-	expectedText := "line 1: important data\n" + "line 2: more important data\n"
+	expectedText := "line 1: important data" + "line 2: more important data"
 	table := crc64.MakeTable(crc64.ISO)
 	expectedFingerprint := crc64.Checksum([]byte(expectedText), table)
 
@@ -759,7 +760,7 @@ func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 	fingerprint := ComputeFingerprint(tailer.file.Path, config)
 
 	fmt.Println(lines)
-	stringToHash := strings.Repeat("A", 30) + "\n" + strings.Repeat("B", 30) + "\n" + strings.Repeat("C", 18)
+	stringToHash := strings.Repeat("A", 30) + strings.Repeat("B", 30) + strings.Repeat("C", 18)
 	table := crc64.MakeTable(crc64.ISO)
 	expectedHash := crc64.Checksum([]byte(stringToHash), table)
 
@@ -798,7 +799,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	suite.Nil(err)
 	suite.testFile.Sync()
 
-	textToHash1 := "line2\nline3\n"
+	textToHash1 := "line2line3"
 	table := crc64.MakeTable(crc64.ISO)
 	expectedHash1 := crc64.Checksum([]byte(textToHash1), table)
 	suite.Equal(fingerprint1, expectedHash1)
@@ -820,7 +821,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	tailer = suite.createTailer()
 	tailer.osFile = osFile
 	fingerprint2 := ComputeFingerprint(tailer.file.Path, fpConfig)
-	textToHash2 := "line1\nline"
+	textToHash2 := "line1line"
 	table = crc64.MakeTable(crc64.ISO)
 	expectedHash2 := crc64.Checksum([]byte(textToHash2), table)
 	suite.Equal(expectedHash2, fingerprint2)
@@ -882,7 +883,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	tailer.fingerprint = ComputeFingerprint(tailer.file.Path, config)
 
 	table := crc64.MakeTable(crc64.ISO)
-	expectedChecksum := crc64.Checksum([]byte("line 1\n"), table)
+	expectedChecksum := crc64.Checksum([]byte("line 1"), table)
 	suite.Equal(expectedChecksum, tailer.fingerprint)
 
 	// 2. Immediately check for rotation. It should be false as the file is unchanged.
@@ -913,7 +914,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	tailer.fingerprintingEnabled = true
 	tailer.fingerprint = ComputeFingerprint(tailer.file.Path, config)
 
-	expectedChecksum = crc64.Checksum([]byte("a completely new file\n"), table)
+	expectedChecksum = crc64.Checksum([]byte("a completely new file"), table)
 	suite.Equal(expectedChecksum, tailer.fingerprint)
 
 	// Check for rotation immediately after re-arming. Since the file hasn't changed
@@ -923,7 +924,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(err)
 	suite.False(rotated, "Should not detect rotation immediately after creating a new tailer on a file")
 
-	expectedChecksum = crc64.Checksum([]byte("a completely new file\n"), table)
+	expectedChecksum = crc64.Checksum([]byte("a completely new file"), table)
 	suite.Equal(expectedChecksum, tailer.fingerprint)
 
 	// Now, modify the file again. This change *should* be detected as a rotation.
@@ -938,7 +939,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	rotated, err = tailer.DidRotateViaFingerprint()
 	suite.Nil(err)
 	suite.True(rotated, "Should detect rotation after file content changes")
-	expectedChecksum = crc64.Checksum([]byte("even more different content\n"), table)
+	expectedChecksum = crc64.Checksum([]byte("even more different content"), table)
 	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 
