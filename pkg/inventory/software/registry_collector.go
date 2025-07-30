@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winsoftware
+package software
 
 import (
 	"errors"
@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
+	"time"
 )
 
 // Registry value names from Windows Registry
@@ -49,14 +51,14 @@ const (
 // Helper value to indicate we want all entries from the registry
 const wantAll = -1
 
-// RegistryCollector implements SoftwareCollector for Windows Registry
-type RegistryCollector struct{}
+// RegistryCollector implements Collector for Windows Registry
+type registryCollector struct{}
 
 // Collect returns a list of product codes to software entries from HKLM registry (both 64-bit and 32-bit views)
 // Warnings are returned for any issues encountered during collection but didn't prevent the collection of other entries.
 // Errors are returned for critical failures that prevent the collector from functioning properly.
-func (rc *RegistryCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
-	var results []*SoftwareEntry
+func (rc *registryCollector) Collect() ([]*Entry, []*Warning, error) {
+	var results []*Entry
 	var warnings []*Warning
 	paths := []struct {
 		root   registry.Key
@@ -192,9 +194,23 @@ func getUserProfilesFromRegistry() ([]UserProfile, []*Warning, error) {
 	return profiles, warnings, nil
 }
 
+func getKeyLastWriteTime(key registry.Key) (string, error) {
+	var ft syscall.Filetime
+	err := syscall.RegQueryInfoKey(
+		syscall.Handle(key),
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		&ft,
+	)
+	if err != nil {
+		return "", err
+	}
+	// Convert FILETIME to time.Time
+	return time.Unix(0, ft.Nanoseconds()).UTC().Format(time.RFC3339Nano), nil
+}
+
 // Helper to collect from a given root key and subkey
-func collectFromKey(root registry.Key, subkey string, view uint32) ([]*SoftwareEntry, []*Warning) {
-	var results []*SoftwareEntry
+func collectFromKey(root registry.Key, subkey string, view uint32) ([]*Entry, []*Warning) {
+	var results []*Entry
 	var warnings []*Warning
 
 	key, err := registry.OpenKey(root, subkey, registry.READ|view)
@@ -224,12 +240,21 @@ func collectFromKey(root registry.Key, subkey string, view uint32) ([]*SoftwareE
 		if name, ok := properties[displayName]; ok && name != "" {
 			// Use the subkey name as the product code
 			properties[msiProductCode] = skey
-			entry := &SoftwareEntry{
+			// Format the timestamp to something the backend will understand
+			date, err := convertTimestamp(properties[installDate])
+			if err != nil {
+				// Windows will pull the registry key creation date when no InstallDate is present
+				// If err, date will be blank ""
+				date, _ = getKeyLastWriteTime(sk)
+			}
+			entry := &Entry{
 				DisplayName: name,
 				Version:     trimVersion(properties[displayVersion]),
-				InstallDate: properties[installDate],
-				Source:      fmt.Sprintf("%s[%s]", softwareTypeDesktop, sourceRegistry),
-				Properties:  properties,
+				InstallDate: date,
+				Source:      softwareTypeDesktop,
+				Publisher:   properties[publisher],
+				ProductCode: properties[msiProductCode],
+				Status:      "installed",
 				Is64Bit:     view == registry.WOW64_64KEY,
 			}
 			results = append(results, entry)

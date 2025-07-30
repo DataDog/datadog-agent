@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winsoftware
+package software
 
 import (
 	"golang.org/x/sys/windows"
@@ -17,14 +17,14 @@ var (
 	msi                = windows.NewLazySystemDLL("msi.dll")
 	msiGetProductInfoW = msi.NewProc("MsiGetProductInfoW")
 	// For detecting per-user installations
-	msiEnumProductsExW = msi.NewProc("MsiEnumProductsExW")
-	advapi32           = windows.NewLazySystemDLL("advapi32.dll")
-	procRegLoadKey     = advapi32.NewProc("RegLoadKeyW")
-	procRegUnLoadKey   = advapi32.NewProc("RegUnLoadKeyW")
+	procMsiEnumProductsExW = msi.NewProc("MsiEnumProductsExW")
+	advapi32               = windows.NewLazySystemDLL("advapi32.dll")
+	procRegLoadKey         = advapi32.NewProc("RegLoadKeyW")
+	procRegUnLoadKey       = advapi32.NewProc("RegUnLoadKeyW")
 )
 
-func msiEnumProducts(index uint32, productCodeBuf *uint16, context *uint32, sidBuf *uint16, sidLen *uint32) windows.Errno {
-	ret, _, _ := msiEnumProductsExW.Call(
+func msiEnumProductsEx(index uint32, productCodeBuf *uint16, context *uint32, sidBuf *uint16, sidLen *uint32) windows.Errno {
+	ret, _, _ := procMsiEnumProductsExW.Call(
 		0, // szProductCode = NULL
 		0, // szUserSid = NULL
 		uintptr(MSIINSTALLCONTEXT_ALL),
