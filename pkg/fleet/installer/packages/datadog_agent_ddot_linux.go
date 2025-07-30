@@ -26,10 +26,7 @@ var datadogAgentDDOTPackage = hooks{
 
 const (
 	agentDDOTPackage = "datadog-agent-ddot"
-)
-
-const (
-	datadogYamlPath = "/etc/datadog-agent/datadog.yaml"
+	datadogYamlPath  = "/etc/datadog-agent/datadog.yaml"
 )
 
 var (

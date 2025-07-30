@@ -479,15 +479,7 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
 
 	// Substitute API & site into otel-config.yaml
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		apiKey = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-	}
-	site := os.Getenv("DD_SITE")
-	if site == "" {
-		site = "datadoghq.com"
-	}
-	s.host.Run(fmt.Sprintf("sudo sh -c \"sed -i -e 's/\\${env:DD_API_KEY}/%s/' -e 's/\\${env:DD_SITE}/%s/' /etc/datadog-agent/otel-config.yaml\"", apiKey, site))
+	s.host.Run("sudo sh -c \"sed -i -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml\"")
 
 	s.host.WaitForUnitActive(s.T(), ddotUnit)
 
