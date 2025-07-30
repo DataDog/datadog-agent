@@ -8,8 +8,7 @@ package packages
 import (
 	"fmt"
 	"os"
-
-	"gopkg.in/yaml.v3"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
@@ -27,6 +26,7 @@ var datadogAgentDDOTPackage = hooks{
 const (
 	agentDDOTPackage = "datadog-agent-ddot"
 	datadogYamlPath  = "/etc/datadog-agent/datadog.yaml"
+	datadogEnvPath   = "/etc/datadog-agent/environment"
 )
 
 var (
@@ -45,6 +45,11 @@ var (
 	ddotConfigUninstallPaths = file.Paths{
 		"otel-config.yaml.example",
 		"otel-config.yaml",
+	}
+
+	// envFilePermissions are the ownerships and modes that are enforced on the environment file
+	envFilePermissions = file.Permissions{
+		{Path: "environment", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
 
 	// agentDDOTService are the services that are part of the DDOT package
@@ -103,9 +108,9 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
-	// Enable otelcollector in datadog.yaml
+	// Enable otelcollector in environment file
 	if err = enableOtelCollectorConfig(); err != nil {
-		return fmt.Errorf("failed to enable otelcollector in datadog.yaml: %v", err)
+		return fmt.Errorf("failed to enable otelcollector in environment file: %v", err)
 	}
 
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
@@ -152,83 +157,86 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 			log.Warnf("failed to remove DDOT config files: %s", err)
 		}
 
-		// Disable otelcollector in datadog.yaml
+		// Disable otelcollector in environment file
 		if err = disableOtelCollectorConfig(); err != nil {
-			log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
+			log.Warnf("failed to disable otelcollector in environment file: %s", err)
 		}
 	}
 
 	return nil
 }
 
-// enableOtelCollectorConfig adds otelcollector.enabled: true to datadog.yaml
+// enableOtelCollectorConfig adds DD_OTELCOLLECTOR_ENABLED=true to the environment file
 func enableOtelCollectorConfig() error {
-	// Read existing config
-	var existingConfig map[string]interface{}
-	data, err := os.ReadFile(datadogYamlPath)
-	if err != nil {
-		return fmt.Errorf("failed to read datadog.yaml: %w", err)
+	// Read existing environment file if it exists
+	var envLines []string
+	data, err := os.ReadFile(datadogEnvPath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read environment file: %w", err)
 	}
 
-	if err := yaml.Unmarshal(data, &existingConfig); err != nil {
-		return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
+	if err == nil {
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			trimmedLine := strings.TrimSpace(line)
+
+			// Filter out existing OTEL collector settings
+			if !strings.HasPrefix(trimmedLine, "DD_OTELCOLLECTOR_ENABLED=") {
+				envLines = append(envLines, line)
+			}
+		}
 	}
 
-	// Config is empty
-	if existingConfig == nil {
-		existingConfig = make(map[string]interface{})
+	envLines = append(envLines, "DD_OTELCOLLECTOR_ENABLED=true")
+
+	// Update file
+	envContent := strings.Join(envLines, "\n") + "\n"
+	if err := os.WriteFile(datadogEnvPath, []byte(envContent), 0640); err != nil {
+		return fmt.Errorf("failed to write environment file: %w", err)
 	}
 
-	existingConfig["otelcollector"] = map[string]interface{}{"enabled": true}
-
-	// Write back the updated config
-	updatedData, err := yaml.Marshal(existingConfig)
-	if err != nil {
-		return fmt.Errorf("failed to serialize updated datadog.yaml: %w", err)
-	}
-
-	if err := os.WriteFile(datadogYamlPath, updatedData, 0640); err != nil {
-		return fmt.Errorf("failed to write updated datadog.yaml: %w", err)
-	}
-
-	datadogYamlPermissions := file.Permissions{
-		{Path: "datadog.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
-	}
-
-	if err := datadogYamlPermissions.Ensure("/etc/datadog-agent"); err != nil {
-		return fmt.Errorf("failed to set ownership on datadog.yaml: %w", err)
+	if err := envFilePermissions.Ensure("/etc/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to set ownership on environment file: %w", err)
 	}
 
 	return nil
 }
 
-// disableOtelCollectorConfig removes otelcollector configuration from datadog.yaml
+// disableOtelCollectorConfig removes DD_OTELCOLLECTOR_ENABLED from the environment file
 func disableOtelCollectorConfig() error {
-	// Read existing config
-	data, err := os.ReadFile(datadogYamlPath)
-	// Nothing to delete if the file doesn't exist
+	data, err := os.ReadFile(datadogEnvPath)
+
+	// Nothing to remove if the file doesn't exist
 	if err != nil && os.IsNotExist(err) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("failed to read datadog.yaml: %w", err)
+		return fmt.Errorf("failed to read environment file: %w", err)
 	}
 
-	var existingConfig map[string]interface{}
-	if err := yaml.Unmarshal(data, &existingConfig); err != nil {
-		return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
+	lines := strings.Split(string(data), "\n")
+	var filteredLines []string
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		// Filter out existing OTEL collector settings
+		if !strings.HasPrefix(trimmedLine, "DD_OTELCOLLECTOR_ENABLED=") {
+			filteredLines = append(filteredLines, line)
+		}
 	}
 
-	delete(existingConfig, "otelcollector")
-
-	// Write back the updated config
-	updatedData, err := yaml.Marshal(existingConfig)
-	if err != nil {
-		return fmt.Errorf("failed to serialize updated datadog.yaml: %w", err)
+	// Update file
+	envContent := strings.Join(filteredLines, "\n")
+	if len(filteredLines) > 0 {
+		envContent += "\n"
 	}
 
-	if err := os.WriteFile(datadogYamlPath, updatedData, 0640); err != nil {
-		return fmt.Errorf("failed to write updated datadog.yaml: %w", err)
+	if err := os.WriteFile(datadogEnvPath, []byte(envContent), 0640); err != nil {
+		return fmt.Errorf("failed to write environment file: %w", err)
+	}
+
+	if err := envFilePermissions.Ensure("/etc/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to set ownership on environment file: %w", err)
 	}
 
 	return nil
