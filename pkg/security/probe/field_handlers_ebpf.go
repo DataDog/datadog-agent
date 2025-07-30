@@ -979,6 +979,9 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event,
 
 // ResolveSetSockOptUsedImmediates resolves the immediates in the bpf filter of a setsockopt event
 func (fh *EBPFFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, e *model.SetSockOptEvent) []int {
+	if e.UsedImmediates != nil {
+		return e.UsedImmediates
+	}
 	raw := parseFilter(e)
 	var kValues []int
 	for _, inst := range raw {
