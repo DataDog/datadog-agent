@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func build(outTarget, pkg string) {
@@ -90,7 +89,7 @@ func TestMain(_ *testing.M) {
 
 func TestExecCommandError(t *testing.T) {
 	inputPayload := "{\"version\": \"1.0\" , \"secrets\": [\"sec1\", \"sec2\"]}"
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 
 	backendCommandBin, cleanup := getBackendCommandBinary(t)
 	defer cleanup()
@@ -138,7 +137,7 @@ func TestExecCommandError(t *testing.T) {
 }
 
 func TestFetchSecretExecError(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return nil, fmt.Errorf("some error") }
 	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
@@ -146,7 +145,7 @@ func TestFetchSecretExecError(t *testing.T) {
 }
 
 func TestFetchSecretUnmarshalError(t *testing.T) {
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel := telemetryimpl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{"), nil }
 	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
@@ -160,7 +159,7 @@ func TestFetchSecretUnmarshalError(t *testing.T) {
 }
 
 func TestFetchSecretMissingSecret(t *testing.T) {
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel := telemetryimpl.NewMock(t)
 	secrets := []string{"handle1", "handle2"}
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{}"), nil }
@@ -171,7 +170,7 @@ func TestFetchSecretMissingSecret(t *testing.T) {
 }
 
 func TestFetchSecretErrorForHandle(t *testing.T) {
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel := telemetryimpl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null, \"error\": \"some error\"}}"), nil
@@ -183,7 +182,7 @@ func TestFetchSecretErrorForHandle(t *testing.T) {
 }
 
 func TestFetchSecretEmptyValue(t *testing.T) {
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel := telemetryimpl.NewMock(t)
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null}}"), nil
@@ -218,7 +217,7 @@ func checkErrorCountMetric(t *testing.T, tel telemetry.Mock, expected int, error
 
 func TestFetchSecret(t *testing.T) {
 	secrets := []string{"handle1", "handle2"}
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	// some dummy value to check the cache is not purge
 	resolver.cache["test"] = "yes"
@@ -240,7 +239,7 @@ func TestFetchSecret(t *testing.T) {
 }
 
 func TestFetchSecretRemoveTrailingLineBreak(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\":\"some data\\r\\n\"}}"), nil
@@ -253,7 +252,7 @@ func TestFetchSecretRemoveTrailingLineBreak(t *testing.T) {
 }
 
 func TestFetchSecretPayloadIncludesBackendConfig(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendType = "aws.secrets"
 	resolver.backendConfig = map[string]interface{}{"foo": "bar"}

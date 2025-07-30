@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package secretsimpl
+package utils
 
 import (
 	"fmt"
@@ -15,18 +15,48 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+var (
+	testYamlHash = []byte(`
+slice:
+  - "1"
+  - [test1, test2]
+  - 123
+hash:
+  a: test3
+  b: "2"
+  c: 456
+  slice:
+    - test4
+    - test5
+`)
+
+	testYamlHashUpdated = []byte(`hash:
+  a: test3_verified
+  b: 2_verified
+  c: 456
+  slice:
+  - test4_verified
+  - test5_verified
+slice:
+- 1_verified
+- - test1_verified
+  - test2_verified
+- 123
+`)
+)
+
 func TestWalkerError(t *testing.T) {
 	var config interface{}
 	err := yaml.Unmarshal(testYamlHash, &config)
 	require.NoError(t, err)
 
-	w := walker{
-		resolver: func([]string, string) (string, error) {
+	w := Walker{
+		Resolver: func([]string, string) (string, error) {
 			return "", fmt.Errorf("some error")
 		},
 	}
 
-	err = w.walk(&config)
+	err = w.Walk(&config)
 	assert.NotNil(t, err)
 }
 
@@ -36,13 +66,13 @@ func TestWalkerComplex(t *testing.T) {
 	require.NoError(t, err)
 
 	stringsCollected := []string{}
-	w := walker{
-		resolver: func(_ []string, str string) (string, error) {
+	w := Walker{
+		Resolver: func(_ []string, str string) (string, error) {
 			stringsCollected = append(stringsCollected, str)
 			return str + "_verified", nil
 		},
 	}
-	err = w.walk(&config)
+	err = w.Walk(&config)
 	require.NoError(t, err)
 
 	sort.Strings(stringsCollected)
