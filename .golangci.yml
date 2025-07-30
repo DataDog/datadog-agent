@@ -65,46 +65,7 @@ issues:
       linters: [staticcheck]
     # Treat this list as a TODO for fixing issues with pkgconfigusage custom linter
     # DO NOT ADD NEW ENTRIES
-    - path: comp/core/workloadfilter/def/utils.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/types/types.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/component.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config_mock.go
-      linters:
-        - pkgconfigusage
     - path: comp/agent/jmxlogger/jmxloggerimpl/jmxlogger.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/remote/generic.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/configcheck/configcheck.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/forwarders/forwardersimpl/forwarders.go
-      linters:
-        - pkgconfigusage
-    - path: comp/process/profiler/profilerimpl/profiler.go
-      linters:
-        - pkgconfigusage
-    - path: comp/remote-config/rcservice/rcserviceimpl/rcservice.go
-      linters:
-        - pkgconfigusage
-    - path: comp/remote-config/rcservicemrf/rcservicemrfimpl/rcservicemrf.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/hostname/remotehostnameimpl/hostname.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/autodiscovery/noopimpl/autoconfig.go
       linters:
         - pkgconfigusage
     - path: comp/aggregator/demultiplexer/demultiplexerimpl/test_agent_demultiplexer.go
@@ -122,16 +83,19 @@ issues:
     - path: comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go
       linters:
         - pkgconfigusage
-    - path: comp/core/autodiscovery/autodiscoveryimpl/secrets.go
+    - path: comp/core/autodiscovery/autodiscoveryimpl/autoconfig_test.go
       linters:
         - pkgconfigusage
-    - path: comp/core/autodiscovery/autodiscoveryimpl/autoconfig_test.go
+    - path: comp/core/autodiscovery/autodiscoveryimpl/secrets.go
       linters:
         - pkgconfigusage
     - path: comp/core/autodiscovery/common/utils/container_collect_all.go
       linters:
         - pkgconfigusage
     - path: comp/core/autodiscovery/common/utils/prometheus.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/component.go
       linters:
         - pkgconfigusage
     - path: comp/core/autodiscovery/configresolver/configresolver.go
@@ -152,7 +116,13 @@ issues:
     - path: comp/core/autodiscovery/listeners/staticconfig.go
       linters:
         - pkgconfigusage
+    - path: comp/core/autodiscovery/noopimpl/autoconfig.go
+      linters:
+        - pkgconfigusage
     - path: comp/core/autodiscovery/providers/cloudfoundry.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/cloudfoundry_nop.go
       linters:
         - pkgconfigusage
     - path: comp/core/autodiscovery/providers/clusterchecks.go
@@ -164,13 +134,22 @@ issues:
     - path: comp/core/autodiscovery/providers/consul.go
       linters:
         - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/consul_nop.go
+      linters:
+        - pkgconfigusage
     - path: comp/core/autodiscovery/providers/container.go
       linters:
         - pkgconfigusage
     - path: comp/core/autodiscovery/providers/endpointschecks.go
       linters:
         - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/endpointschecks_nop.go
+      linters:
+        - pkgconfigusage
     - path: comp/core/autodiscovery/providers/etcd.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/etcd_nop.go
       linters:
         - pkgconfigusage
     - path: comp/core/autodiscovery/providers/gpu.go
@@ -182,10 +161,22 @@ issues:
     - path: comp/core/autodiscovery/providers/kube_endpoints_file.go
       linters:
         - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_endpoints_file_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_endpoints_nop.go
+      linters:
+        - pkgconfigusage
     - path: comp/core/autodiscovery/providers/kube_services.go
       linters:
         - pkgconfigusage
     - path: comp/core/autodiscovery/providers/kube_services_file.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_services_file_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_services_nop.go
       linters:
         - pkgconfigusage
     - path: comp/core/autodiscovery/providers/prometheus_common.go
@@ -194,7 +185,13 @@ issues:
     - path: comp/core/autodiscovery/providers/prometheus_pods.go
       linters:
         - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/prometheus_pods_nop.go
+      linters:
+        - pkgconfigusage
     - path: comp/core/autodiscovery/providers/prometheus_services.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/prometheus_services_nop.go
       linters:
         - pkgconfigusage
     - path: comp/core/autodiscovery/providers/providers.go
@@ -203,16 +200,52 @@ issues:
     - path: comp/core/autodiscovery/providers/remote_config.go
       linters:
         - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/utils.go
+    - path: comp/core/autodiscovery/providers/types/types.go
       linters:
         - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/zookeeper.go
+    - path: comp/core/autodiscovery/providers/utils.go
       linters:
         - pkgconfigusage
     - path: comp/core/autodiscovery/providers/utils_test.go
       linters:
         - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/zookeeper.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/zookeeper_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/config/config.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/config/config_mock.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/config/setup.go
+      linters:
+        - pkgconfigusage
     - path: comp/core/gui/guiimpl/checks.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/hostname/remotehostnameimpl/hostname.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/status/statusimpl/common_header_provider.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/status/statusimpl/common_header_provider_test.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/status/statusimpl/status_api_endpoints_test.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/status/statusimpl/status_test.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config_mock.go
       linters:
         - pkgconfigusage
     - path: comp/core/tagger/collectors/ecs_common.go
@@ -224,19 +257,43 @@ issues:
     - path: comp/core/tagger/taglist/taglist.go
       linters:
         - pkgconfigusage
+    - path: comp/core/workloadfilter/def/utils.go
+      linters:
+        - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/internal/cloudfoundry/container/cf_container.go
       linters:
         - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/internal/cloudfoundry/vm/cf_vm.go
       linters:
         - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/containerd/containerd.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/containerd/network_linux.go
+      linters:
+        - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/internal/kubemetadata/kubemetadata.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/podman/podman.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/process/process_collector.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/processlanguage/process_collector.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/remote/generic.go
       linters:
         - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/internal/remote/processcollector/process_collector.go
       linters:
         - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/internal/remote/workloadmeta/workloadmeta.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/util/process_util_linux.go
       linters:
         - pkgconfigusage
     - path: comp/dogstatsd/listeners/udp.go
@@ -254,7 +311,16 @@ issues:
     - path: comp/dogstatsd/serverDebug/serverdebugimpl/debug.go
       linters:
         - pkgconfigusage
+    - path: comp/forwarder/defaultforwarder/blocked_endpoints.go
+      linters:
+        - pkgconfigusage
+    - path: comp/forwarder/defaultforwarder/default_forwarder.go
+      linters:
+        - pkgconfigusage
     - path: comp/forwarder/eventplatform/eventplatformimpl/epforwarder.go
+      linters:
+        - pkgconfigusage
+    - path: comp/logs/agent/agentimpl/agent_test.go
       linters:
         - pkgconfigusage
     - path: comp/logs/agent/agentimpl/analyze_logs_init.go
@@ -263,7 +329,16 @@ issues:
     - path: comp/logs/agent/agentimpl/serverless.go
       linters:
         - pkgconfigusage
-    - path: comp/logs/agent/agentimpl/agent_test.go
+    - path: comp/logs/agent/config/config_keys.go
+      linters:
+        - pkgconfigusage
+    - path: comp/logs/agent/config/config_test.go
+      linters:
+        - pkgconfigusage
+    - path: comp/logs/agent/config/endpoints.go
+      linters:
+        - pkgconfigusage
+    - path: comp/logs/agent/config/endpoints_test.go
       linters:
         - pkgconfigusage
     - path: comp/metadata/clusteragent/impl/cluster_agent.go
@@ -275,10 +350,25 @@ issues:
     - path: comp/metadata/inventoryagent/inventoryagentimpl/inventoryagent_test.go
       linters:
         - pkgconfigusage
+    - path: comp/otelcol/otlp/components/exporter/serializerexporter/serializer.go
+      linters:
+        - pkgconfigusage
+    - path: comp/otelcol/otlp/components/processor/infraattributesprocessor/factory.go
+      linters:
+        - pkgconfigusage
     - path: comp/otelcol/otlp/config.go
       linters:
         - pkgconfigusage
+    - path: comp/otelcol/otlp/configcheck/configcheck.go
+      linters:
+        - pkgconfigusage
     - path: comp/otelcol/otlp/integrationtest/integration_test.go
+      linters:
+        - pkgconfigusage
+    - path: comp/otelcol/otlp/testutil/testutil.go
+      linters:
+        - pkgconfigusage
+    - path: comp/process/agent/agent_linux.go
       linters:
         - pkgconfigusage
     - path: comp/process/agent/status.go
@@ -290,6 +380,12 @@ issues:
     - path: comp/process/expvars/expvarsimpl/expvars.go
       linters:
         - pkgconfigusage
+    - path: comp/process/forwarders/forwardersimpl/forwarders.go
+      linters:
+        - pkgconfigusage
+    - path: comp/process/profiler/profilerimpl/profiler.go
+      linters:
+        - pkgconfigusage
     - path: comp/process/status/statusimpl/status.go
       linters:
         - pkgconfigusage
@@ -299,10 +395,22 @@ issues:
     - path: comp/remote-config/rcclient/rcclientimpl/rcclient_test.go
       linters:
         - pkgconfigusage
+    - path: comp/remote-config/rcservice/rcserviceimpl/rcservice.go
+      linters:
+        - pkgconfigusage
+    - path: comp/remote-config/rcservicemrf/rcservicemrfimpl/rcservicemrf.go
+      linters:
+        - pkgconfigusage
     - path: comp/trace/agent/impl/run.go
       linters:
         - pkgconfigusage
     - path: comp/trace/config/config.go
+      linters:
+        - pkgconfigusage
+    - path: comp/trace/config/config_nix.go
+      linters:
+        - pkgconfigusage
+    - path: comp/trace/config/config_test.go
       linters:
         - pkgconfigusage
     - path: comp/trace/config/hostname.go
@@ -312,57 +420,6 @@ issues:
       linters:
         - pkgconfigusage
     - path: comp/trace/config/setup.go
-      linters:
-        - pkgconfigusage
-    - path: comp/trace/config/config_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/config/config.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/config/config_mock.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/config/setup.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/common_header_provider.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/common_header_provider_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/status_api_endpoints_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/core/status/statusimpl/status_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/forwarder/defaultforwarder/blocked_endpoints.go
-      linters:
-        - pkgconfigusage
-    - path: comp/forwarder/defaultforwarder/default_forwarder.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/config_keys.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/endpoints.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/config_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/logs/agent/config/endpoints_test.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/components/exporter/serializerexporter/serializer.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/components/processor/infraattributesprocessor/factory.go
-      linters:
-        - pkgconfigusage
-    - path: comp/otelcol/otlp/testutil/testutil.go
       linters:
         - pkgconfigusage
 
