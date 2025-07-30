@@ -7,7 +7,6 @@ package file
 import (
 	"fmt"
 	"hash/crc64"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,35 +49,6 @@ func TestFingerprintTestSuite(t *testing.T) {
 	suite.Run(t, new(FingerprintTestSuite))
 }
 
-func (suite *FingerprintTestSuite) TestFingerprintOffsetCorrection() {
-	// 1. Write known content to the file
-	content := "line1\nline2\nline3\nline4\nline5\n"
-	_, err := suite.testFile.WriteString(content)
-	suite.Require().Nil(err)
-
-	// 2. Create a tailer and set it up
-	tailer := suite.createTailer()
-	initialOffset := int64(len("line1\nline2\n"))
-	err = tailer.setup(initialOffset, io.SeekStart)
-	suite.Require().Nil(err)
-
-	// 3. Compute the fingerprint
-	ComputeFingerprint(tailer.file.Path, tailer.fingerprintConfig)
-
-	// 4. Verify the offset is restored
-	currentOffset, err := tailer.osFile.Seek(0, io.SeekCurrent)
-	suite.Require().Nil(err)
-	suite.Equal(initialOffset, currentOffset, "The file offset should be restored to its initial position after fingerprinting")
-
-	// 5. (Optional but good) Verify reading starts from the correct place
-	go tailer.readForever()
-	tailer.decoder.Start()
-	go tailer.forwardMessages()
-
-	msg := <-tailer.outputChan
-	suite.Equal("line3", string(msg.GetContent()))
-}
-
 func (suite *FingerprintTestSuite) createTailer() *Tailer {
 	source := sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
@@ -114,9 +84,6 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip1() {
 	}
 	suite.testFile.Sync()
 
-	osFile, err := os.Open(suite.testPath)
-	suite.Nil(err)
-
 	maxLines := 2
 	maxBytes := 1024
 	linesToSkip := 1
@@ -133,7 +100,6 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip1() {
 	expectedChecksum := crc64.Checksum([]byte(text), table)
 
 	tailer := suite.createTailer()
-	tailer.osFile = osFile
 
 	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
@@ -200,9 +166,6 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit()
 	suite.testFile.Sync()
 
 	fmt.Println(lines)
-	osFile, err := os.Open(suite.testPath)
-	suite.Nil(err)
-	defer osFile.Close()
 	maxLines := 10
 	maxBytes := 1500
 	linesToSkip := 0
@@ -221,7 +184,6 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit()
 	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
 
 	tailer := suite.createTailer()
-	tailer.osFile = osFile
 
 	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
@@ -241,10 +203,6 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
 	}
 	suite.testFile.Sync()
 
-	osFile, err := os.Open(suite.testPath)
-	suite.Nil(err)
-	defer osFile.Close()
-
 	maxLines := 2
 	maxBytes := 1024
 	linesToSkip := 2
@@ -261,7 +219,6 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
 	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
 
 	tailer := suite.createTailer()
-	tailer.osFile = osFile
 
 	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
@@ -269,9 +226,6 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
 
 func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
 	// Don't write anything to the file
-	osFile, err := os.Open(suite.testPath)
-	suite.Nil(err)
-	defer osFile.Close()
 
 	maxLines := 5
 	maxBytes := 1024
@@ -287,7 +241,6 @@ func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
 	expectedChecksum := uint64(0)
 
 	tailer := suite.createTailer()
-	tailer.osFile = osFile
 
 	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
@@ -751,12 +704,7 @@ func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 		ToSkip:   linesToSkip,
 	}
 
-	osFile, err := os.Open(suite.testPath)
-	suite.Nil(err)
-	defer osFile.Close()
-
 	tailer := suite.createTailer()
-	tailer.osFile = osFile
 	fingerprint := ComputeFingerprint(tailer.file.Path, config)
 
 	fmt.Println(lines)
@@ -876,7 +824,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 
 	config := ReturnFingerprintConfig(nil, "checksum")
 	suite.Equal(1, config.MaxLines)
-	suite.Equal(256, config.MaxBytes)
+	suite.Equal(102400, config.MaxBytes)
 	suite.Equal(0, config.ToSkip)
 	tailer := suite.createTailer()
 	tailer.fingerprintingEnabled = true

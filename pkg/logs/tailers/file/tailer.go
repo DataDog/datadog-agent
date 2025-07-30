@@ -333,17 +333,6 @@ func (t *Tailer) readForever() {
 			return
 		}
 
-		if n > 0 && t.fingerprintingEnabled && t.fingerprint.Load() == 0 {
-			identifier := t.Identifier()
-			if len(identifier) > 5 {
-				filePath := identifier[5:]
-				t.fingerprint.Store(ComputeFingerprint(filePath, t.fingerprintConfig))
-			}
-			if t.fingerprint.Load() != 0 {
-				log.Infof("Successfully computed fingerprint for file %q on retry", t.file.Path)
-			}
-		}
-
 		t.recordBytes(int64(n))
 		t.movingSum.Add(int64(n))
 		select {
