@@ -23,9 +23,6 @@ import (
 var allDeviceMetrics = []deviceMetric{
 	{"pci.throughput.tx", getTxPciThroughput, metrics.GaugeType},
 	{"pci.throughput.rx", getRxPciThroughput, metrics.GaugeType},
-	{"decoder_utilization", getDecoderUtilization, metrics.GaugeType},
-	{"dram_active", getDramActive, metrics.GaugeType},
-	{"encoder_utilization", getEncoderUtilization, metrics.GaugeType},
 	{"fan_speed", getFanSpeed, metrics.GaugeType},
 	{"power.management_limit", getPowerManagementLimit, metrics.GaugeType},
 	{"power.usage", getPowerUsage, metrics.GaugeType},
