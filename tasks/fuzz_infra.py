@@ -8,10 +8,10 @@ import sys
 import requests
 from invoke import task
 
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
-from tasks.libs.common.color import Color, color_message
 
 
 DEFAULT_FUZZING_SLACK_CHANNEL = "agent-fuzz-findings"
@@ -30,9 +30,9 @@ def get_slack_channel_for_directory(directory_path: str) -> str:
     """
     try:
         # Assert that the path is either relative or had the expected prefix
-        assert not directory_path.startswith('/') or directory_path.startswith("/go/src/github.com/DataDog/datadog-agent/"), (
-            f"Expected relative path or path starting with '/go/src/github.com/DataDog/datadog-agent/', got: {directory_path}"
-        )
+        assert (
+            not directory_path.startswith('/') or directory_path.startswith("/go/src/github.com/DataDog/datadog-agent/")
+        ), f"Expected relative path or path starting with '/go/src/github.com/DataDog/datadog-agent/', got: {directory_path}"
 
         # Remove the leading datadog-agent prefix if it exists
         rel_path = directory_path.removeprefix("/go/src/github.com/DataDog/datadog-agent/")
