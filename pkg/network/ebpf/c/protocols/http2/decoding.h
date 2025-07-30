@@ -930,6 +930,17 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         }
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
+        
+        // If PRIORITY flag (0x20) set, skip 5-byte priority fields.
+        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
+        if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {
+            pktbuf_advance(pkt, 5);
+            if (current_frame.frame.length > 5) {
+                current_frame.frame.length -= 5;
+            } else {
+                continue;
+            }
+        }
 
         interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
