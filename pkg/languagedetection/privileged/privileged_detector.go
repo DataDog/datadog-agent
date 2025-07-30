@@ -65,6 +65,8 @@ func NewLanguageDetector() LanguageDetector {
 		detectors:     detectorsWithPrivilege,
 		hostProc:      kernel.ProcFSRoot(),
 		binaryIDCache: lru,
+
+
 		mux:           &sync.RWMutex{},
 	}
 }
