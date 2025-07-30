@@ -105,7 +105,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 			name: "empty_response",
 			setupServer: func() *httptest.Server {
 				mux := setupCommonServerMux()
-				mux.HandleFunc("/versa/analytics/v1.0.0/data/provider/tenants/test/features/TEST", func(w http.ResponseWriter, r *http.Request) {
+				mux.HandleFunc("/versa/analytics/v1.0.0/data/provider/tenants/test/features/TEST", func(w http.ResponseWriter, _ *http.Request) {
 					response := `{"qTime": 1, "sEcho": 0, "iTotalDisplayRecords": 0, "iTotalRecords": 0, "aaData": []}`
 					w.WriteHeader(http.StatusOK)
 					w.Write([]byte(response))
@@ -126,7 +126,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 			name: "single_page_response",
 			setupServer: func() *httptest.Server {
 				mux := setupCommonServerMux()
-				mux.HandleFunc("/versa/analytics/v1.0.0/data/provider/tenants/test/features/TEST", func(w http.ResponseWriter, r *http.Request) {
+				mux.HandleFunc("/versa/analytics/v1.0.0/data/provider/tenants/test/features/TEST", func(w http.ResponseWriter, _ *http.Request) {
 					// Return less data than the page size
 					response := `{"qTime": 1, "sEcho": 0, "iTotalDisplayRecords": 1, "iTotalRecords": 1, "aaData": [["single_item", 100.5]]}`
 					w.WriteHeader(http.StatusOK)
@@ -194,7 +194,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 			name: "api_error",
 			setupServer: func() *httptest.Server {
 				mux := setupCommonServerMux()
-				mux.HandleFunc("/versa/analytics/v1.0.0/data/provider/tenants/test/features/TEST", func(w http.ResponseWriter, r *http.Request) {
+				mux.HandleFunc("/versa/analytics/v1.0.0/data/provider/tenants/test/features/TEST", func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusInternalServerError)
 					w.Write([]byte("Internal Server Error"))
 				})
@@ -215,7 +215,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 			name: "parser_error",
 			setupServer: func() *httptest.Server {
 				mux := setupCommonServerMux()
-				mux.HandleFunc("/versa/analytics/v1.0.0/data/provider/tenants/test/features/TEST", func(w http.ResponseWriter, r *http.Request) {
+				mux.HandleFunc("/versa/analytics/v1.0.0/data/provider/tenants/test/features/TEST", func(w http.ResponseWriter, _ *http.Request) {
 					// Return data with wrong number of columns for our test parser
 					response := `{"qTime": 1, "sEcho": 0, "iTotalDisplayRecords": 1, "iTotalRecords": 1, "aaData": [["item1"]]}`
 					w.WriteHeader(http.StatusOK)
