@@ -99,7 +99,7 @@ func TestProcessCollector_Collect(t *testing.T) {
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 1234, SmUtil: 60, TimeStamp: 1000},
 			},
-			expectedSmActive: 60.0, // median(60, min(60, 100)) = median(60, 60) = 60
+			expectedSmActive: 60.0,
 			description:      "Single process: median should equal the process utilization",
 		},
 		{
@@ -108,7 +108,7 @@ func TestProcessCollector_Collect(t *testing.T) {
 				{Pid: 1234, SmUtil: 40, TimeStamp: 1000},
 				{Pid: 5678, SmUtil: 30, TimeStamp: 1000},
 			},
-			expectedSmActive: 55.0, // median(40, min(70, 100)) = median(40, 70) = 55
+			expectedSmActive: 55.0,
 			description:      "Two processes: median between max and sum",
 		},
 		{
@@ -117,7 +117,7 @@ func TestProcessCollector_Collect(t *testing.T) {
 				{Pid: 1234, SmUtil: 80, TimeStamp: 1000},
 				{Pid: 5678, SmUtil: 60, TimeStamp: 1000},
 			},
-			expectedSmActive: 90.0, // median(80, min(140, 100)) = median(80, 100) = 90
+			expectedSmActive: 90.0,
 			description:      "High utilization: sum is capped at 100",
 		},
 		{
@@ -128,7 +128,7 @@ func TestProcessCollector_Collect(t *testing.T) {
 				{Pid: 3, SmUtil: 12, TimeStamp: 1000},
 				{Pid: 4, SmUtil: 8, TimeStamp: 1000},
 			},
-			expectedSmActive: 32.5, // median(15, min(45, 100)) = median(15, 45) = 30, wait let me recalculate: (15 + 45) / 2 = 30
+			expectedSmActive: 30,
 			description:      "Many small processes: median smooths between max and sum",
 		},
 	}
