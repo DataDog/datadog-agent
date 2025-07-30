@@ -13,7 +13,7 @@ import (
 )
 
 // AutodiscoveryAnnotations creates a CEL program for autodiscovery annotations.
-func AutodiscoveryAnnotations() program.AnnotationsProgram {
+func AutodiscoveryAnnotations() program.FilterProgram {
 	return program.AnnotationsProgram{
 		Name:          "AutodiscoveryAnnotation",
 		ExcludePrefix: "",
@@ -21,7 +21,7 @@ func AutodiscoveryAnnotations() program.AnnotationsProgram {
 }
 
 // AutodiscoveryMetricsAnnotations creates a CEL program for autodiscovery metrics annotations.
-func AutodiscoveryMetricsAnnotations() program.AnnotationsProgram {
+func AutodiscoveryMetricsAnnotations() program.FilterProgram {
 	return program.AnnotationsProgram{
 		Name:          "AutodiscoveryMetricsAnnotations",
 		ExcludePrefix: "metrics_",
@@ -29,7 +29,7 @@ func AutodiscoveryMetricsAnnotations() program.AnnotationsProgram {
 }
 
 // AutodiscoveryLogsAnnotations creates a CEL program for autodiscovery logs annotations.
-func AutodiscoveryLogsAnnotations() program.AnnotationsProgram {
+func AutodiscoveryLogsAnnotations() program.FilterProgram {
 	return program.AnnotationsProgram{
 		Name:          "AutodiscoveryLogsAnnotations",
 		ExcludePrefix: "logs_",
