@@ -92,10 +92,10 @@
   - pyenv activate $VENV_NAME
 
 .install_python_dependencies:
-  # Python 3.12 changes default behavior how packages are installed.
-  # In particular, --break-system-packages command line option is
-  # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-  - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+  # Get the commit from the build image variable in the format `vPIPELINE_ID-COMMIT`
+  - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX_GLIBC_2_23_ARM64#*-}"
+  - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+  - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@${DDA_VERSION}" --break-system-packages
   - pyenv rehash
   - python3 -m dda self dep sync -f legacy-tasks
   - pyenv rehash
