@@ -64,10 +64,8 @@ const (
 	defaultEnvoyPath = "/bin/envoy"
 )
 
-var (
-	// defaultSystemProbeBPFDir is the default path for eBPF programs
-	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
-)
+// defaultSystemProbeBPFDir is the default path for eBPF programs
+var defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
 func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
@@ -123,6 +121,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.SetKnown(join(spNS, "adjusted")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	cfg.BindEnvAndSetDefault(join(spNS, "sysprobe_socket"), DefaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
+	cfg.BindEnvAndSetDefault(join(spNS, "sd_agent_socket"), DefaultSDAgentAddress, "DD_SD_AGENT_SOCKET")
 	cfg.BindEnvAndSetDefault(join(spNS, "max_conns_per_message"), defaultConnsMessageBatchSize)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)

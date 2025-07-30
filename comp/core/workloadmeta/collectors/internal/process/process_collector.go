@@ -88,6 +88,8 @@ type Event struct {
 }
 
 func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, config pkgconfigmodel.Reader, systemProbeConfig pkgconfigmodel.Reader) collector {
+	sdAgentSocket := systemProbeConfig.GetString("system_probe_config.sd_agent_socket")
+	log.Infof("[sd-agent] Process collector initialized with sd-agent socket: %s", sdAgentSocket)
 	return collector{
 		id:                     id,
 		catalog:                catalog,
@@ -99,7 +101,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 
 		// Initialize service discovery fields
-		sysProbeClient:           sysprobeclient.GetCheckClient(),
+		sysProbeClient:           sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(sdAgentSocket)),
 		serviceRetries:           make(map[int32]uint),
 		ignoredPids:              make(core.PidSet),
 		pidHeartbeats:            make(map[int32]time.Time),
@@ -483,8 +485,11 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		return nil, nil
 	}
 
+	log.Debugf("[sd-agent] Found injected PIDs: %+v", resp.InjectedPIDs)
+	log.Debugf("[sd-agent] Processing %d services from sd-agent response", len(resp.Services))
 	for i, service := range resp.Services {
 		pidsToService[int32(service.PID)] = &resp.Services[i]
+		log.Debugf("[sd-agent] Mapped service: PID=%d -> %s", service.PID, service.GeneratedName)
 	}
 
 	// Convert InjectedPIDs to PidSet for efficient lookup
