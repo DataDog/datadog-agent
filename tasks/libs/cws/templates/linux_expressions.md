@@ -38,7 +38,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 
 ## FIM triggers
 
-In addition to regular triggers, `fim.write.file.*` fields allow to write rules that will fire
+In addition to regular triggers, `fim.write.file.*` fields allow to write rules that fire
 on all file events.
 
 For example, the following rule:
@@ -88,7 +88,7 @@ utimes: (utimes.file.path == "/tmp/test" || utimes.file.name == "abc")
 {{< /code-block >}}
 {% endraw %}
 
-and match on all file related events matching the path provided in the rule. Common fields are kept in all
+and match on all file-related events matching the path provided in the rule. Common fields are retained across all
 expanded rules.
 
 ## Variables
