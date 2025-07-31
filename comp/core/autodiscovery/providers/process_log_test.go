@@ -48,6 +48,8 @@ func TestProcessLogProviderEvents(t *testing.T) {
 	p, ok := provider.(*processLogConfigProvider)
 	require.True(t, ok)
 
+	logPath := "/var/log/test.log"
+
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
@@ -57,7 +59,7 @@ func TestProcessLogProviderEvents(t *testing.T) {
 		Service: &workloadmeta.Service{
 			DDService:     "test-service",
 			GeneratedName: "test-service-gen",
-			LogFiles:      []string{"/var/log/test.log"},
+			LogFiles:      []string{logPath},
 		},
 	}
 
@@ -73,9 +75,9 @@ func TestProcessLogProviderEvents(t *testing.T) {
 	assert.Len(t, changes.Schedule, 1)
 	assert.Len(t, changes.Unschedule, 0)
 	config := changes.Schedule[0]
-	assert.Equal(t, getIntegrationName("/var/log/test.log"), config.Name)
+	assert.Equal(t, getIntegrationName(logPath), config.Name)
 	assert.Equal(t, names.ProcessLog, config.Provider)
-	assert.Contains(t, string(config.LogsConfig), "/var/log/test.log")
+	assert.Contains(t, string(config.LogsConfig), logPath)
 
 	// check that scheduling the same config again doesn't do anything
 	changes = p.processEventsNoVerifyReadable(setBundle)
@@ -94,7 +96,7 @@ func TestProcessLogProviderEvents(t *testing.T) {
 	assert.Len(t, changes.Schedule, 0)
 	assert.Len(t, changes.Unschedule, 1)
 	config = changes.Unschedule[0]
-	assert.Equal(t, getIntegrationName("/var/log/test.log"), config.Name)
+	assert.Equal(t, getIntegrationName(logPath), config.Name)
 
 	// check that unscheduling the same config again doesn't do anything
 	changes = p.processEventsNoVerifyReadable(unsetBundle)
@@ -143,6 +145,9 @@ func TestProcessLogProviderMultipleLogSources(t *testing.T) {
 	p, ok := provider.(*processLogConfigProvider)
 	require.True(t, ok)
 
+	logPath1 := "/var/log/test.log"
+	logPath2 := "/var/log/test2.log"
+
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
@@ -152,7 +157,7 @@ func TestProcessLogProviderMultipleLogSources(t *testing.T) {
 		Service: &workloadmeta.Service{
 			DDService:     "test-service",
 			GeneratedName: "test-service-gen",
-			LogFiles:      []string{"/var/log/test.log", "/var/log/test2.log"},
+			LogFiles:      []string{logPath1, logPath2},
 		},
 	}
 
@@ -188,6 +193,9 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 	p, ok := provider.(*processLogConfigProvider)
 	require.True(t, ok)
 
+	logPath1 := "/var/log/test.log"
+	logPath2 := "/var/log/test2.log"
+
 	process1 := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
@@ -197,7 +205,7 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 		Service: &workloadmeta.Service{
 			DDService:     "test-service",
 			GeneratedName: "test-service-gen",
-			LogFiles:      []string{"/var/log/test.log"},
+			LogFiles:      []string{logPath1},
 		},
 	}
 	process2 := &workloadmeta.Process{
@@ -209,7 +217,7 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 		Service: &workloadmeta.Service{
 			DDService:     "test-service-2",
 			GeneratedName: "test-service-2-gen",
-			LogFiles:      []string{"/var/log/test2.log"},
+			LogFiles:      []string{logPath2},
 		},
 	}
 
@@ -233,13 +241,13 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 
 	scheduleMap := scheduleToMap(changes.Schedule)
 
-	config1, found1 := scheduleMap[getIntegrationName("/var/log/test.log")]
+	config1, found1 := scheduleMap[getIntegrationName(logPath1)]
 	assert.True(t, found1)
-	assert.Contains(t, string(config1.LogsConfig), "/var/log/test.log")
+	assert.Contains(t, string(config1.LogsConfig), logPath1)
 
-	config2, found2 := scheduleMap[getIntegrationName("/var/log/test2.log")]
+	config2, found2 := scheduleMap[getIntegrationName(logPath2)]
 	assert.True(t, found2)
-	assert.Contains(t, string(config2.LogsConfig), "/var/log/test2.log")
+	assert.Contains(t, string(config2.LogsConfig), logPath2)
 
 	unsetEvents := []workloadmeta.Event{
 		{
@@ -261,8 +269,8 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 
 	unscheduleMap := scheduleToMap(changes.Unschedule)
 
-	assert.Contains(t, unscheduleMap, getIntegrationName("/var/log/test.log"))
-	assert.Contains(t, unscheduleMap, getIntegrationName("/var/log/test2.log"))
+	assert.Contains(t, unscheduleMap, getIntegrationName(logPath1))
+	assert.Contains(t, unscheduleMap, getIntegrationName(logPath2))
 }
 
 // TestProcessLogProviderReferenceCounting tests the reference counting behavior for multiple processes using the same log file
@@ -272,6 +280,8 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 
 	p, ok := provider.(*processLogConfigProvider)
 	require.True(t, ok)
+
+	logPath := "/var/log/test.log"
 
 	// Create two processes with the same service name and log file
 	process1 := &workloadmeta.Process{
@@ -283,7 +293,7 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 		Service: &workloadmeta.Service{
 			DDService:     "test-service",
 			GeneratedName: "test-service-gen",
-			LogFiles:      []string{"/var/log/test.log"},
+			LogFiles:      []string{logPath},
 		},
 	}
 
@@ -296,7 +306,7 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 		Service: &workloadmeta.Service{
 			DDService:     "test-service",
 			GeneratedName: "test-service-gen",
-			LogFiles:      []string{"/var/log/test.log"},
+			LogFiles:      []string{logPath},
 		},
 	}
 
@@ -312,11 +322,11 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 	assert.Len(t, changes.Schedule, 1)
 	assert.Len(t, changes.Unschedule, 0)
 	config := changes.Schedule[0]
-	assert.Equal(t, getIntegrationName("/var/log/test.log"), config.Name)
-	assert.Equal(t, getServiceId("/var/log/test.log"), config.ServiceID)
+	assert.Equal(t, getIntegrationName(logPath), config.Name)
+	assert.Equal(t, getServiceId(logPath), config.ServiceID)
 
 	// Verify reference count is 1
-	serviceLogKey := "/var/log/test.log"
+	serviceLogKey := logPath
 	ref, exists := p.serviceLogRefs[serviceLogKey]
 	assert.True(t, exists)
 	assert.Equal(t, 1, ref.refCount)
@@ -379,6 +389,8 @@ func TestProcessLogProviderUnscheduleNonExistent(t *testing.T) {
 	p, ok := provider.(*processLogConfigProvider)
 	require.True(t, ok)
 
+	logPath := "/var/log/test.log"
+
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
@@ -388,7 +400,7 @@ func TestProcessLogProviderUnscheduleNonExistent(t *testing.T) {
 		Service: &workloadmeta.Service{
 			DDService:     "test-service",
 			GeneratedName: "test-service-gen",
-			LogFiles:      []string{"/var/log/test.log"},
+			LogFiles:      []string{logPath},
 		},
 	}
 
@@ -412,6 +424,9 @@ func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
 	p, ok := provider.(*processLogConfigProvider)
 	require.True(t, ok)
 
+	logPath1 := "/var/log/test.log"
+	logPath2 := "/var/log/test2.log"
+
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
@@ -421,7 +436,7 @@ func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
 		Service: &workloadmeta.Service{
 			DDService:     "test-service",
 			GeneratedName: "test-service-gen",
-			LogFiles:      []string{"/var/log/test.log", "/var/log/test2.log"},
+			LogFiles:      []string{logPath1, logPath2},
 		},
 	}
 
@@ -438,13 +453,13 @@ func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
 
 	scheduleMap := scheduleToMap(changes.Schedule)
 
-	config1, found1 := scheduleMap[getIntegrationName("/var/log/test.log")]
+	config1, found1 := scheduleMap[getIntegrationName(logPath1)]
 	assert.True(t, found1)
-	assert.Equal(t, `[{"path":"/var/log/test.log","service":"test-service","source":"test-service-gen","type":"file"}]`, string(config1.LogsConfig))
+	assert.Equal(t, `[{"path":"`+logPath1+`","service":"test-service","source":"test-service-gen","type":"file"}]`, string(config1.LogsConfig))
 
-	config2, found2 := scheduleMap[getIntegrationName("/var/log/test2.log")]
+	config2, found2 := scheduleMap[getIntegrationName(logPath2)]
 	assert.True(t, found2)
-	assert.Equal(t, `[{"path":"/var/log/test2.log","service":"test-service","source":"test-service-gen","type":"file"}]`, string(config2.LogsConfig))
+	assert.Equal(t, `[{"path":"`+logPath2+`","service":"test-service","source":"test-service-gen","type":"file"}]`, string(config2.LogsConfig))
 
 	unsetEvent := workloadmeta.Event{
 		Type:   workloadmeta.EventTypeUnset,
@@ -457,8 +472,8 @@ func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
 	assert.Len(t, changes.Schedule, 0)
 	assert.Len(t, changes.Unschedule, 2)
 	// both configs have different names now due to the log path in the name
-	assert.Equal(t, getIntegrationName("/var/log/test.log"), changes.Unschedule[0].Name)
-	assert.Equal(t, getIntegrationName("/var/log/test2.log"), changes.Unschedule[1].Name)
+	assert.Equal(t, getIntegrationName(logPath1), changes.Unschedule[0].Name)
+	assert.Equal(t, getIntegrationName(logPath2), changes.Unschedule[1].Name)
 }
 
 // TestProcessLogProviderProcessLogFilesChange tests that when a process's log files change in a Set event,
@@ -470,6 +485,10 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 	p, ok := provider.(*processLogConfigProvider)
 	require.True(t, ok)
 
+	logPath1 := "/var/log/test1.log"
+	logPath2 := "/var/log/test2.log"
+	logPath3 := "/var/log/test3.log"
+
 	// Initial process with log file 1
 	process1 := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
@@ -480,7 +499,7 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 		Service: &workloadmeta.Service{
 			DDService:     "test-service",
 			GeneratedName: "test-service-gen",
-			LogFiles:      []string{"/var/log/test1.log"},
+			LogFiles:      []string{logPath1},
 		},
 	}
 
@@ -496,8 +515,8 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 	assert.Len(t, changes.Schedule, 1)
 	assert.Len(t, changes.Unschedule, 0)
 	config1 := changes.Schedule[0]
-	assert.Equal(t, getIntegrationName("/var/log/test1.log"), config1.Name)
-	assert.Contains(t, string(config1.LogsConfig), "/var/log/test1.log")
+	assert.Equal(t, getIntegrationName(logPath1), config1.Name)
+	assert.Contains(t, string(config1.LogsConfig), logPath1)
 
 	// Update process with different log files
 	process2 := &workloadmeta.Process{
@@ -509,7 +528,7 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 		Service: &workloadmeta.Service{
 			DDService:     "test-service",
 			GeneratedName: "test-service-gen",
-			LogFiles:      []string{"/var/log/test2.log", "/var/log/test3.log"}, // Different log files
+			LogFiles:      []string{logPath2, logPath3}, // Different log files
 		},
 	}
 
@@ -529,23 +548,23 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 
 	// Check that old config was unscheduled
 	unscheduledConfig := changes.Unschedule[0]
-	assert.Equal(t, getIntegrationName("/var/log/test1.log"), unscheduledConfig.Name)
+	assert.Equal(t, getIntegrationName(logPath1), unscheduledConfig.Name)
 
 	// Check that new configs were scheduled
 	scheduleMap := scheduleToMap(changes.Schedule)
 
-	config2, found2 := scheduleMap[getIntegrationName("/var/log/test2.log")]
+	config2, found2 := scheduleMap[getIntegrationName(logPath2)]
 	assert.True(t, found2)
-	assert.Contains(t, string(config2.LogsConfig), "/var/log/test2.log")
+	assert.Contains(t, string(config2.LogsConfig), logPath2)
 
-	config3, found3 := scheduleMap[getIntegrationName("/var/log/test3.log")]
+	config3, found3 := scheduleMap[getIntegrationName(logPath3)]
 	assert.True(t, found3)
-	assert.Contains(t, string(config3.LogsConfig), "/var/log/test3.log")
+	assert.Contains(t, string(config3.LogsConfig), logPath3)
 
 	// Verify reference counts are correct
-	key1 := "/var/log/test1.log"
-	key2 := "/var/log/test2.log"
-	key3 := "/var/log/test3.log"
+	key1 := logPath1
+	key2 := logPath2
+	key3 := logPath3
 
 	// Old key should not exist
 	assert.NotContains(t, p.serviceLogRefs, key1)
@@ -590,8 +609,8 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 	// Check that both configs were unscheduled
 	unscheduleMap := scheduleToMap(changes.Unschedule)
 
-	assert.Contains(t, unscheduleMap, getIntegrationName("/var/log/test2.log"))
-	assert.Contains(t, unscheduleMap, getIntegrationName("/var/log/test3.log"))
+	assert.Contains(t, unscheduleMap, getIntegrationName(logPath2))
+	assert.Contains(t, unscheduleMap, getIntegrationName(logPath3))
 
 	// Verify all reference entries are cleaned up
 	assert.NotContains(t, p.serviceLogRefs, key2)

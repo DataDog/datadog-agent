@@ -292,7 +292,7 @@ func getSource(service *workloadmeta.Service) string {
 }
 
 func getIntegrationName(logFile string) string {
-	return fmt.Sprintf("process_log:%s", logFile)
+	return fmt.Sprintf("%s:%s", names.ProcessLog, logFile)
 }
 
 func getServiceId(logFile string) string {
