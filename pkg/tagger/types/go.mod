@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/pkg/tagger/types
 
 go 1.23.0
 
-require github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.69.0-rc.8
+require github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.69.0-rc.9
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
