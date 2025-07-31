@@ -95,8 +95,7 @@
     - chmod +x /usr/local/bin/codecov
     - |
       if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
-        dda inv -- -e coverage.convert-coverage-folder-to-txt $E2E_COVERAGE_OUT_DIR/coverage $E2E_COVERAGE_OUT_DIR/coverage.txt
-        dda inv -- -e coverage.upload-to-codecov --coverage-file $E2E_COVERAGE_OUT_DIR/coverage.txt --extra-tag e2e
+        dda inv -- -e coverage.process-e2e-coverage-folders $E2E_COVERAGE_OUT_DIR
       fi
   artifacts:
     expire_in: 2 weeks
