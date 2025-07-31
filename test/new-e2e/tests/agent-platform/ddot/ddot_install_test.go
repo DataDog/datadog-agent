@@ -142,6 +142,10 @@ func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestCli
 		} else {
 			ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
 		}
+
+		// Reset systemd failure state and start ddot service
+		ExecuteWithoutError(t, VMclient, "sudo systemctl reset-failed datadog-agent-ddot.service")
+		ExecuteWithoutError(t, VMclient, "sudo systemctl start datadog-agent-ddot.service")
 	})
 
 	is.T().Run("check ddot systemd units are running", func(t *testing.T) {
