@@ -196,12 +196,16 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_parse_data(buffer, &packet_type, &method);
 
-    if (packet_type == HTTP_REQUEST && method == HTTP_GET && buffer[4] == '/' && buffer[5] == 'h' && buffer[6] == 'e' && buffer[7] == 'l' && buffer[8] == 'l' && buffer[9] == 'o') {
-        log_debug("GUY http_process GOT /hello");
+    bool is_hello = packet_type == HTTP_REQUEST && method == HTTP_GET && buffer[4] == '/' && buffer[5] == 'h' && buffer[6] == 'e' && buffer[7] == 'l' && buffer[8] == 'l' && buffer[9] == 'o';
+    if (is_hello) {
+        log_debug("GUY GET /hello http_process");
     }
 
     http = http_fetch_state(tuple, http, packet_type);
     if (!http || http_seen_before(http, skb_info, packet_type)) {
+        if (is_hello) {
+            log_debug("GUY GET /hello got empty http or already seen before, skipping");
+        }
         return;
     }
 
