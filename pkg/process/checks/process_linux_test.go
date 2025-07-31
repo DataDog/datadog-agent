@@ -64,13 +64,12 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			proc3 := wlmProcessWithCreateTime(3, "datadog-agent --cfgpath datadog.conf", nowSeconds+2)
 			proc4 := wlmProcessWithServiceDiscovery(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds-3)
 			procs := []*wmdef.Process{proc1, proc2, proc3, proc4}
-			statsByPid := make(map[int32]*procutil.Stats)
 			for _, p := range procs {
 				mockWLM.Set(p)
 			}
 
 			// elevatedPermissions is irrelevant since we are mocking the probe so no internal logic is tested
-			statsByPid = createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
+			statsByPid := createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
 			mockProbe.EXPECT().StatsForPIDs(mock.Anything, mockConstantClock.Now()).Return(statsByPid, nil).Once()
 
 			// EXPECTED
