@@ -479,6 +479,48 @@ func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Re
 	return false
 }
 
+// verifyAllRequestsEventuallyCaptured verifies that all HTTP requests are eventually captured by the monitor
+func verifyAllRequestsEventuallyCaptured(t *testing.T, usmMonitor *Monitor, protocol protocols.ProtocolType, requests []*nethttp.Request, timeout, interval time.Duration, message string) {
+	t.Helper()
+	requestsExist := make([]bool, len(requests))
+
+	assert.Eventually(t, func() bool {
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocol)
+		if stats == nil {
+			return false
+		}
+
+		if len(stats) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(stats, req)
+			}
+		}
+
+		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+		// otherwise, if all present, abort.
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+				return false
+			}
+		}
+
+		return true
+	}, timeout, interval, message)
+
+	for reqIndex, exists := range requestsExist {
+		if !exists {
+			// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+			t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+		}
+	}
+}
+
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	t.Skip("skipping GoTLS tests while we investigate their flakiness")
 
@@ -1035,43 +1077,7 @@ func testNodeJSNormalMonitoring(t *testing.T, usmMonitor *Monitor, nodeJSPID uin
 	}
 
 	client.CloseIdleConnections()
-	requestsExist := make([]bool, len(requests))
-
-	assert.Eventually(t, func() bool {
-		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
-		if stats == nil {
-			return false
-		}
-
-		if len(stats) == 0 {
-			return false
-		}
-
-		for reqIndex, req := range requests {
-			if !requestsExist[reqIndex] {
-				requestsExist[reqIndex] = isRequestIncluded(stats, req)
-			}
-		}
-
-		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
-		// otherwise, if all present, abort.
-		for reqIndex, exists := range requestsExist {
-			if !exists {
-				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
-				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
-				return false
-			}
-		}
-
-		return true
-	}, 3*time.Second, 100*time.Millisecond, "connection not found")
-
-	for reqIndex, exists := range requestsExist {
-		if !exists {
-			// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
-			t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
-		}
-	}
+	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all NodeJS container requests to be captured")
 }
 
 func (s *tlsSuite) TestOpenSSLTLSContainer() {
@@ -1161,58 +1167,14 @@ func testOpenSSLNormalMonitoring(t *testing.T, usmMonitor *Monitor, pythonPID ui
 
 	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, int(pythonPID), utils.ManualTracingFallbackEnabled)
 
-	client := &nethttp.Client{
-		Timeout: 1 * time.Second,
-		Transport: &nethttp.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
+	// This maps will keep track of whether the tracer saw this request already or not
+	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
 
 	var requests []*nethttp.Request
 	for i := 0; i < expectedOccurrences; i++ {
-		url := fmt.Sprintf("https://localhost:%s/status/200", serverPort)
-		req, err := nethttp.NewRequest("GET", url, nil)
-		require.NoError(t, err)
-
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		resp.Body.Close()
-
-		requests = append(requests, req)
+		requests = append(requests, requestFn())
 	}
 
 	client.CloseIdleConnections()
-
-	// Verify that all requests are captured
-	requestsMap := make(map[*nethttp.Request]bool)
-	for _, req := range requests {
-		requestsMap[req] = false
-	}
-
-	assert.Eventually(t, func() bool {
-		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
-		for _, req := range requests {
-			if isRequestIncluded(stats, req) {
-				requestsMap[req] = true
-			}
-		}
-
-		// Check if all requests were found
-		allFound := true
-		for _, found := range requestsMap {
-			if !found {
-				allFound = false
-				break
-			}
-		}
-		return allFound
-	}, 3*time.Second, 100*time.Millisecond, "Expected all OpenSSL container requests to be captured")
-
-	// Log any requests that were not found
-	for reqIndex, req := range requests {
-		exists := requestsMap[req]
-		if !exists {
-			t.Logf("OpenSSL container request %d was not found (req %v)", reqIndex+1, req)
-		}
-	}
+	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all OpenSSL container requests to be captured")
 }
