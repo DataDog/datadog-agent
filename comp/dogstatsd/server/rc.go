@@ -39,8 +39,6 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 	if len(updates) == 0 {
 		s.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
 		s.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
-
-		s.tlmControlReconfig.Inc("local")
 		s.restoreBlocklistFromLocalConfig()
 		return
 	}
@@ -92,15 +90,14 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 		s.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
 
 		// apply this new blocklist to all the running workers
-		s.tlmControlReconfig.Inc("remote")
+		s.tlmControlReconfig.Inc()
+		s.tlmControlListSize.Set(float64(len(metricNames)))
 		s.SetBlocklist(metricNames, false)
 
 	} else {
 		// special case: if the metric names list is empty, fallback to local
 		s.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
 		s.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
-
-		s.tlmControlReconfig.Inc("local")
 		s.restoreBlocklistFromLocalConfig()
 	}
 }
