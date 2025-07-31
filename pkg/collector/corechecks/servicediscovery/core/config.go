@@ -27,7 +27,6 @@ const (
 
 // DiscoveryConfig holds the configuration for service discovery.
 type DiscoveryConfig struct {
-	CPUUsageUpdateDelay time.Duration
 	NetworkStatsEnabled bool
 	NetworkStatsPeriod  time.Duration
 	IgnoreComms         map[string]struct{}
@@ -40,7 +39,6 @@ func NewConfig() *DiscoveryConfig {
 	sysconfig.Adjust(cfg)
 
 	conf := &DiscoveryConfig{
-		CPUUsageUpdateDelay: cfg.GetDuration(join(discoveryNS, "cpu_usage_update_delay")),
 		NetworkStatsEnabled: cfg.GetBool(join(discoveryNS, "network_stats.enabled")),
 		NetworkStatsPeriod:  cfg.GetDuration(join(discoveryNS, "network_stats.period")),
 	}

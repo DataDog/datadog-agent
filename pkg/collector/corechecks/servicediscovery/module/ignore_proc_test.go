@@ -76,7 +76,7 @@ func TestShouldIgnorePid(t *testing.T) {
 
 			// now can check the ignored service
 			discoveryCtx := newParsingContext()
-			service := discovery.getService(discoveryCtx, int32(cmd.Process.Pid))
+			service := discovery.getServiceWithoutRetry(discoveryCtx, int32(cmd.Process.Pid))
 			if test.ignore {
 				require.Empty(t, service)
 			} else {
@@ -84,7 +84,7 @@ func TestShouldIgnorePid(t *testing.T) {
 			}
 
 			// check saved pid to ignore
-			ignore := discovery.shouldIgnorePid(int32(cmd.Process.Pid))
+			ignore := discovery.shouldIgnoreComm(int32(cmd.Process.Pid))
 			require.Equal(t, test.ignore, ignore)
 		})
 	}

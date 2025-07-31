@@ -298,11 +298,11 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 }
 
 // getDiscoveryServices calls the system-probe /discovery/services endpoint
-func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesEndpointResponse, error) {
-	var responseData model.ServicesEndpointResponse
+func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesResponse, error) {
+	var responseData model.ServicesResponse
 
 	// Create params with PIDs and convert to JSON
-	params := core.DefaultParams()
+	params := core.Params{}
 	for _, pid := range pids {
 		params.Pids = append(params.Pids, int(pid))
 	}
@@ -393,7 +393,6 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		AdditionalGeneratedNames: modelService.AdditionalGeneratedNames,
 		TracerMetadata:           modelService.TracerMetadata,
 		DDService:                modelService.DDService,
-		DDServiceInjected:        modelService.DDServiceInjected,
 		Ports:                    modelService.Ports,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,

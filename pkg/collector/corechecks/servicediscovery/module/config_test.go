@@ -58,7 +58,7 @@ func TestConfigIgnoredComms(t *testing.T) {
 			commsStr := strings.Join(test.comms, "   ") // intentionally multiple spaces for sensitivity testing
 			mockSystemProbe.SetWithoutSource("discovery.ignored_command_names", commsStr)
 
-			discovery := newDiscovery(t, nil)
+			discovery := newDiscovery()
 			require.NotEmpty(t, discovery)
 
 			require.Equal(t, len(discovery.config.IgnoreComms), len(test.comms))
@@ -75,7 +75,7 @@ func TestConfigIgnoredComms(t *testing.T) {
 
 	t.Run("check default config length", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		discovery := newDiscovery(t, nil)
+		discovery := newDiscovery()
 		require.NotEmpty(t, discovery)
 
 		assert.Equal(t, len(discovery.config.IgnoreComms), 10)
@@ -85,7 +85,7 @@ func TestConfigIgnoredComms(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_DISCOVERY_IGNORED_COMMAND_NAMES", "dummy1 dummy2")
 
-		discovery := newDiscovery(t, nil)
+		discovery := newDiscovery()
 		require.NotEmpty(t, discovery)
 
 		_, found := discovery.config.IgnoreComms["dummy1"]
