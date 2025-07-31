@@ -263,6 +263,7 @@ type expectedState struct {
 
 type experimentConfigAction struct {
 	ActionType string `json:"action_type"`
+	Path       string `json:"path"`
 	ConfigID   string `json:"config_id"`
 }
 

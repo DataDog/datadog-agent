@@ -462,20 +462,35 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, vers
 	// TODO: improve the deserialize -> serialize -> deserialize of the config actions
 	serializedConfigs := make([][]byte, 0, len(configActions))
 	for _, configAction := range configActions {
-		config, ok := configs[configAction.ConfigID]
-		if !ok {
-			return fmt.Errorf("could not find config version %s", configAction.ConfigID)
-		}
-		serializedConfig, err := json.Marshal(
-			convertedExperimentConfigAction{
-				ActionType: configAction.ActionType,
-				Files:      config.Files,
-			},
-		)
+		var serializedConfig []byte
+		var err error
+		if configAction.ConfigID != "" {
+			config, ok := configs[configAction.ConfigID]
+			if !ok {
+				return fmt.Errorf("could not find config version %s", configAction.ConfigID)
+			}
+			serializedConfig, err = json.Marshal(
+				convertedExperimentConfigAction{
+					ActionType: configAction.ActionType,
+					Files:      config.Files,
+				},
+			)
 
-		if err != nil {
-			return fmt.Errorf("could not serialize config files: %w", err)
+			if err != nil {
+				return fmt.Errorf("could not serialize config files: %w", err)
+			}
+		} else {
+			serializedConfig, err = json.Marshal(
+				convertedExperimentConfigAction{
+					ActionType: configAction.ActionType,
+					Files:      []installerConfigFile{{Path: configAction.Path}},
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("could not serialize config files: %w", err)
+			}
 		}
+
 		serializedConfigs = append(serializedConfigs, serializedConfig)
 	}
 	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigs, []string{})
