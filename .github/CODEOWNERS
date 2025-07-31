@@ -531,6 +531,7 @@
 /pkg/languagedetection                  @DataDog/container-experiences @DataDog/agent-discovery
 /pkg/linters/                           @DataDog/agent-devx
 /pkg/linters/components/                @DataDog/agent-runtimes
+/pkg/linters/components/pkgconfigusage  @DataDog/agent-configuration
 /pkg/logs/                              @DataDog/agent-log-pipelines
 /pkg/logs/launchers/container           @DataDog/agent-log-pipelines @DataDog/container-integrations
 /pkg/logs/tailers/container             @DataDog/agent-log-pipelines @DataDog/container-integrations
