@@ -450,7 +450,10 @@ type sslProgram struct {
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c) || !usmconfig.UretprobeSupported() {
+	if !c.EnableNativeTLSMonitoring ||
+		!usmconfig.TLSSupported(c) {
+		// Disable check to test if it simulates the bug in testOpenSSLSegfaultBehavior
+		//!usmconfig.UretprobeSupported()
 		return nil, nil
 	}
 
