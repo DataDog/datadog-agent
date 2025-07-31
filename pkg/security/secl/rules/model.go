@@ -9,11 +9,13 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -112,7 +114,8 @@ const (
 
 // ActionDefinitionInterface is an interface that describes a rule action section
 type ActionDefinitionInterface interface {
-	Check(opts PolicyLoaderOpts) error
+	PreCheck(opts PolicyLoaderOpts) error
+	PostCheck(rule *eval.Rule) error
 }
 
 // ActionDefinition describes a rule action section
@@ -143,30 +146,24 @@ func (a *ActionDefinition) Name() ActionName {
 	}
 }
 
-// Check returns an error if the action is invalid
-func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
-	var (
-		candidateActions = []ActionDefinitionInterface{
-			a.Set,
-			a.Kill,
-			a.Hash,
-			a.CoreDump,
-			a.Log,
-		}
+func (a *ActionDefinition) getCandidateActions() map[string]ActionDefinitionInterface {
+	return map[string]ActionDefinitionInterface{
+		SetAction:      a.Set,
+		KillAction:     a.Kill,
+		HashAction:     a.Hash,
+		CoreDumpAction: a.CoreDump,
+		LogAction:      a.Log,
+	}
+}
 
-		names = []string{
-			SetAction,
-			KillAction,
-			CoreDumpAction,
-			HashAction,
-			LogAction,
-		}
-		actions = 0
-	)
+// PreCheck returns an error if the action is invalid
+func (a *ActionDefinition) PreCheck(opts PolicyLoaderOpts) error {
+	candidateActions := a.getCandidateActions()
+	actions := 0
 
 	for _, action := range candidateActions {
 		if !reflect.ValueOf(action).IsNil() {
-			if err := action.Check(opts); err != nil {
+			if err := action.PreCheck(opts); err != nil {
 				return err
 			}
 			actions++
@@ -174,7 +171,7 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 	}
 
 	if actions == 0 {
-		return fmt.Errorf("either %+v section of an action must be specified", names)
+		return fmt.Errorf("either %+v section of an action must be specified", maps.Keys(candidateActions))
 	}
 
 	if actions > 1 {
@@ -184,11 +181,42 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 	return nil
 }
 
+// PostCheck returns an error if the action is invalid after parsing
+func (a *ActionDefinition) PostCheck(rule *eval.Rule) error {
+	candidateActions := a.getCandidateActions()
+	actions := 0
+
+	for _, action := range candidateActions {
+		if !reflect.ValueOf(action).IsNil() {
+			if err := action.PostCheck(rule); err != nil {
+				return err
+			}
+			actions++
+		}
+	}
+
+	return nil
+}
+
 // Scope describes the scope variables
 type Scope string
 
+// DefaultActionDefinition describes the base type for action
+type DefaultActionDefinition struct{}
+
+// PreCheck returns an error if the action is invalid before parsing
+func (a *DefaultActionDefinition) PreCheck(_ PolicyLoaderOpts) error {
+	return nil
+}
+
+// PostCheck returns an error if the action is invalid after parsing
+func (a *DefaultActionDefinition) PostCheck(_ *eval.Rule) error {
+	return nil
+}
+
 // SetDefinition describes the 'set' section of a rule action
 type SetDefinition struct {
+	DefaultActionDefinition
 	Name         string                 `yaml:"name" json:"name"`
 	Value        interface{}            `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
 	DefaultValue interface{}            `yaml:"default_value" json:"default_value,omitempty" jsonschema:"oneof_type=string;integer;boolean;array"`
@@ -203,8 +231,8 @@ type SetDefinition struct {
 	Inherited    bool                   `yaml:"inherited" json:"inherited,omitempty"`
 }
 
-// Check returns an error if the set action is invalid
-func (s *SetDefinition) Check(_ PolicyLoaderOpts) error {
+// PreCheck returns an error if the set action is invalid
+func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if s.Name == "" {
 		return errors.New("variable name is empty")
 	}
@@ -239,14 +267,15 @@ func (s *SetDefinition) Check(_ PolicyLoaderOpts) error {
 
 // KillDefinition describes the 'kill' section of a rule action
 type KillDefinition struct {
+	DefaultActionDefinition
 	Signal                    string `yaml:"signal" json:"signal" jsonschema:"description=A valid signal name,example=SIGKILL,example=SIGTERM"`
 	Scope                     string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
 	DisableContainerDisarmer  bool   `yaml:"disable_container_disarmer" json:"disable_container_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic container disarmer safeguard"`
 	DisableExecutableDisarmer bool   `yaml:"disable_executable_disarmer" json:"disable_executable_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic executable disarmer safeguard"`
 }
 
-// Check returns an error if the kill action is invalid
-func (k *KillDefinition) Check(opts PolicyLoaderOpts) error {
+// PreCheck returns an error if the kill action is invalid
+func (k *KillDefinition) PreCheck(opts PolicyLoaderOpts) error {
 	if opts.DisableEnforcement {
 		return errors.New("'kill' action is disabled globally")
 	}
@@ -264,33 +293,61 @@ func (k *KillDefinition) Check(opts PolicyLoaderOpts) error {
 
 // CoreDumpDefinition describes the 'coredump' action
 type CoreDumpDefinition struct {
+	DefaultActionDefinition
 	Process       bool `yaml:"process" json:"process,omitempty" jsonschema:"anyof_required=CoreDumpWithProcess"`
 	Mount         bool `yaml:"mount" json:"mount,omitempty" jsonschema:"anyof_required=CoreDumpWithMount"`
 	Dentry        bool `yaml:"dentry" json:"dentry,omitempty" jsonschema:"anyof_required=CoreDumpWithDentry"`
 	NoCompression bool `yaml:"no_compression" json:"no_compression,omitempty"`
 }
 
-// Check returns an error if the core dump action is invalid
-func (c *CoreDumpDefinition) Check(_ PolicyLoaderOpts) error {
-	return nil
+// HashDefinition describes the 'hash' section of a rule action
+type HashDefinition struct {
+	DefaultActionDefinition
+	Field string `yaml:"field" json:"field,omitempty"`
 }
 
-// HashDefinition describes the 'hash' section of a rule action
-type HashDefinition struct{}
+// PostCheck returns an error if the hash action is invalid after parsing
+func (h *HashDefinition) PostCheck(rule *eval.Rule) error {
+	ruleEventType, err := rule.GetEventType()
+	if err != nil {
+		return err
+	}
 
-// Check returns an error if the hash action is invalid
-func (h *HashDefinition) Check(_ PolicyLoaderOpts) error {
+	if h.Field == "" {
+		switch ruleEventType {
+		case "open":
+			h.Field = "open.file"
+		case "exec":
+			h.Field = "exec.file"
+		default:
+			return fmt.Errorf("`field` attribute is mandatory for '%s' rules", ruleEventType)
+		}
+	}
+
+	var eventType model.EventType
+	ev := model.NewFakeEvent()
+	eventType, err = model.ParseEvalEventType(ruleEventType)
+	if err != nil {
+		return err
+	}
+
+	ev.Type = uint32(eventType)
+	if _, err := ev.GetFileField(h.Field); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // LogDefinition describes the 'log' section of a rule action
 type LogDefinition struct {
+	DefaultActionDefinition
 	Level   string
 	Message string
 }
 
-// Check returns an error if the log action is invalid
-func (l *LogDefinition) Check(_ PolicyLoaderOpts) error {
+// PreCheck returns an error if the log action is invalid
+func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if l.Level == "" {
 		return errors.New("a valid log level must be specified to the the 'log' action")
 	}
