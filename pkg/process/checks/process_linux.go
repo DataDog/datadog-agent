@@ -73,7 +73,13 @@ func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 		// map to common process type used by other versions of the check
 		procs := make(map[int32]*procutil.Process, len(wlmProcList))
 		for _, wlmProc := range wlmProcList {
-			procs[wlmProc.Pid] = mapWLMProcToProc(wlmProc, statsForProcess[wlmProc.Pid])
+			stats, exists := statsForProcess[wlmProc.Pid]
+			// we need to check if the stats exist because there can be a lag between when a process is stored into WLM and when we query for its stats
+			// ex. a process is stopped but still exists in WLM, so the stats don't exist, and we shouldn't report it anymore
+			if !exists {
+				continue
+			}
+			procs[wlmProc.Pid] = mapWLMProcToProc(wlmProc, stats)
 		}
 		return procs, nil
 	}
