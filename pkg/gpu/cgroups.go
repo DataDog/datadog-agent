@@ -90,7 +90,7 @@ func getAbsoluteCgroupForProcess(rootfs, hostRoot string, currentProcessPid, tar
 	// just return the cgroup path as we see it, we cannot do anything else.
 	// Also, cgroupv1 returns the cgroup name correctly here, so we can return it
 	// directly too
-	if hostRoot == "" || cgroupMode == cgroups.Legacy {
+	if rootfs == "" || cgroupMode != cgroups.Unified {
 		return cgroupPath, nil
 	}
 
