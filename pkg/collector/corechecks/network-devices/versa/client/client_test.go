@@ -527,6 +527,36 @@ func TestParseLinkStatusMetrics(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, result)
 }
+func TestGetApplicationsByAppliance(t *testing.T) {
+	expectedApplicationsByApplianceMetrics := []ApplicationsByApplianceMetrics{
+		{
+			DrillKey:    "test-branch-2B,HTTP",
+			Site:        "test-branch-2B",
+			AppID:       "HTTP",
+			Sessions:    50.0,
+			VolumeTx:    1024000.0,
+			VolumeRx:    512000.0,
+			BandwidthTx: 8192.0,
+			BandwidthRx: 4096.0,
+			Bandwidth:   12288.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	appsByApplianceMetrics, err := client.GetApplicationsByAppliance("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(appsByApplianceMetrics), 1)
+	require.Equal(t, expectedApplicationsByApplianceMetrics, appsByApplianceMetrics)
+}
+
 func TestGetTunnelMetrics(t *testing.T) {
 	expectedTunnelMetrics := []TunnelMetrics{
 		{
@@ -595,4 +625,34 @@ func TestGetTunnelMetricsEmptyTenant(t *testing.T) {
 	_, err = client.GetTunnelMetrics("")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "tenant cannot be empty")
+}
+
+func TestGetTopUsers(t *testing.T) {
+	expectedTopUsers := []TopUserMetrics{
+		{
+			DrillKey:    "test-branch-2B,testUser",
+			Site:        "test-branch-2B",
+			User:        "testUser",
+			Sessions:    50.0,
+			VolumeTx:    2024000.0,
+			VolumeRx:    412000.0,
+			BandwidthTx: 7192.0,
+			BandwidthRx: 2096.0,
+			Bandwidth:   22288.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	topUsers, err := client.GetTopUsers("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(topUsers), 1)
+	require.Equal(t, expectedTopUsers, topUsers)
 }

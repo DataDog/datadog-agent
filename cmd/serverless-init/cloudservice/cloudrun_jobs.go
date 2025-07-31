@@ -8,6 +8,11 @@ package cloudservice
 import (
 	"fmt"
 	"os"
+	"time"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
 // CloudRunJobsOrigin origin tag value
@@ -29,10 +34,13 @@ const (
 	taskAttemptTag       = "task_attempt"
 	taskCountTag         = "task_count"
 	resourceNameTag      = "resource_name"
+	cloudRunJobsPrefix   = "gcp.run.job"
 )
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
-type CloudRunJobs struct{}
+type CloudRunJobs struct {
+	startTime time.Time
+}
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
 func (c *CloudRunJobs) GetTags() map[string]string {
@@ -74,19 +82,32 @@ func (c *CloudRunJobs) GetOrigin() string {
 	return CloudRunJobsOrigin
 }
 
-// GetPrefix returns the prefix that we're prefixing all metrics with.
-func (c *CloudRunJobs) GetPrefix() string {
-	return "gcp.run.job"
+// GetSource returns the metrics source
+func (c *CloudRunJobs) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceGoogleCloudRunEnhanced
 }
 
-// Init is empty for CloudRunJobs
+// Init records the start time for CloudRunJobs
 func (c *CloudRunJobs) Init() error {
+	c.startTime = time.Now()
 	return nil
+}
+
+// Shutdown submits the task duration metric for CloudRunJobs
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent) {
+	metricName := fmt.Sprintf("%s.enhanced.task.duration", cloudRunJobsPrefix)
+	duration := float64(time.Since(c.startTime).Milliseconds())
+	metric.Add(metricName, duration, c.GetSource(), metricAgent)
 }
 
 // GetStartMetricName returns the metric name for container start events
 func (c *CloudRunJobs) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.start", c.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.task.started", cloudRunJobsPrefix)
+}
+
+// GetShutdownMetricName returns the metric name for container shutdown events
+func (c *CloudRunJobs) GetShutdownMetricName() string {
+	return fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
 }
 
 func isCloudRunJob() bool {
