@@ -167,20 +167,30 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 	}
 
 	// Populate preaggregation endpoint (only if unique)
-	//
-	// TODO(?): This assumes we wouldn't have a unique preaggregation API key
-	// without a unique preaggregation URL, but we should validate that.
 	if c.GetBool("preaggregation.enabled") {
 		preaggURL := c.GetString("preaggregation.dd_url")
-		// Check that it's not the same as the primary URL
-		if preaggURL != "" && preaggURL != ddURL {
+		if preaggURL == "" {
+			return nil, fmt.Errorf("preaggregation.dd_url is required when preaggregation.enabled is true")
+		}
+		if preaggURL != ddURL {
 			// Check if preaggregation URL already exists in additional endpoints
 			if _, exists := additionalEndpoints[preaggURL]; !exists {
 				// Unique URL - create new domain resolver with preaggregation API key
+				apiKey := c.GetString("preaggregation.api_key")
+				if apiKey == "" {
+					return nil, fmt.Errorf("preaggregation.api_key is required when preaggregation.enabled is true")
+				}
 				additionalEndpoints[preaggURL] = []APIKeys{{
 					ConfigSettingPath: "preaggregation.api_key",
-					Keys:              []string{c.GetString("preaggregation.api_key")},
+					Keys:              []string{apiKey},
 				}}
+			}
+		} else {
+			// If URLs are the same, we can't add a new API key that would affect other payloads
+			preaggAPIKey := c.GetString("preaggregation.api_key")
+			primaryAPIKey := c.GetString("api_key")
+			if preaggAPIKey != "" && preaggAPIKey != primaryAPIKey {
+				return nil, fmt.Errorf("Cannot configure separate preaggregation API key when preaggregation URL matches primary URL.")
 			}
 		}
 	}
