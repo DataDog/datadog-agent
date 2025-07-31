@@ -370,7 +370,6 @@ func promoteExperimentCommand() *cobra.Command {
 }
 
 func installConfigExperimentCommand() *cobra.Command {
-	var configOrderFlag string
 	cmd := &cobra.Command{
 		Use:     "install-config-experiment <package> <version> <config1> <config2> ...",
 		Short:   "Install a config experiment",
@@ -385,25 +384,26 @@ func installConfigExperimentCommand() *cobra.Command {
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
 
-			// Parse config order from flag
-			var configOrder []string
-			if configOrderFlag != "" {
-				err := json.Unmarshal([]byte(configOrderFlag), &configOrder)
-				if err != nil {
-					configOrder = []string{}
-				}
-				i.span.SetTag("params.configOrder", configOrderFlag)
-			}
-
 			configs := make([][]byte, len(args)-2)
-			for i, config := range args[2:] {
-				configs[i] = []byte(config)
+			// Case for backward compatibility with the previous version of the config
+			// where the config was [{"path": "path/to/config", "contents": "contents"}]
+			if len(args) == 3 {
+				var configMap []interface{}
+				err := json.Unmarshal([]byte(args[2]), &configMap)
+				if err != nil {
+					configs = [][]byte{[]byte(args[2])}
+				} else {
+					configs = [][]byte{[]byte(fmt.Sprintf(`{"action_type": "write", "files": %s}`, args[2]))}
+				}
+			} else {
+				for i, config := range args[2:] {
+					configs[i] = []byte(config)
+				}
 			}
 
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs, configOrder)
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs, []string{})
 		},
 	}
-	cmd.Flags().StringVar(&configOrderFlag, "config-order", "", "JSON array of config IDs in order of precedence")
 	return cmd
 }
 

@@ -261,10 +261,15 @@ type expectedState struct {
 	ExperimentConfig string `json:"experiment_config"`
 }
 
+type experimentConfigAction struct {
+	ActionType string `json:"action_type"`
+	ConfigID   string `json:"config_id"`
+}
+
 type experimentTaskParams struct {
-	Version     string   `json:"version"`
-	InstallArgs []string `json:"install_args"`
-	ConfigOrder []string `json:"config_order"`
+	Version     string                   `json:"version"`
+	InstallArgs []string                 `json:"install_args"`
+	Actions     []experimentConfigAction `json:"actions"`
 }
 
 type installPackageTaskParams struct {

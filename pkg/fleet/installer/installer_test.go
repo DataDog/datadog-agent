@@ -533,317 +533,314 @@ func TestConfigNames(t *testing.T) {
 	})
 }
 
-func TestMergeConfigs(t *testing.T) {
-	t.Run("basic-merge", func(t *testing.T) {
-		config1 := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "add",
-				"contents": {"api_key": "test1", "enabled": true}
-			}
-		]`
-		config2 := `[
-			{
-				"path": "/security-agent.yaml",
-				"action": "add",
-				"contents": {"enabled": false}
-			}
-		]`
+// Test that we can write and remove config files
+func TestWriteAndRemoveConfigFiles(t *testing.T) {
+	// Create a test installer instance
+	installer := &installerImpl{}
 
-		result, err := mergeConfigs("config-id-1", [][]byte{[]byte(config1), []byte(config2)}, []string{"config-id-1"})
-		assert.NoError(t, err)
-		assert.Len(t, result, 2)
-		assert.Contains(t, result, "/datadog.yaml")
-		assert.Contains(t, result, "/security-agent.yaml")
-		assert.Equal(t, configFileActionAdd, result["/datadog.yaml"].Action)
-		assert.Equal(t, configFileActionAdd, result["/security-agent.yaml"].Action)
-	})
+	// Test case 1: Write a simple config file
+	t.Run("write_simple_config", func(t *testing.T) {
+		tempDir := t.TempDir()
 
-	t.Run("remove-action", func(t *testing.T) {
-		config1 := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "add",
-				"contents": {"api_key": "test1"}
+		configAction := ExperimentConfigAction{
+			ActionType: "write",
+			Files: []ConfigFile{
+				{
+					Path: "/datadog.yaml",
+					Contents: json.RawMessage(`{
+						"site": "datadoghq.com"
+					}`),
+				},
 			},
-			{
-				"path": "/security-agent.yaml",
-				"action": "add",
-				"contents": {"enabled": true}
-			}
-		]`
-		config2 := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "remove"
-			}
-		]`
-
-		result, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config1), []byte(config2)}, []string{})
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.NotContains(t, result, "/datadog.yaml")
-		assert.Contains(t, result, "/security-agent.yaml")
-	})
-
-	t.Run("unknown-action-defaults-to-add", func(t *testing.T) {
-		config := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "",
-				"contents": {"additional_metrics": true}
-			}
-		]`
-
-		result, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config)}, []string{})
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Contains(t, result, "/datadog.yaml")
-		assert.Equal(t, configFileActionAdd, result["/datadog.yaml"].Action)
-	})
-
-	t.Run("empty-action-defaults-to-add", func(t *testing.T) {
-		config := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "",
-				"contents": {"api_key": "test1"}
-			}
-		]`
-
-		result, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config)}, []string{})
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Contains(t, result, "/datadog.yaml")
-		assert.Equal(t, configFileActionAdd, result["/datadog.yaml"].Action)
-	})
-
-	t.Run("invalid-path", func(t *testing.T) {
-		config := `[
-			{
-				"path": "/invalid/path/../../etc/passwd",
-				"action": "add",
-				"contents": {"test": "data"}
-			}
-		]`
-
-		_, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config)}, []string{})
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "config file {/etc/passwd add {\"test\": \"data\"}} is not allowed")
-	})
-
-	t.Run("invalid-json", func(t *testing.T) {
-		config := `invalid json`
-
-		_, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config)}, []string{})
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not unmarshal config files")
-	})
-
-	t.Run("overwrite-existing", func(t *testing.T) {
-		config1 := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "add",
-				"contents": {"api_key": "old_key"}
-			}
-		]`
-		config2 := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "add",
-				"contents": {"api_key": "new_key"}
-			}
-		]`
-
-		result, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config1), []byte(config2)}, []string{})
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Contains(t, result, "/datadog.yaml")
-		// Should contain the last config (new_key)
-		assert.Contains(t, string(result["/datadog.yaml"].Contents), "new_key")
-	})
-
-	t.Run("remove-then-add", func(t *testing.T) {
-		config1 := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "add",
-				"contents": {"api_key": "old_key"}
-			}
-		]`
-		config2 := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "remove"
-			},
-			{
-				"path": "/datadog.yaml",
-				"action": "add",
-				"contents": {"api_key": "new_key"}
-			}
-		]`
-
-		result, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config1), []byte(config2)}, []string{})
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Contains(t, result, "/datadog.yaml")
-		// Should contain the new config after remove
-		assert.Contains(t, string(result["/datadog.yaml"].Contents), "new_key")
-	})
-
-	t.Run("fleet-layers-injection", func(t *testing.T) {
-		config := `[
-			{
-				"path": "/security-agent.yaml",
-				"action": "add",
-				"contents": {"api_key": "test1", "config_id": "test-config"}
-			}
-		]`
-
-		configOrder := []string{"test-config", "another-config"}
-		configOrderInterface := []interface{}{}
-		for _, config := range configOrder {
-			configOrderInterface = append(configOrderInterface, config)
 		}
 
-		result, err := mergeConfigs("another-config", [][]byte{[]byte(config)}, configOrder)
+		rawConfig, err := json.Marshal(configAction)
 		assert.NoError(t, err)
-		assert.Len(t, result, 2)
-		assert.Contains(t, result, "/datadog.yaml")
-		assert.Contains(t, result, "/security-agent.yaml")
 
-		// Verify that fleet_layers was injected
-		var datadogConfig map[string]interface{}
-		err = json.Unmarshal(result["/datadog.yaml"].Contents, &datadogConfig)
+		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
 		assert.NoError(t, err)
-		assert.Contains(t, datadogConfig, "fleet_layers")
-		assert.Equal(t, configOrderInterface, datadogConfig["fleet_layers"])
-		assert.Equal(t, "another-config", datadogConfig["config_id"])
+
+		// Verify the file was created with correct content
+		filePath := filepath.Join(tempDir, "datadog.yaml")
+		content, err := os.ReadFile(filePath)
+		assert.NoError(t, err)
+		assert.Contains(t, string(content), "site: datadoghq.com")
 	})
-}
 
-func TestWriteConfigWithMergedConfigs(t *testing.T) {
-	t.Run("write-merged-configs", func(t *testing.T) {
-		// Create a temporary directory for testing
-		tmpDir := t.TempDir()
+	// Test case 2: Write config file in subdirectory
+	t.Run("write_config_in_subdirectory", func(t *testing.T) {
+		tempDir := t.TempDir()
 
-		// Create a test installer instance
-		installer := &installerImpl{}
-
-		// Create config JSON with add actions
-		configJSON := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "add",
-				"contents": {"api_key": "test_key", "enabled": true}
+		configAction := ExperimentConfigAction{
+			ActionType: "write",
+			Files: []ConfigFile{
+				{
+					Path: "/conf.d/test.yaml",
+					Contents: json.RawMessage(`{
+						"instances": [{"host": "localhost"}]
+					}`),
+				},
 			},
-			{
-				"path": "/security-agent.yaml",
-				"action": "add",
-				"contents": {"enabled": false, "port": 6062}
-			}
-		]`
+		}
 
-		// Merge configs first
-		mergedConfigs, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(configJSON)}, []string{})
-		assert.NoError(t, err)
-		assert.Contains(t, mergedConfigs, "/datadog.yaml")
-		assert.Contains(t, mergedConfigs, "/security-agent.yaml")
-
-		// Call writeConfig with merged configs
-		err = installer.writeConfig(tmpDir, mergedConfigs)
+		rawConfig, err := json.Marshal(configAction)
 		assert.NoError(t, err)
 
-		// Verify files were created
-		datadogPath := filepath.Join(tmpDir, "datadog.yaml")
-		securityPath := filepath.Join(tmpDir, "security-agent.yaml")
-
-		_, err = os.Stat(datadogPath)
-		assert.NoError(t, err, "datadog.yaml should exist")
-
-		_, err = os.Stat(securityPath)
-		assert.NoError(t, err, "security-agent.yaml should exist")
-
-		// Verify content
-		datadogContent, err := os.ReadFile(datadogPath)
+		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
 		assert.NoError(t, err)
-		assert.Contains(t, string(datadogContent), "api_key: test_key")
-		assert.Contains(t, string(datadogContent), "enabled: true")
 
-		securityContent, err := os.ReadFile(securityPath)
+		// Verify the file was created in the subdirectory
+		filePath := filepath.Join(tempDir, "conf.d", "test.yaml")
+		content, err := os.ReadFile(filePath)
 		assert.NoError(t, err)
-		assert.Contains(t, string(securityContent), "enabled: false")
-		assert.Contains(t, string(securityContent), "port: 6062")
+		assert.Contains(t, string(content), "instances:")
+		assert.Contains(t, string(content), "host: localhost")
 	})
 
-	t.Run("write-config-with-invalid-action", func(t *testing.T) {
-		// Create a temporary directory for testing
-		tmpDir := t.TempDir()
+	// Test case 3: Remove an existing file
+	t.Run("remove_file", func(t *testing.T) {
+		tempDir := t.TempDir()
 
-		// Create a test installer instance
-		installer := &installerImpl{}
-
-		// Create config with invalid action (should be filtered out by mergeConfigs)
-		configJSON := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "remove"
-			}
-		]`
-
-		// Merge configs first
-		mergedConfigs, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(configJSON)}, []string{})
-		assert.NoError(t, err)
-		assert.NotContains(t, mergedConfigs, "/datadog.yaml")
-
-		// Call writeConfig with merged configs (should be empty)
-		err = installer.writeConfig(tmpDir, mergedConfigs)
+		// First, create a file to remove
+		filePath := filepath.Join(tempDir, "datadog.yaml")
+		err := os.WriteFile(filePath, []byte("test content"), 0644)
 		assert.NoError(t, err)
 
-		// Verify no files were created
-		datadogPath := filepath.Join(tmpDir, "datadog.yaml")
-		_, err = os.Stat(datadogPath)
-		assert.True(t, os.IsNotExist(err), "datadog.yaml should not exist")
-	})
-}
+		// Verify file exists
+		_, err = os.Stat(filePath)
+		assert.NoError(t, err)
 
-func TestInstallConfigExperimentWithRemoveAction(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir := t.TempDir()
-
-	// Create a test installer instance
-	installer := &installerImpl{
-		configs: repository.NewRepositories(tmpDir, nil),
-	}
-
-	// Create a test file that should be removed
-	testDatadogPath := filepath.Join(tmpDir, "datadog.yaml")
-	testSecurityAgentPath := filepath.Join(tmpDir, "security-agent.yaml")
-
-	// Create config JSON with remove action
-	configJSON := `[
-			{
-				"path": "/datadog.yaml",
-				"action": "remove"
+		// Now remove it
+		configAction := ExperimentConfigAction{
+			ActionType: "remove",
+			Files: []ConfigFile{
+				{Path: "/datadog.yaml"},
 			},
-			{
-				"path": "/security-agent.yaml",
-				"action": "add",
-				"contents": {"enabled": true}
-			}
-		]`
+		}
 
-	mergedConfigs, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(configJSON)}, []string{})
-	assert.NoError(t, err)
-	assert.NotContains(t, mergedConfigs, "/datadog.yaml")
-	assert.Contains(t, mergedConfigs, "/security-agent.yaml")
-	err = installer.writeConfig(tmpDir, mergedConfigs)
-	assert.NoError(t, err)
+		rawConfig, err := json.Marshal(configAction)
+		assert.NoError(t, err)
 
-	// The original file should not exist in the original directory
-	_, err = os.Stat(testDatadogPath)
-	assert.True(t, os.IsNotExist(err), "Original file should not exist")
-	_, err = os.Stat(testSecurityAgentPath)
-	assert.NoError(t, err, "Security agent file should exist")
+		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		assert.NoError(t, err)
+
+		// Verify the file was removed
+		_, err = os.Stat(filePath)
+		assert.True(t, os.IsNotExist(err))
+	})
+
+	// Test case 4: Write and remove in same operation
+	t.Run("write_and_remove_same_operation", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create a file to remove
+		fileToRemove := filepath.Join(tempDir, "system-probe.yaml")
+		err := os.WriteFile(fileToRemove, []byte("old content"), 0644)
+		assert.NoError(t, err)
+
+		// Create actions to write new file and remove old file
+		writeAction := ExperimentConfigAction{
+			ActionType: "write",
+			Files: []ConfigFile{
+				{
+					Path:     "/datadog.yaml",
+					Contents: json.RawMessage(`{"new": "value"}`),
+				},
+			},
+		}
+
+		removeAction := ExperimentConfigAction{
+			ActionType: "remove",
+			Files: []ConfigFile{
+				{Path: "/system-probe.yaml"},
+			},
+		}
+
+		rawWriteConfig, err := json.Marshal(writeAction)
+		assert.NoError(t, err)
+
+		rawRemoveConfig, err := json.Marshal(removeAction)
+		assert.NoError(t, err)
+
+		err = installer.writeConfig(tempDir, [][]byte{rawWriteConfig, rawRemoveConfig})
+		assert.NoError(t, err)
+
+		// Verify new file was created
+		newFilePath := filepath.Join(tempDir, "datadog.yaml")
+		content, err := os.ReadFile(newFilePath)
+		assert.NoError(t, err)
+		assert.Contains(t, string(content), "new: value")
+
+		// Verify old file was removed
+		_, err = os.Stat(fileToRemove)
+		assert.True(t, os.IsNotExist(err))
+	})
+
+	// Test case 5: Invalid file path (not allowed)
+	t.Run("invalid_file_path", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		configAction := ExperimentConfigAction{
+			ActionType: "write",
+			Files: []ConfigFile{
+				{
+					Path:     "/invalid/path.txt",
+					Contents: json.RawMessage(`{"test": "value"}`),
+				},
+			},
+		}
+
+		rawConfig, err := json.Marshal(configAction)
+		assert.NoError(t, err)
+
+		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "config file {/invalid/path.txt {\"test\":\"value\"}} is not allowed")
+	})
+
+	// Test case 6: Invalid action type
+	t.Run("invalid_action_type", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		configAction := ExperimentConfigAction{
+			ActionType: "invalid",
+			Files: []ConfigFile{
+				{Path: "/datadog.yaml"},
+			},
+		}
+
+		rawConfig, err := json.Marshal(configAction)
+		assert.NoError(t, err)
+
+		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown config file action: invalid")
+	})
+
+	// Test case 7: Invalid JSON content
+	t.Run("invalid_json_content", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		configAction := ExperimentConfigAction{
+			ActionType: "write",
+			Files: []ConfigFile{
+				{
+					Path:     "/datadog.yaml",
+					Contents: json.RawMessage(`invalid json`),
+				},
+			},
+		}
+
+		rawConfig, err := json.Marshal(configAction)
+		assert.NoError(t, err)
+
+		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "could not unmarshal config file contents")
+	})
+
+	// Test case 8: Path cleaning (handles extra slashes)
+	t.Run("path_cleaning", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		configAction := ExperimentConfigAction{
+			ActionType: "write",
+			Files: []ConfigFile{
+				{
+					Path:     "//datadog.yaml", // Extra slashes
+					Contents: json.RawMessage(`{"cleaned": "path"}`),
+				},
+			},
+		}
+
+		rawConfig, err := json.Marshal(configAction)
+		assert.NoError(t, err)
+
+		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		assert.NoError(t, err)
+
+		// Verify the file was created with cleaned path
+		filePath := filepath.Join(tempDir, "datadog.yaml")
+		content, err := os.ReadFile(filePath)
+		assert.NoError(t, err)
+		assert.Contains(t, string(content), "cleaned: path")
+	})
+
+	// Test case 9: Complex nested structure
+	t.Run("complex_nested_structure", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		configAction := ExperimentConfigAction{
+			ActionType: "write",
+			Files: []ConfigFile{
+				{
+					Path: "/conf.d/nginx.d/nginx.yaml",
+					Contents: json.RawMessage(`{
+						"instances": [
+							{
+								"nginx_status_url": "http://localhost/nginx_status",
+								"tags": ["env:test", "service:nginx"]
+							}
+						],
+						"init_config": {
+							"min_collection_interval": 15
+						}
+					}`),
+				},
+			},
+		}
+
+		rawConfig, err := json.Marshal(configAction)
+		assert.NoError(t, err)
+
+		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		assert.NoError(t, err)
+
+		// Verify the file was created with complex structure
+		filePath := filepath.Join(tempDir, "conf.d", "nginx.d", "nginx.yaml")
+		content, err := os.ReadFile(filePath)
+		assert.NoError(t, err)
+		assert.Contains(t, string(content), "instances:")
+		assert.Contains(t, string(content), "nginx_status_url: http://localhost/nginx_status")
+		assert.Contains(t, string(content), "tags:")
+		assert.Contains(t, string(content), "- env:test")
+		assert.Contains(t, string(content), "- service:nginx")
+		assert.Contains(t, string(content), "init_config:")
+		assert.Contains(t, string(content), "min_collection_interval: 15")
+	})
+
+	// Test case 10: add and remove the same file
+	t.Run("add_and_remove_same_file", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		writeAction := ExperimentConfigAction{
+			ActionType: "write",
+			Files: []ConfigFile{
+				{
+					Path:     "/datadog.yaml",
+					Contents: json.RawMessage(`{"new": "value"}`),
+				},
+			},
+		}
+
+		removeAction := ExperimentConfigAction{
+			ActionType: "remove",
+			Files: []ConfigFile{
+				{Path: "/datadog.yaml"},
+			},
+		}
+
+		rawWriteConfig, err := json.Marshal(writeAction)
+		assert.NoError(t, err)
+
+		rawRemoveConfig, err := json.Marshal(removeAction)
+		assert.NoError(t, err)
+
+		err = installer.writeConfig(tempDir, [][]byte{rawWriteConfig, rawRemoveConfig})
+		assert.NoError(t, err)
+
+		// Verify the file is not present
+		_, err = os.Stat(filepath.Join(tempDir, "datadog.yaml"))
+		assert.True(t, os.IsNotExist(err))
+	})
 }
