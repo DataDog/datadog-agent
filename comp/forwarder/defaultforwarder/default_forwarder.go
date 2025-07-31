@@ -505,19 +505,16 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 
 			if payload.Destination == transaction.PreaggrOnly {
 				preaggURL := f.config.GetString("preaggregation.dd_url")
-				primaryURL := f.config.GetString("dd_url")
-				
-				// If preaggr uses same URL as primary, allow all primary resolvers
-				// If preaggr uses different URL, only allow that specific domain
-				if preaggURL != primaryURL && domain != preaggURL {
+
+				if domain != preaggURL {
 					continue
 				}
 				endpoint = endpoints.PreaggrSeriesEndpoint
 			}
-			// TODO(?): If the preaggregation.dd_url is the same as the primary dd_url,
-			// we will also inherit any additional API keys from the
-			// configuration of that site, meaning we'll send preaggr payloads
-			// for each of those orgs. Not sure if this is a problem or not.
+			// If the preaggregation.dd_url is the same as the primary dd_url,
+			// we will inherit any additional API keys from the configuration of
+			// that site, meaning we'll send preaggr payloads for each of those
+			// orgs.
 
 			if payload.Destination == transaction.LocalOnly {
 				// if it is local payload, we should not send it to the remote endpoint
