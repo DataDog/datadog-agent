@@ -1160,6 +1160,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "setsockopt":
 		_ = ev.FieldHandlers.ResolveSetSockOptFilterInstructions(ev, &ev.SetSockOpt)
 		_ = ev.FieldHandlers.ResolveSetSockOptFilterHash(ev, &ev.SetSockOpt)
+		_ = ev.FieldHandlers.ResolveSetSockOptUsedImmediates(ev, &ev.SetSockOpt)
 	case "setuid":
 		_ = ev.FieldHandlers.ResolveSetuidUser(ev, &ev.SetUID)
 		_ = ev.FieldHandlers.ResolveSetuidEUser(ev, &ev.SetUID)
@@ -1516,6 +1517,7 @@ type FieldHandlers interface {
 	ResolveService(ev *Event, e *BaseEvent) string
 	ResolveSetSockOptFilterHash(ev *Event, e *SetSockOptEvent) string
 	ResolveSetSockOptFilterInstructions(ev *Event, e *SetSockOptEvent) string
+	ResolveSetSockOptUsedImmediates(ev *Event, e *SetSockOptEvent) []int
 	ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string
 	ResolveSetgidFSGroup(ev *Event, e *SetgidEvent) string
 	ResolveSetgidGroup(ev *Event, e *SetgidEvent) string
@@ -1757,6 +1759,13 @@ func (dfh *FakeFieldHandlers) ResolveSetSockOptFilterHash(ev *Event, e *SetSockO
 }
 func (dfh *FakeFieldHandlers) ResolveSetSockOptFilterInstructions(ev *Event, e *SetSockOptEvent) string {
 	return string(e.FilterInstructions)
+}
+func (dfh *FakeFieldHandlers) ResolveSetSockOptUsedImmediates(ev *Event, e *SetSockOptEvent) []int {
+	var result []int
+	for _, value := range e.UsedImmediates {
+		result = append(result, int(value))
+	}
+	return result
 }
 func (dfh *FakeFieldHandlers) ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string {
 	return string(e.EGroup)

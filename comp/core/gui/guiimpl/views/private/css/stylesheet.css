@@ -1,24 +1,20 @@
 body {
   background-color: #f5f5f5;
-  font-family: "OpenSans", "Lucida Grande", "Lucida Sans Unicode", sans-serif;
+  font-family: 'OpenSans', 'Lucida Grande', 'Lucida Sans Unicode', sans-serif;
   margin: 0;
   overflow-x: hidden;
   font-size: 15px;
 }
-
 textarea {
   resize: none;
 }
-
 ul {
   list-style: none;
 }
-
 a {
   text-decoration: none;
   color: inherit;
 }
-
 .dropdown {
   position: relative;
   display: inline-block;
@@ -30,7 +26,6 @@ a {
   font-size: 15px !important;
   padding: 2px 10px !important;
 }
-
 .center {
   position: absolute;
   left: 50%;
@@ -38,11 +33,9 @@ a {
   display: block;
   transform: translate(-50%, -50%);
 }
-
 .fa-spinner {
   color: #a2a2a2;
 }
-
 #sidebar {
   height: 100%;
   width: 160px;
@@ -128,7 +121,6 @@ a {
 #sidebar .navbar .active {
   color: white;
 }
-
 .top_bar {
   width: calc(100% - 160px);
   height: 80px;
@@ -138,12 +130,11 @@ a {
   left: 160px;
   border-bottom: 1px solid #e4e4e4;
   overflow-x: hidden;
-  /*
-  #hostname {
+ /* #hostname {
     max-width: 250px;
     overflow-x: scroll;
     white-space: nowrap;
-  }
+ }
   */
 }
 .top_bar #title {
@@ -156,31 +147,23 @@ a {
   font-size: 25px;
 }
 .top_bar #agent_status {
+  background: linear-gradient(to bottom, #89c403 5%, #77a809 100%);
+  background-color: #89c403;
+  background-color: red;
+  border: 1px solid #74b807;
+  text-shadow: 0px 1px 0px #528009;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
+  left: -150px;
   border-radius: 26px;
-  color: #ffffff;
+  color: #fff;
   padding: 6px 24px;
   text-decoration: none;
   text-align: center;
 }
-.connected {
-  background: linear-gradient(to bottom, #89c403 5%, #77a809 100%);
-  background-color: #89c403;
-  border: 1px solid #74b807;
-  text-shadow: 0px 1px 0px #528009;
-  left: -150px;
-}
-.disconnected {
-  background: linear-gradient(to bottom, #c62d1f 5%, #f24437 100%);
-  background-color: #c62d1f;
-  border: 1px solid #d02718;
-  text-shadow: 0px 1px 0px #810e05;
-  left: -180px;
-}
 .top_bar #restart_status {
-  color: #ff0000;
+  color: #f00;
 }
 .top_bar #agent_info {
   position: absolute;
@@ -191,7 +174,6 @@ a {
   transform: translateY(-50%);
   color: #a2a2a2;
 }
-
 #main {
   position: absolute;
   left: 160px;
@@ -203,7 +185,6 @@ a {
   position: absolute;
   top: 20px;
   left: 20px;
-  right: 20px;
   border: 1px solid #e4e4e4;
   background-color: white;
   box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
@@ -211,29 +192,19 @@ a {
   -webkit-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
   display: none;
 }
-
-#main #error.page {
-  width: calc(100% - 80px);
-  height: calc(100% - 80px);
-  padding: 20px;
-  overflow-y: scroll;
-  background-color: #f9ecec;
-  z-index: 6;
-}
- 
 #main #settings_input, #main #check_input, #main #new_config_input {
   width: calc(100% - 2px);
   height: calc(100% - 2px);
   font-size: 15px;
   padding: 1px;
 }
-#main #settings_input #submit_settings, #main #settings_input #save_check, #main #settings_input #disable_check, #main #settings_input #add_check, #main #check_input #submit_settings, #main #check_input #save_check, #main #check_input #disable_check, #main #check_input #add_check, #main #new_config_input #submit_settings, #main #new_config_input #save_check, #main #new_config_input #disable_check, #main #new_config_input #add_check {
+#main #settings_input #submit_settings, #main #check_input #submit_settings, #main #new_config_input #submit_settings, #main #settings_input #save_check, #main #check_input #save_check, #main #new_config_input #save_check, #main #settings_input #disable_check, #main #check_input #disable_check, #main #new_config_input #disable_check, #main #settings_input #add_check, #main #check_input #add_check, #main #new_config_input #add_check {
   box-shadow: inset 0px 1px 0px 0px #3dc21b;
   background: linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
   background-color: #44c767;
   border-radius: 3px;
   border: 1px solid #18ab29;
-  color: #ffffff;
+  color: #fff;
   text-shadow: 0px 1px 0px #2f6627;
   z-index: 5;
   position: absolute;
@@ -289,11 +260,11 @@ a {
   right: 10px;
   top: 10px;
 }
-#main #settings_input #submit_settings:hover, #main #settings_input #save_check:hover, #main #settings_input #disable_check:hover, #main #check_input #submit_settings:hover, #main #check_input #save_check:hover, #main #check_input #disable_check:hover, #main #new_config_input #submit_settings:hover, #main #new_config_input #save_check:hover, #main #new_config_input #disable_check:hover {
+#main #settings_input #submit_settings:hover, #main #check_input #submit_settings:hover, #main #new_config_input #submit_settings:hover, #main #settings_input #save_check:hover, #main #check_input #save_check:hover, #main #new_config_input #save_check:hover, #main #settings_input #disable_check:hover, #main #check_input #disable_check:hover, #main #new_config_input #disable_check:hover {
   background: linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
   background-color: #5cbf2a;
 }
-#main #settings_input #submit_settings:active, #main #settings_input #save_check:active, #main #settings_input #disable_check:active, #main #settings_input #add_check:active, #main #check_input #submit_settings:active, #main #check_input #save_check:active, #main #check_input #disable_check:active, #main #check_input #add_check:active, #main #new_config_input #submit_settings:active, #main #new_config_input #save_check:active, #main #new_config_input #disable_check:active, #main #new_config_input #add_check:active {
+#main #settings_input #submit_settings:active, #main #check_input #submit_settings:active, #main #new_config_input #submit_settings:active, #main #settings_input #save_check:active, #main #check_input #save_check:active, #main #new_config_input #save_check:active, #main #settings_input #disable_check:active, #main #check_input #disable_check:active, #main #new_config_input #disable_check:active, #main #settings_input #add_check:active, #main #check_input #add_check:active, #main #new_config_input #add_check:active {
   margin-top: 1px;
 }
 #main #settings_input .inactive, #main #check_input .inactive, #main #new_config_input .inactive {
@@ -317,7 +288,7 @@ a {
 #main #general_status .stat .stat_title, #main #collector_status .stat .stat_title {
   font-size: 19.5px;
   font-weight: bold;
-  color: #6B419A;
+  color: #6b419a;
   display: block;
   padding-top: 10px;
   padding-bottom: 5px;
@@ -348,7 +319,7 @@ a {
   font-weight: bold;
 }
 #main #general_status .stat .warning, #main #collector_status .stat .warning {
-  color: #FFA500;
+  color: #ffa500;
   font-weight: bold;
 }
 #main #general_status .stat .ok, #main #collector_status .stat .ok {
@@ -367,8 +338,8 @@ a {
 }
 #main #settings ::-webkit-scrollbar-thumb {
   border-radius: 4px;
-  background-color: rgba(0, 0, 0, 0.5);
-  -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, 0.5);
+  background-color: rgba(0, 0, 0, .5);
+  -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, .5);
 }
 #main #manage_checks {
   width: calc(100% - 40px);
@@ -447,9 +418,9 @@ a {
   width: 20px;
   height: 20px;
   color: #fff;
-  border: 1px solid #AEAEAE;
+  border: 1px solid #aeaeae;
   border-radius: 30px;
-  background: #605F61;
+  background: #605f61;
   font-size: 20px;
   font-weight: bold;
   display: inline-block;
@@ -483,7 +454,7 @@ a {
   font-weight: bold;
 }
 #main #manage_checks .popup #check_run_results .warning {
-  color: #FFA500;
+  color: #ffa500;
   font-weight: bold;
 }
 #main #manage_checks .popup #check_run_results .green {
@@ -522,7 +493,7 @@ a {
   color: red;
 }
 #main #running_checks #running_checks_table .warning {
-  color: #FFA500;
+  color: #ffa500;
 }
 #main #running_checks #running_checks_info {
   display: block;
@@ -576,17 +547,17 @@ a {
   font-size: 15px;
   padding: 8px 18px;
   outline: none;
-  -moz-box-shadow: inset 0px 1px 0px 0px #45D6D6;
-  -webkit-box-shadow: inset 0px 1px 0px 0px #45D6D6;
-  box-shadow: inset 0px 1px 0px 0px #45D6D6;
-  background-color: #2CBBBB;
+  -moz-box-shadow: inset 0px 1px 0px 0px #45d6d6;
+  -webkit-box-shadow: inset 0px 1px 0px 0px #45d6d6;
+  box-shadow: inset 0px 1px 0px 0px #45d6d6;
+  background-color: #2cbbbb;
   border-radius: 3px;
-  border: 1px solid #27A0A0;
-  color: #FFFFFF;
+  border: 1px solid #27a0a0;
+  color: #fff;
 }
 #main #flare .flare_input #submit_flare:hover {
-  background: linear-gradient(to bottom, #34CACA 5%, #30C9C9 100%);
-  background-color: #34CACA;
+  background: linear-gradient(to bottom, #34caca 5%, #30c9c9 100%);
+  background-color: #34caca;
 }
 #main #flare .flare_input #submit_flare:active {
   bottom: -21px;
@@ -622,5 +593,41 @@ a {
 #main #logs .load_more:active {
   background-color: #a2a2a2;
 }
-
-/*# sourceMappingURL=stylesheet.css.map */
+.inventory-scrollbox {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 2px solid #6b419a;
+  background: #f6f3fa;
+  box-shadow: 0 2px 8px rgba(107, 65, 154, 0.2);
+  border-radius: 6px;
+  padding: 0.5em;
+  margin-bottom: 1em;
+  scrollbar-width: thin;
+  scrollbar-color: #6b419a #e8e0f2;
+}
+.inventory-scrollbox::-webkit-scrollbar {
+  width: 12px;
+  background: #e8e0f2;
+  border-radius: 6px;
+}
+.inventory-scrollbox::-webkit-scrollbar-thumb {
+  background: #6b419a;
+  border-radius: 6px;
+  border: 2px solid #f6f3fa;
+}
+.source-bubble {
+  display: inline-block;
+  padding: 0px 6px;
+  border-radius: 10px;
+  font-size: 0.85em;
+  font-weight: normal;
+  margin-left: 5px;
+}
+.source-bubble.installed {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+.source-bubble.broken {
+  background-color: #f3e5f5;
+  color: #7b1fa2;
+}

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"runtime/trace"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
@@ -22,12 +23,14 @@ import (
 )
 
 var (
-	pprofPort      = flag.Int("pprof-port", 8081, "Port for pprof server.")
 	binaryPath     = flag.String("binary-path", "", "Path to the binary to analyze.")
 	silent         = flag.Bool("silent", false, "If set, the collected symbols are not printed.")
 	onlyFirstParty = flag.Bool("only-1stparty", false,
 		"Only output symbols for \"1st party\" code (i.e. code from modules belonging "+
 			"to the same GitHub org as the main one).")
+
+	pprofPort = flag.Int("pprof-port", 8081, "Port for pprof server.")
+	traceFile = flag.String("trace", "", "Path to the file to save an execution trace to.")
 )
 
 func main() {
@@ -46,6 +49,7 @@ The symbols from the specified binary will be extracted and printed to stdout
 		logLevel = "info"
 	}
 	log.SetupLogger(log.Default(), logLevel)
+	defer log.Flush()
 
 	// Start the pprof server.
 	go func() {
@@ -54,6 +58,7 @@ The symbols from the specified binary will be extracted and printed to stdout
 
 	if err := run(*binaryPath); err != nil {
 		log.Errorf("Error: %v", err)
+		log.Flush()
 		os.Exit(1)
 	}
 }
@@ -70,13 +75,37 @@ func run(binaryPath string) error {
 		log.Infof("Extracting only 1st party symbols")
 		opt = symdb.ExtractScopeModulesFromSameOrg
 	}
+
+	// Start tracing if we were asked to.
+	tracing := *traceFile != ""
+	if tracing {
+		log.Infof("Tracing symbol extraction to %s", *traceFile)
+		f, err := os.OpenFile(*traceFile, os.O_WRONLY|os.O_CREATE, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open trace file %s: %w", *traceFile, err)
+		}
+		defer func() {
+			_ = f.Close()
+		}()
+		if err := trace.Start(f); err != nil {
+			return fmt.Errorf("failed to start trace: %w", err)
+		}
+		defer trace.Stop()
+	}
+
 	symbols, err := symBuilder.ExtractSymbols(opt)
 	if err != nil {
 		return err
 	}
+	trace.Stop()
 	log.Infof("Symbol extraction completed in %s.", time.Since(start))
 	stats := statsFromSymbols(symbols)
 	log.Infof("Symbol statistics for %s: %+v", binaryPath, stats)
+	if !*silent {
+		symbols.Serialize(symdbutil.MakePanickingWriter(os.Stdout))
+	} else {
+		log.Infof("--silent specified; symbols not serialized.")
+	}
 
 	return nil
 }
@@ -101,16 +130,5 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 		stats.numFunctions += s.NumFunctions
 		stats.numSourceFiles += s.NumSourceFiles
 	}
-
-	if !*silent {
-		s.Serialize(symdbutil.MakePanickingWriter(os.Stdout), symdb.SerializationOptions{
-			PackageSerializationOptions: symdb.PackageSerializationOptions{
-				StripLocalFilePrefix: false,
-			},
-		})
-	} else {
-		log.Infof("--silent specified; symbols not serialized.")
-	}
-
 	return stats
 }
