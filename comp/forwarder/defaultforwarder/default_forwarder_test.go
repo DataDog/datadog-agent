@@ -120,62 +120,62 @@ func TestPreaggregationPipelineTransactionCreation(t *testing.T) {
 	log := logmock.New(t)
 
 	tests := []struct {
-		name              string
-		enablePreaggr     bool
-		preaggrURL        string
-		primaryURL        string
-		payloadDest       transaction.Destination
+		name               string
+		enablePreaggr      bool
+		preaggrURL         string
+		primaryURL         string
+		payloadDest        transaction.Destination
 		expectTransactions int
-		expectEndpoint    transaction.Endpoint
-		description       string
+		expectEndpoint     transaction.Endpoint
+		description        string
 	}{
 		{
-			name:              "preaggr_disabled_preaggronly_payload",
-			enablePreaggr:     false,
-			preaggrURL:        "",
-			primaryURL:        "https://app.datadoghq.com",
-			payloadDest:       transaction.PreaggrOnly,
+			name:               "preaggr_disabled_preaggronly_payload",
+			enablePreaggr:      false,
+			preaggrURL:         "",
+			primaryURL:         "https://app.datadoghq.com",
+			payloadDest:        transaction.PreaggrOnly,
 			expectTransactions: 0,
-			description:       "PreaggrOnly payload should create no transactions when preaggregation is disabled",
+			description:        "PreaggrOnly payload should create no transactions when preaggregation is disabled",
 		},
 		{
-			name:              "same_domain_preaggronly_payload",
-			enablePreaggr:     true,
-			preaggrURL:        "https://app.datadoghq.com",
-			primaryURL:        "https://app.datadoghq.com",
-			payloadDest:       transaction.PreaggrOnly,
+			name:               "same_domain_preaggronly_payload",
+			enablePreaggr:      true,
+			preaggrURL:         "https://app.datadoghq.com",
+			primaryURL:         "https://app.datadoghq.com",
+			payloadDest:        transaction.PreaggrOnly,
 			expectTransactions: 1,
-			expectEndpoint:    endpoints.PreaggrSeriesEndpoint,
-			description:       "PreaggrOnly payload should create preaggr transaction when domains match",
+			expectEndpoint:     endpoints.PreaggrSeriesEndpoint,
+			description:        "PreaggrOnly payload should create preaggr transaction when domains match",
 		},
 		{
-			name:              "different_domain_preaggronly_payload",
-			enablePreaggr:     true,
-			preaggrURL:        "https://preaggr-api.datad0g.com",
-			primaryURL:        "https://app.datadoghq.com",
-			payloadDest:       transaction.PreaggrOnly,
+			name:               "different_domain_preaggronly_payload",
+			enablePreaggr:      true,
+			preaggrURL:         "https://preaggr-api.datad0g.com",
+			primaryURL:         "https://app.datadoghq.com",
+			payloadDest:        transaction.PreaggrOnly,
 			expectTransactions: 1,
-			expectEndpoint:    endpoints.PreaggrSeriesEndpoint,
-			description:       "PreaggrOnly payload should create preaggr transaction with different domains",
+			expectEndpoint:     endpoints.PreaggrSeriesEndpoint,
+			description:        "PreaggrOnly payload should create preaggr transaction with different domains",
 		},
 		{
-			name:              "normal_payload_preaggr_enabled",
-			enablePreaggr:     true,
-			preaggrURL:        "https://app.datadoghq.com",
-			primaryURL:        "https://app.datadoghq.com",
-			payloadDest:       transaction.AllRegions,
+			name:               "normal_payload_preaggr_enabled",
+			enablePreaggr:      true,
+			preaggrURL:         "https://app.datadoghq.com",
+			primaryURL:         "https://app.datadoghq.com",
+			payloadDest:        transaction.AllRegions,
 			expectTransactions: 1,
-			expectEndpoint:    endpoints.SeriesEndpoint,
-			description:       "Normal payload should create standard transaction regardless of preaggr config",
+			expectEndpoint:     endpoints.SeriesEndpoint,
+			description:        "Normal payload should create standard transaction regardless of preaggr config",
 		},
 		{
-			name:              "local_payload",
-			enablePreaggr:     true,
-			preaggrURL:        "https://app.datadoghq.com",
-			primaryURL:        "https://app.datadoghq.com",
-			payloadDest:       transaction.LocalOnly,
+			name:               "local_payload",
+			enablePreaggr:      true,
+			preaggrURL:         "https://app.datadoghq.com",
+			primaryURL:         "https://app.datadoghq.com",
+			payloadDest:        transaction.LocalOnly,
 			expectTransactions: 0,
-			description:       "LocalOnly payload should not create transactions for remote endpoints",
+			description:        "LocalOnly payload should not create transactions for remote endpoints",
 		},
 	}
 
@@ -184,7 +184,7 @@ func TestPreaggregationPipelineTransactionCreation(t *testing.T) {
 			mockConfig := config.NewMock(t)
 			mockConfig.Set("api_key", "test_api_key", pkgconfigmodel.SourceAgentRuntime)
 			mockConfig.Set("dd_url", tc.primaryURL, pkgconfigmodel.SourceAgentRuntime)
-			
+
 			if tc.enablePreaggr {
 				mockConfig.Set("preaggregation.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 				mockConfig.Set("preaggregation.dd_url", tc.preaggrURL, pkgconfigmodel.SourceAgentRuntime)
@@ -205,7 +205,7 @@ func TestPreaggregationPipelineTransactionCreation(t *testing.T) {
 
 			transactions := forwarder.createAdvancedHTTPTransactions(endpoints.SeriesEndpoint, transaction.BytesPayloads{payload}, nil, transaction.TransactionPriorityNormal, transaction.Series, true)
 
-			assert.Equal(t, tc.expectTransactions, len(transactions), 
+			assert.Equal(t, tc.expectTransactions, len(transactions),
 				"Expected %d transactions for %s: %s", tc.expectTransactions, tc.name, tc.description)
 
 			if tc.expectTransactions > 0 && len(transactions) > 0 {
@@ -274,7 +274,7 @@ func TestPreaggregationDomainComparison(t *testing.T) {
 			if len(transactions) != tc.expectTransactions {
 				t.Logf("UNEXPECTED BEHAVIOR for %s: %s", tc.name, tc.bugDescription)
 				t.Logf("Expected %d transactions, got %d", tc.expectTransactions, len(transactions))
-				
+
 				// For debugging: print actual domain resolution
 				for domain, dr := range forwarder.domainResolvers {
 					resolved, _ := dr.Resolve(endpoints.SeriesEndpoint)
@@ -282,7 +282,7 @@ func TestPreaggregationDomainComparison(t *testing.T) {
 				}
 				t.Logf("preaggregation.dd_url config: %s", mockConfig.GetString("preaggregation.dd_url"))
 			}
-			
+
 			assert.Equal(t, tc.expectTransactions, len(transactions),
 				"Transaction count mismatch for %s: %s", tc.name, tc.bugDescription)
 		})
@@ -293,12 +293,12 @@ func TestPreaggregationConfigurationEdgeCases(t *testing.T) {
 	log := logmock.New(t)
 
 	tests := []struct {
-		name           string
-		setupConfig    func(config.Component)
-		payloadDest    transaction.Destination
-		expectError    bool
-		expectTxns     int
-		description    string
+		name        string
+		setupConfig func(config.Component)
+		payloadDest transaction.Destination
+		expectError bool
+		expectTxns  int
+		description string
 	}{
 		{
 			name: "missing_preaggregation_api_key",
@@ -339,7 +339,7 @@ func TestPreaggregationConfigurationEdgeCases(t *testing.T) {
 			},
 			payloadDest: transaction.PreaggrOnly,
 			expectError: false,
-			expectTxns:  1,  
+			expectTxns:  1,
 			description: "Malformed preaggr URL behavior - creates transactions for different domain",
 		},
 	}
