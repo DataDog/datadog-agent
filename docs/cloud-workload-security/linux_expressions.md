@@ -1840,6 +1840,7 @@ A setsockopt was executed
 | [`setsockopt.socket_family`](#setsockopt-socket_family-doc) | Socket family |
 | [`setsockopt.socket_protocol`](#setsockopt-socket_protocol-doc) | Socket protocol |
 | [`setsockopt.socket_type`](#setsockopt-socket_type-doc) | Socket type |
+| [`setsockopt.used_immediates`](#setsockopt-used_immediates-doc) | List of immediate values used in the filter |
 
 ### Event `setuid`
 
@@ -4031,6 +4032,13 @@ Definition: Socket protocol
 Type: int
 
 Definition: Socket type
+
+
+
+### `setsockopt.used_immediates` {#setsockopt-used_immediates-doc}
+Type: int
+
+Definition: List of immediate values used in the filter
 
 
 
