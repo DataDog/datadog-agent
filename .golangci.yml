@@ -272,6 +272,15 @@ issues:
     - path: comp/core/workloadmeta/collectors/internal/containerd/network_linux.go
       linters:
         - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/containerd/image_sbom_trivy.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/crio/crio.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/docker/image_sbom_trivy.go
+      linters:
+        - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/internal/kubemetadata/kubemetadata.go
       linters:
         - pkgconfigusage
@@ -420,6 +429,9 @@ issues:
       linters:
         - pkgconfigusage
     - path: comp/trace/config/setup.go
+      linters:
+        - pkgconfigusage
+    - path: comp/systray/systray/systrayimpl/doflare.go
       linters:
         - pkgconfigusage
 
