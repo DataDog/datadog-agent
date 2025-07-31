@@ -64,7 +64,36 @@
                             "fields": {
                               "data": {
                                 "type": "main.structWithAny",
-                                "notCapturedReason": "depth"
+                                "fields": {
+                                  "a": {
+                                    "type": "interface {}",
+                                    "fields": {
+                                      "data": {
+                                        "type": "main.structWithAny",
+                                        "fields": {
+                                          "a": {
+                                            "type": "interface {}",
+                                            "fields": {
+                                              "data": {
+                                                "type": "main.structWithAny",
+                                                "fields": {
+                                                  "a": {
+                                                    "type": "interface {}",
+                                                    "fields": {
+                                                      "data": {
+                                                        "isNull": true
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
                               }
                             }
                           }
@@ -77,7 +106,8 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": []
     },
     "timestamp": "[ts]"
   }

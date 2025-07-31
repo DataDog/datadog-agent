@@ -764,11 +764,11 @@ func TestDecoderPanics(t *testing.T) {
 	require.NotNil(t, stringType)
 	stringID := stringType.GetID()
 	decoder.decoderTypes[stringID] = &panicDecoderType{decoder.decoderTypes[stringID]}
-	_, err = decoder.Decode(Event{
+	_, _, err = decoder.Decode(Event{
 		Event:       output.Event(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
-		bytes.NewBuffer(nil),
+		[]byte{},
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "boom")

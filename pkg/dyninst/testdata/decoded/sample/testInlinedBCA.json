@@ -62,7 +62,8 @@
             "arguments": {}
           }
         }
-      }
+      },
+      "evaluationErrors": []
     },
     "timestamp": "[ts]"
   }

@@ -57,7 +57,8 @@
             "arguments": {}
           }
         }
-      }
+      },
+      "evaluationErrors": []
     },
     "timestamp": "[ts]"
   }
