@@ -323,7 +323,7 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 	assert.Len(t, changes.Unschedule, 0)
 	config := changes.Schedule[0]
 	assert.Equal(t, getIntegrationName(logPath), config.Name)
-	assert.Equal(t, getServiceId(logPath), config.ServiceID)
+	assert.Equal(t, getServiceID(logPath), config.ServiceID)
 
 	// Verify reference count is 1
 	serviceLogKey := logPath

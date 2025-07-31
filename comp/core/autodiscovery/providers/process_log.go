@@ -295,7 +295,7 @@ func getIntegrationName(logFile string) string {
 	return fmt.Sprintf("%s:%s", names.ProcessLog, logFile)
 }
 
-func getServiceId(logFile string) string {
+func getServiceID(logFile string) string {
 	return fmt.Sprintf("%s://%s", names.ProcessLog, logFile)
 }
 
@@ -321,7 +321,7 @@ func (p *processLogConfigProvider) buildConfig(process *workloadmeta.Process, lo
 		LogsConfig: data,
 		Provider:   names.ProcessLog,
 		Source:     integrationName,
-		ServiceID:  getServiceId(logFile),
+		ServiceID:  getServiceID(logFile),
 	}, nil
 }
 
