@@ -80,7 +80,7 @@ struct syscall_cache_t {
             u64 rlim_max;
             u32 pid;
             struct process_context_t target_process;
-            struct container_context_t target_container;
+            struct cgroup_context_t target_cgroup;
         } setrlimit;
 
         struct {

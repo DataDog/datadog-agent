@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/netip"
 	"os"
@@ -466,6 +467,35 @@ func (p *EBPFProbe) initEBPFManager() error {
 
 }
 
+// CgroupMountIDNoFilter defines the value used to disable cgroup filter on cgroup v2
+// MUST match the ebpf/c/include/hooks/cgroup.h value of CGROUP_MOUNT_ID_NO_FILTER
+const CgroupMountIDNoFilter = math.MaxUint32
+
+func (p *EBPFProbe) initCgroupMountIDFilter() error {
+	// get mount id of /sys/fs/cgroup
+
+	cgroupMountIDMap, _, err := p.Manager.GetMap("cgroup_mount_id")
+	if err != nil {
+		return nil
+	} else if cgroupMountIDMap == nil {
+		return errors.New("cgroup_mount_id map not found")
+	}
+
+	sysfs := utils.GetFSTypeFromFilePath("/sys/fs/cgroup")
+	if sysfs == "" { // error
+		return errors.New("failed to retrieve cgroup version")
+	} else if sysfs == "cgroup2" { // cgroup v2
+		return cgroupMountIDMap.Put(uint32(0), uint32(CgroupMountIDNoFilter))
+	} else if sysfs == "tmpfs" { // cgroup v1
+		mountID, err := utils.GetHostMountPathID("/sys/fs/cgroup/systemd")
+		if err != nil {
+			return err
+		}
+		return cgroupMountIDMap.Put(uint32(0), uint32(mountID))
+	}
+	return errors.New("failed to retrieve cgroup version")
+}
+
 // Init initializes the probe
 func (p *EBPFProbe) Init() error {
 	useSyscallWrapper, err := ebpf.IsSyscallWrapperRequired()
@@ -524,6 +554,11 @@ func (p *EBPFProbe) Init() error {
 			defer p.wg.Done()
 			p.profileManager.Start(p.ctx)
 		}()
+	}
+
+	if err := p.initCgroupMountIDFilter(); err != nil {
+		seclog.Errorf("initCgroupMountIDFilter error: %s\n", err)
+		return err
 	}
 
 	return nil
@@ -800,11 +835,10 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, event.CGroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
-
 	return read, nil
 }
 
@@ -905,8 +939,8 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
-func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, cgroupFlags containerutils.CGroupFlags, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
-	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey, cgroupFlags)
+func (p *EBPFProbe) resolveCGroup(pid uint32, cgroupPathKey model.PathKey, newEntryCb func(entry *model.ProcessCacheEntry, err error)) (*model.CGroupContext, error) {
+	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(cgroupPathKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cgroup for pid %d: %w", pid, err)
 	}
@@ -1001,16 +1035,16 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode cgroup tracing event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, event.CgroupTracing.CGroupContext.CGroupFlags, newEntryCb); err != nil {
+		if cgroupContext, err := p.resolveCGroup(event.CgroupTracing.Pid, event.CgroupTracing.CGroupContext.CGroupFile, newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
-			if cgroupContext.CGroupFlags.IsContainer() {
-				containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
+			event.CGroupContext = cgroupContext
+			containerID := containerutils.FindContainerID(cgroupContext.CGroupID)
+			if containerID != "" {
 				event.CgroupTracing.ContainerContext.ContainerID = containerID
 			}
 
-			event.CGroupContext = cgroupContext
 			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		}
 		return
@@ -1019,7 +1053,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags), newEntryCb); err != nil {
+		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, newEntryCb); err != nil {
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		}
 		return

@@ -11,25 +11,6 @@
 
 #define ROOT_CGROUP_PROCS_FILE_INO 2
 
-static __attribute__((always_inline)) int is_docker_cgroup(ctx_t *ctx, struct dentry *container_d) {
-    struct dentry *parent_d;
-    struct qstr parent_qstr;
-    char prefix[6];
-
-    // We may not have a prefix for the cgroup so we look at the parent folder
-    // (for instance Amazon Linux 2 + Docker)
-    bpf_probe_read(&parent_d, sizeof(parent_d), &container_d->d_parent);
-    if (parent_d != NULL) {
-        bpf_probe_read(&parent_qstr, sizeof(parent_qstr), &parent_d->d_name);
-        bpf_probe_read(&prefix, sizeof(prefix), parent_qstr.name);
-        if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e' && prefix[5] == 'r') {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
 static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     u32 cgroup_write_type = get_cgroup_write_type();
     u32 pid;
@@ -65,6 +46,13 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     u8 new_cookie = 0;
     u64 cookie = 0;
 
+    // Retrieve the cgroup mount id to filter on
+    u32 cgroup_mount_id_filter = get_cgroup_mount_id_filter();
+    if (cgroup_mount_id_filter == CGROUP_MOUNT_ID_UNSET) {
+        // ignore cgroups write event until the filter has been set
+        return 0;
+    }
+
     // Retrieve the cookie of the process
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (pid_entry) {
@@ -72,10 +60,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         // Select the old cache entry
         old_entry = get_proc_from_cookie(cookie);
         if (old_entry) {
-            if ((old_entry->container.container_id[0] != '\0') && old_entry->container.cgroup_context.cgroup_flags && (old_entry->container.cgroup_context.cgroup_flags != CGROUP_MANAGER_SYSTEMD)) {
-                return 0;
-            }
-
             // copy cache data
             copy_proc_cache(old_entry, &new_entry);
         }
@@ -87,15 +71,9 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     struct dentry *container_d;
     struct qstr container_qstr;
     char *container_id;
-    u32 cgroup_flags = 0;
 
     struct dentry_resolver_input_t cgroup_dentry_resolver = {0};
     struct dentry_resolver_input_t *resolver = &cgroup_dentry_resolver;
-
-    u32 key = 0;
-    cgroup_prefix_t *prefix = bpf_map_lookup_elem(&cgroup_prefix, &key);
-    if (prefix == NULL)
-        return 0;
 
     resolver->key.ino = 0;
     resolver->key.mount_id = 0;
@@ -119,10 +97,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         resolver->key.mount_id = get_file_mount_id(f);
         resolver->dentry = container_d;
 
-        if (is_docker_cgroup(ctx, container_d)) {
-            cgroup_flags = CGROUP_MANAGER_DOCKER;
-        }
-
         break;
     }
     case CGROUP_CENTOS_7: {
@@ -136,10 +110,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
         resolver->dentry = container_d;
 
-        if (is_docker_cgroup(ctx, container_d)) {
-            cgroup_flags = CGROUP_MANAGER_DOCKER;
-        }
-
         break;
     }
     default:
@@ -152,51 +122,14 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
-
-    if (bpf_probe_read(prefix, 15, container_id))
+    if (!is_cgroup_mount_id_filter_valid(cgroup_mount_id_filter, &resolver->key)) {
         return 0;
+    }
 
-    if ((*prefix)[0] == 'd' && (*prefix)[1] == 'o' && (*prefix)[2] == 'c' && (*prefix)[3] == 'k' && (*prefix)[4] == 'e'
-        && (*prefix)[5] == 'r' && (*prefix)[6] == '-') {
-        container_id += 7; // skip "docker-"
-        cgroup_flags = CGROUP_MANAGER_DOCKER;
-    }
-    else if ((*prefix)[0] == 'c' && (*prefix)[1] == 'r' && (*prefix)[2] == 'i' && (*prefix)[3] == 'o' && (*prefix)[4] == '-') {
-        container_id += 5; // skip "crio-"
-        cgroup_flags = CGROUP_MANAGER_CRIO;
-    }
-    else if ((*prefix)[0] == 'l' && (*prefix)[1] == 'i' && (*prefix)[2] == 'b' && (*prefix)[3] == 'p' && (*prefix)[4] == 'o'
-        && (*prefix)[5] == 'd' && (*prefix)[6] == '-') {
-        container_id += 7; // skip "libpod-"
-        cgroup_flags = CGROUP_MANAGER_PODMAN;
-    }
-    else if ((*prefix)[0] == 'c' && (*prefix)[1] == 'r' && (*prefix)[2] == 'i' && (*prefix)[3] == '-' && (*prefix)[4] == 'c'
-        && (*prefix)[5] == 'o' && (*prefix)[6] == 'n' && (*prefix)[7] == 't' && (*prefix)[8] == 'a' && (*prefix)[9] == 'i'
-        && (*prefix)[10] == 'n' && (*prefix)[11] == 'e' && (*prefix)[12] == 'r' && (*prefix)[13] == 'd' && (*prefix)[14] == '-') {
-        container_id += 15; // skip "cri-containerd-"
-        cgroup_flags = CGROUP_MANAGER_CRI;
-    }
+    new_entry.cgroup.cgroup_file = resolver->key;
 
 #ifdef DEBUG_CGROUP
     bpf_printk("container id: %s\n", container_qstr.name);
-#endif
-
-    int length = bpf_probe_read_str(prefix, sizeof(cgroup_prefix_t), container_id) & 0xff;
-    if (cgroup_flags == 0) {
-        if (length >= 9 && (*prefix)[length-9] == '.'  && (*prefix)[length-8] == 's' && (*prefix)[length-7] == 'e' && (*prefix)[length-6] == 'r' && (*prefix)[length-5] == 'v' && (*prefix)[length-4] == 'i' && (*prefix)[length-3] == 'c' && (*prefix)[length-2] == 'e') {
-            cgroup_flags = CGROUP_MANAGER_SYSTEMD | CGROUP_SYSTEMD_SERVICE;
-        } else if (length >= 7 && (*prefix)[length-7] == '.'  && (*prefix)[length-6] == 's' && (*prefix)[length-5] == 'c' && (*prefix)[length-4] == 'o' && (*prefix)[length-3] == 'p' && (*prefix)[length-2] == 'e') {
-            cgroup_flags = CGROUP_MANAGER_SYSTEMD | CGROUP_SYSTEMD_SCOPE;
-        }
-    } else {
-        bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
-    }
-
-    new_entry.container.cgroup_context.cgroup_flags = cgroup_flags;
-    new_entry.container.cgroup_context.cgroup_file = resolver->key;
-
-#ifdef DEBUG_CGROUP
-    bpf_printk("cgroup flags=%d, inode=%d: prefix=%s\n", cgroup_flags, new_entry.container.cgroup_context.cgroup_file.ino, prefix);
 #endif
 
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
@@ -215,7 +148,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     resolver->ret = 0;
     resolver->flags = 0;
     resolver->cgroup_write_ctx.cgroup_write_pid = pid;
-    resolver->cgroup_write_ctx.cgroup_flags = cgroup_flags;
     resolver->original_key = resolver->key;
 
     cache_dentry_resolver_input(resolver);
@@ -233,7 +165,6 @@ int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
     struct cgroup_write_event_t event = {
         .file.path_key = inputs->original_key,
         .pid = inputs->cgroup_write_ctx.cgroup_write_pid,
-        .cgroup_flags = inputs->cgroup_write_ctx.cgroup_flags,
     };
 
     send_event(ctx, EVENT_CGROUP_WRITE, event);
