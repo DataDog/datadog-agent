@@ -581,12 +581,14 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 	}
 
 	for _, action := range rule.PolicyRule.Actions {
-		switch {
-		// compile action filter
-		case action.Def.Filter != nil:
+		if action.Def.Filter != nil {
+			// compile action filter
 			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
 				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
+		}
+
+		switch {
 
 		case action.Def.Set != nil:
 			// compile scope field
