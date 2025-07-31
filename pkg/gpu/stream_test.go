@@ -887,11 +887,6 @@ func TestGetPastDataConcurrency(t *testing.T) {
 	require.GreaterOrEqual(t, len(data.allocations), int(beforeGetDataSyncs))
 }
 
-// before
-// BenchmarkHandleEvents-8           604144              1901 ns/op            1146 B/op          2 allocs/op
-// after
-// BenchmarkHandleEvents-8           525607              2126 ns/op            1144 B/op          2 allocs/op
-
 func BenchmarkHandleEvents(b *testing.B) {
 	ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 
