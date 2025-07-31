@@ -26,8 +26,8 @@ import (
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
@@ -86,7 +86,7 @@ func main() {
 		coreconfig.Module(),
 		logscompressionfx.Module(),
 		fx.Supply(secrets.NewEnabledParams()),
-		secretsimpl.Module(),
+		secretsfx.Module(),
 		fx.Provide(func(secrets secrets.Component) option.Option[secrets.Component] { return option.New(secrets) }),
 		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "off", true)),
 		logfx.Module(),
