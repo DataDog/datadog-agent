@@ -67,6 +67,10 @@ func TestTLSSuite(t *testing.T) {
 func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 	t := s.T()
 
+	if !usmconfig.UretprobeSupported() {
+		t.Skip("uretprobe segfault bug exists on kernel so skipping")
+	}
+
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
@@ -285,6 +289,10 @@ func prefetchLib(t *testing.T, filenames ...string) *exec.Cmd {
 func (s *tlsSuite) TestOpenSSLVersions() {
 	t := s.T()
 
+	if !usmconfig.UretprobeSupported() {
+		t.Skip("uretprobe segfault bug exists on kernel so skipping")
+	}
+
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
@@ -343,6 +351,10 @@ func (s *tlsSuite) TestOpenSSLVersions() {
 // this is reason the fallback behavior may require a few warmup requests before we start capturing traffic.
 func (s *tlsSuite) TestOpenSSLVersionsSlowStart() {
 	t := s.T()
+
+	if !usmconfig.UretprobeSupported() {
+		t.Skip("uretprobe segfault bug exists on kernel so skipping")
+	}
 
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
