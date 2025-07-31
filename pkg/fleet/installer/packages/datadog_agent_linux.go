@@ -121,7 +121,7 @@ func installFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// 2. Ensure config/log/package directories are created and have the correct permissions
+	// 2. Ensure config/run/log/package directories are created and have the correct permissions
 	if err = agentDirectories.Ensure(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
@@ -130,6 +130,10 @@ func installFilesystem(ctx HookContext) (err error) {
 	}
 	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
+	}
+	agentRunPath := file.Directory{Path: filepath.Join(ctx.PackagePath, "run"), Mode: 0755, Owner: "dd-agent", Group: "dd-agent"}
+	if err = agentRunPath.Ensure(); err != nil {
+		return fmt.Errorf("failed to create run directory: %v", err)
 	}
 
 	// 3. Create symlinks
