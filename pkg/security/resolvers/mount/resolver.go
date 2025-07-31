@@ -191,7 +191,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, false)
 
 	mr.insert(mount, 0, true)
-	mr.getMountPath(mount.MountID, 0, 0)
+	_, _, _, _ = mr.getMountPath(mount.MountID, 0, 0)
 
 	// Find all the mounts that I'm the parent of
 	for mnt := range mr.mounts.ValuesIter() {
@@ -340,7 +340,7 @@ func (mr *Resolver) Insert(m model.Mount, pid uint32) error {
 	return nil
 }
 
-// Insert a moved mount point
+// InsertMoved inserts a mount point from move_mount
 func (mr *Resolver) InsertMoved(m model.Mount) error {
 	if m.MountID == 0 {
 		return ErrMountUndefined
