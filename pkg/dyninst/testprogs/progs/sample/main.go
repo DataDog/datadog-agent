@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2"
 )
 
 func main() {
@@ -33,6 +34,7 @@ func main() {
 	executePointerFuncs()
 	executeComplexFuncs()
 	lib.Foo()
+	lib_v2.FooV2()
 
 	// unsupported for MVP, should not cause failures
 	executeEsoteric()
