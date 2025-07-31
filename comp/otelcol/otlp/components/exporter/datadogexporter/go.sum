@@ -392,7 +392,6 @@ github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQ
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=
 go.opentelemetry.io/auto/sdk v1.1.0/go.mod h1:3wSPjt5PWp2RhlCcmmOial7AvC4DQqZb7a7wCow3W8A=
-go.opentelemetry.io/collector v0.129.0 h1:9RIJkrkJHWisk7xSIl7T3Vzrn29iAxRiRboSzhO7VFc=
 go.opentelemetry.io/collector/client v1.35.0 h1:0nLRdQKFpxGZp5XkYZoZwIc03+cBqzA8lIakxnQSGwE=
 go.opentelemetry.io/collector/client v1.35.0/go.mod h1:hFg+6sGvwIvz8mR8zhSHGTRrP6JUIPdc//ROrww1D9U=
 go.opentelemetry.io/collector/component v1.35.0 h1:JpvBukEcEUvJ/TInF1KYpXtWEP+C7iYkxCHKjI0o7BQ=
