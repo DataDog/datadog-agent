@@ -77,6 +77,10 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return errors.NewDisabled(componentName, "language detection or core agent process collection is disabled")
 	}
 
+	if pkgconfigsetup.Datadog().GetBool("process_config.process_collection.use_wlm") {
+		return errors.NewDisabled(componentName, "replacement process collector with language detection is active")
+	}
+
 	c.store = store
 
 	// If process collection is disabled, the collector will gather the basic process and container data
