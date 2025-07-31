@@ -40,6 +40,7 @@ func getCheckContext() (*checkContext, error) {
 	return checkCtx, nil
 }
 
+// InitializeCheckContext creates a check context when creating the loader to later provide info to checks
 func InitializeCheckContext(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) {
 	checkContextMutex.Lock()
 	if checkCtx == nil {
@@ -57,6 +58,7 @@ func InitializeCheckContext(senderManager sender.SenderManager, logReceiver opti
 	checkContextMutex.Unlock()
 }
 
+// ReleaseCheckContext erases the check context
 func ReleaseCheckContext() {
 	checkContextMutex.Lock()
 	checkCtx = nil

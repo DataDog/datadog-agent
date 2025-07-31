@@ -28,7 +28,7 @@ func init() {
 	InitCallback()
 }
 
-// Initialize the callback for submitting metrics
+// InitCallback initializes the callback for submitting metrics, service checks...
 func InitCallback() {
 	C.initAggregatorCallback()
 }

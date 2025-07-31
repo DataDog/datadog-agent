@@ -30,6 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// SharedLibraryCheck represents a shared library check, implements `Check` interface
+//
+//nolint:revive
 type SharedLibraryCheck struct {
 	senderManager sender.SenderManager
 	id            checkid.ID
@@ -39,6 +42,7 @@ type SharedLibraryCheck struct {
 	libRunPtr     *C.run_check_t // pointer to the function symbol that runs the check
 }
 
+// NewSharedLibraryCheck conveniently creates a SharedLibraryCheck instance
 func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libPtr unsafe.Pointer, libRunPtr *C.run_check_t) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
 		senderManager: senderManager,
@@ -51,6 +55,7 @@ func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libP
 	return check, nil
 }
 
+// Run a shared library check
 func (c *SharedLibraryCheck) Run() error {
 	var err *C.char
 
@@ -69,18 +74,21 @@ func (c *SharedLibraryCheck) Run() error {
 	return nil
 }
 
-// check interface methods
+// String representation (for debug and logging)
 func (c *SharedLibraryCheck) String() string {
 	return c.libName
 }
 
+// Cancel is not implemented yet
 func (c *SharedLibraryCheck) Cancel() {
 }
 
+// ConfigSource is not implemented yet
 func (c *SharedLibraryCheck) ConfigSource() string {
 	return ""
 }
 
+// Configure the shared library check from YAML data
 func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
@@ -98,45 +106,62 @@ func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, inte
 	return nil
 }
 
+// GetDiagnoses is not implemented yet
 func (c *SharedLibraryCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return nil, nil
 }
 
+// GetSenderStats is not implemented yet
 func (c *SharedLibraryCheck) GetSenderStats() (stats.SenderStats, error) {
 	return stats.SenderStats{}, nil
 }
 
+// ID returns the ID of the check
 func (c *SharedLibraryCheck) ID() checkid.ID {
 	// c.id is not the same as c.libName (it has an id after the name so the sender found by SubmitMetricRtLoader is a different one and metrics aren't submitted)
 	return checkid.ID(c.libName)
 }
 
+// InitConfig is not implemented yet
 func (c *SharedLibraryCheck) InitConfig() string {
 	return ""
 }
+
+// InstanceConfig is not implemented yet
 func (c *SharedLibraryCheck) InstanceConfig() string {
 	return ""
 }
+
+// IsHASupported is not implemented yet
 func (c *SharedLibraryCheck) IsHASupported() bool {
 	return false
 }
 
+// IsTelemetryEnabled is not implemented yet
 func (c *SharedLibraryCheck) IsTelemetryEnabled() bool {
 	return false
 }
+
+// Loader returns the name of the loader
 func (c *SharedLibraryCheck) Loader() string {
 	return SharedLibraryCheckLoaderName
 }
+
+// Interval returns the interval between each check execution
 func (c *SharedLibraryCheck) Interval() time.Duration {
 	return c.interval
 }
 
+// Version is not implemented yet
 func (c *SharedLibraryCheck) Version() string {
 	return ""
 }
+
+// GetWarnings is not implemented yet
 func (c *SharedLibraryCheck) GetWarnings() []error {
 	return nil
 }
 
+// Stop is not implemented yet
 func (c *SharedLibraryCheck) Stop() {
 }

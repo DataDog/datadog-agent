@@ -23,7 +23,7 @@ import (
 */
 import "C"
 
-// SubmitServiceCheck is the method exposed to submit metrics
+// SubmitMetricRtLoader is the method exposed to submit metrics
 //
 //export SubmitMetricRtLoader
 func SubmitMetricRtLoader(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char, flushFirstValue C.bool) {
@@ -67,7 +67,7 @@ func SubmitMetricRtLoader(checkID *C.char, metricType C.metric_type_t, metricNam
 	sender.Commit()
 }
 
-// SubmitServiceCheck is the method exposed to submit service checks
+// SubmitServiceCheckRtLoader is the method exposed to submit service checks
 //
 //export SubmitServiceCheckRtLoader
 func SubmitServiceCheckRtLoader(checkID *C.char, scName *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
@@ -94,7 +94,7 @@ func SubmitServiceCheckRtLoader(checkID *C.char, scName *C.char, status C.int, t
 	sender.ServiceCheck(_name, _status, _hostname, _tags, _message)
 }
 
-// SubmitEvent is the method exposed to submit events
+// SubmitEventRtLoader is the method exposed to submit events
 //
 //export SubmitEventRtLoader
 func SubmitEventRtLoader(checkID *C.char, event *C.event_t) {
@@ -127,7 +127,7 @@ func SubmitEventRtLoader(checkID *C.char, event *C.event_t) {
 	sender.Event(_event)
 }
 
-// SubmitHistogramBucket is the method exposed to submit metrics
+// SubmitHistogramBucketRtLoader is the method exposed to submit metrics
 //
 //export SubmitHistogramBucketRtLoader
 func SubmitHistogramBucketRtLoader(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
@@ -156,7 +156,7 @@ func SubmitHistogramBucketRtLoader(checkID *C.char, metricName *C.char, value C.
 	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
 }
 
-// SubmitEventPlatformEvent is the method exposed to submit event platform events
+// SubmitEventPlatformEventRtLoader is the method exposed to submit event platform events
 //
 //export SubmitEventPlatformEventRtLoader
 func SubmitEventPlatformEventRtLoader(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
