@@ -44,11 +44,11 @@ type driftInfo struct {
 	hasDrift bool
 }
 
-func SetDefaultInitialDelay(delay time.Duration) {
+func setDefaultInitialDelay(delay time.Duration) {
 	DefaultInitialDelay = delay
 }
 
-func SetDefaultRecurringInterval(interval time.Duration) {
+func setDefaultRecurringInterval(interval time.Duration) {
 	DefaultRecurringInterval = interval
 }
 

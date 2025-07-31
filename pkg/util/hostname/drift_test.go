@@ -146,8 +146,8 @@ func TestScheduleHostnameDriftChecks(t *testing.T) {
 	}()
 
 	// Use shorter intervals for faster testing
-	SetDefaultInitialDelay(10 * time.Millisecond)
-	SetDefaultRecurringInterval(50 * time.Millisecond)
+	setDefaultInitialDelay(10 * time.Millisecond)
+	setDefaultRecurringInterval(50 * time.Millisecond)
 
 	// Create a context that we can cancel
 	ctx, cancel := context.WithCancel(context.Background())
@@ -181,15 +181,15 @@ func TestSetDefaultInitialDelay(t *testing.T) {
 
 	// Test setting a new delay
 	newDelay := 5 * time.Minute
-	SetDefaultInitialDelay(newDelay)
+	setDefaultInitialDelay(newDelay)
 	assert.Equal(t, newDelay, DefaultInitialDelay)
 
 	// Test setting zero delay
-	SetDefaultInitialDelay(0)
+	setDefaultInitialDelay(0)
 	assert.Equal(t, time.Duration(0), DefaultInitialDelay)
 
 	// Test setting negative delay (should work as it's just a time.Duration)
-	SetDefaultInitialDelay(-1 * time.Second)
+	setDefaultInitialDelay(-1 * time.Second)
 	assert.Equal(t, -1*time.Second, DefaultInitialDelay)
 }
 
@@ -202,15 +202,15 @@ func TestSetDefaultRecurringInterval(t *testing.T) {
 
 	// Test setting a new interval
 	newInterval := 2 * time.Hour
-	SetDefaultRecurringInterval(newInterval)
+	setDefaultRecurringInterval(newInterval)
 	assert.Equal(t, newInterval, DefaultRecurringInterval)
 
 	// Test setting zero interval
-	SetDefaultRecurringInterval(0)
+	setDefaultRecurringInterval(0)
 	assert.Equal(t, time.Duration(0), DefaultRecurringInterval)
 
 	// Test setting negative interval (should work as it's just a time.Duration)
-	SetDefaultRecurringInterval(-1 * time.Minute)
+	setDefaultRecurringInterval(-1 * time.Minute)
 	assert.Equal(t, -1*time.Minute, DefaultRecurringInterval)
 }
 
@@ -234,8 +234,8 @@ func TestScheduleHostnameDriftChecksWithCustomTiming(t *testing.T) {
 	}()
 
 	// Set custom timing for testing
-	SetDefaultInitialDelay(5 * time.Millisecond)
-	SetDefaultRecurringInterval(10 * time.Millisecond)
+	setDefaultInitialDelay(5 * time.Millisecond)
+	setDefaultRecurringInterval(10 * time.Millisecond)
 
 	// Create a context that we can cancel
 	ctx, cancel := context.WithCancel(context.Background())
