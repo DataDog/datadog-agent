@@ -43,13 +43,13 @@ impl AgentCheck {
     pub fn check(self) -> Result<(), Box<dyn Error>> {
         /* check implementation goes here */
 
-        // consts
+        // references for certificate expiration
         const DEFAULT_EXPIRE_DAYS_WARNING: i32 = 14;
         const DEFAULT_EXPIRE_DAYS_CRITICAL: i32 = 7;
         const DEFAULT_EXPIRE_WARNING: i32 = DEFAULT_EXPIRE_DAYS_WARNING * 24 * 3600;
         const DEFAULT_EXPIRE_CRITICAL: i32 = DEFAULT_EXPIRE_DAYS_CRITICAL * 24 * 3600;
                 
-        // hardcoded variables (should be passed as parameters inside a struct)
+        // hardcoded variables (should be passed as parameters)
         let url = "datadog.com";
         let mut tags = Vec::<String>::new();
 
@@ -58,7 +58,7 @@ impl AgentCheck {
 
         // list service checks and their custom tags
         let mut service_checks = Vec::<(String, ServiceCheckStatus, String)>::new();
-        let service_checks_tags = Vec::<String>::new(); // need to be set equal to the tags list at the beginning
+        let service_checks_tags = tags.clone();
 
         // connection configuration
         let root_store = RootCertStore { roots: TLS_SERVER_ROOTS.into() };
