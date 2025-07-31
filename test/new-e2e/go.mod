@@ -28,7 +28,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.66.2
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.60.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/docker/cli v27.5.0+incompatible
+	github.com/docker/cli v28.3.3+incompatible
 	github.com/docker/docker v28.3.3+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/google/uuid v1.6.0
