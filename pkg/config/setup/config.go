@@ -989,6 +989,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
 	config.BindEnvAndSetDefault("compliance_config.metrics.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.opa.metrics.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.container_include", []string{})
+	config.BindEnvAndSetDefault("compliance_config.container_exclude", []string{})
+	config.BindEnvAndSetDefault("compliance_config.exclude_pause_container", true)
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
