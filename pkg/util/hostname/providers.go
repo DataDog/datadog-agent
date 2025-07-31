@@ -39,9 +39,9 @@ func init() {
 // until now by previous providers.
 type providerCb func(ctx context.Context, currentHostname string) (string, error)
 
-// Provider is a struct that contains the name of the provider, the function to call to get the hostname, and a boolean to
+// provider is a struct that contains the name of the provider, the function to call to get the hostname, and a boolean to
 // indicate if the provider should stop the search for a hostname if it is successful.
-type Provider struct {
+type provider struct {
 	name string
 	cb   providerCb
 
@@ -55,35 +55,35 @@ type Provider struct {
 
 // List of hostname providers
 var (
-	configProvider = Provider{
+	configProvider = provider{
 		name:             configProviderName,
 		cb:               fromConfig,
 		stopIfSuccessful: true,
 		expvarName:       "'hostname' configuration/environment",
 	}
 
-	hostnameFileProvider = Provider{
+	hostnameFileProvider = provider{
 		name:             "hostnameFile",
 		cb:               fromHostnameFile,
 		stopIfSuccessful: true,
 		expvarName:       "'hostname_file' configuration/environment",
 	}
 
-	fargateProvider = Provider{
+	fargateProvider = provider{
 		name:             fargateProviderName,
 		cb:               fromFargate,
 		stopIfSuccessful: true,
 		expvarName:       "fargate",
 	}
 
-	gceProvider = Provider{
+	gceProvider = provider{
 		name:             "gce",
 		cb:               fromGCE,
 		stopIfSuccessful: true,
 		expvarName:       "gce",
 	}
 
-	azureProvider = Provider{
+	azureProvider = provider{
 		name:             "azure",
 		cb:               fromAzure,
 		stopIfSuccessful: true,
@@ -92,35 +92,35 @@ var (
 
 	// The following providers are coupled. Their behavior changes depending on the result of the previous provider.
 	// Therefore 'stopIfSuccessful' is set to false.
-	fqdnProvider = Provider{
+	fqdnProvider = provider{
 		name:             "fqdn",
 		cb:               fromFQDN,
 		stopIfSuccessful: false,
 		expvarName:       "fqdn",
 	}
 
-	containerProvider = Provider{
+	containerProvider = provider{
 		name:             "container",
 		cb:               fromContainer,
 		stopIfSuccessful: false,
 		expvarName:       "container",
 	}
 
-	osProvider = Provider{
+	osProvider = provider{
 		name:             "os",
 		cb:               fromOS,
 		stopIfSuccessful: false,
 		expvarName:       "os",
 	}
 
-	ec2Provider = Provider{
+	ec2Provider = provider{
 		name:             "aws", // ie EC2
 		cb:               fromEC2,
 		stopIfSuccessful: false,
 		expvarName:       "aws",
 	}
 
-	ec2LegacyResolutionProvider = Provider{
+	ec2LegacyResolutionProvider = provider{
 		name:             "aws",
 		cb:               fromEC2WithLegacyHostnameResolution,
 		stopIfSuccessful: false,
@@ -128,7 +128,7 @@ var (
 	}
 )
 
-// GetProviderCatalog holds all the various kinds of hostname providers
+// getProviderCatalog holds all the various kinds of hostname providers
 //
 // The order if this list matters:
 // * Config (`hostname')
@@ -140,8 +140,8 @@ var (
 // * container (kube_apiserver, Docker, kubelet)
 // * OS hostname
 // * EC2
-func GetProviderCatalog(legacyHostnameResolution bool) []Provider {
-	providerCatalog := []Provider{
+func getProviderCatalog(legacyHostnameResolution bool) []provider {
+	providerCatalog := []provider{
 		configProvider,
 		hostnameFileProvider,
 		fargateProvider,
@@ -203,7 +203,7 @@ func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution 
 	var hostname string
 	var providerName string
 
-	for _, p := range GetProviderCatalog(legacyHostnameResolution) {
+	for _, p := range getProviderCatalog(legacyHostnameResolution) {
 		log.Debugf("trying to get hostname from '%s' provider", p.name)
 
 		detectedHostname, err := p.cb(ctx, hostname)

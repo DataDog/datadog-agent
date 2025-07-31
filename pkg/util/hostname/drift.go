@@ -101,7 +101,7 @@ func checkHostnameDrift(ctx context.Context, cacheHostnameKey string) {
 	// Start timing the drift resolution
 	startTime := time.Now()
 
-	for _, p := range GetProviderCatalog(false) {
+	for _, p := range getProviderCatalog(false) {
 		detectedHostname, err := p.cb(ctx, hostname)
 		if err != nil {
 			continue
