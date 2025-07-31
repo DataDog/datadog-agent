@@ -557,3 +557,9 @@ func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Ev
 	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
 	return ""
 }
+
+// ResolveSetSockOptUsedImmediates resolves the immediates in the bpf filter of a setsockopt event
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, _ *model.SetSockOptEvent) []int {
+	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
+	return nil
+}

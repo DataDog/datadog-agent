@@ -127,7 +127,7 @@ func (e Event) DataItems() iter.Seq2[DataItem, error] {
 				))
 				return
 			}
-			data := e[idx : idx+dataLen]
+			data := e[idx : idx+dataLen : idx+dataLen]
 			idx = nextMultipleOf8(idx + dataLen)
 			item := DataItem{
 				header: header,

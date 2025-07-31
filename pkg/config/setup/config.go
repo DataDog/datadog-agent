@@ -1201,6 +1201,10 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Core agent (disabled for Error Tracking Standalone, Logs Collection Only)
 	config.BindEnvAndSetDefault("core_agent.enabled", true)
+
+	// Software Inventory
+	config.BindEnvAndSetDefault("software_inventory.enabled", false)
+
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
