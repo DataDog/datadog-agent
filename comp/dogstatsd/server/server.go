@@ -514,10 +514,6 @@ func (s *server) SetExtraTags(tags []string) {
 func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
 	s.log.Debugf("SetBlocklist with %d metrics", len(metricNames))
 
-	// update the runtime config to be consistent
-	// in `agent config` calls.
-	s.config.Set("statsd_metric_blocklist", metricNames, model.SourceRC)
-
 	// we will use two different blocklists:
 	// - one with all the metrics names, with all values from `metricNames`
 	// - one with only the metric names ending with histogram aggregates suffixes
@@ -610,10 +606,6 @@ func (s *server) handleMessages() {
 
 func (s *server) restoreBlocklistFromLocalConfig() {
 	s.log.Debug("Restoring blocklist with local config.")
-
-	// update the runtime config to be consistent
-	// in `agent config` calls.
-	s.config.Set("statsd_metric_blocklist", s.localBlocklistConfig.metricNames, model.SourceAgentRuntime)
 
 	s.SetBlocklist(
 		s.localBlocklistConfig.metricNames,
