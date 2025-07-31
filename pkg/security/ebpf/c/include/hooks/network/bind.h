@@ -86,7 +86,7 @@ int rethook_io_bind(ctx_t *ctx) {
 
 HOOK_ENTRY("security_socket_bind")
 int hook_security_socket_bind(ctx_t *ctx) {
-    struct socket *sk = (struct socket *)CTX_PARM1(ctx);
+    struct socket *sock = (struct socket *)CTX_PARM1(ctx);
     struct sockaddr *address = (struct sockaddr *)CTX_PARM2(ctx);
 
     // fill syscall_cache if necessary
@@ -106,9 +106,8 @@ int hook_security_socket_bind(ctx_t *ctx) {
         bpf_probe_read(&syscall->bind.port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
         bpf_probe_read(&syscall->bind.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
-    struct socket socket;
-    bpf_probe_read(&socket, sizeof(socket), sk);
-    syscall->bind.protocol = get_protocol_from_sock(socket.sk);
+    struct sock *sk = get_sock_from_socket(sock);
+    syscall->bind.protocol = get_protocol_from_sock(sk);
     return 0;
 }
 
