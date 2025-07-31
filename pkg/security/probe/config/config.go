@@ -57,7 +57,7 @@ type Config struct {
 	// This is used during reload to avoid removing all the discarders at the same time.
 	FlushDiscarderWindow int
 
-	// SocketPath is the path to the socket that is used to communicate with the security agent and process agent
+	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
 
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
