@@ -9,6 +9,7 @@ package hostname
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -21,6 +22,8 @@ var (
 	DefaultInitialDelay = 20 * time.Minute
 	// DefaultRecurringInterval is the default interval for recurring checks (6 hours)
 	DefaultRecurringInterval = 6 * time.Hour
+	// timingMutex protects access to the timing variables
+	timingMutex sync.RWMutex
 )
 
 // Telemetry metrics
@@ -45,11 +48,15 @@ type driftInfo struct {
 }
 
 func setDefaultInitialDelay(delay time.Duration) {
+	timingMutex.Lock()
 	DefaultInitialDelay = delay
+	timingMutex.Unlock()
 }
 
 func setDefaultRecurringInterval(interval time.Duration) {
+	timingMutex.Lock()
 	DefaultRecurringInterval = interval
+	timingMutex.Unlock()
 }
 
 // determineDriftState determines the drift state and whether any drift occurred
@@ -73,7 +80,10 @@ func scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
 
 	go func() {
 		// Wait for the initial delay before the first check
-		initialTimer := time.NewTimer(DefaultInitialDelay)
+		timingMutex.RLock()
+		initialDelay := DefaultInitialDelay
+		timingMutex.RUnlock()
+		initialTimer := time.NewTimer(initialDelay)
 		defer initialTimer.Stop()
 
 		select {
@@ -85,7 +95,10 @@ func scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
 		}
 
 		// Then start the recurring checks
-		driftTicker := time.NewTicker(DefaultRecurringInterval)
+		timingMutex.RLock()
+		recurringInterval := DefaultRecurringInterval
+		timingMutex.RUnlock()
+		driftTicker := time.NewTicker(recurringInterval)
 		defer driftTicker.Stop()
 		for {
 			select {

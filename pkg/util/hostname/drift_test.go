@@ -141,8 +141,8 @@ func TestScheduleHostnameDriftChecks(t *testing.T) {
 	originalInitialDelay := DefaultInitialDelay
 	originalRecurringInterval := DefaultRecurringInterval
 	defer func() {
-		DefaultInitialDelay = originalInitialDelay
-		DefaultRecurringInterval = originalRecurringInterval
+		setDefaultInitialDelay(originalInitialDelay)
+		setDefaultRecurringInterval(originalRecurringInterval)
 	}()
 
 	// Use shorter intervals for faster testing
@@ -176,7 +176,7 @@ func TestSetDefaultInitialDelay(t *testing.T) {
 	// Save original value
 	originalDelay := DefaultInitialDelay
 	defer func() {
-		DefaultInitialDelay = originalDelay
+		setDefaultInitialDelay(originalDelay)
 	}()
 
 	// Test setting a new delay
@@ -197,7 +197,7 @@ func TestSetDefaultRecurringInterval(t *testing.T) {
 	// Save original value
 	originalInterval := DefaultRecurringInterval
 	defer func() {
-		DefaultRecurringInterval = originalInterval
+		setDefaultRecurringInterval(originalInterval)
 	}()
 
 	// Test setting a new interval
@@ -229,8 +229,8 @@ func TestScheduleHostnameDriftChecksWithCustomTiming(t *testing.T) {
 	originalInitialDelay := DefaultInitialDelay
 	originalRecurringInterval := DefaultRecurringInterval
 	defer func() {
-		DefaultInitialDelay = originalInitialDelay
-		DefaultRecurringInterval = originalRecurringInterval
+		setDefaultInitialDelay(originalInitialDelay)
+		setDefaultRecurringInterval(originalRecurringInterval)
 	}()
 
 	// Set custom timing for testing
