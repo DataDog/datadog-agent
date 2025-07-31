@@ -41,3 +41,45 @@ func TestGetInstallPath(t *testing.T) {
 		t.Fatalf("Expected install path to be %s, got %s", exePath, installPath)
 	}
 }
+
+func TestGetInstallPathSystemTemp(t *testing.T) {
+	// create temp directory
+	tmpDir := t.TempDir()
+
+	// add an exe to the temp directory
+	exePath := filepath.Join(tmpDir, "datadog-installer.exe")
+
+	// touch exe PATH
+	file, err := os.Create(exePath)
+	if err != nil {
+		t.Fatalf("Failed to create exe file: %v", err)
+	}
+	err = file.Close()
+	if err != nil {
+		t.Fatalf("Failed to close exe file: %v", err)
+	}
+
+	// get the install path
+	installPath, err := getInstallerPath(t.Context(), tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to get install path: %v", err)
+	}
+
+	// check the install path
+	if installPath != exePath {
+		t.Fatalf("Expected install path to be %s, got %s", exePath, installPath)
+	}
+
+	// check the install path is in the system temp directory
+	systemTempPath := filepath.Join(os.TempDir(), "datadog-installer.exe")
+
+	installPath, err = moveInstallerToSystemTemp(installPath)
+	if err != nil {
+		t.Fatalf("Failed to move installer to system temp: %v", err)
+	}
+
+	// check the install path is in the system temp directory
+	if installPath != systemTempPath {
+		t.Fatalf("Expected install path to be %s, got %s", systemTempPath, installPath)
+	}
+}

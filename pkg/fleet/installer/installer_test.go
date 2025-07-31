@@ -404,8 +404,11 @@ func TestPurge(t *testing.T) {
 		rootPath := t.TempDir()
 		installer := newTestPackageManager(t, s, rootPath)
 		installer.testHooks.noop = true
+		tmpPath := filepath.Join(rootPath, "tmp")
+		err := os.WriteFile(filepath.Join(tmpPath, "test.txt"), []byte("test"), 0644)
+		assert.NoError(t, err)
 
-		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 		assert.NoError(t, err)
 		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 
@@ -417,6 +420,7 @@ func TestPurge(t *testing.T) {
 		assert.NoFileExists(t, filepath.Join(rootPath, "packages.db"), "purge should remove the packages database")
 		assert.NoDirExists(t, rootPath, "purge should remove the packages directory")
 		assert.Nil(t, installer.db, "purge should close the packages database")
+		assert.NoFileExists(t, filepath.Join(tmpPath, "test.txt"), "purge should remove all files in the tmp directory")
 	})
 }
 

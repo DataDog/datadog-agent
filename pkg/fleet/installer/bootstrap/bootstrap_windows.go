@@ -82,6 +82,12 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("failed to get installer path: %w", err)
 	}
 
+	// Move the installer to the system temp directory to avoid issues with cleanup
+	installPath, err = moveInstallerToSystemTemp(installPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to move installer to system temp: %w", err)
+	}
+
 	return iexec.NewInstallerExec(env, installPath), nil
 }
 
@@ -153,4 +159,13 @@ func getInstallerOCI(_ context.Context, env *env.Env) (string, error) {
 		agentVersion = env.DefaultPackagesVersionOverride[AgentPackage]
 	}
 	return oci.PackageURL(env, AgentPackage, agentVersion), nil
+}
+
+func moveInstallerToSystemTemp(installPath string) (string, error) {
+	systemTempPath := filepath.Join(os.TempDir(), "datadog-installer.exe")
+	err := os.Rename(installPath, systemTempPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to rename installer: %w", err)
+	}
+	return systemTempPath, nil
 }
