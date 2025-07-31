@@ -8,14 +8,14 @@
 package nvidia
 
 import (
+	"errors"
 	"testing"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/stretchr/testify/assert"
 )
 
 // Test device specifications constants
@@ -81,6 +81,29 @@ func TestNewProcessCollector(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNewProcessCollector_TimestampInitialization tests that the constructor initializes timestamp
+func TestNewProcessCollector_TimestampInitialization(t *testing.T) {
+	mockDevice := &mockProcessDevice{
+		deviceInfo:              &safenvml.DeviceInfo{UUID: testDeviceUUID},
+		computeProcessesError:   nil,
+		processUtilizationError: nil,
+	}
+
+	safenvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+
+	timeBefore := uint64(time.Now().Unix())
+	collector, err := newProcessCollector(mockDevice)
+	timeAfter := uint64(time.Now().Unix())
+
+	assert.NoError(t, err)
+	assert.NotNil(t, collector)
+
+	pc := collector.(*processCollector)
+	assert.GreaterOrEqual(t, pc.lastTimestamp, timeBefore, "Timestamp should be initialized to current time")
+	assert.LessOrEqual(t, pc.lastTimestamp, timeAfter, "Timestamp should be initialized to current time")
+	assert.Greater(t, pc.lastTimestamp, uint64(0), "Timestamp should be greater than 0")
 }
 
 // TestCollectComputeProcesses tests the collectComputeProcesses helper function
@@ -160,14 +183,14 @@ func TestCollectProcessUtilization(t *testing.T) {
 		{
 			name:          "NoUtilizationProcesses",
 			samples:       []nvml.ProcessUtilizationSample{},
-			expectedCount: 2, // core.limit + sm_active
+			expectedCount: 1, // core.limit only
 		},
 		{
 			name: "SingleUtilizationProcess",
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
 			},
-			expectedCount: 6, // 4 per-process + core.limit + sm_active
+			expectedCount: 5, // 4 per-process + core.limit
 		},
 		{
 			name: "MultipleUtilizationProcesses",
@@ -175,14 +198,14 @@ func TestCollectProcessUtilization(t *testing.T) {
 				{Pid: 1001, TimeStamp: 1100, SmUtil: 50, MemUtil: 40, EncUtil: 20, DecUtil: 10},
 				{Pid: 1003, TimeStamp: 1200, SmUtil: 80, MemUtil: 70, EncUtil: 35, DecUtil: 25},
 			},
-			expectedCount: 10, // 2×4 per-process + core.limit + sm_active
+			expectedCount: 9, // 2×4 per-process + core.limit
 		},
 		{
 			name: "ZeroUtilizationValues",
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 13001, TimeStamp: 4000, SmUtil: 0, MemUtil: 0, EncUtil: 0, DecUtil: 0},
 			},
-			expectedCount: 6, // 4 per-process + core.limit + sm_active
+			expectedCount: 5, // 4 per-process + core.limit
 		},
 	}
 
@@ -217,13 +240,13 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 		{
 			name:          "ProcessUtilizationAPIError_NOT_FOUND",
 			apiError:      &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_NOT_FOUND},
-			expectedCount: 2, // core.limit + sm_active (gracefully handled)
+			expectedCount: 1, // core.limit only (gracefully handled)
 			expectError:   false,
 		},
 		{
 			name:          "ProcessUtilizationAPIError_Other",
 			apiError:      &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_UNKNOWN},
-			expectedCount: 2, // core.limit + sm_active (still emitted on error)
+			expectedCount: 1, // core.limit only (still emitted on error)
 			expectError:   true,
 		},
 	}
@@ -253,115 +276,33 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 	}
 }
 
-// TestProcessUtilizationSmActiveCalculation tests the sm_active median calculation logic
-func TestProcessUtilizationSmActiveCalculation(t *testing.T) {
-	tests := []struct {
-		name             string
-		samples          []nvml.ProcessUtilizationSample
-		expectedSmActive float64
-		description      string
-	}{
-		{
-			name:             "NoProcesses",
-			samples:          []nvml.ProcessUtilizationSample{},
-			expectedSmActive: 0.0,
-			description:      "No processes should result in sm_active = 0",
-		},
-		{
-			name: "SingleProcess",
-			samples: []nvml.ProcessUtilizationSample{
-				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
-			},
-			expectedSmActive: 75.0,
-			description:      "Single process: median(75, min(75, 100)) = 75",
-		},
-		{
-			name: "TwoProcesses",
-			samples: []nvml.ProcessUtilizationSample{
-				{Pid: 1001, TimeStamp: 1100, SmUtil: 50, MemUtil: 40, EncUtil: 20, DecUtil: 10},
-				{Pid: 1003, TimeStamp: 1200, SmUtil: 80, MemUtil: 70, EncUtil: 35, DecUtil: 25},
-			},
-			expectedSmActive: 90.0,
-			description:      "Two processes: median(max=80, min(sum=130, 100)) = median(80, 100) = 90",
-		},
-		{
-			name: "SmUtilSumExceeds100",
-			samples: []nvml.ProcessUtilizationSample{
-				{Pid: 14001, TimeStamp: 5000, SmUtil: 70, MemUtil: 50, EncUtil: 25, DecUtil: 15},
-				{Pid: 14002, TimeStamp: 5100, SmUtil: 60, MemUtil: 40, EncUtil: 20, DecUtil: 10},
-				{Pid: 14003, TimeStamp: 5200, SmUtil: 50, MemUtil: 30, EncUtil: 15, DecUtil: 5},
-			},
-			expectedSmActive: 85.0,
-			description:      "Sum > 100: median(max=70, min(sum=180, 100)) = median(70, 100) = 85",
-		},
-		{
-			name: "ZeroValues",
-			samples: []nvml.ProcessUtilizationSample{
-				{Pid: 13001, TimeStamp: 4000, SmUtil: 0, MemUtil: 0, EncUtil: 0, DecUtil: 0},
-			},
-			expectedSmActive: 0.0,
-			description:      "Zero utilization: median(0, min(0, 100)) = 0",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockDevice := &mockProcessDevice{
-				deviceInfo: &safenvml.DeviceInfo{
-					UUID:      testDeviceUUID,
-					Memory:    testDeviceMemory,
-					CoreCount: testDeviceCoreCount,
-				},
-				samples: tt.samples,
-			}
-
-			collector := &processCollector{device: mockDevice}
-			metrics, err := collector.collectProcessUtilization()
-
-			require.NoError(t, err)
-
-			// Find sm_active metric
-			var smActive *Metric
-			for i, metric := range metrics {
-				if metric.Name == "sm_active" {
-					smActive = &metrics[i]
-					break
-				}
-			}
-
-			require.NotNil(t, smActive, "sm_active metric should be present")
-			assert.Equal(t, tt.expectedSmActive, smActive.Value, tt.description)
-			assert.Empty(t, smActive.Tags, "sm_active should not have PID tags")
-		})
-	}
-}
-
 // TestProcessUtilizationTimestampUpdate tests timestamp tracking behavior
 func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 	tests := []struct {
 		name             string
 		initialTimestamp uint64
 		samples          []nvml.ProcessUtilizationSample
-		expectedFinalTS  uint64
+		apiError         error
 	}{
 		{
-			name:             "TimestampUpdate",
+			name:             "TimestampUpdatedOnSuccess",
 			initialTimestamp: 1000,
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 7001, TimeStamp: 1100, SmUtil: 50, MemUtil: 40, EncUtil: 20, DecUtil: 10},
-				{Pid: 7002, TimeStamp: 1200, SmUtil: 60, MemUtil: 50, EncUtil: 25, DecUtil: 15},
-				{Pid: 7003, TimeStamp: 1150, SmUtil: 70, MemUtil: 60, EncUtil: 30, DecUtil: 20},
 			},
-			expectedFinalTS: 1200, // Highest timestamp
+			apiError: nil,
 		},
 		{
-			name:             "NoTimestampUpdate",
-			initialTimestamp: 2000,
-			samples: []nvml.ProcessUtilizationSample{
-				{Pid: 8001, TimeStamp: 1800, SmUtil: 50, MemUtil: 40, EncUtil: 20, DecUtil: 10},
-				{Pid: 8002, TimeStamp: 1900, SmUtil: 60, MemUtil: 50, EncUtil: 25, DecUtil: 15},
-			},
-			expectedFinalTS: 2000, // Should remain unchanged
+			name:             "TimestampUpdatedOnNotFoundError",
+			initialTimestamp: 1000,
+			samples:          nil,
+			apiError:         &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_NOT_FOUND},
+		},
+		{
+			name:             "TimestampUpdatedOnOtherError",
+			initialTimestamp: 1000,
+			samples:          nil,
+			apiError:         &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_UNKNOWN},
 		},
 	}
 
@@ -373,14 +314,31 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 					Memory:    testDeviceMemory,
 					CoreCount: testDeviceCoreCount,
 				},
-				samples: tt.samples,
+				samples:                 tt.samples,
+				processUtilizationError: tt.apiError,
 			}
 
 			collector := &processCollector{device: mockDevice, lastTimestamp: tt.initialTimestamp}
+			timeBefore := uint64(time.Now().Unix())
 			_, err := collector.collectProcessUtilization()
+			timeAfter := uint64(time.Now().Unix())
 
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expectedFinalTS, collector.lastTimestamp)
+			// Timestamp should be updated to current time regardless of API success/failure
+			assert.GreaterOrEqual(t, collector.lastTimestamp, timeBefore, "Timestamp should be updated to current time")
+			assert.LessOrEqual(t, collector.lastTimestamp, timeAfter, "Timestamp should be updated to current time")
+			assert.Greater(t, collector.lastTimestamp, tt.initialTimestamp, "Timestamp should be newer than initial")
+
+			// Check error handling
+			if tt.apiError != nil {
+				var nvmlErr *safenvml.NvmlAPIError
+				if errors.As(tt.apiError, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+					assert.NoError(t, err, "ERROR_NOT_FOUND should be handled gracefully")
+				} else {
+					assert.Error(t, err, "Other errors should be returned")
+				}
+			} else {
+				assert.NoError(t, err, "Successful API call should not return error")
+			}
 		})
 	}
 }
@@ -403,7 +361,7 @@ func TestProcessCollector_Collect(t *testing.T) {
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
 			},
-			expectedMetricCount: 8, // 2 compute + 6 utilization
+			expectedMetricCount: 7, // 2 compute + 5 utilization
 		},
 		{
 			name: "ComputeOnlySuccess",
@@ -419,7 +377,7 @@ func TestProcessCollector_Collect(t *testing.T) {
 				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
 			},
 			computeProcessesError: &safenvml.NvmlAPIError{APIName: "GetComputeRunningProcesses", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
-			expectedMetricCount:   6, // 6 utilization only
+			expectedMetricCount:   5, // 5 utilization only
 		},
 	}
 
@@ -476,7 +434,7 @@ func TestProcessCollector_Collect_WithErrors(t *testing.T) {
 	metrics, err := collector.Collect()
 
 	assert.Error(t, err)      // ERROR_UNKNOWN should be returned
-	assert.Len(t, metrics, 3) // memory.limit + core.limit + sm_active
+	assert.Len(t, metrics, 2) // memory.limit + core.limit
 }
 
 // Mock device for process collector tests
