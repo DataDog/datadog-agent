@@ -38,7 +38,7 @@ type SharedLibraryCheck struct {
 	id            checkid.ID
 	interval      time.Duration
 	libName       string
-	libPtr        unsafe.Pointer // pointer to the shared library (unsued in RTLoader because it only needs the symbols)
+	libPtr        unsafe.Pointer                // pointer to the shared library (unused in RTLoader because it only needs the symbols)
 	libRunPtr     *C.run_shared_library_check_t // pointer to the function symbol that runs the check
 }
 

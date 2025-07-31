@@ -147,7 +147,7 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
 void run_shared_library(char *checkID, run_shared_library_check_t *run_function, const char **error)
 {
     // Not implemented yet
-    return NULL;
+    return;
 }
 
 #else
