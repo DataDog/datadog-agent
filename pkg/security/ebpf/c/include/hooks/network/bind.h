@@ -43,7 +43,7 @@ int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
         .addr[1] = syscall->bind.addr[1],
         .family = syscall->bind.family,
         .port = syscall->bind.port,
-        .protocol = syscall->connect.protocol,
+        .protocol = syscall->bind.protocol,
     };
 
     struct proc_cache_t *entry;
