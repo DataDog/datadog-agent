@@ -11,15 +11,18 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,6 +31,7 @@ var clusterAgentDockerCompose string
 
 type fipsServerClusterAgentSuite struct {
 	fipsServerSuite[environments.DockerHost]
+	clusterAgentImage string
 }
 
 func TestFIPSCiphersClusterAgentSuite(t *testing.T) {
@@ -67,6 +71,10 @@ func (s *fipsServerClusterAgentSuite) SetupSuite() {
 	composeFiles := strings.Split(host.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' cluster-agent`), ",")
 	formattedComposeFiles := strings.Join(composeFiles, " -f ")
 	formattedComposeFiles = strings.TrimSpace(formattedComposeFiles)
+
+	// Get the cluster agent image from the running container to use during docker-compose operations
+	s.clusterAgentImage = strings.TrimSpace(host.MustExecute(`docker inspect --format='{{.Config.Image}}' cluster-agent`))
+
 	// supply workers to base fipsServerSuite
 	s.fipsServer = newFIPSServer(host, formattedComposeFiles)
 
@@ -75,9 +83,105 @@ func (s *fipsServerClusterAgentSuite) SetupSuite() {
 		// Use cluster agent diagnose to test connectivity to Datadog core endpoints
 		// This triggers TLS connections using the cluster agent's Go-Boring implementation
 		// Perfect for testing FIPS cipher compliance against the FIPS server
-		_ = host.MustExecute(fmt.Sprintf(
-			`docker-compose -f %s exec cluster-agent sh -c "DD_DD_URL=https://dd-fips-server:443 timeout 30 datadog-cluster-agent diagnose --include connectivity-datadog-core-endpoints || true"`,
+		// Note: We bypass the default entrypoint to avoid Kubernetes API dependencies
+
+		// Include CLUSTER_AGENT_IMAGE environment variable to avoid compose parsing errors
+		envVars := map[string]string{
+			"CLUSTER_AGENT_IMAGE": s.clusterAgentImage,
+		}
+		cmd := fmt.Sprintf(
+			`docker-compose -f %s exec cluster-agent sh -c "DD_DD_URL=https://dd-fips-server:443 timeout 30 /opt/datadog-agent/bin/datadog-cluster-agent diagnose --include connectivity-datadog-core-endpoints || true"`,
 			formattedComposeFiles,
-		))
+		)
+		_, _ = host.Execute(cmd, client.WithEnvVariables(envVars))
+	}
+}
+
+// TestFIPSCiphers overrides the base test to handle cluster agent environment variables
+func (s *fipsServerClusterAgentSuite) TestFIPSCiphers() {
+	for _, tc := range testcases {
+		s.Run(fmt.Sprintf("FIPS enabled testing '%v -c %v' (should connect %v)", tc.cert, tc.cipher, tc.want), func() {
+			// Start the fips-server with cluster agent environment variables
+			s.startFIPSServerWithClusterAgentImage(tc)
+			s.T().Cleanup(func() {
+				s.stopFIPSServerWithClusterAgentImage()
+			})
+
+			s.generateTestTraffic()
+
+			serverLogs := s.fipsServer.Logs()
+			if tc.want {
+				assert.Contains(s.T(), serverLogs, fmt.Sprintf("Negotiated cipher suite: %s", tc.cipher))
+			} else {
+				assert.Contains(s.T(), serverLogs, "no cipher suite supported by both client and server")
+			}
+		})
+	}
+}
+
+// TestFIPSCiphersTLSVersion overrides the base test to handle cluster agent environment variables
+func (s *fipsServerClusterAgentSuite) TestFIPSCiphersTLSVersion() {
+	tc := cipherTestCase{cert: "rsa", tlsMax: "1.1"}
+	s.startFIPSServerWithClusterAgentImage(tc)
+	s.T().Cleanup(func() {
+		s.stopFIPSServerWithClusterAgentImage()
+	})
+
+	s.generateTestTraffic()
+
+	serverLogs := s.fipsServer.Logs()
+	assert.Contains(s.T(), serverLogs, "tls: client offered only unsupported version")
+}
+
+// startFIPSServerWithClusterAgentImage starts the FIPS server with CLUSTER_AGENT_IMAGE environment variable
+func (s *fipsServerClusterAgentSuite) startFIPSServerWithClusterAgentImage(tc cipherTestCase) {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		// stop currently running server, if any, so we can reset logs+env
+		s.stopFIPSServerWithClusterAgentImage()
+
+		// start datadog/apps-fips-server with env vars from the test case and cluster agent image
+		envVars := map[string]string{
+			"CERT":                tc.cert,
+			"CLUSTER_AGENT_IMAGE": s.clusterAgentImage,
+		}
+		if tc.cipher != "" {
+			envVars["CIPHER"] = fmt.Sprintf("-c %s", tc.cipher)
+		}
+		if tc.tlsMax != "" {
+			envVars["TLS_MAX"] = fmt.Sprintf("--tls-max %s", tc.tlsMax)
+		}
+
+		cmd := fmt.Sprintf("docker-compose -f %s up --detach --wait --timeout 300", strings.TrimSpace(s.fipsServer.composeFiles))
+		_, err := s.fipsServer.dockerHost.Execute(cmd, client.WithEnvVariables(envVars))
+		if err != nil {
+			s.T().Logf("Error starting fips-server: %v", err)
+			require.NoError(c, err)
+		}
+		assert.Nil(c, err)
+	}, 120*time.Second, 10*time.Second, "docker-compose timed out starting server")
+
+	// Wait for container to start and ensure it's a fresh instance
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		serverLogs, _ := s.fipsServer.dockerHost.Execute("docker logs dd-fips-server")
+		assert.Contains(c, serverLogs, "Server Starting...", "fips-server timed out waiting for cipher initialization to finish")
+		assert.Equal(c, 1, strings.Count(serverLogs, "Server Starting..."), "Server should start only once, logs from previous runs should not be present")
+	}, 60*time.Second, 5*time.Second)
+}
+
+// stopFIPSServerWithClusterAgentImage stops the FIPS server with CLUSTER_AGENT_IMAGE environment variable
+func (s *fipsServerClusterAgentSuite) stopFIPSServerWithClusterAgentImage() {
+	fipsContainer := s.fipsServer.dockerHost.MustExecute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
+	if fipsContainer != "" {
+		// Include CLUSTER_AGENT_IMAGE when stopping to avoid compose parsing errors
+		envVars := map[string]string{
+			"CLUSTER_AGENT_IMAGE": s.clusterAgentImage,
+		}
+		cmd := fmt.Sprintf("docker-compose -f %s down fips-server", strings.TrimSpace(s.fipsServer.composeFiles))
+		_, err := s.fipsServer.dockerHost.Execute(cmd, client.WithEnvVariables(envVars))
+		if err != nil {
+			// If docker-compose fails, fall back to direct docker commands
+			s.fipsServer.dockerHost.MustExecute("docker stop dd-fips-server || true")
+			s.fipsServer.dockerHost.MustExecute("docker rm dd-fips-server || true")
+		}
 	}
 }
