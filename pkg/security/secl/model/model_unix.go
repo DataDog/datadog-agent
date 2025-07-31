@@ -1031,82 +1031,82 @@ type SetSockOptEvent struct {
 }
 
 // GetFileField returns the FileEvent associated with a field name
-func (ev *Event) GetFileField(field string) (*FileEvent, error) {
+func (e *Event) GetFileField(field string) (*FileEvent, error) {
 	// TODO(lebauce): generate this function
 	switch field {
 	case "open.file":
-		return &ev.Open.File, nil
+		return &e.Open.File, nil
 	case "exec.file":
-		return &ev.Exec.FileEvent, nil
+		return &e.Exec.FileEvent, nil
 	case "cgroup_write.file":
-		return &ev.CgroupWrite.File, nil
+		return &e.CgroupWrite.File, nil
 	case "chdir.file":
-		return &ev.Chdir.File, nil
+		return &e.Chdir.File, nil
 	case "chmod.file":
-		return &ev.Chmod.File, nil
+		return &e.Chmod.File, nil
 	case "chown.file":
-		return &ev.Chown.File, nil
+		return &e.Chown.File, nil
 	case "exec.interpreter.file":
-		return &ev.Exec.Process.LinuxBinprm.FileEvent, nil
+		return &e.Exec.Process.LinuxBinprm.FileEvent, nil
 	case "exit.file":
-		return &ev.Exit.FileEvent, nil
+		return &e.Exit.FileEvent, nil
 	case "exit.interpreter.file":
-		return &ev.Exit.Process.LinuxBinprm.FileEvent, nil
+		return &e.Exit.Process.LinuxBinprm.FileEvent, nil
 	case "link.file":
-		return &ev.Link.Source, nil
+		return &e.Link.Source, nil
 	case "load_module.file":
-		return &ev.LoadModule.File, nil
+		return &e.LoadModule.File, nil
 	case "mkdir.file":
-		return &ev.Mkdir.File, nil
+		return &e.Mkdir.File, nil
 	case "mmap.file":
-		return &ev.MMap.File, nil
+		return &e.MMap.File, nil
 	case "process.file":
-		return &ev.ProcessContext.FileEvent, nil
+		return &e.ProcessContext.FileEvent, nil
 	case "process.interpreter.file":
-		return &ev.ProcessContext.Process.LinuxBinprm.FileEvent, nil
+		return &e.ProcessContext.Process.LinuxBinprm.FileEvent, nil
 	case "process.parent.file":
-		return &ev.ProcessContext.Parent.FileEvent, nil
+		return &e.ProcessContext.Parent.FileEvent, nil
 	case "process.parent.interpreter.file":
-		return &ev.ProcessContext.Parent.LinuxBinprm.FileEvent, nil
+		return &e.ProcessContext.Parent.LinuxBinprm.FileEvent, nil
 	case "ptrace.tracee.file.path":
-		return &ev.PTrace.Tracee.FileEvent, nil
+		return &e.PTrace.Tracee.FileEvent, nil
 	case "ptrace.tracee.interpreter.file.path":
-		return &ev.PTrace.Tracee.LinuxBinprm.FileEvent, nil
+		return &e.PTrace.Tracee.LinuxBinprm.FileEvent, nil
 	case "ptrace.tracee.parent.file.path":
-		return &ev.PTrace.Tracee.Parent.FileEvent, nil
+		return &e.PTrace.Tracee.Parent.FileEvent, nil
 	case "ptrace.tracee.parent.interpreter.file.path":
-		return &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent, nil
+		return &e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent, nil
 	case "removexattr.file.path":
-		return &ev.RemoveXAttr.File, nil
+		return &e.RemoveXAttr.File, nil
 	case "rename.file.path":
-		return &ev.Rename.New, nil
+		return &e.Rename.New, nil
 	case "rmdir.file.path":
-		return &ev.Rmdir.File, nil
+		return &e.Rmdir.File, nil
 	case "setrlimit.target.file.path":
-		return &ev.Setrlimit.Target.FileEvent, nil
+		return &e.Setrlimit.Target.FileEvent, nil
 	case "setrlimit.target.interpreter.file.path":
-		return &ev.Setrlimit.Target.LinuxBinprm.FileEvent, nil
+		return &e.Setrlimit.Target.LinuxBinprm.FileEvent, nil
 	case "setrlimit.target.parent.file.path":
-		return &ev.Setrlimit.Target.Parent.FileEvent, nil
+		return &e.Setrlimit.Target.Parent.FileEvent, nil
 	case "setrlimit.target.parent.interpreter.file.path":
-		return &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent, nil
+		return &e.Setrlimit.Target.Parent.LinuxBinprm.FileEvent, nil
 	case "setxattr.file.path":
-		return &ev.SetXAttr.File, nil
+		return &e.SetXAttr.File, nil
 	case "signal.target.file.path":
-		return &ev.Signal.Target.FileEvent, nil
+		return &e.Signal.Target.FileEvent, nil
 	case "signal.target.interpreter.file.path":
-		return &ev.Signal.Target.LinuxBinprm.FileEvent, nil
+		return &e.Signal.Target.LinuxBinprm.FileEvent, nil
 	case "signal.target.parent.file.path":
-		return &ev.Signal.Target.Parent.FileEvent, nil
+		return &e.Signal.Target.Parent.FileEvent, nil
 	case "signal.target.parent.interpreter.file.path":
-		return &ev.Signal.Target.Parent.LinuxBinprm.FileEvent, nil
+		return &e.Signal.Target.Parent.LinuxBinprm.FileEvent, nil
 	case "splice.file.path":
-		return &ev.Splice.File, nil
+		return &e.Splice.File, nil
 	case "unlink.file.path":
-		return &ev.Unlink.File, nil
+		return &e.Unlink.File, nil
 	case "utimes.file.path":
-		return &ev.Utimes.File, nil
+		return &e.Utimes.File, nil
 	default:
-		return nil, fmt.Errorf("invalid field %s on event %s", field, ev.GetEventType())
+		return nil, fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}
 }
