@@ -31,9 +31,9 @@ func TestSymDB(t *testing.T) {
 			binaryPath, err := testprogs.GetBinary("simple", cfg)
 			require.NoError(t, err)
 			t.Logf("exploring binary: %s", binaryPath)
-			symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
+			symBuilder, err := symdb.NewSymDBBuilder(binaryPath, symdb.ExtractScopeAllSymbols)
 			require.NoError(t, err)
-			symbols, err := symBuilder.ExtractSymbols(symdb.ExtractScopeAllSymbols)
+			symbols, err := symBuilder.ExtractSymbols()
 			require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 			require.NotEmpty(t, symbols.Packages)
 
@@ -72,9 +72,9 @@ func TestSymDBSnapshot(t *testing.T) {
 				t.Run(cfg.String(), func(t *testing.T) {
 					binaryPath := testprogs.MustGetBinary(t, caseName, cfg)
 					t.Logf("exploring binary: %s", binaryPath)
-					symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
+					symBuilder, err := symdb.NewSymDBBuilder(binaryPath, symdb.ExtractScopeMainModuleOnly)
 					require.NoError(t, err)
-					symbols, err := symBuilder.ExtractSymbols(symdb.ExtractScopeMainModuleOnly)
+					symbols, err := symBuilder.ExtractSymbols()
 					require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 					require.NotEmpty(t, symbols.Packages)
 
