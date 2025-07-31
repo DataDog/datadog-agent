@@ -72,7 +72,7 @@ func (mr *NoOpResolver) ToJSON() ([]byte, error) {
 	return nil, nil
 }
 
-// Insert a mount point that has been moved
+// InsertMoved inserts a mount from move_mount
 func (mr *NoOpResolver) InsertMoved(_ model.Mount) error {
 	return nil
 }

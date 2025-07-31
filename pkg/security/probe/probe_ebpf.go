@@ -2072,16 +2072,17 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 		}
 	}
 
+	var err error
 	if ev.GetEventType() == model.FileMoveMountEventType {
-		if err := p.Resolvers.MountResolver.InsertMoved(*m); err != nil {
-			return fmt.Errorf("failed to insert mount event: %w", err)
-		}
+		err = p.Resolvers.MountResolver.InsertMoved(*m)
 	} else {
-		// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-		if err := p.Resolvers.MountResolver.Insert(*m, 0); err != nil {
-			return fmt.Errorf("failed to insert mount event: %w", err)
-		}
+		err = p.Resolvers.MountResolver.Insert(*m, 0)
 	}
+
+	if err != nil {
+		return fmt.Errorf("failed to insert mount event: %w", err)
+	}
+
 	return nil
 }
 
