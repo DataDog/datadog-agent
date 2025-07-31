@@ -9,9 +9,8 @@ package nvidia
 
 import (
 	"errors"
-	"errors"
-	"math"
 	"fmt"
+	"math"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
@@ -79,50 +78,6 @@ func (c *processCollector) Name() CollectorName {
 	return process
 }
 
-func (c *processCollector) Collect2() ([]Metric, error) {
-	processSamples, err := c.device.GetProcessUtilization(c.lastTimestamp)
-	if err != nil {
-		// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
-		var nvmlErr *ddnvml.NvmlAPIError
-		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
-			// No process data available, return 0 for sm_active
-			return []Metric{
-				{Name: "sm_active", Value: 0.0, Type: metrics.GaugeType},
-			}, nil
-		}
-		return nil, err
-	}
-
-	if len(processSamples) == 0 {
-		// No processes running, return 0 for sm_active
-		return []Metric{
-			{Name: "sm_active", Value: 0.0, Type: metrics.GaugeType},
-		}, nil
-	}
-
-	// Calculate sm_active using median approach
-	var sum, maxSm float64
-	for _, sample := range processSamples {
-		smUtil := float64(sample.SmUtil)
-		sum += smUtil
-		if smUtil > maxSm {
-			maxSm = smUtil
-		}
-		// Update timestamp
-		if sample.TimeStamp > c.lastTimestamp {
-			c.lastTimestamp = sample.TimeStamp
-		}
-	}
-
-	// Apply your formula: median(max, min(sum, 100))
-	cappedSum := math.Min(sum, 100.0)
-	smActive := (maxSm + cappedSum) / 2.0
-
-	return []Metric{
-		{Name: "sm_active", Value: smActive, Type: metrics.GaugeType},
-	}, nil
-}
-
 func (c *processCollector) Collect() ([]Metric, error) {
 	var allMetrics []Metric
 	var multiErr error
@@ -131,7 +86,6 @@ func (c *processCollector) Collect() ([]Metric, error) {
 		collectedMetrics, err := apiCall.callFunc(c)
 		if err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("%s returned an error: %w", apiCall.name, err))
-			continue
 		}
 
 		allMetrics = append(allMetrics, collectedMetrics...)
@@ -166,57 +120,58 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 	return processMetrics, err // Return the original error if there was one
 }
 
-func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
-	var utilizationMetrics []Metric
+func (c *processCollector) collectProcessUtilization() (utilizationMetrics []Metric, err error) {
 	var allPidTags []string
-	var totalSmUtil float64
+	var totalSmUtil, maxSmUtil float64
 
 	coreCount := c.device.GetDeviceInfo().CoreCount
 
+	// Defer function to ensure global metrics are always emitted
+	defer func() {
+		// Calculate sm_active using median approach: median(max, min(sum, 100))
+		cappedSum := math.Min(totalSmUtil, 100.0)
+		smActive := (maxSmUtil + cappedSum) / 2.0
+
+		utilizationMetrics = append(utilizationMetrics,
+			Metric{Name: "core.limit", Value: float64(coreCount), Type: metrics.GaugeType, Tags: allPidTags},
+			Metric{Name: "sm_active", Value: smActive, Type: metrics.GaugeType},
+		)
+	}()
+
 	processSamples, err := c.device.GetProcessUtilization(c.lastTimestamp)
 	if err != nil {
-		// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
 		var nvmlErr *ddnvml.NvmlAPIError
-		if !errors.As(err, &nvmlErr) || !errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
-			return nil, err // Only return error for non-NOT_FOUND errors
+		// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
+		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+			err = nil // Clear the error for NOT_FOUND case
 		}
-		// For NOT_FOUND, continue with empty processSamples to emit capacity metrics
-	} else {
-		// Process samples only if no error
-		for _, sample := range processSamples {
-			pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
+		return // Return with either nil (NOT_FOUND) or original error (other cases)
+	}
+	for _, sample := range processSamples {
+		pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
+		smUtil := float64(sample.SmUtil)
 
-			// Calculate core usage from utilization percentage: Usage = (SmUtil / 100) * CoreCount
-			// SmUtil is a percentage (0-100), so we convert it to actual core usage
-			coreUsage := (float64(sample.SmUtil) / 100.0) * float64(coreCount)
+		utilizationMetrics = append(utilizationMetrics,
+			Metric{Name: "process.sm_active", Value: smUtil, Type: metrics.GaugeType, Tags: pidTag},
+			Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: metrics.GaugeType, Tags: pidTag},
+			Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: metrics.GaugeType, Tags: pidTag},
+			Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: metrics.GaugeType, Tags: pidTag},
+		)
 
-			utilizationMetrics = append(utilizationMetrics,
-				Metric{Name: "core.usage", Value: coreUsage, Type: metrics.GaugeType, Tags: pidTag},
-				Metric{Name: "dram_active", Value: float64(sample.MemUtil), Type: metrics.GaugeType, Tags: pidTag},
-				Metric{Name: "encoder_utilization", Value: float64(sample.EncUtil), Type: metrics.GaugeType, Tags: pidTag},
-				Metric{Name: "decoder_utilization", Value: float64(sample.DecUtil), Type: metrics.GaugeType, Tags: pidTag},
-			)
+		// Collect PID tags for aggregated metrics
+		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
 
-			// Collect PID tags for aggregated metrics and aggregate SmUtil for gr_engine_active
-			allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
-			totalSmUtil += float64(sample.SmUtil)
+		// Track sm_active calculation variables
+		totalSmUtil += smUtil
+		if smUtil > maxSmUtil {
+			maxSmUtil = smUtil
+		}
 
-			// Cap totalSmUtil at 100% since total utilization cannot exceed 100%
-			if totalSmUtil > 100 {
-				totalSmUtil = 100
-			}
-
-			//update the last timestamp if the current sample's timestamp is greater
-			if sample.TimeStamp > c.lastTimestamp {
-				c.lastTimestamp = sample.TimeStamp
-			}
+		//update the last timestamp if the current sample's timestamp is greater
+		if sample.TimeStamp > c.lastTimestamp {
+			c.lastTimestamp = sample.TimeStamp
 		}
 	}
 
-	utilizationMetrics = append(utilizationMetrics,
-		Metric{Name: "core.limit", Value: float64(coreCount), Type: metrics.GaugeType, Tags: allPidTags},
-		Metric{Name: "gr_engine_active", Value: totalSmUtil, Type: metrics.GaugeType, Tags: allPidTags},
-	)
-
-	return utilizationMetrics, nil
+	return
 }

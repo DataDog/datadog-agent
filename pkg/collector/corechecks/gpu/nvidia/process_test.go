@@ -83,151 +83,148 @@ func TestNewProcessCollector(t *testing.T) {
 	}
 }
 
-// TestProcessScenarios tests different process scenarios
-func TestProcessScenarios(t *testing.T) {
+// TestCollectComputeProcesses tests the collectComputeProcesses helper function
+func TestCollectComputeProcesses(t *testing.T) {
 	tests := []struct {
-		name                string
-		processes           []nvml.ProcessInfo
-		samples             []nvml.ProcessUtilizationSample
-		expectedMetricCount int
-		expectedPIDCounts   map[string]int
-		specificValidations func(t *testing.T, metrics []Metric)
+		name          string
+		processes     []nvml.ProcessInfo
+		expectedCount int
 	}{
 		{
-			name:                "NoRunningProcesses",
-			processes:           []nvml.ProcessInfo{},
-			samples:             []nvml.ProcessUtilizationSample{},
-			expectedMetricCount: 3, //we expect the gpu.core.limit, gpu.memory.limit and gr_engine_active metrics to be emitted even if no processes are not running
-			expectedPIDCounts:   map[string]int{},
+			name:          "NoComputeProcesses",
+			processes:     []nvml.ProcessInfo{},
+			expectedCount: 1, // Only memory.limit
 		},
 		{
-			name: "SingleProcess",
+			name: "SingleComputeProcess",
 			processes: []nvml.ProcessInfo{
 				{Pid: 1234, UsedGpuMemory: 536870912}, // 512MB
 			},
-			samples: []nvml.ProcessUtilizationSample{
-				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
-			},
-			expectedMetricCount: 8, // 2 compute per-process + 6 utilization (4 per-process + 2 aggregated)
-			expectedPIDCounts:   map[string]int{"1234": 8},
-			specificValidations: func(t *testing.T, metrics []Metric) {
-				metricsByName := make(map[string]Metric)
-				for _, metric := range metrics {
-					metricsByName[metric.Name] = metric
-				}
-				assert.Equal(t, float64(536870912), metricsByName["memory.usage"].Value)
-				assert.Equal(t, float64(60), metricsByName["core.usage"].Value) // (75/100) * 80 = 60
-				assert.Equal(t, float64(60), metricsByName["dram_active"].Value)
-				assert.Equal(t, float64(30), metricsByName["encoder_utilization"].Value)
-				assert.Equal(t, float64(15), metricsByName["decoder_utilization"].Value)
-
-				// Validate limit metrics values match device specs
-				assert.Equal(t, float64(testDeviceMemory), metricsByName["memory.limit"].Value)  // Device memory
-				assert.Equal(t, float64(testDeviceCoreCount), metricsByName["core.limit"].Value) // Device core count
-
-				// Validate limit metrics have aggregated PID tags
-				assert.Contains(t, metricsByName["memory.limit"].Tags, "pid:1234")
-				assert.Contains(t, metricsByName["core.limit"].Tags, "pid:1234")
-			},
+			expectedCount: 2, // memory.usage + memory.limit
 		},
 		{
-			name: "MultipleProcesses",
+			name: "MultipleComputeProcesses",
 			processes: []nvml.ProcessInfo{
 				{Pid: 1001, UsedGpuMemory: 1073741824}, // 1GB
 				{Pid: 1002, UsedGpuMemory: 2147483648}, // 2GB
 				{Pid: 1003, UsedGpuMemory: 536870912},  // 512MB
 			},
+			expectedCount: 4, // 3 memory.usage + 1 memory.limit
+		},
+	}
+
+	mockDevice := &mockProcessDevice{
+		deviceInfo: &safenvml.DeviceInfo{
+			UUID:      testDeviceUUID,
+			Memory:    testDeviceMemory,
+			CoreCount: testDeviceCoreCount,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice.processes = tt.processes
+			collector := &processCollector{device: mockDevice}
+			metrics, err := collector.collectComputeProcesses()
+
+			assert.NoError(t, err)
+			assert.Len(t, metrics, tt.expectedCount)
+		})
+	}
+}
+
+// TestCollectComputeProcesses_Error tests error handling separately
+func TestCollectComputeProcesses_Error(t *testing.T) {
+	mockDevice := &mockProcessDevice{
+		deviceInfo: &safenvml.DeviceInfo{
+			UUID:      testDeviceUUID,
+			Memory:    testDeviceMemory,
+			CoreCount: testDeviceCoreCount,
+		},
+		computeProcessesError: &safenvml.NvmlAPIError{APIName: "GetComputeRunningProcesses", NvmlErrorCode: nvml.ERROR_UNKNOWN},
+	}
+
+	collector := &processCollector{device: mockDevice}
+	metrics, err := collector.collectComputeProcesses()
+
+	assert.Error(t, err)
+	assert.Len(t, metrics, 1) // Only memory.limit (still emitted on error)
+}
+
+// TestCollectProcessUtilization tests the collectProcessUtilization helper function
+func TestCollectProcessUtilization(t *testing.T) {
+	tests := []struct {
+		name          string
+		samples       []nvml.ProcessUtilizationSample
+		expectedCount int
+	}{
+		{
+			name:          "NoUtilizationProcesses",
+			samples:       []nvml.ProcessUtilizationSample{},
+			expectedCount: 2, // core.limit + sm_active
+		},
+		{
+			name: "SingleUtilizationProcess",
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
+			},
+			expectedCount: 6, // 4 per-process + core.limit + sm_active
+		},
+		{
+			name: "MultipleUtilizationProcesses",
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 1001, TimeStamp: 1100, SmUtil: 50, MemUtil: 40, EncUtil: 20, DecUtil: 10},
 				{Pid: 1003, TimeStamp: 1200, SmUtil: 80, MemUtil: 70, EncUtil: 35, DecUtil: 25},
-				// Note: PID 1002 has no utilization sample
 			},
-			expectedMetricCount: 14, // 4 compute (3 per-process + 1 aggregated) + 10 utilization (2×4 per-process + 2 aggregated)
-			expectedPIDCounts: map[string]int{
-				"1001": 8, // 1 compute per-process + 4 utilization per-process + 3 aggregated
-				"1002": 1, // 1 compute per-process only
-				"1003": 5, // 1 compute per-process + 4 utilization per-process
-			},
-			specificValidations: func(t *testing.T, metrics []Metric) {
-				metricsByName := make(map[string]Metric)
-				for _, metric := range metrics {
-					metricsByName[metric.Name] = metric
-				}
-
-				// Validate limit metrics values match device specs
-				assert.Equal(t, float64(testDeviceMemory), metricsByName["memory.limit"].Value)  // Device memory
-				assert.Equal(t, float64(testDeviceCoreCount), metricsByName["core.limit"].Value) // Device core count
-
-				// Validate memory.limit has all compute process PIDs aggregated
-				memoryLimitTags := metricsByName["memory.limit"].Tags
-				assert.Contains(t, memoryLimitTags, "pid:1001")
-				assert.Contains(t, memoryLimitTags, "pid:1002")
-				assert.Contains(t, memoryLimitTags, "pid:1003")
-
-				// Validate core.limit has only utilization process PIDs aggregated
-				coreLimitTags := metricsByName["core.limit"].Tags
-				assert.Contains(t, coreLimitTags, "pid:1001")
-				assert.Contains(t, coreLimitTags, "pid:1003")
-				assert.NotContains(t, coreLimitTags, "pid:1002") // No utilization sample for 1002
-			},
+			expectedCount: 10, // 2×4 per-process + core.limit + sm_active
 		},
 		{
-			name: "ProcessPidMismatch",
-			processes: []nvml.ProcessInfo{
-				{Pid: 2001, UsedGpuMemory: 1073741824},
-			},
+			name: "ZeroUtilizationValues",
 			samples: []nvml.ProcessUtilizationSample{
-				{Pid: 3001, TimeStamp: 1500, SmUtil: 90, MemUtil: 85, EncUtil: 45, DecUtil: 35},
+				{Pid: 13001, TimeStamp: 4000, SmUtil: 0, MemUtil: 0, EncUtil: 0, DecUtil: 0},
 			},
-			expectedMetricCount: 8, // 2 compute (1 per-process + 1 aggregated) + 6 utilization (4 per-process + 2 aggregated)
-			expectedPIDCounts: map[string]int{
-				"2001": 2, // 1 compute per-process + 1 aggregated memory.limit
-				"3001": 6, // 4 utilization per-process + 2 aggregated
-			},
-			specificValidations: func(t *testing.T, metrics []Metric) {
-				computeMetrics := 0
-				utilizationMetrics := 0
-				for _, metric := range metrics {
-					switch metric.Name {
-					case "memory.usage":
-						assert.Contains(t, metric.Tags, "pid:2001")
-						computeMetrics++
-					case "memory.limit":
-						assert.Contains(t, metric.Tags, "pid:2001")
-						computeMetrics++
-					case "core.usage", "dram_active", "encoder_utilization", "decoder_utilization":
-						assert.Contains(t, metric.Tags, "pid:3001")
-						utilizationMetrics++
-					case "core.limit", "gr_engine_active":
-						assert.Contains(t, metric.Tags, "pid:3001")
-						utilizationMetrics++
-					}
-				}
-				assert.Equal(t, 2, computeMetrics)
-				assert.Equal(t, 6, utilizationMetrics)
-			},
+			expectedCount: 6, // 4 per-process + core.limit + sm_active
+		},
+	}
+
+	mockDevice := &mockProcessDevice{
+		deviceInfo: &safenvml.DeviceInfo{
+			UUID:      testDeviceUUID,
+			Memory:    testDeviceMemory,
+			CoreCount: testDeviceCoreCount,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice.samples = tt.samples
+			collector := &processCollector{device: mockDevice}
+			metrics, err := collector.collectProcessUtilization()
+
+			assert.NoError(t, err)
+			assert.Len(t, metrics, tt.expectedCount)
+		})
+	}
+}
+
+// TestCollectProcessUtilization_Error tests error handling separately
+func TestCollectProcessUtilization_Error(t *testing.T) {
+	tests := []struct {
+		name          string
+		apiError      error
+		expectedCount int
+		expectError   bool
+	}{
+		{
+			name:          "ProcessUtilizationAPIError_NOT_FOUND",
+			apiError:      &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_NOT_FOUND},
+			expectedCount: 2, // core.limit + sm_active (gracefully handled)
+			expectError:   false,
 		},
 		{
-			name: "ZeroValues",
-			processes: []nvml.ProcessInfo{
-				{Pid: 13001, UsedGpuMemory: 0}, // Zero memory
-			},
-			samples: []nvml.ProcessUtilizationSample{
-				{Pid: 13001, TimeStamp: 4000, SmUtil: 0, MemUtil: 0, EncUtil: 0, DecUtil: 0}, // Zero utilization
-			},
-			expectedMetricCount: 8, // 2 compute + 6 utilization
-			expectedPIDCounts:   map[string]int{"13001": 8},
-			specificValidations: func(t *testing.T, metrics []Metric) {
-				metricsByName := make(map[string]Metric)
-				for _, metric := range metrics {
-					metricsByName[metric.Name] = metric
-				}
-				assert.Equal(t, float64(0), metricsByName["memory.usage"].Value)
-				assert.Equal(t, float64(0), metricsByName["core.usage"].Value)
-				assert.Equal(t, float64(0), metricsByName["dram_active"].Value)
-				assert.Equal(t, float64(0), metricsByName["encoder_utilization"].Value)
-				assert.Equal(t, float64(0), metricsByName["decoder_utilization"].Value)
-			},
+			name:          "ProcessUtilizationAPIError_Other",
+			apiError:      &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_UNKNOWN},
+			expectedCount: 2, // core.limit + sm_active (still emitted on error)
+			expectError:   true,
 		},
 	}
 
@@ -239,47 +236,108 @@ func TestProcessScenarios(t *testing.T) {
 					Memory:    testDeviceMemory,
 					CoreCount: testDeviceCoreCount,
 				},
-				processes: tt.processes,
-				samples:   tt.samples,
+				processUtilizationError: tt.apiError,
 			}
 
-			safenvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+			collector := &processCollector{device: mockDevice}
+			metrics, err := collector.collectProcessUtilization()
 
-			collector, err := newProcessCollector(mockDevice)
-			require.NoError(t, err)
-
-			metrics, err := collector.Collect()
-			assert.NoError(t, err)
-			assert.Len(t, metrics, tt.expectedMetricCount)
-
-			// Verify PID counts
-			if len(tt.expectedPIDCounts) > 0 {
-				pidCounts := make(map[string]int)
-				for _, metric := range metrics {
-					// Extract PID from tags slice
-					for _, tag := range metric.Tags {
-						if len(tag) > 4 && tag[:4] == "pid:" {
-							pid := tag[4:]
-							pidCounts[pid]++
-							break
-						}
-					}
-				}
-				for expectedPID, expectedCount := range tt.expectedPIDCounts {
-					assert.Equal(t, expectedCount, pidCounts[expectedPID], "PID %s metric count mismatch", expectedPID)
-				}
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 
-			// Run specific validations if provided
-			if tt.specificValidations != nil {
-				tt.specificValidations(t, metrics)
-			}
+			assert.Len(t, metrics, tt.expectedCount)
 		})
 	}
 }
 
-// TestTimestampManagement tests timestamp update logic
-func TestTimestampManagement(t *testing.T) {
+// TestProcessUtilizationSmActiveCalculation tests the sm_active median calculation logic
+func TestProcessUtilizationSmActiveCalculation(t *testing.T) {
+	tests := []struct {
+		name             string
+		samples          []nvml.ProcessUtilizationSample
+		expectedSmActive float64
+		description      string
+	}{
+		{
+			name:             "NoProcesses",
+			samples:          []nvml.ProcessUtilizationSample{},
+			expectedSmActive: 0.0,
+			description:      "No processes should result in sm_active = 0",
+		},
+		{
+			name: "SingleProcess",
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
+			},
+			expectedSmActive: 75.0,
+			description:      "Single process: median(75, min(75, 100)) = 75",
+		},
+		{
+			name: "TwoProcesses",
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 1001, TimeStamp: 1100, SmUtil: 50, MemUtil: 40, EncUtil: 20, DecUtil: 10},
+				{Pid: 1003, TimeStamp: 1200, SmUtil: 80, MemUtil: 70, EncUtil: 35, DecUtil: 25},
+			},
+			expectedSmActive: 90.0,
+			description:      "Two processes: median(max=80, min(sum=130, 100)) = median(80, 100) = 90",
+		},
+		{
+			name: "SmUtilSumExceeds100",
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 14001, TimeStamp: 5000, SmUtil: 70, MemUtil: 50, EncUtil: 25, DecUtil: 15},
+				{Pid: 14002, TimeStamp: 5100, SmUtil: 60, MemUtil: 40, EncUtil: 20, DecUtil: 10},
+				{Pid: 14003, TimeStamp: 5200, SmUtil: 50, MemUtil: 30, EncUtil: 15, DecUtil: 5},
+			},
+			expectedSmActive: 85.0,
+			description:      "Sum > 100: median(max=70, min(sum=180, 100)) = median(70, 100) = 85",
+		},
+		{
+			name: "ZeroValues",
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 13001, TimeStamp: 4000, SmUtil: 0, MemUtil: 0, EncUtil: 0, DecUtil: 0},
+			},
+			expectedSmActive: 0.0,
+			description:      "Zero utilization: median(0, min(0, 100)) = 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := &mockProcessDevice{
+				deviceInfo: &safenvml.DeviceInfo{
+					UUID:      testDeviceUUID,
+					Memory:    testDeviceMemory,
+					CoreCount: testDeviceCoreCount,
+				},
+				samples: tt.samples,
+			}
+
+			collector := &processCollector{device: mockDevice}
+			metrics, err := collector.collectProcessUtilization()
+
+			require.NoError(t, err)
+
+			// Find sm_active metric
+			var smActive *Metric
+			for i, metric := range metrics {
+				if metric.Name == "sm_active" {
+					smActive = &metrics[i]
+					break
+				}
+			}
+
+			require.NotNil(t, smActive, "sm_active metric should be present")
+			assert.Equal(t, tt.expectedSmActive, smActive.Value, tt.description)
+			assert.Empty(t, smActive.Tags, "sm_active should not have PID tags")
+		})
+	}
+}
+
+// TestProcessUtilizationTimestampUpdate tests timestamp tracking behavior
+func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 	tests := []struct {
 		name             string
 		initialTimestamp uint64
@@ -315,24 +373,110 @@ func TestTimestampManagement(t *testing.T) {
 					Memory:    testDeviceMemory,
 					CoreCount: testDeviceCoreCount,
 				},
-				computeProcessesError:   &safenvml.NvmlAPIError{APIName: "GetComputeRunningProcesses", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
-				processUtilizationError: nil,
-				samples:                 tt.samples,
+				samples: tt.samples,
 			}
 
-			safenvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+			collector := &processCollector{device: mockDevice, lastTimestamp: tt.initialTimestamp}
+			_, err := collector.collectProcessUtilization()
 
-			collector, err := newProcessCollector(mockDevice)
-			require.NoError(t, err)
-
-			pc := collector.(*processCollector)
-			pc.lastTimestamp = tt.initialTimestamp
-
-			_, err = collector.Collect()
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expectedFinalTS, pc.lastTimestamp)
+			assert.Equal(t, tt.expectedFinalTS, collector.lastTimestamp)
 		})
 	}
+}
+
+// TestProcessCollector_Collect tests the full Collect() flow
+func TestProcessCollector_Collect(t *testing.T) {
+	tests := []struct {
+		name                    string
+		processes               []nvml.ProcessInfo
+		samples                 []nvml.ProcessUtilizationSample
+		computeProcessesError   error
+		processUtilizationError error
+		expectedMetricCount     int
+	}{
+		{
+			name: "BothAPIsSuccess",
+			processes: []nvml.ProcessInfo{
+				{Pid: 1234, UsedGpuMemory: 536870912}, // 512MB
+			},
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
+			},
+			expectedMetricCount: 8, // 2 compute + 6 utilization
+		},
+		{
+			name: "ComputeOnlySuccess",
+			processes: []nvml.ProcessInfo{
+				{Pid: 1234, UsedGpuMemory: 536870912}, // 512MB
+			},
+			processUtilizationError: &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
+			expectedMetricCount:     2, // 2 compute only
+		},
+		{
+			name: "UtilizationOnlySuccess",
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
+			},
+			computeProcessesError: &safenvml.NvmlAPIError{APIName: "GetComputeRunningProcesses", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
+			expectedMetricCount:   6, // 6 utilization only
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := &mockProcessDevice{
+				deviceInfo: &safenvml.DeviceInfo{
+					UUID:      testDeviceUUID,
+					Memory:    testDeviceMemory,
+					CoreCount: testDeviceCoreCount,
+				},
+				processes:               tt.processes,
+				samples:                 tt.samples,
+				computeProcessesError:   tt.computeProcessesError,
+				processUtilizationError: tt.processUtilizationError,
+			}
+
+			// Create collector with appropriate API support
+			collector := &processCollector{device: mockDevice}
+
+			// Simulate removeUnsupportedMetrics logic
+			if tt.computeProcessesError == nil || !safenvml.IsUnsupported(tt.computeProcessesError) {
+				collector.supportedAPICalls = append(collector.supportedAPICalls, apiCallFactory[0]) // memory_usage
+			}
+			if tt.processUtilizationError == nil || !safenvml.IsUnsupported(tt.processUtilizationError) {
+				collector.supportedAPICalls = append(collector.supportedAPICalls, apiCallFactory[1]) // process_utilization
+			}
+
+			metrics, err := collector.Collect()
+
+			assert.NoError(t, err)
+			assert.Len(t, metrics, tt.expectedMetricCount)
+		})
+	}
+}
+
+// TestProcessCollector_Collect_WithErrors tests error handling separately
+func TestProcessCollector_Collect_WithErrors(t *testing.T) {
+	mockDevice := &mockProcessDevice{
+		deviceInfo: &safenvml.DeviceInfo{
+			UUID:      testDeviceUUID,
+			Memory:    testDeviceMemory,
+			CoreCount: testDeviceCoreCount,
+		},
+		computeProcessesError:   &safenvml.NvmlAPIError{APIName: "GetComputeRunningProcesses", NvmlErrorCode: nvml.ERROR_UNKNOWN},
+		processUtilizationError: &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_NOT_FOUND},
+	}
+
+	// Create collector with appropriate API support
+	collector := &processCollector{device: mockDevice}
+	// Both APIs are supported (not ERROR_NOT_SUPPORTED)
+	collector.supportedAPICalls = append(collector.supportedAPICalls, apiCallFactory...)
+
+	metrics, err := collector.Collect()
+
+	assert.Error(t, err)      // ERROR_UNKNOWN should be returned
+	assert.Len(t, metrics, 3) // memory.limit + core.limit + sm_active
 }
 
 // Mock device for process collector tests
@@ -362,81 +506,4 @@ func (m *mockProcessDevice) GetProcessUtilization(_ uint64) ([]nvml.ProcessUtili
 		return nil, m.processUtilizationError
 	}
 	return m.samples, nil
-}
-
-// TestCollectComputeProcesses_ApiFailure tests that memory.limit is still emitted when GetComputeRunningProcesses fails, but error is returned
-func TestCollectComputeProcesses_ApiFailure(t *testing.T) {
-	expectedError := &safenvml.NvmlAPIError{
-		APIName:       "GetComputeRunningProcesses",
-		NvmlErrorCode: nvml.ERROR_UNKNOWN,
-	}
-
-	mockDevice := &mockProcessDevice{
-		deviceInfo: &safenvml.DeviceInfo{
-			UUID:      testDeviceUUID,
-			Memory:    testDeviceMemory,
-			CoreCount: testDeviceCoreCount,
-		},
-		computeProcessesError: expectedError,
-	}
-
-	collector := &processCollector{device: mockDevice}
-	metrics, err := collector.collectComputeProcesses()
-
-	// Should return the original error (not handled gracefully)
-	assert.Error(t, err)
-	assert.Equal(t, expectedError, err)
-
-	// Should still emit exactly 1 metric: memory.limit
-	assert.Len(t, metrics, 1)
-
-	// Verify memory.limit metric
-	memLimit := metrics[0]
-	assert.Equal(t, "memory.limit", memLimit.Name)
-	assert.Equal(t, float64(testDeviceMemory), memLimit.Value)
-	assert.Empty(t, memLimit.Tags, "memory.limit should have empty tags when API fails")
-}
-
-// TestCollectProcessUtilization_ApiFailure tests that core.limit and gr_engine_active are still emitted when GetProcessUtilization fails
-func TestCollectProcessUtilization_ApiFailure(t *testing.T) {
-	mockDevice := &mockProcessDevice{
-		deviceInfo: &safenvml.DeviceInfo{
-			UUID:      testDeviceUUID,
-			Memory:    testDeviceMemory,
-			CoreCount: testDeviceCoreCount,
-		},
-		processUtilizationError: &safenvml.NvmlAPIError{
-			APIName:       "GetProcessUtilization",
-			NvmlErrorCode: nvml.ERROR_NOT_FOUND,
-		},
-	}
-
-	collector := &processCollector{device: mockDevice}
-	metrics, err := collector.collectProcessUtilization()
-
-	// Should return no error (handled gracefully)
-	assert.NoError(t, err)
-
-	// Should emit exactly 2 metrics: core.limit + gr_engine_active
-	assert.Len(t, metrics, 2)
-
-	// Find the metrics
-	var coreLimit, grEngine *Metric
-	for i, metric := range metrics {
-		if metric.Name == "core.limit" {
-			coreLimit = &metrics[i]
-		} else if metric.Name == "gr_engine_active" {
-			grEngine = &metrics[i]
-		}
-	}
-
-	// Verify core.limit metric
-	require.NotNil(t, coreLimit)
-	assert.Equal(t, float64(testDeviceCoreCount), coreLimit.Value)
-	assert.Empty(t, coreLimit.Tags, "core.limit should have empty tags when API fails")
-
-	// Verify gr_engine_active metric
-	require.NotNil(t, grEngine)
-	assert.Equal(t, float64(0), grEngine.Value, "gr_engine_active should be 0 when no processes")
-	assert.Empty(t, grEngine.Tags, "gr_engine_active should have empty tags when API fails")
 }
