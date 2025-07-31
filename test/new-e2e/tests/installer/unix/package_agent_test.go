@@ -432,6 +432,18 @@ func (s *packageAgentSuite) TestInstallWithGroupPreviouslyCreated() {
 	assert.True(s.T(), s.host.GroupExists("dd-agent"), "dd-agent group should exist")
 }
 
+func (s *packageAgentSuite) TestInstallWithFapolicyd() {
+	if s.os != e2eos.RedHat9 {
+		s.T().Skip("fapolicyd is only supported on RedHat 9")
+	}
+	defer func() {
+		s.host.Run("sudo yum remove -y fapolicyd")
+	}()
+	s.host.Run("sudo yum install -y fapolicyd")
+
+	s.TestInstall()
+}
+
 func (s *packageAgentSuite) purgeAgentDebInstall() {
 	pkgManager := s.host.GetPkgManager()
 	switch pkgManager {
