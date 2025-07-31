@@ -49,7 +49,7 @@ func TestCollisions(t *testing.T) {
 		assert.Len(parts, 2, "Format is: metric_name,tag1 tag2 tag3")
 		metricName := parts[0]
 		tagList := parts[1]
-		tags := utilstrings.ToUnique(strings.Split(tagList, " "))
+		tags := toUnique(strings.Split(tagList, " "))
 		ck := generator.Generate(metricName, host, tagset.NewHashingTagsAccumulatorWithTags(tags))
 		if v, exists := cache[ck]; exists {
 			assert.Fail("A collision happened:", v, "and", line)
