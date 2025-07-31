@@ -1097,17 +1097,20 @@ func testOpenSSLSegfaultBehavior(t *testing.T, usmMonitor *Monitor, pythonPID ui
 	t.Log("Kernel bug detected - testing OpenSSL behavior in container (currently still enabled)")
 
 	initialPID := pythonPID
-	client := &nethttp.Client{Timeout: 5 * time.Second}
+	client := &nethttp.Client{
+		Timeout: 1 * time.Second,
+		Transport: &nethttp.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	time.Sleep(60 * time.Second)
 
 	// Make several requests to test for potential segfaults
 	for i := 0; i < 5; i++ {
 		url := fmt.Sprintf("https://localhost:%s/status/200", serverPort)
 		req, err := nethttp.NewRequest("GET", url, nil)
 		require.NoError(t, err)
-
-		client.Transport = &nethttp.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
 
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -1133,14 +1136,14 @@ func testOpenSSLSegfaultBehavior(t *testing.T, usmMonitor *Monitor, pythonPID ui
 		return initialPID == uint32(finalPID)
 	}, 2*time.Second, 100*time.Millisecond, "Python/OpenSSL process should still be running (no segfault)")
 
-	// Since OpenSSL monitoring is currently not disabled when kernel bug exists,
-	// we expect to see HTTP stats (unlike NodeJS which is properly disabled)
-	assert.Eventually(t, func() bool {
+	// Verify that OpenSSL TLS monitoring is disabled by checking that no HTTP stats are collected
+	// We allow up to 2 seconds for any potential stats to appear, but expect none
+	assert.Never(t, func() bool {
 		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
 		return len(stats) > 0
-	}, 3*time.Second, 100*time.Millisecond, "OpenSSL TLS monitoring should be active (not disabled like NodeJS)")
+	}, 2*time.Second, 100*time.Millisecond, "OpenSSL TLS monitoring should be disabled when kernel bug exists")
 
-	t.Log("OpenSSL in container did not cause segfault - monitoring remained active")
+	t.Log("Successfully verified OpenSSL monitoring is disabled and no segfault occurred")
 }
 
 func testOpenSSLNormalMonitoring(t *testing.T, usmMonitor *Monitor, pythonPID uint32, serverPort string, expectedOccurrences int) {
