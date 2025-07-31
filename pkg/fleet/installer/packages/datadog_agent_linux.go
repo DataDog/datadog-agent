@@ -145,12 +145,12 @@ func installFilesystem(ctx HookContext) (err error) {
 	}
 
 	// 4. Set up SELinux permissions
-	if err = selinux.SetAgentPermissions("/etc/datadog-agent", ctx.PackagePath); err != nil {
+	if err = selinux.SetAgentPermissions(ctx, "/etc/datadog-agent", ctx.PackagePath); err != nil {
 		log.Warnf("failed to set SELinux permissions: %v", err)
 	}
 
 	// 5. Handle install info
-	if err = installinfo.WriteInstallInfo(string(ctx.PackageType)); err != nil {
+	if err = installinfo.WriteInstallInfo(ctx, string(ctx.PackageType)); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
 	return nil
