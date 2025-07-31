@@ -8,15 +8,17 @@
 package nvidia
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type apiCallInfo struct {
@@ -51,7 +53,8 @@ type processCollector struct {
 }
 
 func newProcessCollector(device ddnvml.Device) (Collector, error) {
-	c := &processCollector{device: device}
+	c := &processCollector{device: device,
+		lastTimestamp: uint64(time.Now().Unix())}
 
 	c.removeUnsupportedMetrics()
 	if len(c.supportedAPICalls) == 0 {
@@ -101,77 +104,116 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 	var allPidTags []string
 
 	procs, err := c.device.GetComputeRunningProcesses()
-	// we don't check for error here, as the loop simply will be skipped.
-	for _, proc := range procs {
-		pidTag := fmt.Sprintf("pid:%d", proc.Pid)
-		// Only emit memory.usage per process
-		processMetrics = append(processMetrics,
-			Metric{Name: "memory.usage", Value: float64(proc.UsedGpuMemory), Type: metrics.GaugeType, Priority: 10, Tags: []string{pidTag}},
-		)
-		// Collect PID tags for aggregated limit metrics
-		allPidTags = append(allPidTags, pidTag)
+	log.Debugf("GetComputeRunningProcesses returned %d processes with error: %v", len(procs), err)
+	if err == nil {
+		// we don't check for error here, as the loop simply will be skipped.
+		for _, proc := range procs {
+			pidTag := fmt.Sprintf("pid:%d", proc.Pid)
+			// Only emit memory.usage per process
+			processMetrics = append(processMetrics,
+				Metric{
+					Name:     "memory.usage",
+					Value:    float64(proc.UsedGpuMemory),
+					Type:     metrics.GaugeType,
+					Priority: 10,
+					Tags:     []string{pidTag},
+				},
+			)
+			// Collect PID tags for aggregated limit metrics
+			allPidTags = append(allPidTags, pidTag)
+		}
+		// Debug logging to investigate unexpected memory.usage metrics
+		if procsJson, err := json.Marshal(procs); err == nil {
+			log.Debugf("GPU compute processes: %s", string(procsJson))
+		}
+		// Debug logging to investigate unexpected memory.usage metrics
+		if metricsJson, err := json.Marshal(processMetrics); err == nil {
+			log.Debugf("GPU memory usage metrics: %s", string(metricsJson))
+		}
 	}
-
 	devInfo := c.device.GetDeviceInfo()
 	processMetrics = append(processMetrics,
-		Metric{Name: "memory.limit", Value: float64(devInfo.Memory), Type: metrics.GaugeType, Priority: 10, Tags: allPidTags},
+		Metric{
+			Name:     "memory.limit",
+			Value:    float64(devInfo.Memory),
+			Type:     metrics.GaugeType,
+			Priority: 10,
+			Tags:     allPidTags,
+		},
 	)
 
 	return processMetrics, err // Return the original error if there was one
 }
 
-func (c *processCollector) collectProcessUtilization() (utilizationMetrics []Metric, err error) {
+func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 	var allPidTags []string
-	var totalSmUtil, maxSmUtil float64
+	var allMetrics []Metric
+	var err error
 
-	coreCount := c.device.GetDeviceInfo().CoreCount
-
-	// Defer function to ensure global metrics are always emitted
-	defer func() {
-		// Calculate sm_active using median approach: median(max, min(sum, 100))
-		cappedSum := math.Min(totalSmUtil, 100.0)
-		smActive := (maxSmUtil + cappedSum) / 2.0
-
-		utilizationMetrics = append(utilizationMetrics,
-			Metric{Name: "core.limit", Value: float64(coreCount), Type: metrics.GaugeType, Tags: allPidTags},
-			Metric{Name: "sm_active", Value: smActive, Type: metrics.GaugeType},
-		)
-	}()
-
+	// Record timestamp before API call to ensure accurate sampling window
+	currentTimestamp := uint64(time.Now().Unix())
 	processSamples, err := c.device.GetProcessUtilization(c.lastTimestamp)
+	log.Debugf("GetProcessUtilization returned %d samples with error: %v", len(processSamples), err)
+	// Update timestamp regardless of whether processes are found
+	c.lastTimestamp = currentTimestamp
+
+	// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
 	if err != nil {
 		var nvmlErr *ddnvml.NvmlAPIError
-		// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
 		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
 			err = nil // Clear the error for NOT_FOUND case
 		}
-		return // Return with either nil (NOT_FOUND) or original error (other cases)
-	}
-	for _, sample := range processSamples {
-		pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
-		smUtil := float64(sample.SmUtil)
+	} else {
+		for _, sample := range processSamples {
+			pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
 
-		utilizationMetrics = append(utilizationMetrics,
-			Metric{Name: "process.sm_active", Value: smUtil, Type: metrics.GaugeType, Tags: pidTag},
-			Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: metrics.GaugeType, Tags: pidTag},
-			Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: metrics.GaugeType, Tags: pidTag},
-			Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: metrics.GaugeType, Tags: pidTag},
-		)
+			allMetrics = append(allMetrics,
+				Metric{
+					Name:  "process.sm_active",
+					Value: float64(sample.SmUtil),
+					Type:  metrics.GaugeType,
+					Tags:  pidTag,
+				},
+				Metric{
+					Name:  "process.dram_active",
+					Value: float64(sample.MemUtil),
+					Type:  metrics.GaugeType,
+					Tags:  pidTag,
+				},
+				Metric{
+					Name:  "process.encoder_utilization",
+					Value: float64(sample.EncUtil),
+					Type:  metrics.GaugeType,
+					Tags:  pidTag,
+				},
+				Metric{
+					Name:  "process.decoder_utilization",
+					Value: float64(sample.DecUtil),
+					Type:  metrics.GaugeType,
+					Tags:  pidTag,
+				},
+			)
 
-		// Collect PID tags for aggregated metrics
-		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
-
-		// Track sm_active calculation variables
-		totalSmUtil += smUtil
-		if smUtil > maxSmUtil {
-			maxSmUtil = smUtil
+			// Collect PID tags for aggregated metrics
+			allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
+		}
+		// Debug logging to investigate unexpected process.sm_active metrics
+		if processSamplesJSON, err := json.Marshal(processSamples); err == nil {
+			log.Debugf("GPU process samples: %s", string(processSamplesJSON))
+		}
+		if allMetricsJSON, err := json.Marshal(allMetrics); err == nil {
+			log.Debugf("GPU process metrics: %s", string(allMetricsJSON))
 		}
 
-		//update the last timestamp if the current sample's timestamp is greater
-		if sample.TimeStamp > c.lastTimestamp {
-			c.lastTimestamp = sample.TimeStamp
-		}
 	}
+	allMetrics = append(allMetrics,
+		Metric{
+			Name:  "core.limit",
+			Value: float64(c.device.GetDeviceInfo().CoreCount),
+			Type:  metrics.GaugeType,
+			Tags:  allPidTags,
+		},
+	)
 
-	return
+	return allMetrics, err
 }
