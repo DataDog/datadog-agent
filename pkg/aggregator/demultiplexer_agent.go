@@ -172,6 +172,7 @@ func initAgentDemultiplexer(log log.Component,
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
 
 	statsdWorkers := make([]*timeSamplerWorker, statsdPipelinesCount)
+	flushCoatlist := newCOATBlocklist()
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
@@ -182,7 +183,7 @@ func initAgentDemultiplexer(log log.Component,
 		// its worker (process loop + flush/serialization mechanism)
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
-			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore)
+			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore, &flushCoatlist)
 	}
 
 	var noAggWorker *noAggregationStreamWorker

@@ -33,6 +33,8 @@ type timeSamplerWorker struct {
 	// process, such as histograms which create several metrics.
 	flushBlocklist *utilstrings.Blocklist
 
+	flushCoatlist *utilstrings.Blocklist
+
 	// parallel serialization configuration
 	parallelSerialization FlushAndSerializeInParallel
 
@@ -59,12 +61,16 @@ type dumpTrigger struct {
 
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
-	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
+	parallelSerialization FlushAndSerializeInParallel,
+	tagsStore *tags.Store,
+	flushCoatlist *utilstrings.Blocklist,
+) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
 		metricSamplePool:      metricSamplePool,
 		parallelSerialization: parallelSerialization,
+		flushCoatlist:         flushCoatlist,
 
 		flushInterval: flushInterval,
 
@@ -116,7 +122,7 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist, trigger.forceFlushAll)
+	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist, w.flushCoatlist, trigger.forceFlushAll)
 	trigger.blockChan <- struct{}{}
 }
 

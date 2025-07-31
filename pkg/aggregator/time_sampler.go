@@ -126,7 +126,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, blocklist *utilstrings.Blocklist, forceFlushAll bool) {
+func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, blocklist *utilstrings.Blocklist, coatlist *utilstrings.Blocklist, forceFlushAll bool) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
 
@@ -158,7 +158,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, bl
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
 		// Note: rawSeries is reused at each call
-		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, blocklist)
+		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, blocklist, coatlist)
 	})
 }
 
@@ -167,6 +167,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	serieSink metrics.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie,
 	blocklist *utilstrings.Blocklist,
+	coatlist *utilstrings.Blocklist,
 ) {
 	// clear the map. Reuse serieBySignature
 	for k := range serieBySignature {
@@ -205,6 +206,11 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 			tlmDogstatsdBlockedMetrics.Inc()
 			continue
 		}
+
+		if coatlist != nil && coatlist.Test(serie.Name) {
+			// Add to internal telemetry.
+			addToAgentTelemetry(serie)
+		}
 		serieSink.Append(serie)
 	}
 }
@@ -233,11 +239,11 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, blocklist *utilstrings.Blocklist, forceFlushAll bool) {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, blocklist *utilstrings.Blocklist, coatlist *utilstrings.Blocklist, forceFlushAll bool) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
-	s.flushSeries(cutoffTime, series, blocklist, forceFlushAll)
+	s.flushSeries(cutoffTime, series, blocklist, coatlist, forceFlushAll)
 	s.flushSketches(cutoffTime, sketches, forceFlushAll)
 	// expiring contexts
 	s.contextResolver.expireContexts(int64(timestamp))
