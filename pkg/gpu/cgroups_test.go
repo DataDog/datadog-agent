@@ -344,7 +344,14 @@ func TestGetAbsoluteCgroupV2ForProcessInsideContainer(t *testing.T) {
 	childCgroupPath := filepath.Join(parentCgroupName, childCgroupName)
 	childCgroupFullPath := filepath.Join(hostCgroupFs, childCgroupPath)
 	require.NoError(t, os.MkdirAll(childCgroupFullPath, 0755))
-	require.NoError(t, unix.Mount(containerCgroupFs, childCgroupFullPath, "bind", unix.MS_BIND, ""))
+	err := unix.Mount(containerCgroupFs, childCgroupFullPath, "bind", unix.MS_BIND, "")
+	// If we get permission denied when trying a bind mount inside our temporary directory,
+	// it probably means we're running in a container and the bind mount is not allowed.
+	if errors.Is(err, unix.EPERM) || errors.Is(err, unix.EACCES) {
+		t.Skip("Test requires privileges to bind mount our test directories")
+	}
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		require.NoError(t, unix.Unmount(childCgroupFullPath, unix.MNT_DETACH))
 	})
