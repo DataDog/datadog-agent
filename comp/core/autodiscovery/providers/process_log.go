@@ -100,10 +100,6 @@ func (p *processLogConfigProvider) Stream(ctx context.Context) <-chan integratio
 	return outCh
 }
 
-func (p *processLogConfigProvider) generateServiceLogKey(logPath string) string {
-	return strings.ReplaceAll(logPath, "/", "_")
-}
-
 func (p *processLogConfigProvider) processEvents(evBundle workloadmeta.EventBundle) integration.ConfigChanges {
 	return p.processEventsInner(evBundle, true)
 }
@@ -196,10 +192,9 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 
 			newServiceIDs := []string{}
 			for _, logFile := range process.Service.LogFiles {
-				serviceLogKey := p.generateServiceLogKey(logFile)
-				newServiceIDs = append(newServiceIDs, serviceLogKey)
+				newServiceIDs = append(newServiceIDs, logFile)
 
-				if ref, exists := p.serviceLogRefs[serviceLogKey]; exists {
+				if ref, exists := p.serviceLogRefs[logFile]; exists {
 					ref.refCount++
 				} else {
 					if verifyReadable && !p.isFileReadable(logFile) {
@@ -209,13 +204,13 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 					log.Infof("Discovered log file %s", logFile)
 
 					// Create new config and reference
-					config, err := p.buildConfig(process, logFile, serviceLogKey)
+					config, err := p.buildConfig(process, logFile)
 					if err != nil {
 						log.Warnf("could not build log config for process %s and file %s: %v", process.EntityID, logFile, err)
 						continue
 					}
 
-					p.serviceLogRefs[serviceLogKey] = &serviceLogRef{
+					p.serviceLogRefs[logFile] = &serviceLogRef{
 						refCount: 1,
 						config:   config,
 					}
@@ -297,7 +292,7 @@ func getSource(service *workloadmeta.Service) string {
 	return source
 }
 
-func (p *processLogConfigProvider) buildConfig(process *workloadmeta.Process, logFile, serviceLogKey string) (integration.Config, error) {
+func (p *processLogConfigProvider) buildConfig(process *workloadmeta.Process, logFile string) (integration.Config, error) {
 	name := getServiceName(process.Service)
 	source := getSource(process.Service)
 
@@ -318,7 +313,7 @@ func (p *processLogConfigProvider) buildConfig(process *workloadmeta.Process, lo
 		LogsConfig: data,
 		Provider:   names.ProcessLog,
 		Source:     "process-log:" + name,
-		ServiceID:  fmt.Sprintf("%s://%s", names.ProcessLog, serviceLogKey),
+		ServiceID:  fmt.Sprintf("%s://%s", names.ProcessLog, logFile),
 	}, nil
 }
 

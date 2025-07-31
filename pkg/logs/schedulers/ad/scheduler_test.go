@@ -224,7 +224,7 @@ func TestProcessLogPriorityOverManualConfig(t *testing.T) {
 		LogsConfig: []byte(`[{"type":"file","path":"/var/log/app.log","service":"process-service"}]`),
 		Provider:   names.ProcessLog,
 		Name:       "process-config",
-		ServiceID:  fmt.Sprintf("%s://test-service:/var_log_app.log", names.ProcessLog),
+		ServiceID:  fmt.Sprintf("%s:///var/log/app.log", names.ProcessLog),
 	}
 
 	// Clear events for the next test
@@ -245,7 +245,7 @@ func TestProcessLogConfigAllowedWhenNoConflict(t *testing.T) {
 		LogsConfig: []byte(`[{"type":"file","path":"/var/log/process.log","service":"process-service"}]`),
 		Provider:   names.ProcessLog,
 		Name:       "process-config",
-		ServiceID:  fmt.Sprintf("%s://test-service:/var_log_process.log", names.ProcessLog),
+		ServiceID:  fmt.Sprintf("%s:///var/log/process.log", names.ProcessLog),
 	}
 
 	// Schedule the process_log config

@@ -314,10 +314,10 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 	assert.Len(t, changes.Unschedule, 0)
 	config := changes.Schedule[0]
 	assert.Equal(t, "process-test-service-_var_log_test.log", config.Name)
-	assert.Equal(t, fmt.Sprintf("%s://_var_log_test.log", names.ProcessLog), config.ServiceID)
+	assert.Equal(t, fmt.Sprintf("%s:///var/log/test.log", names.ProcessLog), config.ServiceID)
 
 	// Verify reference count is 1
-	serviceLogKey := p.generateServiceLogKey("/var/log/test.log")
+	serviceLogKey := "/var/log/test.log"
 	ref, exists := p.serviceLogRefs[serviceLogKey]
 	assert.True(t, exists)
 	assert.Equal(t, 1, ref.refCount)
@@ -544,9 +544,9 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 	assert.Contains(t, string(config3.LogsConfig), "/var/log/test3.log")
 
 	// Verify reference counts are correct
-	key1 := p.generateServiceLogKey("/var/log/test1.log")
-	key2 := p.generateServiceLogKey("/var/log/test2.log")
-	key3 := p.generateServiceLogKey("/var/log/test3.log")
+	key1 := "/var/log/test1.log"
+	key2 := "/var/log/test2.log"
+	key3 := "/var/log/test3.log"
 
 	// Old key should not exist
 	assert.NotContains(t, p.serviceLogRefs, key1)
