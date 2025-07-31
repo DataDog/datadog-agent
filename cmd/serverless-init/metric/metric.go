@@ -7,50 +7,27 @@
 package metric
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
-// AddShutdownMetric adds the shutdown metric to the demultiplexer
-//
-//nolint:revive // TODO(SERV) Fix revive linter
-func AddShutdownMetric(metricPrefix string, origin string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	Add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), origin, tags, time.Now(), demux)
-}
-
-func Add(name string, origin string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
-	if demux == nil {
+func Add(name string, value float64, source metrics.MetricSource, agent serverlessMetrics.ServerlessMetricAgent) {
+	if agent.Demux == nil {
 		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
 		return
 	}
-	metricTimestamp := float64(timestamp.UnixNano()) / float64(time.Second)
-	demux.AggregateSample(metrics.MetricSample{
+	metricTimestamp := float64(time.Now().UnixNano()) / float64(time.Second)
+	agent.Demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
-		Value:      1.0,
+		Value:      value,
 		Mtype:      metrics.DistributionType,
-		Tags:       utilstrings.ToUnique(tags),
+		Tags:       utilstrings.ToUnique(agent.GetExtraTags()),
 		SampleRate: 1,
 		Timestamp:  metricTimestamp,
-		Source:     originToMetricSource(origin),
+		Source:     source,
 	})
-}
-
-func originToMetricSource(origin string) metrics.MetricSource {
-	switch origin {
-	case cloudservice.CloudRunOrigin:
-		return metrics.MetricSourceGoogleCloudRunEnhanced
-	case cloudservice.AppServiceOrigin:
-		return metrics.MetricSourceAzureAppServiceEnhanced
-	case cloudservice.ContainerAppOrigin:
-		return metrics.MetricSourceAzureContainerAppEnhanced
-	default:
-		return metrics.MetricSourceServerless
-	}
-
 }
