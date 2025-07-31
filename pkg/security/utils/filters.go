@@ -8,10 +8,11 @@ package utils
 
 import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // NewContainerFilter returns a new include/exclude filter for containers from runtime security
 func NewContainerFilter() (*containers.Filter, error) {
-	return containers.NewContainerFilter(pkgconfigsetup.SystemProbe(), "runtime_security_config.")
+	return common.NewContainerFilter(pkgconfigsetup.SystemProbe(), "runtime_security_config.")
 }

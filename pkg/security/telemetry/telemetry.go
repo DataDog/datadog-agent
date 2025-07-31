@@ -12,6 +12,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -26,7 +27,7 @@ type ContainersTelemetry struct {
 
 // NewContainersTelemetry returns a new ContainersTelemetry based on default/global objects
 func NewContainersTelemetry(telemetrySender SimpleTelemetrySender, wmeta workloadmeta.Component, cfg model.Config, prefix string) (*ContainersTelemetry, error) {
-	containerFilter, err := containers.NewContainerFilter(cfg, prefix)
+	containerFilter, err := common.NewContainerFilter(cfg, prefix)
 	if err != nil {
 		return nil, err
 	}
