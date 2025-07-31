@@ -38,10 +38,9 @@ func TestFIPSCiphersClusterAgentSuite(t *testing.T) {
 	require.NotEmpty(t, os.Getenv("E2E_COMMIT_SHA"), "E2E_COMMIT_SHA must be set")
 	require.NotEmpty(t, os.Getenv("E2E_PIPELINE_ID"), "E2E_PIPELINE_ID must be set")
 
-	// Build the FIPS cluster agent image path following the same logic as dockerClusterAgentFullImagePath
-	pipelineID := os.Getenv("E2E_PIPELINE_ID")
-	commitSHA := os.Getenv("E2E_COMMIT_SHA")
-	clusterAgentImage := fmt.Sprintf("669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:%s-%s-fips", pipelineID, commitSHA)
+	// Note: The cluster agent image path is automatically configured by the e2e framework
+	// via the ddagent:clusterAgentFullImagePath parameter set in new_e2e_tests.py.
+	// The actual image used will be retrieved from the running container in SetupSuite.
 
 	e2e.Run(
 		t,
@@ -51,9 +50,8 @@ func TestFIPSCiphersClusterAgentSuite(t *testing.T) {
 				awsdocker.WithAgentOptions(
 					dockeragentparams.WithFIPS(),
 					dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(strings.ReplaceAll(clusterAgentDockerCompose, "{APPS_VERSION}", apps.Version))),
-					dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
-						"CLUSTER_AGENT_IMAGE": pulumi.String(clusterAgentImage),
-					}),
+					// Note: CLUSTER_AGENT_IMAGE environment variable will be set dynamically
+					// in the test methods using the actual deployed cluster agent image
 				),
 			),
 		),
@@ -82,7 +80,6 @@ func (s *fipsServerClusterAgentSuite) SetupSuite() {
 	s.generateTestTraffic = func() {
 		// Use cluster agent diagnose to test connectivity to Datadog core endpoints
 		// This triggers TLS connections using the cluster agent's Go-Boring implementation
-		// Perfect for testing FIPS cipher compliance against the FIPS server
 		// Note: We bypass the default entrypoint to avoid Kubernetes API dependencies
 
 		// Include CLUSTER_AGENT_IMAGE environment variable to avoid compose parsing errors
