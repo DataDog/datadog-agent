@@ -649,10 +649,84 @@ probes:
   where:
     methodName: main.testInlinedPrint
   captureSnapshot: true
-- id: testInlinedBBC
+  sampling:
+    snapshotsPerSecond: 10
+- id: testInlinedSumArray
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedSumArray
+  captureSnapshot: true
+  sampling:
+    snapshotsPerSecond: 10
+- id: testInlinedSq
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedSq
+  captureSnapshot: true
+- id: testInlinedBA
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedBA
+  captureSnapshot: true
+- id: testInlinedBB
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedBB
+  captureSnapshot: true
+- id: testInlinedBBA
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedBBA
+  captureSnapshot: true
+- id: testInlinedBBB
   type: LOG_PROBE
   tags:
     - "foo:bar"
   where:
     methodName: main.testInlinedBBB
+  captureSnapshot: true
+- id: testInlinedBC
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedBC
+  captureSnapshot: true
+- id: testInlinedBCA
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedBCA
+  captureSnapshot: true
+- id: testInlinedBCB
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedBCB
+  captureSnapshot: true
+- id: testFrameless
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testFrameless
+  captureSnapshot: true
+- id: testFramelessArray
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testFramelessArray
   captureSnapshot: true
