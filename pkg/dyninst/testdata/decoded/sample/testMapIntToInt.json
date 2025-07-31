@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testMapStringToInt",
+      "method": "main.testMapIntToInt",
       "version": 0,
       "thread_id": 0,
       "thread_name": ""
@@ -16,22 +16,22 @@
         "language": "go",
         "stack": "[stack-unredact-me]",
         "probe": {
-          "id": "testMapStringToInt",
+          "id": "testMapIntToInt",
           "location": {
-            "method": "main.testMapStringToInt"
+            "method": "main.testMapIntToInt"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
               "m": {
-                "type": "map[string]int",
+                "type": "map[int]int",
                 "size": "10",
                 "entries": [
                   [
                     {
-                      "type": "string",
-                      "value": "AAA"
+                      "type": "int",
+                      "value": "1"
                     },
                     {
                       "type": "int",
@@ -40,8 +40,18 @@
                   ],
                   [
                     {
-                      "type": "string",
-                      "value": "BBB"
+                      "type": "int",
+                      "value": "10"
+                    },
+                    {
+                      "type": "int",
+                      "value": "10"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "2"
                     },
                     {
                       "type": "int",
@@ -50,8 +60,8 @@
                   ],
                   [
                     {
-                      "type": "string",
-                      "value": "CCC"
+                      "type": "int",
+                      "value": "3"
                     },
                     {
                       "type": "int",
@@ -60,8 +70,8 @@
                   ],
                   [
                     {
-                      "type": "string",
-                      "value": "DDD"
+                      "type": "int",
+                      "value": "4"
                     },
                     {
                       "type": "int",
@@ -70,8 +80,8 @@
                   ],
                   [
                     {
-                      "type": "string",
-                      "value": "EEE"
+                      "type": "int",
+                      "value": "5"
                     },
                     {
                       "type": "int",
@@ -80,8 +90,8 @@
                   ],
                   [
                     {
-                      "type": "string",
-                      "value": "FFF"
+                      "type": "int",
+                      "value": "6"
                     },
                     {
                       "type": "int",
@@ -90,8 +100,8 @@
                   ],
                   [
                     {
-                      "type": "string",
-                      "value": "GGG"
+                      "type": "int",
+                      "value": "7"
                     },
                     {
                       "type": "int",
@@ -100,8 +110,8 @@
                   ],
                   [
                     {
-                      "type": "string",
-                      "value": "HHH"
+                      "type": "int",
+                      "value": "8"
                     },
                     {
                       "type": "int",
@@ -110,22 +120,12 @@
                   ],
                   [
                     {
-                      "type": "string",
-                      "value": "III"
+                      "type": "int",
+                      "value": "9"
                     },
                     {
                       "type": "int",
                       "value": "9"
-                    }
-                  ],
-                  [
-                    {
-                      "type": "string",
-                      "value": "JJJ"
-                    },
-                    {
-                      "type": "int",
-                      "value": "10"
                     }
                   ]
                 ]

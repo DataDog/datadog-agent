@@ -1,10 +1,10 @@
 [
   {
-    "service": "simple",
+    "service": "sample",
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.mapArg",
+      "method": "main.testSmallMap",
       "version": 0,
       "thread_id": 0,
       "thread_name": ""
@@ -16,9 +16,9 @@
         "language": "go",
         "stack": "[stack-unredact-me]",
         "probe": {
-          "id": "mapArg",
+          "id": "testSmallMap",
           "location": {
-            "method": "main.mapArg"
+            "method": "main.testSmallMap"
           }
         },
         "captures": {
@@ -26,16 +26,26 @@
             "arguments": {
               "m": {
                 "type": "map[string]int",
-                "size": "1",
+                "size": "2",
                 "entries": [
                   [
                     {
                       "type": "string",
-                      "value": "a"
+                      "value": "AAA"
                     },
                     {
                       "type": "int",
                       "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "BBB"
+                    },
+                    {
+                      "type": "int",
+                      "value": "2"
                     }
                   ]
                 ]
