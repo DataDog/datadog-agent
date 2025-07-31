@@ -89,7 +89,7 @@ func (c *SharedLibraryCheck) ConfigSource() string {
 }
 
 // Configure the shared library check from YAML data
-func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, _source string) error {
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
 	commonOptions := integration.CommonInstanceConfig{}

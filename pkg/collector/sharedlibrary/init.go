@@ -45,6 +45,6 @@ func init() {
 	}
 }
 
-// InitSharedLibrary initializes the shared library rtloader environment.
-// don't do anything because it needs refactoring a RTLoader first
+// InitSharedLibrary initializes the shared library RTLoader environment
+// will later be useful to setup callbacks in RTLoader if they aren't setup yet
 func InitSharedLibrary() {}
