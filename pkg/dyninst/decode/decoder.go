@@ -10,7 +10,6 @@ package decode
 import (
 	"errors"
 	"fmt"
-	"io"
 	"runtime/debug"
 	"time"
 
@@ -18,11 +17,19 @@ import (
 	"github.com/google/uuid"
 	pkgerrors "github.com/pkg/errors"
 
+	"golang.org/x/time/rate"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 )
+
+// We don't want to be too noisy about symbolication errors, but we do want to learn
+// about them and we don't want to bail out completely.
+var symbolicateErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 type probeEvent struct {
 	event *ir.Event
@@ -124,8 +131,8 @@ type typeAndAddr struct {
 func (d *Decoder) Decode(
 	event Event,
 	symbolicator symbol.Symbolicator,
-	out io.Writer,
-) (probe ir.ProbeDefinition, err error) {
+	output []byte,
+) (b []byte, probe ir.ProbeDefinition, err error) {
 	defer d.resetForNextMessage()
 	defer func() {
 		r := recover()
@@ -139,13 +146,13 @@ func (d *Decoder) Decode(
 	}()
 	probe, err = d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	err = json.MarshalWrite(out, &d.snapshotMessage)
+	output, err = json.Marshal(&d.snapshotMessage)
 	if err != nil {
 		err = fmt.Errorf("error marshaling snapshot message: %w", err)
 	}
-	return probe, err
+	return output, probe, err
 }
 
 func (d *Decoder) resetForNextMessage() {
@@ -181,7 +188,7 @@ func (s *snapshotMessage) init(
 		ID:       uuid.New(),
 		Language: "go",
 	}
-
+	s.Debugger.EvaluationErrors = []string{}
 	var rootType *ir.EventRootType
 	var probe ir.ProbeDefinition
 
@@ -216,14 +223,9 @@ func (s *snapshotMessage) init(
 			addr:   item.Header().Address,
 		}] = item
 	}
-
 	if rootType == nil {
 		return probe, errors.New("no root type found")
 	}
-	var (
-		pcs []uint64
-		err error
-	)
 	header, err := event.Event.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
@@ -234,17 +236,20 @@ func (s *snapshotMessage) init(
 
 	stackFrames, ok := decoder.stackFrames[header.Stack_hash]
 	if !ok {
-		pcs, err = event.StackPCs()
+		stackFrames, err = symbolicate(event, header.Stack_hash, symbolicator)
 		if err != nil {
-			return probe, fmt.Errorf("error getting stack pcs %w", err)
+			if symbolicateErrorLogLimiter.Allow() {
+				log.Errorf("error symbolicating stack: %v", err)
+			} else {
+				log.Tracef("error symbolicating stack: %v", err)
+			}
+			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+				fmt.Sprintf("error symbolicating stack: %v", err),
+			)
+		} else {
+			decoder.stackFrames[header.Stack_hash] = stackFrames
 		}
-		stackFrames, err = symbolicator.Symbolicate(pcs, header.Stack_hash)
-		if err != nil {
-			return probe, fmt.Errorf("error symbolicating stack %w", err)
-		}
-		decoder.stackFrames[header.Stack_hash] = stackFrames
 	}
-
 	switch where := probe.GetWhere().(type) {
 	case ir.FunctionWhere:
 		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
@@ -260,10 +265,26 @@ func (s *snapshotMessage) init(
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
-		event:    event,
-		rootType: rootType,
-		rootData: s.rootData,
-		decoder:  decoder,
+		event:        event,
+		rootType:     rootType,
+		rootData:     s.rootData,
+		decoder:      decoder,
+		debuggerData: &s.Debugger,
 	}
 	return probe, nil
+}
+
+func symbolicate(event Event, stackHash uint64, symbolicator symbol.Symbolicator) ([]symbol.StackFrame, error) {
+	pcs, err := event.StackPCs()
+	if err != nil {
+		return nil, fmt.Errorf("error getting stack pcs %w", err)
+	}
+	if len(pcs) == 0 {
+		return nil, errors.New("no stack pcs found")
+	}
+	stackFrames, err := symbolicator.Symbolicate(pcs, stackHash)
+	if err != nil {
+		return nil, fmt.Errorf("error symbolicating stack %w", err)
+	}
+	return stackFrames, nil
 }
