@@ -8,6 +8,7 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -96,6 +97,13 @@ func (d *Decoder) Decode(
 		return nil, err
 	}
 	defer d.snapshotMessage.clear()
+	b := []byte{}
+	buf := bytes.NewBuffer(b)
+	err = json.MarshalWrite(buf, &d.snapshotMessage.Debugger.Snapshot.Captures.Entry.ArgumentsData)
+	if err != nil {
+		return nil, err
+	}
+	d.snapshotMessage.Debugger.Snapshot.Captures.Entry.Arguments = buf.Bytes()
 	err = json.MarshalWrite(out, &d.snapshotMessage)
 	return probe, err
 }
@@ -206,7 +214,7 @@ func (s *snapshotMessage) init(
 	s.Logger.Version = probe.GetVersion()
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
-	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
+	s.Debugger.Snapshot.Captures.Entry.ArgumentsData = argumentsData{
 		event:    event,
 		rootType: rootType,
 		rootData: s.rootData,
