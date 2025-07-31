@@ -415,7 +415,7 @@ func validateAndSaveOutputs(
 				t,
 				string(prev),
 				string(marshaled),
-				"inconsistent output for probe %s in test %s and %s: %s != %s",
+				"inconsistent output for probe %s in test %s and %s",
 				id, testName, strings.Join(otherTestNames, ", "),
 			)
 		}

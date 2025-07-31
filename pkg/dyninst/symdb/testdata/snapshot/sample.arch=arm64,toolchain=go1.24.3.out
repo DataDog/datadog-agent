@@ -355,8 +355,11 @@ Package: main
 		Arg: xs: []uint16 (declared at line 61, available: [61-61])
 	Function: testVeryLargeSlice (main.testVeryLargeSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [65:65]
 		Arg: xs: []uint (declared at line 65, available: [65-65])
-	Function: executeSliceFuncs (main.executeSliceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [68:88]
+	Function: executeSliceFuncs (main.executeSliceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [68:92]
 		Var: originalSlice: []int (declared at line 69, available: )
+		Var: s: []uint (declared at line 78, available: )
+		Scope: 79-82
+			Var: i: int (declared at line 79, available: [82-82])
 	Function: stackA (main.stackA) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [12:14]
 	Function: stackB (main.stackB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [18:20]
 	Function: stackC (main.stackC) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [24:25]
