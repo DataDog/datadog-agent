@@ -31,6 +31,11 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	log.Tracef("Executing Versa api request %s %s", req.Method, req.URL.Path)
 	resp, err := client.httpClient.Do(req)
 	if err != nil {
+		if resp != nil {
+			log.Tracef("Error executing Versa api request %d %s %s: Error: %v", resp.StatusCode, req.Method, req.URL.Path, err)
+		} else {
+			log.Tracef("Error executing Versa api request - %s %s: Error: %v", req.Method, req.URL.Path, err)
+		}
 		return nil, 0, err
 	}
 	log.Tracef("Executed Versa api request %d %s %s", resp.StatusCode, req.Method, req.URL.Path)
@@ -79,6 +84,7 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 
 	var bytes []byte
 	var statusCode int
+	var lastErr error
 
 	for attempts := 0; attempts < client.maxAttempts; attempts++ {
 		// TODO: uncomment when OAuth is implemented
@@ -96,10 +102,11 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 			// Got a valid response, stop retrying
 			return bytes, nil
 		}
+		lastErr = err
 	}
 
-	log.Tracef("%d error code hitting endpoint %q response: %s", statusCode, endpoint, string(bytes))
-	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
+	log.Tracef("%d error code hitting endpoint %q response: %q, error: %v", statusCode, endpoint, string(bytes), lastErr)
+	return nil, fmt.Errorf("%s http responded with %d code and error %v", endpoint, statusCode, lastErr)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
