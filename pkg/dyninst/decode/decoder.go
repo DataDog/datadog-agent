@@ -11,17 +11,22 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/go-json-experiment/json"
 	"github.com/google/uuid"
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// We don't want to be too noisy about symbolication errors, but we do want to learn
+// about them and we don't want to bail out completely.
+var symbolicateErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 type probeEvent struct {
 	event *ir.Event
@@ -123,21 +128,16 @@ type typeAndAddr struct {
 func (d *Decoder) Decode(
 	event Event,
 	symbolicator symbol.Symbolicator,
-	out io.Writer,
-) (probe ir.ProbeDefinition, err error) {
+	output []byte,
+) ([]byte, ir.ProbeDefinition, error) {
 	defer d.resetForNextMessage()
-	probe, err = d.snapshotMessage.init(d, event, symbolicator)
+	probe, err := d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	err = json.MarshalWrite(out, &d.snapshotMessage)
-	if err != nil {
-		t, ok := out.(*bytes.Buffer)
-		if ok {
-			err = fmt.Errorf("error marshaling snapshot message: %w %q", err, t.String())
-		}
-	}
-	return probe, err
+	buf := bytes.NewBuffer(output)
+	err = json.MarshalWrite(buf, &d.snapshotMessage)
+	return buf.Bytes(), probe, err
 }
 
 func (d *Decoder) resetForNextMessage() {
@@ -173,7 +173,7 @@ func (s *snapshotMessage) init(
 		ID:       uuid.New(),
 		Language: "go",
 	}
-
+	s.Debugger.EvaluationErrors = []string{}
 	var rootType *ir.EventRootType
 	var probe ir.ProbeDefinition
 
@@ -208,14 +208,9 @@ func (s *snapshotMessage) init(
 			addr:   item.Header().Address,
 		}] = item
 	}
-
 	if rootType == nil {
 		return probe, errors.New("no root type found")
 	}
-	var (
-		pcs []uint64
-		err error
-	)
 	header, err := event.Event.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
@@ -226,17 +221,20 @@ func (s *snapshotMessage) init(
 
 	stackFrames, ok := decoder.stackFrames[header.Stack_hash]
 	if !ok {
-		pcs, err = event.StackPCs()
+		stackFrames, err = symbolicate(event, header.Stack_hash, symbolicator)
 		if err != nil {
-			return probe, fmt.Errorf("error getting stack pcs %w", err)
+			if symbolicateErrorLogLimiter.Allow() {
+				log.Errorf("error symbolicating stack: %v", err)
+			} else {
+				log.Tracef("error symbolicating stack: %v", err)
+			}
+			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+				fmt.Sprintf("error symbolicating stack: %v", err),
+			)
+		} else {
+			decoder.stackFrames[header.Stack_hash] = stackFrames
 		}
-		stackFrames, err = symbolicator.Symbolicate(pcs, header.Stack_hash)
-		if err != nil {
-			return probe, fmt.Errorf("error symbolicating stack %w", err)
-		}
-		decoder.stackFrames[header.Stack_hash] = stackFrames
 	}
-
 	switch where := probe.GetWhere().(type) {
 	case ir.FunctionWhere:
 		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
@@ -252,10 +250,26 @@ func (s *snapshotMessage) init(
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
-		event:    event,
-		rootType: rootType,
-		rootData: s.rootData,
-		decoder:  decoder,
+		event:        event,
+		rootType:     rootType,
+		rootData:     s.rootData,
+		decoder:      decoder,
+		debuggerData: &s.Debugger,
 	}
 	return probe, nil
+}
+
+func symbolicate(event Event, stackHash uint64, symbolicator symbol.Symbolicator) ([]symbol.StackFrame, error) {
+	pcs, err := event.StackPCs()
+	if err != nil {
+		return nil, fmt.Errorf("error getting stack pcs %w", err)
+	}
+	if len(pcs) == 0 {
+		return nil, errors.New("no stack pcs found")
+	}
+	stackFrames, err := symbolicator.Symbolicate(pcs, stackHash)
+	if err != nil {
+		return nil, fmt.Errorf("error symbolicating stack %w", err)
+	}
+	return stackFrames, nil
 }
