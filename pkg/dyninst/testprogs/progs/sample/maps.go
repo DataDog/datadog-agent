@@ -61,6 +61,38 @@ func testMapEmbeddedMaps(m map[string][]structWithMap) {}
 //go:noinline
 func testMapWithLinkedList(m map[bool]node) {}
 
+//nolint:all
+//go:noinline
+func testMapWithSmallValue(m map[int]uint8) {}
+
+//nolint:all
+//go:noinline
+func testMapWithSmallValueMassive(redactMyEntries map[int]uint8) {}
+
+//nolint:all
+//go:noinline
+func testMapWithSmallKeyAndValue(m map[uint8]uint8) {}
+
+//nolint:all
+//go:noinline
+func testMapWithSmallKeyAndValueMassive(redactMyEntries map[uint8]uint8) {}
+
+//nolint:all
+//go:noinline
+func testMapSmallKeySmallValue(m map[uint8]uint8) {}
+
+//nolint:all
+//go:noinline
+func testMapSmallKeyLargeValue(m map[uint8][4]int) {}
+
+//nolint:all
+//go:noinline
+func testMapLargeKeySmallValue(m map[[4]int]uint8) {}
+
+//nolint:all
+//go:noinline
+func testMapLargeKeyLargeValue(m map[[4]int][4]int) {}
+
 // generateEmbeddedMaps creates a map for testMapEmbeddedMaps programmatically
 func generateEmbeddedMaps(entriesCount int) map[string][]structWithMap {
 	result := make(map[string][]structWithMap)
@@ -105,28 +137,15 @@ func executeMapFuncs() {
 	testPointerToMap(&map[string]int{"foo": 1, "bar": 2})
 	testMapStringToSlice(map[string][]string{"foo": {"one", "two"}, "bar": {"three", "four"}})
 
-	b := node{
-		val: 1,
-		b: &node{
-			val: 2,
-			b: &node{
-				val: 3,
-				b: &node{
-					val: 4,
-					b: &node{
-						val: 5,
-						b: &node{
-							val: 6,
-							b:   nil,
-						},
-					},
-				},
-			},
-		},
+	b := &node{val: 1}
+	current := b
+	for i := 2; i <= 20; i++ {
+		current.b = &node{val: i}
+		current = current.b
 	}
 	testMapWithLinkedList(
 		map[bool]node{
-			true: b,
+			true: *b,
 		},
 	)
 	testMapArrayToArray(map[[4]string][2]int{
@@ -137,4 +156,49 @@ func executeMapFuncs() {
 
 	testMapEmbeddedMaps(generateEmbeddedMaps(5))
 	testMapMassive(generateEmbeddedMaps(150))
+
+	smallMap := make(map[int]uint8)
+	largeMap := make(map[int]uint8)
+	for i := 1; i <= 10; i++ {
+		smallMap[i] = uint8(i)
+	}
+	for i := 1; i <= 10000; i++ {
+		largeMap[i] = uint8(i)
+	}
+	testMapWithSmallValue(smallMap)
+	testMapWithSmallValueMassive(largeMap)
+
+	smallKeyValueMap := make(map[uint8]uint8)
+	largeKeyValueMap := make(map[uint8]uint8)
+	for i := range 10 {
+		smallKeyValueMap[uint8(i)] = uint8(i) * 2
+	}
+	for i := range 255 {
+		largeKeyValueMap[uint8(i)] = uint8(i) * 2
+	}
+	testMapWithSmallKeyAndValue(smallKeyValueMap)
+	testMapWithSmallKeyAndValueMassive(largeKeyValueMap)
+	testMapSmallKeySmallValue(smallKeyValueMap)
+
+	smallKeyLargeValueMap := make(map[uint8][4]int)
+	for i := range 3 {
+		smallKeyLargeValueMap[uint8(i)] = [4]int{int(i), int(i) * 2, int(i) * 3, int(i) * 4}
+	}
+	testMapSmallKeyLargeValue(smallKeyLargeValueMap)
+
+	largeKeyLargeValueMap := make(map[[4]int][4]int)
+	for i := range 10 {
+		key := [4]int{i, i * 2, i * 3, i * 4}
+		value := [4]int{i * 10, i * 20, i * 30, i * 40}
+		largeKeyLargeValueMap[key] = value
+	}
+	testMapLargeKeyLargeValue(largeKeyLargeValueMap)
+
+	largeKeySmallValueMap := make(map[[4]int]uint8)
+	for i := 0; i < 3; i++ {
+		key := [4]int{1 + i*4, 2 + i*4, 3 + i*4, 4 + i*4}
+		largeKeySmallValueMap[key] = uint8(i + 1)
+	}
+	testMapLargeKeySmallValue(largeKeySmallValueMap)
+
 }
