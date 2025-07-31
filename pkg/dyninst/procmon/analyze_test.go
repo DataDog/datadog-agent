@@ -13,10 +13,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -136,6 +138,99 @@ func TestAnalyzeProcess(t *testing.T) {
 		require.True(t, res.interesting)
 		require.NotEmpty(t, res.exe.Path)
 		require.Equal(t, "foo", res.service)
+	})
+
+	// Test that when the exe symlink target is an absolute path that does not
+	// exist on the host filesystem, analyzeProcess will fall back to looking for
+	// the binary under /proc/<pid>/root/.... This covers the code path added in
+	// analyze.go where the original error is cleared if opening under the proc
+	// root succeeds.
+	t.Run("exe only in root fs", func(t *testing.T) {
+		const (
+			pid           = 105
+			exeLinkTarget = "/does/not/exist/sample"
+		)
+
+		cfgs := testprogs.MustGetCommonConfigs(t)
+		bin := testprogs.MustGetBinary(t, "sample", cfgs[0])
+
+		tmpDir, procRoot, cleanup := makeProcFS(t, pid, envTrue, false)
+		defer cleanup()
+
+		procDir := filepath.Join(procRoot, strconv.Itoa(pid))
+		// Create the exe symlink pointing to the bogus path.
+		require.NoError(t, os.Symlink(exeLinkTarget, filepath.Join(procDir, "exe")))
+		// root should be a symlink to a directory that does exist and does
+		// contain the real exeLinkTarget.
+		fakeRoot := filepath.Join(tmpDir, "fake_root")
+		realExePath := filepath.Join(fakeRoot, strings.TrimPrefix(exeLinkTarget, "/"))
+		realExeDir := filepath.Dir(realExePath)
+		require.NoError(t, os.MkdirAll(realExeDir, 0o755))
+		{
+			f, err := os.Create(realExePath)
+			require.NoError(t, err)
+			binReader, err := os.Open(bin)
+			require.NoError(t, err)
+			_, err = io.Copy(f, binReader)
+			require.NoError(t, err)
+			require.NoError(t, f.Close())
+			require.NoError(t, binReader.Close())
+		}
+		require.NoError(t, os.Symlink(fakeRoot, filepath.Join(procDir, "root")))
+
+		res, err := analyzeProcess(pid, procRoot, noopContainerResolver{}, analyzer)
+		require.NoError(t, err)
+		require.True(t, res.interesting)
+		expExePath := path.Join(
+			strings.TrimPrefix(procDir, tmpDir),
+			"root",
+			exeLinkTarget,
+		)
+		gotExePath := strings.TrimPrefix(res.exe.Path, tmpDir)
+		require.Equal(t, expExePath, gotExePath)
+		require.Equal(t, "foo", res.service)
+	})
+
+	t.Run("exe does not exist in either results in nil error", func(t *testing.T) {
+		const (
+			pid           = 107
+			exeLinkTarget = "/does/not/exist/sample"
+		)
+
+		tmpDir, procRoot, cleanup := makeProcFS(t, pid, envTrue, false)
+		defer cleanup()
+
+		procDir := filepath.Join(procRoot, strconv.Itoa(pid))
+		require.NoError(t, os.Symlink(exeLinkTarget, filepath.Join(procDir, "exe")))
+
+		fakeRoot := filepath.Join(tmpDir, "fake_root")
+		require.NoError(t, os.Symlink(fakeRoot, filepath.Join(procDir, "root")))
+
+		res, err := analyzeProcess(pid, procRoot, noopContainerResolver{}, analyzer)
+		require.NoError(t, err)
+		require.False(t, res.interesting)
+		require.Empty(t, res.exe)
+	})
+
+	t.Run("exe no perms in root results in nil error", func(t *testing.T) {
+		const (
+			pid           = 107
+			exeLinkTarget = "/does/not/exist/sample"
+		)
+
+		tmpDir, procRoot, cleanup := makeProcFS(t, pid, envTrue, false)
+		defer cleanup()
+
+		procDir := filepath.Join(procRoot, strconv.Itoa(pid))
+		require.NoError(t, os.Symlink(exeLinkTarget, filepath.Join(procDir, "exe")))
+
+		fakeRoot := filepath.Join(tmpDir, "fake_root")
+		require.NoError(t, os.Symlink(fakeRoot, filepath.Join(procDir, "root")))
+
+		res, err := analyzeProcess(pid, procRoot, noopContainerResolver{}, analyzer)
+		require.NoError(t, err)
+		require.False(t, res.interesting)
+		require.Empty(t, res.exe)
 	})
 }
 

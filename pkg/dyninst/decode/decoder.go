@@ -29,11 +29,16 @@ type probeEvent struct {
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
-	program               *ir.Program
-	stackFrames           map[uint64][]symbol.StackFrame
-	probeEvents           map[ir.TypeID]probeEvent
-	snapshotMessage       snapshotMessage
-	addressReferenceCount map[typeAndAddr]output.DataItem
+	// These fields are initialized on decoder creation and are shared between messages.
+	program      *ir.Program
+	decoderTypes map[ir.TypeID]decoderType
+	probeEvents  map[ir.TypeID]probeEvent
+
+	// These fields are initialized and reset for each message.
+	snapshotMessage   snapshotMessage
+	stackFrames       map[uint64][]symbol.StackFrame
+	dataItems         map[typeAndAddr]output.DataItem
+	currentlyEncoding map[typeAndAddr]struct{}
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -41,10 +46,12 @@ func NewDecoder(
 	program *ir.Program,
 ) (*Decoder, error) {
 	decoder := &Decoder{
-		addressReferenceCount: make(map[typeAndAddr]output.DataItem),
-		program:               program,
-		stackFrames:           make(map[uint64][]symbol.StackFrame),
-		probeEvents:           make(map[ir.TypeID]probeEvent),
+		dataItems:         make(map[typeAndAddr]output.DataItem),
+		decoderTypes:      make(map[ir.TypeID]decoderType, len(program.Types)),
+		currentlyEncoding: make(map[typeAndAddr]struct{}),
+		program:           program,
+		stackFrames:       make(map[uint64][]symbol.StackFrame),
+		probeEvents:       make(map[ir.TypeID]probeEvent),
 		snapshotMessage: snapshotMessage{
 			DDSource: "dd_debugger",
 			Logger: logger{
@@ -60,6 +67,13 @@ func NewDecoder(
 				probe: probe,
 			}
 		}
+	}
+	for _, t := range program.Types {
+		decoderType, err := newDecoderType(t, program.Types)
+		if err != nil {
+			return nil, fmt.Errorf("error getting decoder type for type %s: %w", t.GetName(), err)
+		}
+		decoder.decoderTypes[t.GetID()] = decoderType
 	}
 	return decoder, nil
 }
@@ -116,18 +130,25 @@ func (s *snapshotMessage) init(
 	}
 
 	var rootType *ir.EventRootType
+	var probe ir.ProbeDefinition
 
 	for item, err := range event.Event.DataItems() {
 		if err != nil {
-			return nil, fmt.Errorf("error getting data items: %w", err)
+			return probe, fmt.Errorf("error getting data items: %w", err)
 		}
 		if rootType == nil {
 			s.rootData = item.Data()
+			rootTypeID := ir.TypeID(item.Header().Type)
 			var ok bool
-			rootType, ok = decoder.program.Types[ir.TypeID(item.Header().Type)].(*ir.EventRootType)
+			rootType, ok = decoder.program.Types[rootTypeID].(*ir.EventRootType)
 			if !ok {
 				return nil, errors.New("expected event of type root first")
 			}
+			irProbe, ok := decoder.probeEvents[rootTypeID]
+			if !ok {
+				return probe, fmt.Errorf("no probe found for root type %v", rootTypeID)
+			}
+			probe = irProbe.probe
 			continue
 		}
 		// We need to keep track of the address reference count for each data item.
@@ -137,14 +158,14 @@ func (s *snapshotMessage) init(
 		// The value is a data item with a counter of how many times it has been referenced.
 		// If the counter is greater than 1, we know that the data item is a pointer to another data item.
 		// We can then encode the pointer as a string and not as an object.
-		decoder.addressReferenceCount[typeAndAddr{
+		decoder.dataItems[typeAndAddr{
 			irType: uint32(item.Header().Type),
 			addr:   item.Header().Address,
 		}] = item
 	}
 
 	if rootType == nil {
-		return nil, errors.New("no root type found")
+		return probe, errors.New("no root type found")
 	}
 	var (
 		pcs []uint64
@@ -152,7 +173,7 @@ func (s *snapshotMessage) init(
 	)
 	header, err := event.Event.Header()
 	if err != nil {
-		return nil, fmt.Errorf("error getting header %w", err)
+		return probe, fmt.Errorf("error getting header %w", err)
 	}
 	// TODO: resolve value from header.Ktime_ns to wall time
 	s.Debugger.Snapshot.Timestamp = int(time.Now().UTC().UnixMilli())
@@ -162,38 +183,36 @@ func (s *snapshotMessage) init(
 	if !ok {
 		pcs, err = event.StackPCs()
 		if err != nil {
-			return nil, fmt.Errorf("error getting stack pcs %w", err)
+			return probe, fmt.Errorf("error getting stack pcs %w", err)
 		}
 		stackFrames, err = symbolicator.Symbolicate(pcs, header.Stack_hash)
 		if err != nil {
-			return nil, fmt.Errorf("error symbolicating stack %w", err)
+			return probe, fmt.Errorf("error symbolicating stack %w", err)
 		}
 		decoder.stackFrames[header.Stack_hash] = stackFrames
 	}
 
-	probe, ok := decoder.probeEvents[rootType.ID]
-	if !ok {
-		return nil, fmt.Errorf("error getting probe %w", err)
-	}
-	switch where := probe.probe.GetWhere().(type) {
+	switch where := probe.GetWhere().(type) {
 	case ir.FunctionWhere:
 		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
 		s.Logger.Method = where.Location()
 	default:
-		return nil, errors.New("probe is not on a supported location")
+		return probe, fmt.Errorf(
+			"probe %s is not on a supported location: %T",
+			probe.GetID(), where,
+		)
 	}
 
-	s.Logger.Version = probe.probe.GetVersion()
-	s.Debugger.Snapshot.Probe.ID = probe.probe.GetID()
+	s.Logger.Version = probe.GetVersion()
+	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
-	s.Debugger.Snapshot.Probe.ID = probe.probe.GetID()
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
 		event:    event,
 		rootType: rootType,
 		rootData: s.rootData,
 		decoder:  decoder,
 	}
-	return probe.probe, nil
+	return probe, nil
 }
 
 func (s *snapshotMessage) clear() {

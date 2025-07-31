@@ -15,9 +15,12 @@ import (
 	"net"
 	"net/netip"
 	"path"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/net/bpf"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -26,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -919,6 +921,29 @@ func (fh *EBPFFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.Acc
 
 	return e.Hostnames
 }
+func parseFilter(e *model.SetSockOptEvent) []bpf.RawInstruction {
+	raw := []bpf.RawInstruction{}
+	filterSize := 8
+	sizeToRead := int(e.SizeToRead)
+	actualNumberOfFilters := sizeToRead / filterSize
+	rawFilter := e.RawFilter
+	for i := 0; i < actualNumberOfFilters; i++ {
+		offset := i * filterSize
+
+		Code := binary.NativeEndian.Uint16(rawFilter[offset : offset+2])
+		Jt := rawFilter[offset+2]
+		Jf := rawFilter[offset+3]
+		K := binary.NativeEndian.Uint32(rawFilter[offset+4 : offset+8])
+
+		raw = append(raw, bpf.RawInstruction{
+			Op: Code,
+			Jt: Jt,
+			Jf: Jf,
+			K:  K,
+		})
+	}
+	return raw
+}
 
 // ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
 func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *model.SetSockOptEvent) string {
@@ -935,26 +960,7 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *mode
 // ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
 func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
 	if len(e.FilterInstructions) == 0 {
-		raw := []bpf.RawInstruction{}
-		filterSize := 8
-		sizeToRead := int(e.SizeToRead)
-		actualNumberOfFilters := sizeToRead / filterSize
-		rawFilter := e.RawFilter
-		for i := 0; i < actualNumberOfFilters; i++ {
-			offset := i * filterSize
-
-			Code := binary.NativeEndian.Uint16(rawFilter[offset : offset+2])
-			Jt := rawFilter[offset+2]
-			Jf := rawFilter[offset+3]
-			K := binary.NativeEndian.Uint32(rawFilter[offset+4 : offset+8])
-
-			raw = append(raw, bpf.RawInstruction{
-				Op: Code,
-				Jt: Jt,
-				Jf: Jf,
-				K:  K,
-			})
-		}
+		raw := parseFilter(e)
 
 		instructions, allDecoded := bpf.Disassemble(raw)
 		if !allDecoded {
@@ -969,4 +975,22 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event,
 		return e.FilterInstructions
 	}
 	return e.FilterInstructions
+}
+
+// ResolveSetSockOptUsedImmediates resolves the immediates in the bpf filter of a setsockopt event
+func (fh *EBPFFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, e *model.SetSockOptEvent) []int {
+	if e.UsedImmediates != nil {
+		return e.UsedImmediates
+	}
+	raw := parseFilter(e)
+	var kValues []int
+	for _, inst := range raw {
+		// Check if we load or branch on a magic value
+		if !slices.Contains(kValues, int(inst.K)) {
+			kValues = append(kValues, int(inst.K))
+		}
+
+	}
+	e.UsedImmediates = kValues
+	return e.UsedImmediates
 }

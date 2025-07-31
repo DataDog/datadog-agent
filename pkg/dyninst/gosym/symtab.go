@@ -14,6 +14,8 @@ package gosym
 import (
 	"encoding/binary"
 	"fmt"
+	"iter"
+	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
@@ -30,6 +32,8 @@ type GoFunction struct {
 	DeferReturn uint32
 	// The index of the function in the symbol table
 	idx uint32
+	// The internal function info
+	funcInfo *funcInfo
 }
 
 // GoLocation represents a resolved source code location.
@@ -79,14 +83,37 @@ func (gst *GoSymbolTable) Functions() []*GoFunction {
 	return functions
 }
 
-// PCToFunction returns the function that contains the given PC.
+// PCToFunction returns the function that contains the given PC. Inlined
+// functions are not returned, only the functions that remain in the object file.
 func (gst *GoSymbolTable) PCToFunction(pc uint64) *GoFunction {
 	return gst.pclntab.getGoFunctionByPC(pc)
 }
 
 // LocatePC returns the location that contains the given PC.
 func (gst *GoSymbolTable) LocatePC(pc uint64) []GoLocation {
-	return gst.pclntab.locatePC(pc, gst.gofunc)
+	return gst.locatePC(pc)
+}
+
+// LineRange represents a range of PC that map to the same line number.
+type LineRange struct {
+	PCLo uint64
+	PCHi uint64
+	Line uint32
+}
+
+// FunctionLines represents the lines of a function. Line ranges are non-overlapping
+// and sorted by the PCLo. Line number values may repeat across different pc ranges.
+// PC ranges only include instructions that directly belong to the function, inlined
+// pc ranges are not included.
+type FunctionLines struct {
+	File  string
+	Lines []LineRange
+}
+
+// FunctionLines resolves a physical (non-inlined) function at a given pc,
+// and returns a mapping from all function names (self and inlined) to their lines.
+func (gst *GoSymbolTable) FunctionLines(pc uint64) (map[string]FunctionLines, error) {
+	return gst.functionLines(pc)
 }
 
 // Constants for pclntab parsing
@@ -134,6 +161,9 @@ type lineTable struct {
 	nfunctab uint32
 	// The number of file entries
 	nfiletab uint32
+
+	// Following fields are offset ranges that map to corresponding tables.
+
 	// The offset of the file table
 	filetab [2]int
 	// The offset of the function table
@@ -150,6 +180,7 @@ type lineTable struct {
 	textRange [2]uint64
 	// The range of PCs that can be symbolicated
 	pcRange [2]uint64
+
 	// The FuncID of wrapper functions
 	wrapperFuncID uint8
 }
@@ -485,10 +516,8 @@ func (lt *lineTable) getGoFunctionByIndex(idx uint32) *GoFunction {
 	}
 
 	name := ""
-	if nameOff := funcInfo.nameOff(); nameOff != 0 {
-		if n := lt.funcName(nameOff); n != nil {
-			name = *n
-		}
+	if nameOff, found := funcInfo.nameOff(); found {
+		name = lt.funcName(nameOff)
 	}
 
 	deferReturn := uint32(0)
@@ -502,6 +531,7 @@ func (lt *lineTable) getGoFunctionByIndex(idx uint32) *GoFunction {
 		End:         end,
 		DeferReturn: deferReturn,
 		idx:         idx,
+		funcInfo:    funcInfo,
 	}
 }
 
@@ -535,29 +565,20 @@ func (lt *lineTable) funcInfo(i uint32) (*funcInfo, error) {
 	}, nil
 }
 
-func (lt *lineTable) funcName(off uint32) *string {
-	if off == 0 {
-		empty := ""
-		return &empty
-	}
-
+func (lt *lineTable) funcName(off uint32) string {
 	offset := lt.funcnametab[0] + int(off)
 	if offset >= lt.funcnametab[1] {
-		return nil
+		return ""
 	}
 
 	name := stringFromOffset(lt.data, offset)
-	return &name
+	return name
 }
 
-func (lt *lineTable) locatePC(pc uint64, goFuncData []byte) []GoLocation {
+func (gst *GoSymbolTable) locatePC(pc uint64) []GoLocation {
+	lt := gst.pclntab
 	function := lt.getGoFunctionByPC(pc)
 	if function == nil {
-		return nil
-	}
-
-	funcInfo, err := lt.funcInfo(function.idx)
-	if err != nil {
 		return nil
 	}
 
@@ -570,22 +591,18 @@ func (lt *lineTable) locatePC(pc uint64, goFuncData []byte) []GoLocation {
 		file := lt.pcToFile(idx, pc)
 		line, found := lt.pcToLine(idx, pc)
 
-		if file == nil || !found {
-			return GoLocation{
-				Function: functionName,
-				File:     "<unknown>",
-				Line:     0,
-			}
+		if !found {
+			line = 0
 		}
 
 		return GoLocation{
 			Function: functionName,
-			File:     *file,
+			File:     file,
 			Line:     line,
 		}
 	}
 
-	inlinedCalls := unwindInlinedCalls(funcInfo, adjustedPC, goFuncData)
+	inlinedCalls := unwindInlinedCalls(function.funcInfo, adjustedPC, gst.gofunc)
 	if inlinedCalls == nil {
 		return []GoLocation{makeLocation(function.idx, adjustedPC, function.Name)}
 	}
@@ -594,7 +611,7 @@ func (lt *lineTable) locatePC(pc uint64, goFuncData []byte) []GoLocation {
 	for _, call := range inlinedCalls {
 		funcID := call.FuncID
 		if funcID == nil {
-			if fid, found := funcInfo.funcID(); found {
+			if fid, found := function.funcInfo.funcID(); found {
 				funcID = &fid
 			}
 		}
@@ -613,6 +630,200 @@ func (lt *lineTable) locatePC(pc uint64, goFuncData []byte) []GoLocation {
 	}
 
 	return locations
+}
+
+func readInlTree(inlineTree []byte, fIdx uint32) (funcID uint8, nameOff uint32, parentPC uint32, ok bool) {
+	offset := inlinedCallSize * int(fIdx)
+	if offset+parentPCOffset+4 > len(inlineTree) {
+		return 0, 0, 0, false
+	}
+	funcID = inlineTree[offset+funcIDOffset]
+	nameOff = binary.LittleEndian.Uint32(inlineTree[offset+functionNameOffOffset:])
+	parentPC = binary.LittleEndian.Uint32(inlineTree[offset+parentPCOffset:])
+	ok = true
+	return
+}
+
+type fileRange struct {
+	pcLo uint64
+	pcHi uint64
+	file string
+}
+
+// Parse file lookup table to produce mapping from PC ranges to file names.
+// Returned ranges are non-overlapping and sorted by pcLo.
+func (lt *lineTable) fileRanges(f *GoFunction) ([]fileRange, error) {
+	offset, found := f.funcInfo.pcfile()
+	if !found {
+		return nil, fmt.Errorf("no file data for function %s", f.Name)
+	}
+	offset += uint32(lt.pcTab[0])
+	if int(offset) >= len(lt.data) {
+		return nil, fmt.Errorf("file data offset out of range for function %s", f.Name)
+	}
+
+	names := map[uint32]string{}
+	pc := f.Entry
+	var ranges []fileRange
+	for file := range iterPCValues(lt.data[offset:], pc, lt.quantum) {
+		fno := uint32(file.Val)
+		var name string
+		var ok bool
+		if name, ok = names[fno]; !ok {
+			name = lt.fileName(f.funcInfo, fno)
+			names[fno] = name
+		}
+		ranges = append(ranges, fileRange{
+			pcLo: pc,
+			pcHi: file.PC,
+			file: name,
+		})
+		pc = file.PC
+	}
+	return ranges, nil
+}
+
+type functionRange struct {
+	pcLo uint64
+	pcHi uint64
+	name string
+	file string
+}
+
+// Parse inlined tree lookup table for function f, to produce mapping from its PC ranges
+// to a function inlined to that range, or f itself otherwise.
+// Returned ranges are non-overlapping and sorted by pcLo.
+func (gst *GoSymbolTable) inlinedFunctionsMapping(f *GoFunction) []functionRange {
+	lt := gst.pclntab
+	inlineTree := f.funcInfo.funcData(funcdataInlTree, gst.gofunc)
+	if inlineTree == nil {
+		return nil
+	}
+
+	offset, found := f.funcInfo.pcDataStart(pcdataInlTreeIndex)
+	if !found {
+		return nil
+	}
+	offset += uint32(lt.pcTab[0])
+	if int(offset) >= len(lt.data) {
+		return nil
+	}
+
+	files, err := lt.fileRanges(f)
+	if err != nil {
+		return nil
+	}
+	fileIdx := 0
+
+	functionNames := map[uint32]string{}
+	pc := f.Entry
+	var ranges []functionRange
+	for inlinedFuncIdx := range iterPCValues(lt.data[offset:], pc, lt.quantum) {
+		// [pc, index.PC) maps to inline function data at index.Val.
+		var functionName string
+		if inlinedFuncIdx.Val < 0 {
+			// This range doesn't correspond to any inlined function,
+			// it belongs to f itself.
+			functionName = f.Name
+		} else {
+			funcID, nameOff, _, found := readInlTree(inlineTree, uint32(inlinedFuncIdx.Val))
+			if !found || funcID == lt.wrapperFuncID {
+				pc = inlinedFuncIdx.PC
+				continue
+			}
+			var ok bool
+			if functionName, ok = functionNames[nameOff]; !ok {
+				functionName = lt.funcName(nameOff)
+				functionNames[nameOff] = functionName
+			}
+		}
+		// Find the file that covers the beginning of the current PC range.
+		// It must be the same for the whole function range.
+		for fileIdx < len(files) && pc >= files[fileIdx].pcHi {
+			fileIdx++
+		}
+		file := unknownFile
+		if fileIdx < len(files) && files[fileIdx].pcLo <= pc {
+			file = files[fileIdx].file
+		}
+		ranges = append(ranges, functionRange{
+			pcLo: pc,
+			pcHi: inlinedFuncIdx.PC,
+			name: functionName,
+			file: file,
+		})
+		pc = inlinedFuncIdx.PC
+	}
+	return ranges
+}
+
+func (gst *GoSymbolTable) functionLines(pc uint64) (map[string]FunctionLines, error) {
+	lt := gst.pclntab
+	f := lt.getGoFunctionByPC(pc)
+	if f == nil {
+		return nil, fmt.Errorf("no function for PC 0x%x", pc)
+	}
+
+	// Collect pc range -> function name/file mapping
+	funcs := gst.inlinedFunctionsMapping(f)
+	if funcs == nil {
+		funcs = []functionRange{
+			{
+				pcLo: 0,
+				pcHi: math.MaxUint64,
+				name: f.Name,
+				file: lt.pcToFile(f.idx, f.Entry),
+			},
+		}
+	}
+
+	offset, found := f.funcInfo.pcln()
+	if !found {
+		return nil, fmt.Errorf("no line data for function %s", f.Name)
+	}
+	offset += uint32(lt.pcTab[0])
+	if int(offset) >= len(lt.data) {
+		return nil, fmt.Errorf("line data offset out of range for function %s", f.Name)
+	}
+
+	res := make(map[string]FunctionLines, len(funcs))
+	upsert := func(name string, file string, lr LineRange) {
+		fl := res[name]
+		fl.File = file
+		fl.Lines = append(fl.Lines, lr)
+		res[name] = fl
+	}
+
+	// Iterate over lines, while tracking which functions they belong to.
+	pc = f.Entry
+	funcIdx := 0
+	for line := range iterPCValues(lt.data[offset:], pc, lt.quantum) {
+		// [pc, index.PC) maps line.Val.
+		// Skip function ranges that end before current line range.
+		for funcIdx < len(funcs) && pc >= funcs[funcIdx].pcHi {
+			funcIdx++
+		}
+		// Iterate over function ranges that are fully covered by the current line range.
+		for funcIdx < len(funcs) && line.PC >= funcs[funcIdx].pcHi {
+			upsert(funcs[funcIdx].name, funcs[funcIdx].file, LineRange{
+				PCLo: max(pc, funcs[funcIdx].pcLo),
+				PCHi: funcs[funcIdx].pcHi,
+				Line: uint32(line.Val),
+			})
+			funcIdx++
+		}
+		// Check if the next function range starts within the current line range.
+		if funcIdx < len(funcs) && pc >= funcs[funcIdx].pcLo {
+			upsert(funcs[funcIdx].name, funcs[funcIdx].file, LineRange{
+				PCLo: max(pc, funcs[funcIdx].pcLo),
+				PCHi: line.PC,
+				Line: uint32(line.Val),
+			})
+		}
+		pc = line.PC
+	}
+
+	return res, nil
 }
 
 func (lt *lineTable) findFunc(pc uint64) (uint32, bool) {
@@ -647,64 +858,70 @@ func (lt *lineTable) findFunc(pc uint64) (uint32, bool) {
 	return left - 1, true
 }
 
-func (lt *lineTable) pcToFile(funcIdx uint32, pc uint64) *string {
+func (lt *lineTable) pcToFile(funcIdx uint32, pc uint64) string {
 	funcInfo, err := lt.funcInfo(funcIdx)
 	if err != nil {
-		return nil
+		return unknownFile
 	}
 
 	pcFile, found := funcInfo.pcfile()
 	if !found {
-		return nil
+		return unknownFile
 	}
 
 	startPC, found := funcInfo.entryPC()
 	if !found {
-		return nil
+		return unknownFile
 	}
 
 	fno, found := lt.pcValue(pcFile, startPC, pc)
 	if !found {
-		return nil
+		return unknownFile
 	}
 
+	return lt.fileName(funcInfo, fno)
+}
+
+const unknownFile = "<unknown>"
+
+func (lt *lineTable) fileName(funcInfo *funcInfo, fno uint32) string {
 	switch lt.version {
 	case ver12:
-		offset := lt.filetab[0] + int(fno)*4
+		offset := lt.funcdata[0] + lt.filetab[0] + int(fno)*4
 		if offset+4 > len(lt.data) {
-			return nil
+			return unknownFile
 		}
-		return lt.string(uint32(offset))
+		return stringFromOffset(lt.data, offset)
 
 	case ver116, ver118, ver120:
 		cuOffset, found := funcInfo.cuOffset()
 		if !found || cuOffset == 0xFFFFFFFF {
-			return nil
+			return unknownFile
 		}
 
 		if lt.cutab == nil {
-			return nil
+			return unknownFile
 		}
 
 		cutabOffset := (*lt.cutab)[0] + int(cuOffset+fno)*4
 		if cutabOffset+4 > len(lt.data) {
-			return nil
+			return unknownFile
 		}
 
 		fnoff := binary.LittleEndian.Uint32(lt.data[cutabOffset:])
 		if fnoff == 0xFFFFFFFF {
-			return nil
+			return unknownFile
 		}
 
 		fileOffset := lt.filetab[0] + int(fnoff)
 		if fileOffset >= len(lt.data) {
-			return nil
+			return unknownFile
 		}
 
-		return stringFromOffsetPtr(lt.data, fileOffset)
+		return stringFromOffset(lt.data, fileOffset)
 
 	default:
-		return nil
+		return unknownFile
 	}
 }
 
@@ -714,17 +931,17 @@ func (lt *lineTable) pcToLine(funcIdx uint32, pc uint64) (uint32, bool) {
 		return 0, false
 	}
 
-	pcLine, found := funcInfo.pcln()
+	pclnOff, found := funcInfo.pcln()
 	if !found {
 		return 0, false
 	}
 
-	startPC, found := funcInfo.entryPC()
+	entryPC, found := funcInfo.entryPC()
 	if !found {
 		return 0, false
 	}
 
-	return lt.pcValue(pcLine, startPC, pc)
+	return lt.pcValue(pclnOff, entryPC, pc)
 }
 
 // pcValue reports the value associated with the target pc.
@@ -734,68 +951,53 @@ func (lt *lineTable) pcValue(off uint32, entry uint64, targetPC uint64) (uint32,
 		return 0, false
 	}
 
-	cursor := lt.data[offset:]
-	stepper := newStepper(cursor, entry, -1, lt.quantum)
-
-	for {
-		if !stepper.step() {
-			return 0, false
-		}
-		if targetPC < stepper.pc {
-			if stepper.val < 0 {
+	pc := entry
+	for pcVal := range iterPCValues(lt.data[offset:], pc, lt.quantum) {
+		if targetPC < pcVal.PC {
+			if pcVal.Val < 0 {
 				return 0, false
 			}
-			return uint32(stepper.val), true
+			return uint32(pcVal.Val), true
 		}
 	}
+	return 0, false
 }
 
-func (lt *lineTable) string(off uint32) *string {
-	offset := lt.funcdata[0] + int(off)
-	return stringFromOffsetPtr(lt.data, offset)
+// pcValue represents a program counter and its associated value from the PC line table.
+// It is used when iterating through PC data to decode line numbers and other metadata.
+type pcValue struct {
+	// PC is the program counter address.
+	PC uint64
+	// Val is the associated value (line number, file index, etc.).
+	Val int32
 }
 
-// Stepper for PC value iteration.
-type stepper struct {
-	quantum uint32
-	cursor  []byte
-	pc      uint64
-	val     int32
-	first   bool
-}
-
-func newStepper(cursor []byte, pc uint64, val int32, quantum uint32) *stepper {
-	return &stepper{
-		cursor:  cursor,
-		pc:      pc,
-		val:     val,
-		first:   true,
-		quantum: quantum,
+func iterPCValues(pcValueSeq []byte, pc uint64, quantum uint32) iter.Seq[pcValue] {
+	val := int32(-1)
+	return func(yield func(pcValue) bool) {
+		first := true
+		for {
+			uvdelta, n := decodeVarint(pcValueSeq)
+			if !first && uvdelta == 0 {
+				return
+			}
+			first = false
+			var vdelta int32
+			if (uvdelta & 1) != 0 {
+				vdelta = int32(^(uvdelta >> 1))
+			} else {
+				vdelta = int32(uvdelta >> 1)
+			}
+			pcValueSeq = pcValueSeq[n:]
+			pcdelta, n := decodeVarint(pcValueSeq)
+			pcValueSeq = pcValueSeq[n:]
+			pc += uint64(pcdelta * quantum)
+			val += vdelta
+			if !yield(pcValue{PC: pc, Val: val}) {
+				return
+			}
+		}
 	}
-}
-
-func (s *stepper) step() bool {
-	uvdelta, deltaBytes := decodeVarint(s.cursor)
-	if uvdelta == 0 && !s.first {
-		return false
-	}
-	s.cursor = s.cursor[deltaBytes:]
-
-	var vdelta int32
-	if (uvdelta & 1) != 0 {
-		vdelta = int32(^(uvdelta >> 1))
-	} else {
-		vdelta = int32(uvdelta >> 1)
-	}
-
-	pcdelta, deltaBytes := decodeVarint(s.cursor)
-	s.cursor = s.cursor[deltaBytes:]
-
-	s.pc += uint64(pcdelta * s.quantum)
-	s.val += vdelta
-	s.first = false
-
-	return true
 }
 
 func decodeVarint(buf []byte) (uint32, int) {
@@ -847,30 +1049,14 @@ func unwindInlinedCalls(f *funcInfo, pc uint64, goFuncData []byte) []inlinedCall
 			if lastCall.Index == nil {
 				break
 			}
-
-			offsetBase := inlinedCallSize * int(*lastCall.Index)
-
-			// Get funcid
-			if offsetBase+funcIDOffset < len(inlineTree) {
-				funcID := inlineTree[offsetBase+funcIDOffset]
-				lastCall.FuncID = &funcID
-			}
-
-			// Get parent PC
-			if offsetBase+parentPCOffset+4 <= len(inlineTree) {
-				parentPC := binary.LittleEndian.Uint32(inlineTree[offsetBase+parentPCOffset:])
-				nextPC = entryPC + uint64(parentPC)
-			} else {
+			funcID, nameOff, parentPC, found := readInlTree(inlineTree, *lastCall.Index)
+			if !found {
 				break
 			}
-
-			// Get function name
-			if offsetBase+functionNameOffOffset+4 <= len(inlineTree) {
-				nameOff := binary.LittleEndian.Uint32(inlineTree[offsetBase+functionNameOffOffset:])
-				if name := f.lt.funcName(nameOff); name != nil {
-					lastCall.Function = name
-				}
-			}
+			lastCall.FuncID = &funcID
+			name := f.lt.funcName(nameOff)
+			lastCall.Function = &name
+			nextPC = entryPC + uint64(parentPC)
 		} else {
 			nextPC = pc
 		}
@@ -963,7 +1149,8 @@ func (ft *funcTab) funcOff(i uint32) (uint64, error) {
 
 // funcInfo represents single function data in the pclntab.
 type funcInfo struct {
-	lt   *lineTable
+	lt *lineTable
+	// data points into lt.data at the start of this function's data.
 	data []byte
 }
 
@@ -1001,11 +1188,8 @@ func (fi *funcInfo) getFuncInfoOffset(n uint32) (int, bool) {
 	return offset, true
 }
 
-func (fi *funcInfo) nameOff() uint32 {
-	if v, found := fi.field(1); found {
-		return v
-	}
-	return 0
+func (fi *funcInfo) nameOff() (uint32, bool) {
+	return fi.field(1)
 }
 
 func (fi *funcInfo) deferReturn() (uint32, bool) {
@@ -1164,19 +1348,4 @@ func stringFromOffset(data []byte, offset int) string {
 	}
 
 	return string(data[offset:end])
-}
-
-func stringFromOffsetPtr(data []byte, offset int) *string {
-	if offset >= len(data) {
-		return nil
-	}
-
-	// Find null terminator
-	end := offset
-	for end < len(data) && data[end] != 0 {
-		end++
-	}
-
-	result := string(data[offset:end])
-	return &result
 }

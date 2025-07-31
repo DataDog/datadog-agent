@@ -213,6 +213,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "process.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.ancestors.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -351,6 +356,11 @@
           "name": "process.ancestors.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "process.ancestors.interpreter.file.filesystem",
@@ -648,6 +658,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "process.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -786,6 +801,11 @@
           "name": "process.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "process.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "process.interpreter.file.filesystem",
@@ -1033,6 +1053,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "process.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.parent.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -1171,6 +1196,11 @@
           "name": "process.parent.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "process.parent.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "process.parent.interpreter.file.filesystem",
@@ -1548,6 +1578,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "cgroup_write.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "cgroup_write.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -1670,6 +1705,11 @@
           "name": "chdir.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "chdir.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "chdir.file.filesystem",
@@ -1809,6 +1849,11 @@
           "name": "chmod.file.destination.rights",
           "definition": "New rights of the chmod-ed file",
           "property_doc_link": "chmod-file-destination-rights-doc"
+        },
+        {
+          "name": "chmod.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "chmod.file.filesystem",
@@ -1963,6 +2008,11 @@
           "name": "chown.file.destination.user",
           "definition": "New user of the chown-ed file's owner",
           "property_doc_link": "chown-file-destination-user-doc"
+        },
+        {
+          "name": "chown.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "chown.file.filesystem",
@@ -2372,6 +2422,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "exec.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "exec.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -2550,6 +2605,11 @@
           "name": "exec.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "exec.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "exec.interpreter.file.filesystem",
@@ -2866,6 +2926,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "exit.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "exit.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -3004,6 +3069,11 @@
           "name": "exit.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "exit.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "exit.interpreter.file.filesystem",
@@ -3294,6 +3364,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "link.file.destination.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "link.file.destination.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -3397,6 +3472,11 @@
           "name": "link.file.destination.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "link.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "link.file.filesystem",
@@ -3548,6 +3628,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "load_module.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "load_module.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -3692,6 +3777,11 @@
           "property_doc_link": "mkdir-file-destination-rights-doc"
         },
         {
+          "name": "mkdir.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "mkdir.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -3824,6 +3914,11 @@
           "name": "mmap.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "mmap.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "mmap.file.filesystem",
@@ -4125,6 +4220,11 @@
           "name": "open.file.destination.mode",
           "definition": "Mode of the created file",
           "property_doc_link": "open-file-destination-mode-doc"
+        },
+        {
+          "name": "open.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "open.file.filesystem",
@@ -4475,6 +4575,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -4613,6 +4718,11 @@
           "name": "ptrace.tracee.ancestors.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.filesystem",
@@ -4910,6 +5020,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "ptrace.tracee.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "ptrace.tracee.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -5048,6 +5163,11 @@
           "name": "ptrace.tracee.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "ptrace.tracee.interpreter.file.filesystem",
@@ -5295,6 +5415,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "ptrace.tracee.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -5433,6 +5558,11 @@
           "name": "ptrace.tracee.parent.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.filesystem",
@@ -5669,6 +5799,11 @@
           "property_doc_link": "common-setxattrevent-file-destination-namespace-doc"
         },
         {
+          "name": "removexattr.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "removexattr.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -5798,6 +5933,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "rename.file.destination.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "rename.file.destination.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -5901,6 +6041,11 @@
           "name": "rename.file.destination.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "rename.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "rename.file.filesystem",
@@ -6035,6 +6180,11 @@
           "name": "rmdir.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "rmdir.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "rmdir.file.filesystem",
@@ -6374,6 +6524,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -6512,6 +6667,11 @@
           "name": "setrlimit.target.ancestors.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "setrlimit.target.ancestors.interpreter.file.filesystem",
@@ -6809,6 +6969,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "setrlimit.target.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "setrlimit.target.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -6947,6 +7112,11 @@
           "name": "setrlimit.target.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "setrlimit.target.interpreter.file.filesystem",
@@ -7194,6 +7364,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "setrlimit.target.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "setrlimit.target.parent.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -7332,6 +7507,11 @@
           "name": "setrlimit.target.parent.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "setrlimit.target.parent.interpreter.file.filesystem",
@@ -7601,6 +7781,11 @@
           "name": "setsockopt.socket_type",
           "definition": "Socket type",
           "property_doc_link": "setsockopt-socket_type-doc"
+        },
+        {
+          "name": "setsockopt.used_immediates",
+          "definition": "List of immediate values used in the filter",
+          "property_doc_link": "setsockopt-used_immediates-doc"
         }
       ]
     },
@@ -7664,6 +7849,11 @@
           "name": "setxattr.file.destination.namespace",
           "definition": "Namespace of the extended attribute",
           "property_doc_link": "common-setxattrevent-file-destination-namespace-doc"
+        },
+        {
+          "name": "setxattr.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "setxattr.file.filesystem",
@@ -7920,6 +8110,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "signal.target.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "signal.target.ancestors.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -8058,6 +8253,11 @@
           "name": "signal.target.ancestors.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "signal.target.ancestors.interpreter.file.filesystem",
@@ -8355,6 +8555,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "signal.target.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "signal.target.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -8493,6 +8698,11 @@
           "name": "signal.target.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "signal.target.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "signal.target.interpreter.file.filesystem",
@@ -8740,6 +8950,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "signal.target.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "signal.target.parent.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -8878,6 +9093,11 @@
           "name": "signal.target.parent.interpreter.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "signal.target.parent.interpreter.file.filesystem",
@@ -9109,6 +9329,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "splice.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "splice.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -9292,6 +9517,11 @@
           "property_doc_link": "common-filefields-change_time-doc"
         },
         {
+          "name": "unlink.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "unlink.file.filesystem",
           "definition": "File's filesystem",
           "property_doc_link": "common-fileevent-filesystem-doc"
@@ -9453,6 +9683,11 @@
           "name": "utimes.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "utimes.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "utimes.file.filesystem",
@@ -10137,6 +10372,63 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.extension",
+      "link": "common-fileevent-extension-doc",
+      "type": "string",
+      "definition": "File's extension",
+      "prefixes": [
+        "cgroup_write.file",
+        "chdir.file",
+        "chmod.file",
+        "chown.file",
+        "exec.file",
+        "exec.interpreter.file",
+        "exit.file",
+        "exit.interpreter.file",
+        "link.file",
+        "link.file.destination",
+        "load_module.file",
+        "mkdir.file",
+        "mmap.file",
+        "open.file",
+        "process.ancestors.file",
+        "process.ancestors.interpreter.file",
+        "process.file",
+        "process.interpreter.file",
+        "process.parent.file",
+        "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.file",
+        "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.file",
+        "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.file",
+        "ptrace.tracee.parent.interpreter.file",
+        "removexattr.file",
+        "rename.file",
+        "rename.file.destination",
+        "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
+        "setxattr.file",
+        "signal.target.ancestors.file",
+        "signal.target.ancestors.interpreter.file",
+        "signal.target.file",
+        "signal.target.interpreter.file",
+        "signal.target.parent.file",
+        "signal.target.parent.interpreter.file",
+        "splice.file",
+        "unlink.file",
+        "utimes.file"
       ],
       "constants": "",
       "constants_link": "",
@@ -13618,6 +13910,18 @@
       "link": "setsockopt-socket_type-doc",
       "type": "int",
       "definition": "Socket type",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.used_immediates",
+      "link": "setsockopt-used_immediates-doc",
+      "type": "int",
+      "definition": "List of immediate values used in the filter",
       "prefixes": [
         "setsockopt"
       ],

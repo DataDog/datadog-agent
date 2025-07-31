@@ -38,6 +38,7 @@
       -e AGENT_FLAVOR=${AGENT_FLAVOR}
       -e OMNIBUS_RUBY_VERSION="${OMNIBUS_RUBY_VERSION}"
       -e PYTHONUTF8=1
+      -e E2E_COVERAGE_PIPELINE=${E2E_COVERAGE_PIPELINE}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -74,9 +75,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
     AGENT_FLAVOR: fips
   timeout: 2h
 
-
-# azure-app-services build for Windows
-windows_zip_agent_binaries_x64-a7:
+.windows_zip_base:
   stage: package_build
   rules:
     - !reference [.except_mergequeue]
@@ -85,7 +84,6 @@ windows_zip_agent_binaries_x64-a7:
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     ARCH: "x64"
-    OMNIBUS_TARGET: agent-binaries
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
@@ -123,3 +121,14 @@ windows_zip_agent_binaries_x64-a7:
     expire_in: 2 weeks
     paths:
       - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+
+# azure-app-services build for Windows
+windows_zip_agent_binaries_x64-a7:
+  extends: .windows_zip_base
+  variables:
+    OMNIBUS_TARGET: agent-binaries
+
+windows_zip_ddot_x64:
+  extends: .windows_zip_base
+  variables:
+    OMNIBUS_TARGET: ddot

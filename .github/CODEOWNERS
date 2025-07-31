@@ -335,6 +335,7 @@
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
+/comp/metadata/softwareinventory @DataDog/windows-agent
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
@@ -441,7 +442,6 @@
 /pkg/collector/corechecks/system/windowscertificate/ @DataDog/windows-agent
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
-/pkg/collector/corechecks/system/winsoftware/   @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-runtimes
 /pkg/config/                            @DataDog/agent-configuration
@@ -465,7 +465,6 @@
 /pkg/diagnose/ports/                    @DataDog/agent-configuration
 /pkg/diagnose/ports/*windows*.go        @DataDog/windows-agent
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
-/pkg/dynamicinstrumentation/            @DataDog/debugger-go
 /pkg/dyninst/                           @DataDog/debugger-go
 /pkg/flare/                             @DataDog/agent-configuration
 /pkg/flare/clusteragent/manifests.go    @DataDog/container-ecosystems @DataDog/agent-configuration
@@ -474,6 +473,8 @@
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent @DataDog/agent-configuration
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-jobs-monitoring
+/pkg/inventory/                         @DataDog/windows-agent
+/pkg/inventory/software/                @DataDog/windows-agent
 /pkg/opentelemetry-mapping-go           @DataDog/opentelemetry-agent
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes

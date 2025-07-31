@@ -442,6 +442,7 @@ type FileEvent struct {
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
+	Extension   string `field:"extension,handler:ResolveFileExtension"`                                            // SECLDoc[extension] Definition:`File's extension`
 
 	MountPath               string `field:"-"`
 	MountSource             uint32 `field:"-"`
@@ -1014,15 +1015,16 @@ type SetrlimitEvent struct {
 // SetSockOptEvent represents a set socket option event
 type SetSockOptEvent struct {
 	SyscallEvent
-	SocketType         uint16 `field:"socket_type"`                                                     // SECLDoc[socket_type] Definition:`Socket type`
-	SocketFamily       uint16 `field:"socket_family"`                                                   // SECLDoc[socket_family] Definition:`Socket family`
-	FilterLen          uint16 `field:"filter_len"`                                                      // SECLDoc[filter_len] Definition:`Length of the filter`
-	SocketProtocol     uint16 `field:"socket_protocol"`                                                 // SECLDoc[socket_protocol] Definition:`Socket protocol`
-	Level              uint32 `field:"level"`                                                           // SECLDoc[level] Definition:`Socket level`
-	OptName            uint32 `field:"optname"`                                                         // SECLDoc[optname] Definition:`Socket option name`
-	SizeToRead         uint32 `field:"-"`                                                               // Internal field, not exposed to users
-	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                             // SECLDoc[is_filter_truncated] Definition:`Indicates that the filter is truncated`
-	RawFilter          []byte `field:"-"`                                                               // Internal field, not exposed to users
-	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"` // SECLDoc[filter_instructions] Definition:`Filter instructions`
-	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
+	SocketType         uint16 `field:"socket_type"`                                                         // SECLDoc[socket_type] Definition:`Socket type`
+	SocketFamily       uint16 `field:"socket_family"`                                                       // SECLDoc[socket_family] Definition:`Socket family`
+	FilterLen          uint16 `field:"filter_len"`                                                          // SECLDoc[filter_len] Definition:`Length of the filter`
+	SocketProtocol     uint16 `field:"socket_protocol"`                                                     // SECLDoc[socket_protocol] Definition:`Socket protocol`
+	Level              uint32 `field:"level"`                                                               // SECLDoc[level] Definition:`Socket level`
+	OptName            uint32 `field:"optname"`                                                             // SECLDoc[optname] Definition:`Socket option name`
+	SizeToRead         uint32 `field:"-"`                                                                   // Internal field, not exposed to users
+	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                                 // SECLDoc[is_filter_truncated] Definition:`Indicates that the filter is truncated`
+	RawFilter          []byte `field:"-"`                                                                   // Internal field, not exposed to users
+	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Filter instructions`
+	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
+	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the filter`
 }

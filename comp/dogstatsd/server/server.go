@@ -111,7 +111,7 @@ type localBlocklistConfig struct {
 // Server represent a Dogstatsd server
 type server struct {
 	log    log.Component
-	config model.Reader
+	config model.ReaderWriter
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
 
@@ -215,7 +215,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg model.Reader, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -605,6 +605,8 @@ func (s *server) handleMessages() {
 }
 
 func (s *server) restoreBlocklistFromLocalConfig() {
+	s.log.Debug("Restoring blocklist with local config.")
+
 	s.SetBlocklist(
 		s.localBlocklistConfig.metricNames,
 		s.localBlocklistConfig.matchPrefix,
