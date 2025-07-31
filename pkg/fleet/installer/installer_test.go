@@ -542,9 +542,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 	t.Run("write_simple_config", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		configAction := ExperimentConfigAction{
+		configAction := experimentConfigAction{
 			ActionType: "write",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{
 					Path: "/datadog.yaml",
 					Contents: json.RawMessage(`{
@@ -571,9 +571,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 	t.Run("write_config_in_subdirectory", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		configAction := ExperimentConfigAction{
+		configAction := experimentConfigAction{
 			ActionType: "write",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{
 					Path: "/conf.d/test.yaml",
 					Contents: json.RawMessage(`{
@@ -611,9 +611,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Now remove it
-		configAction := ExperimentConfigAction{
+		configAction := experimentConfigAction{
 			ActionType: "remove",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{Path: "/datadog.yaml"},
 			},
 		}
@@ -639,9 +639,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Create actions to write new file and remove old file
-		writeAction := ExperimentConfigAction{
+		writeAction := experimentConfigAction{
 			ActionType: "write",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{
 					Path:     "/datadog.yaml",
 					Contents: json.RawMessage(`{"new": "value"}`),
@@ -649,9 +649,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 			},
 		}
 
-		removeAction := ExperimentConfigAction{
+		removeAction := experimentConfigAction{
 			ActionType: "remove",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{Path: "/system-probe.yaml"},
 			},
 		}
@@ -680,9 +680,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 	t.Run("invalid_file_path", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		configAction := ExperimentConfigAction{
+		configAction := experimentConfigAction{
 			ActionType: "write",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{
 					Path:     "/invalid/path.txt",
 					Contents: json.RawMessage(`{"test": "value"}`),
@@ -702,9 +702,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 	t.Run("invalid_action_type", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		configAction := ExperimentConfigAction{
+		configAction := experimentConfigAction{
 			ActionType: "invalid",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{Path: "/datadog.yaml"},
 			},
 		}
@@ -721,9 +721,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 	t.Run("invalid_json_content", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		configAction := ExperimentConfigAction{
+		configAction := experimentConfigAction{
 			ActionType: "write",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{
 					Path:     "/datadog.yaml",
 					Contents: json.RawMessage(`invalid json`),
@@ -743,9 +743,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 	t.Run("path_cleaning", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		configAction := ExperimentConfigAction{
+		configAction := experimentConfigAction{
 			ActionType: "write",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{
 					Path:     "//datadog.yaml", // Extra slashes
 					Contents: json.RawMessage(`{"cleaned": "path"}`),
@@ -770,9 +770,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 	t.Run("complex_nested_structure", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		configAction := ExperimentConfigAction{
+		configAction := experimentConfigAction{
 			ActionType: "write",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{
 					Path: "/conf.d/nginx.d/nginx.yaml",
 					Contents: json.RawMessage(`{
@@ -813,9 +813,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 	t.Run("add_and_remove_same_file", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		writeAction := ExperimentConfigAction{
+		writeAction := experimentConfigAction{
 			ActionType: "write",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{
 					Path:     "/datadog.yaml",
 					Contents: json.RawMessage(`{"new": "value"}`),
@@ -823,9 +823,9 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 			},
 		}
 
-		removeAction := ExperimentConfigAction{
+		removeAction := experimentConfigAction{
 			ActionType: "remove",
-			Files: []ConfigFile{
+			Files: []configFile{
 				{Path: "/datadog.yaml"},
 			},
 		}

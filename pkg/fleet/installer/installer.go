@@ -90,9 +90,9 @@ type installerImpl struct {
 	userConfigsDir string
 }
 
-type ExperimentConfigAction struct {
+type experimentConfigAction struct {
 	ActionType configFileAction `json:"action_type"`
-	Files      []ConfigFile     `json:"files"`
+	Files      []configFile     `json:"files"`
 }
 
 // NewInstaller returns a new Package Manager.
@@ -842,14 +842,14 @@ const (
 	configFileActionRemove  configFileAction = "remove"
 )
 
-type ConfigFile struct {
+type configFile struct {
 	Path     string          `json:"path"`
 	Contents json.RawMessage `json:"contents"`
 }
 
 func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error {
 	for _, rawConfigAction := range rawConfigActions {
-		var configAction ExperimentConfigAction
+		var configAction experimentConfigAction
 		err := json.Unmarshal(rawConfigAction, &configAction)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal config files: %w", err)
