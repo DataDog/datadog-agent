@@ -15,7 +15,7 @@
 // Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 15
 // Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 240 frames in a packet, thus 15 (15*16 = 240) tail calls is enough.
+// Currently we have up to 240 frames in a packet, thus 16 (15*16 = 240) tail calls is enough.
 #define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 16
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 // Maximum number of frames to be processed in a single tail call.
@@ -72,6 +72,9 @@
 
 // The flag which will be sent in the PRIORITY field.
 #define HTTP2_PRIORITY_FLAG 0x20
+
+// 5-byte priority section at the start of a HEADERS frame when the PRIORITY flag is set.
+#define HTTP2_PRIORITY_BUFFER_LEN 5
 
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE (MAX_BATCH_SIZE(http2_event_t))
