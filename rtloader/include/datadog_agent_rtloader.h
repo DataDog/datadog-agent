@@ -40,10 +40,6 @@ typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 */
 DATADOG_AGENT_RTLOADER_API rtloader_t *make3(const char *python_home, const char *python_exe, char **error);
 
-DATADOG_AGENT_RTLOADER_API shared_library_handle_t load_shared_library(const char *lib_name, const char **error);
-
-DATADOG_AGENT_RTLOADER_API void run_shared_library(char *checkID, run_check_t *run_function, const char **error);
-
 // HELPERS
 /*! \fn void set_memory_tracker_cb(cb_memory_tracker_t)
     \brief Sets a callback to be used by rtloader for some memory allocation book-keeping.
@@ -60,6 +56,26 @@ DATADOG_AGENT_RTLOADER_API void set_memory_tracker_cb(cb_memory_tracker_t);
     \sa rtloader_t
 */
 DATADOG_AGENT_RTLOADER_API void destroy(rtloader_t *);
+
+/*! \fn shared_library_handle_t load_shared_library(const char *lib_name, const char **error)
+    \brief Function to load the shared library with the correct name and check if it
+    has the required symbols.
+    \param lib_name A C-string with the name of the shared library.
+    \param error A C-string pointer output parameter to return error messages.
+    \return A shared_library_handle_t structure that gathers the library and symbols pointers.
+    \sa shared_library_handle_t
+*/
+DATADOG_AGENT_RTLOADER_API shared_library_handle_t load_shared_library(const char *lib_name, const char **error);
+
+/*! \fn void run_shared_library(char *checkID, run_shared_library_check_t *run_function, const char **error)
+    \brief Function to run the check implementation in a shared library with its symbol.
+    \param checkID A C-string used to get the check context when submitting to the Agent.
+    \param run_function A pointer to the symbol used to run the check implementation.
+    \param error A C-string pointer output parameter to return error messages.
+    \sa run_shared_library_check_t
+*/
+DATADOG_AGENT_RTLOADER_API void run_shared_library(char *checkID, run_shared_library_check_t *run_function,
+                                                   const char **error);
 
 /*! \fn int init(rtloader_t *rtloader)
     \brief Initializing function for the supplied RtLoader instance.
@@ -383,12 +399,14 @@ DATADOG_AGENT_RTLOADER_API char *get_interpreter_memory_usage(rtloader_t *);
 */
 DATADOG_AGENT_RTLOADER_API void set_submit_metric_cb(rtloader_t *, cb_submit_metric_t);
 
-// same submit_metric callback as above, but stored as a global variable in the C++ API
-DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_metric_cb(cb_submit_metric_t);
+/*! \fn void set_aggregator_submit_metric_cb(cb_submit_metric_t)
+    \brief Sets the submit metric callback to be used by shared library checks in rtloader for metric submission.
+    \param cb A function pointer with cb_submit_metric_t prototype to the callback
+    function.
 
-// function used by shared library checks
-DATADOG_AGENT_RTLOADER_API void submit_metric(char *, const metric_type_t, char *, const double, char **, char *,
-                                              const bool);
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_metric_cb(cb_submit_metric_t);
 
 /*! \fn void set_submit_service_check_cb(rtloader_t *, cb_submit_service_check_t)
     \brief Sets the submit service_check callback to be used by rtloader for service_check
@@ -400,12 +418,15 @@ DATADOG_AGENT_RTLOADER_API void submit_metric(char *, const metric_type_t, char 
 */
 DATADOG_AGENT_RTLOADER_API void set_submit_service_check_cb(rtloader_t *, cb_submit_service_check_t);
 
-// same submit_service_check callback as above, but stored as a global variable in the C++ API
-// the callback above is stored in RtLoader::Three, which is Python specific
-DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_service_check_cb(cb_submit_service_check_t);
+/*! \fn void set_aggregator_submit_service_check_cb(cb_submit_service_check_t)
+    \brief Sets the submit service_check callback to be used by shared library checks in rtloader for service_check
+    submission.
+    \param cb A function pointer with cb_submit_service_check_t prototype to the
+    callback function.
 
-// function used by shared library checks
-DATADOG_AGENT_RTLOADER_API void submit_service_check(char *, char *, int, char **, char *, char *);
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_service_check_cb(cb_submit_service_check_t);
 
 /*! \fn void set_submit_event_cb(rtloader_t *, cb_submit_event_t)
     \brief Sets the submit event callback to be used by rtloader for event submission.
@@ -706,6 +727,19 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_mongodb_string_cb(rtloader_t *, cb
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_emit_agent_telemetry_cb(rtloader_t *, cb_emit_agent_telemetry_t);
+
+/*! \fn void submit_metric(char *, const metric_type_t, char *, const double, char **, char *, const bool)
+    \brief Submit metrics with the callback initialized by set_aggregator_submit_metric_cb.
+    \sa set_aggregator_submit_metric_cb
+*/
+DATADOG_AGENT_RTLOADER_API void submit_metric(char *, const metric_type_t, char *, const double, char **, char *,
+                                              const bool);
+
+/*! \fn void submit_service_check(char *, char *, int, char **, char *, char *)
+    \brief Submit service checks with the callback initialized by set_aggregator_submit_metric_cb.
+    \sa set_aggregator_service_check_cb
+*/
+DATADOG_AGENT_RTLOADER_API void submit_service_check(char *, char *, int, char **, char *, char *);
 
 #ifdef __cplusplus
 }

@@ -94,15 +94,6 @@ typedef struct pymem_stats_s {
  * custom builtins
  */
 
-// shared library function type that returns the payload
-typedef void(run_check_t)(char *);
-
-// shared library handles struct to pass it to the go check
-typedef struct shared_library_handle_s {
-    void *lib; // handle to the shared library
-    run_check_t *run; // handle to the run function
-} shared_library_handle_t;
-
 // aggregator
 //
 // (id, metric_type, metric_name, value, tags, hostname, flush_first_value)
@@ -115,6 +106,13 @@ typedef void (*cb_submit_event_t)(char *, event_t *);
 typedef void (*cb_submit_histogram_bucket_t)(char *, char *, long long, float, float, int, char *, char **, bool);
 // (id, event, event_type)
 typedef void (*cb_submit_event_platform_event_t)(char *, char *, int, char *);
+// (run_function_cb)
+typedef void(run_shared_library_check_t)(char *);
+// library and symbols pointers
+typedef struct shared_library_handle_s {
+    void *lib; // handle to the shared library
+    run_shared_library_check_t *run; // handle to the run function
+} shared_library_handle_t;
 
 // datadog_agent
 //

@@ -56,7 +56,7 @@ static HMODULE rtloader_backend = NULL;
 static void *rtloader_backend = NULL;
 #endif
 
-// pointer to store the callback of pkg/collect/aggregator.go
+// variables to store callbacks of pkg/collect/aggregator.go
 static cb_submit_metric_t submit_metric_cb = NULL;
 static cb_submit_service_check_t submit_service_check_cb = NULL;
 
@@ -138,6 +138,18 @@ void destroy(rtloader_t *rtloader)
     }
 }
 
+shared_library_handle_t load_shared_library(const char *lib_name, const char **error)
+{
+    // Not implemented yet
+    return shared_library_handle_t{ NULL, NULL };
+}
+
+void run_shared_library(char *checkID, run_shared_library_check_t *run_function, const char **error)
+{
+    // Not implemented yet
+    return NULL;
+}
+
 #else
 
 rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
@@ -173,8 +185,21 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
-// those methods should be in SharedLibrary.cpp, but we need to keep them here until the pure virtual python specific
-// methods are moved to the Three class
+void destroy(rtloader_t *rtloader)
+{
+    if (rtloader_backend) {
+        // dlsym object destructor
+        destroy_t *destroy = (destroy_t *)dlsym(rtloader_backend, "destroy");
+        const char *dlsym_error = dlerror();
+        if (dlsym_error) {
+            std::cerr << "Unable to dlopen backend destructor: " << dlsym_error;
+            return;
+        }
+        destroy(AS_TYPE(RtLoader, rtloader));
+        rtloader_backend = NULL;
+    }
+}
+
 shared_library_handle_t load_shared_library(const char *lib_name, const char **error)
 {
     // resolve the library full name
@@ -194,7 +219,7 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
     const char *dlsym_error = NULL;
 
     // dlsym run_check function to get the metric run the custom check and get the payload
-    run_check_t *run_handle = (run_check_t *)dlsym(lib_handle, "Run");
+    run_shared_library_check_t *run_handle = (run_shared_library_check_t *)dlsym(lib_handle, "Run");
     dlsym_error = dlerror();
     if (dlsym_error) {
         std::ostringstream err_msg;
@@ -206,7 +231,7 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
     return shared_library_handle_t{ lib_handle, run_handle };
 }
 
-void run_shared_library(char *checkID, run_check_t *run_function, const char **error)
+void run_shared_library(char *checkID, run_shared_library_check_t *run_function, const char **error)
 {
     // verify the run function pointer
     if (!run_function) {
@@ -218,21 +243,6 @@ void run_shared_library(char *checkID, run_check_t *run_function, const char **e
 
     // run the shared library check and check the returned payload`
     run_function(checkID);
-}
-
-void destroy(rtloader_t *rtloader)
-{
-    if (rtloader_backend) {
-        // dlsym object destructor
-        destroy_t *destroy = (destroy_t *)dlsym(rtloader_backend, "destroy");
-        const char *dlsym_error = dlerror();
-        if (dlsym_error) {
-            std::cerr << "Unable to dlopen backend destructor: " << dlsym_error;
-            return;
-        }
-        destroy(AS_TYPE(RtLoader, rtloader));
-        rtloader_backend = NULL;
-    }
 }
 #endif
 
@@ -481,12 +491,6 @@ void set_aggregator_submit_metric_cb(cb_submit_metric_t cb)
     submit_metric_cb = cb;
 }
 
-void submit_metric(char *checkID, const metric_type_t metricType, char *metricName, const double value, char **tags,
-                   char *hostname, const bool flushFirstValue)
-{
-    submit_metric_cb(checkID, metricType, metricName, value, tags, hostname, flushFirstValue);
-}
-
 void set_submit_service_check_cb(rtloader_t *rtloader, cb_submit_service_check_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSubmitServiceCheckCb(cb);
@@ -495,11 +499,6 @@ void set_submit_service_check_cb(rtloader_t *rtloader, cb_submit_service_check_t
 void set_aggregator_submit_service_check_cb(cb_submit_service_check_t cb)
 {
     submit_service_check_cb = cb;
-}
-
-void submit_service_check(char *checkID, char *name, int status, char **tags, char *hostname, char *message)
-{
-    submit_service_check_cb(checkID, name, status, tags, hostname, message);
 }
 
 void set_submit_event_cb(rtloader_t *rtloader, cb_submit_event_t cb)
@@ -619,6 +618,17 @@ void set_obfuscate_mongodb_string_cb(rtloader_t *rtloader, cb_obfuscate_mongodb_
 void set_emit_agent_telemetry_cb(rtloader_t *rtloader, cb_emit_agent_telemetry_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setEmitAgentTelemetryCb(cb);
+}
+
+void submit_metric(char *checkID, const metric_type_t metricType, char *metricName, const double value, char **tags,
+                   char *hostname, const bool flushFirstValue)
+{
+    submit_metric_cb(checkID, metricType, metricName, value, tags, hostname, flushFirstValue);
+}
+
+void submit_service_check(char *checkID, char *name, int status, char **tags, char *hostname, char *message)
+{
+    submit_service_check_cb(checkID, name, status, tags, hostname, message);
 }
 
 /*
