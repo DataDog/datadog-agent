@@ -313,7 +313,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
 	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
 	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
-	pipelines := make([]metricsserializer.Pipeline, 0, 4)
+	pipelines := []metricsserializer.Pipeline{}
 	if failoverActive {
 		// Default behavior, primary region only
 		pipelines = append(pipelines, metricsserializer.Pipeline{
