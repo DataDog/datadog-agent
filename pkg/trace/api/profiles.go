@@ -7,6 +7,7 @@ package api
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -171,13 +172,15 @@ func isRetryableError(err error) bool {
 	}
 
 	// Check for network-level errors that indicate connection issues
-	if netErr, ok := err.(net.Error); ok {
+	var netErr net.Error
+	if errors.As(err, &netErr) {
 		// Retry on timeout or temporary network errors
 		return netErr.Timeout() || netErr.Temporary()
 	}
 
 	// Check for specific connection errors
-	if opErr, ok := err.(*net.OpError); ok {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
 		if opErr.Op == "dial" || opErr.Op == "read" || opErr.Op == "write" {
 			return true
 		}
@@ -191,11 +194,6 @@ func isRetryableError(err error) bool {
 				return true
 			}
 		}
-	}
-
-	// Check for URL errors that might be retryable
-	if urlErr, ok := err.(*url.Error); ok {
-		return isRetryableError(urlErr.Err)
 	}
 
 	return false
@@ -236,21 +234,21 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
 
-	// retryRoundTrip performs a single request with retry logic
-	retryRoundTrip := func(req *http.Request, u *url.URL, apiKey string) (*http.Response, error) {
+	// Read the request body once for all retry attempts and multiple targets
+	var bodyBytes []byte
+	if req.Body != nil {
+		var err error
+		bodyBytes, err = io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		req.Body.Close() // Close the original body
+	}
+
+	// retryRoundTrip performs a single request with retry logic using pre-read body bytes
+	retryRoundTrip := func(u *url.URL, apiKey string) (*http.Response, error) {
 		var lastErr error
 		var resp *http.Response
-		var bodyBytes []byte
-
-		// Read the request body once for all retry attempts
-		if req.Body != nil {
-			var err error
-			bodyBytes, err = io.ReadAll(req.Body)
-			if err != nil {
-				return nil, err
-			}
-			req.Body.Close() // Close the original body
-		}
 
 		for attempt := 0; attempt < maxRetryAttempts; attempt++ {
 			if attempt > 0 {
@@ -318,27 +316,19 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 	}()
 
 	if len(m.targets) == 1 {
-		return retryRoundTrip(req, m.targets[0], m.keys[0])
+		return retryRoundTrip(m.targets[0], m.keys[0])
 	}
 
-	// Multiple targets - read body once for all requests
-	slurp, err := io.ReadAll(req.Body)
-	if err != nil {
-		return nil, err
-	}
-
+	// Multiple targets - body already read above
 	for i, u := range m.targets {
-		newreq := req.Clone(req.Context())
-		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
-
 		if i == 0 {
 			// Main endpoint - return its response and error
-			rresp, rerr = retryRoundTrip(newreq, u, m.keys[i])
+			rresp, rerr = retryRoundTrip(u, m.keys[i])
 			continue
 		}
 
 		// Additional endpoints - discard responses but still retry (synchronous)
-		if resp, err := retryRoundTrip(newreq, u, m.keys[i]); err == nil {
+		if resp, err := retryRoundTrip(u, m.keys[i]); err == nil {
 			// Successfully sent to additional endpoint, discard response
 			io.Copy(io.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
