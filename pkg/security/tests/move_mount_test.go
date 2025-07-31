@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -269,37 +268,30 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 }
 
 func TestMoveMountRecursivePropagation(t *testing.T) {
-
-	te2, _ := newTestEnvironment(false, t.TempDir())
+	te2, err := newTestEnvironment(false, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer te2.UnmountAll()
-	fd, _ := unix.OpenTree(0, te2.submountDirSrc, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
+
+	fd, err := unix.OpenTree(0, te2.submountDirSrc, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	test, err := newTestModule(t, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Run("moved-recursive-with-propagation", func(_ *testing.T) {
-		dd := map[uint32]uint32{}
+		allMounts := map[uint32]uint32{}
 
 		err = test.GetProbeEvent(func() error {
-			fmt.Println(te2.submountDirSrc)
-			fmt.Println(te2.submountDirDst)
-
-			if err != nil {
-				fmt.Println("Error opening tree:", err)
-			}
-			fmt.Println("Press Enter to continue...")
-			bufio.NewReader(os.Stdin).ReadString('\n')
-
 			err = unix.MoveMount(fd, "", unix.AT_FDCWD, te2.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
 
 			if err != nil {
-				fmt.Println("Err moving mount:", err)
+				t.Fatal("Err moving mount:", err)
 			}
 			if err == nil {
 				for i := 0; i != len(te2.tounmount); i++ {
@@ -312,43 +304,20 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 				return false
 			}
 
-			dd[event.Mount.MountID]++
+			allMounts[event.Mount.MountID]++
 
 			return false
-		}, 10*time.Second, model.FileMoveMountEventType)
-		fmt.Println("Test finished")
-		fmt.Println("Press Enter to continue...")
-		bufio.NewReader(os.Stdin).ReadString('\n')
-		fmt.Println("Will print stuff")
-		for i := range dd {
-			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		}, 5*time.Second, model.FileMoveMountEventType)
+
+		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		for i := range allMounts {
 			mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(i, 0, 0, "")
-			if len(mount.Children) > 0 {
-				fmt.Println("+", mount.MountID, mount.Path)
-				for _, id := range mount.Children {
-					childMount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(id, 0, 0, "")
-					//path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(id, 0, 0, "")
-					fmt.Printf("|  -- %d, %s\n", id, childMount.Path)
-				}
+			if len(mount.Path) == 0 {
+				// Some paths aren't being fully resolved due to missing mounts in the chain
+				// Need to figure out what are these mount points and why they aren't to be found nowhere
+				continue
 			}
+			assert.True(t, strings.Contains(mount.Path, te2.submountDirDst), "Path wasn't moved")
 		}
-
-		//if err != nil {
-		//	t.Fatal("Test timeout without any event")
-		//}
-
 	})
 }
-
-// Create a test that will create a mount point with several submounts
-// Then use open_tree to create a recursive clone to get a detached mount with several submounts
-// Then use move_mount on that
-
-//t.Run("move-attached-fd", func(t *testing.T) {
-//})
-//
-//t.Run("move-attached-filename", func(t *testing.T) {
-//})
-//
-//t.Run("move-attached-fd-recursive", func(t *testing.T) {
-//})

@@ -493,7 +493,6 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 	cache[mountID] = true
 
 	if mount.Detached {
-		fmt.Println("Detached")
 		return "/", source, mount.Origin, nil
 	}
 
