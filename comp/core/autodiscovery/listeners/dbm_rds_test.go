@@ -181,7 +181,8 @@ func TestDBMRdsListener(t *testing.T) {
 			tc.rdsClientConfigurer(mockAWSClient)
 			ticks := make(chan time.Time, 1)
 			var newRdsConfig rds.Config
-			_ = mapstructure.Decode(tc.config, &newRdsConfig)
+			err := mapstructure.Decode(tc.config, &newRdsConfig)
+			assert.NoError(t, err)
 			l := newDBMRdsListener(newRdsConfig, mockAWSClient, ticks)
 			l.Listen(newSvc, delSvc)
 			// execute loop
