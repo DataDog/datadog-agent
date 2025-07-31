@@ -54,11 +54,17 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	events := testutil.GetGPUTestEvents(t, testutil.DataSamplePytorchBatchedKernels)
+
+	// Have generous limits to avoid any eviction/rejection of data, as we're just testing without
+	// actually having the consumers running.
+	cfg.MaxKernelLaunchesPerStream = len(events.Events)
+	cfg.MaxMemAllocEventsPerStream = len(events.Events)
+	cfg.MaxPendingSpans = len(events.Events)
+
 	handlers := newStreamCollection(ctx, telemetryMock, cfg)
 	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, telemetryMock)
 	require.NotNil(t, consumer)
-
-	events := testutil.GetGPUTestEvents(t, testutil.DataSamplePytorchBatchedKernels)
 
 	// Setup the visibleDevicesCache so that we don't get warnings
 	// about missing devices
@@ -94,20 +100,35 @@ func TestPytorchBatchedKernels(t *testing.T) {
 
 	require.NotNil(t, stream)
 	require.Len(t, stream.kernelLaunches, 0)                           // And we should have no kernel launches in the stream pending
+	require.Len(t, stream.pendingKernelSpans, 10)                      // There are 10 uninterrupted sequences of kernel launches
 	require.Equal(t, stream.metadata.gpuUUID, testutil.DefaultGpuUUID) // Ensure the metadata is set correctly
 	require.Equal(t, stream.metadata.pid, uint32(executingPID))
-
-	// Get the past data to check kernel spans
-	pastData := stream.getPastData()
-	require.NotNil(t, pastData)
-	require.Len(t, pastData.kernels, 10) // There are 10 uninterrupted sequences of kernel launches
 
 	totalThreadSeconds := 0.0
 	activeSeconds := 0.0
 
-	for _, span := range pastData.kernels {
+	// Get all the kernel spans in the channel, keep them in a slice
+	// and resend them to the channel later so that we can check that the stats generator
+	// is able to process them correctly.
+	kernelSpans := make([]*kernelSpan, 0, len(stream.pendingKernelSpans))
+loop:
+	for {
+		select {
+		case span := <-stream.pendingKernelSpans:
+			kernelSpans = append(kernelSpans, span)
+		default:
+			break loop
+		}
+	}
+
+	for _, span := range kernelSpans {
 		totalThreadSeconds += float64(span.avgThreadCount) * float64(span.endKtime-span.startKtime) / 1e9
 		activeSeconds += float64(span.endKtime-span.startKtime) / 1e9
+	}
+
+	// Re-feed the kernel spans to the stream
+	for _, span := range kernelSpans {
+		stream.pendingKernelSpans <- span
 	}
 
 	// Manually calculated
@@ -121,8 +142,8 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	endTs := events.Events[len(events.Events)-1].Header.Ktime_ns
 	firstSyncAfterLastKernelLaunchTs := events.Events[866].Header.Ktime_ns
 
-	firstSpanStart := pastData.kernels[0].startKtime
-	lastSpanEnd := pastData.kernels[len(pastData.kernels)-1].endKtime
+	firstSpanStart := kernelSpans[0].startKtime
+	lastSpanEnd := kernelSpans[len(kernelSpans)-1].endKtime
 
 	require.Equal(t, firstSpanStart, startTs)
 	require.Equal(t, lastSpanEnd, firstSyncAfterLastKernelLaunchTs)
