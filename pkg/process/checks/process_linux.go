@@ -176,40 +176,49 @@ func formatServiceDiscovery(service *procutil.Service) *model.ServiceDiscovery {
 	if service == nil {
 		return nil
 	}
-	var serviceNames []*model.ServiceName
 	source := serviceNameSource(service.GeneratedNameSource)
 
-	// Add generated name
-	serviceNames = append(serviceNames, &model.ServiceName{
-		Name:   service.GeneratedName,
-		Source: source,
-	})
-
-	// add dd service name
-	serviceNames = append(serviceNames, &model.ServiceName{
-		Name:   service.DDService,
-		Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_DD_SERVICE,
-	})
-
-	// add additional generated names
-	for _, name := range service.AdditionalGeneratedNames {
-		serviceNames = append(serviceNames, &model.ServiceName{
-			Name:   name,
+	var generatedServiceName *model.ServiceName
+	if service.GeneratedName != "" {
+		generatedServiceName = &model.ServiceName{
+			Name:   service.GeneratedName,
 			Source: source,
-		})
-	}
-
-	// add additional names
-	tracerMetadata := make([]*model.TracerMetadata, len(service.TracerMetadata))
-	for i, tm := range service.TracerMetadata {
-		tracerMetadata[i] = &model.TracerMetadata{
-			RuntimeId:   tm.RuntimeID,
-			ServiceName: tm.ServiceName,
 		}
 	}
 
+	var ddServiceName *model.ServiceName
+	if service.DDService != "" {
+		ddServiceName = &model.ServiceName{
+			Name:   service.DDService,
+			Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_DD_SERVICE,
+		}
+	}
+
+	// additional generate names is not pre-allocated in order to potentially have a nil value instead of an empty slice
+	var additionalGeneratedNames []*model.ServiceName
+	for _, name := range service.AdditionalGeneratedNames {
+		if name != "" {
+			additionalGeneratedNames = append(additionalGeneratedNames, &model.ServiceName{
+				Name:   name,
+				Source: source,
+			})
+		}
+	}
+
+	// tracer metadata is not pre-allocated in order to potentially have a nil value instead of an empty slice
+	var tracerMetadata []*model.TracerMetadata
+	for _, tm := range service.TracerMetadata {
+		tracerMetadata = append(tracerMetadata, &model.TracerMetadata{
+			RuntimeId:   tm.RuntimeID,
+			ServiceName: tm.ServiceName,
+		})
+	}
+
 	return &model.ServiceDiscovery{
-		ServiceNames: serviceNames, TracerMetadata: tracerMetadata,
-		ApmInstrumentation: apmInstrumentation(service.APMInstrumentation),
+		GeneratedServiceName:     generatedServiceName,
+		DdServiceName:            ddServiceName,
+		AdditionalGeneratedNames: additionalGeneratedNames,
+		TracerMetadata:           tracerMetadata,
+		ApmInstrumentation:       apmInstrumentation(service.APMInstrumentation),
 	}
 }

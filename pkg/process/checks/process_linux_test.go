@@ -140,6 +140,7 @@ func TestFormatLanguage(t *testing.T) {
 			language: &languagemodels.Language{
 				Name: languagemodels.Go,
 			},
+			expectedLanguage: model.Language_LANGUAGE_GO,
 		},
 		{
 			description: "node",
@@ -305,11 +306,15 @@ func TestFormatServiceDiscovery(t *testing.T) {
 				APMInstrumentation: "provided",
 			},
 			expectedService: &model.ServiceDiscovery{
-				ServiceNames: []*model.ServiceName{
-					{
-						Name:   "gen_name",
-						Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
-					},
+				GeneratedServiceName: &model.ServiceName{
+					Name:   "gen_name",
+					Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+				},
+				DdServiceName: &model.ServiceName{
+					Name:   "dd_service_name",
+					Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_DD_SERVICE,
+				},
+				AdditionalGeneratedNames: []*model.ServiceName{
 					{
 						Name:   "additional_name1",
 						Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
@@ -317,10 +322,6 @@ func TestFormatServiceDiscovery(t *testing.T) {
 					{
 						Name:   "additional_name2",
 						Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
-					},
-					{
-						Name:   "dd_service_name",
-						Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_DD_SERVICE,
 					},
 				},
 				TracerMetadata: []*model.TracerMetadata{
@@ -334,6 +335,22 @@ func TestFormatServiceDiscovery(t *testing.T) {
 					},
 				},
 				ApmInstrumentation: true,
+			},
+		},
+		{
+			description: "empty service names",
+			service: &procutil.Service{
+				GeneratedName:            "",
+				GeneratedNameSource:      "",
+				AdditionalGeneratedNames: []string{"", ""},
+				DDService:                "",
+				APMInstrumentation:       "none",
+			},
+			expectedService: &model.ServiceDiscovery{
+				GeneratedServiceName:     nil,
+				DdServiceName:            nil,
+				AdditionalGeneratedNames: nil,
+				ApmInstrumentation:       false,
 			},
 		},
 		{
