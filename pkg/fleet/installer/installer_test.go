@@ -405,7 +405,9 @@ func TestPurge(t *testing.T) {
 		installer := newTestPackageManager(t, s, rootPath)
 		installer.testHooks.noop = true
 		tmpPath := filepath.Join(rootPath, "tmp")
-		err := os.WriteFile(filepath.Join(tmpPath, "test.txt"), []byte("test"), 0644)
+		err := os.MkdirAll(tmpPath, 0755)
+		assert.NoError(t, err)
+		err = os.WriteFile(filepath.Join(tmpPath, "test.txt"), []byte("test"), 0644)
 		assert.NoError(t, err)
 
 		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
