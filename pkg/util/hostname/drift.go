@@ -15,7 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
-const (
+// Default timing values that can be modified for testing
+var (
 	// DefaultInitialDelay is the default delay before the first check (20 minutes)
 	DefaultInitialDelay = 20 * time.Minute
 	// DefaultRecurringInterval is the default interval for recurring checks (6 hours)
@@ -41,6 +42,14 @@ var (
 type driftInfo struct {
 	state    string
 	hasDrift bool
+}
+
+func SetDefaultInitialDelay(delay time.Duration) {
+	DefaultInitialDelay = delay
+}
+
+func SetDefaultRecurringInterval(interval time.Duration) {
+	DefaultRecurringInterval = interval
 }
 
 // determineDriftState determines the drift state and whether any drift occurred
@@ -101,7 +110,10 @@ func checkHostnameDrift(ctx context.Context, cacheHostnameKey string) {
 	// Start timing the drift resolution
 	startTime := time.Now()
 
-	for _, p := range getProviderCatalog(false) {
+	// Use test variable if available, otherwise use the real function
+	providers := getProviderCatalog(false)
+
+	for _, p := range providers {
 		detectedHostname, err := p.cb(ctx, hostname)
 		if err != nil {
 			continue
