@@ -1007,21 +1007,7 @@ func getSockStructSKProtocolOffset(kv *kernel.Version) uint64 {
 
 func getFlowiProtoOffset(kv *kernel.Version) uint64 {
 	switch {
-	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
-		return 14
-	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		return 14
-	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
-		return 14
-	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
-		return 14
-	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
-		return 14
-	case kv.IsRH7Kernel():
-		return 14
-	case kv.IsRH8Kernel() && kv.Code.Patch() >= 5:
-		return 14
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel5_0):
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel5_18):
 		return 14
 	default:
 		return 18
