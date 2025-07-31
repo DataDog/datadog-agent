@@ -39,11 +39,11 @@ type SharedLibraryCheck struct {
 	interval      time.Duration
 	libName       string
 	libPtr        unsafe.Pointer // pointer to the shared library (unsued in RTLoader because it only needs the symbols)
-	libRunPtr     *C.run_check_t // pointer to the function symbol that runs the check
+	libRunPtr     *C.run_shared_library_check_t // pointer to the function symbol that runs the check
 }
 
 // NewSharedLibraryCheck conveniently creates a SharedLibraryCheck instance
-func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libPtr unsafe.Pointer, libRunPtr *C.run_check_t) (*SharedLibraryCheck, error) {
+func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libPtr unsafe.Pointer, libRunPtr *C.run_shared_library_check_t) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
