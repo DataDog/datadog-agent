@@ -10,13 +10,25 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
+
+// copy of toUnique because "github.com/DataDog/datadog-agent" is not an allowed import for "/go/src/github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+func toUnique(ss []string) []unique.Handle[string] {
+	if ss == nil {
+		return nil
+	}
+	ret := make([]unique.Handle[string], 0, len(ss))
+	for _, s := range ss {
+		ret = append(ret, unique.Make(s))
+	}
+	return ret
+}
 
 func TestCollisions(t *testing.T) {
 	assert := assert.New(t)

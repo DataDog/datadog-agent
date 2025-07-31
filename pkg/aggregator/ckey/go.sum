@@ -1,5 +1,6 @@
 github.com/DataDog/datadog-agent v0.0.0-20250731091224-738465ef5ee4 h1:s6LuVo7Eca3WUtLhbt1qdbjWmvwp747VYE67LkEg4ec=
 github.com/DataDog/datadog-agent v0.0.0-20250731091224-738465ef5ee4/go.mod h1:aUW5OaQ3taDmk6YC0A6zU3gwiGPEfGRn3jZmATOf+FY=
+github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
