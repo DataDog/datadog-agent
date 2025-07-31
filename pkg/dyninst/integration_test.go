@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -74,6 +75,7 @@ func TestDyninst(t *testing.T) {
 	// Leave the option to disable this behavior for debugging purposes.
 	dontClear, _ := strconv.ParseBool(os.Getenv("DONT_CLEAR_TRACE_PIPE"))
 	if !dontClear {
+		t.Logf("clearing trace_pipe!")
 		tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
 		require.NoError(t, err)
 		t.Cleanup(func() {
@@ -86,6 +88,7 @@ func TestDyninst(t *testing.T) {
 					break
 				}
 			}
+			t.Logf("closing trace_pipe!")
 			require.NoError(t, tp.Close())
 		})
 	}
@@ -138,7 +141,7 @@ func testDyninst(
 	if debug {
 		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
 	}
-	reporter := makeTestReporter(t)
+	reporter := makeTestReporter(t, irDump)
 	loader, err := loader.NewLoader(loaderOpts...)
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
@@ -293,15 +296,14 @@ func testDyninst(
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Output: %s", decodeOut.String())
 		}
-		redacted := redactJSON(t, decodeOut.Bytes(), defaultRedactors)
+		redacted := redactJSON(t, "", decodeOut.Bytes(), defaultRedactors)
+		if os.Getenv("DEBUG") != "" {
+			t.Logf("Sorted and redacted: %s", redacted)
+		}
 		probeID := probe.GetID()
 		probeRet := retMap[probeID]
 		expIdx := len(probeRet)
 		retMap[probeID] = append(retMap[probeID], json.RawMessage(redacted))
-		if expIdx < len(expOut[probeID]) {
-			outputToCompare := expOut[probeID][expIdx]
-			assert.JSONEq(t, string(outputToCompare), string(redacted))
-		}
 		if !rewriteEnabled {
 			expOut, ok := expOut[probeID]
 			assert.True(t, ok, "expected output for probe %s not found", probeID)
@@ -446,10 +448,16 @@ type testReporter struct {
 	attached chan *testMessageSink
 	t        *testing.T
 	sink     testMessageSink
+	irDump   *os.File
 }
 
 // ReportLoaded implements actuator.Reporter.
 func (r *testReporter) ReportLoaded(_ actuator.ProcessID, _ actuator.Executable, p *ir.Program) (actuator.Sink, error) {
+	if yaml, err := irprinter.PrintYAML(p); err != nil {
+		r.t.Errorf("failed to print IR: %v", err)
+	} else if _, err := io.Copy(r.irDump, bytes.NewReader(yaml)); err != nil {
+		r.t.Errorf("failed to write IR to file: %v", err)
+	}
 	r.sink = testMessageSink{
 		irp: p,
 		ch:  make(chan output.Event, 100),
@@ -504,10 +512,11 @@ func (r *testReporter) ReportAttachingFailed(
 	)
 }
 
-func makeTestReporter(t *testing.T) *testReporter {
+func makeTestReporter(t *testing.T, irDump *os.File) *testReporter {
 	return &testReporter{
 		t:        t,
 		attached: make(chan *testMessageSink, 1),
+		irDump:   irDump,
 	}
 }
 

@@ -103,6 +103,7 @@
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 .needs_new_e2e_template:
   - go_e2e_deps
@@ -226,7 +227,6 @@ new-e2e-containers-eks:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -430,7 +430,6 @@ new-e2e-npm-eks:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-npm:
   extends: .new_e2e_template
@@ -496,7 +495,6 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    REMOTE_STACK_CLEANING: "true"
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
   parallel:
@@ -610,6 +608,7 @@ new-e2e-installer:
     - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
     - deploy_agent_oci
+    - installer-install-scripts
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -668,6 +667,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
+      - EXTRA_PARAMS: --run "TestUpgradeWithMissingPassword$/TestUpgradeWithMissingPassword$"
       # agent config experiment
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
@@ -847,7 +847,6 @@ new-e2e-otel-eks:
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
     E2E_PRE_INITIALIZED: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-otel:
   extends: .new_e2e_template
