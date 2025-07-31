@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -28,6 +30,11 @@ const (
 	profilingURLDefault = "https://intake.profile.datadoghq.com/api/v2/profile"
 	// profilingV1EndpointSuffix suffix identifying a user-configured V1 endpoint
 	profilingV1EndpointSuffix = "v1/input"
+
+	// Retry configuration
+	maxRetryAttempts = 3
+	retryBaseDelay   = 100 * time.Millisecond
+	retryMaxDelay    = 2 * time.Second
 )
 
 // profilingEndpoints returns the profiling intake urls and their corresponding
@@ -157,12 +164,148 @@ type multiTransport struct {
 	keys    []string
 }
 
+// isRetryableError determines if an error should trigger a retry
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for network-level errors that indicate connection issues
+	if netErr, ok := err.(net.Error); ok {
+		// Retry on timeout or temporary network errors
+		return netErr.Timeout() || netErr.Temporary()
+	}
+
+	// Check for specific connection errors
+	if opErr, ok := err.(*net.OpError); ok {
+		if opErr.Op == "dial" || opErr.Op == "read" || opErr.Op == "write" {
+			return true
+		}
+		if syscallErr, ok := opErr.Err.(*net.DNSError); ok {
+			return syscallErr.Temporary()
+		}
+		if syscallErr, ok := opErr.Err.(*syscall.Errno); ok {
+			// Common retryable syscall errors
+			switch *syscallErr {
+			case syscall.ECONNREFUSED, syscall.ECONNRESET, syscall.ETIMEDOUT, syscall.ENETUNREACH, syscall.EHOSTUNREACH:
+				return true
+			}
+		}
+	}
+
+	// Check for URL errors that might be retryable
+	if urlErr, ok := err.(*url.Error); ok {
+		return isRetryableError(urlErr.Err)
+	}
+
+	return false
+}
+
+// isRetryableStatusCode determines if an HTTP status code should trigger a retry
+func isRetryableStatusCode(statusCode int) bool {
+	switch statusCode {
+	case http.StatusBadGateway, // 502 - proxy/gateway connection issues
+		http.StatusServiceUnavailable, // 503 - temporary server overload
+		http.StatusGatewayTimeout:     // 504 - proxy/gateway timeout
+		return true
+	default:
+		return false
+	}
+}
+
+// calculateRetryDelay computes the delay for a retry attempt using exponential backoff
+func calculateRetryDelay(attempt int) time.Duration {
+	if attempt <= 0 {
+		return retryBaseDelay
+	}
+
+	delay := retryBaseDelay
+	for i := 0; i < attempt; i++ {
+		delay *= 2
+		if delay > retryMaxDelay {
+			return retryMaxDelay
+		}
+	}
+	return delay
+}
+
 func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		r.Host = u.Host
 		r.URL = u
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
+
+	// retryRoundTrip performs a single request with retry logic
+	retryRoundTrip := func(req *http.Request, u *url.URL, apiKey string) (*http.Response, error) {
+		var lastErr error
+		var resp *http.Response
+		var bodyBytes []byte
+
+		// Read the request body once for all retry attempts
+		if req.Body != nil {
+			var err error
+			bodyBytes, err = io.ReadAll(req.Body)
+			if err != nil {
+				return nil, err
+			}
+			req.Body.Close() // Close the original body
+		}
+
+		for attempt := 0; attempt < maxRetryAttempts; attempt++ {
+			if attempt > 0 {
+				delay := calculateRetryDelay(attempt - 1)
+				log.Debugf("Retrying profile upload to %s after %v (attempt %d/%d)", u.Host, delay, attempt+1, maxRetryAttempts)
+				time.Sleep(delay)
+			}
+
+			// Clone the request and set up a fresh body for this attempt
+			attemptReq := req.Clone(req.Context())
+			if bodyBytes != nil {
+				attemptReq.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			}
+			setTarget(attemptReq, u, apiKey)
+
+			resp, lastErr = m.rt.RoundTrip(attemptReq)
+
+			// Check if this is the final attempt
+			isLastAttempt := attempt == maxRetryAttempts-1
+
+			// Determine if we should retry
+			shouldRetry := false
+			if lastErr != nil {
+				// Connection-level error - check if retryable
+				shouldRetry = isRetryableError(lastErr) && !isLastAttempt
+				if !shouldRetry && !isLastAttempt {
+					log.Debugf("Non-retryable connection error for profile upload to %s: %v", u.Host, lastErr)
+				}
+			} else if resp != nil {
+				// Got a response - check if status code indicates retryable condition
+				shouldRetry = isRetryableStatusCode(resp.StatusCode) && !isLastAttempt
+				if shouldRetry {
+					log.Debugf("Retryable HTTP status %d for profile upload to %s", resp.StatusCode, u.Host)
+				}
+			}
+
+			if !shouldRetry {
+				// Either success, non-retryable error, or final attempt - return result
+				return resp, lastErr
+			}
+
+			// We're going to retry - close the response body to prevent leaks
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
+
+			if lastErr != nil {
+				log.Debugf("Retryable connection error for profile upload to %s: %v", u.Host, lastErr)
+			}
+		}
+
+		// This should never be reached due to the isLastAttempt logic above
+		return resp, lastErr
+	}
+
 	defer func() {
 		// Hack for backwards-compatibility
 		// The old v1/input endpoint responded with 200 and as this handler
@@ -173,27 +316,30 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 			rresp.StatusCode = http.StatusOK
 		}
 	}()
+
 	if len(m.targets) == 1 {
-		setTarget(req, m.targets[0], m.keys[0])
-		return m.rt.RoundTrip(req)
+		return retryRoundTrip(req, m.targets[0], m.keys[0])
 	}
+
+	// Multiple targets - read body once for all requests
 	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
+
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
-		setTarget(newreq, u, m.keys[i])
+
 		if i == 0 {
-			// given the way we construct the list of targets the main endpoint
-			// will be the first one called, we return its response and error
-			rresp, rerr = m.rt.RoundTrip(newreq)
+			// Main endpoint - return its response and error
+			rresp, rerr = retryRoundTrip(newreq, u, m.keys[i])
 			continue
 		}
 
-		if resp, err := m.rt.RoundTrip(newreq); err == nil {
-			// we discard responses for all subsequent requests
+		// Additional endpoints - discard responses but still retry (synchronous)
+		if resp, err := retryRoundTrip(newreq, u, m.keys[i]); err == nil {
+			// Successfully sent to additional endpoint, discard response
 			io.Copy(io.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {

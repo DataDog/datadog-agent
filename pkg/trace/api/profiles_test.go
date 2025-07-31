@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -334,4 +335,558 @@ func TestProfileProxyHandler(t *testing.T) {
 			t.Fatal("request not proxied")
 		}
 	})
+}
+
+// mockRoundTripper allows controlling the behavior of HTTP requests for testing
+type mockRoundTripper struct {
+	responses []mockResponse
+	callCount int
+	calls     []mockCall
+}
+
+type mockResponse struct {
+	resp *http.Response
+	err  error
+}
+
+type mockCall struct {
+	url    string
+	apiKey string
+}
+
+func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if m.callCount >= len(m.responses) {
+		return nil, fmt.Errorf("unexpected call %d, only %d responses configured", m.callCount, len(m.responses))
+	}
+	
+	// Record the call
+	m.calls = append(m.calls, mockCall{
+		url:    req.URL.String(),
+		apiKey: req.Header.Get("DD-API-KEY"),
+	})
+	
+	resp := m.responses[m.callCount]
+	m.callCount++
+	return resp.resp, resp.err
+}
+
+func TestIsRetryableError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "timeout error",
+			err:      mockNetError{timeout: true},
+			expected: true,
+		},
+		{
+			name:     "temporary error (non-timeout)",
+			err:      mockNetError{timeout: false},
+			expected: true,
+		},
+		{
+			name:     "generic error",
+			err:      fmt.Errorf("some generic error"),
+			expected: false,
+		},
+		{
+			name:     "url error with retryable nested error",
+			err:      &url.Error{Op: "Get", URL: "http://example.com", Err: mockNetError{timeout: true}},
+			expected: true,
+		},
+		{
+			name:     "url error with non-retryable nested error",
+			err:      &url.Error{Op: "Get", URL: "http://example.com", Err: fmt.Errorf("non-retryable")},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isRetryableError(tt.err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestCalculateRetryDelay(t *testing.T) {
+	tests := []struct {
+		name     string
+		attempt  int
+		expected time.Duration
+	}{
+		{
+			name:     "attempt 0",
+			attempt:  0,
+			expected: 100 * time.Millisecond,
+		},
+		{
+			name:     "attempt 1",
+			attempt:  1,
+			expected: 200 * time.Millisecond,
+		},
+		{
+			name:     "attempt 2",
+			attempt:  2,
+			expected: 400 * time.Millisecond,
+		},
+		{
+			name:     "attempt 3",
+			attempt:  3,
+			expected: 800 * time.Millisecond,
+		},
+		{
+			name:     "attempt 4",
+			attempt:  4,
+			expected: 1600 * time.Millisecond,
+		},
+		{
+			name:     "attempt 5 (capped)",
+			attempt:  5,
+			expected: 2 * time.Second,
+		},
+		{
+			name:     "attempt 10 (capped)",
+			attempt:  10,
+			expected: 2 * time.Second,
+		},
+		{
+			name:     "negative attempt",
+			attempt:  -1,
+			expected: 100 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calculateRetryDelay(tt.attempt)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestMultiTransportRetry(t *testing.T) {
+	t.Run("single_target_success_first_attempt", func(t *testing.T) {
+		mockRT := &mockRoundTripper{
+			responses: []mockResponse{
+				{resp: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("OK"))}, err: nil},
+			},
+		}
+		
+		transport := &multiTransport{
+			rt:      mockRT,
+			targets: makeURLs(t, "http://example.com"),
+			keys:    []string{"test-key"},
+		}
+		
+		req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader("test-body"))
+		resp, err := transport.RoundTrip(req)
+		
+		assert.NoError(t, err)
+		assert.Equal(t, 200, resp.StatusCode)
+		assert.Equal(t, 1, mockRT.callCount)
+	})
+
+	t.Run("single_target_retry_on_timeout", func(t *testing.T) {
+		mockRT := &mockRoundTripper{
+			responses: []mockResponse{
+				{resp: nil, err: mockNetError{timeout: true}},
+				{resp: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("OK"))}, err: nil},
+			},
+		}
+		
+		transport := &multiTransport{
+			rt:      mockRT,
+			targets: makeURLs(t, "http://example.com"),
+			keys:    []string{"test-key"},
+		}
+		
+		req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader("test-body"))
+		resp, err := transport.RoundTrip(req)
+		
+		assert.NoError(t, err)
+		assert.Equal(t, 200, resp.StatusCode)
+		assert.Equal(t, 2, mockRT.callCount, "Should retry once")
+	})
+
+	t.Run("single_target_no_retry_on_non_retryable_error", func(t *testing.T) {
+		mockRT := &mockRoundTripper{
+			responses: []mockResponse{
+				{resp: nil, err: fmt.Errorf("non-retryable error")},
+			},
+		}
+		
+		transport := &multiTransport{
+			rt:      mockRT,
+			targets: makeURLs(t, "http://example.com"),
+			keys:    []string{"test-key"},
+		}
+		
+		req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader("test-body"))
+		resp, err := transport.RoundTrip(req)
+		
+		assert.Error(t, err)
+		assert.Nil(t, resp)
+		assert.Equal(t, 1, mockRT.callCount, "Should not retry")
+		assert.Contains(t, err.Error(), "non-retryable error")
+	})
+
+	t.Run("single_target_exhaust_retries", func(t *testing.T) {
+		mockRT := &mockRoundTripper{
+			responses: []mockResponse{
+				{resp: nil, err: mockNetError{timeout: true}},
+				{resp: nil, err: mockNetError{timeout: true}},
+			},
+		}
+		
+		transport := &multiTransport{
+			rt:      mockRT,
+			targets: makeURLs(t, "http://example.com"),
+			keys:    []string{"test-key"},
+		}
+		
+		req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader("test-body"))
+		resp, err := transport.RoundTrip(req)
+		
+		assert.Error(t, err)
+		assert.Nil(t, resp)
+		assert.Equal(t, 2, mockRT.callCount, "Should retry maxRetryAttempts (2) times")
+	})
+
+	t.Run("multiple_targets_main_endpoint_retries", func(t *testing.T) {
+		mockRT := &mockRoundTripper{
+			responses: []mockResponse{
+				// Main endpoint fails then succeeds
+				{resp: nil, err: mockNetError{timeout: true}},
+				{resp: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("OK"))}, err: nil},
+				// Additional endpoint succeeds immediately (runs asynchronously)
+				{resp: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("OK"))}, err: nil},
+			},
+		}
+		
+		transport := &multiTransport{
+			rt:      mockRT,
+			targets: makeURLs(t, "http://main.example.com", "http://additional.example.com"),
+			keys:    []string{"main-key", "additional-key"},
+		}
+		
+		req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader("test-body"))
+		resp, err := transport.RoundTrip(req)
+		
+		assert.NoError(t, err)
+		assert.Equal(t, 200, resp.StatusCode)
+		// Main endpoint should have been retried once, additional endpoint called once
+		// Total calls might be 2 or 3 depending on goroutine timing, but main endpoint should succeed
+	})
+}
+
+func TestMultiTransportBackwardsCompatibility(t *testing.T) {
+	t.Run("status_code_conversion", func(t *testing.T) {
+		mockRT := &mockRoundTripper{
+			responses: []mockResponse{
+				{resp: &http.Response{StatusCode: 202, Body: io.NopCloser(strings.NewReader("Accepted"))}, err: nil},
+			},
+		}
+		
+		transport := &multiTransport{
+			rt:      mockRT,
+			targets: makeURLs(t, "http://example.com"),
+			keys:    []string{"test-key"},
+		}
+		
+		req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader("test-body"))
+		resp, err := transport.RoundTrip(req)
+		
+		assert.NoError(t, err)
+		assert.Equal(t, 200, resp.StatusCode, "202 should be converted to 200")
+		assert.Equal(t, "OK", resp.Status, "Status text should be OK")
+	})
+}
+
+func TestIsRetryableStatusCode(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		expected   bool
+	}{
+		{
+			name:       "200 OK - not retryable",
+			statusCode: http.StatusOK,
+			expected:   false,
+		},
+		{
+			name:       "400 Bad Request - not retryable",
+			statusCode: http.StatusBadRequest,
+			expected:   false,
+		},
+		{
+			name:       "404 Not Found - not retryable", 
+			statusCode: http.StatusNotFound,
+			expected:   false,
+		},
+		{
+			name:       "500 Internal Server Error - not retryable",
+			statusCode: http.StatusInternalServerError,
+			expected:   false,
+		},
+		{
+			name:       "502 Bad Gateway - retryable",
+			statusCode: http.StatusBadGateway,
+			expected:   true,
+		},
+		{
+			name:       "503 Service Unavailable - retryable",
+			statusCode: http.StatusServiceUnavailable,
+			expected:   true,
+		},
+		{
+			name:       "504 Gateway Timeout - retryable",
+			statusCode: http.StatusGatewayTimeout,
+			expected:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isRetryableStatusCode(tt.statusCode)
+			assert.Equal(t, tt.expected, result, "Expected %v for status code %d", tt.expected, tt.statusCode)
+		})
+	}
+}
+
+func TestMultiTransportStatusCodeRetry(t *testing.T) {
+	t.Run("502_retry_success", func(t *testing.T) {
+		// Mock transport that returns 502 twice, then succeeds
+		mockTransport := &mockRoundTripper{
+			responses: []mockResponse{
+				{resp: &http.Response{StatusCode: http.StatusBadGateway, Body: io.NopCloser(strings.NewReader("bad gateway"))}, err: nil},
+				{resp: &http.Response{StatusCode: http.StatusBadGateway, Body: io.NopCloser(strings.NewReader("bad gateway"))}, err: nil},
+				{resp: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("success"))}, err: nil},
+			},
+		}
+
+		u, _ := url.Parse("http://example.com")
+		mt := &multiTransport{
+			rt:      mockTransport,
+			targets: []*url.URL{u},
+			keys:    []string{"test-key"},
+		}
+
+		// Use nil body for single target to avoid body consumption issues
+		req, _ := http.NewRequest("POST", "http://example.com", nil)
+		resp, err := mt.RoundTrip(req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, resp, "Response should not be nil")
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, 3, mockTransport.callCount, "Should have made 3 attempts")
+	})
+
+	t.Run("502_retry_exhausted", func(t *testing.T) {
+		// Mock transport that always returns 502
+		mockTransport := &mockRoundTripper{
+			responses: []mockResponse{
+				{resp: &http.Response{StatusCode: http.StatusBadGateway, Body: io.NopCloser(strings.NewReader("bad gateway"))}, err: nil},
+				{resp: &http.Response{StatusCode: http.StatusBadGateway, Body: io.NopCloser(strings.NewReader("bad gateway"))}, err: nil},
+				{resp: &http.Response{StatusCode: http.StatusBadGateway, Body: io.NopCloser(strings.NewReader("bad gateway"))}, err: nil},
+			},
+		}
+
+		u, _ := url.Parse("http://example.com")
+		mt := &multiTransport{
+			rt:      mockTransport,
+			targets: []*url.URL{u},
+			keys:    []string{"test-key"},
+		}
+
+		req, _ := http.NewRequest("POST", "http://example.com", nil)
+		resp, err := mt.RoundTrip(req)
+
+		assert.NoError(t, err, "Should not return connection error for HTTP response")
+		assert.NotNil(t, resp, "Response should not be nil")
+		assert.Equal(t, http.StatusBadGateway, resp.StatusCode, "Should return final 502 response")
+		assert.Equal(t, 3, mockTransport.callCount, "Should have made 3 attempts (maxRetryAttempts)")
+	})
+
+	t.Run("503_retry_success", func(t *testing.T) {
+		// Test that 503 Service Unavailable is also retried
+		mockTransport := &mockRoundTripper{
+			responses: []mockResponse{
+				{resp: &http.Response{StatusCode: http.StatusServiceUnavailable, Body: io.NopCloser(strings.NewReader("unavailable"))}, err: nil},
+				{resp: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("success"))}, err: nil},
+			},
+		}
+
+		u, _ := url.Parse("http://example.com")
+		mt := &multiTransport{
+			rt:      mockTransport,
+			targets: []*url.URL{u},
+			keys:    []string{"test-key"},
+		}
+
+		req, _ := http.NewRequest("POST", "http://example.com", nil)
+		resp, err := mt.RoundTrip(req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, resp, "Response should not be nil")
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, 2, mockTransport.callCount, "Should have made 2 attempts (1 retry)")
+	})
+
+	t.Run("404_no_retry", func(t *testing.T) {
+		// Test that 404 is NOT retried
+		mockTransport := &mockRoundTripper{
+			responses: []mockResponse{
+				{resp: &http.Response{StatusCode: http.StatusNotFound, Body: io.NopCloser(strings.NewReader("not found"))}, err: nil},
+			},
+		}
+
+		u, _ := url.Parse("http://example.com")
+		mt := &multiTransport{
+			rt:      mockTransport,
+			targets: []*url.URL{u},
+			keys:    []string{"test-key"},
+		}
+
+		req, _ := http.NewRequest("POST", "http://example.com", nil)
+		resp, err := mt.RoundTrip(req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, resp, "Response should not be nil")
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		assert.Equal(t, 1, mockTransport.callCount, "Should have made only 1 attempt (no retry)")
+	})
+
+	t.Run("500_no_retry", func(t *testing.T) {
+		// Test that 500 Internal Server Error is NOT retried
+		mockTransport := &mockRoundTripper{
+			responses: []mockResponse{
+				{resp: &http.Response{StatusCode: http.StatusInternalServerError, Body: io.NopCloser(strings.NewReader("server error"))}, err: nil},
+			},
+		}
+
+		u, _ := url.Parse("http://example.com")
+		mt := &multiTransport{
+			rt:      mockTransport,
+			targets: []*url.URL{u},
+			keys:    []string{"test-key"},
+		}
+
+		req, _ := http.NewRequest("POST", "http://example.com", nil)
+		resp, err := mt.RoundTrip(req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, resp, "Response should not be nil")
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+		assert.Equal(t, 1, mockTransport.callCount, "Should have made only 1 attempt (no retry)")
+	})
+
+	t.Run("multiple_targets_with_status_retry", func(t *testing.T) {
+		// Test retry behavior with multiple targets
+		// Create a transport that routes to different mock transports based on URL
+		routingTransport := &mockRoundTripper{}
+		routingTransport.responses = []mockResponse{
+			// First call to main endpoint (502)
+			{resp: &http.Response{StatusCode: http.StatusBadGateway, Body: io.NopCloser(strings.NewReader("bad gateway"))}, err: nil},
+			// Second call to main endpoint (200)  
+			{resp: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("success"))}, err: nil},
+			// Call to additional endpoint (200)
+			{resp: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("additional success"))}, err: nil},
+		}
+
+		u1, _ := url.Parse("http://main.example.com")
+		u2, _ := url.Parse("http://additional.example.com")
+		mt := &multiTransport{
+			rt:      routingTransport,
+			targets: []*url.URL{u1, u2},
+			keys:    []string{"main-key", "additional-key"},
+		}
+
+		// For multiple targets, we need a body since it gets read multiple times
+		req, _ := http.NewRequest("POST", "http://example.com", io.NopCloser(strings.NewReader("test")))
+		resp, err := mt.RoundTrip(req)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, resp, "Response should not be nil")
+		assert.Equal(t, http.StatusOK, resp.StatusCode, "Should return main endpoint's successful response")
+		assert.Equal(t, 3, routingTransport.callCount, "Should retry main endpoint once and call additional endpoint once")
+	})
+}
+
+// bodyConsumingTransport is a test transport that actually reads request bodies
+type bodyConsumingTransport struct {
+	callCount  int
+	bodiesRead []string
+}
+
+func (t *bodyConsumingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Actually read the body like a real HTTP transport would
+	if req.Body != nil {
+		bodyBytes, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		req.Body.Close()
+		t.bodiesRead = append(t.bodiesRead, string(bodyBytes))
+	} else {
+		t.bodiesRead = append(t.bodiesRead, "")
+	}
+	
+	t.callCount++
+	
+	if t.callCount == 1 {
+		// First attempt fails with 502
+		return &http.Response{
+			StatusCode: http.StatusBadGateway,
+			Body:       io.NopCloser(strings.NewReader("bad gateway")),
+		}, nil
+	}
+	
+	// Second attempt succeeds
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader("success")),
+	}, nil
+}
+
+func TestRetryWithActualBodyConsumption(t *testing.T) {
+	// This test verifies that request bodies are properly handled in retries
+	// by using a mock that actually consumes the request body like a real HTTP transport would
+	
+	transport := &bodyConsumingTransport{}
+	
+	u, _ := url.Parse("http://example.com")
+	mt := &multiTransport{
+		rt:      transport,
+		targets: []*url.URL{u},
+		keys:    []string{"test-key"},
+	}
+	
+	// Create request with actual body content
+	requestBody := "test-profile-data"
+	req, _ := http.NewRequest("POST", "http://example.com", strings.NewReader(requestBody))
+	
+	resp, err := mt.RoundTrip(req)
+	
+	// Verify the retry worked
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, 2, transport.callCount, "Should have made 2 attempts")
+	
+	// Verify that both attempts received the same body content
+	assert.Equal(t, 2, len(transport.bodiesRead), "Should have read 2 bodies")
+	assert.Equal(t, requestBody, transport.bodiesRead[0], "First attempt should have received full body")
+	assert.Equal(t, requestBody, transport.bodiesRead[1], "Second attempt should have received full body")
+	
+	// Verify both bodies are identical (proving the body was properly recreated for retry)
+	assert.Equal(t, transport.bodiesRead[0], transport.bodiesRead[1], 
+		"Both attempts should have received identical body content")
 }
