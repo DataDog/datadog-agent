@@ -17,7 +17,7 @@
   - echo 'GPG_USER_ID="Datadog Packages" GPG_USER_EMAIL="package@datadoghq.com" /usr/bin/gpg-vault-bin "$@"' >> /usr/bin/gpg-vault
   - chmod +x /usr/bin/gpg-vault
 
-# TODO maybe: add an empty "datadog-signing-keys" package to the pool,
+# TODO(Agent DevX/SDLC Security - SINT-3845) maybe: add an empty "datadog-signing-keys" package to the pool,
 # this may be simpler and it should not break the tests
 # because this package is only used when updating the signing key using apt-get update
 .setup_signing_keys_package: &setup_signing_keys_package # Set up prod apt repo to get the datadog-signing-keys package
