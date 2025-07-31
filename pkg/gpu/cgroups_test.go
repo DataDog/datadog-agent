@@ -292,6 +292,10 @@ func TestGetAbsoluteCgroupForProcess(t *testing.T) {
 }
 
 func TestGetAbsoluteCgroupV2ForProcessInsideContainer(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("Test requires root privileges for the bind mount")
+	}
+
 	// For this test, instead of setting up the container completely as we do in the other tests,
 	// we will just mock the cgroup hierarchy
 	containerRoot := t.TempDir()
