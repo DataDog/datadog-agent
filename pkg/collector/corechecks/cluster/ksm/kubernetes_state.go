@@ -744,6 +744,10 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 
 	ownerKind, ownerName, resourceNamespace := "", "", ""
 
+	log.Infof("[Checkpoint] labels = %v", labels)
+	log.Infof("[Checkpoint] labelsToAdd = %v", labelsToAdd)
+	log.Infof("[Checkpoint] lMapperOverride = %v", lMapperOverride)
+
 	for key, value := range labels {
 
 		if key == namespaceKey {
@@ -800,6 +804,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	var namespaceTags []string
 	var tagErr error
 
+	log.Infof("[Checkpoint] resourceNamespace = %q", resourceNamespace)
 	if resourceNamespace != "" {
 		namespaceTags, tagErr = k.tagger.Tag(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", resourceNamespace))), types.LowCardinality)
 	}
@@ -807,6 +812,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	if tagErr != nil {
 		log.Errorf("Failed to get namespace tags for %q: %v", resourceNamespace, tagErr)
 	} else {
+		log.Infof("Obtained tags for namespace %q from remote tagger: %v", resourceNamespace, namespaceTags)
 		tagList = append(tagList, namespaceTags...)
 	}
 
