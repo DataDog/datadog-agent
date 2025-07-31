@@ -294,13 +294,15 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 	cInstance := TrackedCString(string(data))
 	cCheckID := TrackedCString(string(c.id))
 	cCheckName := TrackedCString(c.ModuleName)
+	cSource := TrackedCString(source)
 	defer C._free(unsafe.Pointer(cInitConfig))
 	defer C._free(unsafe.Pointer(cInstance))
 	defer C._free(unsafe.Pointer(cCheckID))
 	defer C._free(unsafe.Pointer(cCheckName))
+	defer C._free(unsafe.Pointer(cSource))
 
 	var check *C.rtloader_pyobject_t
-	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
+	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, cSource, &check)
 	var rtLoaderError error
 	if res == 0 {
 		rtLoaderError = getRtLoaderError()

@@ -304,6 +304,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     PyObject *kwargs = NULL;
     PyObject *check_id = NULL;
     PyObject *name = NULL;
+    PyObject *source = NULL;
 
     char load_config[] = "load_config";
     char format[] = "(s)"; // use parentheses to force Tuple creation
@@ -423,12 +424,37 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         }
     }
 
+    // If agent_config_str is provided but it's not NULL and doesn't look like agent config,
+    // treat it as source and set it as an attribute on the check
+    if (agent_config_str != NULL && strlen(agent_config_str) != 0 && py_check != NULL) {
+        // Check if it's actually a source string (not a JSON config)
+        if (agent_config_str[0] != '{') {
+            source = PyUnicode_FromString(agent_config_str);
+            if (source == NULL) {
+                std::ostringstream err;
+                err << "error could not set source: " << agent_config_str;
+                setError(err.str());
+                Py_XDECREF(py_check);
+                py_check = NULL;
+                goto done;
+            }
+
+            if (PyObject_SetAttrString(py_check, "source", source) != 0) {
+                setError("error could not set 'source' attr: " + _fetchPythonError());
+                Py_XDECREF(py_check);
+                py_check = NULL;
+                goto done;
+            }
+        }
+    }
+
 done:
     // We purposefully avoid calling Py_XDECREF on instance because we lost ownership earlier by
     // calling PyTuple_SetItem. More details are available in the comment above this PyTuple_SetItem
     // call
     Py_XDECREF(name);
     Py_XDECREF(check_id);
+    Py_XDECREF(source);
     Py_XDECREF(init_config);
     Py_XDECREF(instances);
     Py_XDECREF(agent_config);
