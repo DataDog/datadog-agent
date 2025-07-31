@@ -142,7 +142,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.ended = false
 	// Send kernel span to the channel
-	stream.kernelSpans <- &kernelSpan{
+	stream.pendingKernelSpans <- &kernelSpan{
 		startKtime:     uint64(startKtime),
 		endKtime:       uint64(endKtime),
 		avgThreadCount: numThreads,
@@ -153,7 +153,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
 	stream.ended = false
 	// Send allocation to the channel
-	stream.allocations <- &memorySpan{
+	stream.pendingMemorySpans <- &memorySpan{
 		startKtime: uint64(startKtime),
 		endKtime:   uint64(endKtime),
 		size:       allocSize,
@@ -205,7 +205,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	}
 
 	// Send kernel span to the channel
-	stream.kernelSpans <- &kernelSpan{
+	stream.pendingKernelSpans <- &kernelSpan{
 		startKtime:     uint64(startKtime),
 		endKtime:       uint64(endKtime),
 		avgThreadCount: numThreads,
@@ -216,7 +216,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
 	stream.ended = false
 	// Send allocation to the channel
-	stream.allocations <- &memorySpan{
+	stream.pendingMemorySpans <- &memorySpan{
 		startKtime: uint64(startKtime),
 		endKtime:   uint64(endKtime),
 		size:       allocSize,
@@ -265,7 +265,7 @@ func TestGetStatsMultiGPU(t *testing.T) {
 		stream := addStream(t, streamHandlers, pid, streamID, uuid, "")
 		stream.ended = false
 		// Send kernel span to the channel
-		stream.kernelSpans <- &kernelSpan{
+		stream.pendingKernelSpans <- &kernelSpan{
 			startKtime:     uint64(startKtime),
 			endKtime:       uint64(endKtime),
 			avgThreadCount: numThreads,
@@ -352,7 +352,7 @@ func TestGetStatsNormalization(t *testing.T) {
 		stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 		stream.ended = false
 		// Send kernel span to the channel
-		stream.kernelSpans <- &kernelSpan{
+		stream.pendingKernelSpans <- &kernelSpan{
 			startKtime:     uint64(startKtime),
 			endKtime:       uint64(endKtime),
 			avgThreadCount: numThreads,
@@ -363,7 +363,7 @@ func TestGetStatsNormalization(t *testing.T) {
 		globalStream := addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
 		globalStream.ended = false
 		// Send allocation to the channel
-		globalStream.allocations <- &memorySpan{
+		globalStream.pendingMemorySpans <- &memorySpan{
 			startKtime: uint64(startKtime),
 			endKtime:   uint64(endKtime),
 			size:       memSize,

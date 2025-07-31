@@ -33,16 +33,16 @@ type streamLimits struct {
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	metadata         streamMetadata
-	kernelLaunches   []enrichedKernelLaunch
-	memAllocEvents   *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
-	kernelSpans      chan *kernelSpan
-	allocations      chan *memorySpan
-	ended            bool // A marker to indicate that the stream has ended, and this handler should be flushed
-	sysCtx           *systemContext
-	limits           streamLimits
-	telemetry        *streamTelemetry // shared telemetry objects for stream-specific telemetry
-	lastEventKtimeNs uint64           // The kernel-time timestamp of the last event processed by this handler
+	metadata           streamMetadata
+	kernelLaunches     []enrichedKernelLaunch
+	memAllocEvents     *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
+	pendingKernelSpans chan *kernelSpan                       // holds already finalized kernel spans that still need to be collected
+	pendingMemorySpans chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
+	ended              bool                                   // A marker to indicate that the stream has ended, and this handler should be flushed
+	sysCtx             *systemContext
+	limits             streamLimits
+	telemetry          *streamTelemetry // shared telemetry objects for stream-specific telemetry
+	lastEventKtimeNs   uint64           // The kernel-time timestamp of the last event processed by this handler
 }
 
 // streamMetadata contains metadata about a CUDA stream
@@ -169,8 +169,8 @@ func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, limits str
 		return nil, fmt.Errorf("failed to create memAllocEvents cache: %w", err)
 	}
 
-	sh.kernelSpans = make(chan *kernelSpan, limits.maxPendingSpans)
-	sh.allocations = make(chan *memorySpan, limits.maxPendingSpans)
+	sh.pendingKernelSpans = make(chan *kernelSpan, limits.maxPendingSpans)
+	sh.pendingMemorySpans = make(chan *memorySpan, limits.maxPendingSpans)
 
 	return sh, nil
 }
@@ -242,7 +242,7 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		isLeaked:   false,
 	}
 
-	trySendSpan(sh, sh.allocations, &data)
+	trySendSpan(sh, sh.pendingMemorySpans, &data)
 	sh.memAllocEvents.Remove(event.Addr)
 }
 
@@ -252,9 +252,9 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		return
 	}
 
-	trySendSpan(sh, sh.kernelSpans, span)
+	trySendSpan(sh, sh.pendingKernelSpans, span)
 	for _, alloc := range getAssociatedAllocations(span) {
-		trySendSpan(sh, sh.allocations, alloc)
+		trySendSpan(sh, sh.pendingMemorySpans, alloc)
 	}
 
 	remainingLaunches := []enrichedKernelLaunch{}
@@ -366,16 +366,16 @@ loop:
 // getPastData returns all the events that have finished (kernel spans with synchronizations/allocations that have been freed)
 // The data will always be cleared from the handler as it consumes from channels
 func (sh *StreamHandler) getPastData() *streamSpans {
-	kernelCount := len(sh.kernelSpans)
-	allocationCount := len(sh.allocations)
+	kernelCount := len(sh.pendingKernelSpans)
+	allocationCount := len(sh.pendingMemorySpans)
 
 	if kernelCount == 0 && allocationCount == 0 {
 		return nil
 	}
 
 	data := &streamSpans{
-		kernels:     consumeChannel(sh.kernelSpans, kernelCount),
-		allocations: consumeChannel(sh.allocations, allocationCount),
+		kernels:     consumeChannel(sh.pendingKernelSpans, kernelCount),
+		allocations: consumeChannel(sh.pendingMemorySpans, allocationCount),
 	}
 
 	return data
@@ -428,7 +428,7 @@ func (sh *StreamHandler) markEnd() error {
 			isLeaked:   true,
 			allocType:  globalMemAlloc,
 		}
-		trySendSpan(sh, sh.allocations, &data)
+		trySendSpan(sh, sh.pendingMemorySpans, &data)
 	}
 
 	sh.sysCtx.removeProcess(int(sh.metadata.pid))

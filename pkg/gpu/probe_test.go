@@ -93,7 +93,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 			}
 		}
 
-		return len(probe.streamHandlers.globalStreams) == 1 && len(probe.streamHandlers.streams) == 1 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
+		return len(probe.streamHandlers.globalStreams) == 1 && len(probe.streamHandlers.streams) == 1 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.pendingKernelSpans) > 0 && len(handlerGlobal.pendingMemorySpans) > 0
 	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
 
 	// Check that we're receiving the events we expect
