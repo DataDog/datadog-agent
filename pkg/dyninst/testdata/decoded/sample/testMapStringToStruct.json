@@ -1,0 +1,78 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapStringToStruct",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testMapStringToStruct",
+          "location": {
+            "method": "main.testMapStringToStruct"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[string]main.nestedStruct",
+                "size": "2",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "bar"
+                    },
+                    {
+                      "type": "main.nestedStruct",
+                      "fields": {
+                        "anotherInt": {
+                          "type": "int",
+                          "value": "2"
+                        },
+                        "anotherString": {
+                          "type": "string",
+                          "value": "two"
+                        }
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo"
+                    },
+                    {
+                      "type": "main.nestedStruct",
+                      "fields": {
+                        "anotherInt": {
+                          "type": "int",
+                          "value": "1"
+                        },
+                        "anotherString": {
+                          "type": "string",
+                          "value": "one"
+                        }
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

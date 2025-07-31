@@ -6,13 +6,17 @@
 package environments
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/test-infra-definitions/components/os"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
@@ -94,4 +98,67 @@ func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 		return "", fmt.Errorf("failed to download flare archive: %w", err)
 	}
 	return dstPath, nil
+}
+
+func (e *Host) getAgentCoverageCommands(family os.Family) (map[string]string, error) {
+	switch family {
+	case os.LinuxFamily:
+		return map[string]string{
+			"datadog-agent":  "sudo datadog-agent coverage generate",
+			"trace-agent":    "sudo /opt/datadog-agent/embedded/bin/trace-agent -c /etc/datadog-agent coverage generate",
+			"process-agent":  "sudo /opt/datadog-agent/embedded/bin/process-agent coverage generate",
+			"security-agent": "sudo /opt/datadog-agent/embedded/bin/security-agent coverage generate",
+			"system-probe":   "sudo /opt/datadog-agent/embedded/bin/system-probe coverage generate",
+		}, nil
+	case os.WindowsFamily:
+		installPath := client.DefaultWindowsAgentInstallPath(e.RemoteHost.Host)
+		return map[string]string{
+			"datadog-agent":  fmt.Sprintf(`& "%s\bin\agent.exe" "coverage" "generate"`, installPath),
+			"trace-agent":    fmt.Sprintf(`& "%s\bin\agent\trace-agent.exe" "coverage" "generate"`, installPath),
+			"process-agent":  fmt.Sprintf(`& "%s\bin\agent\process-agent.exe" "coverage" "generate"`, installPath),
+			"security-agent": fmt.Sprintf(`& "%s\bin\agent\security-agent.exe" "coverage" "generate"`, installPath),
+			"system-probe":   fmt.Sprintf(`& "%s\bin\agent\system-probe.exe" "coverage" "generate"`, installPath),
+		}, nil
+	}
+	return nil, fmt.Errorf("unsupported OS family: %v", family)
+}
+
+// Coverage runs the coverage command for each agent and downloads the coverage folders to the output directory
+func (e *Host) Coverage(outputDir string) error {
+	coverageFolders := map[string]bool{} // Used as a set to avoid duplicates
+	failedCoverageAgents := map[string]error{}
+	commandCoverages, err := e.getAgentCoverageCommands(e.RemoteHost.OSFamily)
+	if err != nil {
+		return err
+	}
+	for agent, command := range commandCoverages {
+		output, err := e.RemoteHost.Execute(command)
+		if err != nil {
+			failedCoverageAgents[agent] = err
+			continue
+		}
+		// find coverage folder in command output
+		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
+		matches := re.FindStringSubmatch(output)
+		if len(matches) < 2 {
+			failedCoverageAgents[agent] = fmt.Errorf("output does not contain the path to the coverage folder, output: %s", output)
+			continue
+		}
+		coverageFolders[matches[1]] = true
+	}
+	errorStr := ""
+
+	for folder := range coverageFolders {
+		err := e.RemoteHost.GetFolder(folder, filepath.Join(outputDir, filepath.Base(folder)))
+		if err != nil {
+			errorStr += fmt.Sprintf("%s: error while getting folder:%v\n", folder, err)
+		}
+	}
+	for agent, err := range failedCoverageAgents {
+		errorStr += fmt.Sprintf("%s: %v\n", agent, err)
+	}
+	if errorStr != "" {
+		return errors.New(errorStr)
+	}
+	return nil
 }
