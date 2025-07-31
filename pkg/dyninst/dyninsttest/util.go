@@ -622,16 +622,16 @@ func processAndDecodeEvents(
 		var (
 			probe ir.ProbeDefinition
 			err   error
+			out   []byte
 		)
-		output := bytes.NewBuffer([]byte{})
-		probe, err = decoder.Decode(event, symbolicator, output)
+		out, probe, err = decoder.Decode(event, symbolicator, []byte{})
 		require.NoError(t, err)
 
 		if os.Getenv("DEBUG") != "" {
-			t.Logf("Output: %s", output.String())
+			t.Logf("Output: %s", string(out))
 		}
 
-		redacted := redactJSON(t, "", output.Bytes(), defaultRedactors)
+		redacted := redactJSON(t, "", out, defaultRedactors)
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Sorted and redacted: %s", redacted)
 		}

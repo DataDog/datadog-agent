@@ -1,0 +1,41 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testError",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [],
+        "probe": {
+          "id": "testError",
+          "location": {
+            "method": "main.testError"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "e": {
+                "type": "error",
+                "notCapturedReason": "unimplemented"
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
+      ]
+    },
+    "timestamp": "[ts]"
+  }
+]

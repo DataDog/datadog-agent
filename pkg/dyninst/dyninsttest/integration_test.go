@@ -67,6 +67,7 @@ func TestDyninst(t *testing.T) {
 		for _, cfg := range cfgs {
 			t.Run(fmt.Sprintf("%s-%s", svc, cfg), func(t *testing.T) {
 				runIntegrationTestSuite(t, svc, cfg, rewrite, sem)
+				runIntegrationTestSuiteWithFaultInjection(t, svc, cfg, rewrite, sem)
 			})
 		}
 	}

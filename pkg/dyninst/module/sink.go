@@ -8,7 +8,6 @@
 package module
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"time"
@@ -39,11 +38,15 @@ var _ actuator.Sink = &sink{}
 var decodingErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 func (s *sink) HandleEvent(event output.Event) error {
-	var buf bytes.Buffer
-	probe, err := s.decoder.Decode(decode.Event{
+	var (
+		decodedBytes []byte
+		probe        ir.ProbeDefinition
+		err          error
+	)
+	decodedBytes, probe, err = s.decoder.Decode(decode.Event{
 		Event:       event,
 		ServiceName: s.service,
-	}, s.symbolicator, &buf)
+	}, s.symbolicator, decodedBytes)
 	if err != nil {
 		if probe != nil {
 			if reported := s.controller.reportProbeError(
@@ -72,7 +75,7 @@ func (s *sink) HandleEvent(event output.Event) error {
 		return nil
 	}
 	s.controller.setProbeMaybeEmitting(s.programID, probe)
-	s.logUploader.Enqueue(json.RawMessage(buf.Bytes()))
+	s.logUploader.Enqueue(json.RawMessage(decodedBytes))
 	return nil
 }
 

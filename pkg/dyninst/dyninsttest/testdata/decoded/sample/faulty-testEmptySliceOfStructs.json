@@ -1,0 +1,45 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testEmptySliceOfStructs",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [],
+        "probe": {
+          "id": "testEmptySliceOfStructs",
+          "location": {
+            "method": "main.testEmptySliceOfStructs"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "xs": {
+                "type": "[]main.structWithNoStrings",
+                "elements": []
+              },
+              "a": {
+                "type": "int",
+                "value": "2"
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
+      ]
+    },
+    "timestamp": "[ts]"
+  }
+]
