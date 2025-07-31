@@ -8,7 +8,6 @@
 package decode
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -40,10 +39,10 @@ func FuzzDecoder(f *testing.F) {
 		f.Add(c.eventConstructor(f, irProg))
 	}
 	f.Fuzz(func(t *testing.T, item []byte) {
-		_, _ = decoder.Decode(Event{
+		_, _, _ = decoder.Decode(Event{
 			Event:       output.Event(item),
 			ServiceName: "foo",
-		}, &noopSymbolicator{}, bytes.NewBuffer(nil))
+		}, &noopSymbolicator{}, []byte{})
 		require.Empty(t, decoder.dataItems)
 		require.Empty(t, decoder.currentlyEncoding)
 	})
@@ -63,15 +62,14 @@ func TestDecoderManually(t *testing.T) {
 			item := c.eventConstructor(t, irProg)
 			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
 			require.NoError(t, err)
-			buf := bytes.NewBuffer(nil)
-			probe, err := decoder.Decode(Event{
+			buf, probe, err := decoder.Decode(Event{
 				Event:       output.Event(item),
 				ServiceName: "foo",
-			}, &noopSymbolicator{}, buf)
+			}, &noopSymbolicator{}, []byte{})
 			require.NoError(t, err)
 			require.Equal(t, c.probeName, probe.GetID())
 			var e eventCaptures
-			require.NoError(t, json.Unmarshal(buf.Bytes(), &e))
+			require.NoError(t, json.Unmarshal(buf, &e))
 			require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
 			require.Empty(t, decoder.dataItems)
 			require.Empty(t, decoder.currentlyEncoding)
@@ -86,7 +84,6 @@ func BenchmarkDecoder(b *testing.B) {
 			irProg := generateIrForProbes(b, "simple", c.probeName)
 			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{})
 			require.NoError(b, err)
-			buf := bytes.NewBuffer(nil)
 			symbolicator := &noopSymbolicator{}
 			event := Event{
 				Event:       output.Event(c.eventConstructor(b, irProg)),
@@ -94,7 +91,7 @@ func BenchmarkDecoder(b *testing.B) {
 			}
 			b.ResetTimer()
 			for b.Loop() {
-				_, err := decoder.Decode(event, symbolicator, buf)
+				_, _, err := decoder.Decode(event, symbolicator, []byte{})
 				require.NoError(b, err)
 			}
 		})

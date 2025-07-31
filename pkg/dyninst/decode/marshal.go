@@ -8,6 +8,8 @@
 package decode
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/go-json-experiment/json"
@@ -28,7 +30,8 @@ type logger struct {
 }
 
 type debuggerData struct {
-	Snapshot snapshotData `json:"snapshot"`
+	Snapshot         snapshotData `json:"snapshot"`
+	EvaluationErrors []string     `json:"evaluationErrors"`
 }
 
 type snapshotData struct {
@@ -66,10 +69,11 @@ type capturePointData struct {
 }
 
 type argumentsData struct {
-	rootData []byte
-	rootType *ir.EventRootType
-	event    Event
-	decoder  *Decoder
+	rootData     []byte
+	rootType     *ir.EventRootType
+	event        Event
+	decoder      *Decoder
+	debuggerData *debuggerData
 }
 
 var ddDebuggerString = jsontext.String("dd_debugger")
@@ -90,16 +94,43 @@ func expressionIsPresent(bitset []byte, expressionIndex int) bool {
 	return idx < len(bitset) && bitset[idx]&(1<<byte(bit)) != 0
 }
 
-func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
-	var err error
-	if err = writeTokens(enc, jsontext.BeginObject); err != nil {
+func (c *captureData) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
+	}
+	b, err := c.Entry.Arguments.MarshalText()
+	if err != nil {
+		return writeTokens(enc, jsontext.EndObject)
+	}
+	if err := writeTokens(enc,
+		jsontext.String("entry"),
+		jsontext.BeginObject,
+		jsontext.String("arguments"),
+	); err != nil {
+		return err
+	}
+	err = enc.WriteValue(b)
+	if err != nil {
+		return err
+	}
+	return writeTokens(enc, jsontext.EndObject, jsontext.EndObject)
+}
+
+func (ad *argumentsData) MarshalText() ([]byte, error) {
+	var (
+		err error
+		buf = bytes.NewBuffer([]byte{})
+		enc = jsontext.NewEncoder(buf)
+	)
+	if err = writeTokens(enc, jsontext.BeginObject); err != nil {
+		ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+		return nil, err
 	}
 
 	if ad.rootType.PresenceBitsetSize > uint32(len(ad.rootData)) {
-		return fmt.Errorf("presence bitset is out of bounds: %d > %d",
-			ad.rootType.PresenceBitsetSize, len(ad.rootData),
-		)
+		err := errors.New("presence bitset is out of bounds")
+		ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+		return nil, err
 	}
 	presenceBitSet := ad.rootData[:ad.rootType.PresenceBitsetSize]
 	// We iterate over the 'Expressions' of the EventRoot which contains
@@ -109,11 +140,14 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 		parameterSize := parameterType.GetByteSize()
 		ub := expr.Offset + parameterSize
 		if int(ub) > len(ad.rootData) {
-			return fmt.Errorf("expression %s is out of bounds", expr.Name)
+			err := errors.New("could not read parameter data from root data, length mismatch")
+			ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+			return nil, err
 		}
 		parameterData := ad.rootData[expr.Offset:ub]
 		if err = writeTokens(enc, jsontext.String(expr.Name)); err != nil {
-			return err
+			ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+			return nil, err
 		}
 		if !expressionIsPresent(presenceBitSet, i) && parameterSize != 0 {
 			// Set not capture reason
@@ -125,7 +159,8 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 				tokenNotCapturedReasonUnavailable,
 				jsontext.EndObject,
 			); err != nil {
-				return err
+				ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+				return nil, err
 			}
 			continue
 		}
@@ -135,16 +170,15 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			parameterType.GetName(),
 		)
 		if err != nil {
-			return fmt.Errorf(
-				"error parsing data for field %s: %w",
-				ad.rootType.Name, err,
-			)
+			ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+			return nil, fmt.Errorf("error parsing data for field %s: %w", ad.rootType.Name, err)
 		}
 	}
 	if err = writeTokens(enc, jsontext.EndObject); err != nil {
-		return err
+		ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+		return nil, err
 	}
-	return nil
+	return buf.Bytes(), nil
 }
 
 type stackData struct {
@@ -198,7 +232,7 @@ func (d *Decoder) encodeValue(
 ) error {
 	decoderType, ok := d.decoderTypes[typeID]
 	if !ok {
-		return fmt.Errorf("no decoder type found for type %s", decoderType.irType().GetName())
+		return errors.New("no decoder type found")
 	}
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
