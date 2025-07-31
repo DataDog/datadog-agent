@@ -106,11 +106,12 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression)
 
 	err := modeConf.Runner(logConfig)
-	prefix := cloudService.GetPrefix()
-	origin := cloudService.GetOrigin()
 
-	metric.AddShutdownMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
-	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
+	metric.Add(cloudService.GetShutdownMetricName(), 1.0, cloudService.GetSource(), *metricAgent)
+
+	// Defers are LIFO
+	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
+	defer cloudService.Shutdown(*metricAgent)
 
 	return err
 }
@@ -154,7 +155,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 
 	metricAgent := setupMetricAgent(tags, tagger)
 
-	metric.Add(cloudService.GetStartMetricName(), origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	metric.Add(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource(), *metricAgent)
 
 	setupOtlpAgent(metricAgent, tagger)
 
