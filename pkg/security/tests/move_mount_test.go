@@ -105,7 +105,7 @@ func TestMoveMount(t *testing.T) {
 			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 			mountPtr, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0, 0, "")
 			assert.Equal(t, err, nil)
-			assert.Equal(t, submountDir, mountPtr.MountPointStr, "Wrong mountpoint path")
+			assert.Equal(t, submountDir, mountPtr.Path, "Wrong mountpoint path")
 			return true
 		}, 10*time.Second, model.FileMoveMountEventType)
 

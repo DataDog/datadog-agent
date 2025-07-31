@@ -193,6 +193,8 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 
 	mr.insert(mount, 0, true)
 
+	mr.getMountPath(mount.MountID, 0, 0)
+
 	// Find all the mounts that I'm the parent of
 	for mnt := range mr.mounts.ValuesIter() {
 		if mnt.ParentPathKey.MountID == mount.MountID {
