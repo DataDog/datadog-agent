@@ -1,7 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/agent-payload/v5 v5.0.160-0.20250728181248-7c892bfcab01 h1:JPRil0MesyKzoyYDl6HE3wlTRPrTJlWlE8tuYAgMwFg=
-github.com/DataDog/agent-payload/v5 v5.0.160-0.20250728181248-7c892bfcab01/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.161 h1:f/68SfmayPWyjBRlqpdU7xAjqEcbdlQfSx2sL02xrlk=
+github.com/DataDog/agent-payload/v5 v5.0.161/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
 github.com/DataDog/datadog-api-client-go/v2 v2.41.0 h1:MCcyRk3whNVSlNuKvV3AyxpvTj3oVHufmTjRVMisqwY=
 github.com/DataDog/datadog-api-client-go/v2 v2.41.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEUqFvRDw=
