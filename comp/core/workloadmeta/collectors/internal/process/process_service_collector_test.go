@@ -570,3 +570,90 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 
 	assertNoEntitiesForPids(t, c.mockStore, []int32{pidFreshService})
 }
+
+func TestServiceNameFiltering(t *testing.T) {
+	// Create services with different configurations for testing filtering
+	service1 := makeModelService(pidNewService, "test")
+	service1.DDService = "datadog-agent" // Should be ignored by DDService
+
+	service2 := makeModelService(pidFreshService, "test")
+	service2.DDService = ""                  // Empty DDService, should use GeneratedName
+	service2.GeneratedName = "datadog-agent" // Should be ignored by GeneratedName
+
+	service3 := makeModelService(pidStaleService, "test")
+	service3.DDService = "normal-service" // Should NOT be ignored
+
+	service4 := makeModelService(pidRecentService, "test")
+	service4.DDService = ""                    // Empty DDService, should use GeneratedName
+	service4.GeneratedName = "another-service" // Should NOT be ignored
+
+	services := []model.Service{service1, service2, service3, service4}
+	pids := []int32{pidNewService, pidFreshService, pidStaleService, pidRecentService}
+
+	// Create collector with ignored services configuration
+	c := setUpCollectorTest(t, map[string]interface{}{
+		"discovery.ignored_services": []string{"datadog-agent"},
+	}, nil, nil)
+
+	// Create pidsToService map
+	pidsToService := make(map[int32]*model.Service)
+	for i, service := range services {
+		pidsToService[pids[i]] = &service
+	}
+
+	// Call getProcessEntitiesFromServices directly to test the filtering logic
+	entities := c.collector.getProcessEntitiesFromServices(pids, pidsToService)
+
+	// Assert results
+	// Only pidStaleService and pidRecentService should create entities (not ignored)
+	// pidNewService and pidFreshService should be filtered out (ignored)
+	require.Len(t, entities, 2, "Expected 2 entities (2 ignored services should be filtered out)")
+
+	// Verify the entities are for the correct PIDs
+	entityPids := make(map[int32]bool)
+	for _, entity := range entities {
+		entityPids[entity.Pid] = true
+	}
+
+	assert.True(t, entityPids[pidStaleService], "Expected entity for pidStaleService (normal-service)")
+	assert.True(t, entityPids[pidRecentService], "Expected entity for pidRecentService (another-service)")
+	assert.False(t, entityPids[pidNewService], "Should not have entity for pidNewService (datadog-agent via DDService)")
+	assert.False(t, entityPids[pidFreshService], "Should not have entity for pidFreshService (datadog-agent via GeneratedName)")
+
+	// Verify ignored PIDs were added to ignoredPids set
+	assert.True(t, c.collector.ignoredPids.Has(pidNewService), "pidNewService should be in ignoredPids")
+	assert.True(t, c.collector.ignoredPids.Has(pidFreshService), "pidFreshService should be in ignoredPids")
+	assert.False(t, c.collector.ignoredPids.Has(pidStaleService), "pidStaleService should not be in ignoredPids")
+	assert.False(t, c.collector.ignoredPids.Has(pidRecentService), "pidRecentService should not be in ignoredPids")
+}
+
+func TestServiceNameFilteringNoConfig(t *testing.T) {
+	// Test with no ignored services configured
+	service1 := makeModelService(pidNewService, "test")
+	service1.DDService = "datadog-agent"
+
+	service2 := makeModelService(pidFreshService, "test")
+	service2.DDService = "normal-service"
+
+	services := []model.Service{service1, service2}
+	pids := []int32{pidNewService, pidFreshService}
+
+	// Create collector with NO ignored services configuration
+	c := setUpCollectorTest(t, map[string]interface{}{}, nil, nil)
+
+	// Create pidsToService map
+	pidsToService := make(map[int32]*model.Service)
+	for i, service := range services {
+		pidsToService[pids[i]] = &service
+	}
+
+	// Call getProcessEntitiesFromServices directly to test the filtering logic
+	entities := c.collector.getProcessEntitiesFromServices(pids, pidsToService)
+
+	// Assert results - all services should be allowed (no filtering)
+	require.Len(t, entities, 2, "Expected 2 entities (no services should be filtered)")
+
+	// Verify no PIDs were added to ignoredPids
+	assert.False(t, c.collector.ignoredPids.Has(pidNewService), "No PIDs should be in ignoredPids")
+	assert.False(t, c.collector.ignoredPids.Has(pidFreshService), "No PIDs should be in ignoredPids")
+}

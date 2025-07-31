@@ -65,12 +65,13 @@ type collector struct {
 	containerProvider      proccontainers.ContainerProvider
 
 	// Service discovery fields
-	sysProbeClient *http.Client
-	startTime      time.Time
-	startupTimeout time.Duration
-	serviceRetries map[int32]uint
-	ignoredPids    core.PidSet
-	pidHeartbeats  map[int32]time.Time
+	sysProbeClient  *http.Client
+	startTime       time.Time
+	startupTimeout  time.Duration
+	serviceRetries  map[int32]uint
+	ignoredPids     core.PidSet
+	pidHeartbeats   map[int32]time.Time
+	ignoredServices map[string]struct{}
 }
 
 // EventType represents the type of collector event
@@ -102,12 +103,13 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 
 		// Initialize service discovery fields
-		sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-		startTime:      clock.Now(),
-		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
-		serviceRetries: make(map[int32]uint),
-		ignoredPids:    make(core.PidSet),
-		pidHeartbeats:  make(map[int32]time.Time),
+		sysProbeClient:  sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		startTime:       clock.Now(),
+		startupTimeout:  pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
+		serviceRetries:  make(map[int32]uint),
+		ignoredPids:     make(core.PidSet),
+		pidHeartbeats:   make(map[int32]time.Time),
+		ignoredServices: loadIgnoredServices(config),
 	}
 }
 
@@ -364,6 +366,16 @@ func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService m
 		service := pidsToService[pid]
 		if service == nil {
 			c.handleServiceRetries(pid)
+			continue
+		}
+
+		// Check if this service should be ignored by name
+		preferredName := service.DDService
+		if preferredName == "" {
+			preferredName = service.GeneratedName
+		}
+		if c.shouldIgnoreService(preferredName) {
+			c.ignoredPids.Add(pid)
 			continue
 		}
 
@@ -739,6 +751,25 @@ func processToWorkloadMetaProcess(process *procutil.Process) *workloadmeta.Proce
 		Gids:         process.Gids,
 		CreationTime: time.UnixMilli(process.Stats.CreateTime).UTC(),
 	}
+}
+
+// loadIgnoredServices loads the list of service names to ignore from configuration
+func loadIgnoredServices(config pkgconfigmodel.Reader) map[string]struct{} {
+	ignoredServices := config.GetStringSlice("discovery.ignored_services")
+	result := make(map[string]struct{}, len(ignoredServices))
+
+	for _, service := range ignoredServices {
+		if service != "" {
+			result[service] = struct{}{}
+		}
+	}
+	return result
+}
+
+// shouldIgnoreService returns true if the service name should be ignored
+func (c *collector) shouldIgnoreService(serviceName string) bool {
+	_, found := c.ignoredServices[serviceName]
+	return found
 }
 
 // Pull triggers an entity collection. To be used by collectors that
