@@ -190,7 +190,7 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 			preaggAPIKey := c.GetString("preaggregation.api_key")
 			primaryAPIKey := c.GetString("api_key")
 			if preaggAPIKey != "" && preaggAPIKey != primaryAPIKey {
-				return nil, fmt.Errorf("Cannot configure separate preaggregation API key when preaggregation URL matches primary URL.")
+				return nil, fmt.Errorf("cannot configure separate preaggregation API key when preaggregation URL matches primary URL")
 			}
 		}
 	}
