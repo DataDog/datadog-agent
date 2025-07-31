@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/remoteconfig/state
 go 1.23.0
 
 require (
-	github.com/DataDog/go-tuf v1.1.0-0.5.2
+	github.com/DataDog/go-tuf v1.1.1-0.5.2
 	github.com/pkg/errors v0.9.1
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0
 	github.com/stretchr/testify v1.10.0
