@@ -62,12 +62,14 @@ type streamTelemetry struct {
 	forcedSyncOnKernelLaunch telemetry.Counter
 	allocEvicted             telemetry.Counter
 	invalidFreeEvents        telemetry.Counter
+	rejectedSpans            telemetry.Counter
 }
 
 func getStreamLimits(config *config.Config) streamLimits {
 	return streamLimits{
 		maxKernelLaunches: config.MaxKernelLaunchesPerStream,
 		maxAllocEvents:    config.MaxMemAllocEventsPerStream,
+		maxPendingSpans:   config.MaxPendingSpans,
 	}
 }
 
@@ -96,6 +98,7 @@ func newStreamTelemetry(tm telemetry.Component) *streamTelemetry {
 		activeHandlers:           tm.NewGauge(subsystem, "active_handlers", nil, "Number of active stream handlers"),
 		removedHandlers:          tm.NewCounter(subsystem, "removed_handlers", []string{"device", "reason"}, "Number of removed stream handlers and why"),
 		rejectedStreams:          tm.NewCounter(subsystem, "rejected_streams_due_to_limit", nil, "Number of rejected streams due to the max stream limit"),
+		rejectedSpans:            tm.NewCounter(subsystem, "rejected_spans_due_to_limit", nil, "Number of rejected spans due to the max span limit"),
 	}
 }
 

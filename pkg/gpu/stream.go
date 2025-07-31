@@ -27,6 +27,7 @@ const noSmVersion uint32 = 0
 type streamLimits struct {
 	maxKernelLaunches int
 	maxAllocEvents    int
+	maxPendingSpans   int
 }
 
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
@@ -35,8 +36,8 @@ type StreamHandler struct {
 	metadata         streamMetadata
 	kernelLaunches   []enrichedKernelLaunch
 	memAllocEvents   *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
-	kernelSpans      []*kernelSpan
-	allocations      []*memorySpan
+	kernelSpans      chan *kernelSpan
+	allocations      chan *memorySpan
 	ended            bool // A marker to indicate that the stream has ended, and this handler should be flushed
 	sysCtx           *systemContext
 	limits           streamLimits
@@ -168,6 +169,9 @@ func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, limits str
 		return nil, fmt.Errorf("failed to create memAllocEvents cache: %w", err)
 	}
 
+	sh.kernelSpans = make(chan *kernelSpan, limits.maxPendingSpans)
+	sh.allocations = make(chan *memorySpan, limits.maxPendingSpans)
+
 	return sh, nil
 }
 
@@ -194,6 +198,18 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	if len(sh.kernelLaunches) >= sh.limits.maxKernelLaunches {
 		sh.markSynchronization(event.Header.Ktime_ns + 1) // sync "happens" after the launch, not the same time. If the time is the same, the last kernel launch is not included in the span
 		sh.telemetry.forcedSyncOnKernelLaunch.Inc()
+	}
+}
+
+// trySendToChannel attempts to send an item to a channel in a non-blocking way, if the channel is full
+// it will increment the rejectedSpans telemetry counter
+func trySendSpan[T any](sh *StreamHandler, ch chan T, item T) {
+	select {
+	case ch <- item:
+		return
+	default:
+		sh.telemetry.rejectedSpans.Inc()
+		return
 	}
 }
 
@@ -226,7 +242,7 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		isLeaked:   false,
 	}
 
-	sh.allocations = append(sh.allocations, &data)
+	trySendSpan(sh, sh.allocations, &data)
 	sh.memAllocEvents.Remove(event.Addr)
 }
 
@@ -236,8 +252,10 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		return
 	}
 
-	sh.kernelSpans = append(sh.kernelSpans, span)
-	sh.allocations = append(sh.allocations, getAssociatedAllocations(span)...)
+	trySendSpan(sh, sh.kernelSpans, span)
+	for _, alloc := range getAssociatedAllocations(span) {
+		trySendSpan(sh, sh.allocations, alloc)
+	}
 
 	remainingLaunches := []enrichedKernelLaunch{}
 	for _, launch := range sh.kernelLaunches {
@@ -310,6 +328,10 @@ func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 
 	allocations := make([]*memorySpan, 0, len(span.avgMemoryUsage))
 	for allocType, size := range span.avgMemoryUsage {
+		if size == 0 {
+			continue
+		}
+
 		allocations = append(allocations, &memorySpan{
 			startKtime: span.startKtime,
 			endKtime:   span.endKtime,
@@ -322,21 +344,38 @@ func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 	return allocations
 }
 
+func consumeChannel[T any](ch chan T, count int) []T {
+	items := make([]T, 0, count)
+
+loop:
+	for len(items) < count {
+		select {
+		case item := <-ch:
+			items = append(items, item)
+		default:
+			// We shouldn't actually hit this, as we should stop consuming the
+			// channel when the count is reached and nothing else is consuming
+			// from the channel, but break just in case to avoid a deadlock
+			break loop
+		}
+	}
+
+	return items
+}
+
 // getPastData returns all the events that have finished (kernel spans with synchronizations/allocations that have been freed)
-// If flush is true, the data will be cleared from the handler
-func (sh *StreamHandler) getPastData(flush bool) *streamSpans {
-	if len(sh.kernelSpans) == 0 && len(sh.allocations) == 0 {
+// The data will always be cleared from the handler as it consumes from channels
+func (sh *StreamHandler) getPastData() *streamSpans {
+	kernelCount := len(sh.kernelSpans)
+	allocationCount := len(sh.allocations)
+
+	if kernelCount == 0 && allocationCount == 0 {
 		return nil
 	}
 
 	data := &streamSpans{
-		kernels:     sh.kernelSpans,
-		allocations: sh.allocations,
-	}
-
-	if flush {
-		sh.kernelSpans = nil
-		sh.allocations = nil
+		kernels:     consumeChannel(sh.kernelSpans, kernelCount),
+		allocations: consumeChannel(sh.allocations, allocationCount),
 	}
 
 	return data
@@ -389,7 +428,7 @@ func (sh *StreamHandler) markEnd() error {
 			isLeaked:   true,
 			allocType:  globalMemAlloc,
 		}
-		sh.allocations = append(sh.allocations, &data)
+		trySendSpan(sh, sh.allocations, &data)
 	}
 
 	sh.sysCtx.removeProcess(int(sh.metadata.pid))

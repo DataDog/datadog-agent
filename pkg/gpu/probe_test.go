@@ -131,14 +131,18 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	require.Len(t, tidMap, 1)
 	require.ElementsMatch(t, []int{cmd.Process.Pid}, maps.Keys(tidMap))
 
-	require.Equal(t, 1, len(handlerStream.kernelSpans))
-	span := handlerStream.kernelSpans[0]
+	streamPastData := handlerStream.getPastData()
+	require.NotNil(t, streamPastData)
+	require.Equal(t, 1, len(streamPastData.kernels))
+	span := streamPastData.kernels[0]
 	require.Equal(t, uint64(1), span.numKernels)
 	require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
 	require.Greater(t, span.endKtime, span.startKtime)
 
-	require.Equal(t, 1, len(handlerGlobal.allocations))
-	alloc := handlerGlobal.allocations[0]
+	globalPastData := handlerGlobal.getPastData()
+	require.NotNil(t, globalPastData)
+	require.Equal(t, 1, len(globalPastData.allocations))
+	alloc := globalPastData.allocations[0]
 	require.Equal(t, uint64(100), alloc.size)
 	require.False(t, alloc.isLeaked)
 	require.Greater(t, alloc.endKtime, alloc.startKtime)

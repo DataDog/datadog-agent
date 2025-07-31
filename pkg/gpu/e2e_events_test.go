@@ -93,15 +93,19 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	// and then a batch of synchronizations.
 
 	require.NotNil(t, stream)
-	require.Len(t, stream.kernelSpans, 10)                             // There are 10 uninterrupted sequences of kernel launches
 	require.Len(t, stream.kernelLaunches, 0)                           // And we should have no kernel launches in the stream pending
 	require.Equal(t, stream.metadata.gpuUUID, testutil.DefaultGpuUUID) // Ensure the metadata is set correctly
 	require.Equal(t, stream.metadata.pid, uint32(executingPID))
 
+	// Get the past data to check kernel spans
+	pastData := stream.getPastData()
+	require.NotNil(t, pastData)
+	require.Len(t, pastData.kernels, 10) // There are 10 uninterrupted sequences of kernel launches
+
 	totalThreadSeconds := 0.0
 	activeSeconds := 0.0
 
-	for _, span := range stream.kernelSpans {
+	for _, span := range pastData.kernels {
 		totalThreadSeconds += float64(span.avgThreadCount) * float64(span.endKtime-span.startKtime) / 1e9
 		activeSeconds += float64(span.endKtime-span.startKtime) / 1e9
 	}
@@ -117,8 +121,8 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	endTs := events.Events[len(events.Events)-1].Header.Ktime_ns
 	firstSyncAfterLastKernelLaunchTs := events.Events[866].Header.Ktime_ns
 
-	firstSpanStart := stream.kernelSpans[0].startKtime
-	lastSpanEnd := stream.kernelSpans[len(stream.kernelSpans)-1].endKtime
+	firstSpanStart := pastData.kernels[0].startKtime
+	lastSpanEnd := pastData.kernels[len(pastData.kernels)-1].endKtime
 
 	require.Equal(t, firstSpanStart, startTs)
 	require.Equal(t, lastSpanEnd, firstSyncAfterLastKernelLaunchTs)

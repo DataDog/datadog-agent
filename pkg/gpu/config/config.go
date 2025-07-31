@@ -40,6 +40,8 @@ type Config struct {
 	MaxKernelLaunchesPerStream int
 	// MaxMemAllocEventsPerStream is the maximum number of memory allocation events to process per stream before evicting the oldest events.
 	MaxMemAllocEventsPerStream int
+	// MaxPendingSpans is the maximum number of pending spans (kernel spans and memory allocations) to keep in each stream handler.
+	MaxPendingSpans int
 	// MaxStreams is the maximum number of streams that can be processed concurrently.
 	MaxStreams int
 	// MaxStreamInactivity is the maximum time to wait for a stream to be inactive before flushing it.
@@ -60,6 +62,7 @@ func New() *Config {
 		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
 		MaxKernelLaunchesPerStream:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_kernel_launches_per_stream")),
 		MaxMemAllocEventsPerStream:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_mem_alloc_events_per_stream")),
+		MaxPendingSpans:              spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_pending_spans_per_stream")),
 		MaxStreams:                   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_streams")),
 		MaxStreamInactivity:          time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_stream_inactivity_seconds"))) * time.Second,
 	}
