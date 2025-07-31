@@ -170,7 +170,7 @@ Package: main
 	Function: testMapWithSmallKeyAndValue (main.testMapWithSmallKeyAndValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [74:74]
 		Arg: m: map[uint8]uint8 (declared at line 74, available: [74-74])
 	Function: testMapWithSmallKeyAndValueMassive (main.testMapWithSmallKeyAndValueMassive) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [78:78]
-		Arg: redactMyEntries: map[uint8]uint8 (declared at line 78, available: [78-78])
+		Arg: m: map[uint8]uint8 (declared at line 78, available: [78-78])
 	Function: testMapSmallKeySmallValue (main.testMapSmallKeySmallValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [82:82]
 		Arg: m: map[uint8]uint8 (declared at line 82, available: [82-82])
 	Function: testMapSmallKeyLargeValue (main.testMapSmallKeyLargeValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [86:86]

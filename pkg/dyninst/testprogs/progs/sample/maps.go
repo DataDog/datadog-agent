@@ -75,7 +75,7 @@ func testMapWithSmallKeyAndValue(m map[uint8]uint8) {}
 
 //nolint:all
 //go:noinline
-func testMapWithSmallKeyAndValueMassive(redactMyEntries map[uint8]uint8) {}
+func testMapWithSmallKeyAndValueMassive(m map[uint8]uint8) {}
 
 //nolint:all
 //go:noinline
