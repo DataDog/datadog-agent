@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -39,14 +39,14 @@ process_config:
 func TestProxyWithSecret(t *testing.T) {
 	type testCase struct {
 		name  string
-		setup func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock)
+		setup func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver *secretsmock.Mock)
 		tests func(t *testing.T, config pkgconfigmodel.Config)
 	}
 
 	cases := []testCase{
 		{
 			name: "secrets from configuration for proxy",
-			setup: func(_ *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
+			setup: func(_ *testing.T, config pkgconfigmodel.Config, _ string, resolver *secretsmock.Mock) {
 				resolver.SetSecrets(map[string]string{
 					"http_handle":       "http_url",
 					"https_handle":      "https_url",
@@ -71,7 +71,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron DD env vars for proxy",
-			setup: func(t *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, _ string, resolver *secretsmock.Mock) {
 				resolver.SetSecrets(map[string]string{
 					"http_handle":       "http_url",
 					"https_handle":      "https_url",
@@ -96,7 +96,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron UNIX env vars for proxy",
-			setup: func(t *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, _ string, resolver *secretsmock.Mock) {
 				resolver.SetSecrets(map[string]string{
 					"http_handle":       "http_url",
 					"https_handle":      "https_url",
@@ -121,7 +121,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets from maps with keys containing dots (ie 'additional_endpoints')",
-			setup: func(_ *testing.T, _ pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
+			setup: func(_ *testing.T, _ pkgconfigmodel.Config, configPath string, resolver *secretsmock.Mock) {
 				resolver.SetSecrets(map[string]string{
 					"api_key_1": "resolved_api_key_1",
 					"api_key_2": "resolved_api_key_2",
@@ -158,7 +158,7 @@ func TestProxyWithSecret(t *testing.T) {
 
 			resolver := secretsmock.New(t)
 			if c.setup != nil {
-				c.setup(t, config, configPath, resolver.(secrets.Mock))
+				c.setup(t, config, configPath, resolver)
 			}
 
 			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
