@@ -6,6 +6,8 @@
 package clusteragent
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -97,6 +100,13 @@ func (d *dummyCLCRunner) parsePort(ts *httptest.Server) (*httptest.Server, int, 
 
 func (d *dummyCLCRunner) StartTLS() (*httptest.Server, int, error) {
 	ts := httptest.NewTLSServer(d)
+	return d.parsePort(ts)
+}
+
+func (d *dummyCLCRunner) StartTLSWithConfig(config *tls.Config) (*httptest.Server, int, error) {
+	ts := httptest.NewUnstartedServer(d)
+	ts.TLS = config
+	ts.StartTLS()
 	return d.parsePort(ts)
 }
 
@@ -242,4 +252,130 @@ func TestCLCRunnerSuite(t *testing.T) {
 	require.NotNil(t, err, fmt.Sprintf("%v", err))
 
 	suite.Run(t, s)
+}
+
+// The following certificate and key are used for testing purposes only.
+// They have been generated using the following command:
+//
+//	openssl req -x509 -newkey ec:<(openssl ecparam -name prime256v1) -keyout key.pem -out cert.pem -days 3650 \
+//	  -subj "/O=Datadog, Inc." \
+//	  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+//	  -addext "keyUsage=digitalSignature,keyEncipherment" \
+//	  -addext "extendedKeyUsage=serverAuth,clientAuth" \
+//	  -addext "basicConstraints=CA:TRUE" \
+//	  -nodes
+var (
+	testIPCCert = []byte(`-----BEGIN CERTIFICATE-----
+MIIBzDCCAXKgAwIBAgIUR2IeG+dUuibzpp5+uNvk/4g6M+cwCgYIKoZIzj0EAwIw
+GDEWMBQGA1UECgwNRGF0YWRvZywgSW5jLjAeFw0yNTAzMjQxMzM2NDlaFw0zNTAz
+MjIxMzM2NDlaMBgxFjAUBgNVBAoMDURhdGFkb2csIEluYy4wWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAARt8T/DyYsxBbDsSJJY2drHbFoTWYT9u1gzgzooDbbLBzuj
+PHqwmdNHOShuNLSgVkIjIkmZgKendRYgu3uXoswgo4GZMIGWMB0GA1UdDgQWBBQa
+FF5ne0D5vg89fbLm/xUqHGEQvjAfBgNVHSMEGDAWgBQaFF5ne0D5vg89fbLm/xUq
+HGEQvjAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8AAAEwCwYDVR0PBAQDAgWgMB0G
+A1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNVHRMEBTADAQH/MAoGCCqG
+SM49BAMCA0gAMEUCIQCCLOBCW7yF9LkNAzuGbgrZSH1GklnrJWNGcN2XsspEnQIg
+TniyxGyuEhHLJkB5LA1N+Q0NKIwjMnb8/Aw7Z1NIolU=
+-----END CERTIFICATE-----
+`)
+	testIPCKey = []byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg1wUA94nU4LmF81zw
+tAaSSpKwY9fI1AXbj1Nr94XW+lyhRANCAARt8T/DyYsxBbDsSJJY2drHbFoTWYT9
+u1gzgzooDbbLBzujPHqwmdNHOShuNLSgVkIjIkmZgKendRYgu3uXoswg
+-----END PRIVATE KEY-----
+`)
+)
+
+func (suite *clcRunnerSuite) TestCLCClientTLSVerification() {
+	// Reset the global CLCRunnerClient/CrossNodeClientTLSConfig to ensure a clean state for next tests
+	defer resetGlobalCLCRunnerClient()
+	defer pkgapiutil.ResetCrossNodeClientTLSConfig()
+
+	// Setup TLS configuration for the test
+	certPool := x509.NewCertPool()
+	ok := certPool.AppendCertsFromPEM(testIPCCert)
+	require.True(suite.T(), ok, "Unable to generate certPool from PERM IPC cert")
+	tlsCert, err := tls.X509KeyPair(testIPCCert, testIPCKey)
+	require.Nil(suite.T(), err, "Failed to generate x509 cert from PERM IPC cert and key")
+
+	clientTLSConfig := &tls.Config{
+		RootCAs: certPool,
+	}
+
+	serverTLSConfig := &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+	}
+
+	tests := []struct {
+		name       string
+		knownCA    bool
+		shouldFail bool
+	}{
+		{
+			name:       "Test with known CA",
+			knownCA:    true,
+			shouldFail: false,
+		},
+		{
+			name:       "Test with unknown CA",
+			knownCA:    false,
+			shouldFail: true,
+		},
+	}
+
+	for _, tt := range tests {
+		suite.T().Run(tt.name, func(t *testing.T) {
+			// Reset every global state before each test
+			resetGlobalCLCRunnerClient()
+			pkgapiutil.ResetCrossNodeClientTLSConfig()
+
+			// Configure the cluster agent server
+
+			// First, create a dummy cluster agent
+			clc, err := newDummyCLCRunner(suite.conf)
+			require.Nil(t, err, fmt.Sprintf("%v", err))
+
+			startFunc := clc.StartTLS
+
+			if tt.knownCA {
+				startFunc = func() (*httptest.Server, int, error) {
+					// Start a TLS server with self-signed certificate
+					return clc.StartTLSWithConfig(serverTLSConfig)
+				}
+			}
+			// Start a TLS server with self-signed certificate
+			ts, p, err := startFunc()
+			require.Nil(t, err, fmt.Sprintf("%v", err))
+			defer ts.Close()
+
+			// Configure the CLC client
+
+			// Set the TLS configuration for cross-node communication
+			pkgapiutil.SetCrossNodeClientTLSConfig(clientTLSConfig)
+			// Configure the cluster agent URL
+
+			// Try to connect to the cluster agent - should fail due to certificate verification
+			client, err := GetCLCRunnerClient()
+			client.(*CLCRunnerClient).clcRunnerPort = p
+			require.NoError(t, err)
+
+			expected := version.Version{
+				Major:  0,
+				Minor:  0,
+				Patch:  0,
+				Pre:    "test",
+				Meta:   "test",
+				Commit: "1337",
+			}
+
+			version, err := client.GetVersion("127.0.0.1")
+
+			if tt.shouldFail {
+				require.NotNil(t, err, "Expected an error due to certificate verification")
+			} else {
+				require.Nil(t, err, fmt.Sprintf("%v", err))
+				assert.Equal(t, expected, version)
+			}
+		})
+	}
 }
