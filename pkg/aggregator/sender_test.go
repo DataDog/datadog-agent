@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 type senderWithChans struct {
@@ -242,7 +243,7 @@ func TestGetSenderServiceTagMetrics(t *testing.T) {
 
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false, 0)
 	sms := (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, checkTags, sms.metricSample.Tags)
+	assert.Equal(t, checkTags, utilstrings.FromUnique(sms.metricSample.Tags))
 
 	// only last call is added as a tag
 	s.sender.SetCheckService("service1")
@@ -250,7 +251,7 @@ func TestGetSenderServiceTagMetrics(t *testing.T) {
 	s.sender.FinalizeCheckServiceTag()
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false, 0)
 	sms = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, append(checkTags, "service:service2"), sms.metricSample.Tags)
+	assert.Equal(t, append(checkTags, "service:service2"), utilstrings.FromUnique(sms.metricSample.Tags))
 }
 
 func TestGetSenderServiceTagServiceCheck(t *testing.T) {
@@ -322,7 +323,7 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	checkTags := []string{"check:tag1", "check:tag2"}
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false, 0)
 	sms = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, checkTags, sms.metricSample.Tags)
+	assert.Equal(t, checkTags, utilstrings.FromUnique(sms.metricSample.Tags))
 
 	// simulate tags in the configuration file
 	customTags := []string{"custom:tag1", "custom:tag2"}
@@ -332,12 +333,12 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	// only tags coming from the configuration file
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false, 0)
 	sms = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, customTags, sms.metricSample.Tags)
+	assert.Equal(t, customTags, utilstrings.FromUnique(sms.metricSample.Tags))
 
 	// tags added by the check + tags coming from the configuration file
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false, 0)
 	sms = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, append(checkTags, customTags...), sms.metricSample.Tags)
+	assert.Equal(t, append(checkTags, customTags...), utilstrings.FromUnique(sms.metricSample.Tags))
 }
 
 func TestSenderPopulatingMetricSampleSource(t *testing.T) {

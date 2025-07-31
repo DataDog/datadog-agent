@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"unique"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -106,12 +107,12 @@ func nextField(message []byte) ([]byte, []byte) {
 	return message[:sepIndex], message[sepIndex+1:]
 }
 
-func (p *parser) parseTags(rawTags []byte) []string {
+func (p *parser) parseTags(rawTags []byte) []unique.Handle[string] {
 	if len(rawTags) == 0 {
 		return nil
 	}
 	tagsCount := bytes.Count(rawTags, commaSeparator)
-	tagsList := make([]string, tagsCount+1)
+	tagsList := make([]unique.Handle[string], tagsCount+1)
 
 	i := 0
 	for i < tagsCount {
@@ -119,12 +120,18 @@ func (p *parser) parseTags(rawTags []byte) []string {
 		if tagPos < 0 {
 			break
 		}
-		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos])
+		tagsList[i] = intern(rawTags[:tagPos])
 		rawTags = rawTags[tagPos+len(commaSeparator):]
 		i++
 	}
-	tagsList[i] = p.interner.LoadOrStore(rawTags)
+	tagsList[i] = intern(rawTags)
 	return tagsList
+}
+
+func intern(b []byte) unique.Handle[string] {
+	// unique.Make copies the value before saving it, so unsafe string does not outlive this function
+	// https://cs.opensource.google/go/go/+/refs/tags/go1.24.5:src/unique/handle.go;l=60-65
+	return unique.Make(unsafe.String(&b[0], len(b)))
 }
 
 // parseMetricSample parses the given message and return the dogstatsdMetricSample read.
@@ -174,7 +181,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	// sample rate, tags, container ID, timestamp, ...
 
 	sampleRate := 1.0
-	var tags []string
+	var tags []unique.Handle[string]
 	var localData origindetection.LocalData
 	var externalData origindetection.ExternalData
 	var cardinality string
