@@ -824,12 +824,15 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	config := ReturnFingerprintConfig(nil, "checksum")
-	suite.Equal(1, config.MaxLines)
-	suite.Equal(102400, config.MaxBytes)
-	suite.Equal(0, config.ToSkip)
+	config := &config.FingerprintConfig{
+		MaxLines:            1,
+		MaxBytes:            102400,
+		ToSkip:              0,
+		FingerprintStrategy: "line_checksum",
+	}
 	tailer := suite.createTailer()
 	tailer.fingerprintingEnabled = true
+	tailer.fingerprintConfig = config
 	tailer.fingerprint.Store(ComputeFingerprint(tailer.file.Path, config))
 
 	table := crc64.MakeTable(crc64.ISO)
@@ -862,6 +865,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	// This tailer now considers the current content ("a completely new file") as its baseline.
 	tailer = suite.createTailer()
 	tailer.fingerprintingEnabled = true
+	tailer.fingerprintConfig = config
 	tailer.fingerprint.Store(ComputeFingerprint(tailer.file.Path, config))
 
 	expectedChecksum = crc64.Checksum([]byte("a completely new file"), table)

@@ -237,7 +237,7 @@ func (s *Launcher) scan() {
 			rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
 			if rotationDetectionStrategy == "checksum" {
 
-				if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig(&file.Source.Config().FingerprintConfig, rotationDetectionStrategy)) == 0 {
+				if tailer.ComputeFingerprint(file.Path, &file.Source.Config().FingerprintConfig) == 0 {
 					continue
 				}
 
@@ -406,14 +406,15 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	}
 
 	tailerOptions := &tailer.TailerOptions{
-		OutputChan:      channel,
-		File:            file,
-		SleepDuration:   s.tailerSleepDuration,
-		Decoder:         decoderInstance,
-		Info:            tailerInfo,
-		TagAdder:        s.tagger,
-		CapacityMonitor: monitor,
-		Registry:        s.registry,
+		OutputChan:        channel,
+		File:              file,
+		SleepDuration:     s.tailerSleepDuration,
+		Decoder:           decoderInstance,
+		Info:              tailerInfo,
+		TagAdder:          s.tagger,
+		CapacityMonitor:   monitor,
+		Registry:          s.registry,
+		FingerprintConfig: &file.Source.Config().FingerprintConfig,
 	}
 
 	tailer := tailer.NewTailer(tailerOptions)
@@ -511,14 +512,15 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 	tailerInfo := status.NewInfoRegistry()
 
 	tailerOptions := &tailer.TailerOptions{
-		OutputChan:      outputChan,
-		File:            file,
-		SleepDuration:   s.tailerSleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(file.Source, tailerInfo),
-		Info:            tailerInfo,
-		TagAdder:        s.tagger,
-		CapacityMonitor: capacityMonitor,
-		Registry:        s.registry,
+		OutputChan:        outputChan,
+		File:              file,
+		SleepDuration:     s.tailerSleepDuration,
+		Decoder:           decoder.NewDecoderFromSource(file.Source, tailerInfo),
+		Info:              tailerInfo,
+		TagAdder:          s.tagger,
+		CapacityMonitor:   capacityMonitor,
+		Registry:          s.registry,
+		FingerprintConfig: &file.Source.Config().FingerprintConfig,
 	}
 
 	return tailer.NewTailer(tailerOptions)

@@ -31,22 +31,6 @@ type FingerprintConfig struct {
 // to avoid recreating it on every fingerprint computation
 var crc64Table = crc64.MakeTable(crc64.ISO)
 
-// ReturnFingerprintConfig returns the configuration for the fingerprinting algorithm set by user (also used for testing)
-func ReturnFingerprintConfig(sourceConfig *logsconfig.FingerprintConfig, sourceStrategy string) *logsconfig.FingerprintConfig {
-	// If per-source config is set and strategy is "checksum", use it
-	if sourceStrategy == "checksum" && sourceConfig != nil {
-		return sourceConfig
-	}
-
-	// Otherwise, use the global config with proper unmarshalling
-	globalConfig, err := logsconfig.GlobalFingerprintConfig(pkgconfigsetup.Datadog())
-	if err != nil {
-		log.Warnf("Failed to load global fingerprint config: %v", err)
-		return nil
-	}
-	return globalConfig
-}
-
 // ResolveRotationDetectionStrategy returns the rotation detection strategy for a given file.
 // It checks the source-specific strategy first, then falls back to the global strategy.
 func ResolveRotationDetectionStrategy(file *File) string {

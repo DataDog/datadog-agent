@@ -387,24 +387,22 @@ func (c *LogsConfig) validateTailingMode() error {
 }
 
 func (c *LogsConfig) validateFingerprintConfig() error {
-	// Check if local fingerprint config is empty (all fields are zero values)
-	localConfigEmpty := c.FingerprintConfig.MaxBytes == 0 &&
-		c.FingerprintConfig.MaxLines == 0 &&
-		c.FingerprintConfig.ToSkip == 0 &&
-		c.FingerprintConfig.FingerprintStrategy == ""
-
-	// If local config is empty, try to get global config
-	if localConfigEmpty {
-		globalConfig, err := GlobalFingerprintConfig(pkgconfigsetup.Datadog())
-		if err != nil {
-			return fmt.Errorf("failed to load global fingerprint config: %w", err)
-		}
-
-		// If global config exists, populate fingerprint config with those values.
-		// If not, populate with fingerprint with default global values (100 kibibytes, 1 line, 0 to skip)
-		if globalConfig != nil {
-			c.FingerprintConfig = *globalConfig
-		}
+	// If log level config has empty or incomplete values, populate the FingerprintConfig with what is in the global config
+	globalConfig, err := GlobalFingerprintConfig(pkgconfigsetup.Datadog())
+	if err != nil {
+		return fmt.Errorf("failed to load global fingerprint config: %w", err)
+	}
+	if c.FingerprintConfig.MaxBytes == 0 {
+		c.FingerprintConfig.MaxBytes = globalConfig.MaxBytes
+	}
+	if c.FingerprintConfig.MaxLines == 0 {
+		c.FingerprintConfig.MaxLines = globalConfig.MaxLines
+	}
+	if c.FingerprintConfig.ToSkip == 0 {
+		c.FingerprintConfig.ToSkip = globalConfig.ToSkip
+	}
+	if c.FingerprintConfig.FingerprintStrategy == "" {
+		c.FingerprintConfig.FingerprintStrategy = globalConfig.FingerprintStrategy
 	}
 
 	// Validate the final fingerprint configuration (either local, global, or merged)

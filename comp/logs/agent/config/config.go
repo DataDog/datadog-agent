@@ -16,6 +16,7 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -162,21 +163,38 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 
 // GlobalFingerprintConfig returns the global fingerprint configuration to apply to all logs.
 func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConfig, error) {
-	var config *FingerprintConfig
 	var err error
+
+	// Get the complete fingerprint config map with defaults applied
 	raw := coreConfig.Get("logs_config.fingerprint_config")
 	if raw == nil {
 		return nil, nil
 	}
+
+	// Create a config with defaults first
+	config := &FingerprintConfig{
+		MaxBytes:            pkgconfigsetup.DefaultFingerprintingMaxBytes,
+		MaxLines:            pkgconfigsetup.DefaultFingerprintingMaxLines,
+		ToSkip:              pkgconfigsetup.DefaultLinesOrBytesToSkip,
+		FingerprintStrategy: pkgconfigsetup.DefaultFingerprintStrategy,
+	}
+
 	if s, ok := raw.(string); ok && s != "" {
+		log.Debugf("GlobalFingerprintConfig: unmarshaling from string: %s", s)
 		err = json.Unmarshal([]byte(s), &config)
 	} else {
+		log.Debugf("GlobalFingerprintConfig: using structure.UnmarshalKey")
+		// Fallback to structure.UnmarshalKey
 		err = structure.UnmarshalKey(coreConfig, "logs_config.fingerprint_config", &config, structure.ConvertEmptyStringToNil)
 	}
 	if err != nil {
 		return nil, err
 	}
 
+	log.Debugf("GlobalFingerprintConfig: after unmarshaling - MaxBytes: %d, MaxLines: %d, ToSkip: %d, Strategy: %s",
+		config.MaxBytes, config.MaxLines, config.ToSkip, config.FingerprintStrategy)
+
+	// Now validate the config with proper defaults applied
 	err = ValidateFingerprintConfig(config)
 	if err != nil {
 		return nil, err
