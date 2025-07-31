@@ -332,16 +332,6 @@ func newParsingContext() parsingContext {
 	}
 }
 
-// shouldIgnoreService returns true if the service should be excluded from handling.
-func (s *discovery) shouldIgnoreService(name string) bool {
-	if len(s.core.Config.IgnoreServices) == 0 {
-		return false
-	}
-	_, found := s.core.Config.IgnoreServices[name]
-
-	return found
-}
-
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
 func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
@@ -390,7 +380,7 @@ func (s *discovery) getServiceInfo(pid int32) (*model.Service, error) {
 	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
 
 	return &model.Service{
-		PID: int(pid),
+		PID:                      int(pid),
 		GeneratedName:            nameMeta.Name,
 		GeneratedNameSource:      string(nameMeta.Source),
 		AdditionalGeneratedNames: nameMeta.AdditionalNames,
