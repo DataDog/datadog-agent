@@ -392,7 +392,7 @@ Package securityagent is the metadata provider for security-agent process
 
 ### [comp/metadata/softwareinventory](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/softwareinventory)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package softwareinventory defines the interface for the inventory software component.
 This component collects and reports software inventory information from the host system.
