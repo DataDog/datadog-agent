@@ -83,12 +83,12 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	}
 
 	// Set DDOT package permissions
-	if err = ddotPackagePermissions.Ensure(ctx.PackagePath); err != nil {
+	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
 	}
 
 	// Set DDOT config permissions
-	if err = ddotConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
+	if err = ddotConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
@@ -136,7 +136,7 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 
 	if !ctx.Upgrade {
 		// Only remove config files during actual uninstall, not during upgrades
-		err := ddotConfigUninstallPaths.EnsureAbsent("/etc/datadog-agent")
+		err := ddotConfigUninstallPaths.EnsureAbsent(ctx, "/etc/datadog-agent")
 		if err != nil {
 			log.Warnf("failed to remove DDOT config files: %s", err)
 		}

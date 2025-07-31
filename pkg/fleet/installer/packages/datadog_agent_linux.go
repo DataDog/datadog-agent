@@ -122,25 +122,25 @@ func installFilesystem(ctx HookContext) (err error) {
 	}
 
 	// 2. Ensure config/run/log/package directories are created and have the correct permissions
-	if err = agentDirectories.Ensure(); err != nil {
+	if err = agentDirectories.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
-	if err = agentPackagePermissions.Ensure(ctx.PackagePath); err != nil {
+	if err = agentPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)
 	}
-	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
+	if err = agentConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
 	}
 	agentRunPath := file.Directory{Path: filepath.Join(ctx.PackagePath, "run"), Mode: 0755, Owner: "dd-agent", Group: "dd-agent"}
-	if err = agentRunPath.Ensure(); err != nil {
+	if err = agentRunPath.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to create run directory: %v", err)
 	}
 
 	// 3. Create symlinks
-	if err = file.EnsureSymlink(filepath.Join(ctx.PackagePath, "bin/agent/agent"), agentSymlink); err != nil {
+	if err = file.EnsureSymlink(ctx, filepath.Join(ctx.PackagePath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
-	if err = file.EnsureSymlink(filepath.Join(ctx.PackagePath, "embedded/bin/installer"), installerSymlink); err != nil {
+	if err = file.EnsureSymlink(ctx, filepath.Join(ctx.PackagePath, "embedded/bin/installer"), installerSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 
@@ -163,15 +163,15 @@ func uninstallFilesystem(ctx HookContext) (err error) {
 		span.Finish(err)
 	}()
 
-	err = agentPackageUninstallPaths.EnsureAbsent(ctx.PackagePath)
+	err = agentPackageUninstallPaths.EnsureAbsent(ctx, ctx.PackagePath)
 	if err != nil {
 		return fmt.Errorf("failed to remove package paths: %w", err)
 	}
-	err = agentConfigUninstallPaths.EnsureAbsent("/etc/datadog-agent")
+	err = agentConfigUninstallPaths.EnsureAbsent(ctx, "/etc/datadog-agent")
 	if err != nil {
 		return fmt.Errorf("failed to remove config paths: %w", err)
 	}
-	err = file.EnsureSymlinkAbsent(agentSymlink)
+	err = file.EnsureSymlinkAbsent(ctx, agentSymlink)
 	if err != nil {
 		return fmt.Errorf("failed to remove agent symlink: %w", err)
 	}
@@ -181,7 +181,7 @@ func uninstallFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to read installer symlink: %w", err)
 	}
 	if strings.HasPrefix(installerTarget, ctx.PackagePath) {
-		err = file.EnsureSymlinkAbsent(installerSymlink)
+		err = file.EnsureSymlinkAbsent(ctx, installerSymlink)
 		if err != nil {
 			return fmt.Errorf("failed to remove installer symlink: %w", err)
 		}

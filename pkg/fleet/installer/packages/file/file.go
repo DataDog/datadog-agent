@@ -9,19 +9,27 @@
 package file
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 // Path is a path to a file or directory.
 type Path string
 
 // EnsureAbsent ensures that the path does not exist and removes it if it does.
-func (p Path) EnsureAbsent(rootPath string) error {
+func (p Path) EnsureAbsent(ctx context.Context, rootPath string) error {
+	span, _ := telemetry.StartSpanFromContext(ctx, "ensure_path_absent")
+	defer func() {
+		span.Finish(nil)
+	}()
+	span.SetTag("path", filepath.Join(rootPath, string(p)))
 	matches, err := filepath.Glob(filepath.Join(rootPath, string(p)))
 	if err != nil {
 		return fmt.Errorf("error globbing path: %w", err)
@@ -38,9 +46,9 @@ func (p Path) EnsureAbsent(rootPath string) error {
 type Paths []Path
 
 // EnsureAbsent ensures that the paths do not exist and removes them if they do.
-func (ps Paths) EnsureAbsent(rootPath string) error {
+func (ps Paths) EnsureAbsent(ctx context.Context, rootPath string) error {
 	for _, p := range ps {
-		if err := p.EnsureAbsent(rootPath); err != nil {
+		if err := p.EnsureAbsent(ctx, rootPath); err != nil {
 			return err
 		}
 	}
@@ -59,8 +67,17 @@ type Directory struct {
 type Directories []Directory
 
 // Ensure ensures that the directory is created with the desired permissions.
-func (d Directory) Ensure() error {
-	uid, gid, err := getUserAndGroup(d.Owner, d.Group)
+func (d Directory) Ensure(ctx context.Context) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "ensure_directory")
+	defer func() {
+		span.Finish(err)
+	}()
+	span.SetTag("path", d.Path)
+	span.SetTag("owner", d.Owner)
+	span.SetTag("group", d.Group)
+	span.SetTag("mode", d.Mode)
+
+	uid, gid, err := getUserAndGroup(ctx, d.Owner, d.Group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
 	}
@@ -80,9 +97,9 @@ func (d Directory) Ensure() error {
 }
 
 // Ensure ensures that the directories are created with the desired permissions.
-func (ds Directories) Ensure() error {
+func (ds Directories) Ensure(ctx context.Context) error {
 	for _, d := range ds {
-		if err := d.Ensure(); err != nil {
+		if err := d.Ensure(ctx); err != nil {
 			return err
 		}
 	}
@@ -102,9 +119,19 @@ type Permission struct {
 type Permissions []Permission
 
 // Ensure ensures that the file ownership and mode are set to the desired state.
-func (p Permission) Ensure(rootPath string) error {
+func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "ensure_permission")
+	defer func() {
+		span.Finish(err)
+	}()
+	span.SetTag("path", rootPath)
+	span.SetTag("owner", p.Owner)
+	span.SetTag("group", p.Group)
+	span.SetTag("mode", p.Mode)
+	span.SetTag("recursive", p.Recursive)
+
 	rootFile := filepath.Join(rootPath, p.Path)
-	_, err := os.Stat(rootFile)
+	_, err = os.Stat(rootFile)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -125,7 +152,7 @@ func (p Permission) Ensure(rootPath string) error {
 	}
 	for _, file := range files {
 		if p.Owner != "" && p.Group != "" {
-			if err := chown(file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if err := chown(ctx, file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file ownership: %w", err)
 			}
 		}
@@ -139,9 +166,9 @@ func (p Permission) Ensure(rootPath string) error {
 }
 
 // Ensure ensures that the file ownership and mode are set to the desired state.
-func (ps Permissions) Ensure(rootPath string) error {
+func (ps Permissions) Ensure(ctx context.Context, rootPath string) error {
 	for _, o := range ps {
-		if err := o.Ensure(rootPath); err != nil {
+		if err := o.Ensure(ctx, rootPath); err != nil {
 			return err
 		}
 	}
@@ -149,7 +176,13 @@ func (ps Permissions) Ensure(rootPath string) error {
 }
 
 // EnsureSymlink ensures that the symlink is created.
-func EnsureSymlink(source, target string) error {
+func EnsureSymlink(ctx context.Context, source, target string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "ensure_symlink")
+	defer func() {
+		span.Finish(err)
+	}()
+	span.SetTag("source", source)
+	span.SetTag("target", target)
 	if err := os.RemoveAll(target); err != nil {
 		return fmt.Errorf("error removing existing symlink: %w", err)
 	}
@@ -160,14 +193,25 @@ func EnsureSymlink(source, target string) error {
 }
 
 // EnsureSymlinkAbsent ensures that the symlink is removed.
-func EnsureSymlinkAbsent(target string) error {
+func EnsureSymlinkAbsent(ctx context.Context, target string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "ensure_symlink")
+	defer func() {
+		span.Finish(err)
+	}()
+	span.SetTag("target", target)
 	if err := os.RemoveAll(target); err != nil {
 		return fmt.Errorf("error removing existing symlink: %w", err)
 	}
 	return nil
 }
 
-func getUserAndGroup(username, group string) (uid, gid int, err error) {
+func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int, err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "get_user_and_group")
+	defer func() {
+		span.Finish(err)
+	}()
+	span.SetTag("username", username)
+	span.SetTag("group", group)
 	rawUID, err := user.Lookup(username)
 	if err != nil {
 		return 0, 0, fmt.Errorf("error looking up user: %w", err)
@@ -187,8 +231,13 @@ func getUserAndGroup(username, group string) (uid, gid int, err error) {
 	return uid, gid, nil
 }
 
-func chown(path string, username string, group string) (err error) {
-	uid, gid, err := getUserAndGroup(username, group)
+func chown(ctx context.Context, path string, username string, group string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "chown")
+	defer func() { span.Finish(err) }()
+	span.SetTag("path", path)
+	span.SetTag("username", username)
+	span.SetTag("group", group)
+	uid, gid, err := getUserAndGroup(ctx, username, group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
 	}
