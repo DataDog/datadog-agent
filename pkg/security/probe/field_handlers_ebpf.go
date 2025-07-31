@@ -167,7 +167,6 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 		return "/"
 	}
 	if len(e.MountPointPath) == 0 {
-		fmt.Println("Mount point path is empty")
 		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID)
 		if err != nil {
 			e.MountPointPathResolutionError = err

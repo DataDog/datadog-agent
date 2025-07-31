@@ -40,6 +40,8 @@ const (
 	numAllowedMountIDsToResolvePerPeriod = 5
 	fallbackLimiterPeriod                = time.Second
 	redemptionTime                       = 2 * time.Second
+	// should be enough to handle most of in queue mounts waiting to be deleted
+	openQueuePreAllocSize = 32
 )
 
 type redemptionEntry struct {
@@ -185,14 +187,10 @@ func (mr *Resolver) syncCache(mountID uint32, pids []uint32) error {
 	return err
 }
 
-const openQueuePreAllocSize = 32 // should be enough to handle most of in queue mounts waiting to be deleted
-
 func (mr *Resolver) insertMoved(mount *model.Mount) {
 	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, false)
-	oldPath, _, _, _ := mr.getMountPath(mount.MountID, 0, 0)
 
 	mr.insert(mount, 0, true)
-
 	mr.getMountPath(mount.MountID, 0, 0)
 
 	// Find all the mounts that I'm the parent of
@@ -213,27 +211,14 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 		}
 	}
 
-	if len(oldPath) == 0 || oldPath == "/" {
-		return
-	}
-
 	allChildren, err := mr.getAllChildren(mount)
 	if err != nil {
 		fmt.Println("Error getting the list of children")
 	}
 
-	changePrefix := func(s, oldPrefix, newPrefix string) string {
-		if strings.HasPrefix(s, oldPrefix) {
-			return newPrefix + s[len(oldPrefix):]
-		}
-		return s
-	}
-
 	for _, child := range allChildren {
-		currentChildPath, _, _, _ := mr.getMountPath(child.MountID, 0, 0)
-		if child.MountID != mount.MountID {
-			child.Path = changePrefix(currentChildPath, oldPath, mount.Path)
-		}
+		child.Path = ""
+		mr.getMountPath(child.MountID, 0, 0)
 	}
 }
 
@@ -497,7 +482,6 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 
 	mountPointStr := mount.MountPointStr
 	if mountPointStr == "/" {
-		fmt.Println("MountPointStr = Detached")
 		return mountPointStr, source, mount.Origin, nil
 	}
 

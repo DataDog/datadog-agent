@@ -9,9 +9,9 @@
 package tests
 
 import (
-	"errors"
 	"fmt"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"strings"
@@ -22,11 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"golang.org/x/sys/unix"
 )
-
-func moveMountIsSupported() bool {
-	_, _, errno := unix.Syscall6(unix.SYS_MOVE_MOUNT, 0, 0, 0, 0, 0, 0)
-	return !errors.Is(errno, syscall.ENOSYS)
-}
 
 func GetMountID(fd int) (uint64, error) {
 	var stx unix.Statx_t
@@ -47,7 +42,7 @@ func GetMountID(fd int) (uint64, error) {
 func TestMoveMount(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	if !moveMountIsSupported() {
+	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
 		t.Skip("move_mount syscall is not supported on this platform")
 	}
 
@@ -222,6 +217,12 @@ func (r *MountEnvironment) UnmountAll() {
 }
 
 func TestMoveMountRecursiveNoPropagation(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
+		t.Skip("move_mount syscall is not supported on this platform")
+	}
+
 	te, err := newTestEnvironment(true, t.TempDir())
 	defer te.UnmountAll()
 
@@ -268,6 +269,12 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 }
 
 func TestMoveMountRecursivePropagation(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
+		t.Skip("move_mount syscall is not supported on this platform")
+	}
+	
 	te, err := newTestEnvironment(false, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
