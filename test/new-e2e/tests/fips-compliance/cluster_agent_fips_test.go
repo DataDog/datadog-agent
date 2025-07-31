@@ -34,6 +34,11 @@ func TestFIPSCiphersClusterAgentSuite(t *testing.T) {
 	require.NotEmpty(t, os.Getenv("E2E_COMMIT_SHA"), "E2E_COMMIT_SHA must be set")
 	require.NotEmpty(t, os.Getenv("E2E_PIPELINE_ID"), "E2E_PIPELINE_ID must be set")
 
+	// Build the FIPS cluster agent image path following the same logic as dockerClusterAgentFullImagePath
+	pipelineID := os.Getenv("E2E_PIPELINE_ID")
+	commitSHA := os.Getenv("E2E_COMMIT_SHA")
+	clusterAgentImage := fmt.Sprintf("669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:%s-%s-fips", pipelineID, commitSHA)
+
 	e2e.Run(
 		t,
 		&fipsServerClusterAgentSuite{},
@@ -42,6 +47,9 @@ func TestFIPSCiphersClusterAgentSuite(t *testing.T) {
 				awsdocker.WithAgentOptions(
 					dockeragentparams.WithFIPS(),
 					dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(strings.ReplaceAll(clusterAgentDockerCompose, "{APPS_VERSION}", apps.Version))),
+					dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
+						"CLUSTER_AGENT_IMAGE": pulumi.String(clusterAgentImage),
+					}),
 				),
 			),
 		),
@@ -55,7 +63,7 @@ func (s *fipsServerClusterAgentSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	host := s.Env().RemoteHost
-	// lookup the compose file used by environments.DockerHost (like the nix test does)
+	// lookup the compose file used by environments.DockerHost
 	composeFiles := strings.Split(host.MustExecute(`docker inspect --format='{{index (index .Config.Labels "com.docker.compose.project.config_files")}}' cluster-agent`), ",")
 	formattedComposeFiles := strings.Join(composeFiles, " -f ")
 	formattedComposeFiles = strings.TrimSpace(formattedComposeFiles)
