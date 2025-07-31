@@ -8,9 +8,9 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/go-json-experiment/json"
@@ -60,6 +60,13 @@ func NewDecoder(
 			},
 		},
 	}
+	for _, t := range program.Types {
+		decoderType, err := newDecoderType(t, program.Types)
+		if err != nil {
+			return nil, fmt.Errorf("error getting decoder type for type %s: %w", t.GetName(), err)
+		}
+		decoder.decoderTypes[t.GetID()] = decoderType
+	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
 			decoder.probeEvents[event.Type.ID] = probeEvent{
@@ -67,13 +74,6 @@ func NewDecoder(
 				probe: probe,
 			}
 		}
-	}
-	for _, t := range program.Types {
-		decoderType, err := newDecoderType(t, program.Types)
-		if err != nil {
-			return nil, fmt.Errorf("error getting decoder type for type %s: %w", t.GetName(), err)
-		}
-		decoder.decoderTypes[t.GetID()] = decoderType
 	}
 	return decoder, nil
 }
@@ -89,15 +89,17 @@ type typeAndAddr struct {
 func (d *Decoder) Decode(
 	event Event,
 	symbolicator symbol.Symbolicator,
-	out io.Writer,
-) (probe ir.ProbeDefinition, err error) {
-	probe, err = d.snapshotMessage.init(d, event, symbolicator)
+	output []byte,
+) ([]byte, ir.ProbeDefinition, error) {
+	probe, err := d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer d.snapshotMessage.clear()
-	err = json.MarshalWrite(out, &d.snapshotMessage)
-	return probe, err
+
+	buf := bytes.NewBuffer(output)
+	err = json.MarshalWrite(buf, &d.snapshotMessage)
+	return buf.Bytes(), probe, err
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
@@ -128,7 +130,7 @@ func (s *snapshotMessage) init(
 		ID:       uuid.New(),
 		Language: "go",
 	}
-
+	s.Debugger.EvaluationErrors = []string{}
 	var rootType *ir.EventRootType
 	var probe ir.ProbeDefinition
 
@@ -206,15 +208,17 @@ func (s *snapshotMessage) init(
 	s.Logger.Version = probe.GetVersion()
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
-	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
-		event:    event,
-		rootType: rootType,
-		rootData: s.rootData,
-		decoder:  decoder,
+	s.Debugger.Snapshot.Captures.Entry.ArgumentsData = argumentsData{
+		event:        event,
+		rootType:     rootType,
+		rootData:     s.rootData,
+		decoder:      decoder,
+		debuggerData: &s.Debugger,
 	}
 	return probe, nil
 }
 
 func (s *snapshotMessage) clear() {
 	s.Debugger.Snapshot = snapshotData{}
+	clear(s.Debugger.EvaluationErrors)
 }

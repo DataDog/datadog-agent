@@ -9,7 +9,6 @@ package module
 
 import (
 	"encoding/json"
-	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
@@ -38,8 +37,8 @@ type Decoder interface {
 	Decode(
 		event decode.Event,
 		symbolicator symbol.Symbolicator,
-		out io.Writer,
-	) (ir.ProbeDefinition, error)
+		out []byte,
+	) ([]byte, ir.ProbeDefinition, error)
 }
 
 // DefaultDecoderFactory is the default decoder factory.
@@ -47,11 +46,7 @@ type DefaultDecoderFactory struct{}
 
 // NewDecoder creates a new decoder using decode.NewDecoder.
 func (DefaultDecoderFactory) NewDecoder(program *ir.Program) (Decoder, error) {
-	decoder, err := decode.NewDecoder(program)
-	if err != nil {
-		return nil, err
-	}
-	return decoder, nil
+	return decode.NewDecoder(program)
 }
 
 // Actuator is an interface that enables the Controller to create a new tenant.

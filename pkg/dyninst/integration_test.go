@@ -93,6 +93,7 @@ func TestDyninst(t *testing.T) {
 		for _, cfg := range cfgs {
 			t.Run(fmt.Sprintf("%s-%s", svc, cfg), func(t *testing.T) {
 				runIntegrationTestSuite(t, svc, cfg, rewrite, sem)
+				runIntegrationTestSuiteWithFaultInjection(t, svc, cfg, rewrite, sem)
 			})
 		}
 	}
@@ -282,13 +283,18 @@ func testDyninst(
 			Event:       ev,
 			ServiceName: service,
 		}
-		var decodeOut bytes.Buffer
-		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
+
+		var (
+			output []byte
+			probe  ir.ProbeDefinition
+			err    error
+		)
+		output, probe, err = decoder.Decode(event, cachingSymbolicator, output)
 		require.NoError(t, err)
 		if os.Getenv("DEBUG") != "" {
-			t.Logf("Output: %s", decodeOut.String())
+			t.Logf("Output: %s", string(output))
 		}
-		redacted := redactJSON(t, "", decodeOut.Bytes(), defaultRedactors)
+		redacted := redactJSON(t, "", output, defaultRedactors)
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Sorted and redacted: %s", redacted)
 		}
