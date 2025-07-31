@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -80,11 +80,13 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 
 // TestMain runs before other tests in this package. It hooks the getDDAgentUserSID
 // function to make it work for Windows tests
-func TestMain(_ *testing.M) {
+func TestMain(m *testing.M) {
 	// Windows-only fix for running on CI. Instead of checking the registry for
 	// permissions (the agent wasn't installed, so that wouldn't work), use a stub
 	// function that gets permissions info directly from the current User
 	testCheckRightsStub()
+
+	os.Exit(m.Run())
 }
 
 func TestExecCommandError(t *testing.T) {
