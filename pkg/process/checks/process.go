@@ -184,7 +184,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
-	if !oneShot && workloadmeta.Enabled(p.config) {
+	if !oneShot && workloadmeta.Enabled(p.config) && !p.useWLMCollection() {
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
 
 		// The server is only needed on the process agent
@@ -245,7 +245,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return nil, errEmptyCPUTime
 	}
 
-	procs, err := p.processesByPID(true)
+	procs, err := p.processesByPID()
 	if err != nil {
 		return nil, err
 	}

@@ -57,7 +57,7 @@ func (p *ProcessCheck) useWLMCollection() bool {
 
 // processesByPID returns the processes by pid from different sources depending on the configuration (process probe or workloadmeta)
 // workload meta process collection is only available on linux and TODO: will eventually be the only source for linux process collection
-func (p *ProcessCheck) processesByPID(collectStats bool) (map[int32]*procutil.Process, error) {
+func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 	if p.useWLMProcessCollection {
 		wlmProcList := p.wmeta.ListProcesses()
 		pids := make([]int32, len(wlmProcList))
@@ -65,13 +65,9 @@ func (p *ProcessCheck) processesByPID(collectStats bool) (map[int32]*procutil.Pr
 			pids[i] = wlmProc.Pid
 		}
 
-		statsForProcess := make(map[int32]*procutil.Stats)
-		if collectStats {
-			var err error
-			statsForProcess, err = p.probe.StatsForPIDs(pids, p.clock.Now())
-			if err != nil {
-				return nil, err
-			}
+		statsForProcess, err := p.probe.StatsForPIDs(pids, p.clock.Now())
+		if err != nil {
+			return nil, err
 		}
 
 		// map to common process type used by other versions of the check
@@ -81,7 +77,7 @@ func (p *ProcessCheck) processesByPID(collectStats bool) (map[int32]*procutil.Pr
 		}
 		return procs, nil
 	}
-	procs, err := p.probe.ProcessesByPID(p.clock.Now(), collectStats)
+	procs, err := p.probe.ProcessesByPID(p.clock.Now(), true)
 	if err != nil {
 		return nil, err
 	}

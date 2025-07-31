@@ -38,12 +38,7 @@ func TestProcessesByPIDWLM(t *testing.T) {
 		collectStats bool
 	}{
 		{
-			description:  "wlm collection ENABLED, with stats ENABLED",
-			collectStats: true,
-		},
-		{
-			description:  "wlm collection ENABLED, with stats DISABLED",
-			collectStats: false,
+			description: "normal wlm collection",
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
@@ -73,11 +68,10 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			for _, p := range procs {
 				mockWLM.Set(p)
 			}
-			if tc.collectStats {
-				// elevatedPermissions is irrelevant since we are mocking the probe so no internal logic is tested
-				statsByPid = createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
-				mockProbe.EXPECT().StatsForPIDs(mock.Anything, mockConstantClock.Now()).Return(statsByPid, nil).Once()
-			}
+
+			// elevatedPermissions is irrelevant since we are mocking the probe so no internal logic is tested
+			statsByPid = createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
+			mockProbe.EXPECT().StatsForPIDs(mock.Anything, mockConstantClock.Now()).Return(statsByPid, nil).Once()
 
 			// EXPECTED
 			expected := map[int32]*procutil.Process{
@@ -88,7 +82,7 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			}
 
 			// TESTING
-			actual, err := processCheck.processesByPID(tc.collectStats)
+			actual, err := processCheck.processesByPID()
 			assert.NoError(t, err)
 			assert.Equal(t, expected, actual)
 		})
