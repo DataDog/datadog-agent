@@ -177,6 +177,7 @@ type server struct {
 	tlmProcessedOk          telemetry.SimpleCounter
 	tlmProcessedError       telemetry.SimpleCounter
 	tlmChannel              telemetry.Histogram
+	tlmControlReconfig      telemetry.Counter
 	listernersTelemetry     *listeners.TelemetryStore
 	packetsTelemetry        *packets.TelemetryStore
 	stringInternerTelemetry *stringInternerTelemetry
@@ -331,6 +332,10 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		[]string{"shard", "message_type"},
 		"Time in nanosecond to push metrics to the aggregator input buffer",
 		buckets)
+	s.tlmControlReconfig = telemetrycomp.NewCounter("dogstatsd", "control_reconfig",
+		[]string{"config_type"}, // "remote" or "local"
+		"Incremented when a reconfiguration of the control subsystem occur",
+	)
 
 	s.listernersTelemetry = listeners.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_latency_buckets"), telemetrycomp)
 	s.packetsTelemetry = packets.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_channel_latency_buckets"), telemetrycomp)
@@ -601,6 +606,7 @@ func (s *server) handleMessages() {
 		metricNames: s.config.GetStringSlice("statsd_metric_blocklist"),
 		matchPrefix: s.config.GetBool("statsd_metric_blocklist_match_prefix"),
 	}
+	s.tlmControlReconfig.Inc("local")
 	s.restoreBlocklistFromLocalConfig()
 }
 
