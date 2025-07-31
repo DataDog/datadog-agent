@@ -22,7 +22,7 @@ TEAMS = (
     'apm-onboarding',
     'asm-go',
     'container-app',
-    'container-ecosystems',
+    'agent-onboarding',
     'container-integrations',
     'container-platform',
     'database-monitoring',
