@@ -1116,8 +1116,6 @@ func testOpenSSLSegfaultBehavior(t *testing.T, usmMonitor *Monitor, pythonPID ui
 		},
 	}
 
-	time.Sleep(60 * time.Second)
-
 	// Make several requests to test for potential segfaults
 	for i := 0; i < 5; i++ {
 		url := fmt.Sprintf("https://localhost:%s/status/200", serverPort)

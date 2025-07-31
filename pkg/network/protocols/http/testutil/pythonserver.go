@@ -29,6 +29,10 @@ import (
 )
 
 const (
+	// Certificate paths for container environment
+	containerCertPath = "/v/cert.pem.0"
+	containerKeyPath  = "/v/server.key"
+
 	pythonSSLServerFormat = `import http.server, ssl, sys
 
 YES = ('true', '1', 't', 'y', 'yes')
@@ -160,9 +164,7 @@ func HTTPPythonServerContainer(t *testing.T, serverPort string) error {
 	dir, _ := CurDir()
 
 	// Create Python script using existing format - reference original certificate files directly
-	certPath := "/v/cert.pem.0"
-	keyPath := "/v/server.key"
-	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, "0.0.0.0", "4141", certPath, keyPath)
+	pythonSSLServer := fmt.Sprintf(pythonSSLServerFormat, "0.0.0.0", "4141", containerCertPath, containerKeyPath)
 	scriptFile, err := writeTempFile("python_container_script", pythonSSLServer)
 	require.NoError(t, err)
 
