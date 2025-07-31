@@ -72,14 +72,14 @@ func TestMount(t *testing.T) {
 		}, func(event *model.Event) bool {
 			mntID = event.Mount.MountID
 			fmt.Printf("Mount received: %v\n", event.Mount)
-			//if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
-			//	return true
-			//}
-			//if !ebpfLessEnabled {
-			//	assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
-			//	assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
-			//	assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
-			//}
+			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
+				return true
+			}
+			if !ebpfLessEnabled {
+				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
+				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+			}
 
 			// filter by pid
 			if event.ProcessContext.Pid != testSuitePid {

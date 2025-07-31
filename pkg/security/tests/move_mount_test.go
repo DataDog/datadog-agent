@@ -38,7 +38,7 @@ func GetMountID(fd int) (uint64, error) {
 	}
 
 	if stx.Mask&unix.STATX_MNT_ID == 0 {
-		return 0, fmt.Errorf("statx: kernel não preencheu STATX_MNT_ID — kernel < 5.8?")
+		return 0, fmt.Errorf("statx: kernel didn't fill STATX_MNT_ID")
 	}
 
 	return stx.Mnt_id, nil
@@ -127,7 +127,7 @@ type MountEnvironment struct {
 }
 
 func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error) {
-	r := &MountEnvironment{}
+	r := MountEnvironment{}
 
 	// Prepare the source directory:
 	r.mountDir = mountDir
@@ -212,7 +212,7 @@ func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error
 		return nil, err
 	}
 
-	return r, nil
+	return &r, nil
 }
 
 func (r *MountEnvironment) UnmountAll() {
@@ -268,13 +268,13 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 }
 
 func TestMoveMountRecursivePropagation(t *testing.T) {
-	te2, err := newTestEnvironment(false, t.TempDir())
+	te, err := newTestEnvironment(false, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer te2.UnmountAll()
+	defer te.UnmountAll()
 
-	fd, err := unix.OpenTree(0, te2.submountDirSrc, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
+	fd, err := unix.OpenTree(0, te.submountDirSrc, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,14 +288,14 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 		allMounts := map[uint32]uint32{}
 
 		err = test.GetProbeEvent(func() error {
-			err = unix.MoveMount(fd, "", unix.AT_FDCWD, te2.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
+			err = unix.MoveMount(fd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
 
 			if err != nil {
 				t.Fatal("Err moving mount:", err)
 			}
 			if err == nil {
-				for i := 0; i != len(te2.tounmount); i++ {
-					te2.tounmount[i] = strings.Replace(te2.tounmount[i], te2.submountDirSrc, te2.submountDirDst, 1)
+				for i := 0; i != len(te.tounmount); i++ {
+					te.tounmount[i] = strings.Replace(te.tounmount[i], te.submountDirSrc, te.submountDirDst, 1)
 				}
 			}
 			return nil
@@ -317,7 +317,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 				// Need to figure out what are these mount points and why they aren't to be found nowhere
 				continue
 			}
-			assert.True(t, strings.Contains(mount.Path, te2.submountDirDst), "Path wasn't moved")
+			assert.True(t, strings.Contains(mount.Path, te.submountDirDst), "Path wasn't moved")
 		}
 	})
 }

@@ -215,8 +215,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 		return
 	}
 
-	var allChildren []*model.Mount
-	err := mr.getAllChildrenRecursive(mount, &allChildren)
+	allChildren, err := mr.getAllChildren(mount)
 	if err != nil {
 		fmt.Println("Error getting the list of children")
 	}
@@ -236,23 +235,37 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 	}
 }
 
-func (mr *Resolver) getAllChildrenRecursive(mount *model.Mount, children *[]*model.Mount) error {
-	// We can have an infinite loop here. Fix it.
-	*children = append(*children, mount)
+func (mr *Resolver) getAllChildren(mount *model.Mount) (map[uint32]*model.Mount, error) {
+	children := map[uint32]*model.Mount{}
+
+	err := mr.getAllChildrenRecursive(mount, children)
+	if err != nil {
+		return nil, err
+	}
+
+	return children, nil
+}
+
+func (mr *Resolver) getAllChildrenRecursive(mount *model.Mount, mountList map[uint32]*model.Mount) error {
+	if _, existed := mountList[mount.MountID]; existed {
+		return fmt.Errorf("mount ID %d already visited – potential cycle detected", mount.MountID)
+	}
+	mountList[mount.MountID] = mount
 
 	for _, mountid := range mount.Children {
 		mnt := mr.lookupByMountID(mountid)
 		if mnt != nil {
-			err := mr.getAllChildrenRecursive(mnt, children)
+			err := mr.getAllChildrenRecursive(mnt, mountList)
 			if err != nil {
 				return err
 			}
 		} else {
-			return fmt.Errorf("could not find mountid %d", mountid)
+			return fmt.Errorf("could not find mount with the id %d", mountid)
 		}
 	}
 	return nil
 }
+
 func (mr *Resolver) delete(mount *model.Mount) {
 	now := time.Now()
 
