@@ -95,7 +95,6 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip1() {
 	}
 
 	text := "first data linesecond data line"
-	fmt.Println("This is the content of what we're testing against", text)
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum([]byte(text), table)
 
@@ -781,6 +780,7 @@ func (suite *FingerprintTestSuite) TestLineBased_SkipAndMaxMidLine() {
 
 	lines := []string{
 		"this line should be skipped\n",
+		"ok we're trying something new here with a long, long, long, long, line.\n",
 	}
 
 	for _, line := range lines {
@@ -792,23 +792,25 @@ func (suite *FingerprintTestSuite) TestLineBased_SkipAndMaxMidLine() {
 	osFile, err := os.Open(suite.testPath)
 	suite.Nil(err)
 	defer osFile.Close()
-	//invalid config
+
 	maxLines := 1
-	maxBytes := 4
+	maxBytes := 26
 	linesToSkip := 1
 
 	config := &config.FingerprintConfig{
-		MaxLines: maxLines,
-		MaxBytes: maxBytes,
-		ToSkip:   linesToSkip,
+		MaxLines:            maxLines,
+		MaxBytes:            maxBytes,
+		ToSkip:              linesToSkip,
+		FingerprintStrategy: "line_checksum",
 	}
 
-	// Expected: skip the first line. Read the second line, but only up to maxBytes.
+	// Expected: skips first line, read bit of second line, hits limit, fall back to byte-based fingerprinting read 26 bytes from beginning of file.
 
 	tailer := suite.createTailer()
-	tailer.osFile = osFile
 
-	expectedChecksum := uint64(0)
+	textToHash := "this line should be skippe"
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte(textToHash), table)
 	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 
 	suite.Equal(expectedChecksum, receivedChecksum)
@@ -909,4 +911,38 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(err)
 	suite.False(rotated, "Should not detect rotation if the initial fingerprint was zero")
 	suite.Equal(uint64(0), ComputeFingerprint(tailer.file.Path, config))
+}
+
+func (suite *FingerprintTestSuite) TestLineBased_FallbackToByteBased() {
+	// Write only 2 lines to the file
+	data := "line1\nline2\n"
+	_, err := suite.testFile.WriteString(data)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	// Try to skip 3 lines (more than available) with small maxBytes to trigger LimitedReader exhaustion
+	maxLines := 2
+	maxBytes := 12   // Small enough to trigger LimitedReader exhaustion during skip
+	linesToSkip := 3 // More lines than available (only 2 lines in file)
+
+	config := &config.FingerprintConfig{
+		MaxLines:            maxLines,
+		MaxBytes:            maxBytes,
+		ToSkip:              linesToSkip,
+		FingerprintStrategy: "line_checksum",
+	}
+
+	tailer := suite.createTailer()
+	fingerprint := ComputeFingerprint(tailer.file.Path, config)
+
+	// Since we're trying to skip more lines than exist, and the LimitedReader exhausts,
+	// this should trigger the fallback to byte-based fingerprinting
+	// The fallback should read from the beginning of the file (after any byte skip)
+
+	// Expected: fallback should read the first 15 bytes of the file
+	expectedText := "line1\nline2\n"
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
+
+	suite.Equal(expectedChecksum, fingerprint, "Fallback to byte-based fingerprinting should work correctly")
 }

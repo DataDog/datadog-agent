@@ -7,7 +7,6 @@ package file
 
 import (
 	"bufio"
-	"fmt"
 	"hash/crc64"
 	"io"
 	"os"
@@ -99,6 +98,9 @@ func ComputeFingerprint(filePath string, fingerprintConfig *logsconfig.Fingerpri
 // computeFileFingerPrintByBytes computes fingerprint using byte-based approach for a given file path
 func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConfig *logsconfig.FingerprintConfig) uint64 {
 	bytesToSkip := fingerprintConfig.ToSkip
+	if fingerprintConfig.FingerprintStrategy == "line_checksum" {
+		bytesToSkip = 0
+	}
 	// Skip the configured number of bytes
 	if bytesToSkip > 0 {
 		_, err := fpFile.Seek(int64(bytesToSkip), io.SeekStart)
@@ -153,12 +155,15 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 			if scanner.Err() != nil {
 				log.Warnf("Failed to skip line while computing fingerprint for %q: %v", filePath, scanner.Err())
 			}
-			// If we hit EOF during skip and limitedReader.N is 0, fall back to bytes fingerprint
-			if lr, ok := limitedReader.(*io.LimitedReader); ok && lr.N == 0 {
-				log.Debugf("Reached maxBytes during line skip, falling back to bytes fingerprint for %q", filePath)
+			if scanner.Err() == nil && limitedReader.(*io.LimitedReader).N == 0 {
+				// Scanner stopped normally + no bytes remaining = fall back
+				log.Warnf("Scanner stopped with no bytes remaining, falling back to bytes fingerprint for %q", filePath)
+				pos, err := fpFile.Seek(0, io.SeekStart)
+				if pos != 0 || err != nil {
+					log.Warnf("Error %s occurred while trying to reset file offset", err)
+				}
 				return computeFingerPrintByBytes(fpFile, filePath, fingerprintConfig)
 			}
-			return 0
 		}
 	}
 
@@ -166,7 +171,6 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	var buffer []byte
 	linesRead := 0
 	bytesRead := 0
-
 	for linesRead < maxLines && scanner.Scan() {
 		//TODO: Check for error here
 		line := scanner.Bytes()
@@ -185,16 +189,24 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 		return 0
 	}
 
-	fmt.Println(bytesRead < maxBytes)
-	fmt.Println(bytesRead)
 	// Check if we have enough lines to create a meaningful fingerprint
-	if linesRead == 0 || (linesRead < maxLines && bytesRead < maxBytes) {
+	if linesRead == 0 {
+		if scanner.Err() == nil && limitedReader.(*io.LimitedReader).N == 0 {
+			// Scanner stopped normally + no bytes remaining = fall back
+			log.Warnf("Scanner stopped with no bytes remaining, falling back to byte-based fingerprint for %q", filePath)
+			pos, err := fpFile.Seek(0, io.SeekStart)
+			if pos != 0 || err != nil {
+				log.Warnf("Error %s occurred while trying to reset file offset", err)
+			}
+			return computeFingerPrintByBytes(fpFile, filePath, fingerprintConfig)
+		}
+	}
+
+	if linesRead < maxLines && bytesRead < maxBytes {
 		log.Debugf("Not enough data for fingerprinting file %q (lines=%d, bytes=%d)", filePath, linesRead, bytesRead)
 		return 0
 	}
-
 	// Compute fingerprint
-	fmt.Println("This is the content in side the buffer: ", string(buffer))
 	checksum := crc64.Checksum(buffer, crc64Table)
 	log.Debugf("Computed line-based fingerprint 0x%x for file %q (bytes=%d, lines=%d)", checksum, filePath, len(buffer), linesRead)
 	return checksum
