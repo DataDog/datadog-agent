@@ -57,7 +57,7 @@ type tlsSuite struct {
 
 func TestTLSSuite(t *testing.T) {
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
-		if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
+		if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
 			t.Skip("TLS not supported for this setup")
 		}
 		suite.Run(t, new(tlsSuite))
