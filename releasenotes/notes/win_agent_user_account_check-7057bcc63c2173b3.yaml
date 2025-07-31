@@ -8,8 +8,7 @@
 ---
 enhancements:
   - |
-    [Windows] Added checking on the Agent user groups and account rights.
-    The enhancement helps correct misconfigured Agent accounts on Windows.
+    [Windows] Added checks for Agent user groups and account rights to correct misconfigurations.
 other:
   - |
     The Agent user/account verification is now available with `agent flare` and `agent diagnose` commands.
