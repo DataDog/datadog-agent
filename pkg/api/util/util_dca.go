@@ -62,6 +62,11 @@ func SetCrossNodeClientTLSConfig(config *tls.Config) {
 	tokenLock.Lock()
 	defer tokenLock.Unlock()
 
+	if crossNodeClientTLSConfig != nil {
+		log.Warn("Cross-node client TLS configuration is already set, ignoring the new configuration")
+		return
+	}
+
 	// Clone the provided config to avoid modifying the original one
 	crossNodeClientTLSConfig = config.Clone()
 }
