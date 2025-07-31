@@ -68,6 +68,59 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
 
+## FIM triggers
+
+In addition to regular triggers, `fim.write.file.*` fields allow to write rules that will fire
+on all file events.
+
+For example, the following rule:
+
+{{< code-block lang="javascript" >}}
+(fim.write.file.path == "/tmp/test" || fim.write.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+{{< /code-block >}}
+
+will expand into the following rules under the hood:
+
+{{< code-block lang="javascript" >}}
+open: ((open.file.path == "/tmp/test" || open.file.name == "abc")
+  && open.flags & (O_CREAT|O_TRUNC|O_APPEND|O_RDWR|O_WRONLY) > 0
+  && process.file.name == "def"
+  && container.id != "")
+
+chmod: (chmod.file.path == "/tmp/test" || chmod.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+chown: (chown.file.path == "/tmp/test" || chown.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+link: (link.file.path == "/tmp/test" || link.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+rename: (rename.file.path == "/tmp/test" || rename.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+rename: (rename.file.destination.path == "/tmp/test" || rename.file.destination.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+unlink: (unlink.file.path == "/tmp/test" || unlink.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+utimes: (utimes.file.path == "/tmp/test" || utimes.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+{{< /code-block >}}
+
+and match on all file related events matching the path provided in the rule. Common fields are kept in all
+expanded rules.
+
 ## Variables
 SECL variables are predefined variables that can be used as values or as part of values.
 
