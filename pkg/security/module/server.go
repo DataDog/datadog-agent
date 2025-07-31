@@ -237,7 +237,11 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 			return true
 		}
 
-		if msg.skip || msg.retry >= maxRetry {
+		if msg.skip {
+			return true
+		}
+
+		if msg.retry >= maxRetry {
 			seclog.Errorf("failed to sent event, max retry reached: %d", msg.retry)
 			return true
 		}
