@@ -335,6 +335,7 @@
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
+/comp/metadata/softwareinventory @DataDog/windows-agent
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
@@ -440,7 +441,6 @@
 /pkg/collector/corechecks/system/windowscertificate/ @DataDog/windows-agent
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
-/pkg/collector/corechecks/system/winsoftware/   @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-runtimes
 /pkg/config/                            @DataDog/agent-configuration
@@ -473,6 +473,8 @@
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent @DataDog/agent-configuration
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-jobs-monitoring
+/pkg/inventory/                         @DataDog/windows-agent
+/pkg/inventory/software/                @DataDog/windows-agent
 /pkg/opentelemetry-mapping-go           @DataDog/opentelemetry-agent
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes
@@ -529,6 +531,7 @@
 /pkg/languagedetection                  @DataDog/container-experiences @DataDog/agent-discovery
 /pkg/linters/                           @DataDog/agent-devx
 /pkg/linters/components/                @DataDog/agent-runtimes
+/pkg/linters/components/pkgconfigusage  @DataDog/agent-configuration
 /pkg/logs/                              @DataDog/agent-log-pipelines
 /pkg/logs/launchers/container           @DataDog/agent-log-pipelines @DataDog/container-integrations
 /pkg/logs/tailers/container             @DataDog/agent-log-pipelines @DataDog/container-integrations

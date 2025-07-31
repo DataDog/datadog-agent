@@ -119,6 +119,27 @@ probes:
   where:
     methodName: main.testSingleString
   captureSnapshot: true
+- id: testUnitializedString
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testUnitializedString
+  captureSnapshot: true
+- id: testMassiveString
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMassiveString
+  captureSnapshot: true
+- id: testEmptyString
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testEmptyString
+  captureSnapshot: true
 - id: testThreeStrings
   type: LOG_PROBE
   tags:
@@ -404,13 +425,6 @@ probes:
   where:
     methodName: main.testMultipleSimpleParams
   captureSnapshot: true
-- id: testMapStringToInt
-  type: LOG_PROBE
-  tags:
-    - "foo:bar"
-  where:
-    methodName: main.testMapStringToInt
-  captureSnapshot: true
 - id: testInterface
   type: LOG_PROBE
   tags:
@@ -460,6 +474,13 @@ probes:
   where:
     methodName: main.testPointerLoop
   captureSnapshot: true
+- id: testCycle
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testCycle
+  captureSnapshot: true
 - id: testPointerToSimpleStruct
   type: LOG_PROBE
   tags:
@@ -480,4 +501,67 @@ probes:
     - "foo:bar"
   where:
     methodName: main.testEsotericHeap
+  captureSnapshot: true
+- id: testSmallMap
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSmallMap
+  captureSnapshot: true
+- id: testMapIntToInt
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapIntToInt
+  captureSnapshot: true
+- id: testMapStringToInt
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapStringToInt
+  captureSnapshot: true
+- id: testMapStringToSlice
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapStringToSlice
+  captureSnapshot: true
+- id: testMapArrayToArray
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapArrayToArray
+  captureSnapshot: true
+- id: testMapStringToStruct
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapStringToStruct
+  captureSnapshot: true
+- id: testMapMassive
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapMassive
+  captureSnapshot: true
+- id: testMapEmbeddedMaps
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapEmbeddedMaps
+  captureSnapshot: true
+- id: testMapWithLinkedList
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapWithLinkedList
   captureSnapshot: true
