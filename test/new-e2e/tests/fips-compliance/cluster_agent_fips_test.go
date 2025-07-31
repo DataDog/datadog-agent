@@ -75,7 +75,7 @@ func (s *fipsServerClusterAgentSuite) SetupSuite() {
 	// Get the cluster agent image from the running container to use during docker-compose operations
 	s.clusterAgentImage = strings.TrimSpace(host.MustExecute(`docker inspect --format='{{.Config.Image}}' cluster-agent`))
 
-	// supply workers to base fipsServerSuite
+	// supply workers to base fipsServerSuite (same as other tests)
 	s.fipsServer = newFIPSServer(host, formattedComposeFiles)
 
 	// Configure generateTestTraffic for cluster agent
@@ -97,49 +97,15 @@ func (s *fipsServerClusterAgentSuite) SetupSuite() {
 	}
 }
 
-// TestFIPSCiphers overrides the base test to handle cluster agent environment variables
-func (s *fipsServerClusterAgentSuite) TestFIPSCiphers() {
-	for _, tc := range testcases {
-		s.Run(fmt.Sprintf("FIPS enabled testing '%v -c %v' (should connect %v)", tc.cert, tc.cipher, tc.want), func() {
-			// Start the fips-server with cluster agent environment variables
-			s.startFIPSServerWithClusterAgentImage(tc)
-			s.T().Cleanup(func() {
-				s.stopFIPSServerWithClusterAgentImage()
-			})
+// Override base test methods to add CLUSTER_AGENT_IMAGE environment variable
 
-			s.generateTestTraffic()
-
-			serverLogs := s.fipsServer.Logs()
-			if tc.want {
-				assert.Contains(s.T(), serverLogs, fmt.Sprintf("Negotiated cipher suite: %s", tc.cipher))
-			} else {
-				assert.Contains(s.T(), serverLogs, "no cipher suite supported by both client and server")
-			}
-		})
-	}
-}
-
-// TestFIPSCiphersTLSVersion overrides the base test to handle cluster agent environment variables
-func (s *fipsServerClusterAgentSuite) TestFIPSCiphersTLSVersion() {
-	tc := cipherTestCase{cert: "rsa", tlsMax: "1.1"}
-	s.startFIPSServerWithClusterAgentImage(tc)
-	s.T().Cleanup(func() {
-		s.stopFIPSServerWithClusterAgentImage()
-	})
-
-	s.generateTestTraffic()
-
-	serverLogs := s.fipsServer.Logs()
-	assert.Contains(s.T(), serverLogs, "tls: client offered only unsupported version")
-}
-
-// startFIPSServerWithClusterAgentImage starts the FIPS server with CLUSTER_AGENT_IMAGE environment variable
+// startFIPSServerWithClusterAgentImage is a helper that adds CLUSTER_AGENT_IMAGE when starting the server
 func (s *fipsServerClusterAgentSuite) startFIPSServerWithClusterAgentImage(tc cipherTestCase) {
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		// stop currently running server, if any, so we can reset logs+env
 		s.stopFIPSServerWithClusterAgentImage()
 
-		// start datadog/apps-fips-server with env vars from the test case and cluster agent image
+		// start datadog/apps-fips-server with env vars including CLUSTER_AGENT_IMAGE
 		envVars := map[string]string{
 			"CERT":                tc.cert,
 			"CLUSTER_AGENT_IMAGE": s.clusterAgentImage,
@@ -160,7 +126,7 @@ func (s *fipsServerClusterAgentSuite) startFIPSServerWithClusterAgentImage(tc ci
 		assert.Nil(c, err)
 	}, 120*time.Second, 10*time.Second, "docker-compose timed out starting server")
 
-	// Wait for container to start and ensure it's a fresh instance
+	// Wait for container to start and ensure it's a fresh instance (reuse base logic)
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		serverLogs, _ := s.fipsServer.dockerHost.Execute("docker logs dd-fips-server")
 		assert.Contains(c, serverLogs, "Server Starting...", "fips-server timed out waiting for cipher initialization to finish")
@@ -168,20 +134,52 @@ func (s *fipsServerClusterAgentSuite) startFIPSServerWithClusterAgentImage(tc ci
 	}, 60*time.Second, 5*time.Second)
 }
 
-// stopFIPSServerWithClusterAgentImage stops the FIPS server with CLUSTER_AGENT_IMAGE environment variable
+// stopFIPSServerWithClusterAgentImage is a helper that adds CLUSTER_AGENT_IMAGE when stopping the server
 func (s *fipsServerClusterAgentSuite) stopFIPSServerWithClusterAgentImage() {
 	fipsContainer := s.fipsServer.dockerHost.MustExecute("docker container ls -a --filter name=dd-fips-server --format '{{.Names}}'")
 	if fipsContainer != "" {
-		// Include CLUSTER_AGENT_IMAGE when stopping to avoid compose parsing errors
-		envVars := map[string]string{
-			"CLUSTER_AGENT_IMAGE": s.clusterAgentImage,
-		}
+		envVars := map[string]string{"CLUSTER_AGENT_IMAGE": s.clusterAgentImage}
 		cmd := fmt.Sprintf("docker-compose -f %s down fips-server", strings.TrimSpace(s.fipsServer.composeFiles))
 		_, err := s.fipsServer.dockerHost.Execute(cmd, client.WithEnvVariables(envVars))
 		if err != nil {
-			// If docker-compose fails, fall back to direct docker commands
+			// Fallback to direct docker commands (same as base implementation)
 			s.fipsServer.dockerHost.MustExecute("docker stop dd-fips-server || true")
 			s.fipsServer.dockerHost.MustExecute("docker rm dd-fips-server || true")
 		}
 	}
+}
+
+// TestFIPSCiphers overrides the base test to use our helper methods with CLUSTER_AGENT_IMAGE
+func (s *fipsServerClusterAgentSuite) TestFIPSCiphers() {
+	for _, tc := range testcases {
+		s.Run(fmt.Sprintf("FIPS enabled testing '%v -c %v' (should connect %v)", tc.cert, tc.cipher, tc.want), func() {
+			s.startFIPSServerWithClusterAgentImage(tc)
+			s.T().Cleanup(func() {
+				s.stopFIPSServerWithClusterAgentImage()
+			})
+
+			s.generateTestTraffic()
+
+			serverLogs := s.fipsServer.Logs()
+			if tc.want {
+				assert.Contains(s.T(), serverLogs, fmt.Sprintf("Negotiated cipher suite: %s", tc.cipher))
+			} else {
+				assert.Contains(s.T(), serverLogs, "no cipher suite supported by both client and server")
+			}
+		})
+	}
+}
+
+// TestFIPSCiphersTLSVersion overrides the base test to use our helper methods with CLUSTER_AGENT_IMAGE
+func (s *fipsServerClusterAgentSuite) TestFIPSCiphersTLSVersion() {
+	tc := cipherTestCase{cert: "rsa", tlsMax: "1.1"}
+	s.startFIPSServerWithClusterAgentImage(tc)
+	s.T().Cleanup(func() {
+		s.stopFIPSServerWithClusterAgentImage()
+	})
+
+	s.generateTestTraffic()
+
+	serverLogs := s.fipsServer.Logs()
+	assert.Contains(s.T(), serverLogs, "tls: client offered only unsupported version")
 }
