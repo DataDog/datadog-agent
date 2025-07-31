@@ -46,6 +46,7 @@ func NewFakeEvent() *Event {
 		BaseEvent: BaseEvent{
 			FieldHandlers:    &FakeFieldHandlers{},
 			ContainerContext: &ContainerContext{},
+			ProcessContext:   &ProcessContext{},
 			Os:               runtime.GOOS,
 		},
 		CGroupContext: &CGroupContext{},
@@ -1027,4 +1028,85 @@ type SetSockOptEvent struct {
 	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Filter instructions`
 	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
 	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the filter`
+}
+
+// GetFileField returns the FileEvent associated with a field name
+func (ev *Event) GetFileField(field string) (*FileEvent, error) {
+	// TODO(lebauce): generate this function
+	switch field {
+	case "open.file":
+		return &ev.Open.File, nil
+	case "exec.file":
+		return &ev.Exec.FileEvent, nil
+	case "cgroup_write.file":
+		return &ev.CgroupWrite.File, nil
+	case "chdir.file":
+		return &ev.Chdir.File, nil
+	case "chmod.file":
+		return &ev.Chmod.File, nil
+	case "chown.file":
+		return &ev.Chown.File, nil
+	case "exec.interpreter.file":
+		return &ev.Exec.Process.LinuxBinprm.FileEvent, nil
+	case "exit.file":
+		return &ev.Exit.FileEvent, nil
+	case "exit.interpreter.file":
+		return &ev.Exit.Process.LinuxBinprm.FileEvent, nil
+	case "link.file":
+		return &ev.Link.Source, nil
+	case "load_module.file":
+		return &ev.LoadModule.File, nil
+	case "mkdir.file":
+		return &ev.Mkdir.File, nil
+	case "mmap.file":
+		return &ev.MMap.File, nil
+	case "process.file":
+		return &ev.ProcessContext.FileEvent, nil
+	case "process.interpreter.file":
+		return &ev.ProcessContext.Process.LinuxBinprm.FileEvent, nil
+	case "process.parent.file":
+		return &ev.ProcessContext.Parent.FileEvent, nil
+	case "process.parent.interpreter.file":
+		return &ev.ProcessContext.Parent.LinuxBinprm.FileEvent, nil
+	case "ptrace.tracee.file.path":
+		return &ev.PTrace.Tracee.FileEvent, nil
+	case "ptrace.tracee.interpreter.file.path":
+		return &ev.PTrace.Tracee.LinuxBinprm.FileEvent, nil
+	case "ptrace.tracee.parent.file.path":
+		return &ev.PTrace.Tracee.Parent.FileEvent, nil
+	case "ptrace.tracee.parent.interpreter.file.path":
+		return &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent, nil
+	case "removexattr.file.path":
+		return &ev.RemoveXAttr.File, nil
+	case "rename.file.path":
+		return &ev.Rename.New, nil
+	case "rmdir.file.path":
+		return &ev.Rmdir.File, nil
+	case "setrlimit.target.file.path":
+		return &ev.Setrlimit.Target.FileEvent, nil
+	case "setrlimit.target.interpreter.file.path":
+		return &ev.Setrlimit.Target.LinuxBinprm.FileEvent, nil
+	case "setrlimit.target.parent.file.path":
+		return &ev.Setrlimit.Target.Parent.FileEvent, nil
+	case "setrlimit.target.parent.interpreter.file.path":
+		return &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent, nil
+	case "setxattr.file.path":
+		return &ev.SetXAttr.File, nil
+	case "signal.target.file.path":
+		return &ev.Signal.Target.FileEvent, nil
+	case "signal.target.interpreter.file.path":
+		return &ev.Signal.Target.LinuxBinprm.FileEvent, nil
+	case "signal.target.parent.file.path":
+		return &ev.Signal.Target.Parent.FileEvent, nil
+	case "signal.target.parent.interpreter.file.path":
+		return &ev.Signal.Target.Parent.LinuxBinprm.FileEvent, nil
+	case "splice.file.path":
+		return &ev.Splice.File, nil
+	case "unlink.file.path":
+		return &ev.Unlink.File, nil
+	case "utimes.file.path":
+		return &ev.Utimes.File, nil
+	default:
+		return nil, fmt.Errorf("invalid field %s on event %s", field, ev.GetEventType())
+	}
 }

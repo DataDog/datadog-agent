@@ -332,7 +332,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 	for _, rule := range policyRules {
 		for _, actionDef := range rule.Def.Actions {
-			if err := actionDef.Check(opts); err != nil {
+			if err := actionDef.PreCheck(opts); err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("skipping invalid action in rule %s: %w", rule.Def.ID, err))
 				continue
 			}
@@ -581,14 +581,14 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 	}
 
 	for _, action := range rule.PolicyRule.Actions {
+		switch {
 		// compile action filter
-		if action.Def.Filter != nil {
+		case action.Def.Filter != nil:
 			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
 				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
-		}
 
-		if action.Def.Set != nil {
+		case action.Def.Set != nil:
 			// compile scope field
 			if len(action.Def.Set.ScopeField) > 0 {
 				if err := action.CompileScopeField(rs.model); err != nil {
@@ -615,6 +615,11 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return "", fmt.Errorf("failed to compile action expression: %w", err)
 				}
 				rs.fieldEvaluators[expression] = evaluator.(eval.Evaluator)
+			}
+
+		case action.Def.Hash != nil:
+			if err := action.Def.Hash.PostCheck(evalRule); err != nil {
+				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 	}
