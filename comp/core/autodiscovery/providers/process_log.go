@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -292,6 +291,14 @@ func getSource(service *workloadmeta.Service) string {
 	return source
 }
 
+func getIntegrationName(logFile string) string {
+	return fmt.Sprintf("process_log:%s", logFile)
+}
+
+func getServiceId(logFile string) string {
+	return fmt.Sprintf("%s://%s", names.ProcessLog, logFile)
+}
+
 func (p *processLogConfigProvider) buildConfig(process *workloadmeta.Process, logFile string) (integration.Config, error) {
 	name := getServiceName(process.Service)
 	source := getSource(process.Service)
@@ -308,12 +315,13 @@ func (p *processLogConfigProvider) buildConfig(process *workloadmeta.Process, lo
 		return integration.Config{}, fmt.Errorf("could not marshal log config: %w", err)
 	}
 
+	integrationName := getIntegrationName(logFile)
 	return integration.Config{
-		Name:       fmt.Sprintf("process-%s-%s", name, strings.ReplaceAll(logFile, "/", "_")),
+		Name:       integrationName,
 		LogsConfig: data,
 		Provider:   names.ProcessLog,
-		Source:     "process-log:" + name,
-		ServiceID:  fmt.Sprintf("%s://%s", names.ProcessLog, logFile),
+		Source:     integrationName,
+		ServiceID:  getServiceId(logFile),
 	}, nil
 }
 
