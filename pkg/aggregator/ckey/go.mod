@@ -1,10 +1,13 @@
 module github.com/DataDog/datadog-agent/pkg/aggregator/ckey
 
-go 1.23.0
+go 1.24.0
+
+toolchain go1.24.5
 
 require (
-	github.com/DataDog/datadog-agent/pkg/tagset v0.60.0
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.60.0
+	github.com/DataDog/datadog-agent v0.0.0-20250731091224-738465ef5ee4
+	github.com/DataDog/datadog-agent/pkg/tagset v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.67.0
 	github.com/stretchr/testify v1.10.0
 	github.com/twmb/murmur3 v1.1.8
 )

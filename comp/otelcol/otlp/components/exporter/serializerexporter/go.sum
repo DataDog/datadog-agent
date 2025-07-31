@@ -2,6 +2,8 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/agent-payload/v5 v5.0.158 h1:RwzP7qJpTNXwPCM7MeBU4JSbcEOszGA096MiVFq9oYQ=
 github.com/DataDog/agent-payload/v5 v5.0.158/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/datadog-agent v0.0.0-20250731091224-738465ef5ee4 h1:s6LuVo7Eca3WUtLhbt1qdbjWmvwp747VYE67LkEg4ec=
+github.com/DataDog/datadog-agent v0.0.0-20250731091224-738465ef5ee4/go.mod h1:aUW5OaQ3taDmk6YC0A6zU3gwiGPEfGRn3jZmATOf+FY=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.29.0 h1:tbp4kjTNOK+S/yufHMZquOFQBXaTc7SNd5Bd/UD3GJQ=
@@ -349,6 +351,7 @@ github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQ
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=
 go.opentelemetry.io/auto/sdk v1.1.0/go.mod h1:3wSPjt5PWp2RhlCcmmOial7AvC4DQqZb7a7wCow3W8A=
+go.opentelemetry.io/collector v0.129.0 h1:9RIJkrkJHWisk7xSIl7T3Vzrn29iAxRiRboSzhO7VFc=
 go.opentelemetry.io/collector/client v1.35.0 h1:0nLRdQKFpxGZp5XkYZoZwIc03+cBqzA8lIakxnQSGwE=
 go.opentelemetry.io/collector/client v1.35.0/go.mod h1:hFg+6sGvwIvz8mR8zhSHGTRrP6JUIPdc//ROrww1D9U=
 go.opentelemetry.io/collector/component v1.35.0 h1:JpvBukEcEUvJ/TInF1KYpXtWEP+C7iYkxCHKjI0o7BQ=

@@ -1,5 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/DataDog/datadog-agent v0.0.0-20250731091224-738465ef5ee4 h1:s6LuVo7Eca3WUtLhbt1qdbjWmvwp747VYE67LkEg4ec=
+github.com/DataDog/datadog-agent v0.0.0-20250731091224-738465ef5ee4/go.mod h1:aUW5OaQ3taDmk6YC0A6zU3gwiGPEfGRn3jZmATOf+FY=
 github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 h1:PwqhnH1ln2EjGm9XZGUF4RTCwLt0Jt4cebbZBTe+BnA=
 github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
