@@ -21,6 +21,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -156,7 +158,14 @@ func TestRunDoesNotError(t *testing.T) {
 		},
 	})
 
-	checkGeneric.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+	// Enable GPU check in configuration right before Configure
+	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
+	})
+
+	err := checkGeneric.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+	require.NoError(t, err)
 
 	require.NoError(t, checkGeneric.Run())
 }
