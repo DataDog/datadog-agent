@@ -592,6 +592,9 @@ func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval stri
 func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -599,6 +602,9 @@ func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) 
 func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -606,6 +612,9 @@ func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map
 func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -613,6 +622,9 @@ func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[s
 func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
