@@ -17,15 +17,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -471,10 +468,7 @@ func TestProxy(t *testing.T) {
 			os.WriteFile(configPath, nil, 0o600)
 			config.SetConfigFile(configPath)
 
-			resolver := fxutil.Test[secrets.Component](t, fx.Options(
-				secretsimpl.MockModule(),
-				nooptelemetry.Module(),
-			))
+			resolver := secretsmock.New(t)
 			if c.setup != nil {
 				c.setup(t, config)
 			}
@@ -585,10 +579,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 			os.WriteFile(configPath, nil, 0o600)
 			config.SetConfigFile(configPath)
 
-			resolver := fxutil.Test[secrets.Component](t, fx.Options(
-				secretsimpl.MockModule(),
-				nooptelemetry.Module(),
-			))
+			resolver := secretsmock.New(t)
 			if c.setup != nil {
 				c.setup(t, config)
 			}
@@ -1410,18 +1401,10 @@ use_proxy_for_cloud_metadata: true
 	os.WriteFile(configPath, testMinimalConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	resolver := fxutil.Test[secrets.Component](t, fx.Options(
-		secretsimpl.MockModule(),
-		nooptelemetry.Module(),
-	))
-
-	mockresolver := resolver.(secrets.Mock)
-	mockresolver.SetBackendCommand("command")
-	mockresolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
-		return map[string]string{
-			"some_url": "first_value",
-			"diff_url": "second_value",
-		}, nil
+	resolver := secretsmock.New(t)
+	resolver.SetSecrets(map[string]string{
+		"some_url": "first_value",
+		"diff_url": "second_value",
 	})
 
 	err := LoadCustom(config, nil)

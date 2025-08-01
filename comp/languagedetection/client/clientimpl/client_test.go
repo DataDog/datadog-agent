@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -99,7 +99,7 @@ func TestClientEnabled(t *testing.T) {
 						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
 						"cluster_agent.enabled":                testCase.clusterAgentEnabled,
 					}}),
-					secretsimpl.MockModule(),
+					fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 					telemetryimpl.MockModule(),
 					fx.Provide(func() log.Component { return logmock.New(t) }),
 					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
