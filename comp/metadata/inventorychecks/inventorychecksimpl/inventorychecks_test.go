@@ -242,7 +242,7 @@ func TestGetPayload(t *testing.T) {
 				actualSource, found := p.LogsMetadata["redisdb"]
 				assert.True(t, found)
 				assert.Len(t, actualSource, 1)
-				expectedSourceConfig := `{"type":"file","path":"/var/log/redis/redis.log","service":"awesome_cache","source":"redis","tags":["env:prod"],"fingerprint_config":{"max_bytes":102400,"max_lines":1,"to_skip":0,"fingerprint_strategy":"line_checksum"}}`
+				expectedSourceConfig := `{"type":"file","path":"/var/log/redis/redis.log","service":"awesome_cache","source":"redis","tags":["env:prod"],"fingerprint_config":{"fingerprint_strategy":"line_checksum","count":1,"count_to_skip":0,"max_bytes":102400}}`
 				assert.Equal(t, expectedSourceConfig, actualSource[0]["config"])
 				expectedSourceStatus := map[string]string{
 					"status": "error",

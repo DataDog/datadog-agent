@@ -25,9 +25,9 @@ func TestPosition(t *testing.T) {
 	maxBytes := 2048
 	toSkip := 0
 	fingerprintConfig := &config.FingerprintConfig{
-		MaxBytes: maxBytes,
-		MaxLines: maxLines,
-		ToSkip:   toSkip,
+		MaxBytes:    maxBytes,
+		Count:       maxLines,
+		CountToSkip: toSkip,
 	}
 	registry.SetFingerprintConfig(fingerprintConfig)
 	offset, whence, err = Position(registry, "", config.End, "default")

@@ -20,9 +20,9 @@ func TestAuditorUnmarshalRegistryV2(t *testing.T) {
 					"LastUpdated": "2006-01-12T01:01:01.000000001Z",
 					"Fingerprint": 11111,
 					"FingerprintConfig": {
-						"max_lines": 200,
+						"count": 200,
 						"max_bytes": 1024,
-						"to_skip": 5
+						"count_to_skip": 5
 					}
 				}
 			},
@@ -38,7 +38,7 @@ func TestAuditorUnmarshalRegistryV2(t *testing.T) {
 	assert.Equal(t, 1, entry.LastUpdated.Second())
 	assert.Equal(t, uint64(11111), entry.Fingerprint)
 	require.NotNil(t, entry.FingerprintConfig)
-	assert.Equal(t, 200, entry.FingerprintConfig.MaxLines)
+	assert.Equal(t, 200, entry.FingerprintConfig.Count)
 	assert.Equal(t, 1024, entry.FingerprintConfig.MaxBytes)
-	assert.Equal(t, 5, entry.FingerprintConfig.ToSkip)
+	assert.Equal(t, 5, entry.FingerprintConfig.CountToSkip)
 }

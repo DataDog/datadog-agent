@@ -140,13 +140,20 @@ type SourceAutoMultiLineOptions struct {
 
 // FingerprintConfig defines the options for the fingerprint configuration.
 type FingerprintConfig struct {
-	MaxBytes int `json:"max_bytes" mapstructure:"max_bytes" yaml:"max_bytes"`
-	MaxLines int `json:"max_lines" mapstructure:"max_lines" yaml:"max_lines"`
-	ToSkip   int `json:"to_skip" mapstructure:"to_skip" yaml:"to_skip"`
 	// FingerprintStrategy defines the strategy used for fingerprinting. Options are:
 	// - "line_checksum": compute checksum based on line content (default)
 	// - "byte_checksum": compute checksum based on byte content
 	FingerprintStrategy string `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
+
+	// Count is the number of lines or bytes to use for fingerprinting, depending on the strategy
+	Count int `json:"count" mapstructure:"count" yaml:"count"`
+
+	// CountToSkip is the number of lines or bytes to skip before starting fingerprinting
+	CountToSkip int `json:"count_to_skip" mapstructure:"count_to_skip" yaml:"count_to_skip"`
+
+	// MaxBytes is only used for line-based fingerprinting to prevent overloading
+	// when reading large files. It's ignored for byte-based fingerprinting.
+	MaxBytes int `json:"max_bytes" mapstructure:"max_bytes" yaml:"max_bytes"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection
@@ -389,7 +396,7 @@ func (c *LogsConfig) validateTailingMode() error {
 
 func (c *LogsConfig) validateFingerprintConfig() error {
 	// Check if any fingerprint config fields are set at the log level
-	hasLogLevelConfig := c.FingerprintConfig.MaxBytes != 0 || c.FingerprintConfig.MaxLines != 0 || c.FingerprintConfig.ToSkip != 0 || c.FingerprintConfig.FingerprintStrategy != ""
+	hasLogLevelConfig := c.FingerprintConfig.FingerprintStrategy != "" || c.FingerprintConfig.Count != 0 || c.FingerprintConfig.CountToSkip != 0 || c.FingerprintConfig.MaxBytes != 0
 
 	if hasLogLevelConfig {
 		// If any fields are set at log level, validate the config as-is (without defaults)

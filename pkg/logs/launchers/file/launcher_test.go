@@ -187,9 +187,9 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	maxBytes := 256 // Match the mock config value
 	toSkip := 0
 	fingerprintConfig := &config.FingerprintConfig{
-		MaxLines: maxLines,
-		MaxBytes: maxBytes,
-		ToSkip:   toSkip,
+		Count:       maxLines,
+		MaxBytes:    maxBytes,
+		CountToSkip: toSkip,
 	}
 	filePath := tailer.Identifier()[5:]
 	fingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
@@ -438,7 +438,7 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
-	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: config.FingerprintConfig{MaxLines: 1, MaxBytes: 256, ToSkip: 0}})
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: config.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0}})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
 	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
@@ -475,7 +475,7 @@ func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
-	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: config.FingerprintConfig{MaxLines: 1, MaxBytes: 256, ToSkip: 0, FingerprintStrategy: "line_checksum"}})
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: config.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: "line_checksum"}})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
 	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))

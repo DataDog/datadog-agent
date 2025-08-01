@@ -1587,9 +1587,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.rotation_detection_strategy", DefaultRotationDetectionStrategy)
 	// consolidated fingerprint configuration with defaults
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config", map[string]interface{}{
-		"max_lines":            DefaultFingerprintingMaxLines,
+		"count":                DefaultFingerprintingMaxLines,
 		"max_bytes":            DefaultFingerprintingMaxBytes,
-		"to_skip":              DefaultLinesOrBytesToSkip,
+		"count_to_skip":        DefaultLinesOrBytesToSkip,
 		"fingerprint_strategy": DefaultFingerprintStrategy,
 	})
 	// specific logs-agent api-key

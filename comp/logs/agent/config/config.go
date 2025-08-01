@@ -167,10 +167,10 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 
 // applyFingerprintDefaults applies the default values to a fingerprint config
 func applyFingerprintDefaults(config *FingerprintConfig) {
-	config.MaxBytes = pkgconfigsetup.DefaultFingerprintingMaxBytes
-	config.MaxLines = pkgconfigsetup.DefaultFingerprintingMaxLines
-	config.ToSkip = pkgconfigsetup.DefaultLinesOrBytesToSkip
 	config.FingerprintStrategy = pkgconfigsetup.DefaultFingerprintStrategy
+	config.Count = pkgconfigsetup.DefaultFingerprintingMaxLines
+	config.CountToSkip = pkgconfigsetup.DefaultLinesOrBytesToSkip
+	config.MaxBytes = pkgconfigsetup.DefaultFingerprintingMaxBytes
 }
 
 // GlobalFingerprintConfig returns the global fingerprint configuration to apply to all logs.
@@ -198,8 +198,8 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConf
 		return nil, err
 	}
 
-	log.Debugf("GlobalFingerprintConfig: after unmarshaling - MaxBytes: %d, MaxLines: %d, ToSkip: %d, Strategy: %s",
-		config.MaxBytes, config.MaxLines, config.ToSkip, config.FingerprintStrategy)
+	log.Debugf("GlobalFingerprintConfig: after unmarshaling - FingerprintStrategy: %s, Count: %d, CountToSkip: %d, MaxBytes: %d",
+		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
 
 	// Validate the config
 	err = ValidateFingerprintConfig(config)
@@ -222,29 +222,35 @@ func ValidateFingerprintConfig(config *FingerprintConfig) error {
 	}
 
 	// Check if any fingerprint config fields are set
-	hasAnyConfig := config.MaxBytes != 0 || config.MaxLines != 0 || config.ToSkip != 0 || config.FingerprintStrategy != ""
+	hasAnyConfig := config.FingerprintStrategy != "" || config.Count != 0 || config.CountToSkip != 0 || config.MaxBytes != 0
 
 	if !hasAnyConfig {
 		// If no fields are set, return empty error
 		return ErrEmptyFingerprintConfig
 	}
+
 	validStrategies := map[string]bool{
 		FingerprintStrategyLineChecksum: true,
 		FingerprintStrategyByteChecksum: true,
 	}
+
 	if !validStrategies[config.FingerprintStrategy] {
 		return fmt.Errorf("fingerprintStrategy must be one of: line_checksum, byte_checksum, got: %s", config.FingerprintStrategy)
 	}
-	// Validate non-negative fields (only if they are set)
-	if config.MaxLines <= 0 && config.FingerprintStrategy == "line_checksum" {
-		return fmt.Errorf("maxLines must be greater than zero, got: %d", config.MaxLines)
+
+	// Validate Count (must be positive if set)
+	if config.Count <= 0 {
+		return fmt.Errorf("count must be greater than zero, got: %d", config.Count)
 	}
-	if config.ToSkip < 0 {
-		return fmt.Errorf("toSkip cannot be negative, got: %d", config.ToSkip)
+
+	// Validate CountToSkip (must be non-negative)
+	if config.CountToSkip < 0 {
+		return fmt.Errorf("count_to_skip cannot be negative, got: %d", config.CountToSkip)
 	}
-	// Validate MaxBytes (must be positive if set)
-	if config.MaxBytes <= 0 {
-		return fmt.Errorf("maxBytes must be greater than zero, got: %d", config.MaxBytes)
+
+	// Validate MaxBytes (must be positive if set, only relevant for line-based fingerprinting)
+	if config.MaxBytes <= 0 && config.FingerprintStrategy == "line_checksum" {
+		return fmt.Errorf("max_bytes must be greater than zero for line-based fingerprinting, got: %d", config.MaxBytes)
 	}
 
 	return nil

@@ -177,8 +177,8 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForFingerprintConfig()
 	fingerprintStrategy := "line_checksum"
 	expectedConfig := &config.FingerprintConfig{
 		MaxBytes:            maxBytes,
-		MaxLines:            maxLines,
-		ToSkip:              linesToSkip,
+		Count:               maxLines,
+		CountToSkip:         linesToSkip,
 		FingerprintStrategy: fingerprintStrategy,
 	}
 

@@ -18,13 +18,20 @@ import (
 
 // FingerprintConfig is the configuration for the checksum fingerprinting algorithm
 type FingerprintConfig struct {
-	MaxBytes int `mapstructure:"max_bytes" json:"max_bytes" yaml:"max_bytes"`
-	MaxLines int `mapstructure:"max_lines" json:"max_lines" yaml:"max_lines"`
-	ToSkip   int `mapstructure:"to_skip" json:"to_skip" yaml:"to_skip"`
 	// FingerprintStrategy defines the strategy used for fingerprinting. Options are:
 	// - "line_checksum": compute checksum based on line content (default)
 	// - "byte_checksum": compute checksum based on byte content
 	FingerprintStrategy string `mapstructure:"fingerprint_strategy" json:"fingerprint_strategy" yaml:"fingerprint_strategy"`
+
+	// Count is the number of lines or bytes to use for fingerprinting, depending on the strategy
+	Count int `mapstructure:"count" json:"count" yaml:"count"`
+
+	// CountToSkip is the number of lines or bytes to skip before starting fingerprinting
+	CountToSkip int `mapstructure:"count_to_skip" json:"count_to_skip" yaml:"count_to_skip"`
+
+	// MaxBytes is only used for line-based fingerprinting to prevent overloading
+	// when reading large files. It's ignored for byte-based fingerprinting.
+	MaxBytes int `mapstructure:"max_bytes" json:"max_bytes" yaml:"max_bytes"`
 }
 
 // crc64Table is a package-level variable for the CRC64 ISO table
@@ -81,9 +88,11 @@ func ComputeFingerprint(filePath string, fingerprintConfig *logsconfig.Fingerpri
 
 // computeFileFingerPrintByBytes computes fingerprint using byte-based approach for a given file path
 func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConfig *logsconfig.FingerprintConfig) uint64 {
-	bytesToSkip := fingerprintConfig.ToSkip
+	bytesToSkip := fingerprintConfig.CountToSkip
+	maxBytes := fingerprintConfig.Count
 	if fingerprintConfig.FingerprintStrategy == "line_checksum" {
 		bytesToSkip = 0
+		maxBytes = fingerprintConfig.MaxBytes
 	}
 	// Skip the configured number of bytes
 	if bytesToSkip > 0 {
@@ -94,8 +103,6 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 			return 0
 		}
 	}
-
-	maxBytes := fingerprintConfig.MaxBytes
 
 	// Read up to maxBytes for hashing
 	buffer := make([]byte, maxBytes)
@@ -123,8 +130,8 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 
 // computeFileFingerPrintByLines computes fingerprint using line-based approach for a given file path
 func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConfig *logsconfig.FingerprintConfig) uint64 {
-	linesToSkip := fingerprintConfig.ToSkip
-	maxLines := fingerprintConfig.MaxLines
+	linesToSkip := fingerprintConfig.CountToSkip
+	maxLines := fingerprintConfig.Count
 	maxBytes := fingerprintConfig.MaxBytes
 
 	// Create a LimitedReader to respect maxBytes constraint

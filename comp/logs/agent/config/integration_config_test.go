@@ -18,11 +18,11 @@ import (
 
 func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 	validConfigs := []*LogsConfig{
-		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: TCPType, Port: 1234, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: UDPType, Port: 5678, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: DockerType, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: TCPType, Port: 1234, FingerprintConfig: FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: UDPType, Port: 5678, FingerprintConfig: FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: DockerType, FingerprintConfig: FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 	}
 
 	for _, config := range validConfigs {
@@ -153,15 +153,15 @@ func TestPublicJSON(t *testing.T) {
 	ret, err := config.PublicJSON()
 	assert.NoError(t, err)
 
-	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"],"fingerprint_config":{"max_bytes":0,"max_lines":0,"to_skip":0,"fingerprint_strategy":""}}`
+	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"],"fingerprint_config":{"fingerprint_strategy":"","count":0,"count_to_skip":0,"max_bytes":0}}`
 	assert.Equal(t, expectedJSON, string(ret))
 }
 
 func TestFingerprintConfig(t *testing.T) {
 	validConfigs := []*FingerprintConfig{
-		{MaxBytes: 256, MaxLines: 0, ToSkip: 0, FingerprintStrategy: "byte_checksum"},
-		{MaxBytes: 1024, MaxLines: 10, ToSkip: 2, FingerprintStrategy: "line_checksum"},
-		{MaxBytes: 1, MaxLines: 0, ToSkip: 0, FingerprintStrategy: "byte_checksum"},
+		{Count: 30, CountToSkip: 0, FingerprintStrategy: "byte_checksum"},
+		{MaxBytes: 1024, Count: 10, CountToSkip: 2, FingerprintStrategy: "line_checksum"},
+		{Count: 50, CountToSkip: 0, FingerprintStrategy: "byte_checksum"},
 	}
 
 	for _, config := range validConfigs {
@@ -171,10 +171,10 @@ func TestFingerprintConfig(t *testing.T) {
 
 	invalidConfigs := []*FingerprintConfig{
 		nil,
-		{MaxBytes: 0, MaxLines: 0, ToSkip: 0},
-		{MaxBytes: -1, MaxLines: 0, ToSkip: 0},
-		{MaxBytes: 256, MaxLines: -1, ToSkip: 0},
-		{MaxBytes: 256, MaxLines: 0, ToSkip: -1},
+		{MaxBytes: 0, Count: 0, CountToSkip: 0},
+		{MaxBytes: -1, Count: 0, CountToSkip: 0},
+		{MaxBytes: 256, Count: -1, CountToSkip: 0},
+		{MaxBytes: 256, Count: 0, CountToSkip: -1},
 	}
 
 	for _, config := range invalidConfigs {
