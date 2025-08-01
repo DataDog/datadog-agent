@@ -175,7 +175,7 @@ Settings: map[key:value]
 
 func TestMarshalUnmarshal(t *testing.T) {
 	// json serialization drops nanoseconds; strip it here
-	testTime := time.Unix(time.Now().Unix(), 0).UTC()
+	testTime := time.Unix(time.Now().Unix(), 0)
 	fakeDpai := createFakePodAutoscaler(testTime)
 	realDpai := fakeDpai.Build()
 	jsonDpai, err := json.Marshal(&realDpai)
