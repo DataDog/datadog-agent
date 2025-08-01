@@ -136,9 +136,9 @@ Package: main
 		Arg: e: error (declared at line 60, available: [60-60])
 	Function: executeInterfaceFuncs (main.executeInterfaceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [63:67]
 	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [18:43]
-	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.0.1/ddtrace/tracer/option.go [975:978]
-		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 975, available: [975-977])
-		Var: name: string (declared at line 976, available: [976-978])
+	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.3.0-dev/ddtrace/tracer/option.go [986:989]
+		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
+		Var: name: string (declared at line 987, available: [987-989])
 	Function: testStructWithMap (main.testStructWithMap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [18:18]
 		Arg: s: main.structWithMap (declared at line 18, available: [18-18])
 	Function: testMapStringToStruct (main.testMapStringToStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [22:22]
@@ -163,19 +163,51 @@ Package: main
 		Arg: m: map[string][]main.structWithMap (declared at line 58, available: [58-58])
 	Function: testMapWithLinkedList (main.testMapWithLinkedList) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [62:62]
 		Arg: m: map[bool]main.node (declared at line 62, available: [62-62])
-	Function: generateEmbeddedMaps (main.generateEmbeddedMaps) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [65:75]
-		Arg: entriesCount: int (declared at line 65, available: [65-75])
-		Arg: ~r0: map[string][]main.structWithMap (declared at line 65, available: )
-		Var: result: map[string][]main.structWithMap (declared at line 66, available: [65-75])
-		Scope: 65-75
-			Var: i: int (declared at line 67, available: [65-75])
-	Function: executeMapFuncs (main.executeMapFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [79:140]
-		Var: m: map[string]int (declared at line 82, available: [79-140])
-		Var: j: map[string]int (declared at line 83, available: [79-140])
-		Var: b: main.node (declared at line 108, available: )
-		Scope: 95-98
-			Var: v: int (declared at line 95, available: [95-95], [96-96])
-			Var: k: string (declared at line 95, available: [96-96])
+	Function: testMapWithSmallValue (main.testMapWithSmallValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [66:66]
+		Arg: m: map[int]uint8 (declared at line 66, available: [66-66])
+	Function: testMapWithSmallValueMassive (main.testMapWithSmallValueMassive) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [70:70]
+		Arg: redactMyEntries: map[int]uint8 (declared at line 70, available: [70-70])
+	Function: testMapWithSmallKeyAndValue (main.testMapWithSmallKeyAndValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [74:74]
+		Arg: m: map[uint8]uint8 (declared at line 74, available: [74-74])
+	Function: testMapWithSmallKeyAndValueMassive (main.testMapWithSmallKeyAndValueMassive) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [78:78]
+		Arg: m: map[uint8]uint8 (declared at line 78, available: [78-78])
+	Function: testMapSmallKeySmallValue (main.testMapSmallKeySmallValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [82:82]
+		Arg: m: map[uint8]uint8 (declared at line 82, available: [82-82])
+	Function: testMapSmallKeyLargeValue (main.testMapSmallKeyLargeValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [86:86]
+		Arg: m: map[uint8][4]int (declared at line 86, available: [86-86])
+	Function: testMapLargeKeySmallValue (main.testMapLargeKeySmallValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [90:90]
+		Arg: m: map[[4]int]uint8 (declared at line 90, available: [90-90])
+	Function: testMapLargeKeyLargeValue (main.testMapLargeKeyLargeValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [94:94]
+		Arg: m: map[[4]int][4]int (declared at line 94, available: [94-94])
+	Function: generateEmbeddedMaps (main.generateEmbeddedMaps) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [97:107]
+		Arg: entriesCount: int (declared at line 97, available: [97-107])
+		Arg: ~r0: map[string][]main.structWithMap (declared at line 97, available: )
+		Var: result: map[string][]main.structWithMap (declared at line 98, available: [97-107])
+		Scope: 97-107
+			Var: i: int (declared at line 99, available: [97-107])
+	Function: executeMapFuncs (main.executeMapFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [111:204]
+		Var: m: map[string]int (declared at line 114, available: [111-204])
+		Var: j: map[string]int (declared at line 115, available: [111-204])
+		Var: current: *main.node (declared at line 141, available: [142-143], [147-147])
+		Scope: 127-130
+			Var: v: int (declared at line 127, available: [127-127], [128-128])
+			Var: k: string (declared at line 127, available: [128-128])
+		Scope: 142-147
+			Var: i: int (declared at line 142, available: [142-143], [147-147])
+		Scope: 162-165
+			Var: i: int (declared at line 162, available: [162-162], [163-163])
+		Scope: 165-168
+			Var: i: int (declared at line 165, available: [165-165], [166-166], [168-168])
+		Scope: 173-176
+			Var: i: int (declared at line 173, available: [173-173], [174-174])
+		Scope: 176-179
+			Var: i: int (declared at line 176, available: [176-176], [177-177], [179-179])
+		Scope: 184-187
+			Var: i: int (declared at line 184, available: [184-184], [185-185], [187-187])
+		Scope: 190-195
+			Var: i: int (declared at line 190, available: [190-193], [195-195])
+		Scope: 198-202
+			Var: i: int (declared at line 198, available: [198-198], [199-199], [200-200], [202-202])
 	Function: testOverLimitParameters (main.testOverLimitParameters) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/multi_params.go [18:18]
 		Arg: a: uint8 (declared at line 15, available: [18-18])
 		Arg: b: uint8 (declared at line 15, available: [18-18])

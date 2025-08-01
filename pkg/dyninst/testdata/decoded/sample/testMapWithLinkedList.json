@@ -82,7 +82,147 @@
                                             },
                                             "b": {
                                               "type": "*main.node",
-                                              "isNull": true
+                                              "address": "[addr]",
+                                              "fields": {
+                                                "val": {
+                                                  "type": "int",
+                                                  "value": "7"
+                                                },
+                                                "b": {
+                                                  "type": "*main.node",
+                                                  "address": "[addr]",
+                                                  "fields": {
+                                                    "val": {
+                                                      "type": "int",
+                                                      "value": "8"
+                                                    },
+                                                    "b": {
+                                                      "type": "*main.node",
+                                                      "address": "[addr]",
+                                                      "fields": {
+                                                        "val": {
+                                                          "type": "int",
+                                                          "value": "9"
+                                                        },
+                                                        "b": {
+                                                          "type": "*main.node",
+                                                          "address": "[addr]",
+                                                          "fields": {
+                                                            "val": {
+                                                              "type": "int",
+                                                              "value": "10"
+                                                            },
+                                                            "b": {
+                                                              "type": "*main.node",
+                                                              "address": "[addr]",
+                                                              "fields": {
+                                                                "val": {
+                                                                  "type": "int",
+                                                                  "value": "11"
+                                                                },
+                                                                "b": {
+                                                                  "type": "*main.node",
+                                                                  "address": "[addr]",
+                                                                  "fields": {
+                                                                    "val": {
+                                                                      "type": "int",
+                                                                      "value": "12"
+                                                                    },
+                                                                    "b": {
+                                                                      "type": "*main.node",
+                                                                      "address": "[addr]",
+                                                                      "fields": {
+                                                                        "val": {
+                                                                          "type": "int",
+                                                                          "value": "13"
+                                                                        },
+                                                                        "b": {
+                                                                          "type": "*main.node",
+                                                                          "address": "[addr]",
+                                                                          "fields": {
+                                                                            "val": {
+                                                                              "type": "int",
+                                                                              "value": "14"
+                                                                            },
+                                                                            "b": {
+                                                                              "type": "*main.node",
+                                                                              "address": "[addr]",
+                                                                              "fields": {
+                                                                                "val": {
+                                                                                  "type": "int",
+                                                                                  "value": "15"
+                                                                                },
+                                                                                "b": {
+                                                                                  "type": "*main.node",
+                                                                                  "address": "[addr]",
+                                                                                  "fields": {
+                                                                                    "val": {
+                                                                                      "type": "int",
+                                                                                      "value": "16"
+                                                                                    },
+                                                                                    "b": {
+                                                                                      "type": "*main.node",
+                                                                                      "address": "[addr]",
+                                                                                      "fields": {
+                                                                                        "val": {
+                                                                                          "type": "int",
+                                                                                          "value": "17"
+                                                                                        },
+                                                                                        "b": {
+                                                                                          "type": "*main.node",
+                                                                                          "address": "[addr]",
+                                                                                          "fields": {
+                                                                                            "val": {
+                                                                                              "type": "int",
+                                                                                              "value": "18"
+                                                                                            },
+                                                                                            "b": {
+                                                                                              "type": "*main.node",
+                                                                                              "address": "[addr]",
+                                                                                              "fields": {
+                                                                                                "val": {
+                                                                                                  "type": "int",
+                                                                                                  "value": "19"
+                                                                                                },
+                                                                                                "b": {
+                                                                                                  "type": "*main.node",
+                                                                                                  "address": "[addr]",
+                                                                                                  "fields": {
+                                                                                                    "val": {
+                                                                                                      "type": "int",
+                                                                                                      "value": "20"
+                                                                                                    },
+                                                                                                    "b": {
+                                                                                                      "type": "*main.node",
+                                                                                                      "isNull": true
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
                                             }
                                           }
                                         }
