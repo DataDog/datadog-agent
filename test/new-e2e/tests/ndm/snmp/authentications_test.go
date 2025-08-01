@@ -31,7 +31,6 @@ network_devices:
     configs:
       - network_address: 127.0.0.0/30
         port: 1161
-        community_string: 'public'
         authentications:
           - community_string: 'invalid1'
           - community_string: 'public'
