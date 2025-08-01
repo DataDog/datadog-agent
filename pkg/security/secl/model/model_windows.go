@@ -262,3 +262,16 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 		return nil, fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}
 }
+
+// ValidateFileField validates that GetFileField would return a valid FileEvent
+func (e *Event) ValidateFileField(field string) error {
+	// TODO(lebauce): generate this function + keep in sync with GetFileField
+	switch field {
+	case "exec.file":
+	case "exit.file":
+	case "process.file":
+	case "process.parent.file":
+		return nil
+	}
+	return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
+}
