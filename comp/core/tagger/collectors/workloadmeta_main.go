@@ -92,8 +92,7 @@ func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags
 
 // Run runs the continuous event watching loop and sends new tags to the
 // tagger based on the events sent by the workloadmeta.
-func (c *WorkloadMetaCollector) Run(ctx context.Context, datadogConfig config.Component) {
-	c.collectStaticGlobalTags(ctx, datadogConfig)
+func (c *WorkloadMetaCollector) Run(ctx context.Context) {
 	c.stream(ctx)
 }
 
@@ -171,7 +170,7 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 }
 
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
-func NewWorkloadMetaCollector(_ context.Context, cfg config.Component, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
+func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
 		store:                             store,
@@ -194,6 +193,11 @@ func NewWorkloadMetaCollector(_ context.Context, cfg config.Component, store wor
 	// kubernetes resources metadata as tags
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 	c.initK8sResourcesMetaAsTags(metadataAsTags.GetResourcesLabelsAsTags(), metadataAsTags.GetResourcesAnnotationsAsTags())
+
+	// initialize static global tags
+	if p != nil {
+		c.collectStaticGlobalTags(ctx, cfg)
+	}
 
 	return c
 }

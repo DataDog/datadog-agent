@@ -30,7 +30,8 @@ func TestSetSockOpt(t *testing.T) {
 			&& setsockopt.socket_protocol == IPPROTO_TCP
 			&& setsockopt.socket_family == AF_INET 
 			&& setsockopt.filter_hash == "627019f67a3853590209488302dd51282834c4f9f9c1cc43274f45c4bfd9869f"
-			&& setsockopt.is_filter_truncated == false`,
+			&& setsockopt.is_filter_truncated == false
+			&& 12 in setsockopt.used_immediates`,
 		},
 		{
 			ID: "test_rule_setsockopt_udp",
@@ -40,7 +41,8 @@ func TestSetSockOpt(t *testing.T) {
 			&& setsockopt.socket_protocol == IPPROTO_UDP
 			&& setsockopt.socket_family == AF_INET 
 			&& setsockopt.filter_hash == "627019f67a3853590209488302dd51282834c4f9f9c1cc43274f45c4bfd9869f"
-			&& setsockopt.is_filter_truncated == false`,
+			&& setsockopt.is_filter_truncated == false
+			&& 12 in setsockopt.used_immediates`,
 		},
 		{
 			ID: "test_rule_setsockopt_tcp",
@@ -50,7 +52,8 @@ func TestSetSockOpt(t *testing.T) {
 			&& setsockopt.socket_protocol == IPPROTO_TCP
 			&& setsockopt.socket_family == AF_INET 
 			&& setsockopt.filter_hash == "627019f67a3853590209488302dd51282834c4f9f9c1cc43274f45c4bfd9869f"
-			&& setsockopt.is_filter_truncated == false`,
+			&& setsockopt.is_filter_truncated == false
+			&& 12 in setsockopt.used_immediates`,
 		},
 		{
 			ID: "test_rule_setsockopt_truncated_filter",
@@ -59,7 +62,8 @@ func TestSetSockOpt(t *testing.T) {
 			&& setsockopt.socket_type == SOCK_DGRAM 
 			&& setsockopt.socket_protocol == IPPROTO_UDP 
 			&& setsockopt.socket_family == AF_INET 
-			&& setsockopt.is_filter_truncated == true`,
+			&& setsockopt.is_filter_truncated == true
+			&& 12 in setsockopt.used_immediates`,
 		},
 	}
 

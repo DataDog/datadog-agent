@@ -69,6 +69,8 @@ type SafeDevice interface {
 	GetPowerManagementLimit() (uint32, error)
 	// GetPowerUsage returns the power usage in milliwatts
 	GetPowerUsage() (uint32, error)
+	// GetProcessUtilization returns process utilization samples since the given timestamp
+	GetProcessUtilization(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, error)
 	// GetRemappedRows returns the remapped rows information
 	GetRemappedRows() (int, int, bool, bool, error)
 	// GetSamples returns samples for the specified counter type

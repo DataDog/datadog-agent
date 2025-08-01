@@ -19,7 +19,7 @@ var defaultConfig = config{
 
 // This is an arbitrary limit for how much data will be captured for
 // dynamically sized types (strings and slices).
-const defaultMaxDynamicTypeSize = 512
+const defaultMaxDynamicTypeSize = 2048
 
 // Same limit, but for hashmap buckets slice (both hmaps and swiss maps,
 // both using pointers and embedded key/value types). Limit is higher

@@ -71,12 +71,13 @@ type ProcessMonitor struct {
 
 	mu struct {
 		sync.Mutex
-		state    state
-		shutdown bool
+		state       state
+		isClosed    bool
+		analyzeChan chan<- uint32
 	}
 
-	wg           sync.WaitGroup
-	shutdownOnce sync.Once
+	wg        sync.WaitGroup
+	closeOnce sync.Once
 }
 
 // NewProcessMonitor creates a new ProcessMonitor that will send updates to the
@@ -87,12 +88,16 @@ func NewProcessMonitor(h Handler) *ProcessMonitor {
 
 // NotifyExec is a callback to notify the monitor that a process has started.
 func (pm *ProcessMonitor) NotifyExec(pid uint32) {
-	pm.handleProcessEvent(processEvent{kind: processEventKindExec, pid: pid})
+	handleEvent(pm, (*state).handleProcessEvent, processEvent{
+		kind: processEventKindExec, pid: pid,
+	})
 }
 
 // NotifyExit is a callback to notify the monitor that a process has exited.
 func (pm *ProcessMonitor) NotifyExit(pid uint32) {
-	pm.handleProcessEvent(processEvent{kind: processEventKindExit, pid: pid})
+	handleEvent(pm, (*state).handleProcessEvent, processEvent{
+		kind: processEventKindExit, pid: pid,
+	})
 }
 
 // cacheSize is the size of the cache for the executable analyzer.
@@ -118,6 +123,7 @@ const cacheSize = 64
 func newProcessMonitor(
 	h Handler, procFS string, resolver ContainerResolver,
 ) *ProcessMonitor {
+	analyzeChan := make(chan uint32, 1) // this will never block
 	pm := &ProcessMonitor{
 		handler:            h,
 		procfsRoot:         procFS,
@@ -125,44 +131,45 @@ func newProcessMonitor(
 		executableAnalyzer: makeExecutableAnalyzer(cacheSize),
 	}
 	pm.mu.state = makeState()
+	pm.mu.analyzeChan = analyzeChan
+
+	// Run an analysis worker goroutine.
+	pm.wg.Add(1)
+	go func() {
+		defer pm.wg.Done()
+		for {
+			pid, ok := <-analyzeChan
+			if !ok {
+				return
+			}
+			pm.analyzeProcess(pid)
+		}
+	}()
 
 	return pm
 }
 
-func (pm *ProcessMonitor) handleProcessEvent(ev processEvent) {
+func handleEvent[Ev any](pm *ProcessMonitor, f func(*state, Ev), ev Ev) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	if pm.mu.shutdown {
+	if pm.mu.isClosed {
 		return
 	}
-	pm.mu.state.handleProcessEvent(ev)
-	pm.mu.state.analyzeOrReport(pm)
-}
-
-func (pm *ProcessMonitor) handleAnalysisResult(ev analysisResult) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-	if pm.mu.shutdown {
-		return
-	}
-	pm.mu.state.handleAnalysisResult(ev)
-	pm.mu.state.analyzeOrReport(pm)
+	f(&pm.mu.state, ev)
+	pm.mu.state.analyzeOrReport((*lockedProcessMonitor)(pm))
 }
 
 // Close requests an orderly shutdown and waits for completion.
 func (pm *ProcessMonitor) Close() {
-	pm.shutdownOnce.Do(func() {
+	pm.closeOnce.Do(func() {
 		log.Debugf("closing process monitor")
 		defer log.Debugf("process monitor closed")
-		pm.markShutdown()
-		pm.wg.Wait()
+		defer pm.wg.Wait()
+		pm.mu.Lock()
+		defer pm.mu.Unlock()
+		close(pm.mu.analyzeChan)
+		pm.mu.isClosed = true
 	})
-}
-
-func (pm *ProcessMonitor) markShutdown() {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
-	pm.mu.shutdown = true
 }
 
 // analysisFailureLogLimiter is used to limit the rate of logging analysis
@@ -178,34 +185,45 @@ var analysisFailurePermissionLogLimiter = rate.NewLimiter(rate.Every(10*time.Min
 // analyzeProcess analyzes the process with the given PID and sends the result
 // to the state machine.
 func (pm *ProcessMonitor) analyzeProcess(pid uint32) {
-	pm.wg.Add(1)
-	go func() {
-		defer pm.wg.Done()
-		pa, err := analyzeProcess(
-			pid, pm.procfsRoot, pm.resolver, pm.executableAnalyzer,
-		)
-		shouldLog := err != nil && analysisFailureLogLimiter.Allow()
-		if shouldLog {
-			pid := pid
-			if os.IsPermission(err) && !analysisFailurePermissionLogLimiter.Allow() {
-				// We don't want to be too noisy about permission errors, but we
-				// do want to learn about them as they are a sign of a problem.
-				log.Debugf("failed to analyze process %d: %v", pid, err)
-			} else {
-				log.Infof("failed to analyze process %d: %v", pid, err)
-			}
+	pa, err := analyzeProcess(
+		pid, pm.procfsRoot, pm.resolver, pm.executableAnalyzer,
+	)
+	shouldLog := err != nil && analysisFailureLogLimiter.Allow()
+	if shouldLog {
+		pid := pid
+		if os.IsPermission(err) && !analysisFailurePermissionLogLimiter.Allow() {
+			// We don't want to be too noisy about permission errors, but we
+			// do want to learn about them as they are a sign of a problem.
+			log.Debugf("failed to analyze process %d: %v", pid, err)
+		} else {
+			log.Infof("failed to analyze process %d: %v", pid, err)
 		}
-		pm.handleAnalysisResult(analysisResult{
-			pid:             pid,
-			err:             err,
-			processAnalysis: pa,
-		})
-	}()
+	}
+	handleEvent(pm, (*state).handleAnalysisResult, analysisResult{
+		pid:             pid,
+		err:             err,
+		processAnalysis: pa,
+	})
 }
 
-func (pm *ProcessMonitor) reportProcessesUpdate(u ProcessesUpdate) {
+type lockedProcessMonitor ProcessMonitor
+
+func (pm *lockedProcessMonitor) analyzeProcess(pid uint32) {
+	select {
+	case pm.mu.analyzeChan <- pid:
+	default:
+		// This should never happen, but if it does, we'll log it and shutdown
+		// the monitor rather than potentially crashing the process.
+		log.Errorf(
+			"invariant violation: process monitor would block, shutting down",
+		)
+		go (*ProcessMonitor)(pm).Close() // must not be holding the mutex
+	}
+}
+
+func (pm *lockedProcessMonitor) reportProcessesUpdate(u ProcessesUpdate) {
 	pm.handler.HandleUpdate(u)
 }
 
 // Ensure ProcessMonitor implements smEffects.
-var _ effects = (*ProcessMonitor)(nil)
+var _ effects = (*lockedProcessMonitor)(nil)

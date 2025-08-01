@@ -40,7 +40,7 @@ func testArch(t *testing.T, arch string) {
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 
-	if !usmconfig.TLSSupported(cfg) {
+	if !usmconfig.TLSSupported(cfg) || !usmconfig.UretprobeSupported() {
 		t.Skip("shared library tracing not supported for this platform")
 	}
 
@@ -81,7 +81,7 @@ func TestSSLMapsCleaner(t *testing.T) {
 	// test cleanup is faster without event stream, this test does not require event stream
 	cfg.EnableUSMEventStream = false
 
-	if !usmconfig.TLSSupported(cfg) {
+	if !usmconfig.TLSSupported(cfg) || !usmconfig.UretprobeSupported() {
 		t.Skip("SSL maps cleaner not supported for this platform")
 	}
 	// use the monitor and its eBPF manager to check and access SSL related maps
@@ -209,7 +209,7 @@ func cleanDeadPidsInSslMaps(t *testing.T, manager *manager.Manager) {
 // correctly removes entries from the ssl_sock_by_ctx and ssl_ctx_by_tuple maps
 // when the TCP connection associated with a TLS session is closed.
 func TestSSLMapsCleanup(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
 		t.Skip("TLS not supported for this setup")
 	}
 

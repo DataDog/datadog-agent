@@ -194,7 +194,13 @@ def check_env(ctx: Context):
 
 
 def launch_stack(
-    ctx: Context, stack: str | None, ssh_key: str | None, x86_ami: str, arm_ami: str, provision_microvms: bool
+    ctx: Context,
+    stack: str | None,
+    ssh_key: str | None,
+    x86_ami: str,
+    arm_ami: str,
+    provision_microvms: bool,
+    with_gdb: bool,
 ):
     stack = check_and_get_stack_or_exit(stack)
 
@@ -239,6 +245,7 @@ def launch_stack(
         vmconfig=vm_config,
         stack_name=stack,
         local=local,
+        with_gdb=with_gdb,
     )
 
     prefix = ""
@@ -294,6 +301,7 @@ def start_microvms_cmd(
     provision_microvms=False,
     run_agent=False,
     agent_version=None,
+    with_gdb=False,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -313,6 +321,7 @@ def start_microvms_cmd(
         f"--agent-version {agent_version}" if agent_version else "",
         "--provision-instance" if provision_instance else "",
         "--provision-microvms" if provision_microvms else "",
+        "--setup-gdb" if with_gdb else "",
     ]
     go_args = ' '.join(filter(lambda x: x != "", args))
     return f"./test/new-e2e/start-microvms {go_args}"

@@ -30,7 +30,7 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total collector memory usage."
     bounds:
       series: total_pss_bytes
-      upper_bound: 5 GiB
+      upper_bound: 1.1 GiB
 
   - name: cpu_usage
     description: "CPU usage quality gate. This puts a bound on the total average collector millicore usage."

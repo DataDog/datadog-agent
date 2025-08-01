@@ -122,25 +122,12 @@ func (f Function) empty() bool {
 	return f.Name == ""
 }
 
-// SerializationOptions defines options for serializing symbols.
-type SerializationOptions struct {
-	PackageSerializationOptions
-}
-
-// PackageSerializationOptions defines options for serializing package data.
-type PackageSerializationOptions struct {
-	// /home/andrei/go/src/github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go
-	// becomes
-	// github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go
-	StripLocalFilePrefix bool
-}
-
 // Serialize serializes the symbols as a human-readable string.
 //
 // If packageFilter is non-empty, only packages that start with this prefix are
 // included in the output. The "main" package is always present, and is placed
 // first in the output.
-func (s Symbols) Serialize(w StringWriter, opt SerializationOptions) {
+func (s Symbols) Serialize(w StringWriter) {
 	w.WriteString("Main module: ")
 	w.WriteString(s.MainModule)
 	w.WriteString("\n")
@@ -149,32 +136,32 @@ func (s Symbols) Serialize(w StringWriter, opt SerializationOptions) {
 	for i, pkg := range s.Packages {
 		if pkg.Name == mainPackageName {
 			mainPkgIdx = i
-			pkg.Serialize(w, opt.PackageSerializationOptions)
+			pkg.Serialize(w)
 		}
 	}
 	for i, pkg := range s.Packages {
 		if i == mainPkgIdx {
 			continue
 		}
-		pkg.Serialize(w, opt.PackageSerializationOptions)
+		pkg.Serialize(w)
 	}
 }
 
 // Serialize serializes the symbols in the package as a human-readable string.
-func (p Package) Serialize(w StringWriter, opt PackageSerializationOptions) {
+func (p Package) Serialize(w StringWriter) {
 	w.WriteString("Package: ")
 	w.WriteString(p.Name)
 	w.WriteString("\n")
 	for _, fn := range p.Functions {
-		fn.Serialize(w, "\t", opt)
+		fn.Serialize(w, "\t")
 	}
 	for _, t := range p.Types {
-		t.Serialize(w, "\t", opt)
+		t.Serialize(w, "\t")
 	}
 }
 
 // Serialize serializes the function as a human-readable string.
-func (f Function) Serialize(w StringWriter, indent string, opt PackageSerializationOptions) {
+func (f Function) Serialize(w StringWriter, indent string) {
 	w.WriteString(indent)
 	w.WriteString("Function: ")
 	w.WriteString(f.Name)
@@ -183,12 +170,6 @@ func (f Function) Serialize(w StringWriter, indent string, opt PackageSerializat
 	w.WriteString(")")
 	w.WriteString(" in ")
 	file := f.File
-	if opt.StripLocalFilePrefix {
-		// Strip everything that comes before github.com.
-		if idx := strings.Index(file, "github.com/"); idx != -1 {
-			file = file[idx:]
-		}
-	}
 	w.WriteString(file)
 	w.WriteString(fmt.Sprintf(" [%d:%d]", f.StartLine, f.EndLine))
 	w.WriteString("\n")
@@ -221,7 +202,7 @@ func (s Scope) Serialize(w StringWriter, indent string) {
 //		Field: <fieldName>: <fieldType>
 //		Field: <fieldName>: <fieldType>
 //	 	Method: <methodName> ...
-func (t Type) Serialize(w StringWriter, indent string, opt PackageSerializationOptions) {
+func (t Type) Serialize(w StringWriter, indent string) {
 	w.WriteString(indent)
 	w.WriteString("Type: ")
 	w.WriteString(t.Name)
@@ -236,7 +217,7 @@ func (t Type) Serialize(w StringWriter, indent string, opt PackageSerializationO
 		w.WriteString("\n")
 	}
 	for _, m := range t.Methods {
-		m.Serialize(w, childIndent, opt)
+		m.Serialize(w, childIndent)
 	}
 }
 
@@ -490,7 +471,7 @@ func (d *dwarfBlock) resolvePCRanges(dwarfData *dwarf.Data) ([]dwarfutil.PCRange
 // resolveLines computes the start and end lines of the lexical block by
 // combining PC ranges from DWARF with pclinetab data. Returns [0,0] if the
 // block has no address ranges, and thus no lines.
-func (d *dwarfBlock) resolveLines(dwarfData *dwarf.Data, pcIt *gosym.PCIterator) (LineRange, error) {
+func (d *dwarfBlock) resolveLines(dwarfData *dwarf.Data, lines []gosym.LineRange) (LineRange, error) {
 	// Find the start and end lines of the block by going through the address
 	// ranges, resolving them to lines, and selecting the minimum and maximum.
 	pcRanges, err := d.resolvePCRanges(dwarfData)
@@ -503,7 +484,7 @@ func (d *dwarfBlock) resolveLines(dwarfData *dwarf.Data, pcIt *gosym.PCIterator)
 	startLine := math.MaxInt
 	endLine := 0
 	for _, r := range pcRanges {
-		lineRange, ok := pcRangeToLines(r, pcIt)
+		lineRange, ok := pcRangeToLines(r, lines)
 		if !ok {
 			continue
 		}
@@ -940,55 +921,27 @@ func (b *SymDBBuilder) exploreSubprogram(
 		return Function{}, errors.New("subprogram without highpc")
 	}
 
-	// Do a pass through the subprogram's DWARF to find all the inlined
-	// subroutines. We need to know the PC ranges of inlined subroutines to figure
-	// out the source lines of this function.
-	//
-	// TODO: do away with this separate pass; defer resolving any PCs until
-	// after we parse the whole subprogram, at which point we can also resolve
-	// PCs in order, which is more efficient.
-	inlinedPcRanges, err := dwarfutil.ExploreInlinedPcRangesInSubprogram(reader, b.dwarfData)
+	lines, err := b.sym.FunctionLines(lowpc)
 	if err != nil {
-		return Function{}, fmt.Errorf("error exploring inlined subroutines in function %s: %w", funcQualifiedName, err)
+		return Function{}, fmt.Errorf("failed to resolve function lines for function %s at PC 0x%x: %w", funcQualifiedName, lowpc, err)
 	}
-	// Reset the reader to the start of the subprogram.
-	reader.Seek(subprogEntry.Offset)
-	// Skip the subprogram entry, to position the reader where it was before
-	// ExploreInlinedPcRangesInSubprogram.
-	_, err = reader.Next()
-	if err != nil {
-		return Function{}, err
+	// For now ignore inlined functions.
+	selfLines, ok := lines[funcQualifiedName]
+	if !ok {
+		return Function{}, fmt.Errorf("missing self function lines for function %s at PC 0x%x", funcQualifiedName, lowpc)
 	}
 
-	// Figure out the function's line range. The start line corresponds to the
-	// function's start PC. For figuring out the end line, we iterate through the
-	// function's PC-to-line mapping and keep track of the maximum line number
-	// (the function's highpc does not map to the function's end in the source
-	// code for Go functions; the last instructions have to do with stack growth
-	// and map to the function's start).
-	f := b.sym.PCToFunction(lowpc)
-	if f == nil {
-		return Function{}, fmt.Errorf("failed to resolve function for subprogram %s at PC 0x%x", funcQualifiedName, lowpc)
-	}
-	pcIt, err := f.PCIterator(inlinedPcRanges)
-	if err != nil {
-		return Function{}, fmt.Errorf("failed to create PC iterator for function %s: %w", funcQualifiedName, err)
-	}
 	firstLine := uint32(0)
 	maxLine := uint32(0)
-	for {
-		line, ok := pcIt.Next()
-		if !ok {
-			break
-		}
+
+	for _, lineRange := range selfLines.Lines {
 		if firstLine == 0 {
-			firstLine = line.Line
+			firstLine = lineRange.Line
 		}
-		if line.Line > maxLine {
-			maxLine = line.Line
+		if lineRange.Line > maxLine {
+			maxLine = lineRange.Line
 		}
 	}
-	pcIt.Reset()
 
 	// From now on, location lists that reference the current block will
 	// reference this function.
@@ -999,7 +952,7 @@ func (b *SymDBBuilder) exploreSubprogram(
 	// want to export to SymDB, this also has the side effect of resolving the
 	// types of all the function arguments; in particular, we rely below on the
 	// type of the receiver having been resolved.
-	inner, err := b.exploreCode(reader, &pcIt)
+	inner, err := b.exploreCode(reader, selfLines.Lines)
 	if err != nil {
 		return Function{}, err
 	}
@@ -1056,7 +1009,7 @@ func (b *SymDBBuilder) exploreInlinedSubroutine(inlinedEntry *dwarf.Entry, reade
 // If the block does not contain any variables, it returns any sub-blocks that
 // do contain variables (if any).
 func (b *SymDBBuilder) exploreLexicalBlock(
-	blockEntry *dwarf.Entry, reader *dwarf.Reader, pcIt *gosym.PCIterator,
+	blockEntry *dwarf.Entry, reader *dwarf.Reader, lines []gosym.LineRange,
 ) ([]Scope, error) {
 	if blockEntry.Tag != dwarf.TagLexDwarfBlock {
 		return nil, fmt.Errorf("expected TagLexDwarfBlock, got %s", blockEntry.Tag)
@@ -1067,7 +1020,7 @@ func (b *SymDBBuilder) exploreLexicalBlock(
 	b.pushBlock(currentBlock)
 	defer b.popBlock()
 
-	inner, err := b.exploreCode(reader, pcIt)
+	inner, err := b.exploreCode(reader, lines)
 	if err != nil {
 		return nil, fmt.Errorf("error exploring code in lexical block: %w", err)
 	}
@@ -1076,7 +1029,7 @@ func (b *SymDBBuilder) exploreLexicalBlock(
 	// doesn't, then inner scopes (if any), are returned directly, to be added
 	// as direct children of the caller's block.
 	if len(inner.vars) != 0 {
-		blockLineRange, err := currentBlock.resolveLines(b.dwarfData, pcIt)
+		blockLineRange, err := currentBlock.resolveLines(b.dwarfData, lines)
 		if err != nil {
 			return nil, fmt.Errorf("error resolving lines for lexical block: %w (0x%x)",
 				err, currentBlock.entry.Offset)
@@ -1100,25 +1053,31 @@ func (b *SymDBBuilder) exploreLexicalBlock(
 	return inner.scopes, nil
 }
 
-func pcRangeToLines(r dwarfutil.PCRange, pcIt *gosym.PCIterator) (LineRange, bool) {
-	startLine, ok := pcIt.PCToLine(r[0])
-	if !ok {
+func pcRangeToLines(r dwarfutil.PCRange, lines []gosym.LineRange) (LineRange, bool) {
+	// Heuristic - assume that we are going to instrument each beginning of a pc range.
+	// Collect all lines where that beginning falls into the given pc range.
+	i := sort.Search(len(lines), func(i int) bool {
+		return lines[i].PCLo >= r[0]
+	})
+	lineLo := uint32(0)
+	lineHi := uint32(0)
+	for i < len(lines) && lines[i].PCLo <= r[1] {
+		if lineLo == 0 || lines[i].Line < lineLo {
+			lineLo = lines[i].Line
+		}
+		if lineHi == 0 || lines[i].Line > lineHi {
+			lineHi = lines[i].Line
+		}
+		i++
+	}
+	if lineLo == 0 {
 		return LineRange{}, false
 	}
-
-	endLine, ok := pcIt.PCToLine(r[1])
-	if !ok {
-		return LineRange{}, false
-	}
-	if startLine > endLine {
-		return LineRange{}, false
-	}
-
-	return LineRange{int(startLine), int(endLine)}, true
+	return LineRange{int(lineLo), int(lineHi)}, true
 }
 
 // parseVariable parses a variable or formal parameter entry.
-func (b *SymDBBuilder) parseVariable(varEntry *dwarf.Entry, pcIt *gosym.PCIterator) (Variable, error) {
+func (b *SymDBBuilder) parseVariable(varEntry *dwarf.Entry, lines []gosym.LineRange) (Variable, error) {
 	varName, ok := varEntry.Val(dwarf.AttrName).(string)
 	if !ok {
 		return Variable{}, fmt.Errorf("formal parameter without name at 0x%x", varEntry.Offset)
@@ -1146,7 +1105,7 @@ func (b *SymDBBuilder) parseVariable(varEntry *dwarf.Entry, pcIt *gosym.PCIterat
 			)
 		}
 		for _, r := range pcRanges {
-			lineRange, ok := pcRangeToLines(r, pcIt)
+			lineRange, ok := pcRangeToLines(r, lines)
 			if ok {
 				availableLineRanges = append(availableLineRanges, lineRange)
 			}
@@ -1237,7 +1196,7 @@ type exploreCodeResult struct {
 // inlined subprograms.
 //
 // pcIt is a PC iterator for the function containing this code.
-func (b *SymDBBuilder) exploreCode(reader *dwarf.Reader, pcIt *gosym.PCIterator) (exploreCodeResult, error) {
+func (b *SymDBBuilder) exploreCode(reader *dwarf.Reader, lines []gosym.LineRange) (exploreCodeResult, error) {
 	var res exploreCodeResult
 	for child, err := reader.Next(); child != nil; child, err = reader.Next() {
 		if err != nil {
@@ -1250,19 +1209,19 @@ func (b *SymDBBuilder) exploreCode(reader *dwarf.Reader, pcIt *gosym.PCIterator)
 		// We recognize formal parameters, variables, lexical blocks and inlined subroutines.
 		switch child.Tag {
 		case dwarf.TagFormalParameter:
-			v, err := b.parseVariable(child, pcIt)
+			v, err := b.parseVariable(child, lines)
 			if err != nil {
 				return exploreCodeResult{}, err
 			}
 			res.vars = append(res.vars, v)
 		case dwarf.TagVariable:
-			v, err := b.parseVariable(child, pcIt)
+			v, err := b.parseVariable(child, lines)
 			if err != nil {
 				return exploreCodeResult{}, err
 			}
 			res.vars = append(res.vars, v)
 		case dwarf.TagLexDwarfBlock:
-			scopes, err := b.exploreLexicalBlock(child, reader, pcIt)
+			scopes, err := b.exploreLexicalBlock(child, reader, lines)
 			if err != nil {
 				return exploreCodeResult{}, err
 			}

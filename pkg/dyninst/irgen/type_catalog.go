@@ -328,6 +328,7 @@ func (c *typeCatalog) buildType(
 			if err != nil {
 				return nil, err
 			}
+			common.ByteSize = underlyingType.GetByteSize()
 			headerPtrType, ok := underlyingType.(*ir.PointerType)
 			if !ok {
 				return nil, fmt.Errorf(

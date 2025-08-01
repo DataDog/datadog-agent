@@ -21,7 +21,7 @@ GO_VERSION_FILE = "./.go-version"
 # - is_bugfix is True if the version in the match is a bugfix version, False if it's a minor
 GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     (GO_VERSION_FILE, "", "", True),  # the version is the only content of the file
-    ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", True),
+    ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-", True),
     ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", True),
     ("./tasks/unit_tests/modules_tests.py", 'Go": "', '",', False),
     ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),

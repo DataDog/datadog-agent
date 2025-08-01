@@ -228,6 +228,15 @@ func (d *safeDeviceImpl) GetPowerUsage() (uint32, error) {
 	return usage, NewNvmlAPIErrorOrNil("GetPowerUsage", ret)
 }
 
+// GetProcessUtilization returns process utilization samples since the given timestamp
+func (d *safeDeviceImpl) GetProcessUtilization(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, error) {
+	if err := d.lib.lookup(toNativeName("GetProcessUtilization")); err != nil {
+		return nil, err
+	}
+	samples, ret := d.nvmlDevice.GetProcessUtilization(lastSeenTimestamp)
+	return samples, NewNvmlAPIErrorOrNil("GetProcessUtilization", ret)
+}
+
 func (d *safeDeviceImpl) GetRemappedRows() (int, int, bool, bool, error) {
 	if err := d.lib.lookup(toNativeName("GetRemappedRows")); err != nil {
 		return 0, 0, false, false, err

@@ -180,14 +180,6 @@ func TestTCFilters(t *testing.T) {
 	sleepExecutable := which(t, "sleep")
 
 	var newNetNSSleep *exec.Cmd
-	defer func() {
-		if newNetNSSleep != nil {
-			if newNetNSSleep.Process != nil {
-				_ = newNetNSSleep.Process.Kill()
-			}
-			_ = newNetNSSleep.Wait()
-		}
-	}()
 
 	t.Run("attach_detach_filters", func(t *testing.T) {
 		newNetNSSleep = exec.Command(syscallTester, "new_netns_exec", sleepExecutable, "600")
@@ -195,6 +187,11 @@ func TestTCFilters(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(func() {
+			// stop the sleep process
+			newNetNSSleep.Process.Kill()
+			_ = newNetNSSleep.Wait()
+		})
 
 		sleepProcPid := uint32(newNetNSSleep.Process.Pid)
 		if sleepProcPid == 0 {
@@ -231,7 +228,8 @@ func TestTCFilters(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		test.Close()
+		// no zombie check here
+		test.CloseWithOptions(false)
 		test.cleanup()
 		testMod = nil // force a full testModule reinitialization
 		testModuleCleanedUp = true
@@ -249,6 +247,10 @@ func TestTCFilters(t *testing.T) {
 			t.Fatal("Egress tc classifier wasn't properly detached")
 		}
 	})
+
+	if err := test.CheckZombieProcesses(); err != nil {
+		t.Errorf("failed checking for zombie processes: %v", err)
+	}
 }
 
 func tcFiltersExist(netNs *utils.NetNSPath, linkName string, ingressFilterNamePrefix, egressFilterNamePrefix string) (ingressExists bool, egressExists bool, err error) {

@@ -105,15 +105,6 @@ func TestClusterAgentGlobalTags(t *testing.T) {
 	mockConfig.SetWithoutSource("cluster_checks.extra_tags", []string{"cluster:tag", "nocolon"})
 	mockConfig.SetWithoutSource("orchestrator_explorer.extra_tags", []string{"orch:tag", "missingcolon"})
 
-	// Custom cluster name tag
-	clusterName := "custom-name"
-	mockConfig.SetWithoutSource("hostname", "hostname-from-configuration")
-	mockConfig.SetWithoutSource("cluster_name", clusterName)
-
-	// Orch cluster ID tag
-	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
-	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
-
 	recordFlavor := flavor.GetFlavor()
 	defer func() {
 		flavor.SetFlavor(recordFlavor)
@@ -129,12 +120,10 @@ func TestClusterAgentGlobalTags(t *testing.T) {
 		flavor.SetFlavor(flavor.ClusterAgent)
 		globalTags := GetClusterAgentStaticTags(mockConfig)
 		assert.Equal(t, map[string][]string{
-			"some":              {"tag"},
-			"extra":             {"tag"},
-			"cluster":           {"tag"},
-			"orch":              {"tag"},
-			"orch_cluster_id":   {clusterID},
-			"kube_cluster_name": {clusterName},
+			"some":    {"tag"},
+			"extra":   {"tag"},
+			"cluster": {"tag"},
+			"orch":    {"tag"},
 		}, globalTags)
 	})
 }

@@ -2165,7 +2165,7 @@ def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bo
         nw.pool(name="gobuild", depth=go_parallelism)
         nw.rule(
             name="gobin",
-            command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
+            command="$chdir && $env $go build -o $out $extra_arguments $tags $ldflags $in $tool",
         )
         ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
     ctx.run(f"ninja -d explain -v -f {nf_path}")
@@ -2246,6 +2246,7 @@ def ninja_add_dyninst_test_programs(
             pool="gobuild",
             variables={
                 "go": go_path,
+                "extra_arguments": "-trimpath",
                 # Run from within the package directory so that the go build
                 # command finds the go.mod file.
                 "chdir": f"cd {pkg_path}",

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/fapolicyd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/integrations"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
@@ -98,8 +99,8 @@ var (
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
-		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-ddot.service"},
-		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-ddot-exp.service"},
+		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service"},
+		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service"},
 
 		UpstartMainService: "datadog-agent",
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security"},
@@ -121,7 +122,7 @@ func installFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// 2. Ensure config/log/package directories are created and have the correct permissions
+	// 2. Ensure config/run/log/package directories are created and have the correct permissions
 	if err = agentDirectories.Ensure(); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
@@ -130,6 +131,10 @@ func installFilesystem(ctx HookContext) (err error) {
 	}
 	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
+	}
+	agentRunPath := file.Directory{Path: filepath.Join(ctx.PackagePath, "run"), Mode: 0755, Owner: "dd-agent", Group: "dd-agent"}
+	if err = agentRunPath.Ensure(); err != nil {
+		return fmt.Errorf("failed to create run directory: %v", err)
 	}
 
 	// 3. Create symlinks
@@ -195,6 +200,12 @@ func preInstallDatadogAgent(ctx HookContext) error {
 	}
 	if err := agentService.RemoveStable(ctx); err != nil {
 		log.Warnf("failed to remove stable unit: %s", err)
+	}
+	if ctx.PackageType == PackageTypeOCI {
+		// Must be called in the OCI preinst, before re-executing into the installer
+		if err := fapolicyd.SetAgentPermissions(ctx); err != nil {
+			return fmt.Errorf("failed to ensure host security context: %w", err)
+		}
 	}
 	return packagemanager.RemovePackage(ctx, agentPackage)
 }

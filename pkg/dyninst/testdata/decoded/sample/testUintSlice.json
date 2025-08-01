@@ -26,6 +26,7 @@
             "arguments": {
               "u": {
                 "type": "[]uint",
+                "size": "3",
                 "elements": [
                   {
                     "type": "uint",

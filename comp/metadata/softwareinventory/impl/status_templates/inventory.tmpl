@@ -1,0 +1,11 @@
+{{- $swMap := index . "software_inventory_metadata" }}
+{{- if index $swMap "error" }}
+Error refreshing software inventory: {{ index $swMap "error" }}
+{{- else }}
+{{- $count := 0 }}
+{{- range $productCode, $meta := $swMap }}
+  {{- $count = add $count 1 }}
+{{- end }}
+Detected {{ $count }} installed software entries.
+The full list is not displayed in this status output, but is available in a flare, the Agent status page in the GUI, or in the Datadog Application.
+{{- end }}

@@ -9,6 +9,7 @@ package compiler
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/pkg/errors"
@@ -262,7 +263,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize() - g.typeFuncMetadata[t.Element.GetID()].offsetShift},
 			ReturnOp{},
 		}
 
@@ -281,7 +282,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize() - g.typeFuncMetadata[t.Element.GetID()].offsetShift},
 			ReturnOp{},
 		}
 
@@ -329,8 +330,15 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		// TODO: support Go interfaces
 
 	case *ir.GoMapType:
-		// TODO: support Go maps
-
+		g.typeQueue = append(g.typeQueue, t.HeaderType)
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessPointerOp{
+				Pointee: t.HeaderType,
+			},
+			ReturnOp{},
+		}
 	case *ir.GoChannelType:
 		// TODO: support Go channels
 
@@ -341,9 +349,59 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	case *ir.GoHMapHeaderType:
 	case *ir.GoHMapBucketType:
 	case *ir.GoSwissMapGroupsType:
+		dataOffset, err := offsetOf(t.RawFields, "data")
+		if err != nil {
+			return nil, false, err
+		}
+		lengthMaskOffset, err := offsetOf(t.RawFields, "lengthMask")
+		if err != nil {
+			return nil, false, err
+		}
+		needed = true
+		offsetShift = 0
+		if dataOffset > math.MaxUint8 {
+			return nil, false, errors.New("dataOffset is too large")
+		}
+		if lengthMaskOffset > math.MaxUint8 {
+			return nil, false, errors.New("lengthMaskOffset is too large")
+		}
+		ops = []Op{
+			ProcessGoSwissMapGroupsOp{
+				DataOffset:       uint8(dataOffset),
+				LengthMaskOffset: uint8(lengthMaskOffset),
+				GroupSlice:       t.GroupSliceType,
+				Group:            t.GroupType,
+			},
+			ReturnOp{},
+		}
+		g.typeQueue = append(g.typeQueue, t.GroupSliceType, t.GroupType)
 	case *ir.GoSwissMapHeaderType:
-		// TODO: support Go maps
-
+		directoryPtrOffset, err := offsetOf(t.RawFields, "dirPtr")
+		if err != nil {
+			return nil, false, err
+		}
+		directoryLenOffset, err := offsetOf(t.RawFields, "dirLen")
+		if err != nil {
+			return nil, false, err
+		}
+		needed = true
+		offsetShift = 0
+		if directoryPtrOffset > math.MaxUint8 {
+			return nil, false, errors.New("directoryPtrOffset is too large")
+		}
+		if directoryLenOffset > math.MaxUint8 {
+			return nil, false, errors.New("directoryLenOffset is too large")
+		}
+		ops = []Op{
+			ProcessGoSwissMapOp{
+				TablePtrSlice: t.TablePtrSliceType,
+				Group:         t.GroupType,
+				DirPtrOffset:  uint8(directoryPtrOffset),
+				DirLenOffset:  uint8(directoryLenOffset),
+			},
+			ReturnOp{},
+		}
+		g.typeQueue = append(g.typeQueue, t.TablePtrSliceType, t.GroupType)
 	case *ir.EventRootType:
 		// EventRootType is handled by event and expression processing functions
 		// family.
@@ -439,6 +497,15 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 		return nil, err
 	}
 	return pieces, nil
+}
+
+func offsetOf(fields []ir.Field, name string) (uint32, error) {
+	for _, field := range fields {
+		if field.Name == name {
+			return field.Offset, nil
+		}
+	}
+	return 0, errors.Errorf("internal: field `%s` not found", name)
 }
 
 // `ops` is used as an output buffer for the encoded instructions.

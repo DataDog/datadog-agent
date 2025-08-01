@@ -1569,9 +1569,9 @@ func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Po
 		return fmt.Errorf("unable to find policy table: %w", err)
 	}
 
-	et := config.ParseEvalEventType(eventType)
-	if et == model.UnknownEventType {
-		return fmt.Errorf("unable to parse the eval event type: %s", eventType)
+	et, err := model.ParseEvalEventType(eventType)
+	if err != nil {
+		return err
 	}
 
 	policy := &kfilters.FilterPolicy{Mode: mode}
@@ -1775,9 +1775,9 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 	enabledEvents := uint64(0)
 	for _, eventName := range requestedEventTypes {
 		if eventName != "*" {
-			eventType := config.ParseEvalEventType(eventName)
-			if eventType == model.UnknownEventType {
-				return fmt.Errorf("unknown event type '%s'", eventName)
+			eventType, err := model.ParseEvalEventType(eventName)
+			if err != nil {
+				return err
 			}
 			enabledEvents |= 1 << (eventType - 1)
 		}
@@ -2963,7 +2963,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
-			if p.fileHasher.HashAndReport(rule, ev) {
+			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}

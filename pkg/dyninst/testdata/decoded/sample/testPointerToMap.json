@@ -1,0 +1,61 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testPointerToMap",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testPointerToMap",
+          "location": {
+            "method": "main.testPointerToMap"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "*map[string]int",
+                "address": "[addr]",
+                "size": "2",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "bar"
+                    },
+                    {
+                      "type": "int",
+                      "value": "2"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

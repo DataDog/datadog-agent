@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -65,6 +66,10 @@ func TestTLSSuite(t *testing.T) {
 
 func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 	t := s.T()
+
+	if !usmconfig.UretprobeSupported() {
+		t.Skip("uretprobe segfault bug exists on kernel so skipping")
+	}
 
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -284,6 +289,10 @@ func prefetchLib(t *testing.T, filenames ...string) *exec.Cmd {
 func (s *tlsSuite) TestOpenSSLVersions() {
 	t := s.T()
 
+	if !usmconfig.UretprobeSupported() {
+		t.Skip("uretprobe segfault bug exists on kernel so skipping")
+	}
+
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
@@ -342,6 +351,10 @@ func (s *tlsSuite) TestOpenSSLVersions() {
 // this is reason the fallback behavior may require a few warmup requests before we start capturing traffic.
 func (s *tlsSuite) TestOpenSSLVersionsSlowStart() {
 	t := s.T()
+
+	if !usmconfig.UretprobeSupported() {
+		t.Skip("uretprobe segfault bug exists on kernel so skipping")
+	}
 
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
@@ -464,6 +477,48 @@ func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Re
 	}
 
 	return false
+}
+
+// verifyAllRequestsEventuallyCaptured verifies that all HTTP requests are eventually captured by the monitor
+func verifyAllRequestsEventuallyCaptured(t *testing.T, usmMonitor *Monitor, protocol protocols.ProtocolType, requests []*nethttp.Request, timeout, interval time.Duration, message string) {
+	t.Helper()
+	requestsExist := make([]bool, len(requests))
+
+	assert.Eventually(t, func() bool {
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocol)
+		if stats == nil {
+			return false
+		}
+
+		if len(stats) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(stats, req)
+			}
+		}
+
+		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+		// otherwise, if all present, abort.
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+				return false
+			}
+		}
+
+		return true
+	}, timeout, interval, message)
+
+	for reqIndex, exists := range requestsExist {
+		if !exists {
+			// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+			t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+		}
+	}
 }
 
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
@@ -931,12 +986,19 @@ func getHTTPLikeProtocolStats(t *testing.T, monitor *Monitor, protocolType proto
 }
 
 func (s *tlsSuite) TestNodeJSTLS() {
+	t := s.T()
+
+	// Check if the current kernel has a bug that causes segfaults when uretprobes are used with seccomp filters.
+	// Some kernels have a bug where attaching uretprobes to processes that use seccomp filters can cause
+	// segmentation faults. We need to test both scenarios: when the bug exists (monitoring should be safely
+	// disabled) and when it doesn't exist (normal monitoring should work).
+	hasKernelBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
+	require.NoError(t, err)
+
 	const (
 		expectedOccurrences = 10
 		serverPort          = "4444"
 	)
-
-	t := s.T()
 
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
@@ -950,51 +1012,169 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	cfg.EnableNodeJSMonitoring = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	if hasKernelBug {
+		testNodeJSSegfaultPrevention(t, usmMonitor, uint32(nodeJSPID), serverPort)
+	} else {
+		testNodeJSNormalMonitoring(t, usmMonitor, uint32(nodeJSPID), serverPort, expectedOccurrences)
+	}
+}
+
+func testNodeJSSegfaultPrevention(t *testing.T, usmMonitor *Monitor, nodeJSPID uint32, serverPort string) {
+	t.Log("Kernel bug detected - verifying NodeJS monitoring is safely disabled")
+
+	initialPID := nodeJSPID
+
+	// Create client and make HTTPS requests to trigger potential uretprobe usage
+	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
+
+	// Make several requests that would normally trigger uretprobe attachment
+	for i := 0; i < 5; i++ {
+		requestFn()
+		t.Logf("Making HTTPS request %d to trigger potential uretprobe", i+1)
+
+		// Allow time for any potential segfault to occur
+		time.Sleep(200 * time.Millisecond)
+
+		// Verify process is still alive after each request
+		currentPID, err := nodejs.GetNodeJSDockerPID()
+		require.NoError(t, err)
+		require.Equal(t, initialPID, uint32(currentPID), "NodeJS process crashed (segfault) after request %d", i+1)
+	}
+
+	client.CloseIdleConnections()
+
+	// Final verification that process is still alive and stable
+	assert.Eventually(t, func() bool {
+		finalPID, err := nodejs.GetNodeJSDockerPID()
+		if err != nil {
+			return false
+		}
+		return initialPID == uint32(finalPID)
+	}, 2*time.Second, 100*time.Millisecond, "NodeJS process should still be running (no segfault)")
+
+	// Verify that NodeJS TLS monitoring is disabled by checking that no HTTP stats are collected
+	// We allow up to 2 seconds for any potential stats to appear, but expect none
+	assert.Never(t, func() bool {
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
+		return len(stats) > 0
+	}, 2*time.Second, 100*time.Millisecond, "NodeJS TLS monitoring should be disabled when kernel bug exists")
+
+	t.Log("Successfully verified NodeJS monitoring is disabled and no segfault occurred")
+}
+
+func testNodeJSNormalMonitoring(t *testing.T, usmMonitor *Monitor, nodeJSPID uint32, serverPort string, expectedOccurrences int) {
+	t.Log("No kernel bug detected - testing normal NodeJS TLS monitoring")
+
 	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, nodeJsAttacherName, int(nodeJSPID), utils.ManualTracingFallbackEnabled)
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
+
 	var requests []*nethttp.Request
 	for i := 0; i < expectedOccurrences; i++ {
 		requests = append(requests, requestFn())
 	}
 
 	client.CloseIdleConnections()
-	requestsExist := make([]bool, len(requests))
+	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all NodeJS container requests to be captured")
+}
 
-	assert.Eventually(t, func() bool {
-		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
-		if stats == nil {
-			return false
-		}
+func (s *tlsSuite) TestOpenSSLTLSContainer() {
+	t := s.T()
 
-		if len(stats) == 0 {
-			return false
-		}
+	// Check if the current kernel has a bug that causes segfaults when uretprobes are used with seccomp filters.
+	// This test is specifically for OpenSSL monitoring in containers to verify if OpenSSL actually causes
+	// segfaults like NodeJS does, or if it's safe to run.
+	hasKernelBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
+	require.NoError(t, err)
 
-		for reqIndex, req := range requests {
-			if !requestsExist[reqIndex] {
-				requestsExist[reqIndex] = isRequestIncluded(stats, req)
-			}
-		}
+	const (
+		expectedOccurrences = 10
+		serverPort          = "4445"
+	)
 
-		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
-		// otherwise, if all present, abort.
-		for reqIndex, exists := range requestsExist {
-			if !exists {
-				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
-				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
-				return false
-			}
-		}
+	require.NoError(t, testutil.HTTPPythonServerContainer(t, serverPort))
+	pythonPID, err := testutil.GetPythonDockerPID()
+	require.NoError(t, err)
 
-		return true
-	}, 3*time.Second, 100*time.Millisecond, "connection not found")
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableNativeTLSMonitoring = true
 
-	for reqIndex, exists := range requestsExist {
-		if !exists {
-			// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
-			t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
-		}
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	if hasKernelBug {
+		testOpenSSLSegfaultBehavior(t, usmMonitor, uint32(pythonPID), serverPort)
+	} else {
+		testOpenSSLNormalMonitoring(t, usmMonitor, uint32(pythonPID), serverPort, expectedOccurrences)
 	}
+}
+
+func testOpenSSLSegfaultBehavior(t *testing.T, usmMonitor *Monitor, pythonPID uint32, serverPort string) {
+	t.Log("Kernel bug detected - testing OpenSSL behavior in container (currently still enabled)")
+
+	initialPID := pythonPID
+	client := &nethttp.Client{
+		Timeout: 1 * time.Second,
+		Transport: &nethttp.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	// Make several requests to test for potential segfaults
+	for i := 0; i < 5; i++ {
+		url := fmt.Sprintf("https://localhost:%s/status/200", serverPort)
+		req, err := nethttp.NewRequest("GET", url, nil)
+		require.NoError(t, err)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+
+		// Allow time for any potential segfault to occur
+		time.Sleep(200 * time.Millisecond)
+
+		// Verify process is still alive after each request
+		currentPID, err := testutil.GetPythonDockerPID()
+		require.NoError(t, err)
+		require.Equal(t, initialPID, uint32(currentPID), "Python/OpenSSL process crashed (segfault) after request %d", i+1)
+	}
+
+	client.CloseIdleConnections()
+
+	// Final verification that process is still alive and stable
+	assert.Eventually(t, func() bool {
+		finalPID, err := testutil.GetPythonDockerPID()
+		if err != nil {
+			return false
+		}
+		return initialPID == uint32(finalPID)
+	}, 2*time.Second, 100*time.Millisecond, "Python/OpenSSL process should still be running (no segfault)")
+
+	// Verify that OpenSSL TLS monitoring is disabled by checking that no HTTP stats are collected
+	// We allow up to 2 seconds for any potential stats to appear, but expect none
+	assert.Never(t, func() bool {
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
+		return len(stats) > 0
+	}, 2*time.Second, 100*time.Millisecond, "OpenSSL TLS monitoring should be disabled when kernel bug exists")
+
+	t.Log("Successfully verified OpenSSL monitoring is disabled and no segfault occurred")
+}
+
+func testOpenSSLNormalMonitoring(t *testing.T, usmMonitor *Monitor, pythonPID uint32, serverPort string, expectedOccurrences int) {
+	t.Log("No kernel bug detected - testing normal OpenSSL TLS monitoring in container")
+
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, int(pythonPID), utils.ManualTracingFallbackEnabled)
+
+	// This maps will keep track of whether the tracer saw this request already or not
+	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
+
+	var requests []*nethttp.Request
+	for i := 0; i < expectedOccurrences; i++ {
+		requests = append(requests, requestFn())
+	}
+
+	client.CloseIdleConnections()
+	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all OpenSSL container requests to be captured")
 }

@@ -9,13 +9,14 @@ package symdb_test
 
 import (
 	"flag"
-	"github.com/stretchr/testify/require"
 	_ "net/http/pprof"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
@@ -78,16 +79,7 @@ func TestSymDBSnapshot(t *testing.T) {
 					require.NotEmpty(t, symbols.Packages)
 
 					var sb strings.Builder
-					symbols.Serialize(symdbutil.MakePanickingWriter(&sb),
-						symdb.SerializationOptions{
-							PackageSerializationOptions: symdb.PackageSerializationOptions{
-								// Make the snapshot machine-independent by
-								// removing local file paths (given that the
-								// inspected binaries are built locally).
-								StripLocalFilePrefix: true,
-							},
-						},
-					)
+					symbols.Serialize(symdbutil.MakePanickingWriter(&sb))
 					out := sb.String()
 
 					outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".out")

@@ -1,0 +1,55 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testStructWithMap",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testStructWithMap",
+          "location": {
+            "method": "main.testStructWithMap"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "s": {
+                "type": "main.structWithMap",
+                "fields": {
+                  "m": {
+                    "type": "map[int]int",
+                    "size": "1",
+                    "entries": [
+                      [
+                        {
+                          "type": "int",
+                          "value": "1"
+                        },
+                        {
+                          "type": "int",
+                          "value": "1"
+                        }
+                      ]
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

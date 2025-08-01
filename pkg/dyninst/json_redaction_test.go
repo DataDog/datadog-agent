@@ -9,8 +9,11 @@ package dyninst_test
 
 import (
 	"bytes"
+	"cmp"
+	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -84,12 +87,26 @@ var defaultRedactors = []jsonRedactor{
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/address"},
 		replacement(`"[addr]"`),
 	),
+	redactor(
+		prefixSuffixMatcher{"/debugger/snapshot/captures/entry/arguments/redactMyEntries", "/entries"},
+		replacement(`"[redacted-entries]"`),
+	),
+	redactor(
+		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/entries"},
+		entriesSorter{},
+	),
 }
 
-func redactJSON(t *testing.T, input []byte, redactors []jsonRedactor) (redacted []byte) {
+func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactors []jsonRedactor) []byte {
 	d := jsontext.NewDecoder(bytes.NewReader(input))
 	var buf bytes.Buffer
 	e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
+	stackPtr := func() jsontext.Pointer {
+		if ptrPrefix != "" {
+			return jsontext.Pointer(ptrPrefix + "/" + d.StackPointer())
+		}
+		return d.StackPointer()
+	}
 	for {
 		tok, err := d.ReadToken()
 		if errors.Is(err, io.EOF) {
@@ -102,16 +119,355 @@ func redactJSON(t *testing.T, input []byte, redactors []jsonRedactor) (redacted 
 		if kind != '{' || idx%2 == 0 {
 			continue
 		}
-		ptr := d.StackPointer()
+		ptr := stackPtr()
+		var redacted []byte
 		for _, redactor := range redactors {
 			if redactor.matcher.matches(ptr) {
 				v, err := d.ReadValue()
 				require.NoError(t, err)
-				err = e.WriteValue(redactor.replacer.replace(v))
-				require.NoError(t, err)
+				redacted = redactor.replacer.replace(v)
 				break
 			}
 		}
+
+		if redacted != nil {
+			redacted = redactJSON(t, ptr, redacted, redactors)
+			require.NoError(t, e.WriteValue(redacted))
+		}
 	}
 	return bytes.TrimSpace(buf.Bytes())
+}
+
+type entriesSorter struct{}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+var notCapturedReason = []byte(`"notCapturedReason"`)
+
+func compareNotCapturedReason(a, b []byte) int {
+	return cmp.Compare(
+		boolToInt(bytes.Contains(a, notCapturedReason)),
+		boolToInt(bytes.Contains(b, notCapturedReason)),
+	)
+}
+
+func (e entriesSorter) replace(v jsontext.Value) jsontext.Value {
+	var entries [][2]jsontext.Value
+	if err := json.Unmarshal(v, &entries); err != nil {
+		return v // Return original value if unmarshal fails
+	}
+	slices.SortFunc(entries, func(a, b [2]jsontext.Value) int {
+		return cmp.Or(
+			compareNotCapturedReason(a[0], b[0]),
+			bytes.Compare(a[0], b[0]),
+		)
+	})
+	sorted, err := json.Marshal(entries)
+	if err != nil {
+		return v // Return original value if marshal fails
+	}
+	return sorted
+}
+
+func TestDefaultRedactors(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name: "redact snapshot id",
+			input: `{
+  "debugger": {
+    "snapshot": {
+      "id": "actual-snapshot-id-123"
+    }
+  }
+}`,
+			expected: `{
+    "debugger": {
+      "snapshot": {
+        "id": "[id]"
+      }
+    }
+  }`,
+		},
+		{
+			name: "redact snapshot timestamp",
+			input: `{
+  "debugger": {
+    "snapshot": {
+      "timestamp": "[ts]"
+    }
+  }
+}`,
+			expected: `{
+    "debugger": {
+      "snapshot": {
+        "timestamp": "[ts]"
+      }
+    }
+  }`,
+		},
+		{
+			name: "redact root timestamp",
+			input: `{
+  "timestamp": "2023-01-01T00:00:00Z",
+  "other": "data"
+}`,
+			expected: `{
+    "timestamp": "[ts]",
+    "other": "data"
+  }`,
+		},
+		{
+			name: "redact snapshot stack",
+			input: `{
+  "debugger": {
+    "snapshot": {
+      "stack": ["frame1", "frame2", "frame3"]
+    }
+  }
+}`,
+			expected: `{
+    "debugger": {
+      "snapshot": {
+        "stack": "[stack-unredact-me]"
+      }
+    }
+  }`,
+		},
+		{
+			name: "redact capture address",
+			input: `{
+  "debugger": {
+    "snapshot": {
+      "captures": {
+        "locals": {
+          "address": "0x7fff5fbff123"
+        }
+      }
+    }
+  }
+}`,
+			expected: `{
+    "debugger": {
+      "snapshot": {
+        "captures": {
+          "locals": {
+            "address": "[addr]"
+          }
+        }
+      }
+    }
+  }`,
+		},
+		{
+			name: "sort capture entries",
+			input: `{
+  "debugger": {
+    "snapshot": {
+      "captures": {
+        "locals": {
+          "entries": [
+            ["variable_z", {"value": "z"}],
+            ["variable_a", {"value": "a"}],
+            ["variable_m", {"notCapturedReason": "error"}]
+          ]
+        }
+      }
+    }
+  }
+}`,
+			expected: `{
+    "debugger": {
+      "snapshot": {
+        "captures": {
+          "locals": {
+            "entries": [
+              ["variable_a", {"value": "a"}],
+              ["variable_m", {"notCapturedReason": "error"}],
+              ["variable_z", {"value": "z"}]
+            ]
+          }
+        }
+      }
+    }
+  }`,
+		},
+		{
+			name: "multiple redactions",
+			input: `{
+  "timestamp": "2023-01-01T00:00:00Z",
+  "debugger": {
+    "snapshot": {
+      "id": "snap-123",
+      "timestamp": "2023-01-01T01:00:00Z",
+      "stack": ["frame1", "frame2"],
+      "captures": {
+        "locals": {
+          "address": "0x123456",
+          "entries": [
+            ["var_b", {"value": "b"}],
+            ["var_a", {"value": "a"}]
+          ]
+        }
+      }
+    }
+  }
+}`,
+			expected: `{
+    "timestamp": "[ts]",
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "stack": "[stack-unredact-me]",
+        "captures": {
+          "locals": {
+            "address": "[addr]",
+            "entries": [
+              ["var_a", {"value": "a"}],
+              ["var_b", {"value": "b"}]
+            ]
+          }
+        }
+      }
+    }
+  }`,
+		},
+		{
+			name: "no redactions needed",
+			input: `{
+  "normal": "field",
+  "data": {
+    "value": 123
+  }
+}`,
+			expected: `{
+    "normal": "field",
+    "data": {
+      "value": 123
+    }
+  }`,
+		},
+		{
+			name: "map with addr",
+			input: `{
+  "timestamp": "2023-01-01T00:00:00Z",
+  "debugger": {
+    "snapshot": {
+      "id": "snap-123",
+      "timestamp": "2023-01-01T01:00:00Z",
+      "stack": ["frame1", "frame2"],
+      "captures": {
+        "entry": {
+		  "arguments": {
+		    "m": {
+			  "type": "map[string]main.bigStruct",
+			  "address": "0x123456",
+			  "entries": [
+				[ {"key": "k1", "value": {"a": 1, "b": 2}}, {"key": "k2", "value": {"a": 3, "b": 4}} ]
+	          ]
+			}
+		  }
+        }
+      }
+    }
+  }
+}`,
+			expected: `{
+  "timestamp": "[ts]",
+  "debugger": {
+    "snapshot": {
+      "id": "[id]",
+      "timestamp": "[ts]",
+      "stack": "[stack-unredact-me]",
+      "captures": {
+        "entry": {
+		  "arguments": {
+		    "m": {
+			  "type": "map[string]main.bigStruct",
+			  "address": "[addr]",
+			  "entries": [
+				[ {"key": "k1", "value": {"a": 1, "b": 2}}, {"key": "k2", "value": {"a": 3, "b": 4}} ]
+	          ]
+			}
+		  }
+        }
+      }
+    }
+  }
+}`,
+		},
+		{
+			name: "pointer chain with duplicate address fields",
+			input: `{
+  "timestamp": "2023-01-01T00:00:00Z",
+  "debugger": {
+    "snapshot": {
+      "id": "snap-123",
+      "timestamp": "2023-01-01T01:00:00Z",
+      "stack": ["frame1", "frame2"],
+      "captures": {
+        "entry": {
+          "arguments": {
+            "ptr": {
+              "type": "*main.PointerChainArg",
+              "address": "0x7fff5fbff100",
+              "fields": {
+                "addr": {
+                  "type": "uintptr",
+                  "address": "0x7fff5fbff108",
+                  "value": "0x12345678"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`,
+			expected: `{
+    "timestamp": "[ts]",
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "stack": "[stack-unredact-me]",
+        "captures": {
+          "entry": {
+            "arguments": {
+              "ptr": {
+                "type": "*main.PointerChainArg",
+                "address": "[addr]",
+                "fields": {
+                  "addr": {
+                    "type": "uintptr",
+                    "address": "[addr]",
+                    "value": "0x12345678"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := redactJSON(t, "", []byte(tt.input), defaultRedactors)
+			require.JSONEq(t, tt.expected, string(result), "redacted JSON should match expected output")
+		})
+	}
 }
