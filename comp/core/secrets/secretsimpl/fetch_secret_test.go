@@ -58,6 +58,9 @@ func TestLimitBuffer(t *testing.T) {
 // getBackendCommandBinary compiles a binary from source, then sets the proper
 // permissions on it
 func getBackendCommandBinary(t *testing.T) (string, func()) {
+	os.Setenv("GOPRIVATE", "*")
+	os.Setenv("GOPROXY", "off")
+
 	platform := fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH)
 	outFile, err := os.CreateTemp("", "test_command_"+platform)
 	if err != nil {
