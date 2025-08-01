@@ -14,8 +14,6 @@ import packaging.version
 DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by installation process\n"
 
 DEPS_STARTING_WITH_DATADOG = [
-    "datadog",
-    "datadog_lambda",
     "datadog-a7",
     "datadog-agent-dev",
     "datadog-api-client",
@@ -49,7 +47,6 @@ DEPS_STARTING_WITH_DATADOG = [
     "datadog-serverless-utils",
     "datadog-sma",
     "datadog-threadstats",
-    "datadogpy",
 ]
 
 def run_command(args):
