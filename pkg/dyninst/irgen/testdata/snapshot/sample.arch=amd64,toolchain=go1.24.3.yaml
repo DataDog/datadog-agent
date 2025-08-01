@@ -334,7 +334,7 @@ Probes:
       events:
         - ID: 99
           Type: 387 EventRootType Probe[main.testInlinedBBB]
-          InjectionPoints: [{PC: "0xcd4a86", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd4a86", Frameless: false}]
           Condition: null
     - id: testInlinedBC
       version: 0
@@ -362,7 +362,7 @@ Probes:
       events:
         - ID: 100
           Type: 388 EventRootType Probe[main.testInlinedBCA]
-          InjectionPoints: [{PC: "0xcd4b93", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd4b93", Frameless: false}]
           Condition: null
     - id: testInlinedBCB
       version: 0
@@ -376,7 +376,7 @@ Probes:
       events:
         - ID: 101
           Type: 389 EventRootType Probe[main.testInlinedBCB]
-          InjectionPoints: [{PC: "0xcd4c46", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd4c46", Frameless: false}]
           Condition: null
     - id: testInlinedPrint
       version: 0
@@ -395,13 +395,13 @@ Probes:
             - PC: "0xcd47ea"
               Frameless: false
             - PC: "0xcd4871"
-              Frameless: true
+              Frameless: false
             - PC: "0xcd49b2"
-              Frameless: true
+              Frameless: false
             - PC: "0xcd4a3c"
-              Frameless: true
+              Frameless: false
             - PC: "0xcd4b0f"
-              Frameless: true
+              Frameless: false
           Condition: null
     - id: testInlinedSq
       version: 0
@@ -415,7 +415,7 @@ Probes:
       events:
         - ID: 102
           Type: 390 EventRootType Probe[main.testInlinedSq]
-          InjectionPoints: [{PC: "0xcd4ca1", Frameless: true}]
+          InjectionPoints: [{PC: "0xcd4ca1", Frameless: false}]
           Condition: null
     - id: testInlinedSumArray
       version: 0
@@ -432,9 +432,9 @@ Probes:
           Type: 391 EventRootType Probe[main.testInlinedSumArray]
           InjectionPoints:
             - PC: "0xcd4ce5"
-              Frameless: true
+              Frameless: false
             - PC: "0xcd4d85"
-              Frameless: true
+              Frameless: false
           Condition: null
     - id: testInt16Array
       version: 0
@@ -2034,9 +2034,9 @@ Subprograms:
           Type: 1 BaseType int
           Locations:
             - Range: 0xcd4bdb..0xcd4be5
-              Pieces: [{Size: 8, Op: {CfaOffset: 16304}}]
+              Pieces: [{Size: 8, Op: {CfaOffset: -80}}]
             - Range: 0xcd4be5..0xcd4c00
-              Pieces: [{Size: 8, Op: {CfaOffset: 16304}}]
+              Pieces: [{Size: 8, Op: {CfaOffset: -80}}]
             - Range: 0xcd4c00..0xcd4c14
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
           IsParameter: false
@@ -2045,9 +2045,9 @@ Subprograms:
           Type: 1 BaseType int
           Locations:
             - Range: 0xcd4bd6..0xcd4be0
-              Pieces: [{Size: 8, Op: {CfaOffset: 16312}}]
+              Pieces: [{Size: 8, Op: {CfaOffset: -72}}]
             - Range: 0xcd4be0..0xcd4c00
-              Pieces: [{Size: 8, Op: {CfaOffset: 16312}}]
+              Pieces: [{Size: 8, Op: {CfaOffset: -72}}]
             - Range: 0xcd4c00..0xcd4c0f
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: false
@@ -2125,19 +2125,19 @@ Subprograms:
             - Range: 0xcd5022..0xcd503b
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16280}
+                  Op: {CfaOffset: -104}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xcd503b..0xcd5045
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16280}
+                  Op: {CfaOffset: -104}
                 - Size: 8
                   Op: {CfaOffset: -136}
             - Range: 0xcd5045..0xcd522d
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16280}
+                  Op: {CfaOffset: -104}
                 - Size: 8
                   Op: {CfaOffset: -136}
           IsParameter: false
@@ -2154,19 +2154,19 @@ Subprograms:
             - Range: 0xcd5082..0xcd509c
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16256}
+                  Op: {CfaOffset: -128}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xcd509c..0xcd50a5
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16256}
+                  Op: {CfaOffset: -128}
                 - Size: 8
                   Op: {CfaOffset: -160}
             - Range: 0xcd50a5..0xcd522d
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16256}
+                  Op: {CfaOffset: -128}
                 - Size: 8
                   Op: {CfaOffset: -160}
           IsParameter: false
@@ -2183,19 +2183,19 @@ Subprograms:
             - Range: 0xcd50e2..0xcd50fc
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16264}
+                  Op: {CfaOffset: -120}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xcd50fc..0xcd5105
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16264}
+                  Op: {CfaOffset: -120}
                 - Size: 8
                   Op: {CfaOffset: -152}
             - Range: 0xcd5105..0xcd522d
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16264}
+                  Op: {CfaOffset: -120}
                 - Size: 8
                   Op: {CfaOffset: -152}
           IsParameter: false
@@ -2212,19 +2212,19 @@ Subprograms:
             - Range: 0xcd5142..0xcd516a
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16272}
+                  Op: {CfaOffset: -112}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
             - Range: 0xcd516a..0xcd516f
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16272}
+                  Op: {CfaOffset: -112}
                 - Size: 8
                   Op: {CfaOffset: -144}
             - Range: 0xcd516f..0xcd522d
               Pieces:
                 - Size: 8
-                  Op: {CfaOffset: 16272}
+                  Op: {CfaOffset: -112}
                 - Size: 8
                   Op: {CfaOffset: -144}
           IsParameter: false
@@ -3149,7 +3149,7 @@ Subprograms:
             - Range: 0xcd4ccd..0xcd4d03
               Pieces: [{Size: 40, Op: {CfaOffset: -56}}]
             - Range: 0xcd4d6c..0xcd4ea5
-              Pieces: [{Size: 40, Op: {CfaOffset: 16256}}]
+              Pieces: [{Size: 40, Op: {CfaOffset: -128}}]
           IsParameter: true
           IsReturn: false
 Types:

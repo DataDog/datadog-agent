@@ -11,7 +11,7 @@ Probes:
       events:
         - ID: 1
           Type: 304 EventRootType Probe[main.HandleHTTP]
-          InjectionPoints: [{PC: "0x8a08d0", Frameless: false}]
+          InjectionPoints: [{PC: "0x8a08d0", Frameless: true}]
           Condition: null
     - id: look_at_the_request
       version: 0
@@ -24,7 +24,7 @@ Probes:
       events:
         - ID: 2
           Type: 305 EventRootType Probe[main.LookAtTheRequest]
-          InjectionPoints: [{PC: "0x8a0bcc", Frameless: false}]
+          InjectionPoints: [{PC: "0x8a0bcc", Frameless: true}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -77,7 +77,7 @@ Subprograms:
             - Range: 0x8a0a0c..0x8a0a20
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0x8a0a20..0x8a0af0
-              Pieces: [{Size: 8, Op: {CfaOffset: 16264}}]
+              Pieces: [{Size: 8, Op: {CfaOffset: -120}}]
           IsParameter: false
           IsReturn: false
         - Name: .autotmp_14

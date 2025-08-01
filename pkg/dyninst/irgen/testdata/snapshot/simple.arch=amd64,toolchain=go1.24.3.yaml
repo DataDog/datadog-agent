@@ -15,7 +15,7 @@ Probes:
       events:
         - ID: 11
           Type: 63 EventRootType Probe[main.PointerChainArg]
-          InjectionPoints: [{PC: "0x4a8006", Frameless: true}]
+          InjectionPoints: [{PC: "0x4a8006", Frameless: false}]
           Condition: null
     - id: PointerSmallChainArg
       version: 0
@@ -32,7 +32,7 @@ Probes:
       events:
         - ID: 12
           Type: 64 EventRootType Probe[main.PointerSmallChainArg]
-          InjectionPoints: [{PC: "0x4a8050", Frameless: true}]
+          InjectionPoints: [{PC: "0x4a8050", Frameless: false}]
           Condition: null
     - id: bigMapArg
       version: 0
@@ -63,7 +63,7 @@ Probes:
             - PC: "0x4a83ca"
               Frameless: false
             - PC: "0x4a7dce"
-              Frameless: true
+              Frameless: false
           Condition: null
     - id: intArg
       version: 0

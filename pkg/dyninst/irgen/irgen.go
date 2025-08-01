@@ -216,6 +216,8 @@ func computePrologueResults(
 	pending []*pendingSubprogram,
 	abstractStartIdx int,
 ) ([]prologueResult, error) {
+	arch := objFile.Architecture()
+
 	ranks := make([]uint32, len(pending))
 	for i := range pending {
 		ranks[i] = uint32(i)
@@ -265,7 +267,17 @@ func computePrologueResults(
 		case err != nil:
 			results[r] = prologueResult{err: err}
 		case ok:
-			results[r] = prologueResult{loc: ir.InjectionPoint{PC: pc, Frameless: false}}
+			switch arch {
+			case "amd64":
+				results[r] = prologueResult{loc: ir.InjectionPoint{PC: pc, Frameless: false}}
+			case "arm64":
+				// Despite having a prologue, Go suggests to probe method calls at
+				// a pc before the stack allocation on arm. Treating functions
+				// as frameless does the trick.
+				results[r] = prologueResult{loc: ir.InjectionPoint{PC: pc, Frameless: true}}
+			default:
+				return nil, fmt.Errorf("unsupported architecture: %s", arch)
+			}
 		default:
 			results[r] = prologueResult{loc: ir.InjectionPoint{PC: ool[0][0], Frameless: true}}
 		}
@@ -1135,7 +1147,7 @@ func newProbe(
 			PC: inlinedInstanceRanges[0][0],
 			// TODO: We need to determine from the inlined parent whether the
 			// inlined instance is frameless.
-			Frameless: true,
+			Frameless: false,
 		})
 	}
 
