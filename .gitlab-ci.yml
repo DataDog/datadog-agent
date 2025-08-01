@@ -41,7 +41,8 @@ include:
 
 default:
   retry:
-    max: 1 # Retry everything once on failure 
+    max: 1 # Retry everything once on failure
+    when: always
 
 stages:
   - .pre
@@ -156,31 +157,31 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v71194676-f243bb19
+  CI_IMAGE_BTF_GEN: v72007680-abe4fb3f
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v71194676-f243bb19
+  CI_IMAGE_DEB_X64: v72007680-abe4fb3f
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v71194676-f243bb19
+  CI_IMAGE_DEB_ARM64: v72007680-abe4fb3f
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v71194676-f243bb19
+  CI_IMAGE_DEB_ARMHF: v72007680-abe4fb3f
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v71194676-f243bb19
+  CI_IMAGE_DOCKER_X64: v72007680-abe4fb3f
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v71194676-f243bb19
+  CI_IMAGE_DOCKER_ARM64: v72007680-abe4fb3f
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v71194676-f243bb19
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v72007680-abe4fb3f
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v71194676-f243bb19
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v72007680-abe4fb3f
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v71194676-f243bb19
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v72007680-abe4fb3f
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v71194676-f243bb19
+  CI_IMAGE_RPM_X64: v72007680-abe4fb3f
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v71194676-f243bb19
+  CI_IMAGE_RPM_ARM64: v72007680-abe4fb3f
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v71194676-f243bb19
+  CI_IMAGE_RPM_ARMHF: v72007680-abe4fb3f
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v70289801-3a61ff42
+  CI_IMAGE_WIN_LTSC2022_X64: v72007680-abe4fb3f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -1096,6 +1097,62 @@ workflow:
 .except_coverage_pipeline:
   - <<: *if_coverage_pipeline
     when: never
+
+# This is used to setup utils to report custom datadog-ci spans
+.setup-datadog-ci-sections:
+  - |
+    if [ -z "$DATADOG_API_KEY" ]; then
+      DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    fi
+  - |
+    # Start a custom datadog span
+    # datadog-ci-start-section <name>
+    datadog-ci-start-section()
+    {
+      export sectionname="$1"
+      if [ -z "$sectionname" ]; then
+        echo "datadog-ci-end-section: name is required as first argument" >& 2
+        return 1
+      fi
+      export datestart="$(date '+%s%N' | cut -b1-13)"
+    }
+    # Finish and send the span to Datadog
+    # datadog-ci-end-section [--end-time <timestamp>] [--category <category>] <name>
+    datadog-ci-end-section()
+    {
+      if [ "$1" = "--end-time" ]; then
+        shift
+        dateend="$1"
+        shift
+      else
+        dateend="$(date '+%s%N' | cut -b1-13)"
+      fi
+      if [ "$1" = "--category" ]; then
+        shift
+        category="--tags agent-category:$1"
+        shift
+      fi
+      name="$1"
+      if [ -z "$name" ]; then
+        echo "datadog-ci-end-section: name is required as first argument" >& 2
+        return 1
+      fi
+      if [ "$name" != "$sectionname" ]; then
+        echo "datadog-ci-end-section: name does not match the last section name (got $name but was $sectionname)" >& 2
+        return 1
+      fi
+      if [ -z "$datestart" ]; then
+        echo "datadog-ci-end-section: datadog-ci-start-section was not called" >& 2
+        return 1
+      fi
+      datadog-ci trace span --name "$name" --start-time "$datestart" --end-time "$dateend" --tags agent-custom-span:true $category
+      if [ "$?" -ne 0 ]; then
+        # Don't fail the job for that
+        echo "WARNING: datadog-ci trace span failed" >& 2
+      fi
+      export datestart=
+      export sectionname=
+    }
 
 .retry_only_infra_failure:
   retry:

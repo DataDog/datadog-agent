@@ -123,7 +123,7 @@ func NewComponent(req Requires) (Provides, error) {
 
 		// Start the TagStore and the WorkloadMeta collector.
 		go taggerInstance.tagStore.Run(taggerInstance.ctx)
-		go taggerInstance.collector.Run(taggerInstance.ctx, taggerInstance.cfg)
+		go taggerInstance.collector.Run(taggerInstance.ctx)
 
 		return nil
 	}})

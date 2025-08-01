@@ -54,6 +54,7 @@ func main() {
 	agentVersionPtr := flag.String("agent-version", "", "Version of datadog-agent")
 	provisionInstancePtr := flag.Bool("provision-instance", false, "run provision step for metal instance")
 	provisionMicrovmsPtr := flag.Bool("provision-microvms", false, "run provision step for microvms")
+	setupGdbPtr := flag.Bool("setup-gdb", false, "setup gdb server in QEMU attached to guest kernel")
 
 	flag.Parse()
 
@@ -77,6 +78,7 @@ func main() {
 		Local:                 *local,
 		RunAgent:              *runAgentPtr,
 		AgentVersion:          *agentVersionPtr,
+		SetupGDB:              *setupGdbPtr,
 	}
 
 	err := run(*envNamePtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr, &opts)

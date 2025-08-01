@@ -23,9 +23,6 @@ import (
 var allDeviceMetrics = []deviceMetric{
 	{"pci.throughput.tx", getTxPciThroughput, metrics.GaugeType},
 	{"pci.throughput.rx", getRxPciThroughput, metrics.GaugeType},
-	{"decoder_utilization", getDecoderUtilization, metrics.GaugeType},
-	{"dram_active", getDramActive, metrics.GaugeType},
-	{"encoder_utilization", getEncoderUtilization, metrics.GaugeType},
 	{"fan_speed", getFanSpeed, metrics.GaugeType},
 	{"power.management_limit", getPowerManagementLimit, metrics.GaugeType},
 	{"power.usage", getPowerUsage, metrics.GaugeType},
@@ -40,7 +37,6 @@ var allDeviceMetrics = []deviceMetric{
 	{"clock.speed.video.max", getMaxVideoClockSpeed, metrics.GaugeType},
 	{"temperature", getTemperature, metrics.GaugeType},
 	{"total_energy_consumption", getTotalEnergyConsumption, metrics.CountType},
-	{"sm_active", getSMActive, metrics.GaugeType},
 	{"device.total", getDeviceCount, metrics.GaugeType},
 }
 
@@ -137,29 +133,6 @@ func getTxPciThroughput(dev ddnvml.SafeDevice) (float64, error) {
 	tput, err := dev.GetPcieThroughput(nvml.PCIE_UTIL_TX_BYTES)
 	// Convert to B/S
 	return float64(tput) * 1024, err
-}
-
-func getDecoderUtilization(dev ddnvml.SafeDevice) (float64, error) {
-	// returns utilization from 0-100
-	util, _, err := dev.GetDecoderUtilization()
-	return float64(util), err
-}
-
-func getDramActive(dev ddnvml.SafeDevice) (float64, error) {
-	// returns utilization from 0-100
-	util, err := dev.GetUtilizationRates()
-	return float64(util.Memory), err
-}
-
-func getSMActive(dev ddnvml.SafeDevice) (float64, error) {
-	util, err := dev.GetUtilizationRates()
-	return float64(util.Gpu), err
-}
-
-func getEncoderUtilization(dev ddnvml.SafeDevice) (float64, error) {
-	// returns utilization from 0-100
-	util, _, err := dev.GetEncoderUtilization()
-	return float64(util), err
 }
 
 func getFanSpeed(dev ddnvml.SafeDevice) (float64, error) {
