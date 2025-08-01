@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
@@ -63,11 +62,12 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 	v.Require().NoError(err)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetric(c, fakeIntake)
+		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetadata(c, fakeIntake)
+		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 
 	apiKey1 := strings.Repeat("0", 32)
@@ -104,11 +104,12 @@ secret_backend_arguments:
 	}, 1*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetric(c, fakeIntake)
+		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetadata(c, fakeIntake)
+		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 
 	secretClient.SetSecret("api_key", apiKey2)
@@ -124,46 +125,11 @@ secret_backend_arguments:
 	}, 1*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetric(c, fakeIntake)
+		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetadata(c, fakeIntake)
+		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
-}
-
-func checkBasicMetric(c *assert.CollectT, fakeIntake *components.FakeIntake) {
-	metrics, err := fakeIntake.Client().GetMetricNames()
-	assert.NoError(c, err)
-	assert.Contains(c, metrics, "snmp.sysUpTimeInstance", "Metrics %v doesn't contain snmp.sysUpTimeInstance", metrics)
-}
-
-func checkBasicMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
-	ndmPayloads, err := fakeIntake.Client().GetNDMPayloads()
-	assert.NoError(c, err)
-	assert.Greater(c, len(ndmPayloads), 0)
-
-	ndmPayload := ndmPayloads[len(ndmPayloads)-1]
-	assert.Equal(c, "default", ndmPayload.Namespace)
-	assert.Equal(c, "snmp", ndmPayload.Integration)
-	assert.Greater(c, len(ndmPayload.Devices), 0)
-	assert.Greater(c, len(ndmPayload.Interfaces), 0)
-
-	ciscoDevice := ndmPayload.Devices[0]
-	assert.Equal(c, "default:127.0.0.1", ciscoDevice.ID)
-	assert.Contains(c, ciscoDevice.IDTags, "snmp_device:127.0.0.1")
-	assert.Contains(c, ciscoDevice.IDTags, "device_namespace:default")
-	assert.Contains(c, ciscoDevice.Tags, "snmp_profile:cisco-nexus")
-	assert.Contains(c, ciscoDevice.Tags, "device_vendor:cisco")
-	assert.Contains(c, ciscoDevice.Tags, "snmp_device:127.0.0.1")
-	assert.Contains(c, ciscoDevice.Tags, "device_namespace:default")
-	assert.Equal(c, "127.0.0.1", ciscoDevice.IPAddress)
-	assert.Equal(c, int32(1), ciscoDevice.Status)
-	assert.Equal(c, "Nexus-eu1.companyname.managed", ciscoDevice.Name)
-	assert.Equal(c, "oxen acted but acted kept", ciscoDevice.Description)
-	assert.Equal(c, "1.3.6.1.4.1.9.12.3.1.3.1.2", ciscoDevice.SysObjectID)
-	assert.Equal(c, "but kept Jaded their but kept quaintly driving their", ciscoDevice.Location)
-	assert.Equal(c, "cisco-nexus", ciscoDevice.Profile)
-	assert.Equal(c, "cisco", ciscoDevice.Vendor)
-	assert.Equal(c, "switch", ciscoDevice.DeviceType)
 }
