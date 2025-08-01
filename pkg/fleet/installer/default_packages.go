@@ -6,6 +6,7 @@
 package installer
 
 import (
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -34,6 +35,7 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
+	{Name: "datadog-agent-ddot", version: agentVersion, released: false, releasedWithRemoteUpdates: true, condition: ddotEnabled},
 }
 
 // Default versions pinned for CentOS 6
@@ -163,4 +165,15 @@ func packageToLanguage(packageName string) env.ApmLibLanguage {
 
 func agentVersion(_ Package, e *env.Env) string {
 	return e.GetAgentVersion()
+}
+
+// ddotEnabled returns true if DDOT should be installed
+// DDOT is installed when otel-collector is enabled or when explicitly requested
+func ddotEnabled(_ Package, _ *env.Env) bool {
+	// Check if explicitly enabled via environment variable
+	if otelEnabled, ok := os.LookupEnv("DD_OTEL_COLLECTOR_ENABLED"); ok {
+		return strings.ToLower(otelEnabled) == "true"
+	}
+
+	return false
 }
