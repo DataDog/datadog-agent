@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/receiver/datadogrumreceiver"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -160,6 +161,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), byoc)
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
+	factories.Receivers[datadogrumreceiver.Type] = datadogrumreceiver.NewFactory()
 }
 
 var buildInfo = component.BuildInfo{

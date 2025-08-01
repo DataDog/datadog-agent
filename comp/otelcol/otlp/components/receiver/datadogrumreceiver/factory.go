@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2021-present Datadog, Inc.
+
+// Package datadogrumreceiver provides a factory for the Datadog RUM receiver.
 package datadogrumreceiver
 
 import (
@@ -40,7 +46,7 @@ func createTracesReceiver(_ context.Context, params receiver.Settings, cfg compo
 		return nil, err
 	}
 
-	r.Unwrap().(*datadogRUMReceiver).nextTracesConsumer = consumer
+	r.(*datadogRUMReceiver).nextTracesConsumer = consumer
 	return r, nil
 }
 
@@ -52,6 +58,6 @@ func createLogsReceiver(_ context.Context, params receiver.Settings, cfg compone
 		return nil, err
 	}
 
-	r.Unwrap().(*datadogRUMReceiver).nextLogsConsumer = consumer
+	r.(*datadogRUMReceiver).nextLogsConsumer = consumer
 	return r, nil
 }

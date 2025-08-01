@@ -93,3 +93,5 @@ receivers:
     v0.129.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver
     v0.129.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogrumreceiver
+    v0.129.0

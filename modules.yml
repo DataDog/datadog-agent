@@ -102,6 +102,8 @@ modules:
   comp/otelcol/otlp/components/metricsclient:
     used_by_otel: true
   comp/otelcol/otlp/components/processor/infraattributesprocessor: default
+  comp/otelcol/otlp/components/receiver/datadogrumreceiver:
+    used_by_otel: true
   comp/otelcol/otlp/components/statsprocessor:
     used_by_otel: true
   comp/otelcol/otlp/testutil:

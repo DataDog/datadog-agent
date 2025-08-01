@@ -59,6 +59,7 @@ use (
 	comp/otelcol/otlp/components/metricsclient
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
 	comp/otelcol/otlp/components/statsprocessor
+	comp/otelcol/otlp/components/receiver/datadogrumreceiver
 	comp/otelcol/otlp/testutil
 	comp/otelcol/status/def
 	comp/otelcol/status/impl
