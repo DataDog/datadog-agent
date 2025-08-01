@@ -25,7 +25,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -89,12 +89,18 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		logtracefx.Module(),
 		autoexitimpl.Module(),
 		statsd.Module(),
-		remoteTaggerfx.Module(tagger.RemoteParams{
-			RemoteTarget: func(c coreconfig.Component) (string, error) {
-				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+		optionalRemoteTaggerfx.Module(
+			tagger.OptionalRemoteParams{
+				Disable: func(c coreconfig.Component) bool {
+					return c.GetBool("apm_config.disable_remote_tagger")
+				},
 			},
-			RemoteFilter: taggerTypes.NewMatchAllFilter(),
-		}),
+			tagger.RemoteParams{
+				RemoteTarget: func(c coreconfig.Component) (string, error) {
+					return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
+				},
+				RemoteFilter: taggerTypes.NewMatchAllFilter(),
+			}),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
