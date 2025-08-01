@@ -114,9 +114,9 @@ type Function struct {
 	// The function's unqualified name.
 	Name string
 	// The function's fully-qualified name, including module, package and
-	// receiver. When creating probes based on a function name coming from
-	// SymDB, the qualified name is how the function is identified to the
-	// prober.
+	// receiver, as it appears in DWARF. When creating probes based on a
+	// function name coming from SymDB, the qualified name is how the function
+	// is identified to the prober.
 	QualifiedName string
 	// The source file containing the function. This is an absolute path local
 	// to the build machine, as recorded in DWARF.
@@ -388,6 +388,20 @@ func (c *typesCollection) getType(name string) *Type {
 // Unsupported types are ignored and no error is returned.
 func (c *typesCollection) addType(t godwarf.Type) error {
 	name := t.Common().Name
+	{
+		// If the last element of the package's import path contains dots, they
+		// are replaced with %2e in DWARF to differentiate them from the dot
+		// that separates the package path from the type name. Undo this
+		// escaping so that our cache key matches the actual package name.
+		escapedDot := "%2e"
+		i := strings.LastIndex(name, escapedDot)
+		if i >= 0 {
+			// Replace %2e with '.' in the type name. This is how DWARF encodes
+			// dots in package names.
+			name = name[:i] + "." + name[i+len(escapedDot):]
+		}
+	}
+
 	// Check if the type is already present.
 	if _, ok := c.types[name]; ok {
 		return nil
