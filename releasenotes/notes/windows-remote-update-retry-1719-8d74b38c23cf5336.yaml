@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Remote Agent management on Windows now automatically retries when a MSI
+    custom action returns error 1601 (``ERROR_INSTALL_SERVICE_FAILURE``) and
+    causes ``Error 1719. The Windows Installer Service could not be accessed``.
