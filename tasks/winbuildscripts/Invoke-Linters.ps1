@@ -57,6 +57,7 @@ Invoke-BuildScript `
 
     # Lint system-probe Go
     & dda inv -- -e linter.go --build system-probe-unit-tests --targets .\pkg
+    $err = $LASTEXITCODE
     Write-Host system-probe Go linter result is $err
     if($err -ne 0){
         Write-Host -ForegroundColor Red "system-probe go linter failed $err"
