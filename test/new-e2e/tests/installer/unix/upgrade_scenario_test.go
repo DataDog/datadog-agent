@@ -785,7 +785,7 @@ func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, config ins
 
 	rawConfigs := []byte{}
 	for i, config := range configActions {
-		rawConfig, err := json.Marshal(config.Files)
+		rawConfig, err := json.Marshal(config)
 		require.NoError(s.T(), err)
 		rawConfigs = append(rawConfigs, rawConfig...)
 		if i < len(configActions)-1 {

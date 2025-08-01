@@ -392,22 +392,26 @@ func installConfigExperimentCommand() *cobra.Command {
 
 			configs := make([][]byte, len(args)-2)
 			// Case for backward compatibility with the previous version of the config
-			// where the config was [{"path": "path/to/config", "contents": "contents"}]
+			// where the config was {"id":"config-1","files":[{"path": "path/to/config", "contents": "contents"}]}
 			if len(args) == 3 {
-				var configMap []interface{}
+				var configMap configAction
 				err := json.Unmarshal([]byte(args[2]), &configMap)
 				if err != nil {
-					configs = [][]byte{[]byte(args[2])}
-				} else {
-					action := configAction{
+					return err
+				}
+				if configMap.ActionType == "" {
+					// Old configs
+					configMap = configAction{
 						ActionType: "write",
-						Files:      configMap,
+						Files:      configMap.Files,
 					}
-					actionBytes, err := json.Marshal(action)
+					actionBytes, err := json.Marshal(configMap)
 					if err != nil {
 						return err
 					}
 					configs = [][]byte{actionBytes}
+				} else {
+					configs = [][]byte{[]byte(args[2])}
 				}
 			} else {
 				for i, config := range args[2:] {

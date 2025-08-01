@@ -517,10 +517,6 @@ func (i *installerImpl) InstallConfigExperiment(
 	}
 	defer os.RemoveAll(tmpDir)
 
-	for _, rawConfig := range rawConfigs {
-		fmt.Println("rawConfig", string(rawConfig))
-	}
-
 	// TODO: starts with copying the stable config files
 	err = i.writeConfig(tmpDir, rawConfigs)
 	if err != nil {
@@ -874,7 +870,7 @@ func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error
 				}
 			case configFileActionWrite:
 				var c interface{}
-				err := json.Unmarshal(file.Contents, &c)
+				err = json.Unmarshal(file.Contents, &c)
 				if err != nil {
 					return fmt.Errorf("could not unmarshal config file contents: %w", err)
 				}
