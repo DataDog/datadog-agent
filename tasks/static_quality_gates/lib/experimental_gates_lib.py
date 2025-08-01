@@ -2,7 +2,6 @@ import glob
 import os
 import sys
 import tempfile
-from abc import abstractmethod
 from io import UnsupportedOperation
 
 import yaml
@@ -119,12 +118,15 @@ class StaticQualityGate:
             error_message = color_message(f"{self.gate_name} failed!\n" + error_message, "red")
             raise StaticQualityGateFailed(error_message)
 
-    @abstractmethod
     def execute_gate(self):
         """
         Execute the quality gate.
         """
-        raise NotImplementedError("This method should be implemented by the subclass")
+        print(f"Executing {self.gate_name}")
+        print(f"Artifact path: {self.artifact_path}")
+        self._check_artifact_size()
+        print(color_message(f"✅{self.gate_name} passed.", "green"))
+        self.print_results()
 
 
 class StaticQualityGatePackage(StaticQualityGate):
@@ -148,6 +150,8 @@ class StaticQualityGatePackage(StaticQualityGate):
         super().__init__(gate_name, gate_max_size_values, ctx)
         self._set_os()
         self._register_gate_metrics()
+        self._find_package_path()
+        self._calculate_package_size()
 
     def _find_package_path(self, extension: str = None) -> None:
         """
@@ -194,23 +198,6 @@ class StaticQualityGatePackage(StaticQualityGate):
         self.artifact_on_wire_size = package_on_wire_size
         self.artifact_on_disk_size = package_on_disk_size
 
-    def execute_gate(self):
-        """
-        Execute the package quality gate.
-        This function will:
-        - Find the package path
-        - Calculate the size of the package on wire and on disk
-        - Check the size of the package on wire and on disk
-        """
-        print(f"Triggering {self.gate_name}")
-        self._find_package_path()
-        print(f"Package path found: {self.artifact_path}")
-        self._calculate_package_size()
-        print(f"Package size calculated: {self.artifact_on_wire_size} on wire, {self.artifact_on_disk_size} on disk")
-        self._check_artifact_size()
-        print(color_message(f"✅ Package size check passed for {self.gate_name}", "green"))
-        self.print_results()
-
 
 class StaticQualityGateDocker(StaticQualityGate):
     """
@@ -225,6 +212,8 @@ class StaticQualityGateDocker(StaticQualityGate):
         self._set_os()
         self._register_gate_metrics()
         self._get_image_url()
+        self._calculate_image_on_wire_size()
+        self._calculate_image_on_disk_size()
 
     def _get_image_url(self) -> str:
         """
@@ -342,10 +331,7 @@ class StaticQualityGateDocker(StaticQualityGate):
 
     def execute_gate(self):
         print(f"Triggering {self.gate_name}")
-        self._get_image_url()
-        print(f"Image url found: {self.artifact_path}")
-        self._calculate_image_on_wire_size()
-        self._calculate_image_on_disk_size()
+
         self._check_artifact_size()
         print(color_message(f"✅ Docker image size check passed for {self.gate_name}", "green"))
         self.print_results()
@@ -367,7 +353,7 @@ def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQuality
         elif any(package_type in gate_name for package_type in ["deb", "rpm", "heroku", "suse"]):
             gates.append(StaticQualityGatePackage(gate_name, config[gate_name], ctx))
         elif "msi" in gate_name:
-            raise NotImplementedError(f"MSI gates are not supported yet: {gate_name}")
+            print(color_message(f"MSI gates are not supported yet: {gate_name}", "orange"))
         else:
             raise UnsupportedOperation(f"Unknown gate type: {gate_name}")
 
