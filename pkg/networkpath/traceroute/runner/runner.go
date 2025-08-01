@@ -291,7 +291,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 
 	doSyn := func() (*common.Results, error) {
 		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynParisTracerouteMode)
-		return tr.TracerouteSequential()
+		return tr.Traceroute()
 	}
 	doSack := func() (*common.Results, error) {
 		params, err := makeSackParams(target, destPort, maxTTL, timeout)
