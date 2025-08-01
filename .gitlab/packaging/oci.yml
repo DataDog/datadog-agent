@@ -57,6 +57,9 @@
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
           EXTRA_FLAGS="--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
         fi
+        if [ "${OCI_PRODUCT}" = "datadog-agent-ddot" ]; then
+          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent"
+        fi
         datadog-package create \
           --version ${PACKAGE_VERSION} \
           --package ${OCI_PRODUCT} \
@@ -87,3 +90,12 @@ installer_oci:
   needs: ["installer-arm64-oci", "installer-amd64-oci", "windows-installer-amd64", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-installer"
+
+ddot_oci:
+  extends: .package_oci
+  needs: ["datadog-otel-agent-x64", "datadog-otel-agent-arm64", "go_tools_deps"]
+  variables:
+    OCI_PRODUCT: "datadog-agent-ddot"
+  before_script:
+    - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
+    - export INSTALL_DIR=/opt/datadog-agent
