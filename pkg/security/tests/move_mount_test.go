@@ -227,7 +227,8 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	defer te.UnmountAll()
 
 	if err != nil {
-		t.Fatal(err)
+		fmt.Println("Error creating new test environment", err)
+		t.Fail()
 	}
 
 	test, err := newTestModule(t, nil, nil)
@@ -274,7 +275,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
 		t.Skip("move_mount syscall is not supported on this platform")
 	}
-	
+
 	te, err := newTestEnvironment(false, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
