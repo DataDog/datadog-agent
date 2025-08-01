@@ -34,13 +34,14 @@ class TestVmconfig(unittest.TestCase):
     def test_normalize_vm_def__returns_expected_values(self):
         possible = vmconfig.list_possible()
 
-        self.assertEqual(
-            vmconfig.normalize_vm_def(possible, "ubuntu22-arm64-distro"), ("distro", "ubuntu_22.04", "arm64")
-        )
-        self.assertEqual(
-            vmconfig.normalize_vm_def(possible, "ubuntu22-x86_64-distro"), ("distro", "ubuntu_22.04", "x86_64")
-        )
-        self.assertEqual(vmconfig.normalize_vm_def(possible, "focal-arm64-distro"), ("distro", "ubuntu_20.04", "arm64"))
-        self.assertEqual(
-            vmconfig.normalize_vm_def(possible, "focal-x86_64-distro"), ("distro", "ubuntu_20.04", "x86_64")
-        )
+        cases = [
+            ("ubuntu22-arm64-distro", ("distro", "ubuntu_22.04", "arm64")),
+            ("ubuntu22-x86_64-distro", ("distro", "ubuntu_22.04", "x86_64")),
+            ("focal-arm64-distro", ("distro", "ubuntu_20.04", "arm64")),
+            ("focal-x86_64-distro", ("distro", "ubuntu_20.04", "x86_64")),
+            ("ubuntu_22-arm64-distro", ("distro", "ubuntu_22.04", "arm64")),
+            ("ubuntu-22-x86_64-distro", ("distro", "ubuntu_22.04", "x86_64")),
+        ]
+
+        for input, expected in cases:
+            self.assertEqual(vmconfig.normalize_vm_def(possible, input), expected)
