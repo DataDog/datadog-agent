@@ -12,7 +12,7 @@ $ErrorActionPreference = "Continue"
 
 while ($retryCount -lt $maxRetries) {
     if ($parameterField) {
-        $result = (vault kv get -field="$parameterField" kv/k8s/gitlab-runner/datadog-agent/"$parameterName" 2> errorFile.txt)
+        $result = (vault kv get -field="$parameterField" kv/k8s/gitlab-runner-datadog-agent/datadog-agent/"$parameterName" 2> errorFile.txt)
     } else {
         $result = (aws ssm get-parameter --region us-east-1 --name $parameterName --with-decryption --query "Parameter.Value" --output text 2> errorFile.txt)
     }
