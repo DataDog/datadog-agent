@@ -479,9 +479,10 @@ func TestKernelLaunchTriggersSyncIfLimitReached(t *testing.T) {
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
-		maxKernelLaunches: 5,
-		maxAllocEvents:    5,
-		maxPendingSpans:   100,
+		maxKernelLaunches:     5,
+		maxAllocEvents:        5,
+		maxPendingKernelSpans: 100,
+		maxPendingMemorySpans: 100,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
 	require.NoError(t, err)
@@ -519,9 +520,10 @@ func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
-		maxKernelLaunches: 5,
-		maxAllocEvents:    5,
-		maxPendingSpans:   100,
+		maxKernelLaunches:     5,
+		maxAllocEvents:        5,
+		maxPendingKernelSpans: 100,
+		maxPendingMemorySpans: 100,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
 	require.NoError(t, err)
@@ -601,9 +603,10 @@ func TestMemoryAllocationEviction(t *testing.T) {
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
-		maxKernelLaunches: 5,
-		maxAllocEvents:    5,
-		maxPendingSpans:   100,
+		maxKernelLaunches:     5,
+		maxAllocEvents:        5,
+		maxPendingKernelSpans: 100,
+		maxPendingMemorySpans: 100,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
 	require.NoError(t, err)
@@ -641,9 +644,10 @@ func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
-		maxKernelLaunches: 5,
-		maxAllocEvents:    5,
-		maxPendingSpans:   1000,
+		maxKernelLaunches:     5,
+		maxAllocEvents:        5,
+		maxPendingKernelSpans: 1000,
+		maxPendingMemorySpans: 1000,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
 	require.NoError(t, err)
@@ -718,9 +722,10 @@ func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
 func TestStreamHandlerIsInactive(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	limits := streamLimits{
-		maxKernelLaunches: 5,
-		maxAllocEvents:    5,
-		maxPendingSpans:   100,
+		maxKernelLaunches:     5,
+		maxAllocEvents:        5,
+		maxPendingKernelSpans: 100,
+		maxPendingMemorySpans: 100,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, newStreamTelemetry(testutil.GetTelemetryMock(t)))
 	require.NoError(t, err)
@@ -753,16 +758,17 @@ func TestStreamHandlerIsInactive(t *testing.T) {
 func TestStreamHandlerMaxPendingSpans(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	limits := streamLimits{
-		maxKernelLaunches: 1000,
-		maxAllocEvents:    1000,
-		maxPendingSpans:   5,
+		maxKernelLaunches:     1000,
+		maxAllocEvents:        1000,
+		maxPendingKernelSpans: 5,
+		maxPendingMemorySpans: 5,
 	}
 	telemetryMock := testutil.GetTelemetryMock(t)
 
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, newStreamTelemetry(telemetryMock))
 	require.NoError(t, err)
 
-	spansToSend := limits.maxPendingSpans * 2
+	spansToSend := limits.maxPendingKernelSpans * 2
 	prevRejectionCount := 0
 
 	t.Run("KernelLaunches", func(t *testing.T) {
@@ -777,14 +783,14 @@ func TestStreamHandlerMaxPendingSpans(t *testing.T) {
 
 		data := stream.getPastData()
 		require.NotNil(t, data)
-		require.Len(t, data.kernels, limits.maxPendingSpans)
+		require.Len(t, data.kernels, limits.maxPendingKernelSpans)
 
 		rejectionCounter, err := telemetryMock.GetCountMetric("gpu__streams", "rejected_spans_due_to_limit")
 		require.NoError(t, err)
 		require.Len(t, rejectionCounter, 1)
 		rejectionCount := int(rejectionCounter[0].Value())
 		prevRejectionCount = rejectionCount
-		require.Equal(t, spansToSend-limits.maxPendingSpans, rejectionCount)
+		require.Equal(t, spansToSend-limits.maxPendingKernelSpans, rejectionCount)
 	})
 
 	t.Run("MemoryAllocations", func(t *testing.T) {
@@ -809,13 +815,13 @@ func TestStreamHandlerMaxPendingSpans(t *testing.T) {
 
 		data := stream.getPastData()
 		require.NotNil(t, data)
-		require.Len(t, data.allocations, limits.maxPendingSpans)
+		require.Len(t, data.allocations, limits.maxPendingKernelSpans)
 
 		rejectionCounter, err := telemetryMock.GetCountMetric("gpu__streams", "rejected_spans_due_to_limit")
 		require.NoError(t, err)
 		require.Len(t, rejectionCounter, 1)
 		rejectionCount := int(rejectionCounter[0].Value()) - prevRejectionCount
-		require.Equal(t, spansToSend-limits.maxPendingSpans, rejectionCount)
+		require.Equal(t, spansToSend-limits.maxPendingKernelSpans, rejectionCount)
 	})
 }
 func TestGetPastDataConcurrency(t *testing.T) {
@@ -823,9 +829,10 @@ func TestGetPastDataConcurrency(t *testing.T) {
 
 	eventsPerSync := 100
 	limits := streamLimits{
-		maxKernelLaunches: eventsPerSync * 1000,
-		maxAllocEvents:    eventsPerSync * 1000,
-		maxPendingSpans:   eventsPerSync * 1000,
+		maxKernelLaunches:     eventsPerSync * 1000,
+		maxAllocEvents:        eventsPerSync * 1000,
+		maxPendingKernelSpans: eventsPerSync * 1000,
+		maxPendingMemorySpans: eventsPerSync * 1000,
 	}
 
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, newStreamTelemetry(testutil.GetTelemetryMock(t)))
@@ -893,8 +900,10 @@ func BenchmarkHandleEvents(b *testing.B) {
 	// Set limits high enough so that we don't hit them, as we have nothing consuming the channels
 	// and we want to test just the non-blocking send
 	limits := streamLimits{
-		maxKernelLaunches: 1000000,
-		maxAllocEvents:    1000000,
+		maxKernelLaunches:     1000000,
+		maxAllocEvents:        1000000,
+		maxPendingKernelSpans: 1000000,
+		maxPendingMemorySpans: 1000000,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(b), limits, newStreamTelemetry(testutil.GetTelemetryMock(b)))
 	require.NoError(b, err)

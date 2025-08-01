@@ -25,9 +25,10 @@ const noSmVersion uint32 = 0
 
 // streamLimits contains configurable limits for a stream
 type streamLimits struct {
-	maxKernelLaunches int
-	maxAllocEvents    int
-	maxPendingSpans   int
+	maxKernelLaunches     int
+	maxAllocEvents        int
+	maxPendingKernelSpans int
+	maxPendingMemorySpans int
 }
 
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
@@ -169,8 +170,8 @@ func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, limits str
 		return nil, fmt.Errorf("failed to create memAllocEvents cache: %w", err)
 	}
 
-	sh.pendingKernelSpans = make(chan *kernelSpan, limits.maxPendingSpans)
-	sh.pendingMemorySpans = make(chan *memorySpan, limits.maxPendingSpans)
+	sh.pendingKernelSpans = make(chan *kernelSpan, limits.maxPendingKernelSpans)
+	sh.pendingMemorySpans = make(chan *memorySpan, limits.maxPendingMemorySpans)
 
 	return sh, nil
 }
@@ -347,7 +348,6 @@ func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 func consumeChannel[T any](ch chan T, count int) []T {
 	items := make([]T, 0, count)
 
-loop:
 	for len(items) < count {
 		select {
 		case item := <-ch:
@@ -356,7 +356,7 @@ loop:
 			// We shouldn't actually hit this, as we should stop consuming the
 			// channel when the count is reached and nothing else is consuming
 			// from the channel, but break just in case to avoid a deadlock
-			break loop
+			return items
 		}
 	}
 

@@ -67,9 +67,10 @@ type streamTelemetry struct {
 
 func getStreamLimits(config *config.Config) streamLimits {
 	return streamLimits{
-		maxKernelLaunches: config.MaxKernelLaunchesPerStream,
-		maxAllocEvents:    config.MaxMemAllocEventsPerStream,
-		maxPendingSpans:   config.MaxPendingSpans,
+		maxKernelLaunches:     config.MaxKernelLaunchesPerStream,
+		maxAllocEvents:        config.MaxMemAllocEventsPerStream,
+		maxPendingKernelSpans: config.MaxPendingKernelSpans,
+		maxPendingMemorySpans: config.MaxPendingMemorySpans,
 	}
 }
 
