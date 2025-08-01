@@ -459,40 +459,35 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, vers
 		configs = d.configsOverride
 	}
 
-	// TODO: improve the deserialize -> serialize -> deserialize of the config actions
 	serializedConfigs := make([][]byte, 0, len(configActions))
-	for _, configAction := range configActions {
-		var serializedConfig []byte
-		var err error
+	for i, configAction := range configActions {
+		var convertedAction convertedExperimentConfigAction
+
+		// When ConfigID is set, we look at the config version
 		if configAction.ConfigID != "" {
 			config, ok := configs[configAction.ConfigID]
 			if !ok {
-				return fmt.Errorf("could not find config version %s", configAction.ConfigID)
+				return fmt.Errorf("config version %s not found in available configs", configAction.ConfigID)
 			}
-			serializedConfig, err = json.Marshal(
-				convertedExperimentConfigAction{
-					ActionType: configAction.ActionType,
-					Files:      config.Files,
-				},
-			)
-
-			if err != nil {
-				return fmt.Errorf("could not serialize config files: %w", err)
+			convertedAction = convertedExperimentConfigAction{
+				ActionType: configAction.ActionType,
+				Files:      config.Files,
 			}
 		} else {
-			serializedConfig, err = json.Marshal(
-				convertedExperimentConfigAction{
-					ActionType: configAction.ActionType,
-					Files:      []installerConfigFile{{Path: configAction.Path}},
-				},
-			)
-			if err != nil {
-				return fmt.Errorf("could not serialize config files: %w", err)
+			// When ConfigID is not set, we only look at the path
+			convertedAction = convertedExperimentConfigAction{
+				ActionType: configAction.ActionType,
+				Files:      []installerConfigFile{{Path: configAction.Path}},
 			}
 		}
 
+		serializedConfig, err := json.Marshal(convertedAction)
+		if err != nil {
+			return fmt.Errorf("failed to serialize config action %d: %w", i, err)
+		}
 		serializedConfigs = append(serializedConfigs, serializedConfig)
 	}
+
 	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigs, []string{})
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
