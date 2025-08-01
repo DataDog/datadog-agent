@@ -137,16 +137,19 @@ func (ddr *datadogRUMReceiver) handleEvent(w http.ResponseWriter, req *http.Requ
 
 	ddr.params.Logger.Info("Request headers", zap.Any("headers", req.Header))
 	for _, event := range jsonEvents {
-		traceparent := req.Header.Get("traceparent")
-		if traceparent == "" && event["_dd"].(map[string]any)["trace_id"] == nil {
-			ddr.params.Logger.Info("failed to retrieve W3Ctraceparent or trace_id from header; treating as log instead")
+		if event["_dd"].(map[string]any)["trace_id"] == nil {
+			ddr.params.Logger.Info("failed to retrieve trace_id; treating as log instead")
 			otelLogs := translator.ToLogs(event, req, reqBytes)
 			if ddr.nextLogsConsumer != nil {
 				err = ddr.nextLogsConsumer.ConsumeLogs(obsCtx, otelLogs)
 			}
 		} else {
 			ddr.params.Logger.Info("Treating as trace")
-			otelTraces := translator.ToTraces(ddr.params.Logger, event, req, reqBytes, traceparent)
+			otelTraces, err := translator.ToTraces(ddr.params.Logger, event, req, reqBytes)
+			if err != nil {
+				ddr.params.Logger.Error("Error converting to traces", zap.Error(err))
+				return
+			}
 			if ddr.nextTracesConsumer != nil {
 				err = ddr.nextTracesConsumer.ConsumeTraces(obsCtx, otelTraces)
 			}

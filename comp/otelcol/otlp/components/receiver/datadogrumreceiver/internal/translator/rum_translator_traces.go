@@ -1,7 +1,6 @@
 package translator
 
 import (
-	"fmt"
 	"net/http"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -10,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func ToTraces(logger *zap.Logger, payload map[string]any, req *http.Request, reqBytes []byte, traceparent string) ptrace.Traces {
+func ToTraces(logger *zap.Logger, payload map[string]any, req *http.Request, reqBytes []byte) (ptrace.Traces, error) {
 	results := ptrace.NewTraces()
 	rs := results.ResourceSpans().AppendEmpty()
 	rs.SetSchemaUrl(semconv.SchemaURL)
@@ -19,20 +18,13 @@ func ToTraces(logger *zap.Logger, payload map[string]any, req *http.Request, req
 	in := rs.ScopeSpans().AppendEmpty()
 	in.Scope().SetName(InstrumentationScopeName)
 
-	traceID, spanID, err := parseW3CTraceContext(traceparent)
-	logger.Info("W3C Trace ID", zap.String("traceID", traceID.String()))
-	logger.Info("W3C Span ID", zap.String("spanID", spanID.String()))
+	traceID, spanID, err := parseIDs(payload, req)
 	if err != nil {
-		err = nil
-		traceID, spanID, err = parseIDs(payload, req)
-		if err != nil {
-			fmt.Println(err)
-			return results
-		}
+		return ptrace.NewTraces(), err
 	}
-
 	logger.Info("Trace ID", zap.String("traceID", traceID.String()))
 	logger.Info("Span ID", zap.String("spanID", spanID.String()))
+
 	newSpan := in.Spans().AppendEmpty()
 	if eventType, ok := payload[AttrType].(string); ok {
 		newSpan.SetName("datadog.rum." + eventType)
@@ -47,7 +39,7 @@ func ToTraces(logger *zap.Logger, payload map[string]any, req *http.Request, req
 	setDateForSpan(payload, newSpan)
 	setAttributes(flatPayload, newSpan.Attributes())
 
-	return results
+	return results, nil
 }
 
 func setDateForSpan(payload map[string]any, span ptrace.Span) {
@@ -61,9 +53,12 @@ func setDateForSpan(payload map[string]any, span ptrace.Span) {
 	}
 	dateNanoseconds := uint64(dateFloat) * 1e6
 
-	duration, ok := payload["resource"].(map[string]any)["duration"].(float64)
-	if !ok {
-		return
+	// default duration to 0 if not found
+	var duration float64 = 0
+	if resource, ok := payload["resource"].(map[string]any); ok {
+		if durationVal, ok := resource["duration"].(float64); ok {
+			duration = durationVal
+		}
 	}
 
 	span.SetStartTimestamp(pcommon.Timestamp(dateNanoseconds))

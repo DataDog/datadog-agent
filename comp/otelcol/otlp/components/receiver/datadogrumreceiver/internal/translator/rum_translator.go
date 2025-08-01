@@ -1,62 +1,18 @@
 package translator
 
 import (
-	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
-	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	semconv "go.opentelemetry.io/collector/semconv/v1.5.0"
 )
 
-var bufferPool = sync.Pool{
-	New: func() any {
-		return new(bytes.Buffer)
-	},
-}
-
-func GetBuffer() *bytes.Buffer {
-	buffer := bufferPool.Get().(*bytes.Buffer)
-	buffer.Reset()
-	return buffer
-}
-
-func PutBuffer(buffer *bytes.Buffer) {
-	bufferPool.Put(buffer)
-}
-
 type RUMPayload struct {
 	Type string
-}
-
-func parseW3CTraceContext(traceparent string) (traceID pcommon.TraceID, spanID pcommon.SpanID, err error) {
-	// W3C traceparent format: version-traceID-spanID-flags
-	parts := strings.Split(traceparent, "-")
-	if len(parts) != 4 {
-		return pcommon.NewTraceIDEmpty(), pcommon.NewSpanIDEmpty(), fmt.Errorf("invalid traceparent format: %s", traceparent)
-	}
-
-	// Parse trace ID (32 hex characters)
-	traceIDBytes, err := hex.DecodeString(parts[1])
-	if err != nil || len(traceIDBytes) != 16 {
-		return pcommon.NewTraceIDEmpty(), pcommon.SpanID{}, fmt.Errorf("invalid trace ID: %s", parts[1])
-	}
-	copy(traceID[:], traceIDBytes)
-
-	// Parse span ID
-	spanIDBytes, err := hex.DecodeString(parts[2])
-	if err != nil || len(spanIDBytes) != 8 {
-		return pcommon.NewTraceIDEmpty(), pcommon.NewSpanIDEmpty(), fmt.Errorf("invalid parent ID: %s", parts[2])
-	}
-	copy(spanID[:], spanIDBytes)
-
-	return traceID, spanID, nil
 }
 
 func parseIDs(payload map[string]any, req *http.Request) (pcommon.TraceID, pcommon.SpanID, error) {
