@@ -28,7 +28,7 @@ const (
 )
 
 func TestIsIstioBinary(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
 		t.Skip("TLS not supported")
 	}
 	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
@@ -43,7 +43,7 @@ func TestIsIstioBinary(t *testing.T) {
 }
 
 func TestGetEnvoyPathWithConfig(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
 		t.Skip("TLS not supported")
 	}
 	cfg := utils.NewUSMEmptyConfig()
@@ -56,7 +56,7 @@ func TestGetEnvoyPathWithConfig(t *testing.T) {
 }
 
 func TestIstioSync(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
 		t.Skip("TLS not supported")
 	}
 	t.Run("calling sync for the first time", func(tt *testing.T) {

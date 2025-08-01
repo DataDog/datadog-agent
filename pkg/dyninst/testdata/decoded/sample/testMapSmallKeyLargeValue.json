@@ -1,0 +1,124 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapSmallKeyLargeValue",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testMapSmallKeyLargeValue",
+          "location": {
+            "method": "main.testMapSmallKeyLargeValue"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[uint8][4]int",
+                "size": "3",
+                "entries": [
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "0"
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "1"
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "1"
+                        },
+                        {
+                          "type": "int",
+                          "value": "2"
+                        },
+                        {
+                          "type": "int",
+                          "value": "3"
+                        },
+                        {
+                          "type": "int",
+                          "value": "4"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "2"
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "2"
+                        },
+                        {
+                          "type": "int",
+                          "value": "4"
+                        },
+                        {
+                          "type": "int",
+                          "value": "6"
+                        },
+                        {
+                          "type": "int",
+                          "value": "8"
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]
