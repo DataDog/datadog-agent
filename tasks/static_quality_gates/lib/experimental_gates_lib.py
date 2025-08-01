@@ -6,7 +6,6 @@ from io import UnsupportedOperation
 
 import yaml
 from invoke import Context
-from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.package.size import InfraError, directory_size, extract_package, file_size
@@ -177,9 +176,9 @@ class StaticQualityGatePackage(StaticQualityGate):
         glob_pattern = f'{package_dir}/{flavor}{separator}7*{self.arch}.{extension}'
         package_paths = glob.glob(glob_pattern)
         if len(package_paths) > 1:
-            raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
+            raise ValueError(f"Too many files matching {glob_pattern}: {package_paths}")
         elif len(package_paths) == 0:
-            raise Exit(code=1, message=color_message(f"Couldn't find any file matching {glob_pattern}", "red"))
+            raise ValueError(f"Couldn't find any file matching {glob_pattern}")
         self.artifact_path = package_paths[0]
 
     def _calculate_package_size(self) -> None:

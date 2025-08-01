@@ -26,10 +26,27 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
             'CI_COMMIT_REF_SLUG': 'pikachu',
             'CI_COMMIT_SHORT_SHA': '1234567890',
             'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/opt/datadog-agent',
         },
     )
-    @patch("builtins.__import__")
-    def test_parse_and_trigger_gates_infra_error(self, mock_import):
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage._find_package_path",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage._calculate_package_size",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker._calculate_image_on_wire_size",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker._calculate_image_on_disk_size",
+        new=MagicMock(),
+    )
+    @patch("tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
+    def test_parse_and_trigger_gates_infra_error(self):
         ctx = MockContext(
             run={
                 "datadog-ci tag --level job --tags static_quality_gates:\"restart\"": Result("Done"),
@@ -40,7 +57,6 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
         mock_quality_gates_module.static_quality_gate_package_agent_suse_amd64.execute_gate.side_effect = InfraError(
             "Test infra error message"
         )
-        mock_import.return_value = mock_quality_gates_module
         with self.assertRaises(Exit) as cm:
             parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
             assert "Test infra error message" in str(cm.exception)
@@ -294,7 +310,23 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage.execute_gate", new=MagicMock()
     )
     @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage._find_package_path",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage._calculate_package_size",
+        new=MagicMock(),
+    )
+    @patch(
         "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker.execute_gate", new=MagicMock()
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker._calculate_image_on_wire_size",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker._calculate_image_on_disk_size",
+        new=MagicMock(),
     )
     def test_nightly_run(self):
         ctx = MockContext(
