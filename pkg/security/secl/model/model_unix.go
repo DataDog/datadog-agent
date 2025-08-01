@@ -1034,10 +1034,6 @@ type SetSockOptEvent struct {
 func (e *Event) GetFileField(field string) (*FileEvent, error) {
 	// TODO(lebauce): generate this function
 	switch field {
-	case "open.file":
-		return &e.Open.File, nil
-	case "exec.file":
-		return &e.Exec.FileEvent, nil
 	case "cgroup_write.file":
 		return &e.CgroupWrite.File, nil
 	case "chdir.file":
@@ -1046,11 +1042,25 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 		return &e.Chmod.File, nil
 	case "chown.file":
 		return &e.Chown.File, nil
+	case "exec.file":
+		if e.Exec.Process == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
+		return &e.Exec.FileEvent, nil
 	case "exec.interpreter.file":
+		if e.Exec.Process == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Exec.Process.LinuxBinprm.FileEvent, nil
 	case "exit.file":
+		if e.Exit.Process == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Exit.FileEvent, nil
 	case "exit.interpreter.file":
+		if e.Exit.Process == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Exit.Process.LinuxBinprm.FileEvent, nil
 	case "link.file":
 		return &e.Link.Source, nil
@@ -1060,21 +1070,47 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 		return &e.Mkdir.File, nil
 	case "mmap.file":
 		return &e.MMap.File, nil
+	case "open.file":
+		return &e.Open.File, nil
 	case "process.file":
+		if e.ProcessContext == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.ProcessContext.FileEvent, nil
 	case "process.interpreter.file":
+		if e.ProcessContext == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.ProcessContext.Process.LinuxBinprm.FileEvent, nil
 	case "process.parent.file":
+		if e.ProcessContext == nil || e.ProcessContext.Parent == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.ProcessContext.Parent.FileEvent, nil
 	case "process.parent.interpreter.file":
+		if e.ProcessContext == nil || e.ProcessContext.Parent == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.ProcessContext.Parent.LinuxBinprm.FileEvent, nil
 	case "ptrace.tracee.file":
+		if e.PTrace.Tracee == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.PTrace.Tracee.FileEvent, nil
 	case "ptrace.tracee.interpreter.file":
+		if e.PTrace.Tracee == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.PTrace.Tracee.LinuxBinprm.FileEvent, nil
 	case "ptrace.tracee.parent.file":
+		if e.PTrace.Tracee == nil || e.PTrace.Tracee.Parent == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.PTrace.Tracee.Parent.FileEvent, nil
 	case "ptrace.tracee.parent.interpreter.file":
+		if e.PTrace.Tracee == nil || e.PTrace.Tracee.Parent == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent, nil
 	case "removexattr.file":
 		return &e.RemoveXAttr.File, nil
@@ -1083,22 +1119,46 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 	case "rmdir.file":
 		return &e.Rmdir.File, nil
 	case "setrlimit.target.file":
+		if e.Setrlimit.Target == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Setrlimit.Target.FileEvent, nil
 	case "setrlimit.target.interpreter.file":
+		if e.Setrlimit.Target == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Setrlimit.Target.LinuxBinprm.FileEvent, nil
 	case "setrlimit.target.parent.file":
+		if e.Setrlimit.Target == nil || e.Setrlimit.Target.Parent == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Setrlimit.Target.Parent.FileEvent, nil
 	case "setrlimit.target.parent.interpreter.file":
+		if e.Setrlimit.Target == nil || e.Setrlimit.Target.Parent == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Setrlimit.Target.Parent.LinuxBinprm.FileEvent, nil
 	case "setxattr.file":
 		return &e.SetXAttr.File, nil
 	case "signal.target.file":
+		if e.Signal.Target == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Signal.Target.FileEvent, nil
 	case "signal.target.interpreter.file":
+		if e.Signal.Target == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Signal.Target.LinuxBinprm.FileEvent, nil
 	case "signal.target.parent.file":
+		if e.Signal.Target == nil || e.Signal.Target.Parent == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Signal.Target.Parent.FileEvent, nil
 	case "signal.target.parent.interpreter.file":
+		if e.Signal.Target == nil || e.Signal.Target.Parent == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Signal.Target.Parent.LinuxBinprm.FileEvent, nil
 	case "splice.file":
 		return &e.Splice.File, nil
