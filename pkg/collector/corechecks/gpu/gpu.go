@@ -205,13 +205,18 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 	return gpuToContainers
 }
 
+type deviceMetricsCollection struct {
+	collectorMetrics map[nvidia.CollectorName][]nvidia.Metric // collector name -> metrics
+	totalCount       int                                      // total number of metrics across all collectors
+}
+
 func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
 	}
 
-	perDeviceMetrics := make(map[string][]nvidia.Metric)
+	perDeviceMetrics := make(map[string]*deviceMetricsCollection)
 
 	var multiErr error
 	for _, collector := range c.collectors {
@@ -223,7 +228,14 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 		}
 
 		if len(metrics) > 0 {
-			perDeviceMetrics[collector.DeviceUUID()] = append(perDeviceMetrics[collector.DeviceUUID()], metrics...)
+			deviceUUID := collector.DeviceUUID()
+			if perDeviceMetrics[deviceUUID] == nil {
+				perDeviceMetrics[deviceUUID] = &deviceMetricsCollection{
+					collectorMetrics: make(map[nvidia.CollectorName][]nvidia.Metric),
+				}
+			}
+			perDeviceMetrics[deviceUUID].collectorMetrics[collector.Name()] = metrics
+			perDeviceMetrics[deviceUUID].totalCount += len(metrics)
 		}
 
 		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
@@ -233,10 +245,10 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 	containerTagsCache := make(map[string][]string)
 
 	//iterate through devices to emit its metrics
-	for deviceUUID, metrics := range perDeviceMetrics {
+	for deviceUUID, deviceData := range perDeviceMetrics {
 		//filter out same metric with lower priority
-		deduplicatedMetrics := nvidia.RemoveDuplicateMetrics(metrics)
-		c.telemetry.duplicateMetrics.Add(float64(len(metrics)-len(deduplicatedMetrics)), deviceUUID)
+		deduplicatedMetrics := nvidia.RemoveDuplicateMetrics(deviceData.collectorMetrics)
+		c.telemetry.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedMetrics)), deviceUUID)
 
 		var containerTags []string
 		if container := gpuToContainersMap[deviceUUID]; container != nil {

@@ -15,9 +15,6 @@ package nvidia
 import (
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -40,7 +37,7 @@ const (
 	process      CollectorName = "process"
 	nvlink       CollectorName = "nvlink"
 	gpm          CollectorName = "gpm"
-	systemProbe  CollectorName = "system_probe"
+	ebpf         CollectorName = "ebpf"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -157,15 +154,65 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 	return tagsMapping
 }
 
-// RemoveDuplicateMetrics removes duplicate metrics from the given list, keeping the highest priority metric.
-func RemoveDuplicateMetrics(metrics []Metric) []Metric {
-	metricsByName := make(map[string]Metric)
+// RemoveDuplicateMetrics filters metrics by priority across collectors while preserving all metrics within each collector.
+// For each metric name, it finds the collector with the highest priority metric of that name, then includes
+// ALL metrics with that name from the winning collector. This preserves multiple metrics with the same name
+// but different tags (e.g., multiple memory.usage metrics with different PIDs) from the same collector,
+// while still allowing cross-collector deduplication based on priority.
+//
+// Input: map from collector ID to slice of metrics from that collector
+// Output: flat slice of metrics with duplicates removed according to the priority rules
+//
+// Example:
+//
+//	CollectorA: [
+//	  {Name: "memory.usage", Priority: 10, Tags: ["pid:1001"]},
+//	  {Name: "memory.usage", Priority: 10, Tags: ["pid:1002"]},
+//	  {Name: "core.temp", Priority: 0}
+//	]
+//	CollectorB: [
+//	  {Name: "memory.usage", Priority: 5, Tags: ["pid:1003"]},
+//	  {Name: "fan.speed", Priority: 0}
+//	]
+//
+// Result: [
+//
+//	{Name: "memory.usage", Priority: 10, Tags: ["pid:1001"]},  // From CollectorA (winner)
+//	{Name: "memory.usage", Priority: 10, Tags: ["pid:1002"]},  // From CollectorA (winner)
+//	{Name: "core.temp", Priority: 0},                          // From CollectorA (unique)
+//	{Name: "fan.speed", Priority: 0}                           // From CollectorB (unique)
+//
+// ]
+func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
+	// Map metric name -> collector ID -> []Metric (with that name)
+	nameToCollectorMetrics := make(map[string]map[CollectorName][]Metric)
 
-	for _, metric := range metrics {
-		if existing, ok := metricsByName[metric.Name]; !ok || existing.Priority < metric.Priority {
-			metricsByName[metric.Name] = metric
+	for collectorID, metrics := range allMetrics {
+		for _, m := range metrics {
+			if _, ok := nameToCollectorMetrics[m.Name]; !ok {
+				nameToCollectorMetrics[m.Name] = make(map[CollectorName][]Metric)
+			}
+			nameToCollectorMetrics[m.Name][collectorID] = append(nameToCollectorMetrics[m.Name][collectorID], m)
 		}
 	}
 
-	return slices.Collect(maps.Values(metricsByName))
+	var result []Metric
+
+	// For each metric name, pick all matching metrics from the collector with the highest-priority metric of that name
+	for _, collectorMetrics := range nameToCollectorMetrics {
+		maxPriority := -1
+		var winningCollectorID CollectorName
+		for collectorID, metrics := range collectorMetrics {
+			for _, m := range metrics {
+				if m.Priority > maxPriority {
+					maxPriority = m.Priority
+					winningCollectorID = collectorID
+				}
+			}
+		}
+		// Add all metrics for that name from the winning collector
+		result = append(result, collectorMetrics[winningCollectorID]...)
+	}
+
+	return result
 }

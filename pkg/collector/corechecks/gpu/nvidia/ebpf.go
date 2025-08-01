@@ -95,7 +95,7 @@ func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfColle
 
 // Name returns the collector name.
 func (c *ebpfCollector) Name() CollectorName {
-	return systemProbe
+	return ebpf
 }
 
 // DeviceUUID returns the UUID of the device this collector monitors.
