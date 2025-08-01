@@ -6,9 +6,12 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"net/http"
@@ -19,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -238,6 +242,66 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
+			if o.conf.HasFeature("forward_otlp_rum_to_dd_rum") {
+				if _, isRum := otelspan.Attributes().Get("session.id"); isRum {
+					client := &http.Client{
+						Timeout: 10 * time.Second,
+					}
+
+					rattr := otelres.Attributes()
+					sattr := otelspan.Attributes()
+
+					// build the Datadog intake URL
+					ddforward, _ := rattr.Get("request_ddforward")
+					outUrlString := "https://browser-intake-datadoghq.com" +
+						ddforward.AsString()
+
+					rumPayload := rum.ConstructRumPayloadFromOTLP(sattr)
+					byts, err := json.Marshal(rumPayload)
+					if err != nil {
+						log.Error("failed to marshal RUM payload: %v", err)
+						return source.Source{}
+					}
+					req, err := http.NewRequest("POST", outUrlString, bytes.NewBuffer(byts))
+					if err != nil {
+						log.Error("failed to create request: %v", err)
+						return source.Source{}
+					}
+
+					// add X-Forwarded-For header containing the request client IP address
+					ip, ok := sattr.Get("client.address")
+					if ok {
+						req.Header.Add("X-Forwarded-For", ip.AsString())
+					}
+					req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
+					// send the request to the Datadog intake URL
+					resp, err := client.Do(req)
+					if err != nil {
+						log.Error("failed to send request: %v", err)
+						return source.Source{}
+					}
+					defer func(Body io.ReadCloser) {
+						err := Body.Close()
+						if err != nil {
+						}
+					}(resp.Body)
+
+					// read the response body
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						log.Error("failed to read response: %v", err)
+						return source.Source{}
+					}
+
+					// check the status code of the response
+					if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+						log.Error("received non-OK response: status: %s, body: %s", resp.Status, body)
+						return source.Source{}
+					}
+					fmt.Println("Response:", string(body))
+					continue
+				}
+			}
 			spancount++
 			traceID := traceutil.OTelTraceIDToUint64(otelspan.TraceID())
 			if tracesByID[traceID] == nil {
