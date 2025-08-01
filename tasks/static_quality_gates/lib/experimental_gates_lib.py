@@ -1,13 +1,16 @@
 import glob
 import os
+import sys
 import tempfile
+from abc import abstractmethod
+from io import UnsupportedOperation
 
 import yaml
 from invoke import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-from tasks.libs.package.size import directory_size, extract_package, file_size
+from tasks.libs.package.size import InfraError, directory_size, extract_package, file_size
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, read_byte_input
 
 # We are using the same metric handler for all gates
@@ -15,7 +18,12 @@ from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, read_byt
 GATE_METRIC_HANDLER = None
 
 
-def _get_metric_handler() -> GateMetricHandler:
+def get_metric_handler() -> GateMetricHandler:
+    """
+    Get the metric handler for the static quality gates.
+    This is a lazy singleton implementation to avoid creating a new metric handler for each gate
+    as we use exactly the same handler with different tags for each gate.
+    """
     global GATE_METRIC_HANDLER
     if GATE_METRIC_HANDLER is None:
         GATE_METRIC_HANDLER = GateMetricHandler(
@@ -73,7 +81,7 @@ class StaticQualityGate:
         Register the gate tags and metrics to the metric handler
         to send data to Datadog
         """
-        self.metric_handler = _get_metric_handler()
+        self.metric_handler = get_metric_handler()
         self.metric_handler.register_gate_tags(self.gate_name, gate_name=self.gate_name, arch=self.arch, os=self.os)
         self.metric_handler.register_metric(self.gate_name, "max_on_wire_size", self.max_on_wire_size)
         self.metric_handler.register_metric(self.gate_name, "max_on_disk_size", self.max_on_disk_size)
@@ -95,6 +103,28 @@ class StaticQualityGate:
                 "green",
             )
         )
+
+    def _check_artifact_size(self):
+        """
+        Check the size of the artifact on wire and on disk
+        against max_on_wire_size and max_on_disk_size.
+        If the artifact exceeds the maximum allowed size, raise a StaticQualityGateFailed exception.
+        """
+        error_message = ""
+        if self.artifact_on_wire_size > self.max_on_wire_size:
+            error_message += f"On wire size (compressed artifact size) {self.artifact_on_wire_size} is higher than the maximum allowed {self.max_on_wire_size} by the gate !\n"
+        if self.artifact_on_disk_size > self.max_on_disk_size:
+            error_message += f"On disk size (uncompressed artifact size) {self.artifact_on_disk_size} is higher than the maximum allowed {self.max_on_disk_size} by the gate !\n"
+        if error_message:
+            error_message = color_message(f"{self.gate_name} failed!\n" + error_message, "red")
+            raise StaticQualityGateFailed(error_message)
+
+    @abstractmethod
+    def execute_gate(self):
+        """
+        Execute the quality gate.
+        """
+        raise NotImplementedError("This method should be implemented by the subclass")
 
 
 class StaticQualityGatePackage(StaticQualityGate):
@@ -164,37 +194,27 @@ class StaticQualityGatePackage(StaticQualityGate):
         self.artifact_on_wire_size = package_on_wire_size
         self.artifact_on_disk_size = package_on_disk_size
 
-    def _check_package_size(self):
-        """
-        Check the size of the package on wire and on disk
-        """
-        error_message = ""
-        if self.artifact_on_wire_size > self.max_on_wire_size:
-            err_msg = f"Package size on wire (compressed package size) {self.artifact_on_wire_size} is higher than the maximum allowed {self.max_on_wire_size} by the gate !\n"
-            error_message += err_msg
-
-        if self.artifact_on_disk_size > self.max_on_disk_size:
-            err_msg = f"Package size on disk (uncompressed package size) {self.artifact_on_disk_size} is higher than the maximum allowed {self.max_on_disk_size} by the gate !\n"
-            print(color_message(err_msg, "red"))
-            error_message += err_msg
-
-        if error_message:
-            raise StaticQualityGateFailed(error_message)
-
     def execute_gate(self):
-        print(f"Triggering package quality gate for {self.gate_name}")
+        """
+        Execute the package quality gate.
+        This function will:
+        - Find the package path
+        - Calculate the size of the package on wire and on disk
+        - Check the size of the package on wire and on disk
+        """
+        print(f"Triggering {self.gate_name}")
         self._find_package_path()
         print(f"Package path found: {self.artifact_path}")
         self._calculate_package_size()
         print(f"Package size calculated: {self.artifact_on_wire_size} on wire, {self.artifact_on_disk_size} on disk")
-        self._check_package_size()
+        self._check_artifact_size()
         print(color_message(f"✅ Package size check passed for {self.gate_name}", "green"))
         self.print_results()
 
 
 class StaticQualityGateDocker(StaticQualityGate):
     """
-    Static quality gate for docker
+    Static quality gate for docker images
     """
 
     def _set_os(self):
@@ -261,22 +281,96 @@ class StaticQualityGateDocker(StaticQualityGate):
         )
         return self.artifact_path
 
+    def _calculate_image_on_disk_size(self) -> None:
+        """
+        Calculate the size of the docker image on disk.
+        To do so we use crane to pull the image locally
+        and then we calculate the size of the image on disk.
+        return: the size of the docker image on disk
+        TODO: Think of testing this function, unit tests are not possible because real
+        images are used.
+        """
+        # Pull image locally to get on disk size
+        crane_output = self.ctx.run(f"crane pull {self.artifact_path} output.tar", warn=True)
+        if crane_output.exited != 0:
+            raise InfraError(f"Crane pull failed to retrieve {self.artifact_path}. Retrying... (infra flake)")
+        # The downloaded image contains some metadata files and another tar.gz file. We are computing the sum of
+        # these metadata files and the uncompressed size of the tar.gz inside of output.tar.
+        self.ctx.run("tar -xf output.tar")
+        image_content = self.ctx.run(
+            "tar -tvf output.tar | awk -F' ' '{print $3; print $6}'", hide=True
+        ).stdout.splitlines()
+        on_disk_size = 0
+        image_tar_gz = []
+        print("Image on disk content :")
+        for k, line in enumerate(image_content):
+            if k % 2 == 0:
+                if "tar.gz" in image_content[k + 1]:
+                    image_tar_gz.append(image_content[k + 1])
+                else:
+                    on_disk_size += int(line)
+            else:
+                print(f"  - {line}")
+        if image_tar_gz:
+            for image in image_tar_gz:
+                on_disk_size += int(self.ctx.run(f"tar -xf {image} --to-stdout | wc -c", hide=True).stdout)
+        else:
+            print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
+
+        print(f"Current image on disk size: {on_disk_size}")
+        self.metric_handler.register_metric(self.gate_name, "current_on_disk_size", on_disk_size)
+        self.artifact_on_disk_size = on_disk_size
+
+    def _calculate_image_on_wire_size(self) -> None:
+        """
+        Calculate the size of the docker image on wire.
+        To do so we use docker manifest inspect to get the size of the image on wire.
+        return: the size of the docker image on wire
+        TODO: Add unit test with mocked manifest output
+        """
+        manifest_output = self.ctx.run(
+            "DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
+            + self.artifact_path
+            + " | grep size | awk -F ':' '{sum+=$NF} END {printf(\"%d\",sum)}'",
+            hide=True,
+        )
+
+        on_wire_size = int(manifest_output.stdout)
+        print(f"Current image on wire size: {on_wire_size}")
+        self.metric_handler.register_metric(self.gate_name, "current_on_wire_size", on_wire_size)
+        self.artifact_on_wire_size = on_wire_size
+
     def execute_gate(self):
-        print(f"Triggering docker quality gate for {self.gate_name}")
-        # TODO: Implement the logic to execute the gate
-        pass
+        print(f"Triggering {self.gate_name}")
+        self._get_image_url()
+        print(f"Image url found: {self.artifact_path}")
+        self._calculate_image_on_wire_size()
+        self._calculate_image_on_disk_size()
+        self._check_artifact_size()
+        print(color_message(f"✅ Docker image size check passed for {self.gate_name}", "green"))
+        self.print_results()
 
 
 def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQualityGate]:
     """
-    Get the list of quality gates from the configuration file
+    Parse the list of quality gates from the configuration file and return a list of StaticQualityGate objects.
     param: config_path: the path to the configuration file
     return: a list of StaticQualityGate objects
     """
     with open(config_path) as file:
         config = yaml.safe_load(file)
     print(f"{config_path} correctly parsed !")
-    gates = [StaticQualityGate(gate_name, config[gate_name], ctx) for gate_name in config]
+    gates: list[StaticQualityGate] = []
+    for gate_name in config:
+        if "docker" in gate_name:
+            gates.append(StaticQualityGateDocker(gate_name, config[gate_name], ctx))
+        elif any(package_type in gate_name for package_type in ["deb", "rpm", "heroku", "suse"]):
+            gates.append(StaticQualityGatePackage(gate_name, config[gate_name], ctx))
+        elif "msi" in gate_name:
+            raise NotImplementedError(f"MSI gates are not supported yet: {gate_name}")
+        else:
+            raise UnsupportedOperation(f"Unknown gate type: {gate_name}")
+
     newline_tab = "\n\t"
     print(
         f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate.gate_name for gate in gates)}"
