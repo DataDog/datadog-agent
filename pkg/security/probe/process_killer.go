@@ -261,6 +261,20 @@ func (p *ProcessKiller) isRuleAllowed(rule *rules.Rule) bool {
 	return slices.Contains(p.sourceAllowed, rule.Policy.Source)
 }
 
+func (p *ProcessKiller) getRuleDisarmer(ruleID string, kill *rules.KillDefinition) *ruleDisarmer {
+	p.ruleDisarmersLock.Lock()
+	defer p.ruleDisarmersLock.Unlock()
+
+	var disarmer *ruleDisarmer
+	if disarmer = p.ruleDisarmers[ruleID]; disarmer == nil {
+		containerParams, executableParams := p.getDisarmerParams(kill)
+		disarmer = newRuleDisarmer(ruleID, containerParams, executableParams)
+		p.ruleDisarmers[ruleID] = disarmer
+	}
+
+	return disarmer
+}
+
 // KillAndReport kill and report, returns true if we did try to kill
 func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Rule, ev *model.Event) bool {
 	if !p.cfg.RuntimeSecurity.EnforcementEnabled {
@@ -292,25 +306,29 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 
 	var disarmer *ruleDisarmer
 	if p.useDisarmers.Load() {
-		p.ruleDisarmersLock.Lock()
-		if disarmer = p.ruleDisarmers[rule.ID]; disarmer == nil {
-			containerParams, executableParams := p.getDisarmerParams(kill)
-			disarmer = newRuleDisarmer(rule.ID, containerParams, executableParams)
-			p.ruleDisarmers[rule.ID] = disarmer
+		disarmer = p.getRuleDisarmer(rule.ID, kill)
+		var result disarmerResult
+		disarmer.check(entry.Process.FileEvent.PathnameStr, containerID, &result)
+		if result.discardedQueuedKills > 0 {
+			p.perRuleStatsLock.Lock()
+			stats := p.getRuleStats(rule.ID)
+			stats.killQueuedDiscardedByDisarm += int64(result.discardedQueuedKills)
+			p.perRuleStatsLock.Unlock()
 		}
-		p.ruleDisarmersLock.Unlock()
-
-		onActionBlockedByDisarmer := func(dt disarmerType, dismantled bool) {
+		if result.didDisarm {
+			p.KillQueuedPidsAndSetNextAlarm()
+		}
+		if !result.allowAction {
 			report := &KillActionReport{
 				Scope:        scope,
 				Signal:       kill.Signal,
-				DisarmerType: string(dt),
+				DisarmerType: string(result.dType),
 				CreatedAt:    ev.ProcessContext.ExecTime,
 				DetectedAt:   ev.ResolveEventTime(),
 				Pid:          ev.ProcessContext.Pid,
 				rule:         rule,
 			}
-			if dismantled {
+			if result.isRuleDismantled {
 				report.Status = KillActionStatusRuleDismantled
 				seclog.Warnf("skipping kill action of rule `%s` because it has been dismantled", rule.ID)
 			} else {
@@ -318,71 +336,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 				seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
 			}
 			ev.ActionReports = append(ev.ActionReports, report)
-		}
-
-		if disarmer.container.enabled {
-			if containerID != "" {
-				disarmer.m.Lock()
-				allow, newlyDisarmed := disarmer.allow(disarmer.containerCache, containerID)
-				if newlyDisarmed {
-					if disarmer.dismantled {
-						disarmer.dismantledCount[containerDisarmerType]++
-						seclog.Warnf("dismantling kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, disarmer.container.capacity, disarmer.container.period)
-					} else {
-						disarmer.disarmedCount[containerDisarmerType]++
-						seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, disarmer.container.capacity, disarmer.container.period)
-					}
-					// update stats
-					if len(disarmer.killQueue) > 0 {
-						p.perRuleStatsLock.Lock()
-						stats := p.getRuleStats(disarmer.ruleID)
-						stats.killQueuedDiscardedByDisarm += int64(len(disarmer.killQueue))
-						p.perRuleStatsLock.Unlock()
-						// clear kill queue list map if not empty
-						disarmer.killQueue = nil
-					}
-				}
-				disarmer.m.Unlock()
-				if newlyDisarmed {
-					p.KillQueuedPidsAndSetNextAlarm()
-				}
-				if !allow {
-					onActionBlockedByDisarmer(containerDisarmerType, disarmer.dismantled)
-					return false
-				}
-			}
-		}
-
-		if disarmer.executable.enabled {
-			executable := entry.Process.FileEvent.PathnameStr
-			disarmer.m.Lock()
-			allow, newlyDisarmed := disarmer.allow(disarmer.executableCache, executable)
-			if newlyDisarmed {
-				if disarmer.dismantled {
-					disarmer.dismantledCount[executableDisarmerType]++
-					seclog.Warnf("dismantled kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, disarmer.executable.capacity, disarmer.executable.period)
-				} else {
-					disarmer.disarmedCount[executableDisarmerType]++
-					seclog.Warnf("disarmed kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, disarmer.executable.capacity, disarmer.executable.period)
-				}
-				// update stats
-				if len(disarmer.killQueue) > 0 {
-					p.perRuleStatsLock.Lock()
-					stats := p.getRuleStats(disarmer.ruleID)
-					stats.killQueuedDiscardedByDisarm += int64(len(disarmer.killQueue))
-					p.perRuleStatsLock.Unlock()
-					// clear kill queue list map if not empty
-					disarmer.killQueue = nil
-				}
-			}
-			disarmer.m.Unlock()
-			if newlyDisarmed {
-				p.KillQueuedPidsAndSetNextAlarm()
-			}
-			if !allow {
-				onActionBlockedByDisarmer(executableDisarmerType, disarmer.dismantled)
-				return false
-			}
+			return false
 		}
 	}
 
@@ -729,6 +683,7 @@ type ruleDisarmer struct {
 	warmupEnd       time.Time
 	disarmed        bool
 	dismantled      bool
+	dismantleType   disarmerType
 	container       disarmerParams
 	containerCache  *disarmerCache[string, bool]
 	executable      disarmerParams
@@ -803,32 +758,105 @@ func newRuleDisarmer(ruleID string, containerParams *disarmerParams, executableP
 	return rd
 }
 
-// allow return true if the given key is allowed to be killed, and whether it was newly disarmed
-// should be called with the ruleDisarmer's mutex lock held
-func (rd *ruleDisarmer) allow(cache *disarmerCache[string, bool], key string) (bool, bool) {
+type disarmerResult struct {
+	allowAction          bool
+	dType                disarmerType
+	didDisarm            bool
+	isRuleDismantled     bool
+	discardedQueuedKills int
+}
+
+func (rd *ruleDisarmer) check(executable string, containerID string, result *disarmerResult) {
+	rd.m.Lock()
+	defer rd.m.Unlock()
+
 	if rd.dismantled {
-		return false, false
+		result.allowAction = false
+		result.dType = rd.dismantleType
+		result.didDisarm = false
+		result.isRuleDismantled = true
+		result.discardedQueuedKills = 0
+		return
 	}
 
-	if cache == nil {
-		return true, false
-	}
+	updateDisarmerState := func(disarmer *ruleDisarmer, params *disarmerParams, cache *disarmerCache[string, bool], key string, dType disarmerType) {
+		if !params.enabled { // is this disarmer enabled?
+			return
+		}
 
-	var newlyDisarmed bool
-	cache.DeleteExpired()
-	// if the key is not in the cache, check if the new key causes the number of keys to exceed the capacity
-	// otherwise, the key is already in the cache and cache.Get will update its TTL
-	if cache.Get(key) == nil {
-		alreadyAtCapacity := uint64(cache.Len()) >= cache.capacity
-		cache.Set(key, true, ttlcache.DefaultTTL)
-		if alreadyAtCapacity && !rd.disarmed {
-			newlyDisarmed = true
-			rd.disarmed = true
-			if time.Now().Before(rd.warmupEnd) {
-				rd.dismantled = true
+		if cache == nil {
+			return
+		}
+
+		cache.DeleteExpired()
+		// if the key is not in the cache, check if the new key causes the number of keys to exceed the capacity
+		// otherwise, the key is already in the cache and cache.Get will update its TTL
+		if cache.Get(key) == nil {
+			alreadyAtCapacity := uint64(cache.Len()) >= cache.capacity
+			cache.Set(key, true, ttlcache.DefaultTTL)
+			if alreadyAtCapacity && !disarmer.disarmed {
+				disarmer.disarmed = true
+				disarmer.killQueue = nil
+				if time.Now().Before(disarmer.warmupEnd) {
+					disarmer.dismantled = true
+					disarmer.dismantleType = dType
+				}
 			}
 		}
 	}
 
-	return !rd.disarmed, newlyDisarmed
+	wasDisarmedBefore := rd.disarmed
+	pendingKillsBefore := len(rd.killQueue)
+
+	if containerID != "" {
+		updateDisarmerState(rd, &rd.container, rd.containerCache, containerID, containerDisarmerType)
+		didDisarmNow := !wasDisarmedBefore && rd.disarmed
+		allowAction := !rd.disarmed && !rd.dismantled
+		if didDisarmNow {
+			if rd.dismantled {
+				rd.disarmedCount[containerDisarmerType]++
+				seclog.Warnf("dismantling kill action of rule `%s` because more than %d different containers triggered it in the last %s", rd.ruleID, rd.container.capacity, rd.container.period)
+			} else {
+				rd.disarmedCount[containerDisarmerType]++
+				seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rd.ruleID, rd.container.capacity, rd.container.period)
+			}
+		}
+		if !allowAction {
+			result.allowAction = allowAction
+			result.dType = containerDisarmerType
+			result.didDisarm = didDisarmNow
+			result.isRuleDismantled = rd.dismantled
+			result.discardedQueuedKills = pendingKillsBefore
+			return
+		}
+	}
+
+	if executable != "" {
+		updateDisarmerState(rd, &rd.executable, rd.executableCache, executable, executableDisarmerType)
+		didDisarmNow := !wasDisarmedBefore && rd.disarmed
+		allowAction := !rd.disarmed && !rd.dismantled
+		if didDisarmNow {
+			if rd.dismantled {
+				rd.dismantledCount[executableDisarmerType]++
+				seclog.Warnf("dismantling kill action of rule `%s` because more than %d different executables triggered it in the last %s", rd.ruleID, rd.executable.capacity, rd.executable.period)
+			} else {
+				rd.disarmedCount[executableDisarmerType]++
+				seclog.Warnf("disarming kill action of rule `%s` because more than %d different executables triggered it in the last %s", rd.ruleID, rd.executable.capacity, rd.executable.period)
+			}
+		}
+		if !allowAction {
+			result.allowAction = allowAction
+			result.dType = executableDisarmerType
+			result.didDisarm = didDisarmNow
+			result.isRuleDismantled = rd.dismantled
+			result.discardedQueuedKills = pendingKillsBefore
+			return
+		}
+	}
+
+	result.allowAction = true
+	result.dType = ""
+	result.didDisarm = false
+	result.isRuleDismantled = false
+	result.discardedQueuedKills = 0
 }
