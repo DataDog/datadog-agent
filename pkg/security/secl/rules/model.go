@@ -332,7 +332,7 @@ func (h *HashDefinition) PostCheck(rule *eval.Rule) error {
 	}
 
 	ev.Type = uint32(eventType)
-	if _, err := ev.GetFileField(h.Field); err != nil {
+	if err := ev.ValidateFileField(h.Field); err != nil {
 		return err
 	}
 
