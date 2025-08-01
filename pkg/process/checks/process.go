@@ -207,11 +207,12 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
+	// TODO: this will eventually be removed once this config is baselined (hardcoded to true)
 	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 
-	return p.config.GetBool("process_config.process_collection.enabled")
+	return p.config.GetBool("process_config.process_collection.enabled") || p.sysProbeConfig.ServiceDiscoveryEnabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
