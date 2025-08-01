@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -40,8 +41,9 @@ var newOSImpl func() (osImpl, error)
 // Check reports discovered services.
 type Check struct {
 	corechecks.CheckBase
-	os     osImpl
-	sender *telemetrySender
+	os                       osImpl
+	sender                   *telemetrySender
+	metricDiscoveredServices telemetry.Gauge
 }
 
 // Factory creates a new check factory
@@ -87,6 +89,14 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 		return err
 	}
 
+	c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
+		CheckName,
+		"discovered_services",
+		[]string{},
+		"Number of discovered alive services.",
+		telemetry.DefaultOptions,
+	)
+
 	return nil
 }
 
@@ -98,6 +108,7 @@ func (c *Check) Run() error {
 	}
 
 	log.Debugf("runningServices: %d", response.RunningServicesCount)
+	c.metricDiscoveredServices.Set(float64(response.RunningServicesCount))
 
 	for _, p := range response.StartedServices {
 		c.sender.sendStartServiceEvent(p)

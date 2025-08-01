@@ -180,7 +180,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	if c.isServiceDiscoveryEnabled() {
 		// Initialize service discovery metric
 		c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
-			"service_discovery",
+			collectorID,
 			"discovered_services",
 			[]string{},
 			"Number of discovered alive services.",
