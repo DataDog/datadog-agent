@@ -183,14 +183,14 @@ func TestCollectProcessUtilization(t *testing.T) {
 		{
 			name:          "NoUtilizationProcesses",
 			samples:       []nvml.ProcessUtilizationSample{},
-			expectedCount: 1, // core.limit only
+			expectedCount: 2, // sm_active + core.limit
 		},
 		{
 			name: "SingleUtilizationProcess",
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
 			},
-			expectedCount: 5, // 4 per-process + core.limit
+			expectedCount: 6, // 4 per-process + sm_active + core.limit
 		},
 		{
 			name: "MultipleUtilizationProcesses",
@@ -198,14 +198,14 @@ func TestCollectProcessUtilization(t *testing.T) {
 				{Pid: 1001, TimeStamp: 1100, SmUtil: 50, MemUtil: 40, EncUtil: 20, DecUtil: 10},
 				{Pid: 1003, TimeStamp: 1200, SmUtil: 80, MemUtil: 70, EncUtil: 35, DecUtil: 25},
 			},
-			expectedCount: 9, // 2×4 per-process + core.limit
+			expectedCount: 10, // 2×4 per-process + sm_active + core.limit
 		},
 		{
 			name: "ZeroUtilizationValues",
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 13001, TimeStamp: 4000, SmUtil: 0, MemUtil: 0, EncUtil: 0, DecUtil: 0},
 			},
-			expectedCount: 5, // 4 per-process + core.limit
+			expectedCount: 6, // 4 per-process + sm_active + core.limit
 		},
 	}
 
@@ -240,13 +240,13 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 		{
 			name:          "ProcessUtilizationAPIError_NOT_FOUND",
 			apiError:      &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_NOT_FOUND},
-			expectedCount: 1, // core.limit only (gracefully handled)
+			expectedCount: 2, // sm_active + core.limit (gracefully handled)
 			expectError:   false,
 		},
 		{
 			name:          "ProcessUtilizationAPIError_Other",
 			apiError:      &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_UNKNOWN},
-			expectedCount: 1, // core.limit only (still emitted on error)
+			expectedCount: 2, // sm_active + core.limit (still emitted on error)
 			expectError:   true,
 		},
 	}
@@ -361,7 +361,7 @@ func TestProcessCollector_Collect(t *testing.T) {
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
 			},
-			expectedMetricCount: 7, // 2 compute + 5 utilization
+			expectedMetricCount: 8, // 2 compute + 6 utilization (including sm_active)
 		},
 		{
 			name: "ComputeOnlySuccess",
@@ -377,7 +377,7 @@ func TestProcessCollector_Collect(t *testing.T) {
 				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
 			},
 			computeProcessesError: &safenvml.NvmlAPIError{APIName: "GetComputeRunningProcesses", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
-			expectedMetricCount:   5, // 5 utilization only
+			expectedMetricCount:   6, // 6 utilization only (including sm_active)
 		},
 	}
 
@@ -434,7 +434,91 @@ func TestProcessCollector_Collect_WithErrors(t *testing.T) {
 	metrics, err := collector.Collect()
 
 	assert.Error(t, err)      // ERROR_UNKNOWN should be returned
-	assert.Len(t, metrics, 2) // memory.limit + core.limit
+	assert.Len(t, metrics, 3) // memory.limit + sm_active + core.limit
+}
+
+// TestProcessUtilization_SmActiveCalculation tests the sm_active median calculation logic
+func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
+	tests := []struct {
+		name             string
+		samples          []nvml.ProcessUtilizationSample
+		expectedSmActive float64
+		description      string
+	}{
+		{
+			name:             "NoProcesses",
+			samples:          []nvml.ProcessUtilizationSample{},
+			expectedSmActive: 0.0,
+			description:      "median of (max=0 + sum=0) / 2 = 0",
+		},
+		{
+			name: "SingleProcess",
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 1001, SmUtil: 60},
+			},
+			expectedSmActive: 60.0,
+			description:      "median of (max=60 + sum=60) / 2 = 60",
+		},
+		{
+			name: "MultipleProcesses_SumUnderCap",
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 1001, SmUtil: 30},
+				{Pid: 1002, SmUtil: 40},
+			},
+			expectedSmActive: 55.0,
+			description:      "median of (max=40 + sum=70) / 2 = 55",
+		},
+		{
+			name: "MultipleProcesses_SumOverCap",
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 1001, SmUtil: 80},
+				{Pid: 1002, SmUtil: 60},
+				{Pid: 1003, SmUtil: 40},
+			},
+			expectedSmActive: 90.0,
+			description:      "median of (max=80 + sum=100) / 2 = 90, sum capped at 100",
+		},
+		{
+			name: "ZeroUtilization",
+			samples: []nvml.ProcessUtilizationSample{
+				{Pid: 1001, SmUtil: 0},
+				{Pid: 1002, SmUtil: 0},
+			},
+			expectedSmActive: 0.0,
+			description:      "median of (max=0 + sum=0) / 2 = 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDevice := &mockProcessDevice{
+				deviceInfo: &safenvml.DeviceInfo{
+					UUID:      testDeviceUUID,
+					Memory:    testDeviceMemory,
+					CoreCount: testDeviceCoreCount,
+				},
+				samples: tt.samples,
+			}
+
+			collector := &processCollector{device: mockDevice}
+			metrics, err := collector.collectProcessUtilization()
+
+			assert.NoError(t, err)
+
+			// Find the sm_active metric
+			var smActiveMetric *Metric
+			for _, metric := range metrics {
+				if metric.Name == "sm_active" {
+					smActiveMetric = &metric
+					break
+				}
+			}
+
+			assert.NotNil(t, smActiveMetric, "sm_active metric should always be emitted")
+			assert.Equal(t, tt.expectedSmActive, smActiveMetric.Value, "sm_active value should match expected calculation: %s", tt.description)
+			assert.Nil(t, smActiveMetric.Tags, "sm_active should have no tags (device-wide metric)")
+		})
+	}
 }
 
 // Mock device for process collector tests

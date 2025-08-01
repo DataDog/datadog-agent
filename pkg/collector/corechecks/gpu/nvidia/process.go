@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -122,14 +121,6 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 			// Collect PID tags for aggregated limit metrics
 			allPidTags = append(allPidTags, pidTag)
 		}
-		// Debug logging to investigate unexpected memory.usage metrics
-		if procsJson, err := json.Marshal(procs); err == nil {
-			log.Debugf("GPU compute processes: %s", string(procsJson))
-		}
-		// Debug logging to investigate unexpected memory.usage metrics
-		if metricsJson, err := json.Marshal(processMetrics); err == nil {
-			log.Debugf("GPU memory usage metrics: %s", string(metricsJson))
-		}
 	}
 	devInfo := c.device.GetDeviceInfo()
 	processMetrics = append(processMetrics,
@@ -149,6 +140,7 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 	var allPidTags []string
 	var allMetrics []Metric
 	var err error
+	var maxSmUtil, sumSmUtil uint32
 
 	// Record timestamp before API call to ensure accurate sampling window
 	currentTimestamp := uint64(time.Now().Unix())
@@ -194,18 +186,31 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 				},
 			)
 
+			// Track SM utilization for device-wide calculation
+			if sample.SmUtil > maxSmUtil {
+				maxSmUtil = sample.SmUtil
+			}
+			sumSmUtil += sample.SmUtil
 			// Collect PID tags for aggregated metrics
 			allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
 		}
-		// Debug logging to investigate unexpected process.sm_active metrics
-		if processSamplesJSON, err := json.Marshal(processSamples); err == nil {
-			log.Debugf("GPU process samples: %s", string(processSamplesJSON))
-		}
-		if allMetricsJSON, err := json.Marshal(allMetrics); err == nil {
-			log.Debugf("GPU process metrics: %s", string(allMetricsJSON))
-		}
 
 	}
+
+	// Emit device-wide sm_active metric using median of max and sum capped at 100
+	if sumSmUtil > 100 {
+		sumSmUtil = 100
+	}
+	deviceSmActive := float64(maxSmUtil+sumSmUtil) / 2.0
+
+	allMetrics = append(allMetrics,
+		Metric{
+			Name:  "sm_active",
+			Value: deviceSmActive,
+			Type:  metrics.GaugeType,
+		},
+	)
+
 	allMetrics = append(allMetrics,
 		Metric{
 			Name:  "core.limit",
