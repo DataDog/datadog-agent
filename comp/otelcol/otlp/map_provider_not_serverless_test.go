@@ -51,6 +51,9 @@ func TestNewMap(t *testing.T) {
 						},
 					},
 				},
+				"processors": map[string]interface{}{
+					"infraattributes": nil,
+				},
 				"exporters": map[string]interface{}{
 					"otlp": map[string]interface{}{
 						"tls": map[string]interface{}{
@@ -67,8 +70,9 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp"},
 						},
 					},
 				},
@@ -108,6 +112,7 @@ func TestNewMap(t *testing.T) {
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
+					"infraattributes": nil,
 				},
 				"exporters": map[string]interface{}{
 					"otlp": map[string]interface{}{
@@ -136,12 +141,13 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"serializer"},
 						},
 					},
@@ -182,6 +188,7 @@ func TestNewMap(t *testing.T) {
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
+					"infraattributes": nil,
 				},
 				"exporters": map[string]interface{}{
 					"otlp": map[string]interface{}{
@@ -210,12 +217,13 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"serializer"},
 						},
 					},
@@ -245,6 +253,9 @@ func TestNewMap(t *testing.T) {
 						},
 					},
 				},
+				"processors": map[string]interface{}{
+					"infraattributes": nil,
+				},
 				"exporters": map[string]interface{}{
 					"otlp": map[string]interface{}{
 						"tls": map[string]interface{}{
@@ -261,8 +272,9 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp"},
 						},
 					},
 				},
@@ -301,6 +313,7 @@ func TestNewMap(t *testing.T) {
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
+					"infraattributes": nil,
 				},
 				"exporters": map[string]interface{}{
 					"serializer": map[string]interface{}{
@@ -320,7 +333,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"serializer"},
 						},
 					},
@@ -347,6 +360,9 @@ func TestNewMap(t *testing.T) {
 						},
 					},
 				},
+				"processors": map[string]interface{}{
+					"infraattributes": nil,
+				},
 				"exporters": map[string]interface{}{
 					"otlp": map[string]interface{}{
 						"tls": map[string]interface{}{
@@ -366,8 +382,9 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "debug"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp", "debug"},
 						},
 					},
 				},
@@ -405,6 +422,7 @@ func TestNewMap(t *testing.T) {
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
+					"infraattributes": nil,
 				},
 				"exporters": map[string]interface{}{
 					"serializer": map[string]interface{}{
@@ -426,7 +444,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"serializer", "debug"},
 						},
 					},
@@ -466,6 +484,7 @@ func TestNewMap(t *testing.T) {
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
+					"infraattributes": nil,
 				},
 				"exporters": map[string]interface{}{
 					"otlp": map[string]interface{}{
@@ -496,12 +515,13 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "debug"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp", "debug"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"serializer", "debug"},
 						},
 					},
@@ -552,8 +572,9 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp"},
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -629,12 +650,13 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"serializer"},
 						},
 						"logs": map[string]interface{}{
@@ -711,12 +733,13 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"serializer"},
 						},
 						"logs": map[string]interface{}{
@@ -775,8 +798,9 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp"},
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -842,7 +866,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"serializer"},
 						},
 						"logs": map[string]interface{}{
@@ -901,8 +925,9 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "debug"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp", "debug"},
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
@@ -969,7 +994,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]interface{}{
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"serializer", "debug"},
 						},
 						"logs": map[string]interface{}{
@@ -1047,12 +1072,13 @@ func TestNewMap(t *testing.T) {
 					"telemetry": map[string]interface{}{"metrics": map[string]interface{}{"level": "none"}},
 					"pipelines": map[string]interface{}{
 						"traces": map[string]interface{}{
-							"receivers": []interface{}{"otlp"},
-							"exporters": []interface{}{"otlp", "debug"},
+							"receivers":  []interface{}{"otlp"},
+							"processors": []interface{}{"infraattributes"},
+							"exporters":  []interface{}{"otlp", "debug"},
 						},
 						"metrics": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"serializer", "debug"},
 						},
 						"logs": map[string]interface{}{
