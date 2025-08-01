@@ -404,6 +404,7 @@
 /comp/core/autodiscovery/providers/file*.go   @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/config_reader*.go @DataDog/container-platform @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/cloudfoundry*.go  @DataDog/agent-integrations
+/comp/core/autodiscovery/providers/process_log*.go @DataDog/agent-discovery @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
