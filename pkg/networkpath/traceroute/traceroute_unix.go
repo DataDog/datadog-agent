@@ -19,8 +19,6 @@ import (
 
 const (
 	clientID = "traceroute-agent-unix"
-
-	tcpNotSupportedMsg = "TCP traceroute is not currently supported on macOS"
 )
 
 // UnixTraceroute defines a structure for
