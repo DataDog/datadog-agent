@@ -168,6 +168,16 @@ static void *thread_open(void *data) {
 
     return NULL;
 }
+unsigned long get_netns() {
+    struct stat st;
+
+    if (stat("/proc/self/ns/net", &st) == -1) {
+        perror("stat");
+        return 1;
+    }
+
+    return (unsigned long)st.st_ino;
+}
 
 int span_open(int argc, char **argv) {
     if (argc < 4) {
@@ -1417,6 +1427,7 @@ int test_bind_and_listen(int argc, char **argv) {
         close(s);
         return EXIT_FAILURE;
     }
+    printf("NETNS: %lu\n", get_netns());
     printf("PID: %d\n", get_pid_from_host());
     fflush(stdout);  // Send Pid to GO and syncrhonize with it
 
@@ -1537,7 +1548,7 @@ int test_connect_and_send(int argc, char **argv) {
         close(s);
         return EXIT_FAILURE;
     }
-
+    printf("NETNS: %lu\n", get_netns());
     printf("PID: %d\n", get_pid_from_host());
     fflush(stdout);  // Send Pid to GO and synchronize with it
 

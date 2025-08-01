@@ -5611,6 +5611,8 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		serverErr := make(chan error, 100)
 		tcpClientPid := make(chan int, 1)
 		udpClientPid := make(chan int, 1)
+		udpNetnsChan := make(chan uint32, 1)
+		tcpNetnsChan := make(chan uint32, 1)
 		tcpListenReady := make(chan struct{})
 		udpListenReady := make(chan struct{})
 		tcpCloseReady := make(chan struct{})
@@ -5675,6 +5677,13 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 					if err == nil {
 						tcpClientPid <- pid // Synchro on PID
 					}
+				}
+				if strings.HasPrefix(line, "NETNS: ") {
+					netnsStr := strings.TrimPrefix(line, "NETNS: ")
+					netns, err := strconv.ParseUint(netnsStr, 10, 32)
+					if err == nil {
+						tcpNetnsChan <- uint32(netns) // Synchro on NETNS
+					}
 				} else if strings.HasPrefix(line, "Listening on port") {
 					close(tcpListenReady)
 				} else if strings.HasPrefix(line, "Closing TCP socket...") {
@@ -5736,6 +5745,13 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 					if err == nil {
 						udpClientPid <- pid // Synchro on PID
 					}
+				}
+				if strings.HasPrefix(line, "NETNS: ") {
+					netnsStr := strings.TrimPrefix(line, "NETNS: ")
+					netns, err := strconv.ParseUint(netnsStr, 10, 32)
+					if err == nil {
+						udpNetnsChan <- uint32(netns) // Synchro on NETNS
+					}
 				} else if strings.HasPrefix(line, "Waiting on port") {
 					close(udpListenReady)
 				} else if strings.HasPrefix(line, "Closing UDP socket...") {
@@ -5755,6 +5771,18 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get the network namespace: %v", err)
 		}
+		var tcpNetns uint32
+		var udpNetns uint32
+		select {
+		case tcpNetns = <-tcpNetnsChan:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("TCP client did not send NETNS in time")
+		}
+		select {
+		case udpNetns = <-udpNetnsChan:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("UDP client did not send NETNS in time")
+		}
 		// Check if map is populated with the expected entries
 		select {
 		case <-tcpListenReady:
@@ -5767,6 +5795,10 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			t.Fatalf("UDP listener did not start in time")
 		}
 
+		//FOR DEBUG
+		if netns != tcpNetns || netns != udpNetns {
+			fmt.Printf("Network namespaces do not match: %d != %d or %d != %d", netns, tcpNetns, netns, udpNetns)
+		}
 		// Set up the expected ports
 		portToSend := uint16(4321)
 		portForReceive := uint16(9004)
@@ -5793,7 +5825,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns:    netns,
+				Netns:    udpNetns,
 				Port:     htons(portToSend),
 				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
 				Protocol: syscall.IPPROTO_UDP,
@@ -5810,7 +5842,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns:    netns,
+				Netns:    tcpNetns,
 				Port:     htons(portToSend),
 				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
 				Protocol: syscall.IPPROTO_TCP,

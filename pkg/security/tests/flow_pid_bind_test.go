@@ -839,9 +839,11 @@ func TestFlowPidBindLeak(t *testing.T) {
 }
 func TestMultipleProtocols(t *testing.T) {
 	SkipIfNotAvailable(t)
-	tcpbindReady := make(chan int, 1)
+	tcpPidChan := make(chan int, 1)
 	tcplistenReady := make(chan struct{}, 1)
-	udpbindReady := make(chan int, 1)
+	tcpNetNsChan := make(chan uint32, 1)
+	udpNetNSChan := make(chan uint32, 1)
+	udpPidChan := make(chan int, 1)
 	udpwaitReady := make(chan struct{}, 1)
 	udpCloseReady := make(chan struct{}, 1)
 	tcpCloseReady := make(chan struct{}, 1)
@@ -877,6 +879,7 @@ func TestMultipleProtocols(t *testing.T) {
 	test.Run(t, "bind-udp-and-tcp-on-same-port", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		//  --- TCP BIND ---
 		var tcpPid int
+		var tcpNetNs uint32
 
 		test.WaitSignal(t, func() error {
 			go func() {
@@ -920,7 +923,15 @@ func TestMultipleProtocols(t *testing.T) {
 						pidStr := strings.TrimPrefix(line, "PID: ")
 						pid, err := strconv.Atoi(pidStr)
 						if err == nil {
-							tcpbindReady <- pid // Synchro on PID
+							tcpPidChan <- pid
+						}
+					}
+					if strings.HasPrefix(line, "NETNS") {
+						netnsStr := strings.TrimPrefix(line, "NETNS: ")
+						netnsUint64, err := strconv.ParseUint(netnsStr, 10, 32)
+						netns := uint32(netnsUint64)
+						if err == nil {
+							tcpNetNsChan <- netns
 						}
 					}
 					if strings.HasPrefix(line, "Listening on port") {
@@ -938,6 +949,7 @@ func TestMultipleProtocols(t *testing.T) {
 
 		// --- UDP BIND ---
 		var udpPid int
+		var udpNetNs uint32
 
 		test.WaitSignal(t, func() error {
 			go func() {
@@ -980,7 +992,16 @@ func TestMultipleProtocols(t *testing.T) {
 						pidStr := strings.TrimPrefix(line, "PID: ")
 						pid, err := strconv.Atoi(pidStr)
 						if err == nil {
-							udpbindReady <- pid // Synchro on PID
+							udpPidChan <- pid // Synchro on PID
+						}
+					}
+					if strings.HasPrefix(line, "NETNS") {
+						netnsStr := strings.TrimPrefix(line, "NETNS: ")
+						netnsUint, err := strconv.ParseUint(netnsStr, 10, 32)
+						netns := uint32(netnsUint)
+
+						if err == nil {
+							udpNetNSChan <- netns // Synchro on NETNS
 						}
 					}
 					if strings.HasPrefix(line, "Waiting on port") {
@@ -1000,17 +1021,26 @@ func TestMultipleProtocols(t *testing.T) {
 		//  --- TEST ---
 		// Wait for both TCP and UDP bind to be ready
 		select {
-		case tcpPid = <-tcpbindReady:
+		case tcpPid = <-tcpPidChan:
 		case <-time.After(30 * time.Second):
 			t.Fatal("Timeout waiting for TCP PID in MultipleProtocols test")
 		}
 
 		select {
-		case udpPid = <-udpbindReady:
+		case udpPid = <-udpPidChan:
 		case <-time.After(30 * time.Second):
 			t.Fatal("Timeout waiting for UDP PID in MultipleProtocols test")
 		}
-
+		select {
+		case tcpNetNs = <-tcpNetNsChan:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for TCP NETNS in MultipleProtocols test")
+		}
+		select {
+		case udpNetNs = <-udpNetNSChan:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for UDP NETNS in MultipleProtocols test")
+		}
 		p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
 		if !ok {
 			t.Skip("skipping non eBPF probe")
@@ -1031,12 +1061,12 @@ func TestMultipleProtocols(t *testing.T) {
 		htonsPort := htons(expectedPort)
 
 		tcpKey := FlowPid{
-			Netns:    netns,
+			Netns:    tcpNetNs,
 			Port:     htonsPort,
 			Protocol: uint8(unix.IPPROTO_TCP),
 		}
 		udpKey := FlowPid{
-			Netns:    netns,
+			Netns:    udpNetNs,
 			Port:     htonsPort,
 			Protocol: uint8(unix.IPPROTO_UDP),
 		}
@@ -1052,8 +1082,13 @@ func TestMultipleProtocols(t *testing.T) {
 			dumpMap(t, m)
 			t.Errorf("UDP entry not found for key: %+v, error: %v", udpKey, err)
 		}
+		//DEBUG SECTION
 		fmt.Printf("FOR DEBUGGING:\n")
 		dumpMap(t, m)
+		fmt.Printf("END OF DEBUGGING\n")
+		if tcpNetNs != netns || udpNetNs != netns {
+			fmt.Printf("Netns mismatch: GO Netns %d, TCP Netns %d, UDP Netns %d\n", netns, tcpNetNs, udpNetNs)
+		}
 
 		assert.NotEqual(t, tcpVal.Pid, udpVal.Pid, "TCP and UDP should be from different PIDs")
 		assert.Equal(t, uint32(tcpPid), tcpVal.Pid, "TCP PID mismatch")
