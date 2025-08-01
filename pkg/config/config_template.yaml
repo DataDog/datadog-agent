@@ -1664,6 +1664,12 @@ api_key:
     # enabled: false
 
   {{ end -}}
+
+  ## @param disable_remote_tagger - boolean - optional - default: false
+  ## @env DD_APM_DISABLE_REMOTE_TAGGER - boolean - optional - default: false
+  ## Set to true to disable the Remote Tagger in with the trace_agent.
+  #
+  # disable_remote_tagger: false
 {{ end -}}
 {{- if .ProcessAgent }}
 
