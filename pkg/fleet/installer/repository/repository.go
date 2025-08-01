@@ -214,6 +214,23 @@ func (r *Repository) Delete(ctx context.Context) error {
 	return nil
 }
 
+// CopyStable copies the stable package to the given destination path.
+func (r *Repository) CopyStable(ctx context.Context, destPath string) error {
+	repository, err := readRepository(r.rootPath, nil)
+	if err != nil {
+		return err
+	}
+	if !repository.stable.Exists() {
+		return fmt.Errorf("stable link does not exist, invalid state")
+	}
+
+	err = copyDirectory(repository.stable.linkPath, destPath)
+	if err != nil {
+		return fmt.Errorf("could not copy directory: %w", err)
+	}
+	return nil
+}
+
 // SetExperiment moves package files from the given source path to the repository and sets it as the experiment.
 //
 // 1. Cleanup the repository.
@@ -546,6 +563,33 @@ func buildFileMap(rootPath string) (map[string]struct{}, error) {
 		return nil, fmt.Errorf("failed to walk directory: %w", err)
 	}
 	return files, nil
+}
+
+// copyDirectory copies a directory from source to target.
+// It preserves the directory structure and file permissions.
+func copyDirectory(sourcePath, targetPath string) error {
+	return filepath.Walk(sourcePath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("failed to walk directory: %w", err)
+		}
+
+		if path == sourcePath {
+			// Skip root
+			return nil
+		}
+
+		relPath, err := filepath.Rel(sourcePath, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+
+		targetFilePath := filepath.Join(targetPath, relPath)
+		if info.IsDir() {
+			return os.MkdirAll(targetFilePath, info.Mode())
+		}
+
+		return copyFile(path, targetFilePath)
+	})
 }
 
 // repairDirectory compares files between source and target directories,

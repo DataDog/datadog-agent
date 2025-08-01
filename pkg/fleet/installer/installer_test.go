@@ -567,6 +567,52 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		assert.Contains(t, string(content), "site: datadoghq.com")
 	})
 
+	// Test case 11: remove all
+	t.Run("remove_all", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		err := installer.writeConfig(tempDir, [][]byte{[]byte(`{"action_type": "remove_all"}`)})
+		assert.NoError(t, err)
+
+		// Verify the directory is empty
+		entries, err := os.ReadDir(tempDir)
+		assert.NoError(t, err)
+		assert.Empty(t, entries)
+	})
+
+	// Test case 12: remove all with files
+	t.Run("remove_all_after_write", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		writeAction := experimentConfigAction{
+			ActionType: "write",
+			Files: []configFile{
+				{
+					Path:     "/datadog.yaml",
+					Contents: json.RawMessage(`{"new": "value"}`),
+				},
+			},
+		}
+
+		removeAllAction := experimentConfigAction{
+			ActionType: "remove_all",
+		}
+
+		rawWriteConfig, err := json.Marshal(writeAction)
+		assert.NoError(t, err)
+
+		rawRemoveAllConfig, err := json.Marshal(removeAllAction)
+		assert.NoError(t, err)
+
+		err = installer.writeConfig(tempDir, [][]byte{rawWriteConfig, rawRemoveAllConfig})
+		assert.NoError(t, err)
+
+		// Verify the file is not present
+		_, err = os.Stat(filepath.Join(tempDir, "datadog.yaml"))
+		assert.True(t, os.IsNotExist(err))
+	})
+}
+
 	// Test case 2: Write config file in subdirectory
 	t.Run("write_config_in_subdirectory", func(t *testing.T) {
 		tempDir := t.TempDir()
