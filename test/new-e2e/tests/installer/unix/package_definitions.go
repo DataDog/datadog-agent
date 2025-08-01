@@ -94,7 +94,14 @@ func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architectu
 func installScriptInstallerEnv(env map[string]string, packagesConfig []TestPackageConfig) {
 	for _, pkg := range packagesConfig {
 		name := strings.ToUpper(strings.ReplaceAll(pkg.Name, "-", "_"))
-		image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
+
+		var image string
+		if pkg.Alias != "" {
+			image = strings.ToUpper(strings.ReplaceAll(pkg.Alias, "-", "_"))
+		} else {
+			image = strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
+		}
+
 		if pkg.Registry != "" {
 			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image)] = pkg.Registry
 		}

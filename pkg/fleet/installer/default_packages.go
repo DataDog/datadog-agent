@@ -35,7 +35,7 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
-	{Name: "datadog-agent-ddot", version: agentVersion, released: false, releasedWithRemoteUpdates: true, condition: ddotEnabled},
+	{Name: "datadog-ddot", version: agentVersion, released: false, releasedWithRemoteUpdates: true, condition: ddotEnabled},
 }
 
 // Default versions pinned for CentOS 6
