@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.24.5
+go 1.24.0
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -42,7 +42,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964
-	github.com/DataDog/datadog-traceroute v0.1.0
+	github.com/DataDog/datadog-traceroute v0.1.1
 	github.com/DataDog/ebpf-manager v0.7.13
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12

@@ -150,8 +150,8 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964 h1:3EH1aRTHY22KbCYYhPZCaXTo1swWsi2DEyZNFAuTrt0=
 github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964/go.mod h1:J6wMbBik2dRZfv+XYIrOwHyWi9+T6lRZSxTmEQ8bWNU=
-github.com/DataDog/datadog-traceroute v0.1.0 h1:q0r1QZ0jFQlL/0xwy5OqQlB1/aoXQIdSPFs0eRxDeQs=
-github.com/DataDog/datadog-traceroute v0.1.0/go.mod h1:ABYQK03HDBF+k/B1Ohdv6aFHYzSnb0Hyvwlxz6/7L3E=
+github.com/DataDog/datadog-traceroute v0.1.1 h1:ozzNqQGdBWmd/39B6uCPDudWCgzikRsJojQglNwUjts=
+github.com/DataDog/datadog-traceroute v0.1.1/go.mod h1:8utCsIXSUe08oSyAEDH+3Xgbzy83LI6Mr3eclLrNlgo=
 github.com/DataDog/dd-trace-go/v2 v2.0.0 h1:cHMEzD0Wcgtu+Rec9d1GuVgpIN5f+4vCaNzuFHJ0v+Y=
 github.com/DataDog/dd-trace-go/v2 v2.0.0/go.mod h1:WBtf7TA9bWr5uA8DjOyw1qlSKe3bw9gN5nc0Ta9dHFE=
 github.com/DataDog/ebpf-manager v0.7.13 h1:6utn0SD8sw2zTbGQ7TlmxNvLhd5LutbY/MoeEhtuTXs=
