@@ -721,22 +721,11 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 	t.Run("invalid_json_content", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		configAction := experimentConfigAction{
-			ActionType: "write",
-			Files: []configFile{
-				{
-					Path:     "/datadog.yaml",
-					Contents: json.RawMessage(`invalid json`),
-				},
-			},
-		}
+		rawConfig := []byte(`{"action_type": "write", "files": [{"path": "/datadog.yaml", "conntteennttss": "nojson"}]}`)
 
-		rawConfig, err := json.Marshal(configAction)
-		assert.NoError(t, err)
-
-		err = installer.writeConfig(tempDir, [][]byte{rawConfig})
+		err := installer.writeConfig(tempDir, [][]byte{rawConfig})
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "could not unmarshal config file contents")
+		assert.Contains(t, err.Error(), "could not unmarshal config file contents: unexpected end of JSON input")
 	})
 
 	// Test case 8: Path cleaning (handles extra slashes)
