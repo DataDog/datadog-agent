@@ -405,11 +405,22 @@ func installConfigExperimentCommand() *cobra.Command {
 						ActionType: "write",
 						Files:      configMap.Files,
 					}
+
+					preRemoveAll := configAction{
+						ActionType: "remove_all",
+					}
+
 					actionBytes, err := json.Marshal(configMap)
 					if err != nil {
 						return err
 					}
-					configs = [][]byte{actionBytes}
+
+					preRemoveAllBytes, err := json.Marshal(preRemoveAll)
+					if err != nil {
+						return err
+					}
+
+					configs = [][]byte{preRemoveAllBytes, actionBytes}
 				} else {
 					configs = [][]byte{[]byte(args[2])}
 				}
