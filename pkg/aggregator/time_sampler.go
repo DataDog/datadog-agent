@@ -199,6 +199,13 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	}
 
 	for _, serie := range serieBySignature {
+		// Check the telemetry list before the block list so even if metrics are blocked
+		// they get added to the internal telemetry.
+		if coatlist != nil && coatlist.Test(serie.Name) {
+			// Add to internal telemetry.
+			addToAgentTelemetry(serie)
+		}
+
 		// it is the final stage before flushing the series to the serialisation
 		// part of the pipeline but also, here is a stage where all series have been
 		// generated & processed (even the ones generated from a histogram metric).
@@ -207,10 +214,6 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 			continue
 		}
 
-		if coatlist != nil && coatlist.Test(serie.Name) {
-			// Add to internal telemetry.
-			addToAgentTelemetry(serie)
-		}
 		serieSink.Append(serie)
 	}
 }

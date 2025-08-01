@@ -34,29 +34,36 @@ func newAgentTelemFilterList() utilstrings.FilterList {
 		"datadog.dogstatsd.client.packets_dropped"}, false)
 }
 
+// getDetailsFromSerie extracts the relevant details from the metrics serie
+// that we can use to post to internal telemetry.
+func getDetailsFromSerie(serie *metrics.Serie) (float64, []string) {
+	tags := []string{"", "", ""}
+	serie.Tags.ForEach(func(tag string) {
+		t := strings.SplitN(tag, ":", 2)
+		switch t[0] {
+		case "client":
+			tags[0] = t[1]
+		case "client_version":
+			tags[1] = t[1]
+		case "client_transport":
+			tags[2] = t[1]
+		}
+	})
+
+	var total float64
+	for point := range serie.Points {
+		total += serie.Points[point].Value
+	}
+
+	return total, tags
+}
+
 // addToAgentTelemetry converts the given metrics series into an agent metric.
 // Currently all metrics we capturing are counters, so only counters are handled.
 func addToAgentTelemetry(serie *metrics.Serie) {
 	counter, ok := tlmDogstatsd[serie.Name]
 	if ok {
-		tags := []string{"", "", ""}
-		serie.Tags.ForEach(func(tag string) {
-			t := strings.SplitN(tag, ":", 2)
-			switch t[0] {
-			case "client":
-				tags[0] = t[1]
-			case "client_version":
-				tags[1] = t[1]
-			case "client_transport":
-				tags[2] = t[1]
-			}
-		})
-
-		var total float64
-		for point := range serie.Points {
-			total += serie.Points[point].Value
-		}
-
-		counter.Add(total, tags...)
+		value, tags := getDetailsFromSerie(serie)
+		counter.Add(value, tags...)
 	}
 }
