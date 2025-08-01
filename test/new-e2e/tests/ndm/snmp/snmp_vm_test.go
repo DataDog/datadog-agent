@@ -53,13 +53,7 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 	vm := v.Env().RemoteHost
 	fakeIntake := v.Env().FakeIntake
 
-	err := vm.CopyFolder("compose/data", "/tmp/data")
-	v.Require().NoError(err)
-
-	vm.CopyFile("compose-vm/snmpCompose.yaml", "/tmp/snmpCompose.yaml")
-
-	_, err = vm.Execute("docker-compose -f /tmp/snmpCompose.yaml up -d")
-	v.Require().NoError(err)
+	setupDevice(v.Require(), vm)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		checkBasicMetrics(c, fakeIntake)
@@ -76,6 +70,7 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp/test-secret")
 	secretClient.SetSecret("api_key", apiKey1)
 
+	// language=yaml
 	agentConfig := `
 api_key: ENC[api_key]
 
@@ -94,7 +89,7 @@ secret_backend_arguments:
 		),
 	)
 
-	err = fakeIntake.Client().FlushServerAndResetAggregators()
+	err := fakeIntake.Client().FlushServerAndResetAggregators()
 	v.Require().NoError(err)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {

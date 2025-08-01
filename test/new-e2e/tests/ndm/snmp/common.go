@@ -6,11 +6,22 @@
 package snmp
 
 import (
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
+
+func setupDevice(r *require.Assertions, vm *components.RemoteHost) {
+	err := vm.CopyFolder("compose/data", "/tmp/data")
+	r.NoError(err)
+
+	vm.CopyFile("compose-vm/snmpCompose.yaml", "/tmp/snmpCompose.yaml")
+
+	_, err = vm.Execute("docker-compose -f /tmp/snmpCompose.yaml up -d")
+	r.NoError(err)
+}
 
 func checkBasicMetrics(c *assert.CollectT, fakeIntake *components.FakeIntake) {
 	metrics, err := fakeIntake.Client().GetMetricNames()
@@ -30,24 +41,6 @@ func checkLastNDMPayload(c *assert.CollectT, fakeIntake *components.FakeIntake, 
 	assert.Greater(c, len(ndmPayload.Interfaces), 0)
 
 	return ndmPayload
-}
-
-func checkGenericDeviceMetadata(c *assert.CollectT, deviceMetadata aggregator.DeviceMetadata) {
-	assert.Equal(c, "default:127.0.0.1", deviceMetadata.ID)
-	assert.Contains(c, deviceMetadata.IDTags, "snmp_device:127.0.0.1")
-	assert.Contains(c, deviceMetadata.IDTags, "device_namespace:default")
-	assert.Contains(c, deviceMetadata.Tags, "snmp_profile:generic-device")
-	assert.Contains(c, deviceMetadata.Tags, "snmp_device:127.0.0.1")
-	assert.Contains(c, deviceMetadata.Tags, "device_namespace:default")
-	assert.Equal(c, "127.0.0.1", deviceMetadata.IPAddress)
-	assert.Equal(c, int32(1), deviceMetadata.Status)
-	assert.Equal(c, "41ba948911b9", deviceMetadata.Name)
-	assert.Equal(c, "Linux 41ba948911b9 4.9.87-linuxkit-aufs #1 SMP Wed Mar 14 15:12:16 UTC 2018 x86_64", deviceMetadata.Description)
-	assert.Equal(c, "1.3.6.1.4.1.8072.3.2.10", deviceMetadata.SysObjectID)
-	assert.Equal(c, "Unknown", deviceMetadata.Location)
-	assert.Equal(c, "generic-device", deviceMetadata.Profile)
-	assert.Equal(c, "", deviceMetadata.Vendor)
-	assert.Equal(c, "other", deviceMetadata.DeviceType)
 }
 
 func checkCiscoNexusDeviceMetadata(c *assert.CollectT, deviceMetadata aggregator.DeviceMetadata) {
