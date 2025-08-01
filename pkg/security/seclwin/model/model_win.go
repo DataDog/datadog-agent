@@ -267,11 +267,12 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 func (e *Event) ValidateFileField(field string) error {
 	// TODO(lebauce): generate this function + keep in sync with GetFileField
 	switch field {
-	case "exec.file":
-	case "exit.file":
-	case "process.file":
-	case "process.parent.file":
+	case "exec.file",
+		"exit.file",
+		"process.file",
+		"process.parent.file":
 		return nil
+	default:
+		return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}
-	return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 }
