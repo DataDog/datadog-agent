@@ -7,7 +7,6 @@ package aggregator
 
 import (
 	"context"
-	"os"
 	"sync"
 	"time"
 
