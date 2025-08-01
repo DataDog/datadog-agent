@@ -138,8 +138,8 @@ func TestScheduleHostnameDriftChecks(t *testing.T) {
 	}
 
 	// Set shorter intervals for testing
-	originalInitialDelay := DefaultInitialDelay
-	originalRecurringInterval := DefaultRecurringInterval
+	originalInitialDelay := defaultInitialDelay
+	originalRecurringInterval := defaultRecurringInterval
 	defer func() {
 		setDefaultInitialDelay(originalInitialDelay)
 		setDefaultRecurringInterval(originalRecurringInterval)
@@ -174,7 +174,7 @@ func TestScheduleHostnameDriftChecks(t *testing.T) {
 
 func TestSetDefaultInitialDelay(t *testing.T) {
 	// Save original value
-	originalDelay := DefaultInitialDelay
+	originalDelay := defaultInitialDelay
 	defer func() {
 		setDefaultInitialDelay(originalDelay)
 	}()
@@ -182,20 +182,20 @@ func TestSetDefaultInitialDelay(t *testing.T) {
 	// Test setting a new delay
 	newDelay := 5 * time.Minute
 	setDefaultInitialDelay(newDelay)
-	assert.Equal(t, newDelay, DefaultInitialDelay)
+	assert.Equal(t, newDelay, defaultInitialDelay)
 
 	// Test setting zero delay
 	setDefaultInitialDelay(0)
-	assert.Equal(t, time.Duration(0), DefaultInitialDelay)
+	assert.Equal(t, time.Duration(0), defaultInitialDelay)
 
 	// Test setting negative delay (should work as it's just a time.Duration)
 	setDefaultInitialDelay(-1 * time.Second)
-	assert.Equal(t, -1*time.Second, DefaultInitialDelay)
+	assert.Equal(t, -1*time.Second, defaultInitialDelay)
 }
 
 func TestSetDefaultRecurringInterval(t *testing.T) {
 	// Save original value
-	originalInterval := DefaultRecurringInterval
+	originalInterval := defaultRecurringInterval
 	defer func() {
 		setDefaultRecurringInterval(originalInterval)
 	}()
@@ -203,15 +203,15 @@ func TestSetDefaultRecurringInterval(t *testing.T) {
 	// Test setting a new interval
 	newInterval := 2 * time.Hour
 	setDefaultRecurringInterval(newInterval)
-	assert.Equal(t, newInterval, DefaultRecurringInterval)
+	assert.Equal(t, newInterval, defaultRecurringInterval)
 
 	// Test setting zero interval
 	setDefaultRecurringInterval(0)
-	assert.Equal(t, time.Duration(0), DefaultRecurringInterval)
+	assert.Equal(t, time.Duration(0), defaultRecurringInterval)
 
 	// Test setting negative interval (should work as it's just a time.Duration)
 	setDefaultRecurringInterval(-1 * time.Minute)
-	assert.Equal(t, -1*time.Minute, DefaultRecurringInterval)
+	assert.Equal(t, -1*time.Minute, defaultRecurringInterval)
 }
 
 func TestScheduleHostnameDriftChecksWithCustomTiming(t *testing.T) {
@@ -226,8 +226,8 @@ func TestScheduleHostnameDriftChecksWithCustomTiming(t *testing.T) {
 	}
 
 	// Save original values
-	originalInitialDelay := DefaultInitialDelay
-	originalRecurringInterval := DefaultRecurringInterval
+	originalInitialDelay := defaultInitialDelay
+	originalRecurringInterval := defaultRecurringInterval
 	defer func() {
 		setDefaultInitialDelay(originalInitialDelay)
 		setDefaultRecurringInterval(originalRecurringInterval)
@@ -270,8 +270,8 @@ func TestDriftConstants(t *testing.T) {
 
 func TestDefaultTimingConstants(t *testing.T) {
 	// Test that the default timing constants are properly defined
-	assert.Equal(t, 20*time.Minute, DefaultInitialDelay)
-	assert.Equal(t, 6*time.Hour, DefaultRecurringInterval)
+	assert.Equal(t, 20*time.Minute, defaultInitialDelay)
+	assert.Equal(t, 6*time.Hour, defaultRecurringInterval)
 }
 
 // Benchmark tests for performance
