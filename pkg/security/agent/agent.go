@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/module"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
@@ -51,7 +51,7 @@ type RuntimeSecurityAgent struct {
 
 	// grpc server
 	api.UnimplementedSecurityAgentAPIServer
-	grpcServer *grpcutils.Server
+	grpcEventServer *grpcutils.Server
 }
 
 // ADStorage represents the interface for the activity dump storage
@@ -129,7 +129,7 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 		go rsa.startActivityDumpStorageTelemetry(ctx)
 	}
 
-	err := rsa.grpcServer.Start()
+	err := rsa.grpcEventServer.Start()
 	if err != nil {
 		seclog.Errorf("error starting security agent grpc server: %v", err)
 	}
@@ -140,7 +140,7 @@ func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.cancel()
 	rsa.running.Store(false)
 	rsa.client.Close()
-	rsa.grpcServer.Stop()
+	rsa.grpcEventServer.Stop()
 	rsa.wg.Wait()
 }
 
@@ -190,13 +190,13 @@ func (rsa *RuntimeSecurityAgent) setupAPIServer() error {
 		return errors.New("runtime_security_config.socket must be set")
 	}
 
-	family := common.GetFamilyAddress(socketPath)
+	family, socketPath := secconfig.GetSocketAddress(socketPath)
 	if family == "unix" && runtime.GOOS == "windows" {
 		return fmt.Errorf("unix sockets are not supported on Windows")
 	}
 
-	rsa.grpcServer = grpcutils.NewServer(family, socketPath)
-	api.RegisterSecurityAgentAPIServer(rsa.grpcServer.ServiceRegistrar(), rsa)
+	rsa.grpcEventServer = grpcutils.NewServer(family, socketPath)
+	api.RegisterSecurityAgentAPIServer(rsa.grpcEventServer.ServiceRegistrar(), rsa)
 
 	return nil
 }

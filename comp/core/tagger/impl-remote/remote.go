@@ -13,11 +13,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
+	"github.com/mdlayher/vsock"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -43,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	netutil "github.com/DataDog/datadog-agent/pkg/util/net"
 )
 
 const (
@@ -227,6 +230,17 @@ func start(remoteTagger *remoteTagger) error {
 		remoteTagger.options.Target,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
+			if vsockAddr := remoteTagger.cfg.GetString("vsock_addr"); vsockAddr != "" {
+				cid, err := netutil.ParseVSockAddress(vsockAddr)
+				if err != nil {
+					return nil, err
+				}
+				addrPort, err := netip.ParseAddrPort(vsockAddr)
+				if err != nil {
+					return nil, err
+				}
+				return vsock.Dial(cid, uint32(addrPort.Port()), &vsock.Config{})
+			}
 			return net.Dial("tcp", url)
 		}),
 	)

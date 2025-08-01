@@ -16,15 +16,15 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 	"github.com/golang/protobuf/ptypes/empty"
 )
 
 // SecurityAgentAPIServer is used to send request to security module
 type SecurityAgentAPIServer struct {
-	grpcServer *module.GRPCServer
+	grpcServer *grpcutils.Server
 	apiServer  api.SecurityAgentAPIServer
 }
 
@@ -87,7 +87,7 @@ func NewSecurityAgentAPIServer() (*SecurityAgentAPIServer, error) {
 		socketPath = fmt.Sprintf("unix://%s", socketPath)
 	}
 
-	grpcServer := module.NewGRPCServer(family, cfgSocketPath)
+	grpcServer := grpcutils.NewServer(family, cfgSocketPath)
 	apiServer := &SecurityEventAPIServer{}
 
 	api.RegisterSecurityAgentAPIServer(grpcServer.ServiceRegistrar(), apiServer)

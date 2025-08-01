@@ -25,7 +25,8 @@ func (server *apiServer) startCMDServer(
 	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
-	server.cmdListener, err = getListener(cmdAddr)
+	var useAuthToken bool
+	server.cmdListener, useAuthToken, err = getListener(cmdAddr)
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
@@ -40,7 +41,9 @@ func (server *apiServer) startCMDServer(
 	agentMux := gorilla.NewRouter()
 
 	// Validate token for every request
-	agentMux.Use(server.ipc.HTTPMiddleware)
+	if useAuthToken {
+		agentMux.Use(server.ipc.HTTPMiddleware)
+	}
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(

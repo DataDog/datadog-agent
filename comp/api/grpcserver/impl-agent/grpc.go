@@ -89,6 +89,16 @@ func (s *server) BuildServer() http.Handler {
 		grpc_auth.UnaryServerInterceptor(authInterceptor),
 		grpc_auth.StreamServerInterceptor(authInterceptor),
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
+	)
+
+	if vsockAddr := s.configComp.GetString("vsock_addr"); vsockAddr == "" {
+		opts = append(opts,
+			googleGrpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
+			googleGrpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+		)
+	}
+
+	opts = append(opts,
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
 	)

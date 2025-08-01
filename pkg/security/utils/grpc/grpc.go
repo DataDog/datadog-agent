@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 
+	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -38,7 +40,7 @@ func NewServer(family string, address string) *Server {
 	// Add gRPC metrics interceptors
 	opts := grpcutil.ServerOptionsWithMetrics()
 
-	return &GRPCServer{
+	return &Server{
 		family:  family,
 		address: address,
 		server:  grpc.NewServer(opts...),
@@ -52,7 +54,24 @@ func (g *Server) ServiceRegistrar() grpc.ServiceRegistrar {
 
 // Start the server
 func (g *Server) Start() error {
-	ln, err := net.Listen(g.family, g.address)
+	var ln net.Listener
+	var err error
+
+	if g.family == "vsock" {
+		port, parseErr := strconv.Atoi(g.address)
+		if parseErr != nil {
+			return parseErr
+		}
+
+		if port <= 0 {
+			return fmt.Errorf("invalid port '%s' for vsock", g.address)
+		}
+
+		ln, err = vsock.Listen(uint32(port), &vsock.Config{})
+	} else {
+		ln, err = net.Listen(g.family, g.address)
+	}
+
 	if err != nil {
 		return fmt.Errorf("unable to create runtime security socket: %w", err)
 	}
