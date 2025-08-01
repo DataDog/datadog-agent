@@ -84,6 +84,9 @@ const e2eTmpDirEnv = "E2E_TMP_DIR"
 var expectations embed.FS
 
 func TestEndToEnd(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping end-to-end test in short mode")
+	}
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	idx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
