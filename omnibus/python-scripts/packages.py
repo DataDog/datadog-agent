@@ -225,7 +225,9 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
         if install_package_name in exclude_packages:
             print(f"Skipping '{install_package_name}' as it's already included in '{exclude_filename}' file")
         else:
-            if install_package_line.startswith('datadog-') and install_package_line not in DEPS_STARTING_WITH_DATADOG:
+            # install_package_line can be a <requirement specifier> which contains a package name and a version constraint
+            # we need to check that install_package_line doesn't contain any dependency name in DEPS_STARTING_WITH_DATADOG
+            if install_package_line.startswith('datadog-') and not any(install_package_line.startswith(dep) for dep in DEPS_STARTING_WITH_DATADOG):
                 install_datadog_package(install_package_line, install_directory)
             else:
                 install_dependency_package(pip, install_package_line)
