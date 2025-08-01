@@ -179,6 +179,9 @@ issues:
     - path: comp/core/autodiscovery/providers/kube_services_nop.go
       linters:
         - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/process_log.go
+      linters:
+        - pkgconfigusage
     - path: comp/core/autodiscovery/providers/prometheus_common.go
       linters:
         - pkgconfigusage
