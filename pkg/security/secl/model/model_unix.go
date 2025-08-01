@@ -1115,43 +1115,44 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 func (e *Event) ValidateFileField(field string) error {
 	// TODO(lebauce): generate this function + keep in sync with GetFileField
 	switch field {
-	case "open.file":
-	case "exec.file":
-	case "cgroup_write.file":
-	case "chdir.file":
-	case "chmod.file":
-	case "chown.file":
-	case "exec.interpreter.file":
-	case "exit.file":
-	case "exit.interpreter.file":
-	case "link.file":
-	case "load_module.file":
-	case "mkdir.file":
-	case "mmap.file":
-	case "process.file":
-	case "process.interpreter.file":
-	case "process.parent.file":
-	case "process.parent.interpreter.file":
-	case "ptrace.tracee.file":
-	case "ptrace.tracee.interpreter.file":
-	case "ptrace.tracee.parent.file":
-	case "ptrace.tracee.parent.interpreter.file":
-	case "removexattr.file":
-	case "rename.file":
-	case "rmdir.file":
-	case "setrlimit.target.file":
-	case "setrlimit.target.interpreter.file":
-	case "setrlimit.target.parent.file":
-	case "setrlimit.target.parent.interpreter.file":
-	case "setxattr.file":
-	case "signal.target.file":
-	case "signal.target.interpreter.file":
-	case "signal.target.parent.file":
-	case "signal.target.parent.interpreter.file":
-	case "splice.file":
-	case "unlink.file":
-	case "utimes.file":
+	case "open.file",
+		"exec.file",
+		"cgroup_write.file",
+		"chdir.file",
+		"chmod.file",
+		"chown.file",
+		"exec.interpreter.file",
+		"exit.file",
+		"exit.interpreter.file",
+		"link.file",
+		"load_module.file",
+		"mkdir.file",
+		"mmap.file",
+		"process.file",
+		"process.interpreter.file",
+		"process.parent.file",
+		"process.parent.interpreter.file",
+		"ptrace.tracee.file",
+		"ptrace.tracee.interpreter.file",
+		"ptrace.tracee.parent.file",
+		"ptrace.tracee.parent.interpreter.file",
+		"removexattr.file",
+		"rename.file",
+		"rmdir.file",
+		"setrlimit.target.file",
+		"setrlimit.target.interpreter.file",
+		"setrlimit.target.parent.file",
+		"setrlimit.target.parent.interpreter.file",
+		"setxattr.file",
+		"signal.target.file",
+		"signal.target.interpreter.file",
+		"signal.target.parent.file",
+		"signal.target.parent.interpreter.file",
+		"splice.file",
+		"unlink.file",
+		"utimes.file":
 		return nil
+	default:
+		return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}
-	return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 }
