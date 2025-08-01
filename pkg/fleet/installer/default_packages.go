@@ -6,7 +6,6 @@
 package installer
 
 import (
-	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -169,11 +168,6 @@ func agentVersion(_ Package, e *env.Env) string {
 
 // ddotEnabled returns true if DDOT should be installed
 // DDOT is installed when otel-collector is enabled or when explicitly requested
-func ddotEnabled(_ Package, _ *env.Env) bool {
-	// Check if explicitly enabled via environment variable
-	if otelEnabled, ok := os.LookupEnv("DD_OTEL_COLLECTOR_ENABLED"); ok {
-		return strings.ToLower(otelEnabled) == "true"
-	}
-
-	return false
+func ddotEnabled(_ Package, e *env.Env) bool {
+	return e.OtelCollectorEnabled
 }
