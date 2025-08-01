@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -387,26 +388,29 @@ func (c *LogsConfig) validateTailingMode() error {
 }
 
 func (c *LogsConfig) validateFingerprintConfig() error {
-	// If log level config has empty or incomplete values, populate the FingerprintConfig with what is in the global config
+	// Check if any fingerprint config fields are set at the log level
+	hasLogLevelConfig := c.FingerprintConfig.MaxBytes != 0 || c.FingerprintConfig.MaxLines != 0 || c.FingerprintConfig.ToSkip != 0 || c.FingerprintConfig.FingerprintStrategy != ""
+
+	if hasLogLevelConfig {
+		// If any fields are set at log level, validate the config as-is (without defaults)
+		// This will catch incomplete configurations at the log level
+		err := ValidateFingerprintConfig(&c.FingerprintConfig)
+		if err != nil && !errors.Is(err, ErrEmptyFingerprintConfig) {
+			return fmt.Errorf("invalid fingerprint config at log level: %w", err)
+		}
+		// If validation passes, use the log-level config as-is (no fallback)
+		return nil
+	}
+
+	// If no fields are set at log level, fall back to global config
 	globalConfig, err := GlobalFingerprintConfig(pkgconfigsetup.Datadog())
 	if err != nil {
 		return fmt.Errorf("failed to load global fingerprint config: %w", err)
 	}
-	if c.FingerprintConfig.MaxBytes == 0 {
-		c.FingerprintConfig.MaxBytes = globalConfig.MaxBytes
-	}
-	if c.FingerprintConfig.MaxLines == 0 {
-		c.FingerprintConfig.MaxLines = globalConfig.MaxLines
-	}
-	if c.FingerprintConfig.ToSkip == 0 {
-		c.FingerprintConfig.ToSkip = globalConfig.ToSkip
-	}
-	if c.FingerprintConfig.FingerprintStrategy == "" {
-		c.FingerprintConfig.FingerprintStrategy = globalConfig.FingerprintStrategy
-	}
+	// Use global config (which already has defaults applied if needed)
+	c.FingerprintConfig = *globalConfig
 
-	// Validate the final fingerprint configuration (either local, global, or merged)
-	return ValidateFingerprintConfig(&c.FingerprintConfig)
+	return nil
 }
 
 // LegacyAutoMultiLineEnabled determines whether the agent has fallen back to legacy auto multi line detection
