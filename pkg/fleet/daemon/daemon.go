@@ -386,6 +386,22 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully started experiment for package from %s", url)
+
+	if runtime.GOOS == "windows" {
+		// On Windows, there's a background job triggered by the installer
+		// that will handle stopping & removing the agent MSI, and downloading
+		// and starting the new version.
+		// While this job runs, we should avoid as much as possible sending
+		// a "done" task state from stable, and let experiment do it.
+		//
+		// It's safe to stop RC here, we successfully started the background job
+		// and it will handle restarting the stable agent in case there's a problem
+		err := d.Stop(ctx)
+		if err != nil {
+			log.Warnf("Daemon: could not stop daemon after starting experiment, continuing anyway: %v", err)
+		}
+	}
+
 	return nil
 }
 
