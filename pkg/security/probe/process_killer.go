@@ -485,33 +485,10 @@ func (p *ProcessKiller) SendStats(statsd statsd.ClientInterface) {
 	p.perRuleStatsLock.Unlock()
 
 	p.ruleDisarmersLock.Lock()
+	defer p.ruleDisarmersLock.Unlock()
 	for ruleID, disarmer := range p.ruleDisarmers {
-		ruleIDTag := []string{
-			"rule_id:" + string(ruleID),
-		}
-
-		disarmer.m.Lock()
-		for disarmerType, count := range disarmer.disarmedCount {
-			if count > 0 {
-				tags := append([]string{"disarmer_type:" + string(disarmerType)}, ruleIDTag...)
-				_ = statsd.Count(metrics.MetricEnforcementRuleDisarmed, count, tags, 1)
-				disarmer.disarmedCount[disarmerType] = 0
-			}
-		}
-		for disarmerType, count := range disarmer.dismantledCount {
-			if count > 0 {
-				tags := append([]string{"disarmer_type:" + string(disarmerType)}, ruleIDTag...)
-				_ = statsd.Count(metrics.MetricEnforcementRuleDismantled, count, tags, 1)
-				disarmer.dismantledCount[disarmerType] = 0
-			}
-		}
-		if disarmer.rearmedCount > 0 {
-			_ = statsd.Count(metrics.MetricEnforcementRuleRearmed, disarmer.rearmedCount, ruleIDTag, 1)
-			disarmer.rearmedCount = 0
-		}
-		disarmer.m.Unlock()
+		disarmer.sendStats(statsd, []string{"rule_id:" + string(ruleID)})
 	}
-	p.ruleDisarmersLock.Unlock()
 }
 
 func (p *ProcessKiller) getKillQueueAlarm() *time.Time {
@@ -581,26 +558,7 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					p.ruleDisarmersLock.Lock()
-					for ruleID, disarmer := range p.ruleDisarmers {
-						disarmer.m.Lock()
-						if !disarmer.dismantled {
-							var cLength, eLength int
-							if disarmer.container.enabled {
-								cLength = disarmer.containerCache.flush()
-							}
-							if disarmer.executable.enabled {
-								eLength = disarmer.executableCache.flush()
-							}
-							if disarmer.disarmed && cLength == 0 && eLength == 0 {
-								disarmer.disarmed = false
-								disarmer.rearmedCount++
-								seclog.Infof("kill action of rule `%s` has been re-armed", ruleID)
-							}
-						}
-						disarmer.m.Unlock()
-					}
-					p.ruleDisarmersLock.Unlock()
+					p.flushRuleDisarmerCaches()
 				}
 			}
 		}
@@ -660,6 +618,18 @@ func (p *ProcessKiller) warmupEnqueued(rd *ruleDisarmer, signal int, kcs []killC
 	rd.killQueueAlarm = rd.warmupEnd
 	p.setKillQueueAlarm(&rd.killQueueAlarm)
 	return true
+}
+
+func (p *ProcessKiller) flushRuleDisarmerCaches() {
+	p.ruleDisarmersLock.Lock()
+	defer p.ruleDisarmersLock.Unlock()
+
+	for ruleID, disarmer := range p.ruleDisarmers {
+		rearmed := disarmer.checkRearm()
+		if rearmed {
+			seclog.Infof("kill action of rule `%s` has been re-armed", ruleID)
+		}
+	}
 }
 
 type disarmerState int
@@ -859,4 +829,51 @@ func (rd *ruleDisarmer) check(executable string, containerID string, result *dis
 	result.didDisarm = false
 	result.isRuleDismantled = false
 	result.discardedQueuedKills = 0
+}
+
+func (rd *ruleDisarmer) checkRearm() bool {
+	rd.m.Lock()
+	defer rd.m.Unlock()
+
+	if !rd.dismantled {
+		var cLength, eLength int
+		if rd.container.enabled {
+			cLength = rd.containerCache.flush()
+		}
+		if rd.executable.enabled {
+			eLength = rd.executableCache.flush()
+		}
+		if rd.disarmed && cLength == 0 && eLength == 0 {
+			rd.disarmed = false
+			rd.rearmedCount++
+			return true
+		}
+	}
+	return false
+}
+
+func (rd *ruleDisarmer) sendStats(statsd statsd.ClientInterface, tags []string) {
+	rd.m.Lock()
+	defer rd.m.Unlock()
+
+	for disarmerType, count := range rd.disarmedCount {
+		if count > 0 {
+			tags := append([]string{"disarmer_type:" + string(disarmerType)}, tags...)
+			_ = statsd.Count(metrics.MetricEnforcementRuleDisarmed, count, tags, 1)
+			rd.disarmedCount[disarmerType] = 0
+		}
+	}
+
+	for disarmerType, count := range rd.dismantledCount {
+		if count > 0 {
+			tags := append([]string{"disarmer_type:" + string(disarmerType)}, tags...)
+			_ = statsd.Count(metrics.MetricEnforcementRuleDismantled, count, tags, 1)
+			rd.dismantledCount[disarmerType] = 0
+		}
+	}
+
+	if rd.rearmedCount > 0 {
+		_ = statsd.Count(metrics.MetricEnforcementRuleRearmed, rd.rearmedCount, tags, 1)
+		rd.rearmedCount = 0
+	}
 }
