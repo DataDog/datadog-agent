@@ -58,14 +58,15 @@ type goHMapBucketType ir.GoHMapBucketType
 type goSwissMapHeaderType struct {
 	*ir.GoSwissMapHeaderType
 	// User-defined key and value type information
-	keyTypeID        ir.TypeID
-	keyTypeName      string
-	keyTypeSize      uint32
-	valueTypeID      ir.TypeID
-	valueTypeName    string
-	valueTypeSize    uint32
-	keyFieldOffset   uint32
-	valueFieldOffset uint32
+	keyTypeID           ir.TypeID
+	keyTypeName         string
+	keyTypeSize         uint32
+	valueTypeID         ir.TypeID
+	valueTypeName       string
+	valueTypeSize       uint32
+	keyFieldOffset      uint32
+	valueFieldOffset    uint32
+	slotsArrayEntrySize uint32
 
 	// Internal Go swiss map representation fields
 	dirPtrOffset     uint32
@@ -148,7 +149,7 @@ func newDecoderType(
 		}
 		slotsFieldType, ok := types[slotsField.Type.GetID()]
 		if !ok {
-			return nil, errors.New("type map slot field not found in types: " + s.GroupType.Name)
+			return nil, fmt.Errorf("type map slot field not found in types: %s", s.GroupType.Name)
 		}
 		ctrlField, err := getFieldByName(s.GroupType.RawFields, "ctrl")
 		if err != nil {
@@ -158,18 +159,18 @@ func newDecoderType(
 		ctrlSize := ctrlField.Type.GetByteSize()
 		entryArray, ok := slotsFieldType.(*ir.ArrayType)
 		if !ok {
-			return nil, errors.New("type map slot field is not an array type: " + slotsFieldType.GetName())
+			return nil, fmt.Errorf("type map slot field is not an array type: %s", slotsFieldType.GetName())
 		}
 		noalgstructType, ok := entryArray.Element.(*ir.StructureType)
 		if !ok {
-			return nil, errors.New("type map entry array element is not a structure type: " + entryArray.Element.GetName())
+			return nil, fmt.Errorf("type map entry array element is not a structure type: %s", entryArray.Element.GetName())
 		}
 		keyField, err := getFieldByName(noalgstructType.RawFields, "key")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
 		if keyField == nil {
-			return nil, errors.New("type map entry array element has no key field: " + entryArray.Element.GetName())
+			return nil, fmt.Errorf("type map entry array element has no key field: %s", entryArray.Element.GetName())
 		}
 		elem, err := getFieldByName(noalgstructType.RawFields, "elem")
 		if err != nil {
@@ -200,18 +201,18 @@ func newDecoderType(
 		return &goSwissMapHeaderType{
 			GoSwissMapHeaderType: s,
 			// Fields related to user defined key and value types
-			keyTypeID:     keyField.Type.GetID(),
-			valueTypeID:   elem.Type.GetID(),
-			keyTypeSize:   keyField.Type.GetByteSize(),
-			valueTypeSize: elem.Type.GetByteSize(),
-			keyTypeName:   keyField.Type.GetName(),
-			valueTypeName: elem.Type.GetName(),
-
-			keyFieldOffset:   keyFieldOffset,
-			valueFieldOffset: valueFieldOffset,
+			keyTypeID:           keyField.Type.GetID(),
+			valueTypeID:         elem.Type.GetID(),
+			keyTypeSize:         keyField.Type.GetByteSize(),
+			valueTypeSize:       elem.Type.GetByteSize(),
+			keyTypeName:         keyField.Type.GetName(),
+			valueTypeName:       elem.Type.GetName(),
+			slotsArrayEntrySize: noalgstructType.GetByteSize(),
+			keyFieldOffset:      keyFieldOffset,
+			valueFieldOffset:    valueFieldOffset,
 
 			// Fields in go swiss map internal representation
-			// Seehttps://github.com/golang/go/blob/cd3655a8243b5f52b6a274a0aba5e01d998906c0/src/internal/runtime/maps/map.go#L195
+			// See https://github.com/golang/go/blob/cd3655a8/src/internal/runtime/maps/map.go#L195
 			dirLenOffset:     dirLenOffset,
 			dirLenSize:       dirLenSize,
 			dirPtrOffset:     dirPtrOffset,
