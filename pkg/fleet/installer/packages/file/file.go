@@ -221,7 +221,7 @@ func getUserAndGroup(username, group string) (uid, gid int, err error) {
 		if err != nil {
 			return 0, 0, fmt.Errorf("error converting UID to int: %w", err)
 		}
-		userCache.Store(username, uid)
+		userCache.Store(username, uidRaw)
 	}
 
 	gidRaw, gidOk := groupCache.Load(group)

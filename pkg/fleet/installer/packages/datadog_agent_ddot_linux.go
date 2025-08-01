@@ -6,6 +6,7 @@
 package packages
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -104,7 +105,7 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	}
 
 	// Enable otelcollector in datadog.yaml
-	if err = enableOtelCollectorConfig(); err != nil {
+	if err = enableOtelCollectorConfig(ctx); err != nil {
 		return fmt.Errorf("failed to enable otelcollector in datadog.yaml: %v", err)
 	}
 
@@ -167,7 +168,7 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 }
 
 // enableOtelCollectorConfig adds otelcollector.enabled: true to datadog.yaml
-func enableOtelCollectorConfig() error {
+func enableOtelCollectorConfig(ctx context.Context) error {
 	// Read existing config
 	var existingConfig map[string]interface{}
 	data, err := os.ReadFile(datadogYamlPath)
@@ -200,7 +201,7 @@ func enableOtelCollectorConfig() error {
 		{Path: "datadog.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
 
-	if err := datadogYamlPermissions.Ensure("/etc/datadog-agent"); err != nil {
+	if err := datadogYamlPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set ownership on datadog.yaml: %w", err)
 	}
 
