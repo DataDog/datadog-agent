@@ -67,11 +67,10 @@ func (f *fakeActuator) NewTenant(name string, reporter actuator.Reporter, irGene
 
 type fakeDecoderFactory struct {
 	decoder module.Decoder
-	err     error
 }
 
-func (f *fakeDecoderFactory) NewDecoder(_ *ir.Program) (module.Decoder, error) {
-	return f.decoder, f.err
+func (f *fakeDecoderFactory) NewDecoder(_ *ir.Program) module.Decoder {
+	return f.decoder
 }
 
 type fakeDecoder struct {
@@ -390,30 +389,6 @@ func TestController_LoadingFailure(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 2, errorCount)
-}
-
-// TestController_DecoderCreationFailure verifies that decoder creation
-// failures are properly handled and reported during program loading.
-func TestController_DecoderCreationFailure(t *testing.T) {
-	scraper := &fakeScraper{}
-	a := &fakeActuator{}
-	decoderFactory := &fakeDecoderFactory{err: errors.New("decoder creation failed")}
-	diagUploader := &fakeDiagnosticsUploader{}
-	logUploaderFactory := &fakeLogsUploaderFactory{}
-
-	processUpdate := createTestProcessUpdate()
-	program := createTestProgram()
-	procID := processUpdate.ProcessID
-
-	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
-
-	controller := module.NewController(a, logUploaderFactory, diagUploader, scraper, decoderFactory)
-	controller.CheckForUpdates()
-
-	sink, err := a.tenant.reporter.ReportLoaded(procID, processUpdate.Executable, program)
-	require.Error(t, err)
-	require.Nil(t, sink)
-	assert.Contains(t, err.Error(), "creating decoder")
 }
 
 // TestController_EventDecodingSuccess verifies successful event decoding,
