@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/fapolicyd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/integrations"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
@@ -199,6 +200,12 @@ func preInstallDatadogAgent(ctx HookContext) error {
 	}
 	if err := agentService.RemoveStable(ctx); err != nil {
 		log.Warnf("failed to remove stable unit: %s", err)
+	}
+	if ctx.PackageType == PackageTypeOCI {
+		// Must be called in the OCI preinst, before re-executing into the installer
+		if err := fapolicyd.SetAgentPermissions(ctx); err != nil {
+			return fmt.Errorf("failed to ensure host security context: %w", err)
+		}
 	}
 	return packagemanager.RemovePackage(ctx, agentPackage)
 }
