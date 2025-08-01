@@ -120,8 +120,13 @@ func (is *persistingIntegrationsSuite) TestIntegrationPersistsByDefault() {
 	upgradedAgentVersion := is.UpgradeAgentVersion(VMclient)
 	is.Require().NotEqual(startAgentVersion, upgradedAgentVersion)
 	is.CheckIntegrationInstalled(VMclient)
-	freezeRequirement := VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+
+	freezeRequirement := VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 freeze")
 	is.Assert().Contains(freezeRequirement, "datadog-api-client")
+
+	VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 uninstall -y datadog-api-client")
+	freezeRequirement = VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 freeze")
+	is.Assert().NotContains(freezeRequirement, "datadog-api-client")
 }
 
 func (is *persistingIntegrationsSuite) TestIntegrationDoesNotPersistWithSkipFileFlag() {
