@@ -112,6 +112,7 @@ func (is *persistingIntegrationsSuite) TestIntegrationPersistsByDefault() {
 
 	startAgentVersion := is.SetupAgentStartVersion(VMclient)
 	is.InstallNVMLIntegration(VMclient)
+	is.InstallPackage(VMclient, "datadog-api-client")
 
 	// remove the flag to skip installing third party deps if it exists
 	is.DisableSkipInstallThirdPartyDepsFlag(VMclient)
@@ -119,6 +120,8 @@ func (is *persistingIntegrationsSuite) TestIntegrationPersistsByDefault() {
 	upgradedAgentVersion := is.UpgradeAgentVersion(VMclient)
 	is.Require().NotEqual(startAgentVersion, upgradedAgentVersion)
 	is.CheckIntegrationInstalled(VMclient)
+	freezeRequirement := VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+	is.Assert().Contains(freezeRequirement, "datadog-api-client")
 }
 
 func (is *persistingIntegrationsSuite) TestIntegrationDoesNotPersistWithSkipFileFlag() {
@@ -156,6 +159,19 @@ func (is *persistingIntegrationsSuite) InstallNVMLIntegration(VMclient *common.T
 	// Check that the integration is installed successfully
 	freezeRequirement = VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
 	is.Require().Contains(freezeRequirement, "datadog-nvml==1.0.0")
+}
+
+func (is *persistingIntegrationsSuite) InstallPackage(VMclient *common.TestClient, packageName string) {
+	// Make sure that the package is not installed
+	freezeRequirement := VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+	is.Assert().NotContains(freezeRequirement, packageName)
+
+	// Install the package
+	VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 install " + packageName)
+
+	// Check that the package is installed successfully
+	freezeRequirement = VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+	is.Require().Contains(freezeRequirement, packageName)
 }
 
 func (is *persistingIntegrationsSuite) EnableSkipInstallThirdPartyDepsFlag(VMclient *common.TestClient) string {
