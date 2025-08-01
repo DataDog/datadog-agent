@@ -2573,6 +2573,87 @@ func checkSkipFailureConnectionsTests(t *testing.T) {
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
+	remoteAddr := &net.TCPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: 10000,
+	}
+	makeConn := func(t *testing.T, nonblocking bool) net.Conn {
+		addr := syscall.SockaddrInet4{
+			Port: remoteAddr.Port,
+		}
+		copy(addr.Addr[:], remoteAddr.IP)
+
+		flags := syscall.SOCK_STREAM
+		expectedErr := syscall.ETIMEDOUT
+		if nonblocking {
+			flags |= syscall.SOCK_NONBLOCK
+			expectedErr = syscall.EINPROGRESS
+		}
+		sfd, err := syscall.Socket(syscall.AF_INET, flags, syscall.IPPROTO_TCP)
+		require.NoError(t, err)
+		defer syscall.Close(sfd)
+
+		//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
+		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
+		require.NoError(t, err)
+
+		err = syscall.Connect(sfd, &addr)
+		if err != nil {
+			if errors.Is(err, expectedErr) {
+				t.Logf("Connection had an error as expected: %s", expectedErr)
+			} else {
+				require.NoError(t, err, "could not connect to server: ", err)
+			}
+		}
+
+		f := os.NewFile(uintptr(sfd), "")
+		c, err := net.FileConn(f)
+		require.NoError(t, err)
+		t.Cleanup(func() { c.Close() })
+		return c
+	}
+
+	testcases := []struct {
+		name      string
+		makeConn  func(t *testing.T) net.Conn
+		checkConn func(collect *assert.CollectT, stats *network.ConnectionStats)
+	}{
+		{
+			name: "blocking kernel timeout",
+			makeConn: func(t *testing.T) net.Conn {
+				return makeConn(t, false)
+			},
+			checkConn: func(collect *assert.CollectT, conn *network.ConnectionStats) {
+				assert.Equal(collect, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
+				assert.Equal(collect, uint32(0), conn.TCPFailures[125], "expected 0 connection cancelled")
+			},
+		},
+		{
+			name: "nonblocking kernel timeout",
+			makeConn: func(t *testing.T) net.Conn {
+				// connection will time out in 500ms while checkConn is running
+				return makeConn(t, true)
+			},
+			checkConn: func(collect *assert.CollectT, conn *network.ConnectionStats) {
+				assert.Equal(collect, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
+				assert.Equal(collect, uint32(0), conn.TCPFailures[125], "expected 0 connection cancelled")
+			},
+		},
+		{
+			name: "userspace cancel",
+			makeConn: func(t *testing.T) net.Conn {
+				c := makeConn(t, true)
+				// immediately close c to cause a cancellation
+				require.NoError(t, c.Close())
+				return c
+			},
+			checkConn: func(collect *assert.CollectT, conn *network.ConnectionStats) {
+				assert.Equal(collect, uint32(0), conn.TCPFailures[110], "expected 0 connection timeout")
+				assert.Equal(collect, uint32(1), conn.TCPFailures[125], "expected 1 connection cancelled")
+			},
+		},
+	}
+
 	t := s.T()
 
 	checkSkipFailureConnectionsTests(t)
@@ -2586,56 +2667,35 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
 
-	srvAddr := "127.0.0.1:10000"
-	ipString, portString, err := net.SplitHostPort(srvAddr)
-	require.NoError(t, err)
-	ip := netip.MustParseAddr(ipString)
-	port, err := strconv.Atoi(portString)
-	require.NoError(t, err)
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			// use the testcase's connection
+			c := tc.makeConn(t)
 
-	addr := syscall.SockaddrInet4{
-		Port: port,
-		Addr: ip.As4(),
+			// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
+			port := c.LocalAddr().(*net.TCPAddr).Port
+			localAddr := &net.TCPAddr{
+				IP:   net.ParseIP("127.0.0.1"),
+				Port: port,
+			}
+
+			// Check if the connection was recorded as failed due to timeout or cancel
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				conns, cleanup := getConnections(collect, tr)
+				defer cleanup()
+
+				conn, _ := findConnection(localAddr, remoteAddr, conns)
+				require.NotNil(collect, conn)
+				assert.Equal(collect, uint32(0), conn.TCPFailures[104], "expected 0 connection reset")
+				assert.Equal(collect, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
+				assert.Equal(collect, uint64(0), conn.Monotonic.SentBytes, "expected 0 bytes sent")
+				assert.Equal(collect, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
+
+				tc.checkConn(collect, conn)
+			}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+
+		})
 	}
-	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
-	require.NoError(t, err)
-	t.Cleanup(func() { syscall.Close(sfd) })
-
-	//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
-	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
-	require.NoError(t, err)
-
-	err = syscall.Connect(sfd, &addr)
-	if err != nil {
-		var errno syscall.Errno
-		if errors.As(err, &errno) && errors.Is(err, syscall.ETIMEDOUT) {
-			t.Log("Connection timed out as expected")
-		} else {
-			require.NoError(t, err, "could not connect to server: ", err)
-		}
-	}
-
-	f := os.NewFile(uintptr(sfd), "")
-	defer f.Close()
-	c, err := net.FileConn(f)
-	require.NoError(t, err)
-	port = c.LocalAddr().(*net.TCPAddr).Port
-	// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
-	localAddr := fmt.Sprintf("127.0.0.1:%d", port)
-
-	// Check if the connection was recorded as failed due to timeout
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		conns, cleanup := getConnections(collect, tr)
-		defer cleanup()
-		// 110 is the errno for ETIMEDOUT
-		conn := findFailedConnection(t, localAddr, srvAddr, conns, 110)
-		require.NotNil(collect, conn)
-		assert.Equal(collect, uint32(0), conn.TCPFailures[104], "expected 0 connection reset")
-		assert.Equal(collect, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
-		assert.Equal(collect, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
-		assert.Equal(collect, uint64(0), conn.Monotonic.SentBytes, "expected 0 bytes sent")
-		assert.Equal(collect, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
-	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {
