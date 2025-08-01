@@ -63,6 +63,9 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("error while setting TLS configs: %w", err)
 	}
 
+	tlsClientConfig.InsecureSkipVerify = reqs.Conf.GetBool("tls_client_insecure")
+	tlsServerConfig.InsecureSkipVerify = reqs.Conf.GetBool("tls_server_insecure")
+
 	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
 	printAuthSignature(reqs.Log, token, ipccert, ipckey)
 
@@ -104,6 +107,9 @@ func NewReadWriteComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, fmt.Errorf("error while setting TLS configs: %w", err)
 	}
+
+	tlsClientConfig.InsecureSkipVerify = reqs.Conf.GetBool("tls_client_insecure")
+	tlsServerConfig.InsecureSkipVerify = reqs.Conf.GetBool("tls_server_insecure")
 
 	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
 	printAuthSignature(reqs.Log, token, ipccert, ipckey)

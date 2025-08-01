@@ -19,7 +19,7 @@ const ipcServerName string = "IPC API Server"
 const ipcServerShortName string = "IPC"
 
 func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.TelemetryMiddlewareFactory) (err error) {
-	server.ipcListener, err = getListener(ipcServerAddr)
+	server.ipcListener, _, err = getListener(ipcServerAddr)
 	if err != nil {
 		return err
 	}

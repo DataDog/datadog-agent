@@ -10,7 +10,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"runtime"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -20,6 +22,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/mdlayher/vsock"
 )
 
 // RuntimeSecurityClient is used to send request to security module
@@ -167,7 +170,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.cmd_socket must be set")
 	}
 
-	family := config.GetFamilyAddress(socketPath)
+	family, socketPath := config.GetSocketAddress(socketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("unix sockets are not supported on Windows")
@@ -176,8 +179,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		socketPath = fmt.Sprintf("unix://%s", socketPath)
 	}
 
-	conn, err := grpc.NewClient(
-		socketPath,
+	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithConnectParams(grpc.ConnectParams{
@@ -185,7 +187,28 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 				BaseDelay: time.Second,
 				MaxDelay:  time.Second,
 			},
+		}),
+	}
+
+	if family == "vsock" {
+		cmdPort, parseErr := strconv.Atoi(socketPath)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid vsock socket path '%s'")
+		}
+
+		if cmdPort <= 0 {
+			return nil, fmt.Errorf("invalid port '%s' for vsock", socketPath)
+		}
+
+		opts = append(opts, grpc.WithContextDialer(func(ctx context.Context, path string) (net.Conn, error) {
+			return vsock.Dial(vsock.Host, uint32(cmdPort), &vsock.Config{})
 		}))
+	}
+
+	conn, err := grpc.NewClient(
+		socketPath,
+		opts...,
+	)
 	if err != nil {
 		return nil, err
 	}

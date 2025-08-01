@@ -82,11 +82,19 @@ func (s *server) BuildServer() http.Handler {
 
 	opts := []googleGrpc.ServerOption{
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
-		googleGrpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		googleGrpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+	}
+
+	if vsockAddr := s.configComp.GetString("vsock_addr"); vsockAddr == "" {
+		opts = append(opts,
+			googleGrpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
+			googleGrpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+		)
+	}
+
+	opts = append(opts,
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
-	}
+	)
 
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
