@@ -16,6 +16,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
 from tasks.libs.package.size import InfraError
+from tasks.static_quality_gates.lib.experimental_gates_lib import get_metric_handler, get_quality_gates_list
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
 BUFFER_SIZE = 1000000
@@ -159,31 +160,16 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
     :param config_path: Static quality gates configuration file path
     :return:
     """
-    with open(config_path) as file:
-        config = yaml.safe_load(file)
-
-    gate_list = list(config.keys())
-    quality_gates_mod = __import__("tasks.static_quality_gates", fromlist=gate_list)
-    print(f"{config_path} correctly parsed !")
-    metric_handler = GateMetricHandler(
-        git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
-    )
-    newline_tab = "\n\t"
-    print(f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate_list)}")
     final_state = "success"
     gate_states = []
+    gate_list = get_quality_gates_list(config_path, ctx)
 
     nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
     branch = os.environ["CI_COMMIT_BRANCH"]
 
     for gate in gate_list:
-        gate_inputs = config[gate]
-        gate_inputs["ctx"] = ctx
-        gate_inputs["metricHandler"] = metric_handler
-        gate_inputs["nightly"] = nightly_run
         try:
-            gate_mod = getattr(quality_gates_mod, gate)
-            gate_mod.entrypoint(**gate_inputs)
+            gate.execute_gate()
             print(f"Gate {gate} succeeded !")
             gate_states.append({"name": gate, "state": True, "error_type": None, "message": None})
         except AssertionError as e:
@@ -205,6 +191,7 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
 
     _print_quality_gates_report(gate_states)
 
+    metric_handler = get_metric_handler()
     metric_handler.send_metrics_to_datadog()
 
     # We don't need a PR notification nor gate failures on release branches
