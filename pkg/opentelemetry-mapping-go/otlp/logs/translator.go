@@ -15,16 +15,23 @@
 package logs
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/otel/attribute"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
+	"go.uber.org/zap"
 )
 
 var (
@@ -79,19 +86,84 @@ func (t *Translator) MapLogs(ctx context.Context, ld plog.Logs, hostFromAttribut
 			scope := sl.Scope()
 			// iterate over Logs
 			for k := 0; k < lsl.Len(); k++ {
-				log := lsl.At(k)
+				logRecord := lsl.At(k)
+				//TODO (OTEL-2731): get forward_otlp_rum_to_dd_rum from config instead of setting to true
+				forward_otlp_rum_to_dd_rum := true
+				if forward_otlp_rum_to_dd_rum {
+					if _, isRum := logRecord.Attributes().Get("session.id"); isRum {
+						client := &http.Client{
+							Timeout: 10 * time.Second,
+						}
+
+						rattr := rl.Resource().Attributes()
+						lattr := logRecord.Attributes()
+
+						// build the Datadog intake URL
+						ddforward, _ := rattr.Get("request_ddforward")
+						outUrlString := "https://browser-intake-datadoghq.com" +
+							ddforward.AsString()
+
+						rumPayload := rum.ConstructRumPayloadFromOTLP(lattr)
+						byts, err := json.Marshal(rumPayload)
+						if err != nil {
+							t.set.Logger.Error("failed to marshal RUM payload: %v", zap.Error(err))
+							return []datadogV2.HTTPLogItem{}
+						}
+
+						req, err := http.NewRequest("POST", outUrlString, bytes.NewBuffer(byts))
+						if err != nil {
+							t.set.Logger.Error("failed to create request: %v", zap.Error(err))
+							return []datadogV2.HTTPLogItem{}
+						}
+
+						// add X-Forwarded-For header containing the request client IP address
+						ip, ok := lattr.Get("client.address")
+						if ok {
+							req.Header.Add("X-Forwarded-For", ip.AsString())
+						}
+
+						req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
+
+						// send the request to the Datadog intake URL
+						resp, err := client.Do(req)
+						if err != nil {
+							t.set.Logger.Error("failed to send request: %v", zap.Error(err))
+							return []datadogV2.HTTPLogItem{}
+						}
+						defer func(Body io.ReadCloser) {
+							err := Body.Close()
+							if err != nil {
+							}
+						}(resp.Body)
+
+						// read the response body
+						body, err := io.ReadAll(resp.Body)
+						if err != nil {
+							t.set.Logger.Error("failed to read response: %v", zap.Error(err))
+							return []datadogV2.HTTPLogItem{}
+						}
+
+						// check the status code of the response
+						if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+							t.set.Logger.Error("received non-OK response: status: %s, body: %s", zap.String("status", resp.Status), zap.String("body", string(body)))
+							return []datadogV2.HTTPLogItem{}
+						}
+						t.set.Logger.Info("Response:", zap.String("body", string(body)))
+						continue
+					}
+				}
 				// HACK: Check for host and service in log record attributes
 				// This is not aligned with the specification and will be removed in the future.
 				if host == "" {
-					host = t.hostFromAttributes(ctx, log.Attributes())
+					host = t.hostFromAttributes(ctx, logRecord.Attributes())
 				}
 				if service == "" {
-					if s, ok := log.Attributes().Get(string(conventions.ServiceNameKey)); ok {
+					if s, ok := logRecord.Attributes().Get(string(conventions.ServiceNameKey)); ok {
 						service = s.AsString()
 					}
 				}
 
-				payload := transform(log, host, service, res, scope, t.set.Logger)
+				payload := transform(logRecord, host, service, res, scope, t.set.Logger)
 				ddtags := payload.GetDdtags()
 				if ddtags != "" {
 					payload.SetDdtags(ddtags + "," + t.otelTag)
