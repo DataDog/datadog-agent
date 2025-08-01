@@ -57,7 +57,7 @@ type Demultiplexer interface {
 
 	// SetTimeSamplersBlocklist triggers a reconfiguration of the blocklist
 	// applied in the time samplers.
-	SetTimeSamplersBlocklist(*utilstrings.Blocklist)
+	SetTimeSamplersBlocklist(*utilstrings.FilterList)
 
 	// Senders API, mainly used by collectors/checks
 	// --

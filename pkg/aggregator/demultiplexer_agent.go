@@ -172,7 +172,7 @@ func initAgentDemultiplexer(log log.Component,
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
 
 	statsdWorkers := make([]*timeSamplerWorker, statsdPipelinesCount)
-	flushCoatlist := newCOATBlocklist()
+	flushAgentTelemList := newAgentTelemFilterList()
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
@@ -183,7 +183,7 @@ func initAgentDemultiplexer(log log.Component,
 		// its worker (process loop + flush/serialization mechanism)
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
-			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore, &flushCoatlist)
+			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore, &flushAgentTelemList)
 	}
 
 	var noAggWorker *noAggregationStreamWorker
@@ -504,7 +504,7 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 
 // SetTimeSamplersBlocklist triggers a reconfiguration of the blocklist
 // applied in the time samplers.
-func (d *AgentDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
+func (d *AgentDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.FilterList) {
 	for _, worker := range d.statsd.workers {
 		worker.blocklistChan <- blocklist
 	}

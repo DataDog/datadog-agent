@@ -991,7 +991,7 @@ func TestConvertNamespaceBlacklist(t *testing.T) {
 
 func TestMetricBlocklistShouldBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	blocklist := utilstrings.NewBlocklist([]string{"custom.metric.a", "custom.metric.b"}, false)
+	blocklist := utilstrings.NewFilterList([]string{"custom.metric.a", "custom.metric.b"}, false)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1028,7 +1028,7 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 
 func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	blocklist := utilstrings.NewBlocklist([]string{"custom.metric.b", "custom.metric.c"}, false)
+	blocklist := utilstrings.NewFilterList([]string{"custom.metric.b", "custom.metric.c"}, false)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}

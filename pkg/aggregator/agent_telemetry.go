@@ -26,8 +26,8 @@ var tlmDogstatsd = map[string]telemetry.Counter{
 }
 
 // newCOATBlocklist creates a block list to capture metrics coming in from dogstatsd that we want to capture.
-func newCOATBlocklist() utilstrings.Blocklist {
-	return utilstrings.NewBlocklist([]string{
+func newAgentTelemFilterList() utilstrings.FilterList {
+	return utilstrings.NewFilterList([]string{
 		"datadog.dogstatsd.client.bytes_sent",
 		"datadog.dogstatsd.client.bytes_dropped",
 		"datadog.dogstatsd.client.packets_sent",

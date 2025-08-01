@@ -554,7 +554,7 @@ func testFlushBlocklist(t *testing.T, store *tags.Store) {
 		Mtype:      metrics.DistributionType,
 		SampleRate: 1,
 	}, 1000)
-	bl := utilstrings.NewBlocklist([]string{
+	bl := utilstrings.NewFilterList([]string{
 		"test.histogram.avg",
 		"test.histogram.count",
 	}, false)
@@ -687,7 +687,7 @@ func flushSerie(sampler *TimeSampler, timestamp float64, forceFlushAll bool) (me
 	return series, sketches
 }
 
-func flushSerieWithBlocklist(sampler *TimeSampler, timestamp float64, bl *utilstrings.Blocklist, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
+func flushSerieWithBlocklist(sampler *TimeSampler, timestamp float64, bl *utilstrings.FilterList, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 

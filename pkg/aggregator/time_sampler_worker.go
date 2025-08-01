@@ -31,9 +31,9 @@ type timeSamplerWorker struct {
 	// flushBlocklist is the blocklist used when flushing metrics to the serializer.
 	// It's main use-case is to filter out some metrics after their aggregation
 	// process, such as histograms which create several metrics.
-	flushBlocklist *utilstrings.Blocklist
+	flushBlocklist *utilstrings.FilterList
 
-	flushCoatlist *utilstrings.Blocklist
+	flushCoatlist *utilstrings.FilterList
 
 	// parallel serialization configuration
 	parallelSerialization FlushAndSerializeInParallel
@@ -44,7 +44,7 @@ type timeSamplerWorker struct {
 	// use this chan to trigger a flush of the time sampler
 	flushChan chan flushTrigger
 	// use this chan to trigger a blocklist reconfiguration
-	blocklistChan chan *utilstrings.Blocklist
+	blocklistChan chan *utilstrings.FilterList
 	// use this chan to stop the timeSamplerWorker
 	stopChan chan struct{}
 	// channel to trigger interactive dump of the context resolver
@@ -63,7 +63,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel,
 	tagsStore *tags.Store,
-	flushCoatlist *utilstrings.Blocklist,
+	flushCoatlist *utilstrings.FilterList,
 ) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
@@ -78,7 +78,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		stopChan:      make(chan struct{}),
 		flushChan:     make(chan flushTrigger),
 		dumpChan:      make(chan dumpTrigger),
-		blocklistChan: make(chan *utilstrings.Blocklist),
+		blocklistChan: make(chan *utilstrings.FilterList),
 
 		tagsStore: tagsStore,
 	}

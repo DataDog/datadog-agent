@@ -177,7 +177,7 @@ func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.Metric
 }
 
 // SetTimeSamplersBlocklist is not supported in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
+func (d *ServerlessDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.FilterList) {
 	d.statsdWorker.blocklistChan <- blocklist
 }
 

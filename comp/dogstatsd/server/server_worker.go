@@ -36,8 +36,8 @@ type worker struct {
 
 	packetsTelemetry *packets.TelemetryStore
 
-	BlocklistUpdate chan utilstrings.Blocklist
-	blocklist       utilstrings.Blocklist
+	BlocklistUpdate chan utilstrings.FilterList
+	blocklist       utilstrings.FilterList
 }
 
 func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
@@ -54,7 +54,7 @@ func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Compon
 		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
 		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry: packetsTelemetry,
-		BlocklistUpdate:  make(chan utilstrings.Blocklist),
+		BlocklistUpdate:  make(chan utilstrings.FilterList),
 	}
 }
 

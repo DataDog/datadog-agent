@@ -11,16 +11,16 @@ import (
 	"strings"
 )
 
-// Blocklist is a strings blocklist.
-// See `NewBlocklist` for details.
-type Blocklist struct {
+// FilterList is a strings blocklist.
+// See `NewFilterList` for details.
+type FilterList struct {
 	data        []string
 	matchPrefix bool
 }
 
-// NewBlocklist creates a new strings blocklist.
-// Use `matchPrefix` to  create a prefixes blocklist.
-func NewBlocklist(data []string, matchPrefix bool) Blocklist {
+// NewFilterList creates a new strings filterlist.
+// Use `matchPrefix` to  create a prefixes filter.
+func NewFilterList(data []string, matchPrefix bool) FilterList {
 	data = slices.Clone(data)
 	sort.Strings(data)
 
@@ -41,16 +41,16 @@ func NewBlocklist(data []string, matchPrefix bool) Blocklist {
 	// Invariants for data:
 	// For all i, j such that i < j, data[i] < data[j].
 	// for all i, j such that i != j, !HasPrefix(data[i], data[j]).
-	return Blocklist{
+	return FilterList{
 		data:        data,
 		matchPrefix: matchPrefix,
 	}
 }
 
-// Test returns true if the given name is in the blocklist
-// or matching by prefix if the string blocklist has been
+// Test returns true if the given name is in the filterlist
+// or matching by prefix if the string filterlist has been
 // created with `matchPrefix`.
-func (b *Blocklist) Test(name string) bool {
+func (b *FilterList) Test(name string) bool {
 	if b == nil {
 		return false
 	}

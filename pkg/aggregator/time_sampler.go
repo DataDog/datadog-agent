@@ -126,7 +126,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, blocklist *utilstrings.Blocklist, coatlist *utilstrings.Blocklist, forceFlushAll bool) {
+func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, blocklist *utilstrings.FilterList, coatlist *utilstrings.FilterList, forceFlushAll bool) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
 
@@ -166,8 +166,8 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	rawSeries []*metrics.Serie,
 	serieSink metrics.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie,
-	blocklist *utilstrings.Blocklist,
-	coatlist *utilstrings.Blocklist,
+	blocklist *utilstrings.FilterList,
+	coatlist *utilstrings.FilterList,
 ) {
 	// clear the map. Reuse serieBySignature
 	for k := range serieBySignature {
@@ -239,7 +239,7 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, blocklist *utilstrings.Blocklist, coatlist *utilstrings.Blocklist, forceFlushAll bool) {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, blocklist *utilstrings.FilterList, coatlist *utilstrings.FilterList, forceFlushAll bool) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 

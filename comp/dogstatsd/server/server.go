@@ -527,12 +527,12 @@ func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
 
 	// send the complete blocklist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
-		blocklist := utilstrings.NewBlocklist(metricNames, matchPrefix)
+		blocklist := utilstrings.NewFilterList(metricNames, matchPrefix)
 		worker.BlocklistUpdate <- blocklist
 	}
 
 	// send the histogram blocklist used right before flushing to the serializer
-	histoBlocklist := utilstrings.NewBlocklist(histoMetricNames, matchPrefix)
+	histoBlocklist := utilstrings.NewFilterList(histoMetricNames, matchPrefix)
 	s.demultiplexer.SetTimeSamplersBlocklist(&histoBlocklist)
 }
 
@@ -721,7 +721,7 @@ func (s *server) errLog(format string, params ...interface{}) {
 }
 
 // workers are running this function in their goroutine
-func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, blocklist *utilstrings.Blocklist) metrics.MetricSampleBatch {
+func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, blocklist *utilstrings.FilterList) metrics.MetricSampleBatch {
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -833,7 +833,7 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
 func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string,
-	processID uint32, listenerID string, originTelemetry bool, blocklist *utilstrings.Blocklist) ([]metrics.MetricSample, error) {
+	processID uint32, listenerID string, originTelemetry bool, blocklist *utilstrings.FilterList) ([]metrics.MetricSample, error) {
 	okCnt := s.tlmProcessedOk
 	errorCnt := s.tlmProcessedError
 	if origin != "" && originTelemetry {

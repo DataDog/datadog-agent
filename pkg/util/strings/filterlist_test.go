@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewBlocklist(t *testing.T) {
+func TestNewFilterList(t *testing.T) {
 	check := func(data []string) []string {
-		b := NewBlocklist(data, true)
+		b := NewFilterList(data, true)
 		return b.data
 	}
 
@@ -47,7 +47,7 @@ func TestIsStringBlocked(t *testing.T) {
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%v-%v-%v", c.name, c.blocklist, c.matchPrefix),
 			func(t *testing.T) {
-				b := NewBlocklist(c.blocklist, c.matchPrefix)
+				b := NewFilterList(c.blocklist, c.matchPrefix)
 				assert.Equal(t, c.result, b.Test(c.name))
 			})
 	}
@@ -90,7 +90,7 @@ func benchmarkBlocklist(b *testing.B, words, values []string) {
 	words[0] = values[0]
 	words[3] = values[100]
 
-	blocklist := NewBlocklist(values, false)
+	blocklist := NewFilterList(values, false)
 
 	for n := 0; n < b.N; n++ {
 		blocklist.Test(words[n%len(words)])
