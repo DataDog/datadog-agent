@@ -118,6 +118,8 @@ func (is *ddotInstallSuite) TestDDOTInstall() {
 	require.NoError(is.T(), err)
 	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
+	ExecuteWithoutError(is.T(), VMclient, "sudo mkdir /etc/datadog-agent")
+	ExecuteWithoutError(is.T(), VMclient, "sudo touch /etc/datadog-agent/datadog.yaml")
 	if *platform == "debian" || *platform == "ubuntu" {
 		is.ddotDebianTest(VMclient)
 	} else if *platform == "centos" || *platform == "amazonlinux" || *platform == "fedora" || *platform == "redhat" {
@@ -132,9 +134,8 @@ func (is *ddotInstallSuite) TestDDOTInstall() {
 
 func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestClient) {
 	is.T().Run("add config file", func(t *testing.T) {
-		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
-		ExecuteWithoutError(t, VMclient, "sudo sh -c \"printf 'otelcollector:\\n  enabled: true\\n' >> /etc/datadog-agent/datadog.yaml\"")
-		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml.example > /etc/datadog-agent/otel-config.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"printf 'api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' >> /etc/datadog-agent/datadog.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed -i -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/otel-config.yaml && chmod 640 /etc/datadog-agent/otel-config.yaml\"")
 		if (*platform == "ubuntu" && is.osVersion == 14.04) || (*platform == "centos" && is.osVersion == 6.10) {
@@ -142,6 +143,10 @@ func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestCli
 		} else {
 			ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
 		}
+
+		// Reset systemd failure state and start ddot service
+		ExecuteWithoutError(t, VMclient, "sudo systemctl reset-failed datadog-agent-ddot.service")
+		ExecuteWithoutError(t, VMclient, "sudo systemctl start datadog-agent-ddot.service")
 	})
 
 	is.T().Run("check ddot systemd units are running", func(t *testing.T) {
@@ -149,6 +154,7 @@ func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestCli
 		require.NotNil(t, ddotUnit, "DDOT unit should be present after installation")
 		require.Equal(t, "datadog-agent-ddot.service", ddotUnit.Name, "DDOT unit name should be datadog-agent-ddot.service")
 		require.Equal(t, "active", ddotUnit.Active, "DDOT unit should be active because of dependency on datadog-agent")
+		require.Equal(t, "enabled", ddotUnit.Enabled, "DDOT unit should be enabled when running")
 		require.Equal(t, host.Loaded, ddotUnit.LoadState, "DDOT unit should be loaded")
 		require.Equal(t, host.Running, ddotUnit.SubState, "DDOT unit should be started when datadog-agent is started")
 	})

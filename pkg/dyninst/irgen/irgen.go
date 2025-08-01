@@ -621,13 +621,13 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 }
 
 func field(st *ir.StructureType, name string) (*ir.Field, error) {
-	offset := slices.IndexFunc(st.Fields, func(f ir.Field) bool {
+	offset := slices.IndexFunc(st.RawFields, func(f ir.Field) bool {
 		return f.Name == name
 	})
 	if offset == -1 {
 		return nil, fmt.Errorf("type %q has no %s field", st.Name, name)
 	}
-	return &st.Fields[offset], nil
+	return &st.RawFields[offset], nil
 }
 
 func fieldType[T ir.Type](st *ir.StructureType, name string) (T, error) {
@@ -637,7 +637,12 @@ func fieldType[T ir.Type](st *ir.StructureType, name string) (T, error) {
 	}
 	fieldType, ok := f.Type.(T)
 	if !ok {
-		return *new(T), fmt.Errorf("field %q is not a %T, got %T", name, new(T), f.Type)
+		ret := *new(T)
+		err := fmt.Errorf(
+			"field %q of type %q is not a %T, got %T",
+			name, st.Name, ret, f.Type,
+		)
+		return ret, err
 	}
 	return fieldType, nil
 }
@@ -724,9 +729,47 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	return nil
 }
 
-func completeHMapHeaderType(_ *typeCatalog, _ *ir.StructureType) error {
-	// TODO: Implement this and test it on older versions of Go.
-	return fmt.Errorf("hmap support is not implemented")
+func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
+	bucketsField, err := field(st, "buckets")
+	if err != nil {
+		return err
+	}
+	bucketsStructType, err := pointeeType[*ir.StructureType](bucketsField.Type)
+	if err != nil {
+		return err
+	}
+	keysArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "keys")
+	if err != nil {
+		return err
+	}
+	keyType := keysArrayType.Element
+	valuesArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "values")
+	if err != nil {
+		return err
+	}
+	valueType := valuesArrayType.Element
+	bucketsType := &ir.GoHMapBucketType{
+		StructureType: bucketsStructType,
+		KeyType:       keyType,
+		ValueType:     valueType,
+	}
+	bucketsSliceDataType := &ir.GoSliceDataType{
+		TypeCommon: ir.TypeCommon{
+			ID:       tc.idAlloc.next(),
+			Name:     fmt.Sprintf("[]%s.array", bucketsType.GetName()),
+			ByteSize: tc.maxDynamicTypeSize,
+		},
+		Element: bucketsType,
+	}
+	headerType := &ir.GoHMapHeaderType{
+		StructureType: st,
+		BucketType:    bucketsType,
+		BucketsType:   bucketsSliceDataType,
+	}
+	tc.typesByID[bucketsSliceDataType.ID] = bucketsSliceDataType
+	tc.typesByID[headerType.ID] = headerType
+	tc.typesByID[bucketsType.ID] = bucketsType
+	return nil
 }
 
 func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {

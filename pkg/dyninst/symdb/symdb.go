@@ -8,6 +8,7 @@
 package symdb
 
 import (
+	"debug/buildinfo"
 	"debug/dwarf"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 
@@ -24,11 +26,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Symbols models the symbols from a binary that get exported to SymDB.
 type Symbols struct {
-	Packages []Package
+	// MainModule is the path of the module containing the "main" function.
+	MainModule string
+	Packages   []Package
 }
 
 // Package describes a Go package for SymDB.
@@ -40,6 +45,40 @@ type Package struct {
 	// receiver Type.
 	Functions []Function
 	Types     []Type
+}
+
+// PackageStats represents statistics about the symbols collected for a package.
+type PackageStats struct {
+	// NumTypes is the number of types in this package represented in the
+	// collected symbols.
+	NumTypes int
+	// NumFunctions is the number of functions in this package represented in
+	// the collected symbols.
+	NumFunctions int
+	// NumSourceFiles is the number of source files that contain functions in
+	// this package.
+	NumSourceFiles int
+}
+
+func (s PackageStats) String() string {
+	return fmt.Sprintf("Types: %d, Functions: %d, Source files: %d",
+		s.NumTypes, s.NumFunctions, s.NumSourceFiles)
+}
+
+// Stats computes statistics about the package's symbols.
+func (p Package) Stats() PackageStats {
+	var res PackageStats
+	res.NumTypes += len(p.Types)
+	res.NumFunctions += len(p.Functions)
+	for _, f := range p.Functions {
+		sourceFiles := make(map[string]struct{}) // Keep track of unique source files.
+		_, ok := sourceFiles[f.File]
+		if !ok {
+			sourceFiles[f.File] = struct{}{}
+			res.NumSourceFiles++
+		}
+	}
+	return res
 }
 
 // Type describes a Go type for SymDB.
@@ -71,7 +110,9 @@ type Function struct {
 	// SymDB, the qualified name is how the function is identified to the
 	// prober.
 	QualifiedName string
-	File          string
+	// The source file containing the function. This is an absolute path local
+	// to the build machine, as recorded in DWARF.
+	File string
 	// The function itself represents a lexical block, with variables and
 	// sub-scopes.
 	Scope
@@ -79,6 +120,135 @@ type Function struct {
 
 func (f Function) empty() bool {
 	return f.Name == ""
+}
+
+// Serialize serializes the symbols as a human-readable string.
+//
+// If packageFilter is non-empty, only packages that start with this prefix are
+// included in the output. The "main" package is always present, and is placed
+// first in the output.
+func (s Symbols) Serialize(w StringWriter) {
+	w.WriteString("Main module: ")
+	w.WriteString(s.MainModule)
+	w.WriteString("\n")
+	// Serialize the "main" package before all the others.
+	mainPkgIdx := 0
+	for i, pkg := range s.Packages {
+		if pkg.Name == mainPackageName {
+			mainPkgIdx = i
+			pkg.Serialize(w)
+		}
+	}
+	for i, pkg := range s.Packages {
+		if i == mainPkgIdx {
+			continue
+		}
+		pkg.Serialize(w)
+	}
+}
+
+// Serialize serializes the symbols in the package as a human-readable string.
+func (p Package) Serialize(w StringWriter) {
+	w.WriteString("Package: ")
+	w.WriteString(p.Name)
+	w.WriteString("\n")
+	for _, fn := range p.Functions {
+		fn.Serialize(w, "\t")
+	}
+	for _, t := range p.Types {
+		t.Serialize(w, "\t")
+	}
+}
+
+// Serialize serializes the function as a human-readable string.
+func (f Function) Serialize(w StringWriter, indent string) {
+	w.WriteString(indent)
+	w.WriteString("Function: ")
+	w.WriteString(f.Name)
+	w.WriteString(" (")
+	w.WriteString(f.QualifiedName)
+	w.WriteString(")")
+	w.WriteString(" in ")
+	file := f.File
+	w.WriteString(file)
+	w.WriteString(fmt.Sprintf(" [%d:%d]", f.StartLine, f.EndLine))
+	w.WriteString("\n")
+
+	childIndent := indent + "\t"
+	for _, v := range f.Variables {
+		v.Serialize(w, childIndent)
+	}
+	for _, s := range f.Scopes {
+		s.Serialize(w, childIndent)
+	}
+}
+
+// Serialize serializes the scope as a human-readable string. It looks like:
+// Scope: <startLine>-<endLine>
+func (s Scope) Serialize(w StringWriter, indent string) {
+	w.WriteString(indent)
+	w.WriteString("Scope: ")
+	w.WriteString(fmt.Sprintf("%d-%d", s.StartLine, s.EndLine))
+	w.WriteString("\n")
+	childIndent := indent + "\t"
+	for _, v := range s.Variables {
+		v.Serialize(w, childIndent)
+	}
+}
+
+// Serialize serializes the type as a human-readable string. It looks like:
+//
+//	Type: <name>
+//		Field: <fieldName>: <fieldType>
+//		Field: <fieldName>: <fieldType>
+//	 	Method: <methodName> ...
+func (t Type) Serialize(w StringWriter, indent string) {
+	w.WriteString(indent)
+	w.WriteString("Type: ")
+	w.WriteString(t.Name)
+	w.WriteString("\n")
+	childIndent := indent + "\t"
+	for _, f := range t.Fields {
+		w.WriteString(childIndent)
+		w.WriteString("Field: ")
+		w.WriteString(f.Name)
+		w.WriteString(": ")
+		w.WriteString(f.Type)
+		w.WriteString("\n")
+	}
+	for _, m := range t.Methods {
+		m.Serialize(w, childIndent)
+	}
+}
+
+// Serialize serializes the variable as a human-readable string. It looks like:
+// Var: <name>: <type> (declared at line <declLine>, available: [<startLine>-<endLine>], [<startLine>-<endLine>], ...)
+func (v Variable) Serialize(w StringWriter, indent string) {
+	w.WriteString(indent)
+	if v.FunctionArgument {
+		w.WriteString("Arg: ")
+	} else {
+		w.WriteString("Var: ")
+	}
+	w.WriteString(v.Name)
+	w.WriteString(": ")
+	w.WriteString(v.TypeName)
+	w.WriteString(" (declared at line ")
+	w.WriteString(fmt.Sprintf("%d", v.DeclLine))
+	w.WriteString(", available: ")
+	for i, r := range v.AvailableLineRanges {
+		if i > 0 {
+			w.WriteString(", ")
+		}
+		w.WriteString(fmt.Sprintf("[%d-%d]", r[0], r[1]))
+	}
+	w.WriteString(")\n")
+}
+
+// StringWriter is like io.StringWriter, but writes panic on errors instead of
+// returning errors. See symdbutil.PanickingWriter for an implementation.
+type StringWriter interface {
+	WriteString(s string)
 }
 
 // Scope represents a function or another lexical block.
@@ -108,6 +278,8 @@ type Variable struct {
 // LineRange represents a range of source lines, inclusive of both ends.
 type LineRange [2]int
 
+const mainPackageName = "main"
+
 // SymDBBuilder walks the DWARF data for a binary, extracting symbols in the
 // SymDB format.
 // nolint:revive  // ignore stutter rule
@@ -121,6 +293,12 @@ type SymDBBuilder struct {
 	loclistReader *loclist.Reader
 	// The size of pointers for the binary's architecture, in bytes.
 	pointerSize int
+	// The module path of the Go module containing the main function. Empty if
+	// unknown.
+	mainModule string
+	// Filter files starting with these path prefixes when exploring the DWARF.
+	// Used to skip 3rd party code in certain cases.
+	filesFilter []string
 
 	// The compile unit currently being processed by explore* functions.
 	currentCompileUnit        *dwarf.Entry
@@ -293,7 +471,7 @@ func (d *dwarfBlock) resolvePCRanges(dwarfData *dwarf.Data) ([]dwarfutil.PCRange
 // resolveLines computes the start and end lines of the lexical block by
 // combining PC ranges from DWARF with pclinetab data. Returns [0,0] if the
 // block has no address ranges, and thus no lines.
-func (d *dwarfBlock) resolveLines(dwarfData *dwarf.Data, pcIt *gosym.PCIterator) (LineRange, error) {
+func (d *dwarfBlock) resolveLines(dwarfData *dwarf.Data, lines []gosym.LineRange) (LineRange, error) {
 	// Find the start and end lines of the block by going through the address
 	// ranges, resolving them to lines, and selecting the minimum and maximum.
 	pcRanges, err := d.resolvePCRanges(dwarfData)
@@ -306,7 +484,7 @@ func (d *dwarfBlock) resolveLines(dwarfData *dwarf.Data, pcIt *gosym.PCIterator)
 	startLine := math.MaxInt
 	endLine := 0
 	for _, r := range pcRanges {
-		lineRange, ok := pcRangeToLines(r, pcIt)
+		lineRange, ok := pcRangeToLines(r, lines)
 		if !ok {
 			continue
 		}
@@ -340,7 +518,19 @@ func (s subprogBlock) resolvePCRanges(*dwarf.Data) ([]dwarfutil.PCRange, error) 
 // NewSymDBBuilder creates a new SymDBBuilder for the given ELF file. The
 // SymDBBuilder takes ownership of the ELF file.
 // Close() needs to be called .
-func NewSymDBBuilder(obj *object.ElfFile) (*SymDBBuilder, error) {
+func NewSymDBBuilder(binaryPath string) (*SymDBBuilder, error) {
+	obj, err := object.OpenElfFile(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %w", err)
+	}
+	// Parse the binary's build info to figure out the URL of the main module.
+	// Note that we'll get an empty URL for binaries built with Bazel.
+	binfo, err := buildinfo.ReadFile(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read build info: %w", err)
+	}
+	mainModule := binfo.Main.Path
+
 	moduledata, err := object.ParseModuleData(obj.Underlying)
 	if err != nil {
 		return nil, err
@@ -376,6 +566,7 @@ func NewSymDBBuilder(obj *object.ElfFile) (*SymDBBuilder, error) {
 		sym:           symTable,
 		loclistReader: obj.LoclistReader(),
 		pointerSize:   int(obj.PointerSize()),
+		mainModule:    mainModule,
 		cleanupFuncs:  []func(){func() { _ = goDebugSections.Close() }, func() { _ = obj.Close() }},
 	}
 	b.types.typesCache = dwarfutils.NewTypeFinder(obj.DwarfData())
@@ -391,11 +582,71 @@ func (b *SymDBBuilder) Close() {
 	}
 }
 
+// ExtractScope defines which symbols to extract from the binary.
+type ExtractScope int
+
+const (
+	// ExtractScopeAllSymbols extracts all symbols from the binary.
+	ExtractScopeAllSymbols ExtractScope = iota
+	// ExtractScopeMainModuleOnly extracts only symbols from the main module,
+	// i.e. the Go module containing the main() function.
+	ExtractScopeMainModuleOnly
+	// ExtractScopeModulesFromSameOrg extracts symbols from the main module and
+	// other modules from the same GitHub organization or GitLab namespace. For
+	// example, if the main module is "github.com/DataDog/datadog-agent", this
+	// will extract symbols from all "github.com/DataDog/*" modules.
+	ExtractScopeModulesFromSameOrg
+)
+
 // ExtractSymbols walks the DWARF data and accumulates the symbols to send to
 // SymDB.
-func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
-	var res Symbols
+func (b *SymDBBuilder) ExtractSymbols(opt ExtractScope) (Symbols, error) {
+	res := Symbols{
+		MainModule: b.mainModule,
+		Packages:   nil,
+	}
 	entryReader := b.dwarfData.Reader()
+	// Figure out the package path prefix that corresponds to "1st party code"
+	// (as opposed to 3rd party dependencies), in case we're asked to filter for
+	// 1st party modules. We are only able to make this distinction if the
+	// binary was built with Go modules, recent versions of the compiler, and
+	// not with Bazel. We recognize modules hosted on GitHub and GitLab and
+	// consider anything in their organization as 1st party code.
+	//
+	// Binaries built by Bazel don't have module information, which means they
+	// don't have information on the main module. In that case, we can still
+	// identify most of the 3rd party code by the decl_file attribute of the
+	// subprograms -- third party functions are tagged as coming from
+	// "external/..." files and standard library functions as coming from "GOROOT/...".
+	var firstPartyPkgPrefix string
+	if b.mainModule != "" {
+		parts := strings.Split(b.mainModule, "/")
+		if len(parts) >= 3 && (parts[0] == "github.com" || parts[0] == "gitlab.com") {
+			firstPartyPkgPrefix = parts[0] + "/" + parts[1] + "/"
+		}
+	} else if opt == ExtractScopeMainModuleOnly || opt == ExtractScopeModulesFromSameOrg {
+		b.filesFilter = []string{"external/", "GOROOT/"}
+	}
+
+	pkgPassesFilter := func(pkgPath string) bool {
+		// We don't know what the main module is, so we can't filter out
+		// anything.
+		if b.mainModule == "" {
+			return true
+		}
+		// The "main" package is always included.
+		if pkgPath == mainPackageName {
+			return true
+		}
+		switch opt {
+		case ExtractScopeMainModuleOnly:
+			return strings.HasPrefix(pkgPath, b.mainModule)
+		case ExtractScopeModulesFromSameOrg:
+			return strings.HasPrefix(pkgPath, firstPartyPkgPrefix)
+		default:
+			panic(fmt.Sprintf("unsupported extract scope: %d", opt))
+		}
+	}
 
 	// Recognize compile units, which are the top-level entries in the DWARF
 	// data corresponding to Go packages.
@@ -409,11 +660,25 @@ func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
 			continue
 		}
 
+		if opt != ExtractScopeAllSymbols {
+			pkgName, ok := entry.Val(dwarf.AttrName).(string)
+			if !ok {
+				return Symbols{}, errors.New("compile unit without name")
+			}
+			if !pkgPassesFilter(pkgName) {
+				entryReader.SkipChildren()
+				continue
+			}
+		}
+
 		pkg, err := b.exploreCompileUnit(entry, entryReader)
 		if err != nil {
 			return Symbols{}, err
 		}
-		if pkg.Name != "" {
+		// Skip zero-value packages, and also packages that have no symbols in
+		// them. The latter happens for 3rd party packages when we're asking for
+		// 1st party code only.
+		if pkg.Name != "" && (len(pkg.Types) > 0 || len(pkg.Functions) > 0) {
 			res.Packages = append(res.Packages, pkg)
 		}
 	}
@@ -482,6 +747,7 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 		return Package{}, errors.New("compile unit without name")
 	}
 	res.Name = name
+	start := time.Now()
 
 	cuLineReader, err := b.dwarfData.LineReader(entry)
 	if err != nil {
@@ -507,7 +773,7 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 	}
 	b.filesInCurrentCompileUnit = files
 
-	// We recognize subprograms and types.
+	// Go through the children, looking for subprograms.
 	for child, err := reader.Next(); child != nil; child, err = reader.Next() {
 		if err != nil {
 			return Package{}, err
@@ -537,6 +803,12 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 	for i, t := range b.types.packages[res.Name] {
 		res.Types[i] = *t
 	}
+
+	duration := time.Since(start)
+	if duration > 5*time.Second {
+		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats())
+	}
+
 	return res, nil
 }
 
@@ -584,6 +856,25 @@ func (b *SymDBBuilder) exploreSubprogram(
 		return earlyExit()
 	}
 
+	fileIdx, ok := subprogEntry.Val(dwarf.AttrDeclFile).(int64)
+	if !ok || fileIdx == 0 { // fileIdx == 0 means unknown file, as per DWARF spec
+		// TODO: log if this ever happens. I haven't seen it.
+		return earlyExit()
+	}
+	if fileIdx < 0 || int(fileIdx) >= len(b.filesInCurrentCompileUnit) {
+		return Function{}, fmt.Errorf(
+			"subprogram at 0x%x has invalid file index %d, expected in range [0, %d)",
+			subprogEntry.Offset, fileIdx, len(b.filesInCurrentCompileUnit),
+		)
+	}
+	fileName := b.filesInCurrentCompileUnit[fileIdx]
+	// If configured with a filter, check if the file should be ignored.
+	for _, filter := range b.filesFilter {
+		if strings.HasPrefix(fileName, filter) {
+			return earlyExit()
+		}
+	}
+
 	inline, ok := subprogEntry.Val(dwarf.AttrInline).(int64)
 	if ok && inline == dwarf2.DW_INL_inlined {
 		// This function is inlined; its variables don't have location lists here;
@@ -600,19 +891,6 @@ func (b *SymDBBuilder) exploreSubprogram(
 		return Function{}, fmt.Errorf("subprogram without name at 0x%x (%s)", subprogEntry.Offset, subprogEntry.Tag)
 	}
 
-	fileIdx, ok := subprogEntry.Val(dwarf.AttrDeclFile).(int64)
-	if !ok || fileIdx == 0 { // fileIdx == 0 means unknown file, as per DWARF spec
-		// TODO: log if this ever happens. I haven't seen it.
-		return earlyExit()
-	}
-	if fileIdx < 0 || int(fileIdx) >= len(b.filesInCurrentCompileUnit) {
-		return Function{}, fmt.Errorf(
-			"subprogram %s has invalid file index %d, expected in range [0, %d)",
-			funcQualifiedName, fileIdx, len(b.filesInCurrentCompileUnit),
-		)
-	}
-	fileName := b.filesInCurrentCompileUnit[fileIdx]
-
 	// There are some funky auto-generated functions that we can't deal with
 	// because we can't parse their names (e.g.
 	// type:.eq.sync/atomic.Pointer[os.dirInfo]). Skip everything
@@ -621,7 +899,7 @@ func (b *SymDBBuilder) exploreSubprogram(
 		return earlyExit()
 	}
 
-	funcName, err := parseFuncName(funcQualifiedName)
+	parseRes, err := parseFuncName(funcQualifiedName)
 	if err != nil {
 		// Note that we do not return an error here; we simply ignore the
 		// function so that we don't choke on weird function names that we
@@ -629,12 +907,10 @@ func (b *SymDBBuilder) exploreSubprogram(
 		// TODO: log the error, but don't spam the logs.
 		return earlyExit()
 	}
-	if funcName.Empty() {
+	if parseRes.failureReason != parseFuncNameFailureReasonUndefined {
 		return earlyExit()
 	}
-	if funcName.GenericFunction {
-		return earlyExit()
-	}
+	funcName := parseRes.funcName
 
 	lowpc, ok := subprogEntry.Val(dwarf.AttrLowpc).(uint64)
 	if !ok {
@@ -645,55 +921,27 @@ func (b *SymDBBuilder) exploreSubprogram(
 		return Function{}, errors.New("subprogram without highpc")
 	}
 
-	// Do a pass through the subprogram's DWARF to find all the inlined
-	// subroutines. We need to know the PC ranges of inlined subroutines to figure
-	// out the source lines of this function.
-	//
-	// TODO: do away with this separate pass; defer resolving any PCs until
-	// after we parse the whole subprogram, at which point we can also resolve
-	// PCs in order, which is more efficient.
-	inlinedPcRanges, err := dwarfutil.ExploreInlinedPcRangesInSubprogram(reader, b.dwarfData)
+	lines, err := b.sym.FunctionLines(lowpc)
 	if err != nil {
-		return Function{}, fmt.Errorf("error exploring inlined subroutines in function %s: %w", funcQualifiedName, err)
+		return Function{}, fmt.Errorf("failed to resolve function lines for function %s at PC 0x%x: %w", funcQualifiedName, lowpc, err)
 	}
-	// Reset the reader to the start of the subprogram.
-	reader.Seek(subprogEntry.Offset)
-	// Skip the subprogram entry, to position the reader where it was before
-	// ExploreInlinedPcRangesInSubprogram.
-	_, err = reader.Next()
-	if err != nil {
-		return Function{}, err
+	// For now ignore inlined functions.
+	selfLines, ok := lines[funcQualifiedName]
+	if !ok {
+		return Function{}, fmt.Errorf("missing self function lines for function %s at PC 0x%x", funcQualifiedName, lowpc)
 	}
 
-	// Figure out the function's line range. The start line corresponds to the
-	// function's start PC. For figuring out the end line, we iterate through the
-	// function's PC-to-line mapping and keep track of the maximum line number
-	// (the function's highpc does not map to the function's end in the source
-	// code for Go functions; the last instructions have to do with stack growth
-	// and map to the function's start).
-	f := b.sym.PCToFunction(lowpc)
-	if f == nil {
-		return Function{}, fmt.Errorf("failed to resolve function for subprogram %s at PC 0x%x", funcQualifiedName, lowpc)
-	}
-	pcIt, err := f.PCIterator(inlinedPcRanges)
-	if err != nil {
-		return Function{}, fmt.Errorf("failed to create PC iterator for function %s: %w", funcQualifiedName, err)
-	}
 	firstLine := uint32(0)
 	maxLine := uint32(0)
-	for {
-		line, ok := pcIt.Next()
-		if !ok {
-			break
-		}
+
+	for _, lineRange := range selfLines.Lines {
 		if firstLine == 0 {
-			firstLine = line.Line
+			firstLine = lineRange.Line
 		}
-		if line.Line > maxLine {
-			maxLine = line.Line
+		if lineRange.Line > maxLine {
+			maxLine = lineRange.Line
 		}
 	}
-	pcIt.Reset()
 
 	// From now on, location lists that reference the current block will
 	// reference this function.
@@ -704,7 +952,7 @@ func (b *SymDBBuilder) exploreSubprogram(
 	// want to export to SymDB, this also has the side effect of resolving the
 	// types of all the function arguments; in particular, we rely below on the
 	// type of the receiver having been resolved.
-	inner, err := b.exploreCode(reader, &pcIt)
+	inner, err := b.exploreCode(reader, selfLines.Lines)
 	if err != nil {
 		return Function{}, err
 	}
@@ -761,7 +1009,7 @@ func (b *SymDBBuilder) exploreInlinedSubroutine(inlinedEntry *dwarf.Entry, reade
 // If the block does not contain any variables, it returns any sub-blocks that
 // do contain variables (if any).
 func (b *SymDBBuilder) exploreLexicalBlock(
-	blockEntry *dwarf.Entry, reader *dwarf.Reader, pcIt *gosym.PCIterator,
+	blockEntry *dwarf.Entry, reader *dwarf.Reader, lines []gosym.LineRange,
 ) ([]Scope, error) {
 	if blockEntry.Tag != dwarf.TagLexDwarfBlock {
 		return nil, fmt.Errorf("expected TagLexDwarfBlock, got %s", blockEntry.Tag)
@@ -772,7 +1020,7 @@ func (b *SymDBBuilder) exploreLexicalBlock(
 	b.pushBlock(currentBlock)
 	defer b.popBlock()
 
-	inner, err := b.exploreCode(reader, pcIt)
+	inner, err := b.exploreCode(reader, lines)
 	if err != nil {
 		return nil, fmt.Errorf("error exploring code in lexical block: %w", err)
 	}
@@ -781,7 +1029,7 @@ func (b *SymDBBuilder) exploreLexicalBlock(
 	// doesn't, then inner scopes (if any), are returned directly, to be added
 	// as direct children of the caller's block.
 	if len(inner.vars) != 0 {
-		blockLineRange, err := currentBlock.resolveLines(b.dwarfData, pcIt)
+		blockLineRange, err := currentBlock.resolveLines(b.dwarfData, lines)
 		if err != nil {
 			return nil, fmt.Errorf("error resolving lines for lexical block: %w (0x%x)",
 				err, currentBlock.entry.Offset)
@@ -805,25 +1053,31 @@ func (b *SymDBBuilder) exploreLexicalBlock(
 	return inner.scopes, nil
 }
 
-func pcRangeToLines(r dwarfutil.PCRange, pcIt *gosym.PCIterator) (LineRange, bool) {
-	startLine, ok := pcIt.PCToLine(r[0])
-	if !ok {
+func pcRangeToLines(r dwarfutil.PCRange, lines []gosym.LineRange) (LineRange, bool) {
+	// Heuristic - assume that we are going to instrument each beginning of a pc range.
+	// Collect all lines where that beginning falls into the given pc range.
+	i := sort.Search(len(lines), func(i int) bool {
+		return lines[i].PCLo >= r[0]
+	})
+	lineLo := uint32(0)
+	lineHi := uint32(0)
+	for i < len(lines) && lines[i].PCLo <= r[1] {
+		if lineLo == 0 || lines[i].Line < lineLo {
+			lineLo = lines[i].Line
+		}
+		if lineHi == 0 || lines[i].Line > lineHi {
+			lineHi = lines[i].Line
+		}
+		i++
+	}
+	if lineLo == 0 {
 		return LineRange{}, false
 	}
-
-	endLine, ok := pcIt.PCToLine(r[1])
-	if !ok {
-		return LineRange{}, false
-	}
-	if startLine > endLine {
-		return LineRange{}, false
-	}
-
-	return LineRange{int(startLine), int(endLine)}, true
+	return LineRange{int(lineLo), int(lineHi)}, true
 }
 
 // parseVariable parses a variable or formal parameter entry.
-func (b *SymDBBuilder) parseVariable(varEntry *dwarf.Entry, pcIt *gosym.PCIterator) (Variable, error) {
+func (b *SymDBBuilder) parseVariable(varEntry *dwarf.Entry, lines []gosym.LineRange) (Variable, error) {
 	varName, ok := varEntry.Val(dwarf.AttrName).(string)
 	if !ok {
 		return Variable{}, fmt.Errorf("formal parameter without name at 0x%x", varEntry.Offset)
@@ -851,7 +1105,7 @@ func (b *SymDBBuilder) parseVariable(varEntry *dwarf.Entry, pcIt *gosym.PCIterat
 			)
 		}
 		for _, r := range pcRanges {
-			lineRange, ok := pcRangeToLines(r, pcIt)
+			lineRange, ok := pcRangeToLines(r, lines)
 			if ok {
 				availableLineRanges = append(availableLineRanges, lineRange)
 			}
@@ -942,7 +1196,7 @@ type exploreCodeResult struct {
 // inlined subprograms.
 //
 // pcIt is a PC iterator for the function containing this code.
-func (b *SymDBBuilder) exploreCode(reader *dwarf.Reader, pcIt *gosym.PCIterator) (exploreCodeResult, error) {
+func (b *SymDBBuilder) exploreCode(reader *dwarf.Reader, lines []gosym.LineRange) (exploreCodeResult, error) {
 	var res exploreCodeResult
 	for child, err := reader.Next(); child != nil; child, err = reader.Next() {
 		if err != nil {
@@ -955,19 +1209,19 @@ func (b *SymDBBuilder) exploreCode(reader *dwarf.Reader, pcIt *gosym.PCIterator)
 		// We recognize formal parameters, variables, lexical blocks and inlined subroutines.
 		switch child.Tag {
 		case dwarf.TagFormalParameter:
-			v, err := b.parseVariable(child, pcIt)
+			v, err := b.parseVariable(child, lines)
 			if err != nil {
 				return exploreCodeResult{}, err
 			}
 			res.vars = append(res.vars, v)
 		case dwarf.TagVariable:
-			v, err := b.parseVariable(child, pcIt)
+			v, err := b.parseVariable(child, lines)
 			if err != nil {
 				return exploreCodeResult{}, err
 			}
 			res.vars = append(res.vars, v)
 		case dwarf.TagLexDwarfBlock:
-			scopes, err := b.exploreLexicalBlock(child, reader, pcIt)
+			scopes, err := b.exploreLexicalBlock(child, reader, lines)
 			if err != nil {
 				return exploreCodeResult{}, err
 			}

@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 const (
@@ -91,9 +92,11 @@ type Manager struct {
 	remoteStorage             *storage.ActivityDumpRemoteStorageForwarder
 	configuredStorageRequests map[config.StorageFormat][]config.StorageRequest
 
-	activeDumps         []*dump.ActivityDump
-	snapshotQueue       chan *dump.ActivityDump
-	contextTags         []string
+	activeDumps      []*dump.ActivityDump
+	snapshotQueue    chan *dump.ActivityDump
+	contextTags      []string
+	containerFilters *containers.Filter
+
 	hostname            string
 	lastStoppedDumpTime time.Time
 
@@ -127,6 +130,9 @@ type Manager struct {
 
 	// chan used to move an ActivityDump profile to a SecurityProfile profile
 	newProfiles chan *profile.Profile
+
+	workloadSelectorResolved chan *tags.Workload
+	workloadDeleted          chan *tags.Workload
 }
 
 // NewManager returns a new instance of the security profile manager
@@ -232,6 +238,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		contextTags = append(contextTags, fmt.Sprintf("source:%s", ActivityDumpSource))
 	}
 
+	containerFilters, err := utils.NewContainerFilter()
+	if err != nil {
+		return nil, err
+	}
+
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *profile.Profile](cfg.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
@@ -272,8 +283,9 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		remoteStorage:             remoteStorage,
 		configuredStorageRequests: perFormatStorageRequests(configuredStorageRequests),
 
-		contextTags: contextTags,
-		hostname:    hostname,
+		contextTags:      contextTags,
+		containerFilters: containerFilters,
+		hostname:         hostname,
 
 		minDumpTimeout: minDumpTimeout,
 
@@ -294,6 +306,9 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		eventFiltering: make(map[eventFilteringEntry]*atomic.Uint64),
 
 		newProfiles: make(chan *profile.Profile, 100),
+
+		workloadSelectorResolved: make(chan *tags.Workload, 100),
+		workloadDeleted:          make(chan *tags.Workload, 100),
 	}
 
 	m.initMetricsMap()
@@ -311,6 +326,16 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	return m, nil
+}
+
+// queueWorkloadEvent attempts to queue a workload event to the specified channel
+func (m *Manager) queueWorkloadEvent(ch chan<- *tags.Workload, workload *tags.Workload, eventType string) {
+	select {
+	case ch <- workload:
+		// Successfully queued
+	default:
+		seclog.Warnf("Failed to queue %s event for %v", eventType, workload.Selector.String())
+	}
 }
 
 func (m *Manager) initMetricsMap() {
@@ -361,8 +386,12 @@ func (m *Manager) Start(ctx context.Context) {
 	}
 
 	if m.config.RuntimeSecurity.SecurityProfileEnabled {
-		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorResolved, m.onWorkloadSelectorResolvedEvent)
-		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorDeleted, m.onWorkloadDeletedEvent)
+		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorResolved, func(workload *tags.Workload) {
+			m.queueWorkloadEvent(m.workloadSelectorResolved, workload, "workload selector resolved")
+		})
+		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorDeleted, func(workload *tags.Workload) {
+			m.queueWorkloadEvent(m.workloadDeleted, workload, "workload deleted")
+		})
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -388,6 +417,10 @@ func (m *Manager) Start(ctx context.Context) {
 			m.handleSilentWorkloads()
 		case newProfile := <-m.newProfiles:
 			m.onNewProfile(newProfile)
+		case workload := <-m.workloadSelectorResolved:
+			m.onWorkloadSelectorResolvedEvent(workload)
+		case workload := <-m.workloadDeleted:
+			m.onWorkloadDeletedEvent(workload)
 		}
 	}
 }

@@ -167,6 +167,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   chase_steps = stack_machine_chase_pointers(&global_ctx);
   if (!events_scratch_buf_submit(global_ctx.buf)) {
     // TODO: Report dropped events metric.
+    LOG(1, "probe_run output dropped");
   }
   if (stack_hash != 0) {
     upsert_stack_hash(stack_hash);

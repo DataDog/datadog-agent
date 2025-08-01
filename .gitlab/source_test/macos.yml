@@ -36,6 +36,7 @@ include:
       junit: "**/junit-out-*.xml"
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
