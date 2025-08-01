@@ -51,13 +51,6 @@ import (
 //go:embed testdata/decoded
 var testdataFS embed.FS
 
-type semaphore chan struct{}
-
-func (s semaphore) acquire() (release func()) {
-	s <- struct{}{}
-	return func() { <-s }
-}
-
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
@@ -67,8 +60,7 @@ func TestDyninst(t *testing.T) {
 		"sample": {},
 	}
 
-	concurrency := max(1, runtime.GOMAXPROCS(0))
-	sem := make(semaphore, concurrency)
+	sem := dyninsttest.MakeSemaphore()
 
 	// The debug variants of the tests spew logs to the trace_pipe, so we need
 	// to clear it after the tests to avoid interfering with other tests.
@@ -114,9 +106,9 @@ func testDyninst(
 	rewriteEnabled bool,
 	expOut map[string][]json.RawMessage,
 	debug bool,
-	sem semaphore,
+	sem dyninsttest.Semaphore,
 ) map[string][]json.RawMessage {
-	defer sem.acquire()()
+	defer sem.Acquire()()
 	start := time.Now()
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
 	defer cleanup()
@@ -325,7 +317,7 @@ func runIntegrationTestSuite(
 	service string,
 	cfg testprogs.Config,
 	rewrite bool,
-	sem semaphore,
+	sem dyninsttest.Semaphore,
 ) {
 	if cfg.GOARCH != runtime.GOARCH {
 		t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
