@@ -118,6 +118,12 @@ type telemetryConfigFields struct {
 	Site   string `yaml:"site"`
 }
 
+// configAction represents a configuration action with action_type and files
+type configAction struct {
+	ActionType string        `json:"action_type"`
+	Files      []interface{} `json:"files"`
+}
+
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
 func telemetryConfig() telemetryConfigFields {
 	configPath := "/etc/datadog-agent/datadog.yaml"
@@ -393,7 +399,15 @@ func installConfigExperimentCommand() *cobra.Command {
 				if err != nil {
 					configs = [][]byte{[]byte(args[2])}
 				} else {
-					configs = [][]byte{[]byte(fmt.Sprintf(`{"action_type": "write", "files": %s}`, args[2]))}
+					action := configAction{
+						ActionType: "write",
+						Files:      configMap,
+					}
+					actionBytes, err := json.Marshal(action)
+					if err != nil {
+						return err
+					}
+					configs = [][]byte{actionBytes}
 				}
 			} else {
 				for i, config := range args[2:] {
