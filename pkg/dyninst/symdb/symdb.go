@@ -66,12 +66,20 @@ func (s PackageStats) String() string {
 }
 
 // Stats computes statistics about the package's symbols.
-func (p Package) Stats() PackageStats {
+//
+// sourceFiles will be populated with files encoutered while going through this
+// package's compile unit. Nil can be passed if the caller is not interested.
+// Note that it's possible for multiple compile units to reference the same file
+// due to inlined functions; in such cases, the file will arbitrarily count
+// towards the stats of the first package that adds it to the map.
+func (p Package) Stats(sourceFiles map[string]struct{}) PackageStats {
 	var res PackageStats
+	if sourceFiles == nil {
+		sourceFiles = make(map[string]struct{})
+	}
 	res.NumTypes += len(p.Types)
 	res.NumFunctions += len(p.Functions)
 	for _, f := range p.Functions {
-		sourceFiles := make(map[string]struct{}) // Keep track of unique source files.
 		_, ok := sourceFiles[f.File]
 		if !ok {
 			sourceFiles[f.File] = struct{}{}
@@ -806,7 +814,7 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 
 	duration := time.Since(start)
 	if duration > 5*time.Second {
-		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats())
+		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats(nil))
 	}
 
 	return res, nil
