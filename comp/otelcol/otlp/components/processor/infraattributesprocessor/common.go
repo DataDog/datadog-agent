@@ -137,8 +137,8 @@ func originInfoFromAttributes(attrs pcommon.Map, cardinality types.TagCardinalit
 		originInfo.LocalData.PodUID = podUID.AsString()
 		originInfo.ExternalData.PodUID = podUID.AsString()
 	}
-	if containerName, ok := attrs.Get(string(conventions.ContainerNameKey)); ok {
-		originInfo.ExternalData.ContainerName = containerName.AsString()
+	if k8sContainerName, ok := attrs.Get(string(conventions.K8SContainerNameKey)); ok {
+		originInfo.ExternalData.ContainerName = k8sContainerName.AsString()
 	}
 
 	// Ad-hoc attributes for data not covered by K8s semantic conventions
