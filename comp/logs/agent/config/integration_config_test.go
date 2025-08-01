@@ -159,9 +159,9 @@ func TestPublicJSON(t *testing.T) {
 
 func TestFingerprintConfig(t *testing.T) {
 	validConfigs := []*FingerprintConfig{
-		{MaxBytes: 256, MaxLines: 0, ToSkip: 0},
-		{MaxBytes: 1024, MaxLines: 10, ToSkip: 2},
-		{MaxBytes: 1, MaxLines: 0, ToSkip: 0},
+		{MaxBytes: 256, MaxLines: 0, ToSkip: 0, FingerprintStrategy: "byte_checksum"},
+		{MaxBytes: 1024, MaxLines: 10, ToSkip: 2, FingerprintStrategy: "line_checksum"},
+		{MaxBytes: 1, MaxLines: 0, ToSkip: 0, FingerprintStrategy: "byte_checksum"},
 	}
 
 	for _, config := range validConfigs {
