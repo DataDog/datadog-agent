@@ -16,9 +16,13 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
+
+var userCache = sync.Map{}
+var groupCache = sync.Map{}
 
 // Path is a path to a file or directory.
 type Path string
@@ -210,24 +214,43 @@ func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int,
 	defer func() {
 		span.Finish(err)
 	}()
-	span.SetTag("username", username)
-	span.SetTag("group", group)
-	rawUID, err := user.Lookup(username)
-	if err != nil {
-		return 0, 0, fmt.Errorf("error looking up user: %w", err)
+
+	// This is not thread-safe, but we assume that the user and group won't change during the execution of the program.
+	uidRaw, uidOk := userCache.Load(username)
+	if !uidOk {
+		rawUID, err := user.Lookup(username)
+		if err != nil {
+			return 0, 0, fmt.Errorf("error looking up user: %w", err)
+		}
+		uidRaw, err = strconv.Atoi(rawUID.Uid)
+		if err != nil {
+			return 0, 0, fmt.Errorf("error converting UID to int: %w", err)
+		}
+		userCache.Store(username, uid)
 	}
-	rawGID, err := user.LookupGroup(group)
-	if err != nil {
-		return 0, 0, fmt.Errorf("error looking up group: %w", err)
+
+	gidRaw, gidOk := groupCache.Load(group)
+	if !gidOk {
+		rawGID, err := user.LookupGroup(group)
+		if err != nil {
+			return 0, 0, fmt.Errorf("error looking up group: %w", err)
+		}
+		gidRaw, err = strconv.Atoi(rawGID.Gid)
+		if err != nil {
+			return 0, 0, fmt.Errorf("error converting GID to int: %w", err)
+		}
+		groupCache.Store(group, gidRaw)
 	}
-	uid, err = strconv.Atoi(rawUID.Uid)
-	if err != nil {
-		return 0, 0, fmt.Errorf("error converting UID to int: %w", err)
+
+	uid, ok := uidRaw.(int)
+	if !ok {
+		return 0, 0, fmt.Errorf("error converting UID to int: %v", uidRaw)
 	}
-	gid, err = strconv.Atoi(rawGID.Gid)
-	if err != nil {
-		return 0, 0, fmt.Errorf("error converting GID to int: %w", err)
+	gid, ok = gidRaw.(int)
+	if !ok {
+		return 0, 0, fmt.Errorf("error converting GID to int: %v", gidRaw)
 	}
+
 	return uid, gid, nil
 }
 
