@@ -1094,7 +1094,7 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 		return &e.SetXAttr.File, nil
 	case "signal.target.file":
 		return &e.Signal.Target.FileEvent, nil
-	case "signal.target.interpreter":
+	case "signal.target.interpreter.file":
 		return &e.Signal.Target.LinuxBinprm.FileEvent, nil
 	case "signal.target.parent.file":
 		return &e.Signal.Target.Parent.FileEvent, nil
@@ -1145,7 +1145,7 @@ func (e *Event) ValidateFileField(field string) error {
 	case "setrlimit.target.parent.interpreter.file":
 	case "setxattr.file":
 	case "signal.target.file":
-	case "signal.target.interpreter":
+	case "signal.target.interpreter.file":
 	case "signal.target.parent.file":
 	case "signal.target.parent.interpreter.file":
 	case "splice.file":
