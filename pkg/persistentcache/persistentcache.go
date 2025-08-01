@@ -7,6 +7,7 @@
 package persistentcache
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -62,4 +63,45 @@ func Read(key string) (string, error) {
 		return "", err
 	}
 	return string(content), nil
+}
+
+// Exists returns whether the cache exists.
+func Exists(key string) bool {
+	path, err := getFileForKey(key)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(path)
+	return !os.IsNotExist(err)
+}
+
+// Copy copies a source cache to a destination cache. The destinaton cache is overwritten when it exists.
+func Copy(dstKey string, srcKey string) error {
+	srcPath, err := getFileForKey(srcKey)
+	if err != nil {
+		return err
+	}
+	dstPath, err := getFileForKey(dstKey)
+	if err != nil {
+		return err
+	}
+
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dstPath)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

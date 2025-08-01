@@ -60,7 +60,7 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 
 		var subnetConfigHashOrdered []string
 		for _, autodiscoveryConfig := range autodiscoveryConfig.Configs {
-			subnetConfigHashOrdered = append(subnetConfigHashOrdered, autodiscoveryConfig.Digest(autodiscoveryConfig.Network))
+			subnetConfigHashOrdered = append(subnetConfigHashOrdered, autodiscoveryConfig.Digest(autodiscoveryConfig.Network, false))
 		}
 
 		autodiscoverySubnets := getSubnetsStatus(autodiscoveryVar)
