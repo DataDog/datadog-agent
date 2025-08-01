@@ -251,12 +251,24 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 	// TODO(lebauce): generate this function
 	switch field {
 	case "exec.file":
+		if e.Exec.Process == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Exec.FileEvent, nil
 	case "exit.file":
+		if e.Exit.Process == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.Exit.FileEvent, nil
 	case "process.file":
+		if e.ProcessContext == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.ProcessContext.FileEvent, nil
 	case "process.parent.file":
+		if e.ProcessContext == nil || e.ProcessContext.Parent == nil {
+			return nil, fmt.Errorf("%s field is not available on this event", field)
+		}
 		return &e.ProcessContext.Parent.FileEvent, nil
 	default:
 		return nil, fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
