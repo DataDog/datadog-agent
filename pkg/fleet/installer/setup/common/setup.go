@@ -113,6 +113,7 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}
+	// this resolves the ddot install package
 	packages := resolvePackages(s.Env, s.Packages)
 	s.Out.WriteString("The following packages will be installed:\n")
 	for _, p := range packages {
@@ -124,7 +125,11 @@ func (s *Setup) Run() (err error) {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
 	for _, p := range packages {
+		// we install ddot here
 		url := oci.PackageURL(s.Env, p.name, p.version)
+		fmt.Print("\n\n\n\n\n\n\n URL:\n")
+		fmt.Print(url)
+		fmt.Print("\n\n\n\n")
 		err = s.installPackage(p.name, url)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
