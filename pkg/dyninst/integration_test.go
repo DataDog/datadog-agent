@@ -274,8 +274,7 @@ func testDyninst(
 	require.NotNil(t, symbolicator)
 	require.NoError(t, err)
 
-	decoder, err := decode.NewDecoder(sink.irp)
-	require.NoError(t, err)
+	decoder := decode.NewDecoder(sink.irp)
 
 	retMap := make(map[string][]json.RawMessage)
 	for _, ev := range read {

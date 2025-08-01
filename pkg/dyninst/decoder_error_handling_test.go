@@ -177,17 +177,14 @@ type failOnceDecoderFactory struct {
 
 func (f *failOnceDecoderFactory) NewDecoder(
 	program *ir.Program,
-) (module.Decoder, error) {
-	decoder, err := f.underlying.NewDecoder(program)
-	if err != nil {
-		return nil, err
-	}
+) module.Decoder {
+	decoder := f.underlying.NewDecoder(program)
 	if !f.failed.CompareAndSwap(false, true) {
-		return decoder, nil
+		return decoder
 	}
 	return &failOnceDecoder{
 		underlying: decoder,
-	}, nil
+	}
 }
 
 type failOnceDecoder struct {

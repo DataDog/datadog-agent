@@ -28,7 +28,7 @@ type Scraper interface {
 
 // DecoderFactory is a factory for creating decoders.
 type DecoderFactory interface {
-	NewDecoder(*ir.Program) (Decoder, error)
+	NewDecoder(*ir.Program) Decoder
 }
 
 // Decoder is a decoder for a program.
@@ -46,12 +46,8 @@ type Decoder interface {
 type DefaultDecoderFactory struct{}
 
 // NewDecoder creates a new decoder using decode.NewDecoder.
-func (DefaultDecoderFactory) NewDecoder(program *ir.Program) (Decoder, error) {
-	decoder, err := decode.NewDecoder(program)
-	if err != nil {
-		return nil, err
-	}
-	return decoder, nil
+func (DefaultDecoderFactory) NewDecoder(program *ir.Program) Decoder {
+	return decode.NewDecoder(program)
 }
 
 // Actuator is an interface that enables the Controller to create a new tenant.

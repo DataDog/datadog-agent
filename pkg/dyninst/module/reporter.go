@@ -111,10 +111,7 @@ func (c *controllerReporter) ReportLoaded(
 	}
 	ctrl.procRuntimeIDbyProgramID.Store(program.ID, runtimeID)
 
-	decoder, err := ctrl.decoderFactory.NewDecoder(program)
-	if err != nil {
-		return nil, fmt.Errorf("creating decoder: %w", err)
-	}
+	decoder := ctrl.decoderFactory.NewDecoder(program)
 
 	var tags string
 	if gi := runtimeID.gitInfo; gi != nil {
