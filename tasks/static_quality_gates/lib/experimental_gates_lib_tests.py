@@ -20,6 +20,19 @@ from tasks.static_quality_gates.lib.experimental_gates_lib import (
         'CI_PIPELINE_ID': '71580015',
     },
 )
+@patch("glob.glob", new=MagicMock(return_value=["/opt/datadog-agent/datadog-agent_7*amd64.deb"]))
+@patch(
+    "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage._calculate_package_size",
+    new=MagicMock(return_value=(100, 350)),
+)
+@patch(
+    "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker._calculate_image_on_wire_size",
+    new=MagicMock(return_value=(100, 350)),
+)
+@patch(
+    "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker._calculate_image_on_disk_size",
+    new=MagicMock(return_value=(100, 350)),
+)
 class TestExperimentalGatesLib(unittest.TestCase):
     @patch("tasks.static_quality_gates.lib.experimental_gates_lib.GateMetricHandler", new=MagicMock())
     def test_get_quality_gates_list(self):
@@ -40,7 +53,7 @@ class TestExperimentalGatesLib(unittest.TestCase):
         gate = StaticQualityGatePackage(
             "static_quality_gate_iot_agent_rpm_armhf", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
         )
-        self.assertEqual(gate.arch, "armhf")
+        self.assertEqual(gate.arch, "armv7hl")
         with self.assertRaises(ValueError):
             gate = StaticQualityGatePackage(
                 "static_quality_gate_agent_deb_unknown", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
@@ -51,14 +64,22 @@ class TestExperimentalGatesLib(unittest.TestCase):
             "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
         )
         self.assertEqual(gate.os, "debian")
+        self.assertEqual(gate.arch, "amd64")
         gate = StaticQualityGatePackage(
             "static_quality_gate_agent_rpm_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
         )
         self.assertEqual(gate.os, "centos")
+        self.assertEqual(gate.arch, "x86_64")
         gate = StaticQualityGatePackage(
             "static_quality_gate_agent_suse_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
         )
         self.assertEqual(gate.os, "suse")
+
+        gate = StaticQualityGatePackage(
+            "static_quality_gate_agent_heroku_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+        )
+        self.assertEqual(gate.os, "debian")
+        self.assertEqual(gate.arch, "amd64")
         gate = StaticQualityGateDocker(
             "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
         )
@@ -93,8 +114,8 @@ class TestExperimentalGatesLib(unittest.TestCase):
         test_cases = [
             ("static_quality_gate_agent_deb_amd64", "/opt/datadog-agent/datadog-agent_7*amd64.deb"),
             ("static_quality_gate_agent_deb_amd64_fips", "/opt/datadog-agent/datadog-fips-agent_7*amd64.deb"),
-            ("static_quality_gate_iot_agent_rpm_arm64", "/opt/datadog-agent/datadog-iot-agent-7*arm64.rpm"),
-            ("static_quality_gate_dogstatsd_suse_amd64", "/opt/datadog-agent/datadog-dogstatsd-7*amd64.rpm"),
+            ("static_quality_gate_iot_agent_rpm_arm64", "/opt/datadog-agent/datadog-iot-agent-7*aarch64.rpm"),
+            ("static_quality_gate_dogstatsd_suse_amd64", "/opt/datadog-agent/datadog-dogstatsd-7*x86_64.rpm"),
         ]
 
         for gate_name, expected_pattern in test_cases:

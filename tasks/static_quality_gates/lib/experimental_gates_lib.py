@@ -15,6 +15,19 @@ from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, read_byt
 # to send data to Datadog
 GATE_METRIC_HANDLER = None
 
+ARCH_MAPPING = {
+    "amd64": "x86_64",
+    "arm64": "aarch64",
+    "armhf": "armv7hl",
+}
+
+PACKAGE_OS_MAPPING = {
+    "deb": "debian",
+    "rpm": "centos",
+    "suse": "suse",
+    "heroku": "debian",
+}
+
 
 def get_metric_handler() -> GateMetricHandler:
     """
@@ -134,16 +147,13 @@ class StaticQualityGatePackage(StaticQualityGate):
     """
 
     def _set_os(self):
-        if "deb" in self.gate_name:
-            self.os = "debian"
-        elif "rpm" in self.gate_name:
-            self.os = "centos"
-        elif "suse" in self.gate_name:
-            self.os = "suse"
-        elif "heroku" in self.gate_name:
-            self.os = "debian"
-        else:
-            raise ValueError(f"Unknown os for gate: {self.gate_name}")
+        for package_type in PACKAGE_OS_MAPPING.keys():
+            if package_type in self.gate_name:
+                self.os = PACKAGE_OS_MAPPING[package_type]
+                if self.os in ['centos', 'suse']:
+                    self.arch = ARCH_MAPPING[self.arch]
+                return
+        raise ValueError(f"Unknown os for gate: {self.gate_name}")
 
     def __init__(self, gate_name: str, gate_max_size_values: dict, ctx: Context):
         super().__init__(gate_name, gate_max_size_values, ctx)
@@ -344,7 +354,7 @@ def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQuality
     """
     with open(config_path) as file:
         config = yaml.safe_load(file)
-    print(f"{config_path} correctly parsed !")
+
     gates: list[StaticQualityGate] = []
     for gate_name in config:
         if "docker" in gate_name:
@@ -357,6 +367,7 @@ def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQuality
             raise UnsupportedOperation(f"Unknown gate type: {gate_name}")
 
     newline_tab = "\n\t"
+    print(f"{config_path} correctly parsed !")
     print(
         f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate.gate_name for gate in gates)}"
     )
