@@ -17,6 +17,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -27,7 +30,6 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/sketches-go/ddsketch"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgConfigModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgConfigSetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -617,6 +619,8 @@ type TestTaggerClient struct {
 	TagMap map[string][]string
 }
 
+var _ types.TaggerClient = (*TestTaggerClient)(nil)
+
 // NewTestTaggerClient creates and returns a new testTaggerClient with an empty string map
 func NewTestTaggerClient() *TestTaggerClient {
 	return &TestTaggerClient{
@@ -632,4 +636,8 @@ func (t *TestTaggerClient) Tag(entityID types.EntityID, _ types.TagCardinality) 
 // GlobalTags mocks taggerimpl.GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
 func (t *TestTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
 	return t.TagMap[types.NewEntityID("internal", "global-entity-id").String()], nil
+}
+
+func (t *TestTaggerClient) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	return "", fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", originInfo)
 }
