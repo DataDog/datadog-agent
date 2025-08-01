@@ -29,25 +29,11 @@ const (
 	// MRF logs settings
 	configMRFFailoverLogs     = "multi_region_failover.failover_logs"
 	configMRFServiceAllowlist = "multi_region_failover.logs_service_allowlist"
-	configMRFLogMinLevel      = "multi_region_failover.logs_min_level"
 )
-
-var severities = map[string]int{
-	message.StatusEmergency: 8,
-	message.StatusAlert:     7,
-	message.StatusCritical:  6,
-	message.StatusError:     5,
-	message.StatusWarning:   4,
-	message.StatusNotice:    3,
-	message.StatusInfo:      2,
-	message.StatusDebug:     1,
-	"trace":                 0,
-}
 
 type failoverConfig struct {
 	isFailoverActive         bool
 	failoverServiceAllowlist map[string]struct{}
-	failoverMinLevel         int
 }
 
 // A Processor updates messages from an inputChan and pushes
@@ -105,7 +91,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 // onLogsFailoverSettingChanged is called when any config value changes
 func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64) {
 	// Only update if the changed setting affects failover configuration
-	var MRFConfigFields = []string{configMRFFailoverLogs, configMRFServiceAllowlist, configMRFLogMinLevel}
+	var MRFConfigFields = []string{configMRFFailoverLogs, configMRFServiceAllowlist}
 	if slices.Contains(MRFConfigFields, setting) {
 		p.updateFailoverConfig()
 	}
@@ -119,7 +105,6 @@ func (p *Processor) updateFailoverConfig() {
 
 	conf := failoverConfig{
 		isFailoverActive: p.config.GetBool(configMRFFailoverLogs),
-		failoverMinLevel: -1, // Default to no setting
 	}
 
 	var serviceAllowlist map[string]struct{}
@@ -131,15 +116,6 @@ func (p *Processor) updateFailoverConfig() {
 		}
 
 		conf.failoverServiceAllowlist = serviceAllowlist
-	}
-
-	if conf.isFailoverActive && p.config.IsConfigured(configMRFLogMinLevel) {
-		levelStr := p.config.GetString(configMRFLogMinLevel)
-		if severity, exists := severities[levelStr]; exists {
-			conf.failoverMinLevel = severity
-		} else {
-			log.Warnf("Invalid value for multi_region_failover.logs_min_level: %s", levelStr)
-		}
 	}
 
 	p.configChan <- conf
@@ -240,13 +216,11 @@ func (p *Processor) processMessage(msg *message.Message) {
 // destinations
 func (p *Processor) filterMRFMessages(msg *message.Message) {
 	serviceAllowlist := p.failoverConfig.failoverServiceAllowlist
-	minLevel := p.failoverConfig.failoverMinLevel
 
 	// Tag the message for failover if:
 	// 1. No allowlists are configured (i.e., failover everything).
 	// 2. The message service is in the service allowlist.
-	// 3. The message status is at or above the configured minimum log level.
-	if len(serviceAllowlist) == 0 && minLevel < 0 {
+	if len(serviceAllowlist) == 0 {
 		msg.IsMRFAllow = true
 		return
 	}
@@ -255,11 +229,6 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 	if serviceMatch {
 		msg.IsMRFAllow = true
 		return
-	}
-	msgSeverity, hasSeverity := severities[msg.GetStatus()]
-	statusMatch := minLevel >= 0 && hasSeverity && msgSeverity >= minLevel
-	if statusMatch {
-		msg.IsMRFAllow = true
 	}
 }
 
