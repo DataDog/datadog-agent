@@ -174,6 +174,22 @@ func getHostnameWithConfig(ctx context.Context, config model.Config) (string, er
 	return name, nil
 }
 
+var hostCCRIDFetcher = cachedfetch.Fetcher{
+	Name: "Azure Host CCRID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		rg, err := getResponse(ctx,
+			metadataURL+"/metadata/instance/compute/resourceId?api-version=2021-02-01&format=text")
+		if err != nil {
+			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
+		}
+		return rg, nil
+	},
+}
+
+func GetHostCCRID(ctx context.Context) (string, error) {
+	return hostCCRIDFetcher.FetchString(ctx)
+}
+
 var publicIPv4Fetcher = cachedfetch.Fetcher{
 	Name: "Azure Public IP",
 	Attempt: func(ctx context.Context) (interface{}, error) {
