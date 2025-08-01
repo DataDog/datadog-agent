@@ -26,6 +26,7 @@ var tlmDogstatsd = map[string]telemetry.Counter{
 }
 
 // newCOATBlocklist creates a block list to capture metrics coming in from dogstatsd that we want to capture.
+// This currently only works with series.
 func newAgentTelemFilterList() utilstrings.FilterList {
 	return utilstrings.NewFilterList([]string{
 		"datadog.dogstatsd.client.bytes_sent",
@@ -40,13 +41,15 @@ func getDetailsFromSerie(serie *metrics.Serie) (float64, []string) {
 	tags := []string{"", "", ""}
 	serie.Tags.ForEach(func(tag string) {
 		t := strings.SplitN(tag, ":", 2)
-		switch t[0] {
-		case "client":
-			tags[0] = t[1]
-		case "client_version":
-			tags[1] = t[1]
-		case "client_transport":
-			tags[2] = t[1]
+		if len(t) > 1 {
+			switch t[0] {
+			case "client":
+				tags[0] = t[1]
+			case "client_version":
+				tags[1] = t[1]
+			case "client_transport":
+				tags[2] = t[1]
+			}
 		}
 	})
 
