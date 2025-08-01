@@ -18,11 +18,11 @@ import (
 
 func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 	validConfigs := []*LogsConfig{
-		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0}},
-		{Type: TCPType, Port: 1234, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0}},
-		{Type: UDPType, Port: 5678, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0}},
-		{Type: DockerType, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0}},
-		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0}},
+		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: TCPType, Port: 1234, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: UDPType, Port: 5678, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: DockerType, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0, FingerprintStrategy: "line_checksum"}},
 	}
 
 	for _, config := range validConfigs {
