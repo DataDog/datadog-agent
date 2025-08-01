@@ -35,3 +35,9 @@ type DualParams struct {
 	// UseRemote is a function to determine if the remote tagger should be used
 	UseRemote func(config.Component) bool
 }
+
+// OptionalRemoteParams provides the optional remote tagger parameters
+type OptionalRemoteParams struct {
+	// Disable opts out of the remote tagger in favor of the noop tagger
+	Disable func(config.Component) bool
+}
