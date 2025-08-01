@@ -81,7 +81,7 @@ func (d Directory) Ensure(ctx context.Context) (err error) {
 	span.SetTag("group", d.Group)
 	span.SetTag("mode", d.Mode)
 
-	uid, gid, err := getUserAndGroup(ctx, d.Owner, d.Group)
+	uid, gid, err := getUserAndGroup(d.Owner, d.Group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
 	}
@@ -156,7 +156,7 @@ func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
 	}
 	for _, file := range files {
 		if p.Owner != "" && p.Group != "" {
-			if err := chown(ctx, file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if err := chown(file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file ownership: %w", err)
 			}
 		}
@@ -209,12 +209,7 @@ func EnsureSymlinkAbsent(ctx context.Context, target string) (err error) {
 	return nil
 }
 
-func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int, err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "get_user_and_group")
-	defer func() {
-		span.Finish(err)
-	}()
-
+func getUserAndGroup(username, group string) (uid, gid int, err error) {
 	// This is not thread-safe, but we assume that the user and group won't change during the execution of the program.
 	uidRaw, uidOk := userCache.Load(username)
 	if !uidOk {
@@ -254,13 +249,8 @@ func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int,
 	return uid, gid, nil
 }
 
-func chown(ctx context.Context, path string, username string, group string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "chown")
-	defer func() { span.Finish(err) }()
-	span.SetTag("path", path)
-	span.SetTag("username", username)
-	span.SetTag("group", group)
-	uid, gid, err := getUserAndGroup(ctx, username, group)
+func chown(path string, username string, group string) (err error) {
+	uid, gid, err := getUserAndGroup(username, group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
 	}
