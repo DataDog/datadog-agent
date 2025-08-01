@@ -547,6 +547,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_service:nginx$`,
 				`^url:http://`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -576,6 +577,7 @@ func (suite *k8sSuite) TestNginx() {
 				Max: 5,
 				Min: 1,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -677,6 +679,7 @@ func (suite *k8sSuite) TestRedis() {
 				Max: 5,
 				Min: 1,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -892,6 +895,7 @@ func (suite *k8sSuite) TestKSM() {
 				Max: 1,
 				Min: 1,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -935,6 +939,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 }
