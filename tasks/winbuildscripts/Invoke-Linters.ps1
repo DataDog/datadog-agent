@@ -55,6 +55,14 @@ Invoke-BuildScript `
         exit $err
     }
 
+    # Lint system-probe Go
+    & dda inv -- -e linter.go --build system-probe-unit-tests --targets .\pkg
+    Write-Host system-probe Go linter result is $err
+    if($err -ne 0){
+        Write-Host -ForegroundColor Red "system-probe go linter failed $err"
+        exit $err
+    }
+
     # Lint MSI .NET
     $timeTaken = Measure-Command {
         & dotnet format --verify-no-changes .\\tools\\windows\\DatadogAgentInstaller
