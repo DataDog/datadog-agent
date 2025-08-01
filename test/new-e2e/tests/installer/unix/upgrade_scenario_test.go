@@ -598,6 +598,67 @@ func (s *upgradeScenarioSuite) TestUpgradeMultipleConfigsWriteAndRemove() {
 	s.assertSuccessfulConfigPromoteExperiment(timestamp, "multiple-configs")
 }
 
+func (s *upgradeScenarioSuite) TestUpgradeAppendConfig() {
+	s.RunInstallScript(
+		"DD_REMOTE_UPDATES=true",
+	)
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+
+	configActions1 := []configAction{
+		{
+			ActionType: "write",
+			Files:      []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "error"}`)}},
+		},
+	}
+
+	timestamp := s.host.LastJournaldTimestamp()
+	s.mustStartConfigExperiment(datadogAgent, installerConfig{ID: "append-config"}, configActions1)
+	s.assertSuccessfulConfigStartExperiment(timestamp, "append-config")
+
+	s.mustPromoteConfigExperiment(datadogAgent)
+	s.assertSuccessfulConfigPromoteExperiment(timestamp, "append-config")
+
+	// Append a new config
+	configActions2 := []configAction{
+		{
+			ActionType: "write",
+			Files:      []installerConfigFile{{Path: "/conf.d/redis.d/conf.yaml", Contents: json.RawMessage(`{"instances": [{"host": "localhost", "port": 6379}]}`)}},
+		},
+	}
+
+	s.mustStartConfigExperiment(datadogAgent, installerConfig{ID: "append-config"}, configActions2)
+	s.assertSuccessfulConfigStartExperiment(timestamp, "append-config")
+
+	s.mustPromoteConfigExperiment(datadogAgent)
+	s.assertSuccessfulConfigPromoteExperiment(timestamp, "append-config")
+}
+
+func (s *upgradeScenarioSuite) TestUpgradeRemoveAllConfig() {
+	s.RunInstallScript(
+		"DD_REMOTE_UPDATES=true",
+	)
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+
+	configActions := []configAction{
+		{
+			ActionType: "remove_all",
+		},
+		{
+			ActionType: "write",
+			Files:      []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "error"}`)}},
+		},
+	}
+
+	timestamp := s.host.LastJournaldTimestamp()
+	s.mustStartConfigExperiment(datadogAgent, installerConfig{ID: "remove-all-config"}, configActions)
+	s.assertSuccessfulConfigStartExperiment(timestamp, "remove-all-config")
+
+	s.mustPromoteConfigExperiment(datadogAgent)
+	s.assertSuccessfulConfigPromoteExperiment(timestamp, "remove-all-config")
+}
+
 func (s *upgradeScenarioSuite) TestUpgradeWithProxy() {
 	if s.Env().RemoteHost.OSFlavor == e2eos.Fedora || s.Env().RemoteHost.OSFlavor == e2eos.RedHat {
 		s.T().Skip("Fedora & RedHat can't start the Squid proxy")
