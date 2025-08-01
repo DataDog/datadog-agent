@@ -18,10 +18,10 @@ import (
 
 // Default timing values that can be modified for testing
 var (
-	// DefaultInitialDelay is the default delay before the first check (20 minutes)
-	DefaultInitialDelay = 20 * time.Minute
-	// DefaultRecurringInterval is the default interval for recurring checks (6 hours)
-	DefaultRecurringInterval = 6 * time.Hour
+	// defaultInitialDelay is the default delay before the first check (20 minutes)
+	defaultInitialDelay = 20 * time.Minute
+	// defaultRecurringInterval is the default interval for recurring checks (6 hours)
+	defaultRecurringInterval = 6 * time.Hour
 	// timingMutex protects access to the timing variables
 	timingMutex sync.RWMutex
 )
@@ -31,7 +31,7 @@ var (
 	tlmDriftDetected = telemetry.NewCounter("hostname", "drift_detected",
 		[]string{"state", "provider"}, "Hostname drift detection status")
 	tlmDriftResolutionTime = telemetry.NewHistogram("hostname", "drift_resolution_time_ms",
-		[]string{"state", "provider"}, "Hostname drift resolution time in milliseconds", []float64{.5, 1, 2.5, 5, 10, 60})
+		[]string{"state", "provider"}, "Hostname drift resolution time in seconds", []float64{.5, 1, 2.5, 5, 10, 60})
 )
 
 var (
@@ -49,13 +49,13 @@ type driftInfo struct {
 
 func setDefaultInitialDelay(delay time.Duration) {
 	timingMutex.Lock()
-	DefaultInitialDelay = delay
+	defaultInitialDelay = delay
 	timingMutex.Unlock()
 }
 
 func setDefaultRecurringInterval(interval time.Duration) {
 	timingMutex.Lock()
-	DefaultRecurringInterval = interval
+	defaultRecurringInterval = interval
 	timingMutex.Unlock()
 }
 
@@ -81,7 +81,7 @@ func scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
 	go func() {
 		// Wait for the initial delay before the first check
 		timingMutex.RLock()
-		initialDelay := DefaultInitialDelay
+		initialDelay := defaultInitialDelay
 		timingMutex.RUnlock()
 		initialTimer := time.NewTimer(initialDelay)
 		defer initialTimer.Stop()
@@ -96,7 +96,7 @@ func scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
 
 		// Then start the recurring checks
 		timingMutex.RLock()
-		recurringInterval := DefaultRecurringInterval
+		recurringInterval := defaultRecurringInterval
 		timingMutex.RUnlock()
 		driftTicker := time.NewTicker(recurringInterval)
 		defer driftTicker.Stop()
@@ -141,7 +141,7 @@ func checkHostnameDrift(ctx context.Context, cacheHostnameKey string) {
 	}
 
 	// Calculate resolution time in milliseconds
-	resolutionTime := time.Since(startTime).Milliseconds()
+	resolutionTime := time.Since(startTime).Seconds()
 
 	// Determine drift state
 	newData := Data{Hostname: hostname, Provider: providerName}
