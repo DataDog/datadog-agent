@@ -15,6 +15,7 @@ import (
 	"math"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -89,6 +90,24 @@ func (p Package) Stats(sourceFiles map[string]struct{}) PackageStats {
 	return res
 }
 
+func (p Package) MarshalJSON(b *strings.Builder) {
+	b.WriteString(`{\n"scope_type":"package",`)
+	b.WriteString(`"name":"`)
+	b.WriteString(p.Name)
+	b.WriteString(`",`)
+	b.WriteString(`"start_line":0, "end_line":0,`)
+	b.WriteString("\"scopes\": [\n")
+	for _, fn := range p.Functions {
+		fn.MarshalJSON(b, "\t")
+		b.WriteString(",\n")
+	}
+	for _, t := range p.Types {
+		t.MarshalJSON(b, "\t")
+		b.WriteString(",\n")
+	}
+	b.WriteString("}")
+}
+
 // Type describes a Go type for SymDB.
 type Type struct {
 	Name    string
@@ -106,6 +125,15 @@ type Field struct {
 	// The fully-qualified name of the field's type. Pointer types start with a
 	// "*" (e.g. *main.bigStruct).
 	Type string
+}
+
+func (f Field) MarshalJSON(b *strings.Builder, indent string) {
+	b.WriteString(indent)
+	b.WriteString(`{ "symbol_type": "field", "name": "`)
+	b.WriteString(f.Name)
+	b.WriteString(`", "type": "`)
+	b.WriteString(f.Type)
+	b.WriteString(`" }`)
 }
 
 // Function models a Go function or method. It is represented in SymDB as a
@@ -204,6 +232,64 @@ func (s Scope) Serialize(w StringWriter, indent string) {
 	}
 }
 
+func (s Scope) MarshalJSON(b *strings.Builder, indent string, fileName string) {
+	b.WriteString(indent)
+	b.WriteString("{\n" + `"scope_type":"local",`)
+	b.WriteString(`", "source_file":"`)
+	b.WriteString(fileName)
+	b.WriteString(`", "start_line":`)
+	b.WriteString(strconv.Itoa(s.StartLine))
+	b.WriteString(`", "end_line":`)
+	b.WriteString(strconv.Itoa(s.EndLine))
+	b.WriteString(", \"symbols\": [\n")
+	nextIndent := indent + "\t"
+	for _, v := range s.Variables {
+		v.MarshalJSON(b, nextIndent)
+		b.WriteString(",\n")
+	}
+	for _, s := range s.Scopes {
+		s.MarshalJSON(b, nextIndent, fileName)
+		b.WriteString(",\n")
+	}
+	b.WriteString(indent)
+	b.WriteString("],\n")
+	b.WriteString(indent)
+	b.WriteString("}")
+}
+
+func (f Function) MarshalJSON(b *strings.Builder, indent string, method bool) {
+	b.WriteString(indent)
+	scopeType := "function"
+	if method {
+		scopeType = "method"
+	}
+	b.WriteString("{\n" + `"scope_type": `)
+	b.WriteString(scopeType)
+	b.WriteString(`", `)
+	b.WriteString(`"name": "`)
+	b.WriteString(f.Name)
+	b.WriteString(`", "source_file": "`)
+	b.WriteString(f.File)
+	b.WriteString(`", "start_line": `)
+	b.WriteString(strconv.Itoa(f.StartLine))
+	b.WriteString(`", "end_line": `)
+	b.WriteString(strconv.Itoa(f.EndLine))
+	b.WriteString(", \"symbols\": [\n")
+	nextIndent := indent + "\t"
+	for _, v := range f.Variables {
+		v.MarshalJSON(b, nextIndent)
+		b.WriteString(",\n")
+	}
+	for _, s := range f.Scopes {
+		s.MarshalJSON(b, nextIndent, f.File)
+		b.WriteString(",\n")
+	}
+	b.WriteString(indent)
+	b.WriteString("],\n")
+	b.WriteString(indent)
+	b.WriteString("}")
+}
+
 // Serialize serializes the type as a human-readable string. It looks like:
 //
 //	Type: <name>
@@ -229,6 +315,28 @@ func (t Type) Serialize(w StringWriter, indent string) {
 	}
 }
 
+func (t Type) MarshalJSON(b *strings.Builder, indent string) {
+	b.WriteString(`{\n"scope_type": "class", `)
+	b.WriteString(indent)
+	b.WriteString(`"name": "`)
+	b.WriteString(t.Name)
+	b.WriteString(`", `)
+	b.WriteString(`"scopes": ["`)
+	nextIndent := indent + "\t"
+	for _, m := range t.Methods {
+		m.MarshalJSON(b, nextIndent, true /* method */)
+		b.WriteRune('\n')
+	}
+	b.WriteString(indent + "]},\n")
+	b.WriteString(indent)
+	b.WriteString(`"fields": ["`)
+	for _, f := range t.Fields {
+		f.MarshalJSON(b, nextIndent)
+		b.WriteRune('\n')
+	}
+	b.WriteString(indent + `]}`)
+}
+
 // Serialize serializes the variable as a human-readable string. It looks like:
 // Var: <name>: <type> (declared at line <declLine>, available: [<startLine>-<endLine>], [<startLine>-<endLine>], ...)
 func (v Variable) Serialize(w StringWriter, indent string) {
@@ -251,6 +359,25 @@ func (v Variable) Serialize(w StringWriter, indent string) {
 		w.WriteString(fmt.Sprintf("[%d-%d]", r[0], r[1]))
 	}
 	w.WriteString(")\n")
+}
+
+func (v Variable) MarshalJSON(b *strings.Builder, indent string) {
+	b.WriteString(indent)
+	b.WriteString("{\n")
+	b.WriteString(`"name":"`)
+	b.WriteString(v.Name)
+	b.WriteString(`", "type":"`)
+	b.WriteString(v.TypeName)
+	var symbolType string
+	if v.FunctionArgument {
+		symbolType = "arg"
+	} else {
+		symbolType = "local"
+	}
+	b.WriteString(`", "symbol_type":"` + symbolType)
+	b.WriteString(`", "line":`)
+	b.WriteString(strconv.Itoa(v.DeclLine))
+	b.WriteString("\n")
 }
 
 // StringWriter is like io.StringWriter, but writes panic on errors instead of
