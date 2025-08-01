@@ -415,7 +415,7 @@ Probes:
       events:
         - ID: 102
           Type: 390 EventRootType Probe[main.testInlinedSq]
-          InjectionPoints: [{PC: "0x84a124", Frameless: false}]
+          InjectionPoints: [{PC: "0x84a124", Frameless: true}]
           Condition: null
     - id: testInlinedSumArray
       version: 0
@@ -3089,10 +3089,14 @@ Subprograms:
       Name: main.testInlinedPrint
       OutOfLinePCRanges: [0x849c90..0x849d00]
       InlinePCRanges:
-        - - 0x849d1c..0x849d54
-        - - 0x849e68..0x849ea0
-        - - 0x849ee4..0x849f1c
-        - - 0x849f9c..0x849fd4
+        - Ranges: [0x849d1c..0x849d54]
+          RootRanges: [0x849d00..0x849d80]
+        - Ranges: [0x849e68..0x849ea0]
+          RootRanges: [0x849e30..0x849ec0]
+        - Ranges: [0x849ee4..0x849f1c]
+          RootRanges: [0x849ec0..0x849f80]
+        - Ranges: [0x849f9c..0x849fd4]
+          RootRanges: [0x849f80..0x84a000]
       Variables:
         - Name: x
           Type: 1 BaseType int
@@ -3114,22 +3118,30 @@ Subprograms:
     - ID: 2
       Name: main.testInlinedBBB
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0x849f28..0x849f60]]
+      InlinePCRanges:
+        - Ranges: [0x849f28..0x849f60]
+          RootRanges: [0x849ec0..0x849f80]
       Variables: []
     - ID: 3
       Name: main.testInlinedBCA
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0x84a01c..0x84a060]]
+      InlinePCRanges:
+        - Ranges: [0x84a01c..0x84a060]
+          RootRanges: [0x84a000..0x84a120]
       Variables: []
     - ID: 4
       Name: main.testInlinedBCB
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0x84a0d0..0x84a108]]
+      InlinePCRanges:
+        - Ranges: [0x84a0d0..0x84a108]
+          RootRanges: [0x84a000..0x84a120]
       Variables: []
     - ID: 5
       Name: main.testInlinedSq
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0x84a124..0x84a128]]
+      InlinePCRanges:
+        - Ranges: [0x84a124..0x84a128]
+          RootRanges: [0x84a120..0x84a130]
       Variables:
         - Name: x
           Type: 1 BaseType int
@@ -3141,7 +3153,11 @@ Subprograms:
     - ID: 6
       Name: main.testInlinedSumArray
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0x84a154..0x84a178], [0x84a1ec..0x84a214]]
+      InlinePCRanges:
+        - Ranges: [0x84a154..0x84a178]
+          RootRanges: [0x84a130..0x84a190]
+        - Ranges: [0x84a1ec..0x84a214]
+          RootRanges: [0x84a190..0x84a2e0]
       Variables:
         - Name: a
           Type: 2 ArrayType [5]int

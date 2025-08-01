@@ -299,7 +299,9 @@ Subprograms:
     - ID: 1
       Name: main.inlined
       OutOfLinePCRanges: [0xb5550..0xb55c0]
-      InlinePCRanges: [[0xb4fec..0xb5028]]
+      InlinePCRanges:
+        - Ranges: [0xb4fec..0xb5028]
+          RootRanges: [0xb4e50..0xb5250]
       Variables:
         - Name: x
           Type: 1 BaseType int
@@ -313,7 +315,9 @@ Subprograms:
     - ID: 2
       Name: main.PointerChainArg
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0xb51cc..0xb51fc]]
+      InlinePCRanges:
+        - Ranges: [0xb51cc..0xb51fc]
+          RootRanges: [0xb4e50..0xb5250]
       Variables:
         - Name: ptr
           Type: 2 PointerType *****int
@@ -325,7 +329,9 @@ Subprograms:
     - ID: 3
       Name: main.PointerSmallChainArg
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0xb5204..0xb5234]]
+      InlinePCRanges:
+        - Ranges: [0xb5204..0xb5234]
+          RootRanges: [0xb4e50..0xb5250]
       Variables:
         - Name: ptr
           Type: 5 PointerType **int
