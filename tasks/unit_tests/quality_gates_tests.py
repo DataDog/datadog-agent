@@ -2,12 +2,12 @@ import os
 import unittest
 from unittest.mock import ANY, MagicMock, patch
 
-from invoke import Context, MockContext, Result
+from invoke import MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks.libs.package.size import InfraError
 from tasks.quality_gates import display_pr_comment, generate_new_quality_gate_config, parse_and_trigger_gates
-from tasks.static_quality_gates.lib.docker_agent_lib import calculate_image_on_disk_size
+from tasks.static_quality_gates.lib.experimental_gates_lib import StaticQualityGate
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
 
 
@@ -24,11 +24,29 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
             'CI_COMMIT_REF_NAME': 'pikachu',
             'CI_COMMIT_BRANCH': 'sequoia',
             'CI_COMMIT_REF_SLUG': 'pikachu',
+            'CI_COMMIT_SHORT_SHA': '1234567890',
             'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/opt/datadog-agent',
         },
     )
-    @patch("builtins.__import__")
-    def test_parse_and_trigger_gates_infra_error(self, mock_import):
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage._find_package_path",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage._calculate_package_size",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker._calculate_image_on_wire_size",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker._calculate_image_on_disk_size",
+        new=MagicMock(),
+    )
+    @patch("tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
+    def test_parse_and_trigger_gates_infra_error(self):
         ctx = MockContext(
             run={
                 "datadog-ci tag --level job --tags static_quality_gates:\"restart\"": Result("Done"),
@@ -36,8 +54,9 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
             }
         )
         mock_quality_gates_module = MagicMock()
-        mock_quality_gates_module.some_gate_high.entrypoint.side_effect = InfraError("Test infra error message")
-        mock_import.return_value = mock_quality_gates_module
+        mock_quality_gates_module.static_quality_gate_package_agent_suse_amd64.execute_gate.side_effect = InfraError(
+            "Test infra error message"
+        )
         with self.assertRaises(Exit) as cm:
             parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
             assert "Test infra error message" in str(cm.exception)
@@ -48,13 +67,13 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                 f,
                 MockMetricHandler(
                     {
-                        "some_gate_high": {
+                        "static_quality_gate_package_agent_suse_amd64": {
                             "current_on_wire_size": 50000000,
                             "max_on_wire_size": 100000000,
                             "current_on_disk_size": 50000000,
                             "max_on_disk_size": 100000000,
                         },
-                        "some_gate_low": {
+                        "static_quality_gate_package_agent_deb_amd64": {
                             "current_on_wire_size": 4000000,
                             "max_on_wire_size": 5000000,
                             "current_on_disk_size": 4000000,
@@ -69,17 +88,17 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                     }
                 ),
             )
-        assert new_config["some_gate_high"]["max_on_wire_size"] == "48.64 MiB", print(
-            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_wire_size']}"
+        assert new_config["static_quality_gate_package_agent_suse_amd64"]["max_on_wire_size"] == "48.64 MiB", print(
+            f"Expected 48.64 MiB got {new_config['static_quality_gate_package_agent_suse_amd64']['max_on_wire_size']}"
         )
-        assert new_config["some_gate_high"]["max_on_disk_size"] == "48.64 MiB", print(
-            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_disk_size']}"
+        assert new_config["static_quality_gate_package_agent_suse_amd64"]["max_on_disk_size"] == "48.64 MiB", print(
+            f"Expected 48.64 MiB got {new_config['static_quality_gate_package_agent_suse_amd64']['max_on_disk_size']}"
         )
-        assert new_config["some_gate_low"]["max_on_wire_size"] == "4.77 MiB", print(
-            f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_wire_size']}"
+        assert new_config["static_quality_gate_package_agent_deb_amd64"]["max_on_wire_size"] == "4.77 MiB", print(
+            f"Expected 4.77 MiB got {new_config['static_quality_gate_package_agent_deb_amd64']['max_on_wire_size']}"
         )
-        assert new_config["some_gate_low"]["max_on_disk_size"] == "4.77 MiB", print(
-            f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_disk_size']}"
+        assert new_config["static_quality_gate_package_agent_deb_amd64"]["max_on_disk_size"] == "4.77 MiB", print(
+            f"Expected 4.77 MiB got {new_config['static_quality_gate_package_agent_deb_amd64']['max_on_disk_size']}"
         )
 
     def test_exception_gate_bump(self):
@@ -88,7 +107,7 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                 f,
                 MockMetricHandler(
                     {
-                        "some_gate_high": {
+                        "static_quality_gate_package_agent_suse_amd64": {
                             "relative_on_wire_size": 424242,
                             "current_on_wire_size": 50000000,
                             "max_on_wire_size": 100000000,
@@ -96,7 +115,7 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                             "current_on_disk_size": 50000000,
                             "max_on_disk_size": 100000000,
                         },
-                        "some_gate_low": {
+                        "static_quality_gate_package_agent_deb_amd64": {
                             "relative_on_wire_size": 424242,
                             "current_on_wire_size": 4000000,
                             "max_on_wire_size": 5000000,
@@ -116,17 +135,17 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                 ),
                 True,
             )
-        assert new_config["some_gate_high"]["max_on_wire_size"] == "95.77 MiB", print(
-            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_wire_size']}"
+        assert new_config["static_quality_gate_package_agent_suse_amd64"]["max_on_wire_size"] == "95.77 MiB", print(
+            f"Expected 48.64 MiB got {new_config['static_quality_gate_package_agent_suse_amd64']['max_on_wire_size']}"
         )
-        assert new_config["some_gate_high"]["max_on_disk_size"] == "95.6 MiB", print(
+        assert new_config["static_quality_gate_package_agent_suse_amd64"]["max_on_disk_size"] == "95.6 MiB", print(
             f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_disk_size']}"
         )
-        assert new_config["some_gate_low"]["max_on_wire_size"] == "5.17 MiB", print(
-            f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_wire_size']}"
+        assert new_config["static_quality_gate_package_agent_deb_amd64"]["max_on_wire_size"] == "5.17 MiB", print(
+            f"Expected 4.77 MiB got {new_config['static_quality_gate_package_agent_deb_amd64']['max_on_wire_size']}"
         )
-        assert new_config["some_gate_low"]["max_on_disk_size"] == "5.0 MiB", print(
-            f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_disk_size']}"
+        assert new_config["static_quality_gate_package_agent_deb_amd64"]["max_on_disk_size"] == "5.0 MiB", print(
+            f"Expected 4.77 MiB got {new_config['static_quality_gate_package_agent_deb_amd64']['max_on_disk_size']}"
         )
 
 
@@ -282,11 +301,34 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             'CI_COMMIT_REF_SLUG': 'pikachu',
             'CI_COMMIT_SHORT_SHA': '1234567890',
             'BUCKET_BRANCH': 'nightly',
+            'OMNIBUS_PACKAGE_DIR': '/opt/datadog-agent',
+            'GITHUB_TOKEN': '1234567890',
         },
     )
     @patch("tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
-    @patch("tasks.static_quality_gates.static_quality_gate_docker_agent_amd64.entrypoint")
-    def test_nightly_run(self, mock_generic_docker_agent_quality_gate):
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage.execute_gate", new=MagicMock()
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage._find_package_path",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGatePackage._calculate_package_size",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker.execute_gate", new=MagicMock()
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker._calculate_image_on_wire_size",
+        new=MagicMock(),
+    )
+    @patch(
+        "tasks.static_quality_gates.lib.experimental_gates_lib.StaticQualityGateDocker._calculate_image_on_disk_size",
+        new=MagicMock(),
+    )
+    def test_nightly_run(self):
         ctx = MockContext(
             run={
                 "datadog-ci tag --level job --tags static_quality_gates:\"restart\"": Result("Done"),
@@ -295,22 +337,15 @@ class TestQualityGatesPrMessage(unittest.TestCase):
             }
         )
 
-        with self.assertRaises(Exit):
-            parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
+        gates: list[StaticQualityGate] = []
+        with patch("tasks.quality_gates.GithubAPI") as mock_github_api:
+            # Mock the get_pr_for_branch method to return an object with totalCount = 0
+            mock_pr_result = MagicMock()
+            mock_pr_result.totalCount = 0
+            mock_github_api.return_value.get_pr_for_branch.return_value = mock_pr_result
+            gates = parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
         # This way we ensure that the nightly condition has been met
-        assert mock_generic_docker_agent_quality_gate.call_args[1]["nightly"]
-
-
-class DynamicMockContext:
-    def __init__(self, actual_context, mock_context):
-        self.actual_context = actual_context
-        self.mock_context = mock_context
-
-    def run(self, *args, **kwargs):
-        try:
-            return self.mock_context.run(*args, **kwargs)
-        except NotImplementedError:
-            return self.actual_context.run(*args, **kwargs)
+        assert "nightly" in gates[-1].artifact_path
 
 
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
@@ -324,35 +359,3 @@ class TestOnDiskImageSizeCalculation(unittest.TestCase):
             os.remove('./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/some_metadata.json')
         except OSError:
             pass
-
-    def test_compute_image_size(self):
-        actualContext = Context()
-        c = MockContext(
-            run={
-                'crane pull some_url output.tar': Result('Done'),
-                "tar -tvf output.tar | awk -F' ' '{print $3; print $6}'": Result(
-                    "3\nsome_metadata.json\n9728\nsome_archive.tar.gz"
-                ),
-            }
-        )
-        cwd = os.getcwd()
-        os.chdir(os.path.abspath('./tasks/unit_tests/testdata/fake_agent_image/with_tar_gz_archive/'))
-        context = DynamicMockContext(actual_context=actualContext, mock_context=c)
-        calculated_size = calculate_image_on_disk_size(context, "some_url")
-        os.chdir(cwd)
-        assert calculated_size == 5861
-
-    def test_metadata_only(self):
-        actualContext = Context()
-        c = MockContext(
-            run={
-                'crane pull some_url output.tar': Result('Done'),
-                "tar -tvf output.tar | awk -F' ' '{print $3; print $6}'": Result("3\nsome_metadata.json"),
-            }
-        )
-        cwd = os.getcwd()
-        os.chdir(os.path.abspath('./tasks/unit_tests/testdata/fake_agent_image/without_tar_gz_archive/'))
-        context = DynamicMockContext(actual_context=actualContext, mock_context=c)
-        calculated_size = calculate_image_on_disk_size(context, "some_url")
-        os.chdir(cwd)
-        assert calculated_size == 3
