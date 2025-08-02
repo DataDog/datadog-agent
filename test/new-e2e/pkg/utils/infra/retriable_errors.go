@@ -66,5 +66,10 @@ func getKnownErrors() []knownError {
 			errorMessage: `error: .*ssh: rejected: connect failed (No route to host)`,
 			retryType:    ReCreate,
 		},
+		{
+			// SSH dial failures during cloud-init waiting
+			errorMessage: `Dial \d+/\d+ failed: retrying`,
+			retryType:    ReCreate,
+		},
 	}
 }
