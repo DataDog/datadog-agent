@@ -338,13 +338,9 @@ func (c *Check) getContainerTags(containerID string) []string {
 }
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
-	wmetaContainers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
-		return len(cont.ResolvedAllocatedResources) > 0
-	})
-
 	gpuToContainers := make(map[string][]*workloadmeta.Container)
 
-	for _, container := range wmetaContainers {
+	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
 		containerDevices, err := containers.MatchContainerDevices(container, c.deviceCache.All())
 		if err != nil && logLimitCheck.ShouldLog() {
 			log.Warnf("error matching container devices: %s. Will continue with the available devices", err)
