@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -95,7 +95,7 @@ func (l *CheckRunner) RunRealTime() bool {
 // NewRunner creates a new CheckRunner
 func NewRunner(
 	config pkgconfigmodel.Reader,
-	sysCfg *sysconfigtypes.Config,
+	sysCfg sysprobeconfig.Component,
 	hostInfo *checks.HostInfo,
 	enabledChecks []checks.Check,
 	rtNotifierChan <-chan types.RTResponse,
@@ -103,12 +103,13 @@ func NewRunner(
 	runRealTime := !config.GetBool("process_config.disable_realtime_checks")
 
 	sysProbeCfg := &checks.SysProbeConfig{}
-	if sysCfg != nil && sysCfg.Enabled {
+	if sysCfg != nil && sysCfg.SysProbeObject().Enabled {
 		// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-		_, processModuleEnabled := sysCfg.EnabledModules[sysconfig.ProcessModule]
+		_, processModuleEnabled := sysCfg.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
 		sysProbeCfg.ProcessModuleEnabled = processModuleEnabled
-		sysProbeCfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
-		sysProbeCfg.SystemProbeAddress = sysCfg.SocketAddress
+		sysProbeCfg.MaxConnsPerMessage = sysCfg.SysProbeObject().MaxConnsPerMessage
+		sysProbeCfg.ServiceDiscoveryEnabled = sysCfg.GetBool("discovery.enabled")
+		sysProbeCfg.SystemProbeAddress = sysCfg.SysProbeObject().SocketAddress
 	}
 
 	return NewRunnerWithChecks(config, sysProbeCfg, hostInfo, enabledChecks, runRealTime, rtNotifierChan)

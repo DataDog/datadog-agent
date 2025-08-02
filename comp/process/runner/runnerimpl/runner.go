@@ -57,7 +57,7 @@ type dependencies struct {
 
 func newRunner(deps dependencies) (runner.Component, error) {
 	checks := fxutil.GetAndFilterGroup(deps.Checks)
-	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
+	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg, deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}

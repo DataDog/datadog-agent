@@ -31,6 +31,8 @@ type SysProbeConfig struct {
 	SystemProbeAddress string
 	// System probe process module on/off configuration
 	ProcessModuleEnabled bool
+	// system probe service discovery configuration "discovery.enabled"
+	ServiceDiscoveryEnabled bool
 	// System probe network_tracer module on/off configuration
 	NetworkTracerModuleEnabled bool
 }

@@ -198,6 +198,7 @@ func RunCheckCmd(deps Dependencies) error {
 			MaxConnsPerMessage:         deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
 			SystemProbeAddress:         deps.Syscfg.SysProbeObject().SocketAddress,
 			ProcessModuleEnabled:       processModuleEnabled,
+			ServiceDiscoveryEnabled:    deps.Syscfg.GetBool("discovery.enabled"),
 			NetworkTracerModuleEnabled: networkTracerModuleEnabled,
 		}
 

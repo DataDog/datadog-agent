@@ -184,7 +184,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
-	if !oneShot && workloadmeta.Enabled(p.config) {
+	if !oneShot && workloadmeta.Enabled(p.config) && !p.useWLMCollection() {
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
 
 		// The server is only needed on the process agent
@@ -207,11 +207,12 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
+	// TODO: this will eventually be removed once this config is baselined (hardcoded to true)
 	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 
-	return p.config.GetBool("process_config.process_collection.enabled")
+	return p.config.GetBool("process_config.process_collection.enabled") || p.sysProbeConfig.ServiceDiscoveryEnabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -245,7 +246,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return nil, errEmptyCPUTime
 	}
 
-	procs, err := p.processesByPID(true)
+	procs, err := p.processesByPID()
 	if err != nil {
 		return nil, err
 	}
@@ -491,6 +492,7 @@ func fmtProcesses(
 
 		// Hide disallow-listed args if the Scrubber is enabled
 		fp.Cmdline = scrubber.ScrubProcessCommand(fp)
+
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
@@ -506,6 +508,10 @@ func fmtProcesses(
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
+			// SERVICE DISCOVERY FIELDS
+			PortInfo:         formatPorts(fp.Ports),              // only populated if service discovery is enabled + linux
+			Language:         formatLanguage(fp.Language),        // only populated if language detection is enabled + linux
+			ServiceDiscovery: formatServiceDiscovery(fp.Service), // only populated if service discovery is enabled + linux
 		}
 
 		if tags, ok := pidToGPUTags[fp.Pid]; ok {
