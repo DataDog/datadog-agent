@@ -23,6 +23,9 @@ exporters:
     sending_queue:
       enabled: false
 
+processors:
+  infraattributes:
+
 service:
   telemetry:
     metrics:
@@ -30,6 +33,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
+      processors: [infraattributes]
       exporters: [otlp]
 `
 
@@ -41,6 +45,7 @@ receivers:
 processors:
   batch:
     timeout: 10s
+  infraattributes:
 
 exporters:
   serializer:
@@ -52,7 +57,7 @@ service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: [infraattributes, batch]
       exporters: [serializer]
 `
 

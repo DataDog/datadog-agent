@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 )
 
@@ -233,4 +234,5 @@ type TaggerClient interface {
 	Tag(entity EntityID, cardinality TagCardinality) ([]string, error)
 	// GlobalTags is an interface function that queries taggerclient singleton
 	GlobalTags(cardinality TagCardinality) ([]string, error)
+	GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error)
 }
