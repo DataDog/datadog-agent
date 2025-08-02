@@ -8,7 +8,6 @@ package clusteragent
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	nativeerrors "errors"
 	"fmt"
@@ -22,6 +21,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -175,7 +175,7 @@ func (c *DCAClient) initHTTPClient() error {
 				KeepAlive: 20 * time.Second,
 			}).DialContext,
 			ForceAttemptHTTP2:     false,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig:       pkgapiutil.GetCrossNodeClientTLSConfig(),
 			TLSHandshakeTimeout:   5 * time.Second,
 			MaxConnsPerHost:       1,
 			MaxIdleConnsPerHost:   1,

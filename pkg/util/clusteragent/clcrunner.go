@@ -6,7 +6,6 @@
 package clusteragent
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -71,9 +71,7 @@ func (c *CLCRunnerClient) init() {
 	// Set http client
 	c.clcRunnerAPIClient = &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
+			TLSClientConfig: pkgapiutil.GetCrossNodeClientTLSConfig(),
 		},
 	} // TODO IPC: get certificates right then remove this option
 	c.clcRunnerAPIClient.Timeout = 2 * time.Second

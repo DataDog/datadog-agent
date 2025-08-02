@@ -7,6 +7,8 @@ package clusteragent
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -261,6 +264,13 @@ func (d *dummyClusterAgent) parsePort(ts *httptest.Server) (*httptest.Server, in
 
 func (d *dummyClusterAgent) StartTLS() (*httptest.Server, int, error) {
 	ts := httptest.NewTLSServer(d)
+	return d.parsePort(ts)
+}
+
+func (d *dummyClusterAgent) StartTLSWithConfig(config *tls.Config) (*httptest.Server, int, error) {
+	ts := httptest.NewUnstartedServer(d)
+	ts.TLS = config
+	ts.StartTLS()
 	return d.parsePort(ts)
 }
 
@@ -717,6 +727,87 @@ func TestBuildFilterQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			actual, _ := buildQueryList(tt.base, tt.key, tt.list)
 			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func (suite *clusterAgentSuite) TestDCAClientCertificateVerification() {
+	// Reset the global ClusterAgentClient/CrossNodeClientTLSConfig to ensure a clean state for next tests
+	defer resetGlobalClusterAgentClient()
+	defer pkgapiutil.ResetCrossNodeClientTLSConfig()
+
+	// Setup TLS configuration for the test
+	certPool := x509.NewCertPool()
+	ok := certPool.AppendCertsFromPEM(testIPCCert)
+	require.True(suite.T(), ok, "Unable to generate certPool from PERM IPC cert")
+	tlsCert, err := tls.X509KeyPair(testIPCCert, testIPCKey)
+	require.Nil(suite.T(), err, "Failed to generate x509 cert from PERM IPC cert and key")
+
+	clientTLSConfig := &tls.Config{
+		RootCAs: certPool,
+	}
+
+	serverTLSConfig := &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+	}
+
+	tests := []struct {
+		name       string
+		knownCA    bool
+		shouldFail bool
+	}{
+		{
+			name:       "Test with known CA",
+			knownCA:    true,
+			shouldFail: false,
+		},
+		{
+			name:       "Test with unknown CA",
+			knownCA:    false,
+			shouldFail: true,
+		},
+	}
+
+	for _, tt := range tests {
+		suite.T().Run(tt.name, func(t *testing.T) {
+			// Reset every global state before each test
+			resetGlobalClusterAgentClient()
+			pkgapiutil.ResetCrossNodeClientTLSConfig()
+
+			// Configure the cluster agent server
+
+			// First, create a dummy cluster agent
+			dca, err := newDummyClusterAgent(suite.config)
+			require.Nil(t, err, fmt.Sprintf("%v", err))
+
+			startFunc := dca.StartTLS
+
+			if tt.knownCA {
+				startFunc = func() (*httptest.Server, int, error) {
+					// Start a TLS server with self-signed certificate
+					return dca.StartTLSWithConfig(serverTLSConfig)
+				}
+			}
+			// Start a TLS server with self-signed certificate
+			ts, p, err := startFunc()
+			require.Nil(t, err, fmt.Sprintf("%v", err))
+			defer ts.Close()
+
+			// Configure the cluster agent client
+
+			// Set the TLS configuration for cross-node communication
+			pkgapiutil.SetCrossNodeClientTLSConfig(clientTLSConfig)
+			// Configure the cluster agent URL
+			suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+			// Try to connect to the cluster agent - should fail due to certificate verification
+			ca, err := GetClusterAgentClient()
+			if tt.shouldFail {
+				assert.NotNil(t, err, "Expected an error due to certificate verification")
+			} else {
+				require.Nil(t, err, "Connection should succeed")
+				require.NotNil(t, ca, "Client should not be nil")
+			}
 		})
 	}
 }

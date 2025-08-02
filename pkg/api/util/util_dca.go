@@ -9,6 +9,7 @@ package util
 import (
 	"context"
 	"crypto/subtle"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,11 +18,15 @@ import (
 
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	tokenLock sync.RWMutex
-	dcaToken  string
+	tokenLock                sync.RWMutex
+	dcaToken                 string
+	crossNodeClientTLSConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
 )
 
 // InitDCAAuthToken initialize the session token for the Cluster Agent based on config options
@@ -48,6 +53,40 @@ func GetDCAAuthToken() string {
 	tokenLock.RLock()
 	defer tokenLock.RUnlock()
 	return dcaToken
+}
+
+// SetCrossNodeClientTLSConfig sets the TLS configuration for cross-node communication if not already set.
+func SetCrossNodeClientTLSConfig(config *tls.Config) {
+	if config == nil {
+		return
+	}
+
+	tokenLock.Lock()
+	defer tokenLock.Unlock()
+
+	// Clone the provided config to avoid modifying the original one
+	crossNodeClientTLSConfig = config.Clone()
+}
+
+// ResetCrossNodeClientTLSConfig resets the TLS configuration for cross-node communication to the default.
+// This is primarily used for testing purposes.
+func ResetCrossNodeClientTLSConfig() {
+	tokenLock.Lock()
+	defer tokenLock.Unlock()
+
+	crossNodeClientTLSConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+}
+
+// GetCrossNodeClientTLSConfig returns the TLS configuration for cross-node communication.
+func GetCrossNodeClientTLSConfig() *tls.Config {
+	tokenLock.RLock()
+	defer tokenLock.RUnlock()
+	if crossNodeClientTLSConfig.InsecureSkipVerify {
+		log.Debug("TLS verification is bypassed for Cross-node communication")
+	}
+	return crossNodeClientTLSConfig.Clone()
 }
 
 // TokenValidator is a middleware that validates the session token for the DCA.
