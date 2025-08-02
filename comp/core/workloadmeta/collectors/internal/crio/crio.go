@@ -45,6 +45,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 		Collector: &collector{
 			id:             collectorID,
 			seenContainers: make(map[workloadmeta.EntityID]struct{}),
+			seenImages:     make(map[workloadmeta.EntityID]struct{}),
 			catalog:        workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 		},
 	}, nil
@@ -91,7 +92,6 @@ func (c *collector) Pull(ctx context.Context) error {
 	seenContainers := make(map[workloadmeta.EntityID]struct{})
 	seenImages := make(map[workloadmeta.EntityID]struct{})
 	containerEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
-	imageEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
 
 	collectImages := imageMetadataCollectionIsEnabled()
 
@@ -100,25 +100,34 @@ func (c *collector) Pull(ctx context.Context) error {
 		containerEvent := c.convertContainerToEvent(ctx, container)
 		seenContainers[containerEvent.Entity.GetID()] = struct{}{}
 		containerEvents = append(containerEvents, containerEvent)
-
-		// Skip image collection if the condition is not met
-		if !collectImages {
-			continue
-		}
-
-		imageEvent, err := c.generateImageEventFromContainer(ctx, container)
-		if err != nil {
-			log.Warnf("Image event generation failed for container %+v: %v", container, err)
-			continue
-		}
-
-		imageID := imageEvent.Entity.GetID()
-		seenImages[imageID] = struct{}{}
-		imageEvents = append(imageEvents, *imageEvent)
 	}
 
-	// Handle unset events for images if collecting images
+	// Handle image collection using the optimized approach
 	if collectImages {
+		// Use the new optimized method to get image events
+		imageEvents, err := c.generateImageEventsFromImageList(ctx)
+		if err != nil {
+			log.Warnf("Optimized approach failed: %v - falling back to per-container approach", err)
+			// Fall back to the old per-container approach if image list fails
+			imageEvents = make([]workloadmeta.CollectorEvent, 0, len(containers))
+			for _, container := range containers {
+				imageEvent, err := c.generateImageEventFromContainer(ctx, container)
+				if err != nil {
+					log.Warnf("Image event generation failed for container %+v: %v", container, err)
+					continue
+				}
+				imageEvents = append(imageEvents, *imageEvent)
+			}
+		}
+
+		// Build seenImages map from the events for cleanup
+		for _, event := range imageEvents {
+			if event.Type == workloadmeta.EventTypeSet {
+				seenImages[event.Entity.GetID()] = struct{}{}
+			}
+		}
+
+		// Handle unset events for images that are no longer present
 		for seenID := range c.seenImages {
 			if _, ok := seenImages[seenID]; !ok {
 				unsetEvent := generateUnsetImageEvent(seenID)
@@ -136,7 +145,6 @@ func (c *collector) Pull(ctx context.Context) error {
 			containerEvents = append(containerEvents, unsetEvent)
 		}
 	}
-
 	c.seenContainers = seenContainers
 	c.store.Notify(containerEvents)
 

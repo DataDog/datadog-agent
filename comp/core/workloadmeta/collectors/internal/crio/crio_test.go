@@ -525,3 +525,140 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 		})
 	}
 }
+
+func TestOptimizedImageCollection(t *testing.T) {
+	const envVarName = "DD_CONTAINER_IMAGE_ENABLED"
+	originalValue := os.Getenv(envVarName)
+	defer os.Setenv(envVarName, originalValue)
+
+	os.Setenv(envVarName, "true")
+
+	tests := []struct {
+		name                     string
+		mockListImages           func(ctx context.Context) ([]*v1.Image, error)
+		mockGetContainerImage    func(ctx context.Context, imageSpec *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error)
+		existingImages           map[string]*workloadmeta.ContainerImageMetadata
+		expectedImageStatusCalls int
+		expectedEventCount       int
+		expectError              bool
+	}{
+		{
+			name: "Skip existing images optimization",
+			mockListImages: func(_ context.Context) ([]*v1.Image, error) {
+				return []*v1.Image{
+					{
+						Id:          "image1",
+						RepoTags:    []string{"repo/image1:latest"},
+						RepoDigests: []string{"repo/image1@sha256:hash1"},
+					},
+					{
+						Id:          "image2",
+						RepoTags:    []string{"repo/image2:latest"},
+						RepoDigests: []string{"repo/image2@sha256:hash2"},
+					},
+				}, nil
+			},
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+				return &v1.ImageStatusResponse{
+					Image: &v1.Image{
+						Id:          "image2",
+						RepoTags:    []string{"repo/image2:latest"},
+						RepoDigests: []string{"repo/image2@sha256:hash2"},
+					},
+				}, nil
+			},
+			existingImages: map[string]*workloadmeta.ContainerImageMetadata{
+				"sha256:hash1": {
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:hash1"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "repo/image1:latest",
+					},
+				},
+			},
+			expectedImageStatusCalls: 1, // Only image2 should trigger GetContainerImage
+			expectedEventCount:       2, // Both images generate events (image1 skipped event + image2 new event)
+			expectError:              false,
+		},
+		{
+			name: "Handle mutable tags correctly",
+			mockListImages: func(_ context.Context) ([]*v1.Image, error) {
+				return []*v1.Image{
+					{
+						Id:          "image1",
+						RepoTags:    []string{"repo/image:latest"},
+						RepoDigests: []string{"repo/image@sha256:newhash"},
+					},
+				}, nil
+			},
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+				return &v1.ImageStatusResponse{
+					Image: &v1.Image{
+						Id:          "image1",
+						RepoTags:    []string{"repo/image:latest"},
+						RepoDigests: []string{"repo/image@sha256:newhash"},
+					},
+				}, nil
+			},
+			existingImages: map[string]*workloadmeta.ContainerImageMetadata{
+				"sha256:oldhash": {
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:oldhash"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "repo/image:latest",
+					},
+				},
+			},
+			expectedImageStatusCalls: 1, // New hash should trigger GetContainerImage
+			expectedEventCount:       1, // New hash should generate an event
+			expectError:              false,
+		},
+		{
+			name: "Handle ListImages error gracefully",
+			mockListImages: func(_ context.Context) ([]*v1.Image, error) {
+				return nil, errors.New("failed to list images")
+			},
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+				return &v1.ImageStatusResponse{
+					Image: &v1.Image{
+						Id:          "image1",
+						RepoTags:    []string{"repo/image:latest"},
+						RepoDigests: []string{"repo/image@sha256:hash1"},
+					},
+				}, nil
+			},
+			existingImages:           nil,
+			expectedImageStatusCalls: 0,
+			expectedEventCount:       0,
+			expectError:              true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imageStatusCallCount := 0
+			client := &mockCRIOClient{
+				mockListImages: tt.mockListImages,
+				mockGetContainerImage: func(ctx context.Context, imageSpec *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error) {
+					imageStatusCallCount++
+					return tt.mockGetContainerImage(ctx, imageSpec, verbose)
+				},
+			}
+			store := &mockWorkloadmetaStore{
+				existingImages: tt.existingImages,
+			}
+			crioCollector := collector{
+				client: client,
+				store:  store,
+			}
+
+			events, err := crioCollector.generateImageEventsFromImageList(context.Background())
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedEventCount, len(events))
+				assert.Equal(t, tt.expectedImageStatusCalls, imageStatusCallCount, "Unexpected number of GetContainerImage calls")
+			}
+		})
+	}
+}

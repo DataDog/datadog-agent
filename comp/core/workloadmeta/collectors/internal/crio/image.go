@@ -215,6 +215,73 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 	return imgInfo
 }
 
+// generateImageEventsFromImageList creates workloadmeta image events from the full image list.
+// This method checks if each image already exists in the workloadmeta store to avoid
+// unnecessary expensive image status calls.
+func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]workloadmeta.CollectorEvent, error) {
+	images, err := c.client.ListImages(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list images: %w", err)
+	}
+
+	imageEvents := make([]workloadmeta.CollectorEvent, 0)
+
+	for _, img := range images {
+		// Extract the image ID - prefer digest over the raw ID
+		imgID := img.GetId()
+		if imgIDAsDigest, err := parseDigests(img.GetRepoDigests()); err == nil {
+			imgID = imgIDAsDigest
+		}
+
+		// Check if image already exists in workloadmeta store
+		// Try both computed ID and raw ID to handle ID format inconsistencies that can occur when:
+		// 1. ListImages() returns digest info but GetContainerImage() returns empty digests (dangling images)
+		// 2. Digest parsing fails differently between lookup and storage phases
+		// 3. Images are stored with raw ID due to empty repo digests but lookup computes digest ID
+		// The fallback ensures we find existing images regardless of which ID format was used during storage
+		rawID := img.GetId()
+		var foundID string
+
+		if _, err := c.store.GetImage(imgID); err == nil {
+			foundID = imgID
+		} else if _, err := c.store.GetImage(rawID); err == nil {
+			foundID = rawID
+		}
+
+		if foundID != "" {
+			// Create skipped image event to prevent it from being marked as removed
+			skippedImageEvent := workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: workloadmeta.SourceRuntime,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   foundID,
+					},
+				},
+			}
+			imageEvents = append(imageEvents, skippedImageEvent)
+
+			continue
+		}
+
+		imageSpec := &v1.ImageSpec{Image: img.GetId()}
+		imageResp, err := c.client.GetContainerImage(ctx, imageSpec, true)
+		if err != nil {
+			log.Warnf("Failed to get image status for image %s: %v", img.GetId(), err)
+			continue
+		}
+
+		// Get namespace from any container using this image - use empty string as default
+		namespace := ""
+
+		imageEvent := c.convertImageToEvent(imageResp.GetImage(), imageResp.GetInfo(), namespace)
+		imageEvents = append(imageEvents, *imageEvent)
+	}
+
+	return imageEvents, nil
+}
+
 // parseLayerInfo reads a JSON file from the given path and returns a list of layerInfo
 func parseLayerInfo(rootPath string, imgID string) ([]layerInfo, error) {
 	filePath := fmt.Sprintf("%s/%s/manifest", rootPath, imgID)
