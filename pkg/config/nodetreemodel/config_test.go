@@ -1153,3 +1153,25 @@ func TestSequenceID(t *testing.T) {
 	config.UnsetForSource("a", model.SourceAgentRuntime)
 	assert.Equal(t, uint64(3), config.GetSequenceID())
 }
+
+func TestMultipleTransformersRaisesError(t *testing.T) {
+	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.BindEnvAndSetDefault("list_of_nums", []float64{}, "TEST_LIST_OF_NUMS")
+
+	assert.PanicsWithValue(t, "env transform for list_of_nums already exists", func() {
+		config.ParseEnvAsSlice("list_of_nums", func(in string) []interface{} {
+			vals := []interface{}{}
+			for _, str := range strings.Split(in, ",") {
+				f, err := strconv.ParseFloat(str, 64)
+				if err != nil {
+					continue
+				}
+				vals = append(vals, f)
+			}
+			return vals
+		})
+		config.ParseEnvAsStringSlice("list_of_nums", func(in string) []string {
+			return strings.Split(in, ",")
+		})
+	})
+}
