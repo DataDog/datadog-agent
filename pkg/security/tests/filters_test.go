@@ -1138,7 +1138,7 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_connect",
-			Expression: `connect.addr.port == 4242`,
+			Expression: `connect.addr.port == 4241`,
 		},
 	}
 
@@ -1176,6 +1176,7 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 			"AF_UNIX",
 			socketPath,
 			"tcp",
+			"4241",
 		)
 	}, func(event *model.Event) bool {
 		addressFamilyIntf, err := event.GetFieldValue("connect.addr.family")
