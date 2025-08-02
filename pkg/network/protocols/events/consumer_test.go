@@ -101,6 +101,76 @@ func TestInvalidBatchCountMetric(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
+func TestNegativeLengthEventCountReal(t *testing.T) {
+	kversion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
+		t.Skipf("package not supported by kernels < %s", minVersion)
+	}
+
+	c := config.New()
+	program, err := NewEBPFProgram(c)
+	require.NoError(t, err)
+	t.Cleanup(func() { program.Stop(manager.CleanAll) })
+
+	mu := sync.Mutex{}
+	results := map[uint64]int{}
+	consumer, err := NewConsumer("test", program.Manager, func(v []uint64) {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, n := range v {
+			results[n] = +1
+		}
+	})
+	require.NoError(t, err)
+	consumer.Start()
+	t.Cleanup(func() { consumer.Stop() })
+
+	err = program.Start()
+	require.NoError(t, err)
+
+	// Create an event generator
+	generator := newEventGenerator(program, t)
+	defer generator.Stop()
+
+	// Generate events in a tight loop while simultaneously calling Sync()
+	// This creates a race condition between normal batch processing and forced sync
+	// which can lead to the offset manager getting into an inconsistent state
+	const cycles = int(10)
+	const iterations = int(1000)
+	for i := 0; i < iterations; i++ {
+		// Generate events
+		for j := 0; j < cycles; j++ {
+			generator.Generate(uint64(i*cycles + j))
+		}
+
+		// Call Sync() while events are still being processed
+		// This can cause the offset manager to get out of sync
+		consumer.Sync()
+
+		// Small delay to allow some events to be processed
+		time.Sleep(time.Millisecond)
+	}
+
+	// Final sync to ensure all events are processed
+	consumer.Sync()
+
+	assert.Eventually(t, func() bool {
+		// Wait for the consumer to process the invalid batch.
+		return consumer.eventsCount.Get() == int64(cycles*iterations)
+	}, 5*time.Second, 100*time.Millisecond, "expected %d events, got %d", cycles*iterations, consumer.eventsCount.Get())
+
+	if t.Failed() {
+		for k, v := range results {
+			if v != 1 {
+				t.Logf("eventID=%d should have 1 occurrence. got %d", k, v)
+			}
+		}
+	}
+
+	require.Zero(t, consumer.invalidBatchCount.Get(), "expected 0 invalid batch count, got %d", consumer.invalidBatchCount.Get())
+}
+
 type eventGenerator struct {
 	// map used for coordinating test with eBPF program space
 	testMap *ebpf.Map
