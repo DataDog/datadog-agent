@@ -10,6 +10,7 @@ package msi
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
+	"golang.org/x/text/encoding/unicode"
 )
 
 // mockCmdRunner for testing using testify/mock
@@ -191,6 +193,36 @@ func TestMsiexec_Run_RetryThenSuccess(t *testing.T) {
 	mockRunner.AssertExpectations(t)
 }
 
+// TestMsiexec.Run retry behavior when MSI returns a non-retryable exit code, but the log file contains a retryable error
+func TestMsiexec_Run_RetryableErrorInLog(t *testing.T) {
+	mockRunner := &mockCmdRunner{}
+	// return a non-retryable exit code, so that the log file is searched for retryable error messages
+	mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&mockExitError{code: 1603}).Once()
+	mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil).Once()
+	// log file with retryable error
+	logFile := createTestLogFile(t, "retryable-error.log", []byte(`
+		Action start 17:48:55: WixSharp_InitRuntime_Action.
+		CustomAction WixSharp_InitRuntime_Action returned actual error code 1601 (note this may not be 100% accurate if translation happened inside sandbox)
+		MSI (s) (E4:18) [17:48:56:009]: Product: Datadog Agent -- Error 1719. The Windows Installer Service could not be accessed. This can occur if you are running Windows in safe mode, or if the Windows Installer is not correctly installed. Contact your support personnel for assistance.
+	`))
+
+	cmd, err := Cmd(
+		Install(),
+		WithMsi("test.msi"),
+		WithLogFile(logFile),
+		withCmdRunner(mockRunner),
+		// retry immediately for fast testing
+		withBackOff(&backoff.ZeroBackOff{}),
+	)
+	require.NoError(t, err)
+
+	_, err = cmd.Run(t.Context())
+	assert.NoError(t, err)
+
+	// Verify mock was called the expected number of times
+	mockRunner.AssertExpectations(t)
+}
+
 // Test Msiexec.Run non-retryable error
 func TestMsiexec_Run_NonRetryableError(t *testing.T) {
 	mockRunner := &mockCmdRunner{}
@@ -300,4 +332,17 @@ func TestCmd_MissingRequiredArgs(t *testing.T) {
 			assert.Nil(t, cmd)
 		})
 	}
+}
+
+// createTestLogFile creates a test log file with the given filename and log data and returns the path.
+//
+// The file is deleted when the test is done.
+//
+// The function encodes the log data as UTF-16 with BOM, as expected by openAndProcessLogFile.
+func createTestLogFile(t *testing.T, filename string, logData []byte) string {
+	logFile := filepath.Join(t.TempDir(), filename)
+	logData, err := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewEncoder().Bytes(logData)
+	require.NoError(t, err)
+	os.WriteFile(logFile, logData, 0644)
+	return logFile
 }
