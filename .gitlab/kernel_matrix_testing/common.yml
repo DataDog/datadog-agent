@@ -254,6 +254,7 @@
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - export CI_COMMIT_SHA=$CI_COMMIT_SHA
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
     - echo "CI_JOB_URL=${CI_JOB_URL}" >> $DD_AGENT_TESTING_DIR/job_env.txt
