@@ -25,6 +25,7 @@ var (
 	evtSubscribe             = wevtapi.NewProc("EvtSubscribe")
 	evtClose                 = wevtapi.NewProc("EvtClose")
 	evtNext                  = wevtapi.NewProc("EvtNext")
+	evtQuery                 = wevtapi.NewProc("EvtQuery")
 	evtCreateBookmark        = wevtapi.NewProc("EvtCreateBookmark")
 	evtUpdateBookmark        = wevtapi.NewProc("EvtUpdateBookmark")
 	evtCreateRenderContext   = wevtapi.NewProc("EvtCreateRenderContext")
@@ -84,6 +85,39 @@ func (api *API) EvtSubscribe(
 		uintptr(0), // No callback in pull mode
 		uintptr(Flags))
 	// EvtSubscribe returns NULL on error
+	if r1 == 0 {
+		return evtapi.EventResultSetHandle(0), lastErr
+	}
+
+	return evtapi.EventResultSetHandle(r1), nil
+}
+
+// EvtQuery wrapper.
+// Must pass the returned handle to EvtClose when finished using the handle.
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtquery
+func (api *API) EvtQuery(
+	Session evtapi.EventSessionHandle,
+	Path string,
+	Query string,
+	Flags uint) (evtapi.EventResultSetHandle, error) {
+
+	// Convert Go strings to Windows API strings
+	path, err := winutil.UTF16PtrOrNilFromString(Path)
+	if err != nil {
+		return evtapi.EventResultSetHandle(0), err
+	}
+	query, err := winutil.UTF16PtrOrNilFromString(Query)
+	if err != nil {
+		return evtapi.EventResultSetHandle(0), err
+	}
+
+	// Call API
+	r1, _, lastErr := evtQuery.Call(
+		uintptr(Session),
+		uintptr(unsafe.Pointer(path)),
+		uintptr(unsafe.Pointer(query)),
+		uintptr(Flags))
+	// EvtQuery returns NULL on error
 	if r1 == 0 {
 		return evtapi.EventResultSetHandle(0), lastErr
 	}
