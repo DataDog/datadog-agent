@@ -2043,6 +2043,7 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_busybox_hardlink_2", rule.ID, "wrong rule triggered")
 			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), event.Exec.FileEvent.PathnameStr)
+
 		})
 	})
 }
