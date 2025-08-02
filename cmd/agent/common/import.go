@@ -52,14 +52,16 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	// setup the configuration system
-	pkgconfigsetup.Datadog().AddConfigPath(newConfigDir)
-	_, err = pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
+	cfg := pkgconfigsetup.GlobalConfigBuilder()
+
+	cfg.AddConfigPath(newConfigDir)
+	_, err = pkgconfigsetup.LoadWithoutSecret(cfg, nil)
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
 
 	// we won't overwrite the conf file if it contains a valid api_key
-	if pkgconfigsetup.Datadog().GetString("api_key") != "" && !force {
+	if cfg.GetString("api_key") != "" && !force {
 		return fmt.Errorf("%s seems to contain a valid configuration, run the command again with --force or -f to overwrite it",
 			datadogYamlPath)
 	}
@@ -136,7 +138,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	// marshal the config object to YAML
-	b, err := yaml.Marshal(pkgconfigsetup.Datadog().AllSettings())
+	b, err := yaml.Marshal(cfg.AllSettings())
 	if err != nil {
 		return fmt.Errorf("unable to marshal config to YAML: %v", err)
 	}

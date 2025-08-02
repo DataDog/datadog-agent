@@ -124,8 +124,8 @@ const (
 
 var (
 	// datadog is the global configuration object
-	datadog     pkgconfigmodel.Config
-	systemProbe pkgconfigmodel.Config
+	datadog     pkgconfigmodel.BuildableConfig
+	systemProbe pkgconfigmodel.BuildableConfig
 
 	datadogMutex     = sync.RWMutex{}
 	systemProbeMutex = sync.RWMutex{}
@@ -134,7 +134,7 @@ var (
 // SetDatadog sets the the reference to the agent configuration.
 // This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
 // legacy converter and mock have been migrated we will remove this function.
-func SetDatadog(cfg pkgconfigmodel.Config) {
+func SetDatadog(cfg pkgconfigmodel.BuildableConfig) {
 	datadogMutex.Lock()
 	defer datadogMutex.Unlock()
 	datadog = cfg
@@ -143,7 +143,7 @@ func SetDatadog(cfg pkgconfigmodel.Config) {
 // SetSystemProbe sets the the reference to the systemProbe configuration.
 // This is currently used by the config mocks and should not be user anywhere else. Once the mocks have been migrated we
 // will remove this function.
-func SetSystemProbe(cfg pkgconfigmodel.Config) {
+func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 	systemProbeMutex.Lock()
 	defer systemProbeMutex.Unlock()
 	systemProbe = cfg

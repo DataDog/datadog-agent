@@ -34,11 +34,12 @@ func CheckAndUpgradeConfig() error {
 		log.Debug("Previous config file not found, not upgrading")
 		return nil
 	}
-	pkgconfigsetup.Datadog().AddConfigPath(defaultpaths.ConfPath)
-	_, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
+	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
+	ddcfg.AddConfigPath(defaultpaths.ConfPath)
+	_, err := pkgconfigsetup.LoadWithoutSecret(ddcfg, nil)
 	if err == nil {
 		// was able to read config, check for api key
-		if pkgconfigsetup.Datadog().GetString("api_key") != "" {
+		if ddcfg.GetString("api_key") != "" {
 			log.Debug("Datadog.yaml found, and API key present.  Not upgrading config")
 			return nil
 		}

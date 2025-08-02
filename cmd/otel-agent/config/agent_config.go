@@ -97,8 +97,8 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		return nil, err
 	}
 
-	// Set the global agent config
-	pkgconfig := pkgconfigsetup.Datadog()
+	// Get the global agent config, build on top of it
+	pkgconfig := pkgconfigsetup.Datadog().NewBuilder()
 
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")
