@@ -8,28 +8,46 @@
 package kafka
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
+	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
-	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 const (
+	KafkaPort    = "9092"
+	KafkaTLSPort = "9093"
+
 	// KafkaOldPort is the port of the old kafka instance (v3.8), hard coded in docker-compose.yml for simplicity
-	KafkaOldPort = "9082"
+	KafkaOldPort    = "9082"
+	KafkaOldTLSPort = "9083"
 )
 
+func GetPort(kafkaVersion float32, tls bool) string {
+	if kafkaVersion <= 3.8 {
+		// Old kafka instance (v3.8) port, hard coded in docker-compose.yml for simplicity
+		if tls {
+			return KafkaOldTLSPort
+		}
+		return KafkaOldPort
+	}
+	if tls {
+		// TLS port for the new kafka instance (v4.0)
+		return KafkaTLSPort
+	}
+	// Non-TLS port for the new kafka instance (v4.0)
+	return KafkaPort
+}
+
 // RunServer runs a kafka server in a docker container
-func RunServer(t testing.TB, serverAddr, serverPort string) error {
+// Ports are hard coded in docker-compose.yml, 9092 (9093 for tls) is the new kafka instance (v4.0) and 9082 (9083 for tls) is the old kafka instance (v3.8).
+func RunServer(t testing.TB, serverAddr string) error {
 	env := []string{
 		"KAFKA_ADDR=" + serverAddr,
-		"KAFKA_PORT=" + serverPort,
 	}
 
 	t.Helper()
