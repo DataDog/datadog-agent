@@ -150,7 +150,7 @@ require (
 	github.com/spf13/afero v1.14.0
 	github.com/spf13/cast v1.9.2
 	github.com/spf13/cobra v1.9.1
-	github.com/spf13/pflag v1.0.6
+	github.com/spf13/pflag v1.0.7
 	github.com/streadway/amqp v1.1.0
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
@@ -358,7 +358,7 @@ require (
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/tchap/go-patricia/v2 v2.3.2 // indirect
+	github.com/tchap/go-patricia/v2 v2.3.3 // indirect
 	github.com/tedsuo/ifrit v0.0.0-20191009134036-9a97d0632f00 // indirect
 	github.com/tedsuo/rata v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.15
@@ -420,7 +420,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.20.4 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
-	sigs.k8s.io/yaml v1.5.0
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
@@ -720,6 +720,7 @@ require (
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.131.0 // indirect
+	github.com/vektah/gqlparser/v2 v2.5.30 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v0.131.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.131.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
@@ -1036,8 +1037,8 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.31.2
 )
 
-// Fork to remove some text/template usage, https://github.com/paulcacheux/opa/tree/lightweight
-replace github.com/open-policy-agent/opa => github.com/paulcacheux/opa v0.0.0-20250507091703-12dadb609ad1
+// Fork to remove some text/template usage, https://github.com/paulcacheux/opa/tree/lightweight-1.7.1
+replace github.com/open-policy-agent/opa => github.com/paulcacheux/opa v0.0.0-20250802184518-fe783f1d9174
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
