@@ -206,6 +206,8 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 
 	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
 
+	procBindEnvAndSetDefault(config, "process_config.connections.enable_dynamic_interval", false)
+
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
 		pkgconfigmodel.AddOverrideFunc(overrideRunInCoreAgentConfig)
