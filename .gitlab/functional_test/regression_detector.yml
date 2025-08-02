@@ -286,7 +286,7 @@ single-machine-performance-regression_detector-pr-comment:
     - !reference [.on_dev_branches]
     - when: always
   image:
-    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"
+    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
     entrypoint: [""] # disable entrypoint script for the pr-commenter image
   tags: ["arch:amd64"]
   needs:
