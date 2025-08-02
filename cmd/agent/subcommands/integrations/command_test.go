@@ -63,7 +63,7 @@ func TestFreezeCommand(t *testing.T) {
 		[]string{"integration", "freeze"},
 		list,
 		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, []string{}, cliParams.args)
+			require.Equal(t, 0, len(cliParams.args))
 			require.Equal(t, 0, cliParams.verbose)
 			require.Equal(t, false, secretParams.Enabled)
 			require.Equal(t, true, coreParams.ConfigMissingOK())
