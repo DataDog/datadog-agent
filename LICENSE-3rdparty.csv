@@ -1137,6 +1137,7 @@ core,github.com/golang/protobuf/internal/gengogrpc,BSD-3-Clause,Copyright (c) 20
 core,github.com/golang/protobuf/proto,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/protoc-gen-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/empty,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+core,github.com/golang/protobuf/ptypes/struct,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/snappy,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved.
 core,github.com/google/cel-go/cel,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/checker,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
