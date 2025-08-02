@@ -6,6 +6,7 @@
 package installinfo
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -13,11 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestWriteInstallInfo(t *testing.T) {
@@ -34,7 +36,7 @@ func TestWriteInstallInfo(t *testing.T) {
 	// Call the internal writeInstallInfo function.
 	time := time.Now()
 	uuid := uuid.New().String()
-	err := writeInstallInfo(infoPath, sigPath, testInstallType, time, uuid)
+	err := writeInstallInfo(context.TODO(), infoPath, sigPath, testInstallType, time, uuid)
 	require.NoError(t, err)
 
 	yamlData, err := os.ReadFile(infoPath)
