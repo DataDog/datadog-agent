@@ -183,6 +183,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.install_id", "DD_INSTRUMENTATION_INSTALL_ID")
 	config.BindEnv("apm_config.install_type", "DD_INSTRUMENTATION_INSTALL_TYPE")
 	config.BindEnv("apm_config.install_time", "DD_INSTRUMENTATION_INSTALL_TIME")
+	config.BindEnv("apm_config.min_convert_payloads", "DD_APM_MIN_CONVERT_PAYLOADS")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.enabled", true, "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.luhn", false, "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.keep_values", []string{}, "DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES")
