@@ -9,20 +9,27 @@
 package tests
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
+	"net"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/nettest"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -69,11 +76,12 @@ func getCurrentNetns() (uint32, error) {
 }
 
 type FlowPid struct {
-	Addr0   uint64
-	Addr1   uint64
-	Netns   uint32
-	Port    uint16
-	Padding uint16
+	Addr0    uint64
+	Addr1    uint64
+	Netns    uint32
+	Port     uint16
+	Protocol uint8 // l4_protocol
+	Padding  uint8
 }
 
 type FlowPidEntry struct {
@@ -216,8 +224,9 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -248,9 +257,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -281,9 +291,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -318,8 +329,9 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -354,9 +366,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -391,9 +404,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -424,8 +438,9 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -456,9 +471,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -489,9 +505,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -526,8 +543,9 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -562,9 +580,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -599,9 +618,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -661,15 +681,19 @@ func TestFlowPidBindLeak(t *testing.T) {
 			true,
 		)
 
-		<-boundPort
-
+		select {
+		case <-boundPort:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for test_sock_ipv4_udp_bind_99.99.99.99:2234")
+		}
 		checkBindFlowPidEntry(
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 99, 99, 99, 99}),
-				Netns: netns,
-				Port:  htons(2234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 99, 99, 99, 99}),
+				Netns:    netns,
+				Port:     htons(2234),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -697,15 +721,19 @@ func TestFlowPidBindLeak(t *testing.T) {
 			true,
 		)
 
-		<-boundPort
-
+		select {
+		case <-boundPort:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for test_sock_ipv4_tcp_bind_99.99.99.99:2235")
+		}
 		checkBindFlowPidEntry(
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 99, 99, 99, 99}),
-				Netns: netns,
-				Port:  htons(2235),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 99, 99, 99, 99}),
+				Netns:    netns,
+				Port:     htons(2235),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -736,17 +764,21 @@ func TestFlowPidBindLeak(t *testing.T) {
 			clientSocketClosed,
 			true,
 		)
-
-		<-boundPort
+		select {
+		case <-boundPort:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for test_sock_ipv6_udp_bind_[99*]:2236")
+		}
 
 		checkBindFlowPidEntry(
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
-				Addr1: binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
-				Netns: netns,
-				Port:  htons(2236),
+				Addr0:    binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
+				Addr1:    binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
+				Netns:    netns,
+				Port:     htons(2236),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -778,16 +810,21 @@ func TestFlowPidBindLeak(t *testing.T) {
 			true,
 		)
 
-		<-boundPort
+		select {
+		case <-boundPort:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for test_sock_ipv6_tcp_bind_[99*]:2237")
+		}
 
 		checkBindFlowPidEntry(
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
-				Addr1: binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
-				Netns: netns,
-				Port:  htons(2237),
+				Addr0:    binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
+				Addr1:    binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
+				Netns:    netns,
+				Port:     htons(2237),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -797,5 +834,318 @@ func TestFlowPidBindLeak(t *testing.T) {
 			clientSocketClosed,
 			true,
 		)
+		fmt.Println("FlowPidBindLeak test completed successfully")
+	})
+}
+func TestMultipleProtocols(t *testing.T) {
+	SkipIfNotAvailable(t)
+	tcpPidChan := make(chan int, 1)
+	tcplistenReady := make(chan struct{}, 1)
+	tcpNetNsChan := make(chan uint32, 1)
+	udpNetNSChan := make(chan uint32, 1)
+	udpPidChan := make(chan int, 1)
+	udpwaitReady := make(chan struct{}, 1)
+	udpCloseReady := make(chan struct{}, 1)
+	tcpCloseReady := make(chan struct{}, 1)
+	checkNetworkCompatibility(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "bind_multiple_udp",
+			Expression: `bind.addr.family == AF_INET && bind.protocol == 17 && bind.addr.port == 2663`,
+		},
+		{
+			ID:         "bind_multiple_tcp",
+			Expression: `bind.addr.family == AF_INET && bind.protocol == 6 && bind.addr.port == 2663`,
+		},
+		// This rule is used to ensure that the flow <-> pid tracking probes are loaded
+		{
+			ID:         "test_dns",
+			Expression: `dns.question.name == "testsuite"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.Run(t, "bind-udp-and-tcp-on-same-port", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		//  --- TCP BIND ---
+		var tcpPid int
+		var tcpNetNs uint32
+
+		test.WaitSignal(t, func() error {
+			go func() {
+				args := []string{"bind-and-listen", "2663", "tcp"}
+				cmd := cmdFunc(syscallTester, args, nil)
+
+				stdout, err := cmd.StdoutPipe()
+				if err != nil {
+					t.Errorf("TCP: failed to get stdout pipe: %v", err)
+					return
+				}
+				stderr, err := cmd.StderrPipe()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "unable to start StderrPipe: %s", err)
+					return
+				}
+
+				errscanner := bufio.NewScanner(stderr)
+				go func() {
+					for errscanner.Scan() {
+						fmt.Printf("[TCP STDERR] %s\n", errscanner.Text())
+						if err := errscanner.Err(); err != nil {
+							t.Errorf("TCP: error reading stderr: %v", err)
+						}
+					}
+				}()
+
+				if err := cmd.Start(); err != nil {
+					t.Errorf("TCP: failed to start syscall_tester: %v", err)
+					return
+				}
+
+				scanner := bufio.NewScanner(stdout)
+				if err := scanner.Err(); err != nil {
+					t.Errorf("TCP: failed to read stdout: %v", err)
+					return
+				}
+				for scanner.Scan() {
+					line := scanner.Text()
+					if strings.HasPrefix(line, "PID: ") {
+						pidStr := strings.TrimPrefix(line, "PID: ")
+						pid, err := strconv.Atoi(pidStr)
+						if err == nil {
+							tcpPidChan <- pid
+						}
+					}
+					if strings.HasPrefix(line, "NETNS") {
+						netnsStr := strings.TrimPrefix(line, "NETNS: ")
+						netnsUint64, err := strconv.ParseUint(netnsStr, 10, 32)
+						netns := uint32(netnsUint64)
+						if err == nil {
+							tcpNetNsChan <- netns
+						}
+					}
+					if strings.HasPrefix(line, "Listening on port") {
+						tcplistenReady <- struct{}{} // Synchro on listen ready
+					}
+					if strings.HasPrefix(line, "Closing socket...") {
+						tcpCloseReady <- struct{}{} // Synchro on close ready
+					}
+				}
+				_ = cmd.Wait()
+			}()
+			return nil
+		}, func(_ *model.Event, _ *rules.Rule) {
+		})
+
+		// --- UDP BIND ---
+		var udpPid int
+		var udpNetNs uint32
+
+		test.WaitSignal(t, func() error {
+			go func() {
+				args := []string{"bind-and-listen", "2663", "udp"}
+				cmd := cmdFunc(syscallTester, args, nil)
+
+				stdout, err := cmd.StdoutPipe()
+				if err != nil {
+					t.Errorf("UDP: failed to get stdout pipe: %v", err)
+					return
+				}
+				stderr, err := cmd.StderrPipe()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "unable to start StderrPipe: %s", err)
+					return
+				}
+				errscanner := bufio.NewScanner(stderr)
+				go func() {
+					for errscanner.Scan() {
+						fmt.Printf("[UDP STDERR] %s\n", errscanner.Text())
+						if err := errscanner.Err(); err != nil {
+							t.Errorf("UDP: error reading stderr: %v", err)
+						}
+					}
+				}()
+
+				if err := cmd.Start(); err != nil {
+					t.Errorf("UDP: failed to start syscall_tester: %v", err)
+					return
+				}
+
+				scanner := bufio.NewScanner(stdout)
+				if err := scanner.Err(); err != nil {
+					t.Errorf("UDP: failed to read stdout: %v", err)
+					return
+				}
+				for scanner.Scan() {
+					line := scanner.Text()
+					if strings.HasPrefix(line, "PID: ") {
+						pidStr := strings.TrimPrefix(line, "PID: ")
+						pid, err := strconv.Atoi(pidStr)
+						if err == nil {
+							udpPidChan <- pid // Synchro on PID
+						}
+					}
+					if strings.HasPrefix(line, "NETNS") {
+						netnsStr := strings.TrimPrefix(line, "NETNS: ")
+						netnsUint, err := strconv.ParseUint(netnsStr, 10, 32)
+						netns := uint32(netnsUint)
+
+						if err == nil {
+							udpNetNSChan <- netns // Synchro on NETNS
+						}
+					}
+					if strings.HasPrefix(line, "Waiting on port") {
+						udpwaitReady <- struct{}{} // Synchro on wait ready
+					}
+					if strings.HasPrefix(line, "Closing socket...") {
+						udpCloseReady <- struct{}{} // Synchro on close ready
+					}
+				}
+				_ = cmd.Wait()
+			}()
+			return nil
+		}, func(_ *model.Event, _ *rules.Rule) {
+
+		})
+
+		//  --- TEST ---
+		// Wait for both TCP and UDP bind to be ready
+		select {
+		case tcpPid = <-tcpPidChan:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for TCP PID in MultipleProtocols test")
+		}
+
+		select {
+		case udpPid = <-udpPidChan:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for UDP PID in MultipleProtocols test")
+		}
+		select {
+		case tcpNetNs = <-tcpNetNsChan:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for TCP NETNS in MultipleProtocols test")
+		}
+		select {
+		case udpNetNs = <-udpNetNSChan:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for UDP NETNS in MultipleProtocols test")
+		}
+		p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
+		if !ok {
+			t.Skip("skipping non eBPF probe")
+			return
+		}
+
+		m, _, err := p.Manager.GetMap("flow_pid")
+		if err != nil {
+			t.Fatalf("failed to get map flow_pid: %v", err)
+		}
+
+		netns, err := getCurrentNetns()
+		if err != nil {
+			t.Fatalf("failed to get current netns: %v", err)
+		}
+
+		expectedPort := uint16(2663)
+		htonsPort := htons(expectedPort)
+
+		tcpKey := FlowPid{
+			Netns:    tcpNetNs,
+			Port:     htonsPort,
+			Protocol: uint8(unix.IPPROTO_TCP),
+		}
+		udpKey := FlowPid{
+			Netns:    udpNetNs,
+			Port:     htonsPort,
+			Protocol: uint8(unix.IPPROTO_UDP),
+		}
+		var tcpVal = FlowPidEntry{}
+		var udpVal = FlowPidEntry{}
+
+		if err := m.Lookup(&tcpKey, &tcpVal); err != nil {
+			dumpMap(t, m)
+			t.Errorf("TCP entry not found for key: %+v, error: %v", tcpKey, err)
+		}
+
+		if err := m.Lookup(&udpKey, &udpVal); err != nil {
+			dumpMap(t, m)
+			t.Errorf("UDP entry not found for key: %+v, error: %v", udpKey, err)
+		}
+		//DEBUG SECTION
+		fmt.Printf("FOR DEBUGGING:\n")
+		dumpMap(t, m)
+		fmt.Printf("END OF DEBUGGING\n")
+		if tcpNetNs != netns || udpNetNs != netns {
+			fmt.Printf("Netns mismatch: GO Netns %d, TCP Netns %d, UDP Netns %d\n", netns, tcpNetNs, udpNetNs)
+		}
+
+		assert.NotEqual(t, tcpVal.Pid, udpVal.Pid, "TCP and UDP should be from different PIDs")
+		assert.Equal(t, uint32(tcpPid), tcpVal.Pid, "TCP PID mismatch")
+		assert.Equal(t, uint32(udpPid), udpVal.Pid, "UDP PID mismatch")
+		assert.Equal(t, uint16(0), tcpVal.EntryType, "TCP entry type mismatch")
+		assert.Equal(t, uint16(0), udpVal.EntryType, "UDP entry type mismatch")
+		assert.Equal(t, uint8(unix.IPPROTO_TCP), tcpKey.Protocol, "TCP protocol mismatch")
+		assert.Equal(t, uint8(unix.IPPROTO_UDP), udpKey.Protocol, "UDP protocol mismatch")
+		assert.Equal(t, htonsPort, tcpKey.Port, "TCP port mismatch")
+		assert.Equal(t, htonsPort, udpKey.Port, "UDP port mismatch")
+
+		// Close sockets
+		// Wait for both TCP and UDP listen/wait to be ready
+		select {
+		case <-tcplistenReady:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for TCP listen in MultipleProtocols test")
+		}
+		select {
+		case <-udpwaitReady:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for UDP listen in MultipleProtocols test")
+		}
+
+		time.Sleep(1 * time.Second)
+		if connTCP, err := net.Dial("tcp", "127.0.0.1:2663"); err != nil {
+			t.Errorf("failed to connect to TCP socket: %v", err)
+		} else {
+			_, _ = connTCP.Write([]byte("CLOSE\n"))
+			_ = connTCP.Close()
+		}
+		if connUDP, err := net.Dial("udp", "127.0.0.1:2663"); err != nil {
+			t.Errorf("failed to connect to UDP socket: %v", err)
+		} else {
+			_, _ = connUDP.Write([]byte("CLOSE\n"))
+			_ = connUDP.Close()
+		}
+		// Check that entries are removed
+		select {
+		case <-tcpCloseReady:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for TCP close in MultipleProtocols test")
+		}
+		select {
+		case <-udpCloseReady:
+		case <-time.After(30 * time.Second):
+			t.Fatal("Timeout waiting for UDP close in MultipleProtocols test")
+		}
+
+		time.Sleep(1 * time.Second)
+		if err := m.Lookup(&tcpKey, &tcpVal); err == nil {
+			dumpMap(t, m)
+			t.Errorf("flow_pid entry wasn't deleted: %+v", tcpVal)
+		}
+		if err := m.Lookup(&udpKey, &udpVal); err == nil {
+			dumpMap(t, m)
+			t.Errorf("flow_pid entry wasn't deleted: %+v", udpVal)
+		}
 	})
 }
