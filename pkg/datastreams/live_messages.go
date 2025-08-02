@@ -9,6 +9,7 @@ package datastreams
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -141,6 +142,11 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		updatedConfig.Instances = make([]integration.Data, 0, len(updatedConfig.Instances))
 		if updatedConfig.LogsConfig == nil {
 			updatedConfig.LogsConfig = integration.Data(logsConfig)
+			fmt.Println("logs config is null")
+		} else {
+			log.Info("Logs config is already set", "logs_config", string(updatedConfig.LogsConfig))
+			fmt.Println("logs config is not null")
+			fmt.Println("logs config: ", string(updatedConfig.LogsConfig))
 		}
 		for _, instance := range integrationConfig.Instances {
 			updatedInstance := instance
