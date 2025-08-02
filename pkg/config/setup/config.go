@@ -1096,6 +1096,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
+
+	// Shared library loader initialization
+	config.BindEnvAndSetDefault("shared_library_checks", true)
+	config.BindEnvAndSetDefault("shared_library_lazy_loading", true)
 }
 
 func agent(config pkgconfigmodel.Setup) {
