@@ -10,9 +10,10 @@ package windows
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // systemAPI abstracts system-level API calls

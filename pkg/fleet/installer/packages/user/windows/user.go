@@ -21,6 +21,8 @@ import (
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // ErrPrivateDataNotFound is returned when LSARetrievePrivateData returns STATUS_OBJECT_NAME_NOT_FOUND
@@ -329,6 +331,22 @@ func GetAgentUserNameFromRegistry() (string, error) {
 	}
 
 	return user, nil
+}
+
+// GetAgentUserFromService returns the username for the Agent service user
+func GetAgentUserFromService() (string, error) {
+	sid, errService := winutil.GetServiceUserSID("datadogagent")
+	if errService != nil {
+		return "", fmt.Errorf("cannot get service user SID: %w", errService)
+	}
+
+	// convert the SID to a username to get the full name
+	username, domain, _, err := sid.LookupAccount("")
+	if err != nil {
+		return "", fmt.Errorf("cannot lookup account name for SID %s: %w", sid.String(), err)
+	}
+
+	return fmt.Sprintf("%s\\%s", domain, username), nil
 }
 
 func lookupSID(name string) (*windows.SID, string, error) {
