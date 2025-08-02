@@ -13,6 +13,42 @@ import packaging.version
 
 DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by installation process\n"
 
+DEPS_STARTING_WITH_DATADOG = [
+    "datadog-a7",
+    "datadog-agent-dev",
+    "datadog-api-client",
+    "datadog-api-client-python",
+    "datadog-ariadne-graphql-server",
+    "datadog-cdk-constructs",
+    "datadog-cdk-constructs-v2",
+    "datadog-checks-base",
+    "datadog-checks-dev",
+    "datadog-checks-downloader",
+    "datadog-cli",
+    "datadog-custom-logger",
+    "datadog-dashboard-deployer",
+    "datadog-deployer",
+    "datadog-export",
+    "datadog-exporter",
+    "datadog-google-openid",
+    "datadog-healthcheck-deployer",
+    "datadog-http-handler",
+    "datadog-lambda-python",
+    "datadog-linter",
+    "datadog-log",
+    "datadog-logger",
+    "datadog-logs-python",
+    "datadog-metrics",
+    "datadog-monitor-deployer",
+    "datadog-monitors-linter",
+    "datadog-muted-alert-checker",
+    "datadog-pandas",
+    "datadog-serverless-compat",
+    "datadog-serverless-utils",
+    "datadog-sma",
+    "datadog-threadstats",
+]
+
 def run_command(args):
     """
     Execute a shell command and return its output and errors.
@@ -186,7 +222,9 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
         if install_package_name in exclude_packages:
             print(f"Skipping '{install_package_name}' as it's already included in '{exclude_filename}' file")
         else:
-            if install_package_line.startswith('datadog-'):
+            # install_package_line can be a <requirement specifier> which contains a package name and a version constraint
+            # we need to check that install_package_line doesn't contain any dependency name in DEPS_STARTING_WITH_DATADOG
+            if install_package_line.startswith('datadog-') and not any(install_package_line.startswith(dep) for dep in DEPS_STARTING_WITH_DATADOG):
                 install_datadog_package(install_package_line, install_directory)
             else:
                 install_dependency_package(pip, install_package_line)
