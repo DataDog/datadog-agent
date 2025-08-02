@@ -102,6 +102,27 @@ func buildFetchVersionTest(name string, version *kversion.Versions, targetAddres
 	}
 }
 
+func buildAPIVersionsVersionTest(name string, version *kversion.Versions, targetAddress, serverAddress string, dialer *net.Dialer, expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
+	return protocolClassificationAttributes{
+		name: name,
+		context: testContext{
+			serverPort:    kafkaPort,
+			targetAddress: targetAddress,
+			serverAddress: serverAddress,
+		},
+		postTracerSetup: func(t *testing.T, ctx testContext) {
+			kafkaClient, err := kafka.NewClient(kafka.Options{
+				ServerAddress: ctx.targetAddress,
+				DialFn:        dialer.DialContext,
+				CustomOptions: []kgo.Opt{kgo.MaxVersions(version)},
+			})
+			require.NoError(t, err)
+			defer kafkaClient.Client.Close()
+		},
+		validation: validateProtocolConnection(&protocols.Stack{Application: expectedProtocol}),
+	}
+}
+
 func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	const topicName = "franz-kafka"
 	testIndex := 0
@@ -305,6 +326,24 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			getTopicName(),
 			defaultDialer,
 			expectedProtocol,
+		)
+		currentTest.teardown = kafkaTeardown
+		tests = append(tests, currentTest)
+	}
+
+	// Generate tests for all supported APIVersions request versions
+	for apiversionsVersion := kafka.ClassificationMinSupportedAPIVersionsRequestApiVersion; apiversionsVersion <= kafka.ClassificationMaxSupportedAPIVersionsRequestApiVersion; apiversionsVersion++ {
+		version := kversion.V4_0_0()
+		require.LessOrEqual(t, int16(apiversionsVersion), lo.Must(version.LookupMaxKeyVersion(apiVersionsAPIKey)), "apiversions version unsupported by kafka lib")
+		version.SetMaxKeyVersion(apiVersionsAPIKey, int16(apiversionsVersion))
+
+		currentTest := buildAPIVersionsVersionTest(
+			fmt.Sprintf("apiversions v%d", apiversionsVersion),
+			version,
+			net.JoinHostPort(targetHost, kafkaPort),
+			net.JoinHostPort(serverHost, kafkaPort),
+			defaultDialer,
+			protocols.Kafka,
 		)
 		currentTest.teardown = kafkaTeardown
 		tests = append(tests, currentTest)
