@@ -8,6 +8,7 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type probeEvent struct {
@@ -44,10 +46,9 @@ type Decoder struct {
 // NewDecoder creates a new Decoder for the given program.
 func NewDecoder(
 	program *ir.Program,
-) (*Decoder, error) {
+) *Decoder {
 	decoder := &Decoder{
 		dataItems:         make(map[typeAndAddr]output.DataItem),
-		decoderTypes:      make(map[ir.TypeID]decoderType, len(program.Types)),
 		currentlyEncoding: make(map[typeAndAddr]struct{}),
 		program:           program,
 		stackFrames:       make(map[uint64][]symbol.StackFrame),
@@ -68,14 +69,7 @@ func NewDecoder(
 			}
 		}
 	}
-	for _, t := range program.Types {
-		decoderType, err := newDecoderType(t, program.Types)
-		if err != nil {
-			return nil, fmt.Errorf("error getting decoder type for type %s: %w", t.GetName(), err)
-		}
-		decoder.decoderTypes[t.GetID()] = decoderType
-	}
-	return decoder, nil
+	return decoder
 }
 
 // typeAndAddr is a type and address pair. It is used to uniquely identify a data item in the data items map.
@@ -91,11 +85,29 @@ func (d *Decoder) Decode(
 	symbolicator symbol.Symbolicator,
 	out io.Writer,
 ) (probe ir.ProbeDefinition, err error) {
+	if d.decoderTypes == nil {
+		d.decoderTypes = make(map[ir.TypeID]decoderType, len(d.program.Types))
+		for _, t := range d.program.Types {
+			decoderType, err := newDecoderType(t, d.program.Types)
+			if err != nil {
+				log.Tracef("error getting decoder type for type %s: %w", t.GetName(), err)
+				continue
+			}
+			d.decoderTypes[t.GetID()] = decoderType
+		}
+	}
 	probe, err = d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
 		return nil, err
 	}
 	defer d.snapshotMessage.clear()
+	b := []byte{}
+	buf := bytes.NewBuffer(b)
+	err = json.MarshalWrite(buf, &d.snapshotMessage.Debugger.Snapshot.Captures.Entry.ArgumentsData)
+	if err != nil {
+		return nil, err
+	}
+	d.snapshotMessage.Debugger.Snapshot.Captures.Entry.Arguments = buf.Bytes()
 	err = json.MarshalWrite(out, &d.snapshotMessage)
 	return probe, err
 }
@@ -206,7 +218,7 @@ func (s *snapshotMessage) init(
 	s.Logger.Version = probe.GetVersion()
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
-	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
+	s.Debugger.Snapshot.Captures.Entry.ArgumentsData = argumentsData{
 		event:    event,
 		rootType: rootType,
 		rootData: s.rootData,

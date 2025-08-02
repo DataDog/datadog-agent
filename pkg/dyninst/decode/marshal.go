@@ -66,7 +66,8 @@ type captureData struct {
 }
 
 type capturePointData struct {
-	Arguments argumentsData `json:"arguments"`
+	Arguments     jsontext.Value `json:"arguments"`
+	ArgumentsData argumentsData  `json:"-"`
 }
 
 type argumentsData struct {
