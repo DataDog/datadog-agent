@@ -9,12 +9,13 @@ package summary
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
@@ -23,15 +24,18 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
+	kubeletmock "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 )
 
 var (
@@ -342,7 +346,7 @@ func TestProvider_Provide(t *testing.T) {
 				fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 			}
 			store := creatFakeStore(t)
-			kubeletMock := mock.NewKubeletMock()
+			kubeletMock := kubeletmock.NewKubeletMock()
 			setFakeStatsSummary(t, kubeletMock, tt.response.code, tt.response.err)
 
 			config := &common.KubeletConfig{
@@ -357,11 +361,10 @@ func TestProvider_Provide(t *testing.T) {
 				},
 				UseStatsSummaryAsSource: &useStatsSummaryAsSource,
 			}
+			mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 			p := NewProvider(
-				&containers.Filter{
-					Enabled: true,
-				},
+				mockFilterStore,
 				config,
 				store,
 				fakeTagger,
@@ -369,9 +372,11 @@ func TestProvider_Provide(t *testing.T) {
 			assert.NoError(t, err)
 
 			err = p.Provide(kubeletMock, mockSender)
-			if !reflect.DeepEqual(err, tt.want.err) {
-				t.Errorf("Collect() error = %v, wantErr %v", err, tt.want.err)
-				return
+			if tt.want.err != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.want.err.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
 			}
 			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.want.gaugeMetrics))
 			mockSender.AssertNumberOfCalls(t, "Rate", len(tt.want.rateMetrics))
@@ -459,15 +464,276 @@ func creatFakeStore(t *testing.T) workloadmetamock.Mock {
 	return store
 }
 
-func setFakeStatsSummary(t *testing.T, kubeletMock *mock.KubeletMock, rc int, err error) {
+func setFakeStatsSummary(t *testing.T, kubeletMock *kubeletmock.KubeletMock, rc int, err error) {
 	filePath := "../../testdata/summary.json"
 	content, fileErr := os.ReadFile(filePath)
 	if fileErr != nil {
 		t.Errorf("unable to read test file at: %s, err: %v", filePath, fileErr)
 	}
-	kubeletMock.MockReplies["/stats/summary"] = &mock.HTTPReplyMock{
+	kubeletMock.MockReplies["/stats/summary"] = &kubeletmock.HTTPReplyMock{
 		Data:         content,
 		ResponseCode: rc,
 		Error:        err,
 	}
+}
+
+// FilteringTestSuite tests filtering functionality of the summary provider.
+type FilteringTestSuite struct {
+	suite.Suite
+	store          workloadmeta.Component
+	workloadFilter workloadfilter.Component
+	provider       *Provider
+	mockSender     *mocksender.MockSender
+	mockKubelet    *kubeletmock.KubeletMock
+	mockConfig     model.Config
+}
+
+func (suite *FilteringTestSuite) SetupTest() {
+	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
+		configcomp.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	suite.store = store
+	suite.mockSender = mocksender.NewMockSender(checkid.ID("test"))
+	suite.mockSender.SetupAcceptAll()
+
+	// Set up kubelet mock
+	suite.mockKubelet = kubeletmock.NewKubeletMock()
+
+	// Create mock config for filter configuration
+	suite.mockConfig = configmock.New(suite.T())
+	suite.workloadFilter = workloadfilterfxmock.SetupMockFilter(suite.T())
+}
+
+func (suite *FilteringTestSuite) createProviderWithFilters() {
+	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
+
+	// Set up tags for the test data pods using actual UIDs from the test data
+	podTags := map[string][]string{
+		"regular-pod-uid-123":   {"kube_namespace:default", "pod_name:regular-pod"},
+		"annotated-pod-uid-456": {"kube_namespace:kube-system", "pod_name:annotated-pod"},
+		"pause-pod-uid-789":     {"kube_namespace:kube-system", "pod_name:pause-pod-test"},
+		"filtered-pod-uid-101":  {"kube_namespace:production", "pod_name:filtered-container-pod"},
+	}
+
+	for podUID, tags := range podTags {
+		podEntityID := taggertypes.NewEntityID(taggertypes.KubernetesPodUID, podUID)
+		fakeTagger.SetTags(podEntityID, "orchestrator", tags, nil, nil, nil)
+	}
+
+	// Set up container tags using actual container IDs from the test data
+	containerTags := map[string][]string{
+		"regular-container-id-123": {"kube_namespace:default", "pod_name:regular-pod", "kube_container_name:app-container"},
+		"system-container-id-456":  {"kube_namespace:kube-system", "pod_name:annotated-pod", "kube_container_name:system-container"},
+		"pause-container-id-789":   {"kube_namespace:kube-system", "pod_name:pause-pod-test", "kube_container_name:paused-container", "image_name:kubernetes/pause:3.2"},
+		"main-app-id-101":          {"kube_namespace:production", "pod_name:filtered-container-pod", "kube_container_name:main-app"},
+		"istio-proxy-id-101":       {"kube_namespace:production", "pod_name:filtered-container-pod", "kube_container_name:istio-proxy", "image_name:istio/proxyv2:1.15.0"},
+	}
+
+	for containerID, tags := range containerTags {
+		containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+		fakeTagger.SetTags(containerEntityID, "high", tags, nil, nil, nil)
+	}
+
+	suite.workloadFilter = workloadfilterfxmock.SetupMockFilter(suite.T())
+
+	// Create provider with the current config
+	config := &common.KubeletConfig{
+		OpenmetricsInstance: types.OpenmetricsInstance{
+			Tags:      []string{"instance_tag:something"},
+			Namespace: common.KubeletMetricsPrefix,
+		},
+		UseStatsSummaryAsSource: &[]bool{true}[0],
+	}
+	suite.provider = NewProvider(suite.workloadFilter, config, suite.store, fakeTagger)
+}
+
+func (suite *FilteringTestSuite) setupFilteredTestData() {
+	// Load test summary data
+	summaryPath := "../../testdata/summary_filtered.json"
+	summaryContent, err := os.ReadFile(summaryPath)
+	suite.Require().NoError(err)
+
+	suite.mockKubelet.MockReplies["/stats/summary"] = &kubeletmock.HTTPReplyMock{
+		Data:         summaryContent,
+		ResponseCode: 200,
+		Error:        nil,
+	}
+
+	// Load pod test data
+	podsPath := "../../testdata/pods_summary_filtered.json"
+	podsContent, err := os.ReadFile(podsPath)
+	suite.Require().NoError(err)
+
+	var podData []struct {
+		UID        string `json:"uid"`
+		Name       string `json:"name"`
+		Namespace  string `json:"namespace"`
+		Phase      string `json:"phase"`
+		Containers []struct {
+			ID    string `json:"id"`
+			Name  string `json:"name"`
+			Image struct {
+				Name string `json:"name"`
+			} `json:"image"`
+		} `json:"containers"`
+		Annotations map[string]string `json:"annotations"`
+		Labels      map[string]string `json:"labels"`
+	}
+	err = json.Unmarshal(podsContent, &podData)
+	suite.Require().NoError(err)
+
+	// Populate workloadmeta store
+	mockStore := suite.store.(workloadmetamock.Mock)
+	for _, pod := range podData {
+		var containers []workloadmeta.OrchestratorContainer
+		for _, container := range pod.Containers {
+			containers = append(containers, workloadmeta.OrchestratorContainer{
+				ID:   container.ID,
+				Name: container.Name,
+				Image: workloadmeta.ContainerImage{
+					RawName: container.Image.Name,
+				},
+			})
+		}
+
+		wmPod := &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   pod.UID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:        pod.Name,
+				Namespace:   pod.Namespace,
+				Annotations: pod.Annotations,
+				Labels:      pod.Labels,
+			},
+			Containers: containers,
+			Phase:      pod.Phase,
+		}
+		mockStore.Set(wmPod)
+	}
+}
+
+func (suite *FilteringTestSuite) TestPodAnnotationFiltering() {
+	suite.setupFilteredTestData()
+
+	// No need to configure anything - ad.datadoghq.com/exclude annotation works automatically
+	suite.createProviderWithFilters()
+
+	// Provide metrics
+	err := suite.provider.Provide(suite.mockKubelet, suite.mockSender)
+	suite.Assert().NoError(err)
+
+	// Verify that annotated-pod metrics are excluded (pods with ad.datadoghq.com/exclude: "true")
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral_storage.usage", []string{"pod_name:annotated-pod"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", []string{"pod_name:annotated-pod"})
+
+	// Verify that regular pods still have metrics
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral_storage.usage", []string{"pod_name:regular-pod"})
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", []string{"pod_name:regular-pod"})
+
+	// Reset for next test
+	suite.mockSender.ResetCalls()
+}
+
+func (suite *FilteringTestSuite) TestContainerNameFiltering() {
+	suite.setupFilteredTestData()
+
+	// Configure workload filter to exclude istio-proxy containers using config
+	suite.mockConfig.SetWithoutSource("container_exclude", "name:istio-proxy")
+	suite.createProviderWithFilters()
+
+	// Provide metrics
+	err := suite.provider.Provide(suite.mockKubelet, suite.mockSender)
+	suite.Assert().NoError(err)
+
+	// Verify that istio-proxy container metrics are excluded
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:istio-proxy"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:istio-proxy"})
+
+	// Verify that main-app container still has metrics
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:main-app"})
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:main-app"})
+
+	// Reset for next test
+	suite.mockSender.ResetCalls()
+}
+
+func (suite *FilteringTestSuite) TestNamespaceFiltering() {
+	suite.setupFilteredTestData()
+
+	// Configure workload filter to exclude kube-system namespace pods using config
+	suite.mockConfig.SetWithoutSource("container_exclude", "kube_namespace:kube-system")
+	suite.createProviderWithFilters()
+
+	// Provide metrics
+	err := suite.provider.Provide(suite.mockKubelet, suite.mockSender)
+	suite.Assert().NoError(err)
+
+	// Verify that kube-system pods are excluded
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral_storage.usage", []string{"kube_namespace:kube-system"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", []string{"kube_namespace:kube-system"})
+
+	// Verify that other namespaces still have metrics
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral_storage.usage", []string{"kube_namespace:default"})
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"ephemeral_storage.usage", []string{"kube_namespace:production"})
+
+	// Reset for next test
+	suite.mockSender.ResetCalls()
+}
+
+func (suite *FilteringTestSuite) TestPauseContainerImageFiltering() {
+	suite.setupFilteredTestData()
+
+	// Configure workload filter to exclude pause containers using exact image name
+	suite.createProviderWithFilters()
+
+	// Provide metrics
+	err := suite.provider.Provide(suite.mockKubelet, suite.mockSender)
+	suite.Assert().NoError(err)
+
+	// Verify that pause container metrics are excluded
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:paused-container"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:paused-container"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"filesystem.usage", []string{"kube_container_name:paused-container"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:paused-container"})
+
+	// Verify that non-pause containers still have metrics
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:app-container"})
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:main-app"})
+
+	// Reset for next test
+	suite.mockSender.ResetCalls()
+}
+
+func (suite *FilteringTestSuite) TestSpecificImageNameFiltering() {
+	suite.setupFilteredTestData()
+
+	// Configure workload filter to exclude containers with specific image name
+	suite.mockConfig.SetWithoutSource("container_exclude", "image:istio/proxy")
+	suite.createProviderWithFilters()
+
+	// Provide metrics
+	err := suite.provider.Provide(suite.mockKubelet, suite.mockSender)
+	suite.Assert().NoError(err)
+
+	// Verify that istio-proxy container metrics are excluded
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:istio-proxy"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:istio-proxy"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"filesystem.usage", []string{"kube_container_name:istio-proxy"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:istio-proxy"})
+
+	// Verify that other containers still have metrics
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:main-app"})
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.working_set", []string{"kube_container_name:app-container"})
+
+	// Reset for next test
+	suite.mockSender.ResetCalls()
+}
+
+func TestSummaryFilteringSuite(t *testing.T) {
+	suite.Run(t, new(FilteringTestSuite))
 }
