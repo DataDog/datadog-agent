@@ -303,7 +303,7 @@ func (bs *BaseSuite[Env]) EndTime() time.Time {
 	return bs.endTime
 }
 
-// DatadogClient returns a Datadog client that can be used to send telemtry info to dddev during e2e tests
+// DatadogClient returns a Datadog client that can be used to send telemtry info to dddev during e2e tes ts
 func (bs *BaseSuite[Env]) DatadogClient() *datadog.Client {
 	return bs.datadogClient
 }

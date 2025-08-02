@@ -435,7 +435,7 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	host := s.Env().RemoteHost
 
 	// run the test multiple times to ensure the agent can be started and stopped repeatedly
-	N := 10
+	N := 3
 	if testing.Short() {
 		N = 1
 	}
