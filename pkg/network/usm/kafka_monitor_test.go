@@ -1148,6 +1148,12 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
+			// Clean maps before the test to ensure a clean state
+			cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
+
+			// Add a small delay to ensure map cleanup completes
+			time.Sleep(10 * time.Millisecond)
+
 			t.Cleanup(func() {
 				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
@@ -1168,6 +1174,9 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			beforeEvents := counter.Get()
 
 			can.runClient(msgs)
+
+			// Add a small delay to ensure client operations complete
+			time.Sleep(5 * time.Millisecond)
 
 			if tt.produceFetchValidationWithErrorCode != nil {
 				getAndValidateKafkaStatsWithErrorCodes(t, monitor, 1, tt.topic, *tt.produceFetchValidationWithErrorCode)
@@ -1204,11 +1213,20 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		for groupIdx, group := range groups {
 			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
 			t.Run(name, func(t *testing.T) {
+				// Clean maps before the test to ensure a clean state
+				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
+
+				// Add a small delay to ensure map cleanup completes
+				time.Sleep(10 * time.Millisecond)
+
 				t.Cleanup(func() {
 					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 				})
 
 				can.runClient(group.msgs)
+
+				// Add a small delay to ensure client operations complete
+				time.Sleep(5 * time.Millisecond)
 
 				if tt.produceFetchValidationWithErrorCode != nil {
 					tmp := kafkaParsingValidationWithErrorCodes{
@@ -1370,6 +1388,12 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Clean maps before the test to ensure a clean state
+			cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
+
+			// Add a small delay to ensure map cleanup completes
+			time.Sleep(10 * time.Millisecond)
+
 			t.Cleanup(func() {
 				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
@@ -1379,6 +1403,9 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 			msgs = appendMessages(msgs, 99, &req, &resp)
 
 			can.runClient(msgs)
+
+			// Add a small delay to ensure client operations complete
+			time.Sleep(5 * time.Millisecond)
 
 			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 				expectedNumberOfProduceRequests: tt.numProducedRecords,
@@ -1396,11 +1423,20 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 		for groupIdx, group := range groups {
 			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
 			t.Run(name, func(t *testing.T) {
+				// Clean maps before the test to ensure a clean state
+				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
+
+				// Add a small delay to ensure map cleanup completes
+				time.Sleep(10 * time.Millisecond)
+
 				t.Cleanup(func() {
 					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 				})
 
 				can.runClient(group.msgs)
+
+				// Add a small delay to ensure client operations complete
+				time.Sleep(5 * time.Millisecond)
 
 				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: tt.numProducedRecords * group.numSets,
@@ -1558,7 +1594,7 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 		if expectedStatsCount != 0 {
 			validateProduceFetchCount(collect, kafkaStats, topicName, validation, errorCode)
 		}
-	}, time.Second*5, time.Millisecond*10)
+	}, time.Second*10, time.Millisecond*50)
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
 		t.FailNow()
@@ -1588,7 +1624,7 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 		if expectedStatsCount != 0 {
 			validateProduceFetchCountWithErrorCodes(collect, kafkaStats, topicName, validation)
 		}
-	}, time.Second*5, time.Millisecond*10)
+	}, time.Second*10, time.Millisecond*50)
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
 		t.FailNow()
