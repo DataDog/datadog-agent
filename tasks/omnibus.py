@@ -51,7 +51,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
-            ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout)
+            ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout, replace_env=True)
 
 
 def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
@@ -165,6 +165,24 @@ def get_omnibus_env(
         'DD_CMAKE_TOOLCHAIN',
         'OMNIBUS_FORCE_PACKAGES',
         'OMNIBUS_PACKAGE_ARTIFACT_DIR',
+        'OMNIBUS_GIT_CACHE_DIR',
+        'S3_OMNIBUS_CACHE_BUCKET',
+        'S3_OMNIBUS_GIT_CACHE_BUCKET',
+        # Cherry pick some essentials values from the parent process env
+        'PATH',
+        'PKG_CONFIG_LIBDIR',
+        'GOROOT',
+        'GOPATH',
+        'RUST_VERSION',
+        'RUSTUP_VERSION',
+        'PIP_INDEX_URL',
+        'PIP_EXTRA_INDEX_URL',
+        'HOME',
+        'PYTHONUTF8',
+        'CONDAPATH',
+        'GOPROXY',
+        'GEM_PATH',
+        'GEM_HOME',
     ]
     for key in env_to_forward:
         if key in os.environ:
@@ -282,7 +300,7 @@ def build(
         # generated one.
         with gitlab_section("Manage omnibus cache", collapsed=True):
             if use_remote_cache:
-                cache_key = omnibus_compute_cache_key(ctx)
+                cache_key = omnibus_compute_cache_key(ctx, env)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
                 bundle_dir = tempfile.TemporaryDirectory()
                 bundle_path = os.path.join(bundle_dir.name, 'omnibus-git-cache-bundle')
