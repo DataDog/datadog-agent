@@ -29,6 +29,7 @@ import (
 
 func patcherTestStoreWithData() *store {
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store.SetIndexer(newMapIndexer())
 
 	// ns1/autoscaler1 targets "test-deployment" and has vertical recommendations for 2 containers and from automatic source
 	store.Set("ns1/autoscaler1", model.FakePodAutoscalerInternal{
@@ -773,7 +774,7 @@ func TestFindAutoscaler(t *testing.T) {
 				},
 			},
 			expectedAutoscalerID: "",
-			expectedError:        errors.New("Multiple autoscaler found for POD ns2/pod2, ownerRef: ReplicaSet/duplicate-target, cannot update POD"),
+			expectedError:        errors.New("Multiple autoscalers found for POD ns2/pod2, ownerRef: ReplicaSet/duplicate-target, cannot update POD"),
 		},
 		{
 			name: "Pod without owner",

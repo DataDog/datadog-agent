@@ -30,12 +30,25 @@ type Observable interface {
 	RegisterObserver(observer Observer)
 }
 
+// Indexer is an interface type for all stores that can be indexed
+type Indexer interface {
+	// GetIDs returns matching store IDs given the index's key
+	GetIDs(key any) []string
+	// GetIndexKey returns the object's index key
+	GetIndexKey(obj any) any
+	// AddToIndex adds an object to the index
+	AddToIndex(key any, id string)
+	// RemoveFromIndex removes an object from the index
+	RemoveFromIndex(key any, id string)
+}
+
 // Store is a simple in-memory store with observer support
 type Store[T any] struct {
 	store         map[string]T
 	lock          sync.RWMutex
 	observers     map[storeOperation][]ObserverFunc
 	observersLock sync.RWMutex
+	indexer       Indexer
 }
 
 type storeOperation int
@@ -69,6 +82,11 @@ func (s *Store[T]) RegisterObserver(observer Observer) {
 	addObserver(deleteOperation, observer.DeleteFunc)
 }
 
+// SetIndexer sets the indexer for the store
+func (s *Store[T]) SetIndexer(indexer Indexer) {
+	s.indexer = indexer
+}
+
 // Get returns object for given id, returns nil if absent
 func (s *Store[T]) Get(id string) (T, bool) {
 	s.lock.RLock()
@@ -92,6 +110,26 @@ func (s *Store[T]) GetFiltered(filter func(T) bool) []T {
 	for _, object := range s.store {
 		if filter(object) {
 			objects = append(objects, object)
+		}
+	}
+
+	return objects
+}
+
+// GetFilteredByIndexKey returns a copy of all store values matched by the index key
+func (s *Store[T]) GetFilteredByIndexKey(indexKey any) []T {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	ids := s.indexer.GetIDs(indexKey)
+	if len(ids) == 0 {
+		return nil
+	}
+
+	objects := make([]T, 0, len(ids))
+	for _, id := range ids {
+		if obj, exists := s.store[id]; exists {
+			objects = append(objects, obj)
 		}
 	}
 
@@ -131,6 +169,13 @@ func (s *Store[T]) Count() int {
 func (s *Store[T]) Set(id string, obj T, sender string) {
 	s.lock.Lock()
 	s.store[id] = obj
+
+	// Add to index if we have an index key function
+	if s.indexer != nil {
+		indexKey := s.indexer.GetIndexKey(obj)
+		s.indexer.AddToIndex(indexKey, id)
+	}
+
 	s.lock.Unlock()
 
 	s.notify(setOperation, id, sender)
@@ -139,7 +184,15 @@ func (s *Store[T]) Set(id string, obj T, sender string) {
 // Delete object corresponding to id if present
 func (s *Store[T]) Delete(id, sender string) {
 	s.lock.Lock()
-	_, exists := s.store[id]
+
+	obj, exists := s.store[id]
+
+	// Remove from index if we have an index key function
+	if exists && s.indexer != nil {
+		indexKey := s.indexer.GetIndexKey(obj)
+		s.indexer.RemoveFromIndex(indexKey, id)
+	}
+
 	delete(s.store, id)
 	s.lock.Unlock()
 
