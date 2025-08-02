@@ -439,6 +439,9 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
+				// Give additional time for all eBPF events to be processed
+				time.Sleep(100 * time.Millisecond)
+
 				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(5 + 2*2),
 					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
@@ -540,6 +543,9 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				}
 			})
 			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+			t.Cleanup(func() {
+				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
+			})
 			if tls && cfg.EnableGoTLSSupport {
 				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
