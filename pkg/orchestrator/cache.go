@@ -35,7 +35,7 @@ var (
 	cacheMiss   = map[pkgorchestratormodel.NodeType]*expvar.Int{}
 
 	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
-	KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
+	KubernetesResourceCache = NewKubernetesResourceCache()
 
 	// Telemetry
 	tlmCacheHits   = telemetry.NewCounter("orchestrator", "cache_hits", []string{"orchestrator", "resource"}, "Number of cache hits")
@@ -49,6 +49,12 @@ func init() {
 		cacheExpVars.Set(nodeType.String(), cacheHits[nodeType])
 		sendExpVars.Set(nodeType.String(), cacheMiss[nodeType])
 	}
+}
+
+// NewKubernetesResourceCache creates a new in-memory cache for kubernetes resources.
+// This is used for testing purposes.
+func NewKubernetesResourceCache() *cache.Cache {
+	return cache.New(defaultExpire, defaultPurge)
 }
 
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
