@@ -656,3 +656,121 @@ func TestGetTopUsers(t *testing.T) {
 	require.Equal(t, len(topUsers), 1)
 	require.Equal(t, expectedTopUsers, topUsers)
 }
+
+func TestGetSLAMetricsPagination(t *testing.T) {
+	expectedSLAMetrics := []SLAMetrics{
+		// First page results
+		{
+			DrillKey:            "test-branch-1,test-branch-2,INET,INET,best-effort",
+			LocalSite:           "test-branch-1",
+			RemoteSite:          "test-branch-2",
+			LocalAccessCircuit:  "INET",
+			RemoteAccessCircuit: "INET",
+			ForwardingClass:     "best-effort",
+			Delay:               120.5,
+			FwdDelayVar:         1.2,
+			RevDelayVar:         1.1,
+			FwdLossRatio:        0.001,
+			RevLossRatio:        0.002,
+			PDULossRatio:        0.0015,
+		},
+		{
+			DrillKey:            "test-branch-1,test-branch-3,MPLS,MPLS,real-time",
+			LocalSite:           "test-branch-1",
+			RemoteSite:          "test-branch-3",
+			LocalAccessCircuit:  "MPLS",
+			RemoteAccessCircuit: "MPLS",
+			ForwardingClass:     "real-time",
+			Delay:               95.3,
+			FwdDelayVar:         0.8,
+			RevDelayVar:         0.9,
+			FwdLossRatio:        0.0005,
+			RevLossRatio:        0.0008,
+			PDULossRatio:        0.00065,
+		},
+		// Second page results
+		{
+			DrillKey:            "test-branch-2,test-branch-4,INET,MPLS,best-effort",
+			LocalSite:           "test-branch-2",
+			RemoteSite:          "test-branch-4",
+			LocalAccessCircuit:  "INET",
+			RemoteAccessCircuit: "MPLS",
+			ForwardingClass:     "best-effort",
+			Delay:               110.7,
+			FwdDelayVar:         1.5,
+			RevDelayVar:         1.3,
+			FwdLossRatio:        0.002,
+			RevLossRatio:        0.003,
+			PDULossRatio:        0.0025,
+		},
+	}
+
+	server := SetupPaginationMockAPIServer()
+	defer server.Close()
+
+	// Create client with small maxCount to force pagination
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	// Override client settings to test pagination
+	client.maxCount = "2" // Small page size to force pagination
+	client.maxPages = 5   // Allow enough pages
+
+	// TODO: remove this override when single auth method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	slaMetrics, err := client.GetSLAMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(expectedSLAMetrics), len(slaMetrics))
+	require.Equal(t, expectedSLAMetrics, slaMetrics)
+}
+
+func TestGetSLAMetricsPaginationWithMaxPages(t *testing.T) {
+	server := SetupPaginationMockAPIServer()
+	defer server.Close()
+
+	// Create client with maxPages limit to test early termination
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	// Override client settings - limit to 1 page only
+	client.maxCount = "2" // Small page size
+	client.maxPages = 1   // Only allow 1 page
+
+	// TODO: remove this override when single auth method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	slaMetrics, err := client.GetSLAMetrics("datadog")
+	require.NoError(t, err)
+
+	// Should only get results from first page (2 items)
+	require.Equal(t, 2, len(slaMetrics))
+	require.Equal(t, "test-branch-1", slaMetrics[0].LocalSite)
+	require.Equal(t, "test-branch-1", slaMetrics[1].LocalSite)
+}
+
+func TestGetSLAMetricsPaginationEmptyResponse(t *testing.T) {
+	server := SetupPaginationMockAPIServer()
+	defer server.Close()
+
+	// Create client that will request beyond available data
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	// Override client settings to start from a high offset
+	client.maxCount = "100" // Large page size to get all data in first page
+	client.maxPages = 5     // Allow enough pages
+
+	// TODO: remove this override when single auth method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	slaMetrics, err := client.GetSLAMetrics("datadog")
+	require.NoError(t, err)
+
+	// Should get all available data in first page and stop
+	require.Equal(t, 3, len(slaMetrics)) // Total of 3 items across all pages
+}

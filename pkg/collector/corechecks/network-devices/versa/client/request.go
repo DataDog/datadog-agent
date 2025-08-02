@@ -7,10 +7,13 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -18,11 +21,39 @@ import (
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // newRequest creates a new request for this client.
 func (client *Client) newRequest(method, uri string, body io.Reader, useSessionAuth bool) (*http.Request, error) {
+	// TODO: remove after triage
+	trace := &httptrace.ClientTrace{
+		GetConn: func(hostPort string) {
+			log.Tracef("Getting Conn for: %s", hostPort)
+		},
+		GotConn: func(connInfo httptrace.GotConnInfo) {
+			log.Tracef("Got Conn: %+v", connInfo.Conn.RemoteAddr())
+		},
+		DNSStart: func(dnsInfo httptrace.DNSStartInfo) {
+			log.Tracef("DNS Start: %s", dnsInfo.Host)
+		},
+		DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
+			log.Tracef("DNS Done: Found %+v, Error: %+v", dnsInfo.Addrs, dnsInfo.Err)
+		},
+		ConnectStart: func(network, addr string) {
+			log.Tracef("Connect Start: network %s, addr %s", network, addr)
+		},
+		ConnectDone: func(network, addr string, err error) {
+			log.Tracef("Connect Done: network %s, addr %s, error %+v", network, addr, err)
+		},
+		TLSHandshakeStart: func() {
+			log.Trace("TLS Handshake Started")
+		},
+		TLSHandshakeDone: func(state tls.ConnectionState, err error) {
+			log.Tracef("TLS Handshake Done State: %+v, Error: %+v", state, err)
+		},
+	}
+
 	// session auth requires token authentication
 	if useSessionAuth {
-		return http.NewRequestWithContext(context.Background(), method, client.directorEndpoint+uri, body)
+		return http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), method, client.directorEndpoint+uri, body)
 	}
-	return http.NewRequestWithContext(context.Background(), method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
+	return http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -31,6 +62,11 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	log.Tracef("Executing Versa api request %s %s", req.Method, req.URL.Path)
 	resp, err := client.httpClient.Do(req)
 	if err != nil {
+		if resp != nil {
+			log.Tracef("Error executing Versa api request %d %s %s: Error: %v", resp.StatusCode, req.Method, req.URL.Path, err)
+		} else {
+			log.Tracef("Error executing Versa api request - %s %s: Error: %v", req.Method, req.URL.Path, err)
+		}
 		return nil, 0, err
 	}
 	log.Tracef("Executed Versa api request %d %s %s", resp.StatusCode, req.Method, req.URL.Path)
@@ -79,6 +115,7 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 
 	var bytes []byte
 	var statusCode int
+	var lastErr error
 
 	for attempts := 0; attempts < client.maxAttempts; attempts++ {
 		// TODO: uncomment when OAuth is implemented
@@ -96,10 +133,11 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 			// Got a valid response, stop retrying
 			return bytes, nil
 		}
+		lastErr = err
 	}
 
-	log.Tracef("%d error code hitting endpoint %q response: %s", statusCode, endpoint, string(bytes))
-	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
+	log.Tracef("%d error code hitting endpoint %q response: %q, error: %v", statusCode, endpoint, string(bytes), lastErr)
+	return nil, fmt.Errorf("%s http responded with %d code and error %v", endpoint, statusCode, lastErr)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -125,4 +163,48 @@ func get[T Content](client *Client, endpoint string, params map[string]string, u
 
 func isValidStatusCode(code int) bool {
 	return code >= 200 && code < 400
+}
+
+// getPaginatedAnalytics handles the common pagination pattern for all analytics endpoints
+func getPaginatedAnalytics[T any](
+	client *Client,
+	tenant string,
+	feature string,
+	lookback string,
+	query string,
+	metrics []string,
+	parser func([][]interface{}) ([]T, error),
+) ([]T, error) {
+	// TODO: store client.maxCount as both string and int?
+	maxCount, err := strconv.Atoi(client.maxCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
+	}
+
+	var allMetrics []T
+
+	// Paginate through the results
+	for page := 0; page < client.maxPages; page++ {
+		fromCount := page * maxCount
+		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", metrics, maxCount, fromCount)
+
+		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get analytics metrics page %d: %v", page+1, err)
+		}
+
+		metrics, err := parser(resp.AaData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse analytics metrics page %d: %v", page+1, err)
+		}
+
+		allMetrics = append(allMetrics, metrics...)
+
+		// If we got fewer results than maxCount, we've reached the end
+		if len(metrics) < maxCount {
+			break
+		}
+	}
+
+	return allMetrics, nil
 }
