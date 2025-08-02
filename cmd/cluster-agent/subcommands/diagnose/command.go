@@ -25,18 +25,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	include []string
+}
+
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{}
+
 	cmd := &cobra.Command{
 		Use:   "diagnose",
 		Short: "Execute some connectivity diagnosis on your system",
 		Long:  ``,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
+				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true), // no need to show regular logs
+					LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
 				core.Bundle(),
 				diagnosefx.Module(),
@@ -44,20 +52,54 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringSliceVar(&cliParams.include, "include", nil, "Comma-separated list of diagnosis to run")
+
 	return []*cobra.Command{cmd}
 }
 
-func run(_ config.Component, diagnoseComponent diagnose.Component) error {
-	suite := diagnose.Suites{
-		diagnose.AutodiscoveryConnectivity: func(_ diagnose.Config) []diagnose.Diagnosis {
-			return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
-		},
+//nolint:revive // TODO(CINT) Fix revive linter
+func run(cfg config.Component, diagnoseComponent diagnose.Component, cliParams *cliParams) error {
+	// Register both suites for diagnose subcommand
+	catalog := diagnose.GetCatalog()
+	catalog.Register(diagnose.AutodiscoveryConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
+	})
+	catalog.Register(diagnose.CoreEndpointsConnectivity, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return connectivity.Diagnose(diagnose.Config{}, nil)
+	})
+
+	config := diagnose.Config{}
+	suites := diagnose.Suites{}
+	if len(cliParams.include) == 0 {
+		if fn, ok := catalog.Suites[diagnose.AutodiscoveryConnectivity]; ok {
+			suites[diagnose.AutodiscoveryConnectivity] = fn
+		}
+	} else {
+		for _, name := range cliParams.include {
+			if fn, ok := catalog.Suites[name]; ok {
+				suites[name] = fn
+			}
+		}
+	}
+	if len(suites) == 0 {
+		return format.Text(color.Output, config, &diagnose.Result{
+			Runs: []diagnose.Diagnoses{
+				{
+					Name: "Diagnose",
+					Diagnoses: []diagnose.Diagnosis{
+						{
+							Status:    diagnose.DiagnosisFail,
+							Name:      "Diagnose",
+							Category:  "All",
+							Diagnosis: "No diagnose suite were found",
+						},
+					},
+				},
+			},
+		})
 	}
 
-	config := diagnose.Config{Verbose: true}
-
-	result, err := diagnoseComponent.RunLocalSuite(suite, config)
-
+	result, err := diagnoseComponent.RunLocalSuite(suites, config)
 	if err != nil {
 		return err
 	}
