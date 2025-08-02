@@ -103,7 +103,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
 	github.com/gorilla/mux v1.8.1
-	github.com/gosnmp/gosnmp v1.38.0
+	github.com/gosnmp/gosnmp v1.42.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api v1.32.0
