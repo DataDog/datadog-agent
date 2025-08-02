@@ -188,7 +188,7 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 		ExecuteWithoutError(t, VMclient, "sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring)
 		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_C0962C7D.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
 		for _, key := range keys {
-			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key)
+			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://apttesting.datad0g.com/test-keys-vault/%s\"", key, key)
 			ExecuteWithoutError(t, VMclient, "sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring)
 		}
 	})
@@ -243,10 +243,10 @@ func (is *ddotInstallSuite) ddotRhelTest(VMclient *common.TestClient) {
 		"enabled=1\n"+
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=%s\n"+
-		"gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"\thttps://keys.datadoghq.com/DATADOG_RPM_KEY_B01082D3.public\n"+
-		"\thttps://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"\thttps://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
+		"gpgkey=https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"\thttps://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_B01082D3.public\n"+
+		"\thttps://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"\thttps://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_E09422B3.public",
 		yumrepo, repogpgcheck)
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
@@ -296,21 +296,21 @@ func (is *ddotInstallSuite) ddotSuseTest(VMclient *common.TestClient) {
 		"enabled=1\n"+
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=1\n"+
-		"gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_B01082D3.public\n"+
-		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public\n",
+		"gpgkey=https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"	    https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_B01082D3.public\n"+
+		"	    https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"	    https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_E09422B3.public\n",
 		suseRepo)
 	_, err = fileManager.WriteFile("/etc/zypp/repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
 
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_CURRENT.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_CURRENT.public")
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_B01082D3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_B01082D3.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_B01082D3.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_B01082D3.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_B01082D3.public")
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_FD4BF915.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_FD4BF915.public")
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_E09422B3.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
 
 	is.T().Run("install ddot", func(t *testing.T) {
