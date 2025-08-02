@@ -12,9 +12,11 @@ import (
 	"fmt"
 	"sync"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 )
@@ -48,6 +50,10 @@ func (sm *OnDemandProbesManager) disable() {
 	sm.hookPoints = nil
 
 	for _, p := range sm.probes {
+		if p != nil {
+			ddebpf.RemoveProbeFDMapping(p.ID())
+		}
+
 		if err := sm.manager.DetachHook(p.ProbeIdentificationPair); err != nil {
 			seclog.Errorf("error disabling on-demand probe: %v", err)
 		}
