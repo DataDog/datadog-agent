@@ -9,7 +9,7 @@ set +x
 
 while [[ $retry_count -lt $max_retries ]]; do
     if [ -n "$parameter_field" ]; then
-        vault_name="kv/k8s/gitlab-runner/datadog-agent"
+        vault_name="kv/k8s/gitlab-runner-datadog-agent/datadog-agent"
         if [[ "$(uname -s)" == "Darwin" ]]; then
             vault_name="kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent"
         fi

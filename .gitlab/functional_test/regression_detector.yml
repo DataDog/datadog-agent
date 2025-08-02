@@ -6,7 +6,7 @@ single_machine_performance-regression_detector-merge_base_check:
     - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   artifacts:
     expire_in: 1 day
     paths:
@@ -74,7 +74,7 @@ single-machine-performance-regression_detector:
     - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs:
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
@@ -288,7 +288,7 @@ single-machine-performance-regression_detector-pr-comment:
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"
     entrypoint: [""] # disable entrypoint script for the pr-commenter image
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs:
     - job: single-machine-performance-regression_detector
   artifacts:
