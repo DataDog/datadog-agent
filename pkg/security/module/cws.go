@@ -20,6 +20,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -144,6 +145,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	seclog.SetTags(cfg.LogTags...)
 
 	api.RegisterSecurityModuleServer(c.grpcServer.server, c.apiServer)
+	sbomapi.RegisterSBOMCollectorServer(c.grpcServer.server, c.apiServer)
 
 	// platform specific initialization
 	if err := c.init(evm, cfg, opts); err != nil {
