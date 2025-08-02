@@ -136,7 +136,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	err = json.Unmarshal([]byte(cacheValue), &deviceIPs)
 	if err == nil {
 		for _, deviceIP := range deviceIPs {
-			entityID := subnet.config.Digest(deviceIP.String())
+			entityID := subnet.config.Digest(deviceIP.String(), false)
 			deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[0], subnet.config.Port, deviceIP.String())
 
 			l.createService(entityID, subnet, deviceIP.String(), deviceInfo, 0, false)
@@ -151,7 +151,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 		return
 	}
 	for _, device := range devices {
-		entityID := subnet.config.Digest(device.IP.String())
+		entityID := subnet.config.Digest(device.IP.String(), false)
 		deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[device.AuthIndex], subnet.config.Port, device.IP.String())
 
 		l.createService(entityID, subnet, device.IP.String(), deviceInfo, device.AuthIndex, false)
@@ -192,7 +192,7 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
-	entityID := job.subnet.config.Digest(deviceIP)
+	entityID := job.subnet.config.Digest(deviceIP, false)
 
 	deviceFound := false
 	for authIndex, authentication := range job.subnet.config.Authentications {
@@ -330,8 +330,23 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 
 		startingIP := ipAddr.Mask(ipNet.Mask)
 
-		configHash := config.Digest(config.Network)
+		configHash := config.Digest(config.Network, false)
 		cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
+		if !persistentcache.Exists(cacheKey) {
+			legacyConfigHash := config.Digest(config.Network, true)
+			legacyCacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, legacyConfigHash)
+			if persistentcache.Exists(legacyCacheKey) {
+				err = persistentcache.Copy(cacheKey, legacyCacheKey)
+				if err != nil {
+					log.Debugf("Couldn't copy %s to %s cache: %v", legacyCacheKey, legacyCacheKey, err)
+
+					// Use legacy cache hash when we fail to copy
+					configHash = legacyConfigHash
+					cacheKey = legacyCacheKey
+				}
+			}
+		}
+
 		adIdentifier := config.ADIdentifier
 		if adIdentifier == "" {
 			adIdentifier = "snmp"
@@ -479,7 +494,7 @@ func (l *SNMPListener) registerDedupedDevices() {
 }
 
 func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice) {
-	entityID := pendingDevice.Config.Digest(pendingDevice.IP)
+	entityID := pendingDevice.Config.Digest(pendingDevice.IP, false)
 
 	svc, ok := l.services[entityID]
 	if !ok {

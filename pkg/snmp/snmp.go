@@ -234,22 +234,38 @@ func NewListenerConfig() (ListenerConfig, error) {
 }
 
 // Digest returns an hash value representing the data stored in this configuration, minus the network address
-func (c *Config) Digest(address string) string {
+func (c *Config) Digest(address string, useLegacyFormat bool) string {
 	h := fnv.New64()
 	// Hash write never returns an error
 	h.Write([]byte(address))                   //nolint:errcheck
 	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
-	h.Write([]byte(c.Version))                 //nolint:errcheck
-	h.Write([]byte(c.Community))               //nolint:errcheck
-	h.Write([]byte(c.User))                    //nolint:errcheck
-	h.Write([]byte(c.AuthKey))                 //nolint:errcheck
-	h.Write([]byte(c.AuthProtocol))            //nolint:errcheck
-	h.Write([]byte(c.PrivKey))                 //nolint:errcheck
-	h.Write([]byte(c.PrivProtocol))            //nolint:errcheck
-	h.Write([]byte(c.ContextEngineID))         //nolint:errcheck
-	h.Write([]byte(c.ContextName))             //nolint:errcheck
-	h.Write([]byte(c.Loader))                  //nolint:errcheck
-	h.Write([]byte(c.Namespace))               //nolint:errcheck
+
+	if useLegacyFormat {
+		h.Write([]byte(c.Version))         //nolint:errcheck
+		h.Write([]byte(c.Community))       //nolint:errcheck
+		h.Write([]byte(c.User))            //nolint:errcheck
+		h.Write([]byte(c.AuthKey))         //nolint:errcheck
+		h.Write([]byte(c.AuthProtocol))    //nolint:errcheck
+		h.Write([]byte(c.PrivKey))         //nolint:errcheck
+		h.Write([]byte(c.PrivProtocol))    //nolint:errcheck
+		h.Write([]byte(c.ContextEngineID)) //nolint:errcheck
+		h.Write([]byte(c.ContextName))     //nolint:errcheck
+	} else {
+		for _, authentication := range c.Authentications {
+			h.Write([]byte(authentication.Version))         //nolint:errcheck
+			h.Write([]byte(authentication.Community))       //nolint:errcheck
+			h.Write([]byte(authentication.User))            //nolint:errcheck
+			h.Write([]byte(authentication.AuthKey))         //nolint:errcheck
+			h.Write([]byte(authentication.AuthProtocol))    //nolint:errcheck
+			h.Write([]byte(authentication.PrivKey))         //nolint:errcheck
+			h.Write([]byte(authentication.PrivProtocol))    //nolint:errcheck
+			h.Write([]byte(authentication.ContextEngineID)) //nolint:errcheck
+			h.Write([]byte(authentication.ContextName))     //nolint:errcheck
+		}
+	}
+
+	h.Write([]byte(c.Loader))    //nolint:errcheck
+	h.Write([]byte(c.Namespace)) //nolint:errcheck
 
 	// Sort the addresses to get a stable digest
 	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
@@ -272,57 +288,57 @@ func (c *Config) IsIPIgnored(ip net.IP) bool {
 }
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
-func (authentication *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.GoSNMP, error) {
-	if authentication.Community == "" && authentication.User == "" {
-		return nil, errors.New("No authentication mechanism specified")
+func (a *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.GoSNMP, error) {
+	if a.Community == "" && a.User == "" {
+		return nil, errors.New("No a mechanism specified")
 	}
 
 	var version gosnmp.SnmpVersion
-	if authentication.Version == "1" {
+	if a.Version == "1" {
 		version = gosnmp.Version1
-	} else if authentication.Version == "2" || (authentication.Version == "" && authentication.Community != "") {
+	} else if a.Version == "2" || (a.Version == "" && a.Community != "") {
 		version = gosnmp.Version2c
-	} else if authentication.Version == "3" || (authentication.Version == "" && authentication.User != "") {
+	} else if a.Version == "3" || (a.Version == "" && a.User != "") {
 		version = gosnmp.Version3
 	} else {
-		return nil, fmt.Errorf("SNMP version not supported: %s", authentication.Version)
+		return nil, fmt.Errorf("SNMP version not supported: %s", a.Version)
 	}
 
-	authProtocol, err := gosnmplib.GetAuthProtocol(authentication.AuthProtocol)
+	authProtocol, err := gosnmplib.GetAuthProtocol(a.AuthProtocol)
 	if err != nil {
 		return nil, err
 	}
 
-	privProtocol, err := gosnmplib.GetPrivProtocol(authentication.PrivProtocol)
+	privProtocol, err := gosnmplib.GetPrivProtocol(a.PrivProtocol)
 	if err != nil {
 		return nil, err
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv
-	if authentication.PrivKey != "" {
+	if a.PrivKey != "" {
 		msgFlags = gosnmp.AuthPriv
-	} else if authentication.AuthKey != "" {
+	} else if a.AuthKey != "" {
 		msgFlags = gosnmp.AuthNoPriv
 	}
 
 	return &gosnmp.GoSNMP{
 		Target:          deviceIP,
 		Port:            port,
-		Community:       authentication.Community,
+		Community:       a.Community,
 		Transport:       "udp",
 		Version:         version,
-		Timeout:         time.Duration(authentication.Timeout) * time.Second,
-		Retries:         authentication.Retries,
+		Timeout:         time.Duration(a.Timeout) * time.Second,
+		Retries:         a.Retries,
 		SecurityModel:   gosnmp.UserSecurityModel,
 		MsgFlags:        msgFlags,
-		ContextEngineID: authentication.ContextEngineID,
-		ContextName:     authentication.ContextName,
+		ContextEngineID: a.ContextEngineID,
+		ContextName:     a.ContextName,
 		SecurityParameters: &gosnmp.UsmSecurityParameters{
-			UserName:                 authentication.User,
+			UserName:                 a.User,
 			AuthenticationProtocol:   authProtocol,
-			AuthenticationPassphrase: authentication.AuthKey,
+			AuthenticationPassphrase: a.AuthKey,
 			PrivacyProtocol:          privProtocol,
-			PrivacyPassphrase:        authentication.PrivKey,
+			PrivacyPassphrase:        a.PrivKey,
 		},
 	}, nil
 }
