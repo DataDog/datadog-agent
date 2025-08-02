@@ -481,7 +481,7 @@ def docker_functional_tests(
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
-    cmd = 'docker run --name {container_name} {caps} --privileged -d '
+    cmd = 'docker run --name {container_name} {caps} --cgroupns private -d '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
