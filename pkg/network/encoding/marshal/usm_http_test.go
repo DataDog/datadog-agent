@@ -9,6 +9,7 @@ package marshal
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"testing"
 
@@ -20,7 +21,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -324,6 +327,201 @@ func TestLocalhostScenario(t *testing.T) {
 	aggregations, _, _ = getHTTPAggregations(t, httpEncoder, in.Conns[1])
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
 	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(103)].Count)
+}
+
+// TestKubernetesLocalNATScenario tests how USMConnectionIndex handles Kubernetes-style local NAT connections
+// with both pre-NAT and post-NAT connections as seen in Kubernetes environments
+func TestKubernetesLocalNATScenario(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Getenv("CI") == "true" {
+		t.Skip("Skipping test on Windows or CI")
+	}
+	assert := assert.New(t)
+
+	// Create IP addresses and ports
+	clientIP := util.AddressFromString("172.29.161.37")
+	k8sServiceIP := util.AddressFromString("10.100.103.122") // K8s Service IP (ClusterIP)
+	serverIP := util.AddressFromString("172.29.191.94")
+	clientPort := uint16(53792)
+	servicePort := uint16(7778)
+	serverPort := uint16(7777)
+
+	// Create both connections exactly as seen from SUSM-94 reproduction environment
+	connections := []network.ConnectionStats{
+		{ // Pre-NAT connection: client -> k8s service (this is from the client's perspective, pid is the client pid)
+			ConnectionTuple: network.ConnectionTuple{
+				Source:    clientIP,
+				SPort:     clientPort,
+				Dest:      k8sServiceIP,
+				DPort:     servicePort,
+				Pid:       1784258,
+				Type:      network.TCP,
+				Direction: network.OUTGOING,
+			},
+			ProtocolStack: protocols.Stack{Application: protocols.HTTP},
+			// Post-NAT translation, coming from the conntrack module
+			IPTranslation: &network.IPTranslation{
+				// NOTE: this is flipped compared to what one might expect
+				// The ReplSrc fields contain the server endpoint, and ReplDst contains the client
+				ReplSrcIP:   serverIP,
+				ReplSrcPort: serverPort,
+				ReplDstIP:   clientIP,
+				ReplDstPort: clientPort,
+			},
+		},
+		{ // client -> server (from server's perspective, pid is the server pid)
+			ConnectionTuple: network.ConnectionTuple{
+				Source:    serverIP,
+				SPort:     serverPort,
+				Dest:      clientIP,
+				DPort:     clientPort,
+				Pid:       334392,
+				Type:      network.TCP,
+				Direction: network.INCOMING,
+			},
+			ProtocolStack: protocols.Stack{Application: protocols.HTTP},
+			// No IPTranslation for this connection
+		},
+	}
+
+	// Create HTTP stats with a sample request - 4 requests as seen in logs
+	httpStats := http.NewRequestStats()
+	httpStats.AddRequest(200, 15.0, 0, nil)
+	httpStats.AddRequest(200, 15.0, 0, nil)
+	httpStats.AddRequest(200, 15.0, 0, nil)
+	httpStats.AddRequest(200, 15.0, 0, nil)
+
+	// Create pre-NAT HTTP key (client → k8s service)
+	preNATKey := http.NewKey(
+		clientIP,
+		k8sServiceIP,
+		clientPort,
+		servicePort,
+		[]byte("/delay/5"),
+		true,
+		http.MethodGet,
+	)
+
+	// Create post-NAT HTTP key (client -> server)
+	// This is assuming that USM normalize the connection key, meaning that the clientIP
+	// will always be in the saddr field (this is what we've seen when reproducing SUSM-94)
+	postNATKey := http.NewKey(
+		clientIP,   // Client is still the source in the HTTP key (172.29.161.37)
+		serverIP,   // Server is the destination (172.29.191.94)
+		clientPort, // Client port (53792)
+		serverPort, // Server port (7777)
+		[]byte("/delay/5"),
+		true,
+		http.MethodGet,
+	)
+
+	// Test scenario 1: Both pre-NAT and post-NAT keys in the HTTP data
+	t.Run("Both pre-NAT and post-NAT keys in HTTP data", func(t *testing.T) {
+		httpData := map[http.Key]*http.RequestStats{
+			preNATKey:  httpStats,
+			postNATKey: httpStats,
+		}
+
+		// Create connection payload
+		payload := &network.Connections{
+			BufferedData: network.BufferedData{
+				Conns: connections,
+			},
+			HTTP: httpData,
+		}
+
+		// Create HTTP encoder
+		httpEncoder := newHTTPEncoder(payload.HTTP)
+
+		// Test pre-NAT connection
+		aggregations, _, _ := getHTTPAggregations(t, httpEncoder, payload.Conns[0])
+		assert.NotNil(aggregations)
+		assert.Equal("/delay/5", aggregations.EndpointAggregations[0].Path)
+		assert.Equal(model.HTTPMethod_Get, aggregations.EndpointAggregations[0].Method)
+		assert.Equal(uint32(4), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(200)].Count)
+
+		// Test post-NAT connection
+		aggregations, _, _ = getHTTPAggregations(t, httpEncoder, payload.Conns[1])
+		assert.NotNil(aggregations)
+		assert.Equal("/delay/5", aggregations.EndpointAggregations[0].Path)
+		assert.Equal(model.HTTPMethod_Get, aggregations.EndpointAggregations[0].Method)
+		assert.Equal(uint32(4), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(200)].Count)
+
+		// Create USMConnectionIndex for direct testing
+		httpIndex := GroupByConnection("http", httpData, func(key http.Key) types.ConnectionKey {
+			return key.ConnectionKey
+		})
+
+		// Test direct lookup in the index
+		preNATResult := httpIndex.Find(payload.Conns[0])
+		assert.NotNil(preNATResult, "Pre-NAT connection (client → service) should be found directly")
+
+		postNATResult := httpIndex.Find(payload.Conns[1])
+		assert.NotNil(postNATResult, "Post-NAT connection (server → client) should be found directly")
+	})
+
+	// Test scenario 2: Only pre-NAT key in the HTTP data
+	t.Run("Only pre-NAT key in HTTP data", func(t *testing.T) {
+		httpData := map[http.Key]*http.RequestStats{
+			preNATKey: httpStats,
+		}
+
+		// Create connection payload
+		payload := &network.Connections{
+			BufferedData: network.BufferedData{
+				Conns: connections,
+			},
+			HTTP: httpData,
+		}
+
+		// Create HTTP encoder
+		httpEncoder := newHTTPEncoder(payload.HTTP)
+
+		// Test pre-NAT connection (client → service) - should have HTTP data
+		aggregations, _, _ := getHTTPAggregations(t, httpEncoder, payload.Conns[0])
+		assert.NotNil(aggregations)
+		assert.Equal("/delay/5", aggregations.EndpointAggregations[0].Path)
+		assert.Equal(uint32(4), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(200)].Count)
+
+		// Test post-NAT connection (server → client) - should NOT have HTTP data since direct match not available
+		streamer := NewProtoTestStreamer[*model.Connection]()
+		httpEncoder.GetHTTPAggregationsAndTags(payload.Conns[1], model.NewConnectionBuilder(streamer))
+
+		var conn model.Connection
+		streamer.Unwrap(t, &conn)
+		assert.Empty(conn.HttpAggregations, "Post-NAT connection (server → client) should not have HTTP data with only pre-NAT in the index")
+	})
+
+	// Test scenario 3: Only post-NAT key in the HTTP data
+	t.Run("Only post-NAT key in HTTP data", func(t *testing.T) {
+		httpData := map[http.Key]*http.RequestStats{
+			postNATKey: httpStats,
+		}
+
+		// Create connection payload
+		payload := &network.Connections{
+			BufferedData: network.BufferedData{
+				Conns: connections,
+			},
+			HTTP: httpData,
+		}
+
+		// Create HTTP encoder
+		httpEncoder := newHTTPEncoder(payload.HTTP)
+
+		// Test post-NAT connection (server → client) - should have HTTP data
+		aggregations, _, _ := getHTTPAggregations(t, httpEncoder, payload.Conns[1])
+		assert.NotNil(aggregations)
+		assert.Equal("/delay/5", aggregations.EndpointAggregations[0].Path)
+		assert.Equal(uint32(4), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(200)].Count)
+
+		// Test pre-NAT connection (client → service) - should NOT have HTTP data with only post-NAT in the index
+		streamer := NewProtoTestStreamer[*model.Connection]()
+		httpEncoder.GetHTTPAggregationsAndTags(payload.Conns[0], model.NewConnectionBuilder(streamer))
+
+		var conn model.Connection
+		streamer.Unwrap(t, &conn)
+		assert.Empty(conn.HttpAggregations, "Pre-NAT connection (client → service) should not have HTTP data with only post-NAT in the index")
+	})
 }
 
 func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.ConnectionStats) (*model.HTTPAggregations, uint64, map[string]struct{}) {
