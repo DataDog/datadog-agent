@@ -213,7 +213,7 @@ dev_branch-full:
   variables:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-arm64
-    IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-full
+    IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-full,agent-dev:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-full
 
 dev_branch-ot-standalone:
   extends: .docker_publish_job_definition
