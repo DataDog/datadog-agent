@@ -24,7 +24,7 @@ golang_deps_diff:
 
 golang_deps_commenter:
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2-jammy
   tags: ["arch:amd64"]
   rules:
     - !reference [.on_dev_branches]
