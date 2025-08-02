@@ -184,6 +184,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
+		newreq.Close = true
 		setTarget(newreq, u, m.keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
