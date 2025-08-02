@@ -368,37 +368,64 @@ __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
     return val > 0;
 }
 
+
+
+
+static __always_inline int get_tcp_failure(struct sock *sk) {
+    int err = BPF_CORE_READ(sk, sk_err);
+    if (err != 0) {
+        return err;
+    }
+
+    int state = BPF_CORE_READ(sk, __sk_common).skc_state;
+    if (state == TCP_SYN_SENT) {
+        return TCP_CONN_FAILED_CANCELED;
+    }
+
+    return 0;
+}
+
+static __always_inline bool is_tcp_failure_recognized(int err) {
+    switch(err) {
+        case TCP_CONN_FAILED_RESET:
+        case TCP_CONN_FAILED_TIMEOUT:
+        case TCP_CONN_FAILED_REFUSED:
+        case TCP_CONN_FAILED_EHOSTUNREACH:
+        case TCP_CONN_FAILED_ENETUNREACH:
+        case TCP_CONN_FAILED_CANCELED:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static __always_inline void report_unrecognized_tcp_failure(int err) {
+    // initialize if no-exist
+    __u64 one = 1;
+    bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, &one, BPF_NOEXIST, -EEXIST);
+    __u64 *count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
+    if (count != NULL) {
+        __sync_fetch_and_add(count, one);
+    }
+}
+
 // handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple
 // returns an integer to the caller indicating if there was a failure or not
 static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
     if (!tcp_failed_connections_enabled()) {
         return false;
     }
-    int err = 0;
-    BPF_CORE_READ_INTO(&err, sk, sk_err);
-
-    switch (err) {
-        case 0:
-            return false; // no error
-        case TCP_CONN_FAILED_RESET:
-        case TCP_CONN_FAILED_TIMEOUT:
-        case TCP_CONN_FAILED_REFUSED:
-        case TCP_CONN_FAILED_EHOSTUNREACH:
-        case TCP_CONN_FAILED_ENETUNREACH:
-        {
-            tcp_stats_t stats = { .failure_reason = err };
-            update_tcp_stats(t, stats);
-            return true;
-        }
-    }
-    // initialize if no-exist
-    __u64 one = 1;
-    bpf_map_update_with_telemetry(tcp_failure_telemetry, &err, &one, BPF_NOEXIST, -EEXIST);
-    __u64 *count = bpf_map_lookup_elem(&tcp_failure_telemetry, &err);
-    if (count == NULL) {
+    int err = get_tcp_failure(sk);
+    if (err == 0) {
         return false;
     }
-    __sync_fetch_and_add(count, one);
+    if (is_tcp_failure_recognized(err)) {
+        tcp_stats_t stats = { .failure_reason = err };
+        update_tcp_stats(t, stats);
+        return true;
+    }
+
+    report_unrecognized_tcp_failure(err);
 
     return false;
 }
