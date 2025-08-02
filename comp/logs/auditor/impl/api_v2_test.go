@@ -9,28 +9,36 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAuditorUnmarshalRegistryV2(t *testing.T) {
 	input := `{
-	    "Registry": {
-	        "path1.log": {
-	            "Offset": "1",
-	            "LastUpdated": "2006-01-12T01:01:01.000000001Z"
-	        },
-	        "path2.log": {
-	            "Offset": "2006-01-12T01:01:03.000000001Z",
-	            "LastUpdated": "2006-01-12T01:01:02.000000001Z"
-	        }
-	    },
-	    "Version": 2
-	}`
+			"Registry": {
+				"path1.log": {
+					"Offset": "12345",
+					"LastUpdated": "2006-01-12T01:01:01.000000001Z",
+					"Fingerprint": 11111,
+					"FingerprintConfig": {
+						"count": 200,
+						"max_bytes": 1024,
+						"count_to_skip": 5
+					}
+				}
+			},
+			"Version": 2
+		}`
 	r, err := unmarshalRegistryV2([]byte(input))
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, "1", r["path1.log"].Offset)
-	assert.Equal(t, 1, r["path1.log"].LastUpdated.Second())
+	entry, exists := r["path1.log"]
+	require.True(t, exists)
 
-	assert.Equal(t, "2006-01-12T01:01:03.000000001Z", r["path2.log"].Offset)
-	assert.Equal(t, 2, r["path2.log"].LastUpdated.Second())
+	assert.Equal(t, "12345", entry.Offset)
+	assert.Equal(t, 1, entry.LastUpdated.Second())
+	assert.Equal(t, uint64(11111), entry.Fingerprint)
+	require.NotNil(t, entry.FingerprintConfig)
+	assert.Equal(t, 200, entry.FingerprintConfig.Count)
+	assert.Equal(t, 1024, entry.FingerprintConfig.MaxBytes)
+	assert.Equal(t, 5, entry.FingerprintConfig.CountToSkip)
 }

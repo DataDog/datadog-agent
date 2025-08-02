@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -16,10 +17,14 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// ErrEmptyFingerprintConfig is returned when a fingerprint config is empty
+var ErrEmptyFingerprintConfig = errors.New("fingerprint config is empty - no fields are set")
 
 // logs-intake endpoint prefix.
 const (
@@ -158,6 +163,97 @@ func ExpectedTagsDuration(coreConfig pkgconfigmodel.Reader) time.Duration {
 // IsExpectedTagsSet returns boolean showing if expected tags feature is enabled.
 func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 	return ExpectedTagsDuration(coreConfig) > 0
+}
+
+// applyFingerprintDefaults applies the default values to a fingerprint config
+func applyFingerprintDefaults(config *FingerprintConfig) {
+	config.FingerprintStrategy = pkgconfigsetup.DefaultFingerprintStrategy
+	config.Count = pkgconfigsetup.DefaultFingerprintingMaxLines
+	config.CountToSkip = pkgconfigsetup.DefaultLinesOrBytesToSkip
+	config.MaxBytes = pkgconfigsetup.DefaultFingerprintingMaxBytes
+}
+
+// GlobalFingerprintConfig returns the global fingerprint configuration to apply to all logs.
+func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConfig, error) {
+	var err error
+
+	// Get the complete fingerprint config map without applying defaults immediately
+	raw := coreConfig.Get("logs_config.fingerprint_config")
+	if raw == nil {
+		return nil, nil
+	}
+
+	// Create a config without defaults first
+	config := &FingerprintConfig{}
+
+	if s, ok := raw.(string); ok && s != "" {
+		log.Debugf("GlobalFingerprintConfig: unmarshaling from string: %s", s)
+		err = json.Unmarshal([]byte(s), &config)
+	} else {
+		log.Debugf("GlobalFingerprintConfig: using structure.UnmarshalKey")
+		// Fallback to structure.UnmarshalKey
+		err = structure.UnmarshalKey(coreConfig, "logs_config.fingerprint_config", &config, structure.ConvertEmptyStringToNil)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("GlobalFingerprintConfig: after unmarshaling - FingerprintStrategy: %s, Count: %d, CountToSkip: %d, MaxBytes: %d",
+		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
+
+	// Validate the config
+	err = ValidateFingerprintConfig(config)
+	if err != nil {
+		if errors.Is(err, ErrEmptyFingerprintConfig) {
+			// If config is empty, apply all defaults
+			applyFingerprintDefaults(config)
+			return config, nil
+		}
+		return nil, err
+	}
+
+	return config, nil
+}
+
+// ValidateFingerprintConfig validates the fingerprint config and returns an error if the config is invalid
+func ValidateFingerprintConfig(config *FingerprintConfig) error {
+	if config == nil {
+		return ErrEmptyFingerprintConfig
+	}
+
+	// Check if any fingerprint config fields are set
+	hasAnyConfig := config.FingerprintStrategy != "" || config.Count != 0 || config.CountToSkip != 0 || config.MaxBytes != 0
+
+	if !hasAnyConfig {
+		// If no fields are set, return empty error
+		return ErrEmptyFingerprintConfig
+	}
+
+	validStrategies := map[string]bool{
+		FingerprintStrategyLineChecksum: true,
+		FingerprintStrategyByteChecksum: true,
+	}
+
+	if !validStrategies[config.FingerprintStrategy] {
+		return fmt.Errorf("fingerprintStrategy must be one of: line_checksum, byte_checksum, got: %s", config.FingerprintStrategy)
+	}
+
+	// Validate Count (must be positive if set)
+	if config.Count <= 0 {
+		return fmt.Errorf("count must be greater than zero, got: %d", config.Count)
+	}
+
+	// Validate CountToSkip (must be non-negative)
+	if config.CountToSkip < 0 {
+		return fmt.Errorf("count_to_skip cannot be negative, got: %d", config.CountToSkip)
+	}
+
+	// Validate MaxBytes (must be positive if set, only relevant for line-based fingerprinting)
+	if config.MaxBytes <= 0 && config.FingerprintStrategy == "line_checksum" {
+		return fmt.Errorf("max_bytes must be greater than zero for line-based fingerprinting, got: %d", config.MaxBytes)
+	}
+
+	return nil
 }
 
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {

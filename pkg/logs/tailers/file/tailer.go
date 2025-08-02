@@ -20,10 +20,9 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
@@ -117,24 +117,28 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
-	info            *status.InfoRegistry
-	bytesRead       *status.CountInfo
-	movingSum       *util.MovingSum
-	CapacityMonitor *metrics.CapacityMonitor
-	registry        auditor.Registry
+	info                  *status.InfoRegistry
+	bytesRead             *status.CountInfo
+	movingSum             *util.MovingSum
+	fingerprintConfig     *logsconfig.FingerprintConfig
+	fingerprint           *atomic.Uint64
+	fingerprintingEnabled bool
+	registry              auditor.Registry
+	CapacityMonitor       *metrics.CapacityMonitor
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
 type TailerOptions struct {
-	OutputChan      chan *message.Message    // Required
-	File            *File                    // Required
-	SleepDuration   time.Duration            // Required
-	Decoder         *decoder.Decoder         // Required
-	Info            *status.InfoRegistry     // Required
-	Rotated         bool                     // Optional
-	TagAdder        tag.EntityTagAdder       // Required
-	CapacityMonitor *metrics.CapacityMonitor // Required
-	Registry        auditor.Registry         // Required
+	OutputChan        chan *message.Message         // Required
+	File              *File                         // Required
+	SleepDuration     time.Duration                 // Required
+	Decoder           *decoder.Decoder              // Required
+	Info              *status.InfoRegistry          // Required
+	Rotated           bool                          // Optional
+	TagAdder          tag.EntityTagAdder            // Required
+	FingerprintConfig *logsconfig.FingerprintConfig //Optional
+	Registry          auditor.Registry              //Required
+	CapacityMonitor   *metrics.CapacityMonitor      // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -168,6 +172,11 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
+	fingerprintConfig := opts.FingerprintConfig
+	fingerprintingEnabled := false
+	if ResolveRotationDetectionStrategy(opts.File) == "checksum" {
+		fingerprintingEnabled = true
+	}
 	t := &Tailer{
 		file:                   opts.File,
 		outputChan:             opts.OutputChan,
@@ -187,6 +196,9 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
+		fingerprintConfig:      fingerprintConfig,
+		fingerprint:            atomic.NewUint64(0),
+		fingerprintingEnabled:  fingerprintingEnabled,
 		CapacityMonitor:        opts.CapacityMonitor,
 		registry:               opts.Registry,
 	}
@@ -194,7 +206,9 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	if fileRotated {
 		addToTailerInfo("Last Rotation Date", getFormattedTime(), t.info)
 	}
-
+	if t.fingerprintingEnabled {
+		t.fingerprint.Store(ComputeFingerprint(t.file.Path, t.fingerprintConfig))
+	}
 	return t
 }
 
@@ -217,15 +231,16 @@ func (t *Tailer) NewRotatedTailer(
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{
-		OutputChan:      outputChan,
-		File:            file,
-		SleepDuration:   t.sleepDuration,
-		Decoder:         decoder,
-		Info:            info,
-		Rotated:         true,
-		TagAdder:        tagAdder,
-		CapacityMonitor: capacityMonitor,
-		Registry:        registry,
+		OutputChan:        outputChan,
+		File:              file,
+		SleepDuration:     t.sleepDuration,
+		Decoder:           decoder,
+		Info:              info,
+		Rotated:           true,
+		TagAdder:          tagAdder,
+		CapacityMonitor:   capacityMonitor,
+		FingerprintConfig: t.fingerprintConfig,
+		Registry:          registry,
 	}
 
 	return NewTailer(options)
@@ -312,15 +327,14 @@ func (t *Tailer) readForever() {
 		t.decoder.Stop()
 		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
-
 	for {
 		n, err := t.read()
 		if err != nil {
 			return
 		}
+
 		t.recordBytes(int64(n))
 		t.movingSum.Add(int64(n))
-
 		select {
 		case <-t.stop:
 			if n != 0 && t.didFileRotate.Load() {
@@ -371,6 +385,8 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
+		origin.FilePath = t.file.Path
+		origin.Fingerprint = t.fingerprint.Load()
 
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
@@ -444,4 +460,9 @@ func (t *Tailer) GetType() string {
 //nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
+}
+
+// ReturnFingerprintConfig returns the fingerprint configuration for this tailer
+func (t *Tailer) ReturnFingerprintConfig() *logsconfig.FingerprintConfig {
+	return t.fingerprintConfig
 }
