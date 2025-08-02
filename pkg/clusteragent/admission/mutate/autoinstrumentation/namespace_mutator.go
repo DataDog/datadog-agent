@@ -148,11 +148,10 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	}
 
 	var (
-		lastError      error
-		startTime      = time.Now()
-		configInjector = &libConfigInjector{}
-		injectionType  = config.source.injectionType()
-		autoDetected   = config.source.isFromLanguageDetection()
+		lastError     error
+		startTime     = time.Now()
+		injectionType = config.source.injectionType()
+		autoDetected  = config.source.isFromLanguageDetection()
 
 		ustEnvVarMutator = m.ustEnvVarMutator(pod)
 
@@ -199,8 +198,12 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 			containerFilter:       m.config.containerFilter,
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
-			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
 		}).mutatePod(pod); err != nil {
+			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
+			lastError = err
+			continue
+		}
+		if err := injectV1LibAnnotations(pod, lib.lang); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err
 			continue
@@ -209,7 +212,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injected = true
 	}
 
-	if err := configInjector.podMutator(language("all")).mutatePod(pod); err != nil {
+	if err := injectV1LibAnnotations(pod, language("all")); err != nil {
 		metrics.LibInjectionErrors.Inc("all", strconv.FormatBool(autoDetected), injectionType)
 		lastError = err
 		log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
@@ -309,21 +312,17 @@ func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts li
 		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag),
 	}
 
-	for _, e := range []annotationExtractor[injectorOption]{
-		injectorVersionAnnotationExtractor,
-		injectorImageAnnotationExtractor,
-		injectorDebugAnnotationExtractor,
-	} {
-		opt, err := e.extract(pod)
-		if err != nil {
-			if !isErrAnnotationNotFound(err) {
-				log.Warnf("error extracting injector annotation %s in single step", e.key)
-			}
-			continue
-		}
-		opts = append(opts, opt)
+	if version, ok := pod.GetAnnotations()["admission.datadoghq.com/apm-inject.version"]; ok {
+		opts = append(opts, injectorWithImageTag(version))
 	}
 
+	if image, ok := pod.GetAnnotations()["admission.datadoghq.com/apm-inject.custom-image"]; ok {
+		opts = append(opts, injectorWithImageName(image))
+	}
+
+	if debug, ok := pod.GetAnnotations()["admission.datadoghq.com/apm-inject.debug"]; ok {
+		opts = append(opts, injectorDebug(debug))
+	}
 	return newInjector(startTime, m.config.containerRegistry, opts...)
 }
 
@@ -382,26 +381,29 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 }
 
 func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) []libInfo {
-	var (
-		libList        []libInfo
-		extractLibInfo = func(e annotationExtractor[libInfo]) {
-			i, err := e.extract(pod)
-			if err != nil {
-				if !isErrAnnotationNotFound(err) {
-					log.Warnf("error extracting annotation for key %s", e.key)
-				}
-			} else {
-				libList = append(libList, i)
-			}
-		}
-	)
+	var libList []libInfo
 
 	for _, l := range supportedLanguages {
-		extractLibInfo(l.customLibAnnotationExtractor())
-		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry))
+		customKey := fmt.Sprintf(customLibAnnotationKeyFormat, l)
+		if image, ok := pod.GetAnnotations()[customKey]; ok {
+			libList = append(libList, l.libInfo("", image))
+		}
+
+		libVersionKey := fmt.Sprintf(libVersionAnnotationKeyFormat, l)
+		if version, ok := pod.GetAnnotations()[libVersionKey]; ok {
+			libList = append(libList, l.libInfo("", l.libImageName(containerRegistry, version)))
+		}
+
 		for _, ctr := range pod.Spec.Containers {
-			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
-			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry))
+			libCustomCtrKey := fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr.Name, l)
+			if image, ok := pod.GetAnnotations()[libCustomCtrKey]; ok {
+				libList = append(libList, l.libInfo(ctr.Name, image))
+			}
+
+			libVersionCtrKey := fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr.Name, l)
+			if version, ok := pod.GetAnnotations()[libVersionCtrKey]; ok {
+				libList = append(libList, l.libInfo(ctr.Name, l.libImageName(containerRegistry, version)))
+			}
 		}
 	}
 
