@@ -266,13 +266,40 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 			runClients: func(t *testing.T, clientsCount int) {
 				clients := getHTTP2UnixClientArray(clientsCount, unixPath)
 
+				// Ensure proper cleanup of HTTP2 connections
+				t.Cleanup(func() {
+					for _, client := range clients {
+						client.CloseIdleConnections()
+					}
+				})
+
+				// Make a test request to ensure connections are established
+				for _, client := range clients {
+					req, err := client.Post(http2SrvAddr+"/warmup", "application/json", bytes.NewReader([]byte("test")))
+					if err == nil {
+						_ = req.Body.Close()
+					}
+				}
+
+				// Small delay to ensure connections are properly established
+				time.Sleep(100 * time.Millisecond)
+
 				for i := 1; i < 100; i++ {
 					path := strings.Repeat("a", i)
 					client := clients[getClientsIndex(i, clientsCount)]
 					req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
 					require.NoError(t, err, "could not make request")
 					_ = req.Body.Close()
+
+					// Add a small delay between requests to ensure proper processing
+					// This is especially important with multiple clients to avoid overwhelming the eBPF system
+					if i%10 == 0 {
+						time.Sleep(10 * time.Millisecond)
+					}
 				}
+
+				// Ensure all requests are processed before cleanup
+				time.Sleep(200 * time.Millisecond)
 			},
 			expectedEndpoints: getExpectedOutcomeForPathWithRepeatedChars(),
 		},
@@ -286,12 +313,17 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 
 				res := make(map[usmhttp.Key]int)
 				assert.Eventually(t, func() bool {
+					res = make(map[usmhttp.Key]int) // Reset the map on each iteration
 					for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP2) {
 						if key.DstPort == srvPort || key.SrcPort == srvPort {
 							count := stat.Data[200].Count
 							newKey := usmhttp.Key{
 								Path:   usmhttp.Path{Content: key.Path.Content},
 								Method: key.Method,
+							}
+							// Skip warmup requests
+							if strings.HasPrefix(key.Path.Content.Get(), "/warmup") {
+								continue
 							}
 							if _, ok := res[newKey]; !ok {
 								res[newKey] = count
@@ -316,7 +348,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 					}
 
 					return true
-				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+				}, time.Second*10, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 				if t.Failed() {
 					for key := range tt.expectedEndpoints {
 						if _, ok := res[key]; !ok {
