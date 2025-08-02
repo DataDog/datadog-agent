@@ -74,8 +74,7 @@ generate_windows_gitlab_runner_bump_pr:
   script:
     # We are using the agent platform auto PR github app to access the ci-platform-machine-images repository
     - !reference [.setup_github_app_agent_platform_auto_pr]
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
-    - python3 -m dda self dep sync -f legacy-tasks
+    - dda self dep sync -f legacy-tasks
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- -e github.update-windows-runner-version
@@ -94,8 +93,7 @@ generate_windows_gitlab_runner_bump_pr_manual:
   script:
     # We are using the agent platform auto PR github app to access the ci-platform-machine-images repository
     - !reference [.setup_github_app_agent_platform_auto_pr]
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
-    - python3 -m dda self dep sync -f legacy-tasks
+    - dda self dep sync -f legacy-tasks
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- -e github.update-windows-runner-version

@@ -8,7 +8,5 @@ test_fuzz:
   needs: []
   allow_failure: true
   script:
-    - |
-      python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
-      dda self dep sync -f legacy-tasks
+    - dda self dep sync -f legacy-tasks
     - dda inv -- build-and-upload-fuzz
