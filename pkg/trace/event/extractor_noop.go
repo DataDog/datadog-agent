@@ -7,6 +7,7 @@ package event
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -19,5 +20,9 @@ func NewNoopExtractor() Extractor {
 }
 
 func (e *noopExtractor) Extract(_ *pb.Span, _ sampler.SamplingPriority) (float64, bool) {
+	return 0, false
+}
+
+func (e *noopExtractor) ExtractV1(_ *idx.InternalSpan, _ sampler.SamplingPriority) (float64, bool) {
 	return 0, false
 }
