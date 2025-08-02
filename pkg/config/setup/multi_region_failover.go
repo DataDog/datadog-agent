@@ -20,6 +20,7 @@ func setupMultiRegionFailover(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("multi_region_failover.failover_metrics", false)
 	config.BindEnvAndSetDefault("multi_region_failover.failover_logs", false)
 	config.BindEnvAndSetDefault("multi_region_failover.failover_apm", false)
+	config.BindEnvAndSetDefault("multi_region_failover.failover_profiling", false)
 
 	config.BindEnv("multi_region_failover.remote_configuration.refresh_interval")
 	config.BindEnvAndSetDefault("multi_region_failover.remote_configuration.org_status_refresh_interval", 1*time.Minute)

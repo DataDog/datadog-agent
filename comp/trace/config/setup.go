@@ -47,6 +47,9 @@ const (
 	apiEndpointPrefix = "https://trace.agent."
 	// mrfPrefix is the MRF site prefix.
 	mrfPrefix = "mrf."
+	// profilingEndpointPrefix is the URL prefix preprended to the default site value from YamlAgentConfig
+	// to reference a profiling intake host
+	profilingEndpointPrefix = "https://intake.profile."
 )
 
 func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
@@ -161,8 +164,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*config.Endpoint{{}}
 	}
+	var coreAPIKey string
 	if core.IsSet("api_key") {
-		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))
+		coreAPIKey = utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))
+		c.Endpoints[0].APIKey = coreAPIKey
 	}
 	if core.IsSet("hostname") {
 		c.Hostname = core.GetString("hostname")
@@ -199,10 +204,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
+	var noProxy map[string]bool
 
 	if core.IsSet("proxy.no_proxy") {
 		proxyList := core.GetStringSlice("proxy.no_proxy")
-		noProxy := make(map[string]bool, len(proxyList))
+		noProxy = make(map[string]bool, len(proxyList))
 		for _, host := range proxyList {
 			// map of hosts that need to be skipped by proxy
 			noProxy[host] = true
@@ -581,12 +587,30 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if v := core.GetInt("apm_config.max_catalog_entries"); v > 0 {
 		c.MaxCatalogEntries = v
 	}
-	if k := "apm_config.profiling_dd_url"; core.IsSet(k) {
-		c.ProfilingProxy.DDURL = core.GetString(k)
+	// # Profiling
+	c.ProfilingProxy.Endpoints = []*config.Endpoint{{
+		Host:   utils.GetMainEndpoint(pkgconfigsetup.Datadog(), profilingEndpointPrefix, "apm_config.profiling_dd_url"),
+		APIKey: coreAPIKey,
+	}}
+	if core.GetBool("multi_region_failover.enabled") {
+		prefix := profilingEndpointPrefix + mrfPrefix
+		mrfURL, err := utils.GetMRFEndpoint(core, prefix, "multi_region_failover.dd_url")
+		if err != nil {
+			return fmt.Errorf("cannot construct MRF endpoint: %s", err)
+		}
+		c.MRFFailoverProfilingDefault = core.GetBool("multi_region_failover.failover_profiling")
+
+		c.ProfilingProxy.Endpoints = append(c.ProfilingProxy.Endpoints, &config.Endpoint{
+			Host:   mrfURL,
+			APIKey: utils.SanitizeAPIKey(core.GetString("multi_region_failover.api_key")),
+			IsMRF:  true,
+		})
 	}
-	if k := "apm_config.profiling_additional_endpoints"; core.IsSet(k) {
-		c.ProfilingProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	c.ProfilingProxy.Endpoints = appendEndpoints(c.ProfilingProxy.Endpoints, "apm_config.profiling_additional_endpoints")
+	for _, e := range c.ProfilingProxy.Endpoints {
+		e.NoProxy = noProxy[e.Host]
 	}
+
 	if k := "apm_config.debugger_dd_url"; core.IsSet(k) {
 		c.DebuggerProxy.DDURL = core.GetString(k)
 	}

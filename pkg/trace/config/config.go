@@ -242,10 +242,7 @@ const (
 
 // ProfilingProxyConfig ...
 type ProfilingProxyConfig struct {
-	// DDURL ...
-	DDURL string
-	// AdditionalEndpoints ...
-	AdditionalEndpoints map[string][]string
+	Endpoints []*Endpoint
 }
 
 // EVPProxy contains the settings for the EVPProxy proxy.
@@ -524,8 +521,10 @@ type AgentConfig struct {
 	// IPC TLS server config
 	IPCTLSServerConfig *tls.Config `json:"-"`
 
-	MRFFailoverAPMDefault bool
-	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
+	MRFFailoverAPMDefault       bool
+	MRFFailoverAPMRC            *bool // failover_apm set by remoteconfig. `nil` if not configured
+	MRFFailoverProfilingDefault bool
+	MRFFailoverProfilingRC      *bool // failover_profiling set by remoteconfig. `nil` if not configured
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -724,6 +723,14 @@ func (c *AgentConfig) MRFFailoverAPM() bool {
 		return *c.MRFFailoverAPMRC
 	}
 	return c.MRFFailoverAPMDefault
+}
+
+// MRFFailoverProfiling determines whether Profiling data should be failed over to the secondary (MRF) DC.
+func (c *AgentConfig) MRFFailoverProfiling() bool {
+	if c.MRFFailoverProfilingRC != nil {
+		return *c.MRFFailoverProfilingRC
+	}
+	return c.MRFFailoverProfilingDefault
 }
 
 // ConfiguredPeerTags returns the set of peer tags that should be used
