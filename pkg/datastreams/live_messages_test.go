@@ -8,9 +8,10 @@ package datastreams
 import (
 	"context"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 
 	"github.com/stretchr/testify/assert"
 
@@ -25,7 +26,8 @@ import (
 
 type mockedRcClient struct{}
 
-func (m *mockedRcClient) SubscribeAgentTask() {}
+func (m *mockedRcClient) AgentTaskUpdateCallback(_ map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+}
 
 func (m *mockedRcClient) Subscribe(_ data.Product, _ func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 }
