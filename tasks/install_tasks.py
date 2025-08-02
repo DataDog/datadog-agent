@@ -4,10 +4,10 @@ import shutil
 import sys
 import zipfile
 from pathlib import Path
+from urllib.request import urlretrieve
 
 from invoke import Context, Exit, task
 
-from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.retry import run_command_with_retry
@@ -138,9 +138,8 @@ def install_protoc(ctx, version=None):
     zip_name = "protoc"
     zip_file = os.path.join(zip_path, f"{zip_name}.zip")
 
-    gh = GithubAPI(public_repo=True)
     # the download_from_url expect to have the path and the name of the file separated and without the extension
-    gh.download_from_url(artifact_url, zip_path, zip_name)
+    urlretrieve(artifact_url, zip_file)
 
     # Unzip it in the target destination
     destination = os.path.join(Path.home(), ".local")
