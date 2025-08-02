@@ -71,7 +71,7 @@ func TestMount(t *testing.T) {
 			return nil
 		}, func(event *model.Event) bool {
 			mntID = event.Mount.MountID
-
+			fmt.Printf("Mount received: %v\n", event.Mount)
 			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
 				return true
 			}
