@@ -1080,7 +1080,9 @@ def go_package_dirs(packages, build_tags):
     else:
         packages_arg = " ".join(packages)
 
-    cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
+    # Disable buildvcs to avoid attempting to invoke git, which can be slow in
+    # VMs and we don't need its output here.
+    cmd = f"go list -find -buildvcs=false -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
     return [p for p in target_packages if len(p) > 0]
@@ -2197,7 +2199,9 @@ def ninja_add_dyninst_test_programs(
     # Run from within the progs directory so that the go list command can find
     # the go.mod file.
     with ctx.cd(progs_path):
-        list_cmd = f"go list -test -f '{list_format}' {tags_flag} ./..."
+        # Disable buildvcs to avoid attempting to invoke git, which can be
+        # slow in VMs and we don't need it for our tests.
+        list_cmd = f"go list -buildvcs=false -mod=readonly -test -f '{list_format}' {tags_flag} ./..."
         # Disable GOWORK because our testprogs go.mod isn't listed there.
         env = {"GOWORK": "off"}
         res = ctx.run(list_cmd, hide=True, env=env)
@@ -2246,7 +2250,16 @@ def ninja_add_dyninst_test_programs(
             pool="gobuild",
             variables={
                 "go": go_path,
-                "extra_arguments": "-trimpath",
+                "extra_arguments": " ".join(
+                    [
+                        # Trimpath is used so that the binaries have predictable
+                        # source paths.
+                        "-trimpath",
+                        # Disable buildvcs to avoid attempting to invoke git, which can
+                        # be slow in VMs and we don't need it for our tests.
+                        "-buildvcs=false",
+                    ]
+                ),
                 # Run from within the package directory so that the go build
                 # command finds the go.mod file.
                 "chdir": f"cd {pkg_path}",
