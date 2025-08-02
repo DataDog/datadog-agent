@@ -118,10 +118,16 @@ tests_windows-x64:
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     ARCH: "x64"
 
 tests_windows_secagent_x64:
   extends: .tests_windows_secagent
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     ARCH: "x64"
