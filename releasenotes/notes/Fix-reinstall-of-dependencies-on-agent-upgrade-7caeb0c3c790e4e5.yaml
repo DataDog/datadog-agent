@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixed an issue on Agent upgrade where all datadog prefixed packages were treated as integrations, preventing non-integration libraries from being properly reinstalled.
+    Fixed an issue during Agent upgrade where all datadog-prefixed packages were treated as integrations, preventing non-integration libraries from being reinstalled.
