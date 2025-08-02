@@ -18,12 +18,10 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -242,7 +240,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 // We want to get rid of the behavior when we are triggering the fallback _and_
 // it applies: https://datadoghq.atlassian.net/browse/INPLAT-458
 func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod) containerMutator {
-	return newServiceNameMutator(pod, m.config.podMetaAsTags)
+	return newServiceNameMutator(m.wmeta, pod, m.config.metaAsTags)
 }
 
 // ustEnvVarMutator will attempt to find a ust env var to inject into the pods containers if SSI is enabled.
@@ -256,11 +254,8 @@ func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
 		return mutators
 	}
 
-	for tag, envVarName := range map[string]string{
-		tags.Version: kubernetes.VersionTagEnvVar,
-		tags.Env:     kubernetes.EnvTagEnvVar,
-	} {
-		if mutator := ustEnvVarMutatorForPodMeta(pod, m.config.podMetaAsTags, tag, envVarName); mutator != nil {
+	for _, tag := range []tagEnvVar{envUST, versionUST} {
+		if mutator := tag.ustEnvVarMutatorForPodMeta(m.wmeta, pod, m.config.metaAsTags); mutator != nil {
 			mutators = append(mutators, mutator)
 		}
 	}
@@ -509,9 +504,18 @@ func profilingClientLibraryConfigMutators(datadogConfig config.Component) contai
 	return mutators
 }
 
-func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
+func wmetaNamespace(wmeta workloadmeta.Component, name string) (*workloadmeta.KubernetesMetadata, error) {
 	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", name)
 	ns, err := wmeta.GetKubernetesMetadata(id)
+	if err != nil {
+		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
+	}
+
+	return ns, nil
+}
+
+func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
+	ns, err := wmetaNamespace(wmeta, name)
 	if err != nil {
 		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
 	}
