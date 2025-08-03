@@ -103,8 +103,6 @@ func (e *Event) ValidateFileField(field string) error {
 		return nil
 	case "process.parent.file":
 		return nil
-	case "process.ancestors.file":
-		return nil
 	case "exec.file":
 		return nil
 	case "exit.file":

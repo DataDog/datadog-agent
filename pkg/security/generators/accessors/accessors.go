@@ -480,8 +480,12 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 		return
 	}
 
-	if typeSpec.Name.Name == "FileEvent" {
-		module.FileFields = append(module.FileFields, aliasPrefix)
+	if typeSpec.Name.Name == "FileEvent" && !strings.Contains(aliasPrefix, "ancestors") {
+		ff := common.FileField{
+			Name:        aliasPrefix,
+			StructField: prefix,
+		}
+		module.FileFields = append(module.FileFields, ff)
 	}
 
 	prevrestrictedTo := restrictedTo

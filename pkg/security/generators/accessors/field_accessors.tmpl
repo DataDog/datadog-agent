@@ -151,8 +151,8 @@ func (ev *Event) {{$getter}}() {{ $accessorReturnType }} {
 // ValidateFileField validates that GetFileField would return a valid FileEvent
 func (e *Event) ValidateFileField(field string) error {
 	switch field {
-    {{range $Name := .FileFields }}
-    case {{ $Name | quote }}:
+    {{range $Field := .FileFields }}
+    case {{ $Field.Name | quote }}:
         return nil
     {{end}}
 

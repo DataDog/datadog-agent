@@ -185,10 +185,6 @@ func (e *Event) ValidateFileField(field string) error {
 		return nil
 	case "process.parent.interpreter.file":
 		return nil
-	case "process.ancestors.file":
-		return nil
-	case "process.ancestors.interpreter.file":
-		return nil
 	case "chmod.file":
 		return nil
 	case "chown.file":
@@ -227,10 +223,6 @@ func (e *Event) ValidateFileField(field string) error {
 		return nil
 	case "setrlimit.target.parent.interpreter.file":
 		return nil
-	case "setrlimit.target.ancestors.file":
-		return nil
-	case "setrlimit.target.ancestors.interpreter.file":
-		return nil
 	case "exec.file":
 		return nil
 	case "exec.interpreter.file":
@@ -243,10 +235,6 @@ func (e *Event) ValidateFileField(field string) error {
 		return nil
 	case "signal.target.parent.interpreter.file":
 		return nil
-	case "signal.target.ancestors.file":
-		return nil
-	case "signal.target.ancestors.interpreter.file":
-		return nil
 	case "exit.file":
 		return nil
 	case "exit.interpreter.file":
@@ -258,10 +246,6 @@ func (e *Event) ValidateFileField(field string) error {
 	case "ptrace.tracee.parent.file":
 		return nil
 	case "ptrace.tracee.parent.interpreter.file":
-		return nil
-	case "ptrace.tracee.ancestors.file":
-		return nil
-	case "ptrace.tracee.ancestors.interpreter.file":
 		return nil
 	case "mmap.file":
 		return nil
