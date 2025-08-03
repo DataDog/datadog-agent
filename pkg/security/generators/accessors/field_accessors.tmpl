@@ -160,3 +160,16 @@ func (e *Event) ValidateFileField(field string) error {
 		return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}
 }
+
+// GetFileField returns the FileEvent associated with a field name
+func (e *Event) GetFileField(field string) (*FileEvent, error) {
+	switch field {
+    {{range $Field := .FileFields }}
+    case {{ $Field.Name | quote }}:
+        return &e.{{ $Field.StructField }}, nil
+    {{end}}
+
+	default:
+		return nil, fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
+	}
+}

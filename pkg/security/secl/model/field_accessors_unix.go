@@ -257,3 +257,87 @@ func (e *Event) ValidateFileField(field string) error {
 		return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}
 }
+
+// GetFileField returns the FileEvent associated with a field name
+func (e *Event) GetFileField(field string) (*FileEvent, error) {
+	switch field {
+	case "process.file":
+		return &e.BaseEvent.ProcessContext.Process.FileEvent, nil
+	case "process.interpreter.file":
+		return &e.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent, nil
+	case "process.parent.file":
+		return &e.BaseEvent.ProcessContext.Parent.FileEvent, nil
+	case "process.parent.interpreter.file":
+		return &e.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent, nil
+	case "chmod.file":
+		return &e.Chmod.File, nil
+	case "chown.file":
+		return &e.Chown.File, nil
+	case "open.file":
+		return &e.Open.File, nil
+	case "mkdir.file":
+		return &e.Mkdir.File, nil
+	case "rmdir.file":
+		return &e.Rmdir.File, nil
+	case "rename.file":
+		return &e.Rename.Old, nil
+	case "rename.file.destination":
+		return &e.Rename.New, nil
+	case "unlink.file":
+		return &e.Unlink.File, nil
+	case "utimes.file":
+		return &e.Utimes.File, nil
+	case "link.file":
+		return &e.Link.Source, nil
+	case "link.file.destination":
+		return &e.Link.Target, nil
+	case "setxattr.file":
+		return &e.SetXAttr.File, nil
+	case "removexattr.file":
+		return &e.RemoveXAttr.File, nil
+	case "splice.file":
+		return &e.Splice.File, nil
+	case "chdir.file":
+		return &e.Chdir.File, nil
+	case "setrlimit.target.file":
+		return &e.Setrlimit.Target.Process.FileEvent, nil
+	case "setrlimit.target.interpreter.file":
+		return &e.Setrlimit.Target.Process.LinuxBinprm.FileEvent, nil
+	case "setrlimit.target.parent.file":
+		return &e.Setrlimit.Target.Parent.FileEvent, nil
+	case "setrlimit.target.parent.interpreter.file":
+		return &e.Setrlimit.Target.Parent.LinuxBinprm.FileEvent, nil
+	case "exec.file":
+		return &e.Exec.Process.FileEvent, nil
+	case "exec.interpreter.file":
+		return &e.Exec.Process.LinuxBinprm.FileEvent, nil
+	case "signal.target.file":
+		return &e.Signal.Target.Process.FileEvent, nil
+	case "signal.target.interpreter.file":
+		return &e.Signal.Target.Process.LinuxBinprm.FileEvent, nil
+	case "signal.target.parent.file":
+		return &e.Signal.Target.Parent.FileEvent, nil
+	case "signal.target.parent.interpreter.file":
+		return &e.Signal.Target.Parent.LinuxBinprm.FileEvent, nil
+	case "exit.file":
+		return &e.Exit.Process.FileEvent, nil
+	case "exit.interpreter.file":
+		return &e.Exit.Process.LinuxBinprm.FileEvent, nil
+	case "ptrace.tracee.file":
+		return &e.PTrace.Tracee.Process.FileEvent, nil
+	case "ptrace.tracee.interpreter.file":
+		return &e.PTrace.Tracee.Process.LinuxBinprm.FileEvent, nil
+	case "ptrace.tracee.parent.file":
+		return &e.PTrace.Tracee.Parent.FileEvent, nil
+	case "ptrace.tracee.parent.interpreter.file":
+		return &e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent, nil
+	case "mmap.file":
+		return &e.MMap.File, nil
+	case "load_module.file":
+		return &e.LoadModule.File, nil
+	case "cgroup_write.file":
+		return &e.CgroupWrite.File, nil
+	default:
+		return nil, fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
+	}
+}
