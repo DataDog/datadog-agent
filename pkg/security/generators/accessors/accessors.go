@@ -957,6 +957,11 @@ func getHolder(allFields map[string]*common.StructField, field *common.StructFie
 	return allFields[name]
 }
 
+func getFileFieldCheck(allFields map[string]*common.StructField, field string) []string {
+	first := allFields[field]
+	return getChecks(allFields, first)
+}
+
 func getChecks(allFields map[string]*common.StructField, field *common.StructField) []string {
 	var checks []string
 
@@ -1133,6 +1138,7 @@ var funcMap = map[string]interface{}{
 	"GetFieldHandler":          getFieldHandler,
 	"GetChecks":                getChecks,
 	"GetFieldHandlersChecks":   getFieldHandlersChecks,
+	"GetFileFieldCheck":        getFileFieldCheck,
 	"GetHandlers":              getHandlers,
 	"PascalCaseFieldName":      pascalCaseFieldName,
 	"GetDefaultValueOfType":    getDefaultValueOfType,

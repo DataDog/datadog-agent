@@ -166,6 +166,13 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 	switch field {
     {{range $Field := .FileFields }}
     case {{ $Field.Name | quote }}:
+        {{$Checks := $Field.StructField | GetFileFieldCheck $.AllFields}}
+        {{range $Check := $Checks}}
+            {{$Check = $Check | printf "e.%s"}}
+            if !{{$Check}}() {
+                return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+            }
+        {{end}}
         return &e.{{ $Field.StructField }}, nil
     {{end}}
 

@@ -111,3 +111,22 @@ func (e *Event) ValidateFileField(field string) error {
 		return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
 	}
 }
+
+// GetFileField returns the FileEvent associated with a field name
+func (e *Event) GetFileField(field string) (*FileEvent, error) {
+	switch field {
+	case "process.file":
+		return &e.BaseEvent.ProcessContext.Process.FileEvent, nil
+	case "process.parent.file":
+		if !e.BaseEvent.ProcessContext.HasParent() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		return &e.BaseEvent.ProcessContext.Parent.FileEvent, nil
+	case "exec.file":
+		return &e.Exec.Process.FileEvent, nil
+	case "exit.file":
+		return &e.Exit.Process.FileEvent, nil
+	default:
+		return nil, fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
+	}
+}

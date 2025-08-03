@@ -262,12 +262,30 @@ func (e *Event) ValidateFileField(field string) error {
 func (e *Event) GetFileField(field string) (*FileEvent, error) {
 	switch field {
 	case "process.file":
+		if !e.BaseEvent.ProcessContext.Process.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.BaseEvent.ProcessContext.Process.FileEvent, nil
 	case "process.interpreter.file":
+		if !e.BaseEvent.ProcessContext.Process.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent, nil
 	case "process.parent.file":
+		if !e.BaseEvent.ProcessContext.HasParent() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		if !e.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.BaseEvent.ProcessContext.Parent.FileEvent, nil
 	case "process.parent.interpreter.file":
+		if !e.BaseEvent.ProcessContext.HasParent() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		if !e.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent, nil
 	case "chmod.file":
 		return &e.Chmod.File, nil
@@ -300,36 +318,102 @@ func (e *Event) GetFileField(field string) (*FileEvent, error) {
 	case "chdir.file":
 		return &e.Chdir.File, nil
 	case "setrlimit.target.file":
+		if !e.Setrlimit.Target.Process.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Setrlimit.Target.Process.FileEvent, nil
 	case "setrlimit.target.interpreter.file":
+		if !e.Setrlimit.Target.Process.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Setrlimit.Target.Process.LinuxBinprm.FileEvent, nil
 	case "setrlimit.target.parent.file":
+		if !e.Setrlimit.Target.HasParent() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		if !e.Setrlimit.Target.Parent.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Setrlimit.Target.Parent.FileEvent, nil
 	case "setrlimit.target.parent.interpreter.file":
+		if !e.Setrlimit.Target.HasParent() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		if !e.Setrlimit.Target.Parent.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Setrlimit.Target.Parent.LinuxBinprm.FileEvent, nil
 	case "exec.file":
+		if !e.Exec.Process.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Exec.Process.FileEvent, nil
 	case "exec.interpreter.file":
+		if !e.Exec.Process.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Exec.Process.LinuxBinprm.FileEvent, nil
 	case "signal.target.file":
+		if !e.Signal.Target.Process.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Signal.Target.Process.FileEvent, nil
 	case "signal.target.interpreter.file":
+		if !e.Signal.Target.Process.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Signal.Target.Process.LinuxBinprm.FileEvent, nil
 	case "signal.target.parent.file":
+		if !e.Signal.Target.HasParent() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		if !e.Signal.Target.Parent.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Signal.Target.Parent.FileEvent, nil
 	case "signal.target.parent.interpreter.file":
+		if !e.Signal.Target.HasParent() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		if !e.Signal.Target.Parent.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Signal.Target.Parent.LinuxBinprm.FileEvent, nil
 	case "exit.file":
+		if !e.Exit.Process.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Exit.Process.FileEvent, nil
 	case "exit.interpreter.file":
+		if !e.Exit.Process.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.Exit.Process.LinuxBinprm.FileEvent, nil
 	case "ptrace.tracee.file":
+		if !e.PTrace.Tracee.Process.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.PTrace.Tracee.Process.FileEvent, nil
 	case "ptrace.tracee.interpreter.file":
+		if !e.PTrace.Tracee.Process.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.PTrace.Tracee.Process.LinuxBinprm.FileEvent, nil
 	case "ptrace.tracee.parent.file":
+		if !e.PTrace.Tracee.HasParent() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		if !e.PTrace.Tracee.Parent.IsNotKworker() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.PTrace.Tracee.Parent.FileEvent, nil
 	case "ptrace.tracee.parent.interpreter.file":
+		if !e.PTrace.Tracee.HasParent() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
+		if !e.PTrace.Tracee.Parent.HasInterpreter() {
+			return nil, fmt.Errorf("no file event on this event %s", e.GetEventType())
+		}
 		return &e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent, nil
 	case "mmap.file":
 		return &e.MMap.File, nil
