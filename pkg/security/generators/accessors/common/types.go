@@ -47,6 +47,7 @@ type Module struct {
 	Getters    []string
 }
 
+// FileField represents a file field used for `{Get,Validate}FileField` generation
 type FileField struct {
 	Name        string
 	StructField string
