@@ -42,6 +42,7 @@ type Module struct {
 	AllFields  map[string]*StructField
 	Iterators  map[string]*StructField
 	EventTypes map[string]*EventTypeMetadata
+	FileFields []string
 	Mock       bool
 	Getters    []string
 }
