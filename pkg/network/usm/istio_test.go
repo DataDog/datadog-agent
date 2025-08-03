@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
@@ -27,9 +27,7 @@ const (
 )
 
 func TestIsIstioBinary(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
-		t.Skip("TLS not supported")
-	}
+	usmtestutil.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
 	procRoot := uprobes.CreateFakeProcFS(t, []uprobes.FakeProcFSEntry{})
 	m := newIstioTestMonitor(t, procRoot)
 
@@ -42,9 +40,7 @@ func TestIsIstioBinary(t *testing.T) {
 }
 
 func TestGetEnvoyPathWithConfig(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
-		t.Skip("TLS not supported")
-	}
+	usmtestutil.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableIstioMonitoring = true
 	cfg.EnvoyPath = "/test/envoy"
@@ -55,9 +51,7 @@ func TestGetEnvoyPathWithConfig(t *testing.T) {
 }
 
 func TestIstioSync(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
-		t.Skip("TLS not supported")
-	}
+	usmtestutil.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
 	t.Run("calling sync for the first time", func(tt *testing.T) {
 		procRoot := uprobes.CreateFakeProcFS(tt, []uprobes.FakeProcFSEntry{
 			{Pid: 1, Exe: defaultEnvoyName},
