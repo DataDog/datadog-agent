@@ -1,111 +1,111 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/index.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/setup.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/setup/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/architecture/dogstatsd/internals.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/architecture/dogstatsd/internals/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/common-patterns.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/common-patterns/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/creating-bundles.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/creating-bundles/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/creating-components.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/creating-components/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/faq.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/faq/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/fx.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/fx/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/migration.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/migration/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/overview.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/overview/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/testing.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/testing/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/using-components.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/using-components/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/flares.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/flares/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/metadata.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/metadata/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/remote_config.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/remote_config/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/status.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/status/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/workloadmeta.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/workloadmeta/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/contributing.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/contributing/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/docs.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/docs/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/defining-apps.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/defining-apps/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/defining-bundles.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/defining-bundles/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/purpose.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/purpose/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/registrations.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/registrations/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/subscriptions.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/subscriptions/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/using-components.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/using-components/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/hostname/hostname_force_config_as_canonical.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/hostname/hostname_force_config_as_canonical/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/how-to/go/add-module.html</loc>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/go/add-module/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
 </urlset>
