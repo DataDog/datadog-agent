@@ -9,6 +9,7 @@
 package model
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"net"
 	"time"
@@ -93,4 +94,22 @@ func (ev *Event) GetProcessPpid() uint32 {
 // GetTimestamp returns the value of the field, resolving if necessary
 func (ev *Event) GetTimestamp() time.Time {
 	return ev.FieldHandlers.ResolveEventTime(ev, &ev.BaseEvent)
+}
+
+// ValidateFileField validates that GetFileField would return a valid FileEvent
+func (e *Event) ValidateFileField(field string) error {
+	switch field {
+	case "process.file":
+		return nil
+	case "process.parent.file":
+		return nil
+	case "process.ancestors.file":
+		return nil
+	case "exec.file":
+		return nil
+	case "exit.file":
+		return nil
+	default:
+		return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
+	}
 }

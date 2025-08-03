@@ -9,6 +9,7 @@
 package model
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"net"
 	"time"
@@ -171,4 +172,104 @@ func (ev *Event) GetProcessUser() string {
 // GetTimestamp returns the value of the field, resolving if necessary
 func (ev *Event) GetTimestamp() time.Time {
 	return ev.FieldHandlers.ResolveEventTime(ev, &ev.BaseEvent)
+}
+
+// ValidateFileField validates that GetFileField would return a valid FileEvent
+func (e *Event) ValidateFileField(field string) error {
+	switch field {
+	case "process.file":
+		return nil
+	case "process.interpreter.file":
+		return nil
+	case "process.parent.file":
+		return nil
+	case "process.parent.interpreter.file":
+		return nil
+	case "process.ancestors.file":
+		return nil
+	case "process.ancestors.interpreter.file":
+		return nil
+	case "chmod.file":
+		return nil
+	case "chown.file":
+		return nil
+	case "open.file":
+		return nil
+	case "mkdir.file":
+		return nil
+	case "rmdir.file":
+		return nil
+	case "rename.file":
+		return nil
+	case "rename.file.destination":
+		return nil
+	case "unlink.file":
+		return nil
+	case "utimes.file":
+		return nil
+	case "link.file":
+		return nil
+	case "link.file.destination":
+		return nil
+	case "setxattr.file":
+		return nil
+	case "removexattr.file":
+		return nil
+	case "splice.file":
+		return nil
+	case "chdir.file":
+		return nil
+	case "setrlimit.target.file":
+		return nil
+	case "setrlimit.target.interpreter.file":
+		return nil
+	case "setrlimit.target.parent.file":
+		return nil
+	case "setrlimit.target.parent.interpreter.file":
+		return nil
+	case "setrlimit.target.ancestors.file":
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file":
+		return nil
+	case "exec.file":
+		return nil
+	case "exec.interpreter.file":
+		return nil
+	case "signal.target.file":
+		return nil
+	case "signal.target.interpreter.file":
+		return nil
+	case "signal.target.parent.file":
+		return nil
+	case "signal.target.parent.interpreter.file":
+		return nil
+	case "signal.target.ancestors.file":
+		return nil
+	case "signal.target.ancestors.interpreter.file":
+		return nil
+	case "exit.file":
+		return nil
+	case "exit.interpreter.file":
+		return nil
+	case "ptrace.tracee.file":
+		return nil
+	case "ptrace.tracee.interpreter.file":
+		return nil
+	case "ptrace.tracee.parent.file":
+		return nil
+	case "ptrace.tracee.parent.interpreter.file":
+		return nil
+	case "ptrace.tracee.ancestors.file":
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file":
+		return nil
+	case "mmap.file":
+		return nil
+	case "load_module.file":
+		return nil
+	case "cgroup_write.file":
+		return nil
+	default:
+		return fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
+	}
 }
