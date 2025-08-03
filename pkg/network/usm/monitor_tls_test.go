@@ -35,11 +35,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/precompiledserver"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -1177,4 +1179,85 @@ func testOpenSSLNormalMonitoring(t *testing.T, usmMonitor *Monitor, pythonPID ui
 
 	client.CloseIdleConnections()
 	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all OpenSSL container requests to be captured")
+}
+
+func TestGoTLSVersions(t *testing.T) {
+	if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+		t.Skip("GoTLS not supported for this setup")
+	}
+
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableGoTLSSupport = true
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	versions := []string{
+		"1.24.0",
+		"1.23.0",
+		"1.22.0",
+		"1.21.0",
+		"1.20",
+		"1.19",
+		"1.18",
+		"1.17",
+		"1.16",
+		"1.15",
+		"1.14",
+		"1.13",
+	}
+	var err error
+	versionList := make([]goversion.GoVersion, len(versions))
+	for i, v := range versions {
+		versionList[i], err = goversion.NewGoVersion(v)
+		require.NoError(t, err)
+	}
+	port := 8444
+	for _, version := range versionList {
+		port++
+		t.Run(version.String(), func(tt *testing.T) {
+			// Run server
+			serverPid := precompiledserver.RunHTTPSGoServer(tt, version, port)
+
+			// wait for it to be traced
+			utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, serverPid, utils.ManualTracingFallbackEnabled)
+
+			// Create client and make HTTPS requests
+			client, requestFn := simpleGetRequestsGenerator(tt, fmt.Sprintf("localhost:%d", port))
+			var requests []*nethttp.Request
+			for i := 0; i < numberOfRequests; i++ {
+				requests = append(requests, requestFn())
+			}
+			client.CloseIdleConnections()
+
+			requestsExist := make([]bool, len(requests))
+			require.Eventually(tt, func() bool {
+				stats := getHTTPLikeProtocolStats(tt, usmMonitor, protocols.HTTP)
+				if stats == nil {
+					return false
+				}
+
+				if len(stats) == 0 {
+					return false
+				}
+
+				for reqIndex, req := range requests {
+					if !requestsExist[reqIndex] {
+						requestsExist[reqIndex] = isRequestIncluded(stats, req)
+					}
+				}
+
+				// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+				// otherwise, if all present, abort.
+				for reqIndex, exists := range requestsExist {
+					if !exists {
+						// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+						t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+						return false
+					}
+				}
+
+				return true
+			}, 3*time.Second, 100*time.Millisecond, "connection not found")
+		})
+	}
 }
