@@ -18,7 +18,7 @@ python_version = "3.12"
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python#{python_version}/site-packages/.libsaerospike"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/aerospike.libs"
-whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg2"
+whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg_binary.libs"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
