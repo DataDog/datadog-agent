@@ -494,7 +494,6 @@ func fmtProcesses(
 
 		// Hide disallow-listed args if the Scrubber is enabled
 		fp.Cmdline = scrubber.ScrubProcessCommand(fp)
-
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,

@@ -33,12 +33,62 @@ import (
 
 // TestProcessesByPIDWLM tests processesByPID map creation when WLM collection is ON
 func TestProcessesByPIDWLM(t *testing.T) {
+	mockConstantClock := constantMockClock(time.Now())
+	nowSeconds := mockConstantClock.Now().UnixMilli()
+	// TEST DATA 1
+	proc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowSeconds)
+	proc2 := wlmProcessWithCreateTime(2, "mine-bitcoins -all -x", nowSeconds-1)
+	proc3 := wlmProcessWithCreateTime(3, "datadog-agent --cfgpath datadog.conf", nowSeconds+2)
+	proc4 := wlmProcessWithServiceDiscovery(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds-3)
+	wlmProcesses := []*wmdef.Process{proc1, proc2, proc3, proc4}
+	statsByPid := createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
+	expected1 := map[int32]*procutil.Process{
+		proc1.Pid: mapWLMProcToProc(proc1, statsByPid[proc1.Pid]),
+		proc2.Pid: mapWLMProcToProc(proc2, statsByPid[proc2.Pid]),
+		proc3.Pid: mapWLMProcToProc(proc3, statsByPid[proc3.Pid]),
+		proc4.Pid: mapWLMProcToProc(proc4, statsByPid[proc4.Pid]),
+	}
+
+	// TEST DATA 2
+	statsByPidMissingProc1 := createTestWLMProcessStats([]*wmdef.Process{proc2, proc3, proc4}, true)
+	expected2 := map[int32]*procutil.Process{
+		proc2.Pid: mapWLMProcToProc(proc2, statsByPidMissingProc1[proc2.Pid]),
+		proc3.Pid: mapWLMProcToProc(proc3, statsByPidMissingProc1[proc3.Pid]),
+		proc4.Pid: mapWLMProcToProc(proc4, statsByPidMissingProc1[proc4.Pid]),
+	}
+
+	// TEST DATA 3
+	newProc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowSeconds+10)
+	statsByPidNewProc1 := createTestWLMProcessStats([]*wmdef.Process{newProc1, proc2, proc3, proc4}, true)
+	expected3 := map[int32]*procutil.Process{
+		proc2.Pid: mapWLMProcToProc(proc2, statsByPidNewProc1[proc2.Pid]),
+		proc3.Pid: mapWLMProcToProc(proc3, statsByPidNewProc1[proc3.Pid]),
+		proc4.Pid: mapWLMProcToProc(proc4, statsByPidNewProc1[proc4.Pid]),
+	}
+
 	for _, tc := range []struct {
 		description  string
-		collectStats bool
+		wlmProcesses []*wmdef.Process
+		statsByPid   map[int32]*procutil.Stats
+		expected     map[int32]*procutil.Process
 	}{
 		{
-			description: "normal wlm collection",
+			description:  "normal wlm collection",
+			wlmProcesses: wlmProcesses,
+			statsByPid:   statsByPid,
+			expected:     expected1,
+		},
+		{
+			description:  "race condition - process dies after wlm collection before stat collection",
+			wlmProcesses: []*wmdef.Process{proc1, proc2, proc3, proc4},
+			statsByPid:   statsByPidMissingProc1,
+			expected:     expected2,
+		},
+		{
+			description:  "race condition - process dies after wlm collection with new process and same PID before stat collection",
+			wlmProcesses: []*wmdef.Process{proc1, proc2, proc3, proc4},
+			statsByPid:   statsByPidNewProc1,
+			expected:     expected3,
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
@@ -49,7 +99,6 @@ func TestProcessesByPIDWLM(t *testing.T) {
 				workloadmetafxmock.MockModule(wmdef.NewParams()),
 			))
 
-			mockConstantClock := constantMockClock(time.Now())
 			processCheck := &ProcessCheck{
 				wmeta:                   mockWLM,
 				probe:                   mockProbe,
@@ -58,32 +107,17 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			}
 
 			// MOCKING
-			nowSeconds := mockConstantClock.Now().Unix()
-			proc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowSeconds)
-			proc2 := wlmProcessWithCreateTime(2, "mine-bitcoins -all -x", nowSeconds-1)
-			proc3 := wlmProcessWithCreateTime(3, "datadog-agent --cfgpath datadog.conf", nowSeconds+2)
-			proc4 := wlmProcessWithServiceDiscovery(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds-3)
-			procs := []*wmdef.Process{proc1, proc2, proc3, proc4}
-			for _, p := range procs {
+			for _, p := range tc.wlmProcesses {
 				mockWLM.Set(p)
 			}
 
 			// elevatedPermissions is irrelevant since we are mocking the probe so no internal logic is tested
-			statsByPid := createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
-			mockProbe.EXPECT().StatsForPIDs(mock.Anything, mockConstantClock.Now()).Return(statsByPid, nil).Once()
-
-			// EXPECTED
-			expected := map[int32]*procutil.Process{
-				proc1.Pid: mapWLMProcToProc(proc1, statsByPid[proc1.Pid]),
-				proc2.Pid: mapWLMProcToProc(proc2, statsByPid[proc2.Pid]),
-				proc3.Pid: mapWLMProcToProc(proc3, statsByPid[proc3.Pid]),
-				proc4.Pid: mapWLMProcToProc(proc4, statsByPid[proc4.Pid]),
-			}
+			mockProbe.EXPECT().StatsForPIDs(mock.Anything, mockConstantClock.Now()).Return(tc.statsByPid, nil).Once()
 
 			// TESTING
 			actual, err := processCheck.processesByPID()
 			assert.NoError(t, err)
-			assert.Equal(t, expected, actual)
+			assert.Equal(t, tc.expected, actual)
 		})
 	}
 }

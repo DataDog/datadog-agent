@@ -83,7 +83,7 @@ func (p *Process) DeepCopy() *Process {
 
 // Stats holds all relevant stats metrics of a process
 type Stats struct {
-	CreateTime int64
+	CreateTime int64 // milliseconds
 	// Status returns the process status. https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html
 	// Supported return values:
 	// U: unknown state

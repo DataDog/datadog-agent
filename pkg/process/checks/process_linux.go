@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // languageMap is used to manually map from internal language type to the equivalent agent payload language type
@@ -75,8 +76,11 @@ func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 		for _, wlmProc := range wlmProcList {
 			stats, exists := statsForProcess[wlmProc.Pid]
 			// we need to check if the stats exist because there can be a lag between when a process is stored into WLM and when we query for its stats
-			// ex. a process is stopped but still exists in WLM, so the stats don't exist, and we shouldn't report it anymore
-			if !exists {
+			// we also want to verify that the stats are from the same collected process and not just the same PID coincidence by checking the start time
+			// ex. a process is stopped but still exists in WLM, so the stats don't exist, and we shouldn't report it anymore,
+			// additionally a new process with the same pid could spin up in between wlm collection and stat collection
+			if !exists || (stats.CreateTime != wlmProc.CreationTime.Unix()) {
+				log.Debugf("stats do not exist for dead process %v - skipping", wlmProc.Pid)
 				continue
 			}
 			procs[wlmProc.Pid] = mapWLMProcToProc(wlmProc, stats)
