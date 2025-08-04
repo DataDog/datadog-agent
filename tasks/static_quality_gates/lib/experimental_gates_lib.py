@@ -300,22 +300,19 @@ class StaticQualityGateDocker(StaticQualityGate):
         ).stdout.splitlines()
         on_disk_size = 0
         image_tar_gz = []
-        print("Image on disk content :")
         for k, line in enumerate(image_content):
             if k % 2 == 0:
                 if "tar.gz" in image_content[k + 1]:
                     image_tar_gz.append(image_content[k + 1])
                 else:
                     on_disk_size += int(line)
-            else:
-                print(f"  - {line}")
         if image_tar_gz:
             for image in image_tar_gz:
                 on_disk_size += int(self.ctx.run(f"tar -xf {image} --to-stdout | wc -c", hide=True).stdout)
         else:
             print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
 
-        print(f"Current image on disk size: {on_disk_size}")
+        print(f"Current image on disk size for {self.artifact_path}: {on_disk_size}")
         self.metric_handler.register_metric(self.gate_name, "current_on_disk_size", on_disk_size)
         self.artifact_on_disk_size = on_disk_size
 
@@ -334,7 +331,7 @@ class StaticQualityGateDocker(StaticQualityGate):
         )
 
         on_wire_size = int(manifest_output.stdout)
-        print(f"Current image on wire size: {on_wire_size}")
+        print(f"Current image on wire size for {self.artifact_path}: {on_wire_size}")
         self.metric_handler.register_metric(self.gate_name, "current_on_wire_size", on_wire_size)
         self.artifact_on_wire_size = on_wire_size
 
