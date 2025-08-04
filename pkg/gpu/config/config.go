@@ -38,6 +38,8 @@ type Config struct {
 	RingBufferSizePagesPerDevice int
 	// StreamConfig is the configuration for the streams.
 	StreamConfig StreamConfig
+	// AttacherDetailedLogs indicates whether the probe should enable detailed logs for the uprobe attacher.
+	AttacherDetailedLogs bool
 }
 
 // StreamConfig is the configuration for the streams.
@@ -76,5 +78,6 @@ func New() *Config {
 			MaxPendingKernelSpans: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_pending_kernel_spans")),
 			MaxPendingMemorySpans: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_pending_memory_spans")),
 		},
+		AttacherDetailedLogs: spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "attacher_detailed_logs")),
 	}
 }
