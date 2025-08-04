@@ -499,11 +499,11 @@ def config_ssh_key(ctx: Context):
             agent_keys = get_ssh_agent_key_names(ctx)
             ssh_keys = [{'path': None, 'name': key, 'aws_key_name': key} for key in agent_keys]
         else:
-            ssh_key_files = [Path(f[: -len(".pub")]) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
+            ssh_key_files = [Path(f) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
             ssh_keys = []
 
             for f in ssh_key_files:
-                key_name = get_ssh_key_name(f.with_suffix(".pub")) or f.name
+                key_name = get_ssh_key_name(f)
                 ssh_keys.append({'path': os.fspath(f), 'name': key_name, 'aws_key_name': ''})
 
         keys_str = "\n".join([f" - [{i + 1}] {key['name']} (path: {key['path']})" for i, key in enumerate(ssh_keys)])
