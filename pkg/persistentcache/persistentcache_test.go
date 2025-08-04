@@ -111,6 +111,6 @@ func TestRenamePersistentCache(t *testing.T) {
 	err = Rename("mykey", "myotherkey")
 	assert.Nil(t, err)
 
-	assert.True(t, Exists("myotherkey"))
 	assert.False(t, Exists("mykey"))
+	assert.True(t, Exists("myotherkey"))
 }
