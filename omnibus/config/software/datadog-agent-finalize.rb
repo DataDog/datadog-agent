@@ -163,6 +163,9 @@ build do
             # Most postgres binaries are removed in postgres' own software
             # recipe, but we need pg_config to build psycopq.
             delete "#{install_dir}/embedded/bin/pg_config"
+
+            # Edit rpath from a true path to relative path for each binary
+            command "inv omnibus.rpath-edit #{install_dir} /opt/datadog-packages/datadog-agent/experiment:/opt/datadog-packages/datadog-agent/stable:/opt/datadog-agent", cwd: Dir.pwd
         end
 
         if osx_target?

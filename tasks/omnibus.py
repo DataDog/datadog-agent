@@ -538,17 +538,19 @@ def _replace_dylib_id_paths_with_rpath(ctx, otool_output, install_path, file):
         ctx.run(f"install_name_tool -id {new_dylib_path} {file}")
 
 
-def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file):
+def _patch_binary_rpath(ctx, new_rpaths, install_path, binary_rpath, platform, file):
     if platform == "linux":
-        ctx.run(f"patchelf --force-rpath --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
+        rpath_concat = ":".join([f"\\$ORIGIN/{new_rpath}/embedded/lib" for new_rpath in new_rpaths])
+        ctx.run(f"patchelf --force-rpath --set-rpath {rpath_concat} {file}")
     else:
         # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
         # but just in case we're replacing them all.
         # We're also avoiding unnecessary `install_name_tool` call as much as possible.
         number_of_rpaths = binary_rpath.count('\n') // 3
+        rpath_concat = ":".join([f"@loader_path/{new_rpath}/embedded/lib" for new_rpath in new_rpaths])
         for _ in range(number_of_rpaths):
             exit_code = ctx.run(
-                f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}",
+                f"install_name_tool -rpath {install_path}/embedded/lib {rpath_concat} {file}",
                 warn=True,
                 hide=True,
             ).exited
@@ -592,5 +594,5 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
 
         # if a binary has an rpath that use our installation path we are patching it
         if install_path in binary_rpath:
-            new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
-            _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
+            new_rpaths = [os.path.relpath(path, os.path.dirname(file)) for path in target_rpath_dd_folder.split(":")]
+            _patch_binary_rpath(ctx, new_rpaths, install_path, binary_rpath, platform, file)
