@@ -89,8 +89,8 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[in
 
 	symbols := make(common.StringSet)
 	result := make(map[int]*InspectionResult, len(requestSets))
-	for setId, requests := range requestSets {
-		result[setId] = &InspectionResult{
+	for setID, requests := range requestSets {
+		result[setID] = &InspectionResult{
 			SymbolMap: make(map[string]bininspect.FunctionMetadata),
 			Error:     nil,
 		}
@@ -105,22 +105,22 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[in
 	// Ignore the error here, as we will check below for non-existing symbols
 	symbolMap, _ := bininspect.GetAllSymbolsInSetByName(elfFile, symbols)
 
-	for setId, requests := range requestSets {
+	for setID, requests := range requestSets {
 		for _, req := range requests {
 			symbol, found := symbolMap[req.Name]
 			if !found {
 				if !req.BestEffort {
-					result[setId].Error = errors.Join(result[setId].Error, fmt.Errorf("symbol %s not found in %s", req.Name, fpath.HostPath))
+					result[setID].Error = errors.Join(result[setID].Error, fmt.Errorf("symbol %s not found in %s", req.Name, fpath.HostPath))
 				}
 
 				continue
 			}
 			m, err := p.symbolToFuncMetadata(elfFile, symbol)
 			if err != nil {
-				result[setId].Error = errors.Join(result[setId].Error, fmt.Errorf("failed to convert symbol %s to function metadata: %w", req.Name, err))
+				result[setID].Error = errors.Join(result[setID].Error, fmt.Errorf("failed to convert symbol %s to function metadata: %w", req.Name, err))
 				continue
 			}
-			result[setId].SymbolMap[req.Name] = *m
+			result[setID].SymbolMap[req.Name] = *m
 		}
 	}
 
