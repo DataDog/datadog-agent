@@ -289,57 +289,57 @@ func (c *Config) IsIPIgnored(ip net.IP) bool {
 }
 
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
-func (a *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.GoSNMP, error) {
-	if a.Community == "" && a.User == "" {
-		return nil, errors.New("No a mechanism specified")
+func (authentication *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.GoSNMP, error) {
+	if authentication.Community == "" && authentication.User == "" {
+		return nil, errors.New("No authentication mechanism specified")
 	}
 
 	var version gosnmp.SnmpVersion
-	if a.Version == "1" {
+	if authentication.Version == "1" {
 		version = gosnmp.Version1
-	} else if a.Version == "2" || (a.Version == "" && a.Community != "") {
+	} else if authentication.Version == "2" || (authentication.Version == "" && authentication.Community != "") {
 		version = gosnmp.Version2c
-	} else if a.Version == "3" || (a.Version == "" && a.User != "") {
+	} else if authentication.Version == "3" || (authentication.Version == "" && authentication.User != "") {
 		version = gosnmp.Version3
 	} else {
-		return nil, fmt.Errorf("SNMP version not supported: %s", a.Version)
+		return nil, fmt.Errorf("SNMP version not supported: %s", authentication.Version)
 	}
 
-	authProtocol, err := gosnmplib.GetAuthProtocol(a.AuthProtocol)
+	authProtocol, err := gosnmplib.GetAuthProtocol(authentication.AuthProtocol)
 	if err != nil {
 		return nil, err
 	}
 
-	privProtocol, err := gosnmplib.GetPrivProtocol(a.PrivProtocol)
+	privProtocol, err := gosnmplib.GetPrivProtocol(authentication.PrivProtocol)
 	if err != nil {
 		return nil, err
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv
-	if a.PrivKey != "" {
+	if authentication.PrivKey != "" {
 		msgFlags = gosnmp.AuthPriv
-	} else if a.AuthKey != "" {
+	} else if authentication.AuthKey != "" {
 		msgFlags = gosnmp.AuthNoPriv
 	}
 
 	return &gosnmp.GoSNMP{
 		Target:          deviceIP,
 		Port:            port,
-		Community:       a.Community,
+		Community:       authentication.Community,
 		Transport:       "udp",
 		Version:         version,
-		Timeout:         time.Duration(a.Timeout) * time.Second,
-		Retries:         a.Retries,
+		Timeout:         time.Duration(authentication.Timeout) * time.Second,
+		Retries:         authentication.Retries,
 		SecurityModel:   gosnmp.UserSecurityModel,
 		MsgFlags:        msgFlags,
-		ContextEngineID: a.ContextEngineID,
-		ContextName:     a.ContextName,
+		ContextEngineID: authentication.ContextEngineID,
+		ContextName:     authentication.ContextName,
 		SecurityParameters: &gosnmp.UsmSecurityParameters{
-			UserName:                 a.User,
+			UserName:                 authentication.User,
 			AuthenticationProtocol:   authProtocol,
-			AuthenticationPassphrase: a.AuthKey,
+			AuthenticationPassphrase: authentication.AuthKey,
 			PrivacyProtocol:          privProtocol,
-			PrivacyPassphrase:        a.PrivKey,
+			PrivacyPassphrase:        authentication.PrivKey,
 		},
 	}, nil
 }
