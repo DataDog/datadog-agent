@@ -12,6 +12,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_commit_sha, get_main_parent_commit
 from tasks.libs.common.utils import get_distro, gitlab_section
+from tasks.libs.common.coverage import upload_codecov
 
 PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
@@ -116,7 +117,7 @@ def upload_to_codecov(
     pull_coverage_cache: bool = False,
     push_coverage_cache: bool = False,
     debug_cache: bool = False,
-    extra_tag: list[str] | None = None,
+    extra_tag=None,
 ):
     """
     Uploads coverage data of all modules to Codecov.
@@ -127,20 +128,15 @@ def upload_to_codecov(
              --push-coverage-cache: [For main]         Push the coverage cache to the S3 bucket.
              --debug-cache:                            Used to debug the cache.
     """
+    print("Running codecov upload 0")
     if pull_coverage_cache and push_coverage_cache:
         raise Exit(
             color_message("Error: Can't use both --pull-missing-coverage and --push-coverage-cache flags.", Color.RED),
             code=1,
         )
-    distro_tag = get_distro()
-    tags = [distro_tag]
-    codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
+    print("Running codecov upload 0")
 
-    if extra_tag:
-        tags.extend(extra_tag)
-
-    # Build the flags string with all tags
-    flags_string = " ".join([f"-F {tag}" for tag in tags])
+    print("Running codecov upload 1")
 
     if pull_coverage_cache:
         with gitlab_section("Applying missing coverage cache from S3", collapsed=True):
@@ -148,9 +144,9 @@ def upload_to_codecov(
     if push_coverage_cache:
         with gitlab_section("Uploading coverage files to S3", collapsed=True):
             upload_coverage_to_s3(ctx)
-
+    print("Running codecov upload")
     with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
-        ctx.run(f"{codecov_binary} -f {coverage_file} {flags_string}", warn=True, timeout=2 * 60)
+        upload_codecov(ctx=ctx, coverage_file=coverage_file, extra_tag=extra_tag)
 
 
 @task
@@ -214,8 +210,10 @@ def process_e2e_coverage_folders(ctx: Context, coverage_output_dir: str):
 
         # Upload coverage with job name as tag
         try:
+            print("Running codecov upload 2", str(coverage_txt_file), job_name)
             with gitlab_section(f"Uploading coverage for {folder.name} with tag: {job_name}", collapsed=True):
-                upload_to_codecov(ctx=ctx, coverage_file=str(coverage_txt_file), extra_tag=[job_name])
+                print("Running codecov upload 3", str(coverage_txt_file), [job_name])
+                upload_codecov(ctx=ctx, coverage_file=str(coverage_txt_file), extra_tag=[job_name])
         except Exception as e:
             print(color_message(f"Error uploading coverage for {folder.name}: {e}", Color.RED))
             continue
