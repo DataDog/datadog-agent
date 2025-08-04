@@ -341,6 +341,7 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 					ResourcePolicies: []*model.ContainerResourcePolicy{
 						{
 							ContainerName: "TestContainer",
+							Mode:          "Auto", // Should default to Auto when nil
 							MinAllowed: &model.ResourceList{
 								MetricValues: map[string]float64{},
 							},
