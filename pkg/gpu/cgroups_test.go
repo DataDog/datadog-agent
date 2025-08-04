@@ -12,19 +12,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	containerdcgroups "github.com/containerd/cgroups/v3"
 	"github.com/containerd/cgroups/v3/cgroup1"
 	"github.com/containerd/cgroups/v3/cgroup2"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -292,89 +289,18 @@ func TestGetAbsoluteCgroupForProcess(t *testing.T) {
 }
 
 func TestGetAbsoluteCgroupV2ForProcessInsideContainer(t *testing.T) {
-	if os.Geteuid() != 0 {
-		t.Skip("Test requires root privileges for the bind mount")
-	}
-
-	// For this test, instead of setting up the container completely as we do in the other tests,
-	// we will just mock the cgroup hierarchy
-	containerRoot := t.TempDir()
-
-	// Create the procfs structure
-	hostRootMountpoint := "/host"
-	hostProc := filepath.Join(containerRoot, hostRootMountpoint, "proc")
-	pid := 10
-	siblingProc := 20
-
-	// Avoid memoization of ProcFSRoot, as we're not using the real procfs for utils.GetProcControlGroups
-	kernel.ResetProcFSRoot()
-	t.Setenv("HOST_PROC", hostProc)
-	t.Cleanup(func() {
-		kernel.ResetProcFSRoot()
-	})
-
-	mainProcCgroupFile := filepath.Join(hostProc, strconv.Itoa(pid), "task", strconv.Itoa(pid), "cgroup")
-	require.NoError(t, os.MkdirAll(filepath.Dir(mainProcCgroupFile), 0755))
-	require.NoError(t, os.WriteFile(mainProcCgroupFile, []byte("0::/"), 0644))
-
-	siblingCgroupName := fmt.Sprintf("test-sibling-cgroup-%s", utils.RandString(10))
-	siblingProcCgroupFile := filepath.Join(hostProc, strconv.Itoa(siblingProc), "task", strconv.Itoa(siblingProc), "cgroup")
-	require.NoError(t, os.MkdirAll(filepath.Dir(siblingProcCgroupFile), 0755))
-	require.NoError(t, os.WriteFile(siblingProcCgroupFile, []byte(fmt.Sprintf("0::/../%s", siblingCgroupName)), 0644))
-
-	// The container Cgroupfs is just a single directory (no child cgroups)
-	containerCgroupFs := filepath.Join(containerRoot, "/sys/fs/cgroup")
-	require.NoError(t, os.MkdirAll(containerCgroupFs, 0755))
-
-	// The host Cgroupfs is a single directory with some cgroups
-	hostCgroupFs := filepath.Join(containerRoot, hostRootMountpoint, "/sys/fs/cgroup")
-
-	for i := 0; i < 10; i++ {
-		cgroupName := fmt.Sprintf("test-cgroup-%d", i)
-		cgroupPath := filepath.Join(hostCgroupFs, cgroupName, "cgroup.procs")
-		require.NoError(t, os.MkdirAll(filepath.Dir(cgroupPath), 0755))
-		require.NoError(t, os.WriteFile(cgroupPath, []byte(strconv.Itoa(pid)), 0644))
-	}
-
-	// Our target cgroup is a child cgroup too, so create a nested hierarchy
-	parentCgroupName := fmt.Sprintf("test-parent-cgroup-%s", utils.RandString(10))
-
-	// Create our child cgroup, using a bind mount so the inode is the same as the cgroup directory for the parent
-	childCgroupName := fmt.Sprintf("test-child-cgroup-%s", utils.RandString(10))
-	childCgroupPath := filepath.Join(parentCgroupName, childCgroupName)
-	childCgroupFullPath := filepath.Join(hostCgroupFs, childCgroupPath)
-	require.NoError(t, os.MkdirAll(childCgroupFullPath, 0755))
-	err := unix.Mount(containerCgroupFs, childCgroupFullPath, "bind", unix.MS_BIND, "")
-	// If we get permission denied when trying a bind mount inside our temporary directory,
-	// it probably means we're running in a container and the bind mount is not allowed.
-	if errors.Is(err, unix.EPERM) || errors.Is(err, unix.EACCES) {
-		t.Skip("Test requires privileges to bind mount our test directories")
-	}
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		require.NoError(t, unix.Unmount(childCgroupFullPath, unix.MNT_DETACH))
-	})
-
-	// For sanity check, ensure here that the inodes of containerCgroupFs and childCgroupFullPath are the same
-	var containerCgroupFsStat, childCgroupFullPathStat unix.Stat_t
-	require.NoError(t, unix.Stat(containerCgroupFs, &containerCgroupFsStat))
-	require.NoError(t, unix.Stat(childCgroupFullPath, &childCgroupFullPathStat))
-	require.Equal(t, containerCgroupFsStat.Ino, childCgroupFullPathStat.Ino, "the inodes should be the same, something is wrong with the bind mount")
-
-	// For the sibling cgroup we don't need the directory structure, we just need the cgroup name
-	siblingCgroupPath := filepath.Join(parentCgroupName, siblingCgroupName)
+	env := setupMockContainerEnv(t)
 
 	t.Run("SameProcess", func(t *testing.T) {
-		cgroupPath, err := getAbsoluteCgroupForProcess(containerRoot, hostRootMountpoint, uint32(pid), uint32(pid), containerdcgroups.Unified)
+		cgroupPath, err := getAbsoluteCgroupForProcess(env.containerRoot, env.hostRootMountpoint, uint32(env.pid), uint32(env.pid), containerdcgroups.Unified)
 		require.NoError(t, err)
-		require.Equal(t, "/"+childCgroupPath, cgroupPath)
+		require.Equal(t, "/"+env.childCgroupPath, cgroupPath)
 	})
 
 	t.Run("SiblingProcess", func(t *testing.T) {
-		cgroupPath, err := getAbsoluteCgroupForProcess(containerRoot, hostRootMountpoint, uint32(pid), uint32(siblingProc), containerdcgroups.Unified)
+		cgroupPath, err := getAbsoluteCgroupForProcess(env.containerRoot, env.hostRootMountpoint, uint32(env.pid), uint32(env.siblingProc), containerdcgroups.Unified)
 		require.NoError(t, err)
-		require.Equal(t, "/"+siblingCgroupPath, cgroupPath)
+		require.Equal(t, "/"+env.siblingCgroupPath, cgroupPath)
 	})
 }
 
