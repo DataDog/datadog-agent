@@ -2,7 +2,7 @@
 .deploy_packages_deb:
   resource_group: deb_bucket
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -38,7 +38,7 @@
 .deploy_packages_rpm:
   resource_group: rpm_bucket
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     ARTIFACTS_PREFIX: ""
   before_script:
@@ -91,7 +91,7 @@
   resource_group: deb_bucket
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     DD_PKG_ARCH: x86_64
   before_script:
@@ -107,7 +107,7 @@
   resource_group: rpm_bucket
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     DD_PKG_ARCH: x86_64
   before_script:
@@ -130,7 +130,7 @@ deploy_installer_install_scripts:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
   needs: ["installer-install-scripts"]
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
