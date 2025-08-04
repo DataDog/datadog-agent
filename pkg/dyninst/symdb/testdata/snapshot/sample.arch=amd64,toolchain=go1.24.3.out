@@ -135,10 +135,10 @@ Package: main
 	Function: testError (main.testError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [60:60]
 		Arg: e: error (declared at line 60, available: [60-60])
 	Function: executeInterfaceFuncs (main.executeInterfaceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [63:67]
-	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [18:43]
-	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.0.1/ddtrace/tracer/option.go [975:978]
-		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 975, available: [975-977])
-		Var: name: string (declared at line 976, available: [976-978])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [19:45]
+	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.3.0-dev/ddtrace/tracer/option.go [986:989]
+		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
+		Var: name: string (declared at line 987, available: [987-989])
 	Function: testStructWithMap (main.testStructWithMap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [18:18]
 		Arg: s: main.structWithMap (declared at line 18, available: [18-18])
 	Function: testMapStringToStruct (main.testMapStringToStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go [22:22]
@@ -629,5 +629,7 @@ Package: main
 	Type: main.structWithNoStrings
 		Field: aUint8: uint8
 		Field: aBool: bool
+Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
+	Function: FooV2 (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.FooV2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [15:16]
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 	Function: Foo (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Foo) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [12:13]

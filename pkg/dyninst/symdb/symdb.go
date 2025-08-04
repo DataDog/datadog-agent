@@ -66,12 +66,20 @@ func (s PackageStats) String() string {
 }
 
 // Stats computes statistics about the package's symbols.
-func (p Package) Stats() PackageStats {
+//
+// sourceFiles will be populated with files encoutered while going through this
+// package's compile unit. Nil can be passed if the caller is not interested.
+// Note that it's possible for multiple compile units to reference the same file
+// due to inlined functions; in such cases, the file will arbitrarily count
+// towards the stats of the first package that adds it to the map.
+func (p Package) Stats(sourceFiles map[string]struct{}) PackageStats {
 	var res PackageStats
+	if sourceFiles == nil {
+		sourceFiles = make(map[string]struct{})
+	}
 	res.NumTypes += len(p.Types)
 	res.NumFunctions += len(p.Functions)
 	for _, f := range p.Functions {
-		sourceFiles := make(map[string]struct{}) // Keep track of unique source files.
 		_, ok := sourceFiles[f.File]
 		if !ok {
 			sourceFiles[f.File] = struct{}{}
@@ -106,9 +114,9 @@ type Function struct {
 	// The function's unqualified name.
 	Name string
 	// The function's fully-qualified name, including module, package and
-	// receiver. When creating probes based on a function name coming from
-	// SymDB, the qualified name is how the function is identified to the
-	// prober.
+	// receiver, as it appears in DWARF. When creating probes based on a
+	// function name coming from SymDB, the qualified name is how the function
+	// is identified to the prober.
 	QualifiedName string
 	// The source file containing the function. This is an absolute path local
 	// to the build machine, as recorded in DWARF.
@@ -380,6 +388,20 @@ func (c *typesCollection) getType(name string) *Type {
 // Unsupported types are ignored and no error is returned.
 func (c *typesCollection) addType(t godwarf.Type) error {
 	name := t.Common().Name
+	{
+		// If the last element of the package's import path contains dots, they
+		// are replaced with %2e in DWARF to differentiate them from the dot
+		// that separates the package path from the type name. Undo this
+		// escaping so that our cache key matches the actual package name.
+		escapedDot := "%2e"
+		i := strings.LastIndex(name, escapedDot)
+		if i >= 0 {
+			// Replace %2e with '.' in the type name. This is how DWARF encodes
+			// dots in package names.
+			name = name[:i] + "." + name[i+len(escapedDot):]
+		}
+	}
+
 	// Check if the type is already present.
 	if _, ok := c.types[name]; ok {
 		return nil
@@ -806,7 +828,7 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 
 	duration := time.Since(start)
 	if duration > 5*time.Second {
-		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats())
+		log.Warnf("Processing package %s took %s: %s", name, duration, res.Stats(nil))
 	}
 
 	return res, nil
