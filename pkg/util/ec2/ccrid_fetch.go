@@ -1,4 +1,4 @@
-package aws
+package ec2
 
 import (
 	"context"
@@ -14,8 +14,7 @@ import (
 )
 
 const (
-	CloudProviderName = "AWS"
-	imdsBaseURL       = "http://169.254.169.254/latest/meta-data/"
+	imdsBaseURL = "http://169.254.169.254/latest/meta-data/"
 )
 
 var (
@@ -58,13 +57,6 @@ func (f *Fetcher) FetchString(ctx context.Context) (string, error) {
 	return s, nil
 }
 
-var instanceIDFetcher = Fetcher{
-	Name: "EC2 Instance ID",
-	Attempt: func(ctx context.Context) (interface{}, error) {
-		return httpGetMetadata("instance-id")
-	},
-}
-
 var regionFetcher = Fetcher{
 	Name: "EC2 Region",
 	Attempt: func(ctx context.Context) (interface{}, error) {
@@ -88,16 +80,8 @@ var accountIDFetcher = Fetcher{
 	},
 }
 
-func GetInstanceID(ctx context.Context) (string, error) {
-	return instanceIDFetcher.FetchString(ctx)
-}
-
 func GetRegion(ctx context.Context) (string, error) {
 	return regionFetcher.FetchString(ctx)
-}
-
-func GetAccountID(ctx context.Context) (string, error) {
-	return accountIDFetcher.FetchString(ctx)
 }
 
 func httpGetMetadata(path string) (string, error) {
