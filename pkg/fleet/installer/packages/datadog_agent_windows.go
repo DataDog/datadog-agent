@@ -526,7 +526,11 @@ func getWatchdogTimeout() time.Duration {
 func getenv() *env.Env {
 	env := env.FromEnv()
 
-	// fallback to service user for agent user
+	// This function prefers values from the environment, with a fallback if not set, for values:
+	//   - Agent user name (fallback to service user)
+	//   - Project location
+	//   - Application data directory
+	//
 	// Using service allows for remote updates to work when the hostname changes
 	if env.MsiParams.AgentUserName == "" {
 		user, err := windowsuser.GetAgentUserFromService()

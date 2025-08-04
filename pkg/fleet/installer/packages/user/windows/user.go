@@ -334,6 +334,13 @@ func GetAgentUserNameFromRegistry() (string, error) {
 }
 
 // GetAgentUserFromService returns the username for the Agent service user
+// This funtionality does the following:
+//   - service username -> SID
+//   - SID -> fully qualified username
+//
+// This is used to get the full agent user name from the service
+// we need to get the fully qualified username to validate the agent user name for remote updates
+// and to use in the environment for running the MSI
 func GetAgentUserFromService() (string, error) {
 	sid, errService := winutil.GetServiceUserSID("datadogagent")
 	if errService != nil {
