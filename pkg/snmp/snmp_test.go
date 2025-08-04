@@ -735,184 +735,156 @@ network_devices:
 
 func TestConfig_Digest(t *testing.T) {
 	tests := []struct {
-		name             string
-		configA          Config
-		configB          Config
-		ipAddressA       string
-		ipAddressB       string
-		useLegacyFormatA bool
-		useLegacyFormatB bool
-		isSameDigest     bool
+		name          string
+		configA       Config
+		configB       Config
+		ipAddressA    string
+		ipAddressB    string
+		useNewFormatA bool
+		useNewFormatB bool
+		isSameDigest  bool
 	}{
 		{
-			name:             "same ipaddress",
-			ipAddressA:       "1.2.3.4",
-			ipAddressB:       "1.2.3.4",
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-			isSameDigest:     true,
+			name:         "same ipaddress",
+			ipAddressA:   "1.2.3.4",
+			ipAddressB:   "1.2.3.4",
+			isSameDigest: true,
 		},
 		{
-			name:             "test different ipaddress",
-			ipAddressA:       "1.2.3.4",
-			ipAddressB:       "1.2.3.5",
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
+			name:       "test different ipaddress",
+			ipAddressA: "1.2.3.4",
+			ipAddressB: "1.2.3.5",
 		},
 		{
-			name:             "test port",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{Port: 123},
-			configB:          Config{Port: 124},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test version",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{Version: "1"},
-			configB:          Config{Version: "2"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test community",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{Community: "something"},
-			configB:          Config{Community: "somethingElse"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test user",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{User: "myuser"},
-			configB:          Config{User: "myuser2"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test AuthKey",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{AuthKey: "my-AuthKey"},
-			configB:          Config{AuthKey: "my-AuthKey2"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test AuthProtocol",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{AuthProtocol: "sha"},
-			configB:          Config{AuthProtocol: "md5"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test PrivKey",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{PrivKey: "abc"},
-			configB:          Config{PrivKey: "123"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test PrivProtocol",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{PrivProtocol: "AES"},
-			configB:          Config{PrivProtocol: "DES"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test ContextEngineID",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{ContextEngineID: "engineID"},
-			configB:          Config{ContextEngineID: "engineID2"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test ContextName",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{ContextName: "someContextName"},
-			configB:          Config{ContextName: "someContextName2"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test Loader",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{Loader: "core"},
-			configB:          Config{Loader: "python"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test Namespace",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{Namespace: "ns1"},
-			configB:          Config{Namespace: "ns2"},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test different IgnoredIPAddresses",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{IgnoredIPAddresses: map[string]bool{"1.2.3.3": true}},
-			configB:          Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:             "test empty IgnoredIPAddresses",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{IgnoredIPAddresses: map[string]bool{}},
-			configB:          Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
-			useLegacyFormatA: true,
-			useLegacyFormatB: true,
-		},
-		{
-			name:       "new format Community",
+			name:       "test port",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
-			configA:    Config{Authentications: []Authentication{{Community: "something"}}},
-			configB:    Config{Authentications: []Authentication{{Community: "somethingElse"}}},
+			configA:    Config{Port: 123},
+			configB:    Config{Port: 124},
 		},
 		{
-			name:             "old format vs. new format with same Community",
-			ipAddressA:       "1.2.3.5",
-			ipAddressB:       "1.2.3.5",
-			configA:          Config{Community: "something"},
-			configB:          Config{Authentications: []Authentication{{Community: "something"}}},
-			useLegacyFormatA: true,
-			isSameDigest:     true,
+			name:       "test version",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Version: "1"},
+			configB:    Config{Version: "2"},
 		},
 		{
-			name:       "old format vs. new format with same Community but without useLegacyFormatA",
+			name:       "test community",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
 			configA:    Config{Community: "something"},
-			configB:    Config{Authentications: []Authentication{{Community: "something"}}},
+			configB:    Config{Community: "somethingElse"},
+		},
+		{
+			name:       "test user",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{User: "myuser"},
+			configB:    Config{User: "myuser2"},
+		},
+		{
+			name:       "test AuthKey",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{AuthKey: "my-AuthKey"},
+			configB:    Config{AuthKey: "my-AuthKey2"},
+		},
+		{
+			name:       "test AuthProtocol",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{AuthProtocol: "sha"},
+			configB:    Config{AuthProtocol: "md5"},
+		},
+		{
+			name:       "test PrivKey",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{PrivKey: "abc"},
+			configB:    Config{PrivKey: "123"},
+		},
+		{
+			name:       "test PrivProtocol",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{PrivProtocol: "AES"},
+			configB:    Config{PrivProtocol: "DES"},
+		},
+		{
+			name:       "test ContextEngineID",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{ContextEngineID: "engineID"},
+			configB:    Config{ContextEngineID: "engineID2"},
+		},
+		{
+			name:       "test ContextName",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{ContextName: "someContextName"},
+			configB:    Config{ContextName: "someContextName2"},
+		},
+		{
+			name:       "test Loader",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Loader: "core"},
+			configB:    Config{Loader: "python"},
+		},
+		{
+			name:       "test Namespace",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Namespace: "ns1"},
+			configB:    Config{Namespace: "ns2"},
+		},
+		{
+			name:       "test different IgnoredIPAddresses",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.3": true}},
+			configB:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
+		},
+		{
+			name:       "test empty IgnoredIPAddresses",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{IgnoredIPAddresses: map[string]bool{}},
+			configB:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
+		},
+		{
+			name:          "new format Community",
+			ipAddressA:    "1.2.3.5",
+			ipAddressB:    "1.2.3.5",
+			configA:       Config{Authentications: []Authentication{{Community: "something"}}},
+			configB:       Config{Authentications: []Authentication{{Community: "somethingElse"}}},
+			useNewFormatA: true,
+			useNewFormatB: true,
+		},
+		{
+			name:          "old format vs. new format with same Community",
+			ipAddressA:    "1.2.3.5",
+			ipAddressB:    "1.2.3.5",
+			configA:       Config{Authentications: []Authentication{{Community: "something"}}},
+			configB:       Config{Community: "something"},
+			useNewFormatA: true,
+			isSameDigest:  true,
+		},
+		{
+			name:          "old format vs. new format with same Community but both use new format",
+			ipAddressA:    "1.2.3.5",
+			ipAddressB:    "1.2.3.5",
+			configA:       Config{Authentications: []Authentication{{Community: "something"}}},
+			configB:       Config{Community: "something"},
+			useNewFormatA: true,
+			useNewFormatB: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			digestA := tt.configA.Digest(tt.ipAddressA, tt.useLegacyFormatA)
-			digestB := tt.configB.Digest(tt.ipAddressB, tt.useLegacyFormatB)
+			digestA := tt.configA.Digest(tt.ipAddressA, !tt.useNewFormatA)
+			digestB := tt.configB.Digest(tt.ipAddressB, !tt.useNewFormatB)
 			if tt.isSameDigest {
 				assert.Equal(t, digestA, digestB)
 			} else {
