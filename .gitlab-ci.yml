@@ -1101,4 +1101,6 @@ celian:
   script:
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     - dda self dep sync -f legacy-tasks -f legacy-notifications
+    - export PYTHONUNBUFFERED=1
     - dda inv -- -e gitlab.test
+    - dda inv -- gitlab.test
