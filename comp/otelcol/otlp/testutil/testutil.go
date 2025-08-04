@@ -616,7 +616,8 @@ func ProcessLogsAgentRequest(w http.ResponseWriter, r *http.Request) JSONLogs {
 
 // TestTaggerClient is used to store sample tags for testing purposes
 type TestTaggerClient struct {
-	TagMap map[string][]string
+	TagMap         map[string][]string
+	ContainerIDMap map[string]string
 }
 
 var _ types.TaggerClient = (*TestTaggerClient)(nil)
@@ -624,7 +625,8 @@ var _ types.TaggerClient = (*TestTaggerClient)(nil)
 // NewTestTaggerClient creates and returns a new testTaggerClient with an empty string map
 func NewTestTaggerClient() *TestTaggerClient {
 	return &TestTaggerClient{
-		TagMap: make(map[string][]string),
+		TagMap:         make(map[string][]string),
+		ContainerIDMap: make(map[string]string),
 	}
 }
 
@@ -640,5 +642,24 @@ func (t *TestTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) 
 
 // GenerateContainerIDFromOriginInfo mocks taggerimpl.GenerateContainerIDFromOriginInfo functionality
 func (t *TestTaggerClient) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
+	if originInfo.LocalData.ContainerID != "" {
+		return originInfo.LocalData.ContainerID, nil
+	}
+	if originInfo.LocalData.ProcessID != 0 {
+		if containerID, ok := t.ContainerIDMap[fmt.Sprintf("pid:%d", originInfo.LocalData.ProcessID)]; ok {
+			return containerID, nil
+		}
+	}
+	if originInfo.LocalData.Inode != 0 {
+		if containerID, ok := t.ContainerIDMap[fmt.Sprintf("inode:%d", originInfo.LocalData.Inode)]; ok {
+			return containerID, nil
+		}
+	}
+	if originInfo.ExternalData.PodUID != "" && originInfo.ExternalData.ContainerName != "" {
+		key := fmt.Sprintf("pod:%s,name:%s,init:%v", originInfo.ExternalData.PodUID, originInfo.ExternalData.ContainerName, originInfo.ExternalData.Init)
+		if containerID, ok := t.ContainerIDMap[key]; ok {
+			return containerID, nil
+		}
+	}
 	return "", fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", originInfo)
 }
