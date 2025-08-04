@@ -15,7 +15,7 @@ jobs:
   codereview-complexity:
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
+      id-token: write # This is required for getting the required OIDC token from GitHub
     if: github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
     steps:
       - name: Checkout repository
@@ -26,8 +26,13 @@ jobs:
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.code-review-complexity.modify-pr
       - name: Check code review complexity
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: dda inv -- -e github.assign-codereview-label --pr-id="$PR_NUMBER"
