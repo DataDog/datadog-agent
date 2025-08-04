@@ -124,11 +124,12 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 		numFunctions:   0,
 		numSourceFiles: 0,
 	}
+	sourceFiles := make(map[string]struct{})
 	for _, pkg := range s.Packages {
-		s := pkg.Stats()
+		s := pkg.Stats(sourceFiles)
 		stats.numTypes += s.NumTypes
 		stats.numFunctions += s.NumFunctions
-		stats.numSourceFiles += s.NumSourceFiles
 	}
+	stats.numSourceFiles = len(sourceFiles)
 	return stats
 }

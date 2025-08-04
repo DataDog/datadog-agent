@@ -55,6 +55,10 @@ type fakeActuator struct {
 	tenant *fakeActuatorTenant
 }
 
+func (f *fakeActuator) Shutdown() error {
+	return nil
+}
+
 func (f *fakeActuator) NewTenant(name string, reporter actuator.Reporter, irGenerator actuator.IRGenerator) *fakeActuatorTenant {
 	assert.Nil(f.t, f.tenant)
 	f.tenant = &fakeActuatorTenant{
