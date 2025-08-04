@@ -370,14 +370,20 @@ __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
 
 
 
-
+// get_tcp_failure returns an error code for tcp_done/tcp_close, if there was one
 static __always_inline int get_tcp_failure(struct sock *sk) {
-    int err = BPF_CORE_READ(sk, sk_err);
+    int err = 0;
+    BPF_CORE_READ_INTO(&err, sk, sk_err);
     if (err != 0) {
         return err;
     }
 
-    int state = BPF_CORE_READ(sk, __sk_common).skc_state;
+
+    struct sock_common *skc = (struct sock_common*) sk;
+    unsigned char state = 0;
+    // the fact that this field is volatile breaks BPF_CORE_READ_INTO, so it must be cast separately
+    bpf_probe_read_kernel(&state, 1, (unsigned char*) &skc->skc_state);
+    // we are still in SYN_SENT when the socket closed, meaning the connect was cancelled
     if (state == TCP_SYN_SENT) {
         return TCP_CONN_FAILED_CANCELED;
     }
