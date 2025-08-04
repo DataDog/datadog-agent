@@ -505,6 +505,7 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
     section_id = str(uuid.uuid4())
+    print("hi")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:

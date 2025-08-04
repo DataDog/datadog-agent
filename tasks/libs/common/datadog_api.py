@@ -120,3 +120,23 @@ def get_ci_pipeline_events(query, days):
             page_limit=5,
         )
         return response
+
+
+def get_ci_test_events(query, days):
+    """
+    Fetch test events using Datadog CI Visibility API
+    """
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
+
+    configuration = Configuration()
+    with ApiClient(configuration) as api_client:
+        api = CIVisibilityTestsApi(api_client)
+        # We filter jobs of a single pipeline by its id and job name
+        response = api.list_ci_app_test_events(
+            filter_query=query,
+            page_limit=100,
+            filter_from=(datetime.now() - timedelta(days=days)),
+            filter_to=datetime.now(),
+        )
+        return response

@@ -34,6 +34,7 @@ include:
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/trigger_distribution/trigger_distribution.yml
   - .gitlab/trigger_distribution/conditions.yml
+  - .gitlab/dynamic_test/include.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
   - .gitlab/scan/windows.yml
@@ -78,12 +79,13 @@ stages:
   - install_script_testing
   - e2e_pre_test
   - e2e_init
-  - e2e
+  - e2e 
   - e2e_cleanup
   - e2e_k8s
   - e2e_install_packages
   - functional_test
   - trigger_distribution
+  - dynamic_test
   - junit_upload
   - internal_kubernetes_deploy
   - post_rc_build
@@ -93,7 +95,7 @@ stages:
 variables:
   # Special variable that allows us to set the pipeline to compute the code coverage of the e2e tests. It will impact several jobs so that
   # the agent is build with a special flag that allow computing code coverage of the binary when it is running.
-  E2E_COVERAGE_PIPELINE: false
+  E2E_COVERAGE_PIPELINE: true
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
@@ -630,6 +632,28 @@ workflow:
         - release.json
       compare_to: $COMPARE_TO_BRANCH
 
+.except_e2e_main_release_or_rc: # This rule is to not trigger dynamic test evaluation when we force all e2e tests to run
+  - <<: *if_disable_e2e_tests
+    when: never
+  - !reference [.except_mergequeue]
+  - <<: *if_run_all_e2e_tests
+    when: never
+  - <<: *if_main_branch
+    when: never
+  - <<: *if_release_branch
+    when: never
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: never
+  - changes:
+      paths:
+        - .gitlab/e2e/e2e.yml
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/go.mod
+        - flakes.yaml
+        - release.json
+      compare_to: $COMPARE_TO_BRANCH
+    when: never
+
 .on_e2e_or_windows_installer_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - <<: *if_windows_installer_changes
@@ -1100,6 +1124,10 @@ workflow:
 .except_coverage_pipeline:
   - <<: *if_coverage_pipeline
     when: never
+
+.always_on_coverage_pipeline:
+  - <<: *if_coverage_pipeline
+    when: always
 
 # This is used to setup utils to report custom datadog-ci spans
 .setup-datadog-ci-sections:
