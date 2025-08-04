@@ -162,10 +162,13 @@ class TestExperimentalGatesLib(unittest.TestCase):
         )
 
     def test_get_image_url(self):
+        # Test basic agent image
         gate = StaticQualityGateDocker(
             "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
         )
         self.assertEqual(gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-amd64")
+
+        # Test Windows 2022 servercore
         gate = StaticQualityGateDocker(
             "static_quality_gate_docker_agent_windows_2022_servercore_amd64",
             {"max_on_wire_size": 100, "max_on_disk_size": 100},
@@ -175,6 +178,8 @@ class TestExperimentalGatesLib(unittest.TestCase):
             gate._get_image_url(),
             "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-winltsc2022-servercore-amd64",
         )
+
+        # Test Windows 1809 servercore arm64
         gate = StaticQualityGateDocker(
             "static_quality_gate_docker_agent_windows_1809_servercore_arm64",
             {"max_on_wire_size": 100, "max_on_disk_size": 100},
@@ -184,6 +189,8 @@ class TestExperimentalGatesLib(unittest.TestCase):
             gate._get_image_url(),
             "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-win1809-servercore-arm64",
         )
+
+        # Test nightly builds
         with patch.dict('os.environ', {"BUCKET_BRANCH": "nightly"}):
             gate = StaticQualityGateDocker(
                 "static_quality_gate_docker_agent_amd64",
@@ -193,3 +200,115 @@ class TestExperimentalGatesLib(unittest.TestCase):
             self.assertEqual(
                 gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent-nightly:v71580015-668844-7-amd64"
             )
+
+        # Test cluster-agent flavor
+        gate = StaticQualityGateDocker(
+            "static_quality_gate_docker_cluster_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+        )
+        self.assertEqual(
+            gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/cluster-agent:v71580015-668844-amd64"
+        )
+
+        # Test dogstatsd flavor
+        gate = StaticQualityGateDocker(
+            "static_quality_gate_docker_dogstatsd_arm64",
+            {"max_on_wire_size": 100, "max_on_disk_size": 100},
+            MagicMock(),
+        )
+        self.assertEqual(gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/dogstatsd:v71580015-668844-arm64")
+
+        # Test cws_instrumentation flavor
+        gate = StaticQualityGateDocker(
+            "static_quality_gate_docker_cws_instrumentation_amd64",
+            {"max_on_wire_size": 100, "max_on_disk_size": 100},
+            MagicMock(),
+        )
+        self.assertEqual(
+            gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/cws-instrumentation:v71580015-668844-amd64"
+        )
+
+        # Test JMX images
+        gate = StaticQualityGateDocker(
+            "static_quality_gate_docker_agent_jmx_amd64",
+            {"max_on_wire_size": 100, "max_on_disk_size": 100},
+            MagicMock(),
+        )
+        self.assertEqual(
+            gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-jmx-amd64"
+        )
+
+        # Test Windows
+        gate = StaticQualityGateDocker(
+            "static_quality_gate_docker_agent_windows_2022_amd64",
+            {"max_on_wire_size": 100, "max_on_disk_size": 100},
+            MagicMock(),
+        )
+        self.assertEqual(
+            gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-winltsc2022-amd64"
+        )
+
+        # Test Windows 1809
+        gate = StaticQualityGateDocker(
+            "static_quality_gate_docker_agent_windows_1809_amd64",
+            {"max_on_wire_size": 100, "max_on_disk_size": 100},
+            MagicMock(),
+        )
+        self.assertEqual(
+            gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-win1809-amd64"
+        )
+
+        # Test JMX + Windows combination
+        gate = StaticQualityGateDocker(
+            "static_quality_gate_docker_agent_jmx_windows_2022_servercore_amd64",
+            {"max_on_wire_size": 100, "max_on_disk_size": 100},
+            MagicMock(),
+        )
+        self.assertEqual(
+            gate._get_image_url(),
+            "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-jmx-winltsc2022-servercore-amd64",
+        )
+
+        # Test nightly with other flavors
+        with patch.dict('os.environ', {"BUCKET_BRANCH": "nightly"}):
+            gate = StaticQualityGateDocker(
+                "static_quality_gate_docker_cluster_amd64",
+                {"max_on_wire_size": 100, "max_on_disk_size": 100},
+                MagicMock(),
+            )
+            self.assertEqual(
+                gate._get_image_url(),
+                "registry.ddbuild.io/ci/datadog-agent/cluster-agent-nightly:v71580015-668844-amd64",
+            )
+
+    def test_get_image_url_error_cases(self):
+        # Test unknown flavor
+        with self.assertRaises(ValueError) as context:
+            gate = StaticQualityGateDocker(
+                "static_quality_gate_docker_unknown_flavor_amd64",
+                {"max_on_wire_size": 100, "max_on_disk_size": 100},
+                MagicMock(),
+            )
+            gate._get_image_url()
+        self.assertIn("Unknown docker image flavor for gate", str(context.exception))
+
+        # Test missing CI_PIPELINE_ID
+        with patch.dict('os.environ', {"CI_PIPELINE_ID": ""}):
+            gate = StaticQualityGateDocker(
+                "static_quality_gate_docker_agent_amd64",
+                {"max_on_wire_size": 100, "max_on_disk_size": 100},
+                MagicMock(),
+            )
+            with self.assertRaises(StaticQualityGateFailed) as context:
+                gate._get_image_url()
+            self.assertIn("Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA", str(context.exception))
+
+        # Test missing CI_COMMIT_SHORT_SHA
+        with patch.dict('os.environ', {"CI_COMMIT_SHORT_SHA": ""}):
+            gate = StaticQualityGateDocker(
+                "static_quality_gate_docker_agent_amd64",
+                {"max_on_wire_size": 100, "max_on_disk_size": 100},
+                MagicMock(),
+            )
+            with self.assertRaises(StaticQualityGateFailed) as context:
+                gate._get_image_url()
+            self.assertIn("Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA", str(context.exception))
