@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ func build(t *testing.T, outTarget string) {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err != nil {
-		t.Fatal(fmt.Sprintf("Could not compile secret backend binary: %s", err))
+		t.Fatalf("Could not compile secret backend binary: %s", err)
 	}
 	t.Logf("Compilation succeeded!")
 }
@@ -93,9 +94,16 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 		targetBin = targetBin + ".exe"
 	}
 
-	// copy source files
+	// copy source file
 	copyFileToBuildDir(t, "test/src/test_command/main.go", builddir)
-	copyFileToBuildDir(t, "test/src/test_command/go.mod", builddir)
+	// create a go.mod file, to make the compiler happy
+	goModContent := `module test_command
+
+%s
+`
+	os.WriteFile(filepath.Join(builddir, "go.mod"),
+		[]byte(strings.Replace(fmt.Sprintf(goModContent, runtime.Version()), "go", "go ", -1)),
+		0755)
 
 	// change to the build directory
 	pwd, _ := os.Getwd()
