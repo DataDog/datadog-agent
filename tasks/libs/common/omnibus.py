@@ -206,6 +206,10 @@ def _hash_paths(hasher, paths: list[str]):
     """Update hashlib.hash object `hasher` by recursive hashing of the contents provided in `paths`."""
 
     def hash_file(filepath):
+        # Include the path to the file in the hash to account for file moves
+        hasher.update(filepath.encode())
+
+        # Hash the file contents
         with open(filepath, 'rb') as f:
             while chunk := f.read(4096):
                 hasher.update(chunk)
