@@ -3,17 +3,17 @@
 # Contains jobs which deploy Agent package to testing repsoitories that are used in e2e tests.
 
 .setup_signing: &setup_signing
-  - ${CI_PROJECT_DIR}/tools/ci/retry.sh aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/dev/gpg-vault-v1.5.1-linux-amd64.tar.gz .
-  - tar -xzf gpg-vault-v1.5.1-linux-amd64.tar.gz
+  - ${CI_PROJECT_DIR}/tools/ci/retry.sh aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/release/gpg-vault-v1.6.0-linux-amd64.tar.gz .
+  - tar -xzf gpg-vault-v1.6.0-linux-amd64.tar.gz
   - mv gpg-vault-linux-amd64 /usr/bin/gpg-vault-bin
 
   # Set up gpg shim
-  - echo '#!/bin/bash' > /usr/bin/gpg
+  - echo '#!/usr/bin/env bash' > /usr/bin/gpg
   - echo 'GPG_VAULT_COMPAT_MODE=true GPG_USER_ID="Datadog Packages" GPG_USER_EMAIL="package@datadoghq.com" /usr/bin/gpg-vault "$@"' >> /usr/bin/gpg
   - chmod +x /usr/bin/gpg
 
   # Set up gpg-vault shim
-  - echo '#!/bin/bash' > /usr/bin/gpg-vault
+  - echo '#!/usr/bin/env bash' > /usr/bin/gpg-vault
   - echo 'GPG_USER_ID="Datadog Packages" GPG_USER_EMAIL="package@datadoghq.com" /usr/bin/gpg-vault-bin "$@"' >> /usr/bin/gpg-vault
   - chmod +x /usr/bin/gpg-vault
 
