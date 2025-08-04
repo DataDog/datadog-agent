@@ -33,16 +33,18 @@
 #include "rtloader_mem.h"
 
 #if __linux__
-#    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
+#    define LIB_EXTENSION ".so"
 #elif __APPLE__
-#    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
+#    define LIB_EXTENSION ".dylib"
 #elif __FreeBSD__
-#    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
+#    define LIB_EXTENSION ".so"
 #elif _WIN32
-#    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"
+#    define LIB_EXTENSION ".dll"
 #else
 #    error Platform not supported
 #endif
+
+#define DATADOG_AGENT_THREE "libdatadog-agent-three" LIB_EXTENSION
 
 #define AS_TYPE(Type, Obj) reinterpret_cast<Type *>(Obj)
 #define AS_PTYPE(Type, Obj) reinterpret_cast<Type **>(Obj)
@@ -53,6 +55,10 @@ static HMODULE rtloader_backend = NULL;
 #else
 static void *rtloader_backend = NULL;
 #endif
+
+// variables to store callbacks of pkg/collect/aggregator.go
+static cb_submit_metric_t submit_metric_cb = NULL;
+static cb_submit_service_check_t submit_service_check_cb = NULL;
 
 #ifdef _WIN32
 
@@ -132,6 +138,18 @@ void destroy(rtloader_t *rtloader)
     }
 }
 
+shared_library_handle_t load_shared_library(const char *lib_name, const char **error)
+{
+    // Not implemented yet
+    return shared_library_handle_t{ NULL, NULL };
+}
+
+void run_shared_library(char *checkID, run_shared_library_check_t *run_function, const char **error)
+{
+    // Not implemented yet
+    return;
+}
+
 #else
 
 rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
@@ -180,6 +198,51 @@ void destroy(rtloader_t *rtloader)
         destroy(AS_TYPE(RtLoader, rtloader));
         rtloader_backend = NULL;
     }
+}
+
+shared_library_handle_t load_shared_library(const char *lib_name, const char **error)
+{
+    // resolve the library full name
+    char lib_full_name[256];
+    strcpy(lib_full_name, lib_name);
+    strcat(lib_full_name, LIB_EXTENSION);
+
+    // load the library
+    void *lib_handle = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
+    if (!lib_handle) {
+        std::ostringstream err_msg;
+        err_msg << "Unable to open shared library: " << dlerror();
+        *error = strdupe(err_msg.str().c_str());
+        return shared_library_handle_t{ NULL, NULL };
+    }
+
+    const char *dlsym_error = NULL;
+
+    // dlsym run_check function to get the metric run the custom check and get the payload
+    run_shared_library_check_t *run_handle = (run_shared_library_check_t *)dlsym(lib_handle, "Run");
+    dlsym_error = dlerror();
+    if (dlsym_error) {
+        std::ostringstream err_msg;
+        err_msg << "Unable to find Run method symbol in shared library: " << dlsym_error;
+        *error = strdupe(err_msg.str().c_str());
+        return shared_library_handle_t{ NULL, NULL };
+    }
+
+    return shared_library_handle_t{ lib_handle, run_handle };
+}
+
+void run_shared_library(char *checkID, run_shared_library_check_t *run_function, const char **error)
+{
+    // verify the run function pointer
+    if (!run_function) {
+        std::ostringstream err_msg;
+        err_msg << "Pointer to shared library run function is null: " << dlerror();
+        *error = strdupe(err_msg.str().c_str());
+        return;
+    }
+
+    // run the shared library check and check the returned payload`
+    run_function(checkID);
 }
 #endif
 
@@ -423,9 +486,19 @@ void set_submit_metric_cb(rtloader_t *rtloader, cb_submit_metric_t cb)
     AS_TYPE(RtLoader, rtloader)->setSubmitMetricCb(cb);
 }
 
+void set_aggregator_submit_metric_cb(cb_submit_metric_t cb)
+{
+    submit_metric_cb = cb;
+}
+
 void set_submit_service_check_cb(rtloader_t *rtloader, cb_submit_service_check_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSubmitServiceCheckCb(cb);
+}
+
+void set_aggregator_submit_service_check_cb(cb_submit_service_check_t cb)
+{
+    submit_service_check_cb = cb;
 }
 
 void set_submit_event_cb(rtloader_t *rtloader, cb_submit_event_t cb)
@@ -545,6 +618,17 @@ void set_obfuscate_mongodb_string_cb(rtloader_t *rtloader, cb_obfuscate_mongodb_
 void set_emit_agent_telemetry_cb(rtloader_t *rtloader, cb_emit_agent_telemetry_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setEmitAgentTelemetryCb(cb);
+}
+
+void submit_metric(char *checkID, const metric_type_t metricType, char *metricName, const double value, char **tags,
+                   char *hostname, const bool flushFirstValue)
+{
+    submit_metric_cb(checkID, metricType, metricName, value, tags, hostname, flushFirstValue);
+}
+
+void submit_service_check(char *checkID, char *name, int status, char **tags, char *hostname, char *message)
+{
+    submit_service_check_cb(checkID, name, status, tags, hostname, message);
 }
 
 /*
