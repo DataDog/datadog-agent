@@ -179,6 +179,7 @@ func (c *Config) String() string {
 	rawConfig["instances"] = instances
 
 	yaml.Unmarshal(c.LogsConfig, &logsConfig) //nolint:errcheck
+	log.Info("config.String() called, ", "logs_config", string(c.LogsConfig), logsConfig)
 	rawConfig["logs_config"] = logsConfig
 
 	buffer, err := yaml.Marshal(&rawConfig)
