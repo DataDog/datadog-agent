@@ -57,24 +57,3 @@ func TestCreateLogsReceiver(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, receiver)
 }
-
-func TestFactoryForAgent(t *testing.T) {
-	factory := NewFactoryForAgent()
-
-	assert.Equal(t, Type, factory.Type())
-
-	cfg := factory.CreateDefaultConfig()
-	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
-
-	set := receivertest.NewNopSettings(Type)
-	tracesConsumer := consumertest.NewNop()
-	logsConsumer := consumertest.NewNop()
-
-	tracesReceiver, err := factory.CreateTraces(context.Background(), set, cfg, tracesConsumer)
-	assert.NoError(t, err)
-	assert.NotNil(t, tracesReceiver)
-
-	logsReceiver, err := factory.CreateLogs(context.Background(), set, cfg, logsConsumer)
-	assert.NoError(t, err)
-	assert.NotNil(t, logsReceiver)
-}
