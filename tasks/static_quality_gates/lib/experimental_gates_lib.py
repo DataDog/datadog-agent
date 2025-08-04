@@ -144,7 +144,6 @@ class StaticQualityGate:
         Execute the quality gate.
         """
         print(f"Executing {self.gate_name}")
-        print(f"Artifact path: {self.artifact_path}")
         # To ensure execute_gate is generic we define an abstract method
         # to measure the size of the artifact on disk and on wire
         # and a method to check the size of the artifact against the maximum allowed size.
@@ -154,6 +153,7 @@ class StaticQualityGate:
         # to this lib.
         self._measure_on_disk_and_on_wire_size()
         self.check_artifact_size()
+        print(f"Artifact path: {self.artifact_path}")
         print(color_message(f"✅{self.gate_name} passed.", "green"))
         self.print_results()
 
