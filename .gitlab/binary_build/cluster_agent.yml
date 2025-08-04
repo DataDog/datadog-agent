@@ -8,8 +8,8 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - dda --interactive inv -- check-go-version
-    - dda --interactive inv -- -e cluster-agent.build --major-version "$AGENT_MAJOR_VERSION"
+    - dda inv -- check-go-version
+    - dda inv -- -e cluster-agent.build --major-version "$AGENT_MAJOR_VERSION"
     # keep the unstripped binary for fips compliance checks
     - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
     - strip $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent

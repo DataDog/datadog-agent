@@ -8,8 +8,8 @@ test_and_lint_gitlab_configuration:
     - when: on_success
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
-    - dda --interactive inv -- -e linter.full-gitlab-ci --configs-or-diff-file artifacts/after.gitlab-ci.yml
-    - dda --interactive inv -- -e linter.ssm-parameters
+    - dda inv -- -e linter.full-gitlab-ci --configs-or-diff-file artifacts/after.gitlab-ci.yml
+    - dda inv -- -e linter.ssm-parameters
 
 test_gitlab_compare_to:
   stage: .pre
@@ -26,7 +26,7 @@ test_gitlab_compare_to:
     # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
     - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - dda self dep sync -f legacy-tasks
-    - dda --interactive inv -- pipeline.compare-to-itself
+    - dda inv -- pipeline.compare-to-itself
 
 # Computes and uploads the GitLab CI configuration diff as an artifact
 compute_gitlab_ci_config:
@@ -42,7 +42,7 @@ compute_gitlab_ci_config:
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
     - mkdir -p artifacts
-    - dda --interactive inv -- -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-ci.yml --after-file artifacts/after.gitlab-ci.yml --diff-file artifacts/diff.gitlab-ci.yml
+    - dda inv -- -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-ci.yml --after-file artifacts/after.gitlab-ci.yml --diff-file artifacts/diff.gitlab-ci.yml
   artifacts:
     when: always
     paths:
@@ -63,4 +63,4 @@ lint_github_actions_shellcheck:
       when: on_success
   allow_failure: true
   script:
-    - dda --interactive inv -- -e linter.github-actions-shellcheck
+    - dda inv -- -e linter.github-actions-shellcheck

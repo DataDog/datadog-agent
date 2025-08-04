@@ -5,7 +5,7 @@
   stage: deploy_mutable_image_tags
   dependencies: []
   before_script:
-    - VERSION="$(dda --interactive inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - if [[ "$OTEL_AGENT_REPOSITORY" == "" ]]; then export OTEL_AGENT_REPOSITORY="otel-agent"; fi
     - export IMG_TAG_REFERENCE=${OTEL_AGENT_REPOSITORY}:${VERSION}
 

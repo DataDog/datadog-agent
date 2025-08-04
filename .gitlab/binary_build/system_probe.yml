@@ -6,9 +6,9 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
-    - dda --interactive inv -- check-go-version
-    - dda --interactive inv -- -e system-probe.build-object-files --strip-object-files
-    - dda --interactive inv -- -e system-probe.save-build-outputs $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
+    - dda inv -- check-go-version
+    - dda inv -- -e system-probe.build-object-files --strip-object-files
+    - dda inv -- -e system-probe.save-build-outputs $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
   variables:
     KUBERNETES_MEMORY_REQUEST: "6Gi"
     KUBERNETES_MEMORY_LIMIT: "12Gi"

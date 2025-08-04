@@ -9,11 +9,11 @@
   before_script:
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
-    - WINDOWS_AGENT_VERSION=$(dda --interactive inv agent.version) || exit $?; export WINDOWS_AGENT_VERSION
+    - WINDOWS_AGENT_VERSION=$(dda inv agent.version) || exit $?; export WINDOWS_AGENT_VERSION
     - !reference [.new_e2e_template, before_script]
   script:
     # LAST_STABLE_VERSION is used for upgrade test
-    - export LAST_STABLE_VERSION=$(dda --interactive inv release.get-release-json-value "last_stable::7" --no-worktree)
+    - export LAST_STABLE_VERSION=$(dda inv release.get-release-json-value "last_stable::7" --no-worktree)
     - !reference [.new_e2e_template, script]
 
 .new-e2e_windows_msi:
