@@ -1158,6 +1158,12 @@ func TestMultipleTransformersRaisesError(t *testing.T) {
 	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.BindEnvAndSetDefault("list_of_nums", []float64{}, "TEST_LIST_OF_NUMS")
 
+	assert.NotPanics(t, func() {
+		config.ParseEnvAsStringSlice("list_of_nums", func(in string) []string {
+			return strings.Split(in, ",")
+		})
+	}, "env transform for list_of_nums works if set once")
+
 	assert.PanicsWithValue(t, "env transform for list_of_nums already exists", func() {
 		config.ParseEnvAsSlice("list_of_nums", func(in string) []interface{} {
 			vals := []interface{}{}
