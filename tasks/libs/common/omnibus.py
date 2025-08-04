@@ -253,6 +253,7 @@ def omnibus_compute_cache_key(ctx):
             'omnibus/omnibus.rb',
         ],
     )
+    print(f'Current hash value: {h.hexdigest()}')
     h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
     # Some values can be forced through the environment so we need to read it
     # from there first, and fallback to release.json
