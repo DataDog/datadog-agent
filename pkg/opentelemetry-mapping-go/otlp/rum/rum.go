@@ -20,9 +20,24 @@ func buildRumPayload(k string, v pcommon.Value, rumPayload map[string]any) {
 			if v.Type() == pcommon.ValueTypeSlice {
 				current[part] = v.Slice().AsRaw()
 			} else if v.Type() == pcommon.ValueTypeMap {
-				current[part] = v.Map().AsRaw()
+				// handle map values by recursively processing nested keys
+				mapVal := v.Map().AsRaw()
+				if mapVal == nil {
+					current[part] = nil
+				} else {
+					processedMap := make(map[string]any)
+					v.Map().Range(func(mapKey string, mapValue pcommon.Value) bool {
+						buildRumPayload(mapKey, mapValue, processedMap)
+						return true
+					})
+					current[part] = processedMap
+				}
 			} else {
-				current[part] = v.AsRaw()
+				if v.Type() == pcommon.ValueTypeBytes && v.Bytes().Len() == 0 {
+					current[part] = nil
+				} else {
+					current[part] = v.AsRaw()
+				}
 			}
 		} else {
 			if _, ok := current[part]; !ok {
