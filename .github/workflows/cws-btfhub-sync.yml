@@ -79,6 +79,11 @@ jobs:
         env:
           ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
         run: |
+          # fix amd64 missing embed files
+          touch pkg/ebpf/kernelbugs/c/uprobe-trigger.o
+          touch pkg/ebpf/kernelbugs/c/detect-seccomp-bug
+
+          # generate constants
           dda inv -- -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
 
       - name: Upload artifact
