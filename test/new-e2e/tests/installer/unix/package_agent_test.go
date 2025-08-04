@@ -7,6 +7,7 @@ package installer
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -23,6 +24,8 @@ import (
 const (
 	agentUnit      = "datadog-agent.service"
 	agentUnitXP    = "datadog-agent-exp.service"
+	ddotUnit       = "datadog-agent-ddot.service"
+	ddotUnitXP     = "datadog-agent-ddot-exp.service"
 	traceUnit      = "datadog-agent-trace.service"
 	traceUnitXP    = "datadog-agent-trace-exp.service"
 	processUnit    = "datadog-agent-process.service"
@@ -208,7 +211,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		SetStopWithSigkill("trace-agent")
 
 	defer func() { s.host.Run("sudo rm -rf /etc/systemd/system/datadog*.d/override.conf") }()
-
 	for _, unit := range []string{traceUnitXP, agentUnitXP} {
 		s.T().Logf("Testing timeoutStop of unit %s", unit)
 		s.host.Run(fmt.Sprintf("sudo rm -rf /etc/systemd/system/%s.d/override.conf", unit))
@@ -472,4 +474,62 @@ func (s *packageAgentSuite) installDebRPMAgent() {
 		s.T().Fatalf("unsupported package manager: %s", pkgManager)
 	}
 
+}
+
+func (s *packageAgentSuite) TestInstallWithDDOT() {
+	// Install datadog-agent (base infrastructure)
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+
+	// Install ddot
+	s.host.Run(fmt.Sprintf("sudo datadog-installer install oci://installtesting.datad0g.com/ddot-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")))
+	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
+
+	// Check if datadog.yaml exists, if not return an error
+	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
+	// Substitute API & site into otel-config.yaml
+	s.host.Run("sudo sh -c \"sed -i -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml\"")
+
+	s.host.WaitForUnitActive(s.T(), ddotUnit)
+
+	state := s.host.State()
+	// Verify running
+	s.assertUnits(state, false)
+	s.assertDDOTUnits(state, false)
+
+	// Verify files exist
+	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0644, "dd-agent", "dd-agent")
+
+	state.AssertDirExists("/opt/datadog-packages/datadog-agent-ddot/stable", 0755, "dd-agent", "dd-agent")
+	state.AssertFileExists("/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", 0755, "dd-agent", "dd-agent")
+
+	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
+}
+
+// Verify ddot service running
+func (s *packageAgentSuite) assertDDOTUnits(state host.State, oldUnits bool) {
+	state.AssertUnitsLoaded(ddotUnit)
+	state.AssertUnitsRunning(ddotUnit)
+
+	systemdPath := "/etc/systemd/system"
+	if oldUnits {
+		pkgManager := s.host.GetPkgManager()
+		switch pkgManager {
+		case "apt":
+			if s.os.Flavor == e2eos.Ubuntu {
+				systemdPath = "/usr/lib/systemd/system"
+			} else {
+				systemdPath = "/lib/systemd/system"
+			}
+		case "yum", "zypper":
+			systemdPath = "/usr/lib/systemd/system"
+		default:
+			s.T().Fatalf("unsupported package manager: %s", pkgManager)
+		}
+	}
+
+	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(systemdPath, ddotUnit))
 }

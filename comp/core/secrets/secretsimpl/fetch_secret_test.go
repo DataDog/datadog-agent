@@ -81,14 +81,20 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 
 // TestMain runs before other tests in this package. It hooks the getDDAgentUserSID
 // function to make it work for Windows tests
-func TestMain(_ *testing.M) {
+func TestMain(m *testing.M) {
 	// Windows-only fix for running on CI. Instead of checking the registry for
 	// permissions (the agent wasn't installed, so that wouldn't work), use a stub
 	// function that gets permissions info directly from the current User
 	testCheckRightsStub()
+
+	os.Exit(m.Run())
 }
 
 func TestExecCommandError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skip this test on Windows")
+	}
+
 	inputPayload := "{\"version\": \"1.0\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 
