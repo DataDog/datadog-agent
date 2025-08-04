@@ -48,7 +48,7 @@ func NewComponent(req Requires) (Provides, error) {
 		noopTaggerComponent := noop.NewComponent()
 
 		noopListEndpoint := api.NewAgentEndpointProvider(
-			func(w http.ResponseWriter, r *http.Request) {
+			func(w http.ResponseWriter, _ *http.Request) {
 				response := noopTaggerComponent.List()
 				jsonTags, _ := json.Marshal(response)
 				w.Write(jsonTags)
