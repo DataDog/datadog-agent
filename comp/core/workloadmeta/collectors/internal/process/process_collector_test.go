@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/benbjohnson/clock"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -642,57 +643,7 @@ func TestStartConfiguration(t *testing.T) {
 				"process_config.process_collection.use_wlm": true,
 			},
 			sysConfigOverrides: map[string]interface{}{
-				"system_probe_config.enabled": true,
-				"discovery.enabled":           true,
-			},
-			expectedError: nil,
-		},
-		{
-			description: "service discovery enabled, process collection not running in core agent but still collecting",
-			configOverrides: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled":  false,
-				"process_config.process_collection.enabled": true,
-				"process_config.process_collection.use_wlm": true,
-			},
-			sysConfigOverrides: map[string]interface{}{
-				"system_probe_config.enabled": true,
-				"discovery.enabled":           true,
-			},
-			expectedError: nil,
-		},
-		{
-			description: "service discovery enabled, process collection not enabled",
-			configOverrides: map[string]interface{}{
-				"process_config.process_collection.enabled": false,
-				"process_config.process_collection.use_wlm": true,
-			},
-			sysConfigOverrides: map[string]interface{}{
-				"system_probe_config.enabled": true,
-				"discovery.enabled":           true,
-			},
-			expectedError: nil,
-		},
-		{
-			description: "service discovery enabled, process collection wlm not enabled",
-			configOverrides: map[string]interface{}{
-				"process_config.process_collection.enabled": true,
-				"process_config.process_collection.use_wlm": false,
-			},
-			sysConfigOverrides: map[string]interface{}{
-				"system_probe_config.enabled": true,
-				"discovery.enabled":           true,
-			},
-			expectedError: nil,
-		},
-		{
-			description: "only service discovery enabled",
-			configOverrides: map[string]interface{}{
-				"process_config.process_collection.enabled": false,
-				"process_config.process_collection.use_wlm": false,
-			},
-			sysConfigOverrides: map[string]interface{}{
-				"system_probe_config.enabled": true,
-				"discovery.enabled":           true,
+				"discovery.enabled": true,
 			},
 			expectedError: nil,
 		},
@@ -703,22 +654,65 @@ func TestStartConfiguration(t *testing.T) {
 				"process_config.process_collection.use_wlm": true,
 			},
 			sysConfigOverrides: map[string]interface{}{
-				"system_probe_config.enabled": false,
-				"discovery.enabled":           false,
+				"discovery.enabled": false,
 			},
 			expectedError: nil,
 		},
 		{
-			description: "process collection and service discovery not enabled",
+			description: "only service discovery enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: nil,
+		},
+		{
+			description: "only service discovery enabled but use_wlm gate disabled",
 			configOverrides: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
 				"process_config.process_collection.use_wlm": false,
 			},
 			sysConfigOverrides: map[string]interface{}{
-				"system_probe_config.enabled": false,
-				"discovery.enabled":           false,
+				"discovery.enabled": true,
 			},
-			expectedError: errors.NewDisabled(componentName, "process collection and service discovery are disabled"),
+			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
+		},
+		{
+			description: "only process collection enabled but use_wlm gate disabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": false,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
+		},
+
+		{
+			description: "everything enabled but use_wlm gate disabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": false,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
+		},
+		{
+			description: "use_wlm gate_enabled but process collection and service discovery not enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled"),
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
@@ -728,6 +722,8 @@ func TestStartConfiguration(t *testing.T) {
 
 			err := c.collector.Start(ctx, c.mockStore)
 			assert.Equal(t, tc.expectedError, err)
+			// needed to reset the global telemetry registry as the start function registers a new gauge each run
+			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }

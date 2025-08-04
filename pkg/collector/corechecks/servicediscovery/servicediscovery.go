@@ -76,7 +76,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 	// discovery False + use_wlm false = true = disabled
 	// discovery true + use_wlm True = true = disabled (new check running)
 	// discovery true + use_wlm false = false = enabled (old check running)
-	if !pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") && pkgconfigsetup.Datadog().GetBool("process_config.process_collection.use_wlm") {
+	if !pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") || pkgconfigsetup.Datadog().GetBool("process_config.process_collection.use_wlm") {
 		return errors.New("service discovery is disabled")
 	}
 	if err := c.CommonConfigure(senderManager, initConfig, instanceConfig, source); err != nil {

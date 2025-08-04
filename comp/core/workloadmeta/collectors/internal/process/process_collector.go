@@ -162,8 +162,12 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	// TODO: process_config.process_collection.use_wlm is temporary and will eventually be removed
 	// we want to gate everything for this new collector by the use_wlm config, but eventually
 	// this collector will be gated separately for process_collector OR service discovery
-	if !c.config.GetBool("process_config.process_collection.use_wlm") && !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
-		return errors.NewDisabled(componentName, "process collection and service discovery are disabled")
+	if !c.config.GetBool("process_config.process_collection.use_wlm") {
+		return errors.NewDisabled(componentName, "wlm process collection disabled")
+	}
+
+	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
+		return errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled")
 	}
 
 	if c.containerProvider == nil {
