@@ -185,6 +185,10 @@ func enableOtelCollectorConfig() error {
 	}
 
 	existingConfig["otelcollector"] = map[string]interface{}{"enabled": true}
+	existingConfig["agent_ipc"] = map[string]interface{}{
+		"port":                    5009,
+		"config_refresh_interval": 60,
+	}
 
 	// Write back the updated config
 	updatedData, err := yaml.Marshal(existingConfig)
@@ -225,6 +229,7 @@ func disableOtelCollectorConfig() error {
 	}
 
 	delete(existingConfig, "otelcollector")
+	delete(existingConfig, "agent_ipc")
 
 	// Write back the updated config
 	updatedData, err := yaml.Marshal(existingConfig)
