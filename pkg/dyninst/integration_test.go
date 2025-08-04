@@ -367,11 +367,17 @@ func runIntegrationTestSuite(
 			outputs.byTest[t.Name()] = actual
 		}
 		t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
+			if debug && testing.Short() {
+				t.Skip("skipping debug with short")
+			}
 			t.Parallel()
 			t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
 			for i := range probes {
 				probeID := probes[i].GetID()
 				t.Run(probeID, func(t *testing.T) {
+					if testing.Short() {
+						t.Skip("skipping individual probe with short")
+					}
 					runTest(t, probes[i:i+1])
 				})
 			}
