@@ -484,7 +484,7 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	// Install ddot
-	s.host.Run(fmt.Sprintf("sudo datadog-installer install oci://installtesting.datad0g.com/ddot-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")))
+	s.host.Run(fmt.Sprintf("sudo datadog-installer install oci://install.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
 	// Check if datadog.yaml exists, if not return an error
