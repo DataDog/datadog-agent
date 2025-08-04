@@ -41,14 +41,13 @@ var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	collectors                   []nvidia.Collector       // collectors for NVML metrics
-	tagger                       tagger.Component         // Tagger instance to add tags to outgoing metrics
-	telemetry                    *checkTelemetry          // Telemetry component to emit internal telemetry
-	wmeta                        workloadmeta.Component   // Workloadmeta store to get the list of containers
-	deviceTags                   map[string][]string      // deviceTags is a map of device UUID to tags
-	deviceCache                  ddnvml.DeviceCache       // deviceCache is a cache of GPU devices
-	useSystemProbeProcessMetrics bool                     // useSystemProbeProcessMetrics determines if SP process metrics are preferred over NVML process collectors
-	spCache                      *nvidia.SystemProbeCache // spCache manages system-probe GPU stats and client (only initialized when useSystemProbeProcessMetrics is true)
+	collectors  []nvidia.Collector       // collectors for NVML metrics
+	tagger      tagger.Component         // Tagger instance to add tags to outgoing metrics
+	telemetry   *checkTelemetry          // Telemetry component to emit internal telemetry
+	wmeta       workloadmeta.Component   // Workloadmeta store to get the list of containers
+	deviceTags  map[string][]string      // deviceTags is a map of device UUID to tags
+	deviceCache ddnvml.DeviceCache       // deviceCache is a cache of GPU devices
+	spCache     *nvidia.SystemProbeCache // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
 }
 
 type checkTelemetry struct {
@@ -96,12 +95,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	// Compute whether we should prefer system-probe process metrics
-	gpuProbeEnabled := pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled")
-	preferSP := pkgconfigsetup.Datadog().GetBool("gpu.use_sp_process_metrics")
-	c.useSystemProbeProcessMetrics = gpuProbeEnabled && preferSP
-
-	// Initialize system-probe cache only if we actually want to use SP process metrics
-	if c.useSystemProbeProcessMetrics {
+	if pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled") {
 		c.spCache = nvidia.NewSystemProbeCache()
 	}
 
@@ -168,8 +162,8 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
-	// Refresh SP cache before collecting metrics (if using SP process metrics)
-	if c.useSystemProbeProcessMetrics && c.spCache != nil {
+	// Refresh SP cache before collecting metrics, if it is available
+	if c.spCache != nil {
 		if err := c.spCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
 			log.Warnf("error refreshing system-probe cache: %v", err)
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
