@@ -86,7 +86,7 @@ type snmpSubnet struct {
 	devices               map[string]device
 	deviceFailures        map[string]int
 	devicesScannedCounter atomic.Uint32
-	subnetIndex           int
+	index                 int
 }
 
 type device struct {
@@ -216,7 +216,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	}
 
 	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
-	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey, job.subnet.subnetIndex), &autodiscoveryStatus)
+	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey, job.subnet.index), &autodiscoveryStatus)
 }
 
 func (l *SNMPListener) checkDeviceReachable(authentication snmp.Authentication, port uint16, deviceIP string) bool {
@@ -359,7 +359,7 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 			cacheKey:       cacheKey,
 			devices:        map[string]device{},
 			deviceFailures: map[string]int{},
-			subnetIndex:    index,
+			index:          index,
 		}
 		subnets = append(subnets, subnet)
 
@@ -393,7 +393,7 @@ func (l *SNMPListener) checkDevices() {
 	defer discoveryTicker.Stop()
 	for {
 		for _, subnet := range subnets {
-			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey, subnet.subnetIndex), &expvar.String{})
+			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey, subnet.index), &expvar.String{})
 		}
 
 		var subnet *snmpSubnet

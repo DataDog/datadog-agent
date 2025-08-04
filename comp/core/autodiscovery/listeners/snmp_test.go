@@ -411,3 +411,34 @@ func TestExtraConfigPingEmpty(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"linux":{"use_raw_socket":null},"enabled":null,"interval":null,"timeout":null,"count":null}`, info)
 }
+
+func TestSubnetIndex(t *testing.T) {
+	configs := make([]map[string]interface{}, 0, 100)
+	for i := 0; i < 100; i++ {
+		snmpConfig := map[string]interface{}{
+			"network":      "172.18.0.0/30",
+			"community":    "f5-big-ip",
+			"port":         1161,
+			"context_name": "context" + strconv.Itoa(i),
+		}
+		configs = append(configs, snmpConfig)
+	}
+
+	listenerConfig := map[string]interface{}{
+		"configs": configs,
+	}
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
+
+	listener, err := NewSNMPListener(ServiceListernerDeps{})
+	assert.Equal(t, nil, err)
+
+	l, ok := listener.(*SNMPListener)
+	assert.True(t, ok)
+
+	subnets := l.initializeSubnets()
+	for i, subnet := range subnets {
+		assert.Equal(t, i, subnet.index)
+	}
+}
