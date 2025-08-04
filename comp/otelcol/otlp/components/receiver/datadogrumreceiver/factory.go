@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/sharedcomponent"
 )
 
 // NewFactory creates a factory for the Datadog RUM receiver
@@ -41,23 +43,31 @@ func createDefaultConfig() component.Config {
 func createTracesReceiver(_ context.Context, params receiver.Settings, cfg component.Config, consumer consumer.Traces) (receiver.Traces, error) {
 	var err error
 	rcfg := cfg.(*Config)
-	r, err := newDataDogRUMReceiver(rcfg, params)
+	r := receivers.GetOrAdd(cfg, func() (dd component.Component) {
+		dd, err = newDataDogRUMReceiver(rcfg, params)
+		return dd
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	r.(*datadogRUMReceiver).nextTracesConsumer = consumer
+	r.Unwrap().(*datadogRUMReceiver).nextTracesConsumer = consumer
 	return r, nil
 }
 
 func createLogsReceiver(_ context.Context, params receiver.Settings, cfg component.Config, consumer consumer.Logs) (receiver.Logs, error) {
 	var err error
 	rcfg := cfg.(*Config)
-	r, err := newDataDogRUMReceiver(rcfg, params)
+	r := receivers.GetOrAdd(cfg, func() (dd component.Component) {
+		dd, err = newDataDogRUMReceiver(rcfg, params)
+		return dd
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	r.(*datadogRUMReceiver).nextLogsConsumer = consumer
+	r.Unwrap().(*datadogRUMReceiver).nextLogsConsumer = consumer
 	return r, nil
 }
+
+var receivers = sharedcomponent.NewSharedComponents()
