@@ -223,7 +223,7 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
                     os.fspath(get_kmt_os().ddvm_rsa),
                     arch,
                     instance,
-                    gdb_port=vm["gdb-port"],
+                    gdb_port=vm["gdb-port"] if "gdb-port" in vm else 0,
                 )
             )
 
