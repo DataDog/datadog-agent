@@ -77,7 +77,7 @@
         --label "org.opencontainers.image.created=$(date --rfc-3339=seconds)" \
         --label "org.opencontainers.image.authors=Datadog <package@datadoghq.com>" \
         --label "org.opencontainers.image.source=https://github.com/DataDog/datadog-agent" \
-        --label "org.opencontainers.image.version=$(dda inv agent.version)" \
+        --label "org.opencontainers.image.version=$(dda --interactive inv agent.version)" \
         --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" \
         --label "org.opencontainers.image.vendor=Datadog, Inc." \
         --label "target=none" \

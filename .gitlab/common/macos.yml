@@ -7,14 +7,14 @@
   # Report current version to datadog if main / release branch
   - |
     if [ "$CI_COMMIT_BRANCH" = "main" ] || [[ "$CI_COMMIT_BRANCH" =~ ^[0-9]+\.[0-9]+\.(x|[0-9]+)$ ]]; then
-      dda inv -- -e macos.report-versions -l all || true
+      dda --interactive inv -- -e macos.report-versions -l all || true
     fi
   # Remove inactive versions
   - |
     if [ "$((RANDOM%20))" -eq 0 ]; then
       echo Trying to remove inactive versions
-      dda inv -- -e macos.remove-inactive-versions -l python -t "$PYTHON_VERSION" || true
-      dda inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)" || true
+      dda --interactive inv -- -e macos.remove-inactive-versions -l python -t "$PYTHON_VERSION" || true
+      dda --interactive inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)" || true
     fi
   # Create custom temporary folder to isolate jobs from each other
   # We have to symlink it to /tmp/gitlabci to avoid some path length issues (sockets should be <= 104 characters on MacOS)
@@ -122,6 +122,6 @@
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
-    - dda inv -- -e rtloader.make
-    - dda inv -- -e rtloader.install
-    - dda inv -- -e install-tools
+    - dda --interactive inv -- -e rtloader.make
+    - dda --interactive inv -- -e rtloader.install
+    - dda --interactive inv -- -e install-tools

@@ -12,7 +12,7 @@ include:
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - dda inv -- -e linter.go --cpus 12 --debug --timeout 60
+    - dda --interactive inv -- -e linter.go --cpus 12 --debug --timeout 60
   retry: !reference [.retry_only_infra_failure, retry]
 
 lint_macos_gitlab_amd64:

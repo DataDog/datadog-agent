@@ -27,7 +27,7 @@ notify-on-tagged-success:
     python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     dda self dep sync -f legacy-tasks -f legacy-notifications
     SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-    dda inv notify.post-message -c "#agent-release-sync" -m "$MESSAGE_TEXT"
+    dda --interactive inv notify.post-message -c "#agent-release-sync" -m "$MESSAGE_TEXT"
 
 notify:
   extends: .notify-job
@@ -41,7 +41,7 @@ notify:
   script:
     - !reference [.notify_setup]
     - !reference [.setup_agent_github_app]
-    - dda inv -- -e notify.check-consistent-failures -p $CI_PIPELINE_ID
+    - dda --interactive inv -- -e notify.check-consistent-failures -p $CI_PIPELINE_ID
 
 send_pipeline_stats:
   extends: .notify-job
@@ -51,7 +51,7 @@ send_pipeline_stats:
   dependencies: []
   script:
     - !reference [.notify_setup]
-    - dda inv -- -e notify.send-stats
+    - dda --interactive inv -- -e notify.send-stats
 
 notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
@@ -72,7 +72,7 @@ notify_gitlab_ci_changes:
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.setup_agent_github_app]
-    - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
+    - dda --interactive inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
 
 .failure_summary_job:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
@@ -93,7 +93,7 @@ notify_failure_summary_on_pipeline:
     - !reference [.on_main_always]
   script:
     - !reference [.notify_setup]
-    - dda inv -- -e notify.failure-summary-upload-pipeline-data
+    - dda --interactive inv -- -e notify.failure-summary-upload-pipeline-data
 
 # Send failure summary notifications daily and weekly
 notify_failure_summary_daily:
@@ -109,12 +109,12 @@ notify_failure_summary_daily:
         exit
       fi
     # Daily
-    - dda inv -- -e notify.failure-summary-send-notifications --daily-summary
+    - dda --interactive inv -- -e notify.failure-summary-send-notifications --daily-summary
     # Send weekly if necessary (note that this workflow is usually triggered early in the morning)
     - |
       if [ "$weekday" = "Friday" ]; then
         echo 'Sending weekly summary'
-        dda inv -e notify.failure-summary-send-notifications --weekly-summary
+        dda --interactive inv -e notify.failure-summary-send-notifications --weekly-summary
       fi
 
 close_failing_tests_stale_issues:
@@ -138,4 +138,4 @@ close_failing_tests_stale_issues:
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - python3 -m dda self dep sync -f legacy-tasks
-    - dda inv -- -e notify.close-failing-tests-stale-issues
+    - dda --interactive inv -- -e notify.close-failing-tests-stale-issues

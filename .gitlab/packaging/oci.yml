@@ -6,7 +6,7 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   before_script:
-    - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
+    - PACKAGE_VERSION="$(dda --interactive inv agent.version --url-safe)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}
   variables:
     KUBERNETES_CPU_REQUEST: 16
@@ -97,5 +97,5 @@ ddot_oci:
   variables:
     OCI_PRODUCT: "datadog-agent-ddot"
   before_script:
-    - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
+    - PACKAGE_VERSION="$(dda --interactive inv agent.version --url-safe)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-agent

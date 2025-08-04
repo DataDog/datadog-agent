@@ -16,8 +16,8 @@ include:
   script:
     - set +x
     - !reference [.retrieve_linux_go_tools_deps]
-    - VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
-    - VERSION_NO_PIPELINE="$(dda inv agent.version --url-safe | sed -E 's/\.pipeline(.*)//')-1" || exit $?
+    - VERSION="$(dda --interactive inv agent.version --url-safe)-1" || exit $?
+    - VERSION_NO_PIPELINE="$(dda --interactive inv agent.version --url-safe | sed -E 's/\.pipeline(.*)//')-1" || exit $?
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
     - export PATH=$PATH:$(go env GOPATH)/bin

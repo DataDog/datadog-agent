@@ -5,9 +5,9 @@ protobuf_test:
   needs: []
   script:
     - export PYTHONUNBUFFERED=1
-    - dda inv -- install-tools
+    - dda --interactive inv -- install-tools
     # Run protobuf generation in pre-commit mode to ensure that it fails if the files are not up to date
-    - dda inv -- -e protobuf.generate --pre-commit
+    - dda --interactive inv -- -e protobuf.generate --pre-commit
 
 protobuf_test_2:
   stage: source_test
@@ -17,6 +17,6 @@ protobuf_test_2:
   variables:
     PYTHONUNBUFFERED: "1"
   script:
-    - dda inv -- install-tools
+    - dda --interactive inv -- install-tools
     # Run protobuf generation in pre-commit mode to ensure that it fails if the files are not up to date
-    - dda inv -- -e protobuf.generate --pre-commit
+    - dda --interactive inv -- -e protobuf.generate --pre-commit

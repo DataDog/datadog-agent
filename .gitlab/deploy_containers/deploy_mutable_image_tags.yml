@@ -6,7 +6,7 @@
   stage: deploy_mutable_image_tags
   dependencies: []
   before_script:
-    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - VERSION="$(dda --interactive inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${AGENT_REPOSITORY}:${VERSION}${SUFFIX}
     - if [[ -z "$IMG_NEW_TAGS" ]]; then export IMG_NEW_TAGS=${TAG_BASE}${SUFFIX}; fi
 
@@ -160,7 +160,7 @@ deploy_mutable_image_tags-dogstatsd:
   rules:
     !reference [.on_deploy_manual_final]
   before_script:
-    - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - VERSION="$(dda --interactive inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${DSD_REPOSITORY}:${VERSION}
     - export IMG_NEW_TAGS=7,latest
 

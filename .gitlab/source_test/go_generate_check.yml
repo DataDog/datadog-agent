@@ -12,6 +12,6 @@ security_go_generate_check:
     - !reference [.retrieve_linux_go_tools_deps]
     - pip3 install wheel "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     - dda self dep sync -f legacy-tasks
-    - dda inv -- -e install-tools
+    - dda --interactive inv -- -e install-tools
   script:
-    - dda inv -- -e security-agent.go-generate-check
+    - dda --interactive inv -- -e security-agent.go-generate-check

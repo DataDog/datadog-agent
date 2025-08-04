@@ -12,7 +12,7 @@
   - export PATH="$PATH:$GOROOT/bin"
   - echo Go version should be $GO_VERSION
   - go version
-  - dda inv check-go-version
+  - dda --interactive inv check-go-version
 
 .macos_setup_cache:
   # Clean up previous builds
