@@ -138,7 +138,7 @@ class TestExperimentalGatesLib(unittest.TestCase):
         )
         gate.artifact_on_wire_size = 100
         gate.artifact_on_disk_size = 350
-        gate._check_artifact_size()
+        gate.check_artifact_size()
 
         # Test case where quality gate fails - sizes exceed maximum allowed
         gate = StaticQualityGatePackage(
@@ -148,7 +148,7 @@ class TestExperimentalGatesLib(unittest.TestCase):
         gate.artifact_on_disk_size = 400  # Exceeds max_on_disk_size of 350
 
         with self.assertRaises(StaticQualityGateFailed) as context:
-            gate._check_artifact_size()
+            gate.check_artifact_size()
 
         # Verify the exception message contains information about both failures
         error_message = str(context.exception)

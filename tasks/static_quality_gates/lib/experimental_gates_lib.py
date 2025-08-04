@@ -2,6 +2,7 @@ import glob
 import os
 import sys
 import tempfile
+from abc import abstractmethod
 from io import UnsupportedOperation
 
 import yaml
@@ -115,12 +116,20 @@ class StaticQualityGate:
             )
         )
 
-    def _check_artifact_size(self):
+    @abstractmethod
+    def _measure_on_disk_and_on_wire_size(self):
+        """
+        Measure the size of the artifact on disk and on wire
+        """
+        raise NotImplementedError("This method should be implemented by the subclass")
+
+    def check_artifact_size(self):
         """
         Check the size of the artifact on wire and on disk
         against max_on_wire_size and max_on_disk_size.
         If the artifact exceeds the maximum allowed size, raise a StaticQualityGateFailed exception.
         """
+        self._measure_on_disk_and_on_wire_size()
         error_message = ""
         if self.artifact_on_wire_size > self.max_on_wire_size:
             error_message += f"On wire size (compressed artifact size) {self.artifact_on_wire_size} is higher than the maximum allowed {self.max_on_wire_size} by the gate !\n"
@@ -136,7 +145,15 @@ class StaticQualityGate:
         """
         print(f"Executing {self.gate_name}")
         print(f"Artifact path: {self.artifact_path}")
-        self._check_artifact_size()
+        # To ensure execute_gate is generic we define an abstract method
+        # to measure the size of the artifact on disk and on wire
+        # and a method to check the size of the artifact against the maximum allowed size.
+        # This way we postpone the processing of the artifact until all the gates are loaded
+        # and then can handle exceptions centrally in quality_gates.py
+        # TODO: quality_gates.py should be refactored. Most probably, the task should be closer
+        # to this lib.
+        self._measure_on_disk_and_on_wire_size()
+        self.check_artifact_size()
         print(color_message(f"✅{self.gate_name} passed.", "green"))
         self.print_results()
 
@@ -159,8 +176,6 @@ class StaticQualityGatePackage(StaticQualityGate):
         super().__init__(gate_name, gate_max_size_values, ctx)
         self._set_os()
         self._register_gate_metrics()
-        self._find_package_path()
-        self._calculate_package_size()
 
     def _find_package_path(self, extension: str = None) -> None:
         """
@@ -207,6 +222,13 @@ class StaticQualityGatePackage(StaticQualityGate):
         self.artifact_on_wire_size = package_on_wire_size
         self.artifact_on_disk_size = package_on_disk_size
 
+    def _measure_on_disk_and_on_wire_size(self):
+        """
+        Measure the size of the package on disk and on wire
+        """
+        self._find_package_path()
+        self._calculate_package_size()
+
 
 class StaticQualityGateDocker(StaticQualityGate):
     """
@@ -220,9 +242,6 @@ class StaticQualityGateDocker(StaticQualityGate):
         super().__init__(gate_name, gate_max_size_values, ctx)
         self._set_os()
         self._register_gate_metrics()
-        self._get_image_url()
-        self._calculate_image_on_wire_size()
-        self._calculate_image_on_disk_size()
 
     def _get_image_url(self) -> str:
         """
@@ -335,12 +354,13 @@ class StaticQualityGateDocker(StaticQualityGate):
         self.metric_handler.register_metric(self.gate_name, "current_on_wire_size", on_wire_size)
         self.artifact_on_wire_size = on_wire_size
 
-    def execute_gate(self):
-        print(f"Triggering {self.gate_name}")
-
-        self._check_artifact_size()
-        print(color_message(f"✅ Docker image size check passed for {self.gate_name}", "green"))
-        self.print_results()
+    def _measure_on_disk_and_on_wire_size(self):
+        """
+        Measure the size of the docker image on disk and on wire
+        """
+        self._get_image_url()
+        self._calculate_image_on_disk_size()
+        self._calculate_image_on_wire_size()
 
 
 def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQualityGate]:
