@@ -9,13 +9,14 @@ package symdb_test
 
 import (
 	"flag"
-	"github.com/stretchr/testify/require"
 	_ "net/http/pprof"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
@@ -30,9 +31,9 @@ func TestSymDB(t *testing.T) {
 			binaryPath, err := testprogs.GetBinary("simple", cfg)
 			require.NoError(t, err)
 			t.Logf("exploring binary: %s", binaryPath)
-			symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
+			symBuilder, err := symdb.NewSymDBBuilder(binaryPath, symdb.ExtractScopeAllSymbols)
 			require.NoError(t, err)
-			symbols, err := symBuilder.ExtractSymbols(symdb.ExtractScopeAllSymbols)
+			symbols, err := symBuilder.ExtractSymbols()
 			require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 			require.NotEmpty(t, symbols.Packages)
 
@@ -71,23 +72,14 @@ func TestSymDBSnapshot(t *testing.T) {
 				t.Run(cfg.String(), func(t *testing.T) {
 					binaryPath := testprogs.MustGetBinary(t, caseName, cfg)
 					t.Logf("exploring binary: %s", binaryPath)
-					symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
+					symBuilder, err := symdb.NewSymDBBuilder(binaryPath, symdb.ExtractScopeMainModuleOnly)
 					require.NoError(t, err)
-					symbols, err := symBuilder.ExtractSymbols(symdb.ExtractScopeMainModuleOnly)
+					symbols, err := symBuilder.ExtractSymbols()
 					require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 					require.NotEmpty(t, symbols.Packages)
 
 					var sb strings.Builder
-					symbols.Serialize(symdbutil.MakePanickingWriter(&sb),
-						symdb.SerializationOptions{
-							PackageSerializationOptions: symdb.PackageSerializationOptions{
-								// Make the snapshot machine-independent by
-								// removing local file paths (given that the
-								// inspected binaries are built locally).
-								StripLocalFilePrefix: true,
-							},
-						},
-					)
+					symbols.Serialize(symdbutil.MakePanickingWriter(&sb))
 					out := sb.String()
 
 					outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".out")

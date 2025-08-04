@@ -101,6 +101,7 @@ static stack_machine_t* stack_machine_ctx_load(uint32_t pointer_chasing_limit) {
   stack_machine->data_stack_pointer = 0;
   stack_machine->chased.n = 0;
   stack_machine->pointer_chasing_ttl = pointer_chasing_limit;
+  stack_machine->pointers_queue.len = 0;
   return stack_machine;
 }
 
