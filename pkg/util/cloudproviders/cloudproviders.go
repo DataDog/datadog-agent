@@ -191,3 +191,22 @@ func GetHostID(ctx context.Context, cloudProviderName string) string {
 	}
 	return ""
 }
+
+type ccridDetector struct {
+	name     string
+	callback func(context.Context) (string, error)
+}
+
+var ccridDetectors = []ccridDetector{}
+
+// GetCCRID return the Canonical Cloud Resource Identifier for the host if the Agent is running on a supported cloud provider
+func GetCCRID(ctx context.Context) string {
+	for _, detector := range ccridDetectors {
+		log.Debugf("calling CCRID detect for %s", detector.name)
+		if ccrid, err := detector.callback(ctx); err != nil {
+			log.Info("Host CCRID from '%s': %s", detector.name, ccrid)
+			return ccrid
+		}
+	}
+	return ""
+}

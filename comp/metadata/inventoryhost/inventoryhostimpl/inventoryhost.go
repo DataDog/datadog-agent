@@ -91,6 +91,7 @@ type hostMetadata struct {
 	CloudProviderSource    string `json:"cloud_provider_source"`
 	CloudProviderAccountID string `json:"cloud_provider_account_id"`
 	CloudProviderHostID    string `json:"cloud_provider_host_id"`
+	CCRID                  string `json:"ccrid"`
 	OsVersion              string `json:"os_version"`
 
 	// from file system
@@ -266,6 +267,7 @@ func (ih *invHost) fillData() {
 
 	ih.data.CloudProviderSource = cloudproviders.GetSource(cloudProvider)
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
+	ih.data.CCRID = cloudproviders.GetCCRID(context.Background())
 	ih.data.OsVersion = osVersionGet()
 
 	gpgcheck, repoGPGCheck := pkgSigningGet(ih.log)
