@@ -123,6 +123,11 @@ jobs:
 
       - name: Combine constants
         run: |
+          # fix amd64 missing embed files
+          touch pkg/ebpf/kernelbugs/c/uprobe-trigger.o
+          touch pkg/ebpf/kernelbugs/c/detect-seccomp-bug
+
+          # combine constants
           dda inv -- -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
           dda inv -- -e security-agent.split-btfhub-constants
 
