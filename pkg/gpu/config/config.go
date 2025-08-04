@@ -36,18 +36,24 @@ type Config struct {
 	KernelCacheQueueSize int
 	// RingBufferSizePagesPerDevice is the number of pages to use for the ring buffer per device.
 	RingBufferSizePagesPerDevice int
-	// MaxKernelLaunchesPerStream is the maximum number of kernel launches to process per stream before forcing a sync.
-	MaxKernelLaunchesPerStream int
-	// MaxMemAllocEventsPerStream is the maximum number of memory allocation events to process per stream before evicting the oldest events.
-	MaxMemAllocEventsPerStream int
+	// StreamConfig is the configuration for the streams.
+	StreamConfig StreamConfig
+}
+
+// StreamConfig is the configuration for the streams.
+type StreamConfig struct {
+	// MaxActiveStreams is the maximum number of streams that can be processed concurrently.
+	MaxActiveStreams int
+	// Timeout is the maximum time to wait for a stream to be inactive before flushing it.
+	Timeout time.Duration
+	// MaxKernelLaunches is the maximum number of kernel launches to process per stream before forcing a sync.
+	MaxKernelLaunches int
+	// MaxMemAllocEvents is the maximum number of memory allocation events to process per stream before evicting the oldest events.
+	MaxMemAllocEvents int
 	// MaxPendingKernelSpans is the maximum number of pending kernel spans to keep in each stream handler.
 	MaxPendingKernelSpans int
 	// MaxPendingMemorySpans is the maximum number of pending memory allocation spans to keep in each stream handler.
 	MaxPendingMemorySpans int
-	// MaxStreams is the maximum number of streams that can be processed concurrently.
-	MaxStreams int
-	// MaxStreamInactivity is the maximum time to wait for a stream to be inactive before flushing it.
-	MaxStreamInactivity time.Duration
 }
 
 // New generates a new configuration for the GPU monitoring probe.
@@ -62,11 +68,13 @@ func New() *Config {
 		EnableFatbinParsing:          spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
 		KernelCacheQueueSize:         spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),
 		RingBufferSizePagesPerDevice: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "ring_buffer_pages_per_device")),
-		MaxKernelLaunchesPerStream:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_kernel_launches_per_stream")),
-		MaxMemAllocEventsPerStream:   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_mem_alloc_events_per_stream")),
-		MaxPendingKernelSpans:        spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_pending_kernel_spans_per_stream")),
-		MaxPendingMemorySpans:        spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_pending_memory_spans_per_stream")),
-		MaxStreams:                   spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_streams")),
-		MaxStreamInactivity:          time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "max_stream_inactivity_seconds"))) * time.Second,
+		StreamConfig: StreamConfig{
+			MaxActiveStreams:      spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_active")),
+			Timeout:               time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "timeout_seconds"))) * time.Second,
+			MaxKernelLaunches:     spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_kernel_launches")),
+			MaxMemAllocEvents:     spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_mem_alloc_events")),
+			MaxPendingKernelSpans: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_pending_kernel_spans")),
+			MaxPendingMemorySpans: spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "streams", "max_pending_memory_spans")),
+		},
 	}
 }
