@@ -126,7 +126,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, blocklist *utilstrings.Blocklist, forceFlushAll bool) {
+func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, blocklist *utilstrings.FilterList, coatlist *utilstrings.FilterList, forceFlushAll bool) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
 
@@ -158,7 +158,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, bl
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
 		// Note: rawSeries is reused at each call
-		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, blocklist)
+		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, blocklist, coatlist)
 	})
 }
 
@@ -166,7 +166,8 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	rawSeries []*metrics.Serie,
 	serieSink metrics.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie,
-	blocklist *utilstrings.Blocklist,
+	blocklist *utilstrings.FilterList,
+	coatlist *utilstrings.FilterList,
 ) {
 	// clear the map. Reuse serieBySignature
 	for k := range serieBySignature {
@@ -198,6 +199,13 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	}
 
 	for _, serie := range serieBySignature {
+		// Check the telemetry list before the block list so even if metrics are blocked
+		// they get added to the internal telemetry.
+		if coatlist != nil && coatlist.Test(serie.Name) {
+			// Add to internal telemetry.
+			addToAgentTelemetry(serie)
+		}
+
 		// it is the final stage before flushing the series to the serialisation
 		// part of the pipeline but also, here is a stage where all series have been
 		// generated & processed (even the ones generated from a histogram metric).
@@ -205,6 +213,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 			tlmDogstatsdBlockedMetrics.Inc()
 			continue
 		}
+
 		serieSink.Append(serie)
 	}
 }
@@ -233,11 +242,11 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, blocklist *utilstrings.Blocklist, forceFlushAll bool) {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, blocklist *utilstrings.FilterList, coatlist *utilstrings.FilterList, forceFlushAll bool) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
-	s.flushSeries(cutoffTime, series, blocklist, forceFlushAll)
+	s.flushSeries(cutoffTime, series, blocklist, coatlist, forceFlushAll)
 	s.flushSketches(cutoffTime, sketches, forceFlushAll)
 	// expiring contexts
 	s.contextResolver.expireContexts(int64(timestamp))

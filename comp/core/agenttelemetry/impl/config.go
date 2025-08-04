@@ -206,6 +206,26 @@ var defaultProfiles = `
       metrics:
         - name: dogstatsd.udp_packets_bytes
         - name: dogstatsd.uds_packets_bytes
+        - name: dogstatsd_client.bytes_sent
+          aggregate_tags:
+          - client
+          - client_version
+          - client_transport
+        - name: dogstatsd_client.bytes_dropped
+          aggregate_tags:
+          - client
+          - client_version
+          - client_transport
+        - name: dogstatsd_client.packets_sent
+          aggregate_tags:
+          - client
+          - client_version
+          - client_transport
+        - name: dogstatsd_client.packets_dropped
+          aggregate_tags:
+          - client
+          - client_version
+          - client_transport
         - name: logs.bytes_missed
         - name: logs.bytes_sent
         - name: logs.decoded

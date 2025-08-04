@@ -31,7 +31,9 @@ type timeSamplerWorker struct {
 	// flushBlocklist is the blocklist used when flushing metrics to the serializer.
 	// It's main use-case is to filter out some metrics after their aggregation
 	// process, such as histograms which create several metrics.
-	flushBlocklist *utilstrings.Blocklist
+	flushBlocklist *utilstrings.FilterList
+
+	flushCoatlist *utilstrings.FilterList
 
 	// parallel serialization configuration
 	parallelSerialization FlushAndSerializeInParallel
@@ -42,7 +44,7 @@ type timeSamplerWorker struct {
 	// use this chan to trigger a flush of the time sampler
 	flushChan chan flushTrigger
 	// use this chan to trigger a blocklist reconfiguration
-	blocklistChan chan *utilstrings.Blocklist
+	blocklistChan chan *utilstrings.FilterList
 	// use this chan to stop the timeSamplerWorker
 	stopChan chan struct{}
 	// channel to trigger interactive dump of the context resolver
@@ -59,12 +61,16 @@ type dumpTrigger struct {
 
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
-	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
+	parallelSerialization FlushAndSerializeInParallel,
+	tagsStore *tags.Store,
+	flushCoatlist *utilstrings.FilterList,
+) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
 		metricSamplePool:      metricSamplePool,
 		parallelSerialization: parallelSerialization,
+		flushCoatlist:         flushCoatlist,
 
 		flushInterval: flushInterval,
 
@@ -72,7 +78,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		stopChan:      make(chan struct{}),
 		flushChan:     make(chan flushTrigger),
 		dumpChan:      make(chan dumpTrigger),
-		blocklistChan: make(chan *utilstrings.Blocklist),
+		blocklistChan: make(chan *utilstrings.FilterList),
 
 		tagsStore: tagsStore,
 	}
@@ -116,7 +122,7 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist, trigger.forceFlushAll)
+	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist, w.flushCoatlist, trigger.forceFlushAll)
 	trigger.blockChan <- struct{}{}
 }
 

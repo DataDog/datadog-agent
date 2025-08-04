@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Internal telemetry from the dogstatsd clients is now added to the internal
+    agents telemetry.
