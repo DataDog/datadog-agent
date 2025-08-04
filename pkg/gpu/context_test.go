@@ -22,18 +22,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func getTestSystemContext(t *testing.T, extraOpts ...systemContextOption) *systemContext {
+func getTestSystemContext(tb testing.TB, extraOpts ...systemContextOption) *systemContext {
 	opts := []systemContextOption{
 		withProcRoot(kernel.ProcFSRoot()),
-		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
-		withTelemetry(testutil.GetTelemetryMock(t)),
+		withWorkloadMeta(testutil.GetWorkloadMetaMock(tb)),
+		withTelemetry(testutil.GetTelemetryMock(tb)),
 	}
 
 	opts = append(opts, extraOpts...) // Allow overriding the default options
 
 	sysCtx, err := getSystemContext(opts...)
-	require.NoError(t, err)
-	require.NotNil(t, sysCtx)
+	require.NoError(tb, err)
+	require.NotNil(tb, sysCtx)
 	return sysCtx
 }
 

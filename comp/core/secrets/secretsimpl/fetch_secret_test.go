@@ -91,6 +91,10 @@ func TestMain(m *testing.M) {
 }
 
 func TestExecCommandError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skip this test on Windows")
+	}
+
 	inputPayload := "{\"version\": \"1.0\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 

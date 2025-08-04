@@ -308,7 +308,7 @@ new-e2e-windows-fips-compliance-test:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/fips-compliance
-    TEAM: windows-agent
+    TEAM: windows-products
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestWindowsVM$"
@@ -324,7 +324,7 @@ new-e2e-windows-service-test:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/windows/service-test
-    TEAM: windows-agent
+    TEAM: windows-products
     ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
@@ -351,7 +351,7 @@ new-e2e-windows-certificate:
     - deploy_windows_testing-a7
   variables:
     TARGETS: ./tests/windows/windows-certificate
-    TEAM: windows-agent
+    TEAM: windows-products
     EXTRA_PARAMS: --run "TestRemoteCertificates$"
 
 new-e2e-language-detection:
@@ -793,7 +793,7 @@ new-e2e-windows-systemprobe:
     - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/sysprobe-functional
-    TEAM: windows-agent
+    TEAM: windows-products
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
@@ -810,7 +810,7 @@ new-e2e-windows-security-agent:
     - tests_windows_secagent_x64
   variables:
     TARGETS: ./tests/security-agent-functional
-    TEAM: windows-agent
+    TEAM: windows-products
 
 new-e2e-otel-eks-init:
   stage: e2e_init
