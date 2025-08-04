@@ -29,7 +29,7 @@ New-Item -ItemType Directory C:\oci-pkg | Out-Null
 Copy-Item (Get-ChildItem $omnibusOutput\${package}-${version}-x86_64.msi).FullName -Destination C:\oci-pkg\${package}-${version}-x86_64.msi
 
 # The argument --archive-path ".\omnibus\pkg\datadog-agent-${version}.tar.gz" is currently broken and has no effects
-& C:\tools\datadog-package.exe create --package $package --os windows --arch amd64 --archive --version $version C:\oci-pkg
+& C:\tools\datadog-package.exe create --installer (Get-ChildItem $omnibusOutput\${package}-${version}-x86_64.exe).FullName --package $package --os windows --arch amd64 --archive --version $version C:\oci-pkg
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to create OCI package"
     exit 1
