@@ -108,7 +108,8 @@ func getSubnetsStatus(discoveryVar expvar.Var) []subnetStatus {
 
 		ones, bits := ipNet.Mask.Size()
 		ipsTotalCount := 1 << (bits - ones)
-		discoverySubnetsStatus = append(discoverySubnetsStatus, subnetStatus{subnet,
+		discoverySubnetsStatus = append(discoverySubnetsStatus, subnetStatus{
+			subnet,
 			autodiscoveryStatus.CurrentDevice,
 			autodiscoveryStatus.DevicesScannedCount,
 			ipsTotalCount,

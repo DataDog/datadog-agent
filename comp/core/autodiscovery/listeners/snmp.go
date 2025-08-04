@@ -337,10 +337,9 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 			if persistentcache.Exists(legacyCacheKey) {
 				err = persistentcache.Rename(legacyCacheKey, cacheKey)
 				if err != nil {
-					log.Debugf("Couldn't rename cache '%s' to '%s': %v", legacyConfigHash, configHash, err)
+					log.Errorf("Failed to rename cache '%s' to '%s': %v", legacyConfigHash, configHash, err)
 
 					// Use legacy cache hash when we fail to rename
-					configHash = legacyConfigHash
 					cacheKey = legacyCacheKey
 				}
 			}
