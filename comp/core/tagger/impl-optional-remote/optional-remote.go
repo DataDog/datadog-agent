@@ -21,7 +21,6 @@ import (
 	noop "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	remote "github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
@@ -32,7 +31,6 @@ type Requires struct {
 	RemoteParams         tagger.RemoteParams
 	Config               config.Component
 	Log                  log.Component
-	Wmeta                workloadmeta.Component
 	Telemetry            telemetry.Component
 	IPC                  ipc.Component
 }
