@@ -240,7 +240,7 @@ class StaticQualityGateDocker(StaticQualityGate):
             flavor = "cluster-agent"
         elif "dogstatsd" in self.gate_name:
             flavor = "dogstatsd"
-        elif "cws-instrumentation" in self.gate_name:
+        elif "cws_instrumentation" in self.gate_name:
             flavor = "cws-instrumentation"
         else:
             raise ValueError(f"Unknown docker image flavor for gate: {self.gate_name}")
