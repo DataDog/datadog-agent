@@ -277,8 +277,11 @@ type Compound interface {
 	MergeConfig(in io.Reader) error
 	MergeFleetPolicy(configPath string) error
 
-	// An escape hatch to build on top of the config after it has completed initialization
-	NewBuilder() BuildableConfig
+	// Revert a finished configuration so that more can be build on top of it.
+	// When building is completed, the caller should call BuildSchema.
+	// NOTE: This method should not be used by any new callsites, it is needed
+	// currently because of the unique requirements of OTel's configuration.
+	RevertFinishedBackToBuilder() BuildableConfig
 }
 
 // Config is an interface that can read/write the config after it has been
