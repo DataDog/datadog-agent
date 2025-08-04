@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    gpu: fix container to device assignment for Docker containers
+    gpu: fix container-to-device assignment for Docker containers
