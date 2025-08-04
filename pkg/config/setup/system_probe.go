@@ -436,12 +436,15 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "enable_fatbin_parsing"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "fatbin_request_queue_size"), 100)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ring_buffer_pages_per_device"), 32) // 32 pages = 128KB by default per device
-	cfg.BindEnvAndSetDefault(join(gpuNS, "max_kernel_launches_per_stream"), 1000)
-	cfg.BindEnvAndSetDefault(join(gpuNS, "max_mem_alloc_events_per_stream"), 1000)
-	cfg.BindEnvAndSetDefault(join(gpuNS, "max_pending_kernel_spans_per_stream"), 1000)
-	cfg.BindEnvAndSetDefault(join(gpuNS, "max_pending_memory_spans_per_stream"), 1000)
-	cfg.BindEnvAndSetDefault(join(gpuNS, "max_streams"), 100)
-	cfg.BindEnvAndSetDefault(join(gpuNS, "max_stream_inactivity_seconds"), 30) // 30 seconds by default, includes two checks at the default interval of 15 seconds
+	cfg.BindEnvAndSetDefault(join(gpuNS, "attacher_detailed_logs"), false)
+
+	// gpu - stream config
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_kernel_launches"), 1000)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_mem_alloc_events"), 1000)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_pending_kernel_spans"), 1000)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_pending_memory_spans"), 1000)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_active"), 100)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "timeout_seconds"), 30) // 30 seconds by default, includes two checks at the default interval of 15 seconds
 
 	initCWSSystemProbeConfig(cfg)
 }

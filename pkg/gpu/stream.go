@@ -14,6 +14,7 @@ import (
 	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	lru "github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
@@ -22,14 +23,6 @@ import (
 
 // noSmVersion is used when the SM version is not available
 const noSmVersion uint32 = 0
-
-// streamLimits contains configurable limits for a stream
-type streamLimits struct {
-	maxKernelLaunches     int
-	maxAllocEvents        int
-	maxPendingKernelSpans int
-	maxPendingMemorySpans int
-}
 
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
@@ -41,7 +34,7 @@ type StreamHandler struct {
 	pendingMemorySpans chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
 	ended              bool                                   // A marker to indicate that the stream has ended, and this handler should be flushed
 	sysCtx             *systemContext
-	limits             streamLimits
+	config             config.StreamConfig
 	telemetry          *streamTelemetry // shared telemetry objects for stream-specific telemetry
 	lastEventKtimeNs   uint64           // The kernel-time timestamp of the last event processed by this handler
 }
@@ -156,22 +149,22 @@ func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
 	return e.kernel, e.err
 }
 
-func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, limits streamLimits, telemetry *streamTelemetry) (*StreamHandler, error) {
+func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, config config.StreamConfig, telemetry *streamTelemetry) (*StreamHandler, error) {
 	sh := &StreamHandler{
 		sysCtx:    sysCtx,
 		metadata:  metadata,
-		limits:    limits,
+		config:    config,
 		telemetry: telemetry,
 	}
 
 	var err error
-	sh.memAllocEvents, err = lru.NewLRU[uint64, gpuebpf.CudaMemEvent](limits.maxAllocEvents, nil)
+	sh.memAllocEvents, err = lru.NewLRU[uint64, gpuebpf.CudaMemEvent](config.MaxMemAllocEvents, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memAllocEvents cache: %w", err)
 	}
 
-	sh.pendingKernelSpans = make(chan *kernelSpan, limits.maxPendingKernelSpans)
-	sh.pendingMemorySpans = make(chan *memorySpan, limits.maxPendingMemorySpans)
+	sh.pendingKernelSpans = make(chan *kernelSpan, config.MaxPendingKernelSpans)
+	sh.pendingMemorySpans = make(chan *memorySpan, config.MaxPendingMemorySpans)
 
 	return sh, nil
 }
@@ -196,7 +189,7 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 
 	// If we've reached the kernel launch limit, trigger a sync. This stops us from just collecting
 	// kernel launches and not generating any spans if for some reason we are missing sync events.
-	if len(sh.kernelLaunches) >= sh.limits.maxKernelLaunches {
+	if len(sh.kernelLaunches) >= sh.config.MaxKernelLaunches {
 		sh.markSynchronization(event.Header.Ktime_ns + 1) // sync "happens" after the launch, not the same time. If the time is the same, the last kernel launch is not included in the span
 		sh.telemetry.forcedSyncOnKernelLaunch.Inc()
 	}
