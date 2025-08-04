@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package optremoteimpl contains the implementation of the optional remote
-// tagger. The optremoteimpl allow clients to use either the remote tagger or
+// Package optionalimpl contains the implementation of the optional remote
+// tagger. The optionalimpl allow clients to use either the remote tagger or
 // the noop tagger based on their configuration
-package optremoteimpl
+package optionalimpl
 
 import (
 	"encoding/json"
