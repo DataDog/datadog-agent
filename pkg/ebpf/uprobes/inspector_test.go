@@ -28,33 +28,42 @@ func TestNativeBinarySymbolRetrieval(t *testing.T) {
 	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
 	fpath := utils.FilePath{HostPath: lib}
 
-	allMandatoryExisting := []SymbolRequest{{Name: "SSL_connect"}}
-	allBestEffortExisting := []SymbolRequest{{Name: "SSL_connect", BestEffort: true}}
-	mandatoryExistBestEffortDont := []SymbolRequest{{Name: "SSL_connect"}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}
-	mandatoryNonExisting := []SymbolRequest{{Name: "ThisFunctionDoesNotExistEver"}}
+	setId := 0
+	allMandatoryExisting := map[int][]SymbolRequest{setId: {{Name: "SSL_connect"}}}
+	allBestEffortExisting := map[int][]SymbolRequest{setId: {{Name: "SSL_connect", BestEffort: true}}}
+	mandatoryExistBestEffortDont := map[int][]SymbolRequest{setId: {{Name: "SSL_connect"}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}}
+	mandatoryNonExisting := map[int][]SymbolRequest{setId: {{Name: "ThisFunctionDoesNotExistEver"}}}
 
 	inspector := &NativeBinaryInspector{}
 
 	t.Run("MandatoryAllExist", func(tt *testing.T) {
 		result, err := inspector.Inspect(fpath, allMandatoryExisting)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result))
+		require.Contains(tt, result, setId)
+		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result[setId].SymbolMap))
+		require.NoError(tt, result[setId].Error)
 	})
 
 	t.Run("BestEffortAllExist", func(tt *testing.T) {
 		result, err := inspector.Inspect(fpath, allBestEffortExisting)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result))
+		require.Contains(tt, result, setId)
+		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result[setId].SymbolMap))
+		require.NoError(tt, result[setId].Error)
 	})
 
 	t.Run("BestEffortDontExist", func(tt *testing.T) {
 		result, err := inspector.Inspect(fpath, mandatoryExistBestEffortDont)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result))
+		require.Contains(tt, result, setId)
+		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result[setId].SymbolMap))
+		require.NoError(tt, result[setId].Error)
 	})
 
 	t.Run("SomeMandatoryDontExist", func(tt *testing.T) {
-		_, err := inspector.Inspect(fpath, mandatoryNonExisting)
-		require.Error(tt, err, "should have failed to find mandatory symbols")
+		result, err := inspector.Inspect(fpath, mandatoryNonExisting)
+		require.NoError(tt, err) // no global error here as we're not looking for mandatory symbols
+		require.Contains(tt, result, setId)
+		require.Error(tt, result[setId].Error, "should have failed to find mandatory symbols")
 	})
 }
