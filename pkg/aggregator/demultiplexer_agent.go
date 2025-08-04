@@ -501,7 +501,7 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-// SetTimeSamplerFilterList triggers a reconfiguration of the filter list
+// SetTimeSamplersFilterList triggers a reconfiguration of the filter list
 // applied in the time samplers.
 func (d *AgentDemultiplexer) SetTimeSamplersFilterList(filterList *utilstrings.Matcher) {
 	for _, worker := range d.statsd.workers {
