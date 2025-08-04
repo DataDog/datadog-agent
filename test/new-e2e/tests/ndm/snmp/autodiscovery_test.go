@@ -19,22 +19,53 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
-type authsSuite struct {
+type autoDiscoverySuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func authsSuiteProvisioner(agentConfig string) provisioners.Provisioner {
+func autoDiscoverySuiteProvisioner(agentConfig string) provisioners.Provisioner {
 	return awshost.Provisioner(
 		awshost.WithDocker(),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
 	)
 }
 
-func TestAuthsSuite(t *testing.T) {
-	e2e.Run(t, &authsSuite{}, e2e.WithProvisioner(authsSuiteProvisioner(``)))
+func TestAutoDiscoverySuite(t *testing.T) {
+	e2e.Run(t, &autoDiscoverySuite{}, e2e.WithProvisioner(autoDiscoverySuiteProvisioner(``)))
 }
 
-func (v *authsSuite) TestAuthsConfig() {
+func (v *autoDiscoverySuite) TestAutoDiscovery() {
+	vm := v.Env().RemoteHost
+	fakeIntake := v.Env().FakeIntake
+
+	setupDevice(v.Require(), vm)
+
+	// language=yaml
+	agentConfig := `
+network_devices:
+  autodiscovery:
+    loader: core
+    configs:
+      - network_address: 127.0.0.0/30
+        port: 1161
+        community_string: 'cisco-nexus'
+`
+	v.UpdateEnv(autoDiscoverySuiteProvisioner(agentConfig))
+
+	err := fakeIntake.Client().FlushServerAndResetAggregators()
+	v.Require().NoError(err)
+
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		checkBasicMetrics(c, fakeIntake)
+	}, 2*time.Minute, 10*time.Second)
+
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (v *autoDiscoverySuite) TestAuthenticationsConfig() {
 	vm := v.Env().RemoteHost
 	fakeIntake := v.Env().FakeIntake
 
@@ -53,41 +84,7 @@ network_devices:
           - community_string: 'cisco-nexus'
           - community_string: 'invalid2'
 `
-	v.UpdateEnv(authsSuiteProvisioner(agentConfig))
-
-	err := fakeIntake.Client().FlushServerAndResetAggregators()
-	v.Require().NoError(err)
-
-	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetrics(c, fakeIntake)
-	}, 2*time.Minute, 10*time.Second)
-
-	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
-		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
-	}, 2*time.Minute, 10*time.Second)
-}
-
-func (v *authsSuite) TestBackwardCompatibility() {
-	vm := v.Env().RemoteHost
-	fakeIntake := v.Env().FakeIntake
-
-	setupDevice(v.Require(), vm)
-
-	// language=yaml
-	agentConfig := `
-network_devices:
-  autodiscovery:
-    loader: core
-    configs:
-      - network_address: 127.0.0.0/30
-        port: 1161
-        community_string: 'cisco-nexus'
-        authentications:
-          - community_string: 'invalid1'
-          - community_string: 'invalid2'
-`
-	v.UpdateEnv(authsSuiteProvisioner(agentConfig))
+	v.UpdateEnv(autoDiscoverySuiteProvisioner(agentConfig))
 
 	err := fakeIntake.Client().FlushServerAndResetAggregators()
 	v.Require().NoError(err)
