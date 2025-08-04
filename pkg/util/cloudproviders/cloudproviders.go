@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/alibaba"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
@@ -155,6 +156,7 @@ type cloudProviderCCRIDDetector func(context.Context) (string, error)
 
 var hostCCRIDDetectors = map[string]cloudProviderCCRIDDetector{
 	azure.CloudProviderName: azure.GetHostCCRID,
+	aws.CloudProviderName:   aws.GetHostCCRID,
 }
 
 // GetHostCCRID returns the host CCRID from the first provider that works
