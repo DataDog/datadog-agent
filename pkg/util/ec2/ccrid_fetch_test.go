@@ -21,14 +21,13 @@ func TestGetHostCCRID(t *testing.T) {
 		getAccountID = origGetAccountID
 	}()
 
-	// Mock metadata values
-	getInstanceID = func(ctx context.Context) (string, error) {
+	getInstanceID = func(_ context.Context) (string, error) {
 		return "i-abcdef1234567890", nil
 	}
-	getRegion = func(ctx context.Context) (string, error) {
+	getRegion = func(_ context.Context) (string, error) {
 		return "us-west-2", nil
 	}
-	getAccountID = func(ctx context.Context) (string, error) {
+	getAccountID = func(_ context.Context) (string, error) {
 		return "123456789012", nil
 	}
 

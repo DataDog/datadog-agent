@@ -186,6 +186,7 @@ var hostCCRIDFetcher = cachedfetch.Fetcher{
 	},
 }
 
+// GetHostCCRID returns the Azure instance resource ID to use as the host CCRID.
 func GetHostCCRID(ctx context.Context) (string, error) {
 	return hostCCRIDFetcher.FetchString(ctx)
 }

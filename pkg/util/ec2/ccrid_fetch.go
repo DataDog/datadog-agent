@@ -12,10 +12,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 const (
@@ -28,18 +24,17 @@ var (
 	getAccountID  = GetAccountID
 )
 
-type cloudProviderCCRIDDetector func(context.Context) (string, error)
-
-type Fetcher struct {
+type fetcher struct {
 	Name    string
 	Attempt func(context.Context) (interface{}, error)
-	mu      sync.Mutex
-	cache   interface{}
-	err     error
-	ready   bool
+
+	mu    sync.Mutex
+	cache interface{}
+	err   error
+	ready bool
 }
 
-func (f *Fetcher) Fetch(ctx context.Context) (interface{}, error) {
+func (f *fetcher) fetch(ctx context.Context) (interface{}, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.ready {
@@ -50,8 +45,8 @@ func (f *Fetcher) Fetch(ctx context.Context) (interface{}, error) {
 	return f.cache, f.err
 }
 
-func (f *Fetcher) FetchString(ctx context.Context) (string, error) {
-	val, err := f.Fetch(ctx)
+func (f *fetcher) fetchString(ctx context.Context) (string, error) {
+	val, err := f.fetch(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -62,31 +57,16 @@ func (f *Fetcher) FetchString(ctx context.Context) (string, error) {
 	return s, nil
 }
 
-var regionFetcher = Fetcher{
+var regionFetcher = fetcher{
 	Name: "EC2 Region",
-	Attempt: func(ctx context.Context) (interface{}, error) {
+	Attempt: func(_ context.Context) (interface{}, error) {
 		return httpGetMetadata("placement/region")
 	},
 }
 
-var accountIDFetcher = Fetcher{
-	Name: "AWS Account ID",
-	Attempt: func(ctx context.Context) (interface{}, error) {
-		cfg, err := config.LoadDefaultConfig(ctx)
-		if err != nil {
-			return "", err
-		}
-		client := sts.NewFromConfig(cfg)
-		output, err := client.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-		if err != nil {
-			return "", err
-		}
-		return aws.ToString(output.Account), nil
-	},
-}
-
+// GetRegion returns the AWS region as reported by EC2 IMDS.
 func GetRegion(ctx context.Context) (string, error) {
-	return regionFetcher.FetchString(ctx)
+	return regionFetcher.fetchString(ctx)
 }
 
 func httpGetMetadata(path string) (string, error) {
