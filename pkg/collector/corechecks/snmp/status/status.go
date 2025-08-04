@@ -60,7 +60,9 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 
 		var subnetConfigHashOrdered []string
 		for _, autodiscoveryConfig := range autodiscoveryConfig.Configs {
+			// Append legacy and new hash format to handle the case when there was an error renaming the old cache to the new cache format
 			subnetConfigHashOrdered = append(subnetConfigHashOrdered, autodiscoveryConfig.Digest(autodiscoveryConfig.Network, false))
+			subnetConfigHashOrdered = append(subnetConfigHashOrdered, autodiscoveryConfig.Digest(autodiscoveryConfig.Network, true))
 		}
 
 		autodiscoverySubnets := getSubnetsStatus(autodiscoveryVar)

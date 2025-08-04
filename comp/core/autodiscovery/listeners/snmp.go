@@ -206,11 +206,9 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		}
 
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
-
-		if deviceFound {
-			l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, true)
-			break
-		}
+		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, true)
+		
+		break
 	}
 	if !deviceFound {
 		l.deleteService(entityID, job.subnet)
@@ -331,16 +329,16 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 		startingIP := ipAddr.Mask(ipNet.Mask)
 
 		configHash := config.Digest(config.Network, false)
-		cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
+		cacheKey := buildCacheKey(configHash)
 		if !persistentcache.Exists(cacheKey) {
 			legacyConfigHash := config.Digest(config.Network, true)
-			legacyCacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, legacyConfigHash)
+			legacyCacheKey := buildCacheKey(legacyConfigHash)
 			if persistentcache.Exists(legacyCacheKey) {
-				err = persistentcache.Copy(cacheKey, legacyCacheKey)
+				err = persistentcache.Rename(legacyCacheKey, cacheKey)
 				if err != nil {
-					log.Debugf("Couldn't copy %s to %s cache: %v", legacyCacheKey, legacyCacheKey, err)
+					log.Debugf("Couldn't rename cache '%s' to '%s': %v", legacyConfigHash, configHash, err)
 
-					// Use legacy cache hash when we fail to copy
+					// Use legacy cache hash when we fail to rename
 					configHash = legacyConfigHash
 					cacheKey = legacyCacheKey
 				}
@@ -688,6 +686,10 @@ func convertToCommaSepTags(tags []string) string {
 		normalizedTags = append(normalizedTags, strings.ReplaceAll(tag, tagSeparator, "_"))
 	}
 	return strings.Join(normalizedTags, tagSeparator)
+}
+
+func buildCacheKey(configHash string) string {
+	return fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
 }
 
 // GetSubnetVarKey returns a key for a subnet in the expvar map

@@ -234,6 +234,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 }
 
 // Digest returns an hash value representing the data stored in this configuration, minus the network address
+// TODO: Remove support for legacy format when Agent reaches version 7.76+: see https://github.com/DataDog/datadog-agent/pull/39459
 func (c *Config) Digest(address string, useLegacyFormat bool) string {
 	h := fnv.New64()
 	// Hash write never returns an error
