@@ -34,12 +34,12 @@ import (
 // TestProcessesByPIDWLM tests processesByPID map creation when WLM collection is ON
 func TestProcessesByPIDWLM(t *testing.T) {
 	mockConstantClock := constantMockClock(time.Now())
-	nowSeconds := mockConstantClock.Now().UnixMilli()
+	nowMs := mockConstantClock.Now().UnixMilli()
 	// TEST DATA 1
-	proc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowSeconds)
-	proc2 := wlmProcessWithCreateTime(2, "mine-bitcoins -all -x", nowSeconds-1)
-	proc3 := wlmProcessWithCreateTime(3, "datadog-agent --cfgpath datadog.conf", nowSeconds+2)
-	proc4 := wlmProcessWithServiceDiscovery(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds-3)
+	proc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowMs)
+	proc2 := wlmProcessWithCreateTime(2, "mine-bitcoins -all -x", nowMs-1)
+	proc3 := wlmProcessWithCreateTime(3, "datadog-agent --cfgpath datadog.conf", nowMs+2)
+	proc4 := wlmProcessWithServiceDiscovery(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowMs-3)
 	wlmProcesses := []*wmdef.Process{proc1, proc2, proc3, proc4}
 	statsByPid := createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
 	expected1 := map[int32]*procutil.Process{
@@ -58,7 +58,7 @@ func TestProcessesByPIDWLM(t *testing.T) {
 	}
 
 	// TEST DATA 3
-	newProc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowSeconds+10)
+	newProc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowMs+10)
 	statsByPidNewProc1 := createTestWLMProcessStats([]*wmdef.Process{newProc1, proc2, proc3, proc4}, true)
 	expected3 := map[int32]*procutil.Process{
 		proc2.Pid: mapWLMProcToProc(proc2, statsByPidNewProc1[proc2.Pid]),
@@ -432,7 +432,7 @@ func wlmProcessWithServiceDiscovery(pid int32, spaceSeparatedCmdline string, cre
 func createTestWLMProcessStats(wlmProcs []*wmdef.Process, elevatedPermissions bool) map[int32]*procutil.Stats {
 	statsByPid := make(map[int32]*procutil.Stats, len(wlmProcs))
 	for _, wlmProc := range wlmProcs {
-		statsByPid[wlmProc.Pid] = randomProcessStats(wlmProc.CreationTime.Unix(), elevatedPermissions)
+		statsByPid[wlmProc.Pid] = randomProcessStats(wlmProc.CreationTime.UnixMilli(), elevatedPermissions)
 	}
 	return statsByPid
 }
