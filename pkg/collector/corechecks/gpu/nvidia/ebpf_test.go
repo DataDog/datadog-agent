@@ -415,7 +415,7 @@ func createMockDevice(t *testing.T, deviceUUID string) ddnvml.Device {
 	deviceCache, err := ddnvml.NewDeviceCache()
 	require.NoError(t, err)
 
-	devices := deviceCache.All()
+	devices := deviceCache.AllPhysicalDevices()
 	require.Len(t, devices, 1)
 
 	return devices[0]

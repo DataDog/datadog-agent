@@ -112,7 +112,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 
 	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
 	if spCache != nil {
-		for _, dev := range deps.DeviceCache.All() {
+		for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
 			spCollector, err := newEbpfCollector(dev, spCache)
 			if err != nil {
 				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
@@ -134,7 +134,7 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 
 	tagsMapping := make(map[string][]string, devCount)
 
-	for _, dev := range deviceCache.All() {
+	for _, dev := range deviceCache.AllPhysicalDevices() {
 		uuid := dev.GetDeviceInfo().UUID
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)

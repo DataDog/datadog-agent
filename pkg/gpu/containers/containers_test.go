@@ -418,3 +418,164 @@ func TestMatchContainerDevicesWithErrors(t *testing.T) {
 		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
 }
+
+func TestGetByDevice(t *testing.T) {
+	// Setup mock NVML with basic devices
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+
+	// Get test devices
+	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+
+	// Create test containers
+	container1 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "container-1",
+		},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{
+				Name: string(gpuutil.GpuNvidiaGeneric),
+				ID:   testutil.GPUUUIDs[0], // Device 0
+			},
+		},
+	}
+
+	container2 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "container-2",
+		},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{
+				Name: string(gpuutil.GpuNvidiaGeneric),
+				ID:   testutil.GPUUUIDs[1], // Device 1
+			},
+		},
+	}
+
+	containerNoGPU := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "container-no-gpu",
+		},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{
+				Name: "cpu",
+				ID:   "cpu-0",
+			},
+		},
+	}
+
+	containers := []*workloadmeta.Container{container1, container2, containerNoGPU}
+
+	t.Run("FindContainerForDevice0", func(t *testing.T) {
+		foundContainer := GetByDevice(containers, devices[0])
+		require.NotNil(t, foundContainer)
+		assert.Equal(t, "container-1", foundContainer.EntityID.ID)
+	})
+
+	t.Run("FindContainerForDevice1", func(t *testing.T) {
+		foundContainer := GetByDevice(containers, devices[1])
+		require.NotNil(t, foundContainer)
+		assert.Equal(t, "container-2", foundContainer.EntityID.ID)
+	})
+
+	t.Run("NoContainerForDevice2", func(t *testing.T) {
+		foundContainer := GetByDevice(containers, devices[2])
+		assert.Nil(t, foundContainer)
+	})
+
+	t.Run("EmptyContainersList", func(t *testing.T) {
+		foundContainer := GetByDevice([]*workloadmeta.Container{}, devices[0])
+		assert.Nil(t, foundContainer)
+	})
+
+	t.Run("ContainerWithGKEDevicePlugin", func(t *testing.T) {
+		gkeContainer := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "gke-container",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   "nvidia1", // GKE format - index 1
+				},
+			},
+		}
+
+		foundContainer := GetByDevice([]*workloadmeta.Container{gkeContainer}, devices[1])
+		require.NotNil(t, foundContainer)
+		assert.Equal(t, "gke-container", foundContainer.EntityID.ID)
+	})
+
+	t.Run("ContainerWithMultipleGPUs", func(t *testing.T) {
+		multiGPUContainer := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "multi-gpu-container",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[0],
+				},
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[2],
+				},
+			},
+		}
+
+		// Should find the container for device 0
+		foundContainer := GetByDevice([]*workloadmeta.Container{multiGPUContainer}, devices[0])
+		require.NotNil(t, foundContainer)
+		assert.Equal(t, "multi-gpu-container", foundContainer.EntityID.ID)
+
+		// Should find the same container for device 2
+		foundContainer = GetByDevice([]*workloadmeta.Container{multiGPUContainer}, devices[2])
+		require.NotNil(t, foundContainer)
+		assert.Equal(t, "multi-gpu-container", foundContainer.EntityID.ID)
+
+		// Should not find container for device 1
+		foundContainer = GetByDevice([]*workloadmeta.Container{multiGPUContainer}, devices[1])
+		assert.Nil(t, foundContainer)
+	})
+}
+
+func TestGetByDeviceWithMIG(t *testing.T) {
+	// Setup mock NVML with MIG enabled
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+
+	// Get test devices including MIG children
+	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4, 5, 6)
+
+	t.Run("FindContainerForMIGChild", func(t *testing.T) {
+		migContainer := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "mig-container",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.MIGChildrenUUIDs[5][0], // First MIG child of device 5
+				},
+			},
+		}
+
+		// Find the MIG device
+		var migDevice ddnvml.Device
+		for _, device := range devices {
+			if device.GetDeviceInfo().UUID == testutil.MIGChildrenUUIDs[5][0] {
+				migDevice = device
+				break
+			}
+		}
+		require.NotNil(t, migDevice)
+
+		foundContainer := GetByDevice([]*workloadmeta.Container{migContainer}, migDevice)
+		require.NotNil(t, foundContainer)
+		assert.Equal(t, "mig-container", foundContainer.EntityID.ID)
+	})
+}

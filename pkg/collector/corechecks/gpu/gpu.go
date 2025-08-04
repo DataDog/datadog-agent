@@ -182,17 +182,22 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
-	gpuToContainers := make(map[string]*workloadmeta.Container)
+	devices := c.deviceCache.AllPhysicalDevices()
+	gpuToContainers := make(map[string]*workloadmeta.Container, len(devices))
 
-	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
-		containerDevices, err := containers.MatchContainerDevices(container, c.deviceCache.All())
-		if err != nil && logLimitCheck.ShouldLog() {
-			log.Warnf("error matching container devices: %s. Will continue with the available devices", err)
-		}
+	wmetaContainers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
+		return len(cont.ResolvedAllocatedResources) > 0
+	})
 
-		// despite an error, we still might have some devices assigned to the container
-		for _, device := range containerDevices {
-			gpuToContainers[device.GetDeviceInfo().UUID] = container
+	// Iterate over devices and find matching containers
+	for _, device := range devices {
+		deviceUUID := device.GetDeviceInfo().UUID
+		if container := containers.GetByDevice(wmetaContainers, device); container != nil {
+			gpuToContainers[deviceUUID] = container
+		} else {
+			if logLimitCheck.ShouldLog() {
+				log.Warnf("no matching container found for the device %v", deviceUUID)
+			}
 		}
 	}
 
