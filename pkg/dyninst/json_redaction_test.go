@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -29,10 +30,43 @@ type replacer interface {
 	replace(jsontext.Value) jsontext.Value
 }
 
-type replacerFunc func(jsontext.Value) jsontext.Value
+type regexpReplacer regexp.Regexp
 
-func (f replacerFunc) replace(v jsontext.Value) jsontext.Value {
-	return f(v)
+func newRegexpReplacer(re string) *regexpReplacer {
+	return (*regexpReplacer)(regexp.MustCompile(re))
+}
+
+func (r *regexpReplacer) replace(v jsontext.Value) jsontext.Value {
+	re := (*regexp.Regexp)(r)
+	if v.Kind() != '"' {
+		return v
+	}
+	var s string
+	_ = json.Unmarshal(v, &s)
+	match := re.FindStringSubmatchIndex(s)
+	if len(match) == 0 {
+		return v
+	}
+	var offset int
+	var sb strings.Builder
+	names := re.SubexpNames()
+	for i := 2; i < len(match); i += 2 {
+		if match[i] < 0 {
+			return jsontext.Value(`"invalid match: overlaps"`)
+		}
+		sb.WriteString(s[offset:match[i]])
+		if name := names[i/2]; name != "" {
+			sb.WriteRune('[')
+			sb.WriteString(name)
+			sb.WriteRune(']')
+		} else {
+			sb.WriteString(s[match[i]:match[i+1]])
+		}
+		offset = match[i+1]
+	}
+	sb.WriteString(s[offset:])
+	marshalled, _ := json.Marshal(sb.String())
+	return jsontext.Value(marshalled)
 }
 
 type jsonRedactor struct {

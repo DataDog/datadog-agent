@@ -794,7 +794,7 @@ Types:
     - __kind: GoStringDataType
       ID: 43
       Name: string.str
-      ByteSize: 512
+      ByteSize: 2048
     - __kind: PointerType
       ID: 44
       Name: '*string.str'
@@ -803,7 +803,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 45
       Name: '[]int.array'
-      ByteSize: 512
+      ByteSize: 2048
       Element: 1 BaseType int
     - __kind: PointerType
       ID: 46
@@ -813,7 +813,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 47
       Name: '[]string.array'
-      ByteSize: 512
+      ByteSize: 2048
       Element: 7 GoStringHeaderType string
     - __kind: PointerType
       ID: 48
@@ -823,22 +823,22 @@ Types:
     - __kind: GoSliceDataType
       ID: 49
       Name: '[]*table<string,int>.array'
-      ByteSize: 2048
+      ByteSize: 8192
       Element: 21 PointerType *table<string,int>
     - __kind: GoSliceDataType
       ID: 50
       Name: '[]noalg.map.group[string]int.array'
-      ByteSize: 512
+      ByteSize: 2048
       Element: 26 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
       ID: 51
       Name: '[]*table<string,main.bigStruct>.array'
-      ByteSize: 2048
+      ByteSize: 8192
       Element: 33 PointerType *table<string,main.bigStruct>
     - __kind: GoSliceDataType
       ID: 52
       Name: '[]noalg.map.group[string]main.bigStruct.array'
-      ByteSize: 512
+      ByteSize: 2048
       Element: 37 StructureType noalg.map.group[string]main.bigStruct
     - __kind: EventRootType
       ID: 53
