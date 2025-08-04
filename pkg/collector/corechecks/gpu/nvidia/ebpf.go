@@ -109,6 +109,7 @@ func (c *ebpfCollector) DeviceUUID() string {
 func (c *ebpfCollector) Collect() ([]Metric, error) {
 	// Check cache validity
 	if !c.cache.IsValid() {
+		log.Debugf("ebpf collector: cache not valid")
 		return []Metric{}, nil
 	}
 
@@ -117,6 +118,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	deviceUUID := devInfo.UUID
 
 	// Set all existing metrics to inactive for this device
+	log.Debugf("ebpf collector: %d active metrics in the cache from previous iteration", len(c.activeMetrics))
 	for key := range c.activeMetrics {
 		c.activeMetrics[key] = false
 	}
@@ -124,8 +126,10 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	var deviceMetrics []Metric
 	var allPidTags []string
 
+	stats := c.cache.GetStats()
+	log.Debugf("ebpf collector: received %d metrics from SP", len(stats.Metrics))
 	// Process active metrics for this device
-	for _, entry := range c.cache.GetStats().Metrics {
+	for _, entry := range stats.Metrics {
 		if entry.Key.DeviceUUID != deviceUUID {
 			continue // Skip metrics for other devices
 		}
@@ -140,11 +144,10 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		// Add per-process usage metrics
 		deviceMetrics = append(deviceMetrics,
 			Metric{
-				Name:     "core.usage",
-				Value:    metrics.UsedCores,
-				Type:     ddmetrics.GaugeType,
-				Priority: 10,
-				Tags:     pidTag,
+				Name:  "core.usage",
+				Value: metrics.UsedCores,
+				Type:  ddmetrics.GaugeType,
+				Tags:  pidTag,
 			},
 			Metric{
 				Name:  "memory.usage",
@@ -159,6 +162,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	}
 
 	// Handle inactive processes (emit zeros and collect their PIDs)
+	log.Debugf("ebpf collector: %d active metrics in the cache after processing", len(c.activeMetrics))
 	for key, active := range c.activeMetrics {
 		if !active {
 			pidTag := []string{fmt.Sprintf("pid:%d", key.PID)}
@@ -167,11 +171,10 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 			// Emit zero metrics for inactive processes
 			deviceMetrics = append(deviceMetrics,
 				Metric{
-					Name:     "core.usage",
-					Value:    0,
-					Type:     ddmetrics.GaugeType,
-					Priority: 10,
-					Tags:     pidTag,
+					Name:  "core.usage",
+					Value: 0,
+					Type:  ddmetrics.GaugeType,
+					Tags:  pidTag,
 				},
 				Metric{
 					Name:  "memory.usage",
