@@ -11,7 +11,7 @@ Probes:
       events:
         - ID: 1
           Type: 219 EventRootType Probe[main.HandleHTTP]
-          InjectionPoints: [{PC: "0x86c110", Frameless: false}]
+          InjectionPoints: [{PC: "0x86c110", Frameless: true}]
           Condition: null
     - id: look_at_the_request
       version: 0
@@ -24,7 +24,7 @@ Probes:
       events:
         - ID: 2
           Type: 220 EventRootType Probe[main.LookAtTheRequest]
-          InjectionPoints: [{PC: "0x86c41c", Frameless: false}]
+          InjectionPoints: [{PC: "0x86c41c", Frameless: true}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -70,7 +70,7 @@ Subprograms:
             - Range: 0x86c254..0x86c268
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0x86c268..0x86c340
-              Pieces: [{Size: 8, Op: {CfaOffset: 16256}}]
+              Pieces: [{Size: 8, Op: {CfaOffset: -128}}]
           IsParameter: false
           IsReturn: false
         - Name: span

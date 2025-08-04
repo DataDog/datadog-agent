@@ -77,7 +77,7 @@ Subprograms:
             - Range: 0xd31137..0xd31152
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd31152..0xd31239
-              Pieces: [{Size: 8, Op: {CfaOffset: 16256}}]
+              Pieces: [{Size: 8, Op: {CfaOffset: -128}}]
           IsParameter: false
           IsReturn: false
         - Name: .autotmp_14
