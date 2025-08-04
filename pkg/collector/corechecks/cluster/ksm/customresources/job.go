@@ -24,12 +24,14 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var descJobLabelsDefaultLabels = []string{"namespace", "job_name"}
 
 // NewExtendedJobFactory returns a new Job metric family generator factory.
 func NewExtendedJobFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+	log.Infof("ROLLOUT-JOB: NewExtendedJobFactory called")
 	return &extendedJobFactory{
 		client: client.Cl,
 	}
@@ -41,15 +43,18 @@ type extendedJobFactory struct {
 
 // Name is the name of the factory
 func (f *extendedJobFactory) Name() string {
+	log.Infof("ROLLOUT-JOB: Name() called, returning 'jobs_extended'")
 	return "jobs_extended"
 }
 
 func (f *extendedJobFactory) CreateClient(_ *rest.Config) (interface{}, error) {
+	log.Infof("ROLLOUT-JOB: CreateClient() called")
 	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended job metric family generators
 func (f *extendedJobFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
+	log.Infof("ROLLOUT-JOB: MetricFamilyGenerators() called")
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			"kube_job_duration",
@@ -58,6 +63,9 @@ func (f *extendedJobFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 			basemetrics.ALPHA,
 			"",
 			wrapJobFunc(func(j *batchv1.Job) *metric.Family {
+				log.Infof("ROLLOUT-JOB: Processing job %s/%s at %s", j.Namespace, j.Name, time.Now().Format("15:04:05"))
+				log.Infof("ROLLOUT-JOB: Job status - StartTime: %v, CompletionTime: %v, Active: %d, Succeeded: %d, Failed: %d",
+					j.Status.StartTime, j.Status.CompletionTime, j.Status.Active, j.Status.Succeeded, j.Status.Failed)
 				ms := []*metric.Metric{}
 
 				if j.Status.StartTime != nil {
@@ -68,9 +76,15 @@ func (f *extendedJobFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 						end = j.Status.CompletionTime.Unix()
 					}
 
+					duration := float64(end - start)
+					log.Infof("ROLLOUT-JOB: Job %s/%s duration=%.0f seconds (using current time: %t)",
+						j.Namespace, j.Name, duration, j.Status.CompletionTime == nil)
+
 					ms = append(ms, &metric.Metric{
-						Value: float64(end - start),
+						Value: duration,
 					})
+				} else {
+					log.Infof("ROLLOUT-JOB: Job %s/%s has no StartTime", j.Namespace, j.Name)
 				}
 
 				return &metric.Family{
@@ -82,8 +96,10 @@ func (f *extendedJobFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 }
 
 func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.Family {
+	log.Infof("ROLLOUT-JOB: wrapJobFunc called")
 	return func(obj interface{}) *metric.Family {
 		job := obj.(*batchv1.Job)
+		log.Infof("ROLLOUT-JOB: wrapJobFunc processing job %s/%s", job.Namespace, job.Name)
 
 		metricFamily := f(job)
 
@@ -97,6 +113,7 @@ func wrapJobFunc(f func(*batchv1.Job) *metric.Family) func(interface{}) *metric.
 
 // ExpectedType returns the type expected by the factory
 func (f *extendedJobFactory) ExpectedType() interface{} {
+	log.Infof("ROLLOUT-JOB: ExpectedType() called")
 	return &batchv1.Job{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Job",
@@ -107,14 +124,23 @@ func (f *extendedJobFactory) ExpectedType() interface{} {
 
 // ListWatch returns a ListerWatcher for batchv1.Job
 func (f *extendedJobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+	log.Infof("ROLLOUT-JOB: ListWatch() called for namespace=%s, fieldSelector=%s", ns, fieldSelector)
 	client := customResourceClient.(kubernetes.Interface)
 	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+			log.Infof("ROLLOUT-JOB: ListFunc called for namespace=%s", ns)
 			opts.FieldSelector = fieldSelector
-			return client.BatchV1().Jobs(ns).List(ctx, opts)
+			result, err := client.BatchV1().Jobs(ns).List(ctx, opts)
+			if err != nil {
+				log.Warnf("ROLLOUT-JOB: ListFunc error: %v", err)
+			} else {
+				log.Infof("ROLLOUT-JOB: ListFunc found %d jobs", len(result.Items))
+			}
+			return result, err
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+			log.Infof("ROLLOUT-JOB: WatchFunc called for namespace=%s", ns)
 			opts.FieldSelector = fieldSelector
 			return client.BatchV1().Jobs(ns).Watch(ctx, opts)
 		},
