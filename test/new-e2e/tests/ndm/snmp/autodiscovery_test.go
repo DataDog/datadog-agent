@@ -97,4 +97,8 @@ network_devices:
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 2*time.Minute, 10*time.Second)
+
+	cacheContent, err := vm.Execute("sudo cat /opt/datadog-agent/run/snmp/71beef32f1b72708")
+	v.Require().NoError(err)
+	v.Require().Equal(`[{"ip":"127.0.0.1","auth_index":1}]`, cacheContent)
 }
