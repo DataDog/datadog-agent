@@ -4,19 +4,6 @@ protobuf_test:
   tags: ["arch:amd64"]
   needs: []
   script:
-    - export PYTHONUNBUFFERED=1
-    - dda inv -- install-tools
-    # Run protobuf generation in pre-commit mode to ensure that it fails if the files are not up to date
-    - dda inv -- -e protobuf.generate --pre-commit
-
-protobuf_test_2:
-  stage: source_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
-  tags: ["arch:amd64"]
-  needs: []
-  variables:
-    PYTHONUNBUFFERED: "1"
-  script:
     - dda inv -- install-tools
     # Run protobuf generation in pre-commit mode to ensure that it fails if the files are not up to date
     - dda inv -- -e protobuf.generate --pre-commit
