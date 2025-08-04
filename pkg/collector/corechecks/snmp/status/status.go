@@ -58,24 +58,20 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 	if autodiscoveryVar != nil {
 		autodiscoveryConfig, _ := snmp.NewListenerConfig()
 
-		var subnetConfigHashOrdered []string
-		for _, autodiscoveryConfig := range autodiscoveryConfig.Configs {
-			// Append legacy and new hash format to handle the case when there was an error renaming the old cache to the new cache format
-			subnetConfigHashOrdered = append(subnetConfigHashOrdered, autodiscoveryConfig.Digest(autodiscoveryConfig.Network, false))
-			subnetConfigHashOrdered = append(subnetConfigHashOrdered, autodiscoveryConfig.Digest(autodiscoveryConfig.Network, true))
-		}
-
 		autodiscoverySubnets := getSubnetsStatus(autodiscoveryVar)
 		orderedSubnets := []subnetStatus{}
 
-		for _, configHash := range subnetConfigHashOrdered {
+		for _, config := range autodiscoveryConfig.Configs {
+			configHash := config.Digest(config.Network, false)
+			legacyConfigHash := config.Digest(config.Network, true)
 			for _, status := range autodiscoverySubnets {
-				if status.configHash == configHash {
+				if status.configHash == configHash || status.configHash == legacyConfigHash {
 					orderedSubnets = append(orderedSubnets, status)
 					break
 				}
 			}
 		}
+
 		stats["autodiscoverySubnets"] = orderedSubnets
 	}
 

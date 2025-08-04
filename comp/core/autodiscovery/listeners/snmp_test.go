@@ -116,7 +116,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	for i := 0; i < 400; i++ {
 		job := <-testChan
 		subnets[fmt.Sprintf("%p", job.subnet)] = true
-		entities[job.subnet.config.Digest(job.currentIP.String())] = true
+		entities[job.subnet.config.Digest(job.currentIP.String(), false)] = true
 	}
 
 	// make sure we have 100 subnets and 400 different entity hashes
