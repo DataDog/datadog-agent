@@ -222,7 +222,7 @@ def _hash_paths(hasher, paths: list[str]):
             for filepath in sorted(all_files_under(path)):
                 hash_file(filepath)
         else:
-            raise Exception("provided paths must exist and be either a folder or a regular file")
+            raise ValueError("provided paths must exist and be either a folder or a regular file")
 
 
 def get_dd_api_key(ctx):
