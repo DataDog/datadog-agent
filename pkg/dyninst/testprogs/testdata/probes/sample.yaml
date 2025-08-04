@@ -565,3 +565,94 @@ probes:
   where:
     methodName: main.testMapWithLinkedList
   captureSnapshot: true
+- id: testMapWithSmallValue
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapWithSmallValue
+  captureSnapshot: true
+- id: testMapWithSmallValueMassive
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapWithSmallValueMassive
+  captureSnapshot: true
+- id: testMapWithSmallKeyAndValue
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapWithSmallKeyAndValue
+  captureSnapshot: true
+- id: testMapWithSmallKeyAndValueMassive
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapWithSmallKeyAndValueMassive
+  captureSnapshot: true
+- id: testMapSmallKeySmallValue
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapSmallKeySmallValue
+  captureSnapshot: true
+- id: testMapSmallKeyLargeValue
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapSmallKeyLargeValue
+  captureSnapshot: true
+- id: testMapLargeKeySmallValue
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapLargeKeySmallValue
+  captureSnapshot: true
+- id: testMapLargeKeyLargeValue
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapLargeKeyLargeValue
+  captureSnapshot: true
+- id: testStructWithMap
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testStructWithMap
+  captureSnapshot: true
+- id: testArrayOfMaps
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testArrayOfMaps
+  captureSnapshot: true
+- id: testPointerToMap
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testPointerToMap
+  captureSnapshot: true
+- id: testInlinedPrint
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedPrint
+  captureSnapshot: true
+- id: testInlinedBBC
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInlinedBBB
+  captureSnapshot: true
