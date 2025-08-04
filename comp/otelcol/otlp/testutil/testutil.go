@@ -638,6 +638,7 @@ func (t *TestTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) 
 	return t.TagMap[types.NewEntityID("internal", "global-entity-id").String()], nil
 }
 
+// GenerateContainerIDFromOriginInfo mocks taggerimpl.GenerateContainerIDFromOriginInfo functionality
 func (t *TestTaggerClient) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
 	return "", fmt.Errorf("unable to resolve container ID from OriginInfo: %+v", originInfo)
 }

@@ -58,8 +58,8 @@ func (p infraTagsProcessor) ProcessTags(
 ) {
 	if _, ok := resourceAttributes.Get(string(conventions.ContainerIDKey)); !ok {
 		originInfo := originInfoFromAttributes(resourceAttributes, cardinality)
-		if containerId, err := p.tagger.GenerateContainerIDFromOriginInfo(originInfo); err == nil {
-			resourceAttributes.PutStr(string(conventions.ContainerIDKey), containerId)
+		if containerID, err := p.tagger.GenerateContainerIDFromOriginInfo(originInfo); err == nil {
+			resourceAttributes.PutStr(string(conventions.ContainerIDKey), containerID)
 		}
 	}
 
