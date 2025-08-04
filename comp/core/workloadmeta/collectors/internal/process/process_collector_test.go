@@ -638,7 +638,6 @@ func TestStartConfiguration(t *testing.T) {
 		{
 			description: "everything enabled correctly",
 			configOverrides: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled":  true,
 				"process_config.process_collection.enabled": true,
 				"process_config.process_collection.use_wlm": true,
 			},
@@ -649,7 +648,7 @@ func TestStartConfiguration(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			description: "service discovery enabled, process collection not running in core agent",
+			description: "service discovery enabled, process collection not running in core agent but still collecting",
 			configOverrides: map[string]interface{}{
 				"process_config.run_in_core_agent.enabled":  false,
 				"process_config.process_collection.enabled": true,
@@ -664,7 +663,6 @@ func TestStartConfiguration(t *testing.T) {
 		{
 			description: "service discovery enabled, process collection not enabled",
 			configOverrides: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled":  true,
 				"process_config.process_collection.enabled": false,
 				"process_config.process_collection.use_wlm": true,
 			},
@@ -677,7 +675,6 @@ func TestStartConfiguration(t *testing.T) {
 		{
 			description: "service discovery enabled, process collection wlm not enabled",
 			configOverrides: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled":  true,
 				"process_config.process_collection.enabled": true,
 				"process_config.process_collection.use_wlm": false,
 			},
@@ -690,7 +687,6 @@ func TestStartConfiguration(t *testing.T) {
 		{
 			description: "only service discovery enabled",
 			configOverrides: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled":  false,
 				"process_config.process_collection.enabled": false,
 				"process_config.process_collection.use_wlm": false,
 			},
@@ -703,7 +699,6 @@ func TestStartConfiguration(t *testing.T) {
 		{
 			description: "only process collection enabled",
 			configOverrides: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled":  true,
 				"process_config.process_collection.enabled": true,
 				"process_config.process_collection.use_wlm": true,
 			},
@@ -716,7 +711,6 @@ func TestStartConfiguration(t *testing.T) {
 		{
 			description: "process collection and service discovery not enabled",
 			configOverrides: map[string]interface{}{
-				"process_config.run_in_core_agent.enabled":  false,
 				"process_config.process_collection.enabled": false,
 				"process_config.process_collection.use_wlm": false,
 			},

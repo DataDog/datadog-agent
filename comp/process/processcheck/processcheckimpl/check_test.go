@@ -8,6 +8,7 @@ package processcheckimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -25,21 +26,48 @@ import (
 
 func TestProcessChecksIsEnabled(t *testing.T) {
 	tests := []struct {
-		name    string
-		configs map[string]interface{}
-		enabled bool
+		name            string
+		configs         map[string]interface{}
+		sysProbeConfigs map[string]interface{}
+		enabled         bool
 	}{
 		{
-			name: "enabled",
+			name: "enabled: collection enabled, discovery enabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": true,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": true,
 			},
 			enabled: true,
 		},
 		{
-			name: "disabled",
+			name: "enabled: collection enabled, discovery disabled",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			enabled: true,
+		},
+		{
+			name: "enabled: collection disabled, discovery enabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			enabled: true,
+		},
+		{
+			name: "disabled: collection disabled, discovery disabled",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
 			},
 			enabled: false,
 		},
@@ -50,6 +78,7 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			c := fxutil.Test[processcheck.Component](t, fx.Options(
 				core.MockBundle(),
 				fx.Replace(config.MockParams{Overrides: tc.configs}),
+				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				gpusubscriberfxmock.MockModule(),
 				fx.Provide(func() statsd.ClientInterface {

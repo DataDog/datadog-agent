@@ -53,6 +53,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	check := &ProcessCheck{
 		config:              config,
+		sysConfig:           sysprobeYamlConfig,
 		scrubber:            procutil.NewDefaultDataScrubber(),
 		lookupIdProbe:       NewLookupIDProbe(config),
 		serviceExtractor:    parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
@@ -77,7 +78,8 @@ const (
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
-	config pkgconfigmodel.Reader
+	config    pkgconfigmodel.Reader
+	sysConfig pkgconfigmodel.Reader
 
 	probe procutil.Probe
 	// scrubber is a DataScrubber to hide command line sensitive words
@@ -207,11 +209,12 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
+	// TODO: this will eventually be removed once this config is baselined (hardcoded to true)
 	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 
-	return p.config.GetBool("process_config.process_collection.enabled")
+	return p.config.GetBool("process_config.process_collection.enabled") || p.sysConfig.GetBool("discovery.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

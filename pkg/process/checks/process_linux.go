@@ -52,7 +52,7 @@ var serviceNameSourceMap = map[string]model.ServiceNameSource{
 // useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
 // TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
 func (p *ProcessCheck) useWLMCollection() bool {
-	return p.config.GetBool("process_config.run_in_core_agent.enabled") && p.config.GetBool("process_config.process_collection.use_wlm")
+	return p.config.GetBool("process_config.process_collection.use_wlm")
 }
 
 // processesByPID returns the processes by pid from different sources depending on the configuration (process probe or workloadmeta)

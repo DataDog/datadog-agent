@@ -136,8 +136,7 @@ func GetFxOptions() fx.Option {
 
 // isProcessCollectionEnabled returns a boolean indicating if the process collector is enabled
 func (c *collector) isProcessCollectionEnabled() bool {
-	return c.config.GetBool("process_config.run_in_core_agent.enabled") &&
-		c.config.GetBool("process_config.process_collection.enabled") &&
+	return c.config.GetBool("process_config.process_collection.enabled") &&
 		// TODO: process_config.process_collection.use_wlm is temporary and will eventually be removed
 		c.config.GetBool("process_config.process_collection.use_wlm")
 }
