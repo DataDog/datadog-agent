@@ -202,22 +202,27 @@ def _get_environment_for_cache() -> dict:
     return dict(filter(env_filter, sorted(os.environ.items())))
 
 
-def _last_omnibus_changes(ctx):
-    omnibus_invalidating_files = ['omnibus/config/', 'omnibus/lib/', 'omnibus/omnibus.rb']
-    omnibus_last_commit = ctx.run(
-        f'git log -n 1 --pretty=format:%H {" ".join(omnibus_invalidating_files)}', hide='stdout'
-    ).stdout
-    # The commit sha1 is likely to change between a PR and its merge to main
-    # In order to work around this, we hash the commit diff so that the result
-    # can be reproduced on different branches with different sha1
-    omnibus_last_changes = ctx.run(
-        f'git diff {omnibus_last_commit}~ {omnibus_last_commit} {" ".join(omnibus_invalidating_files)}', hide='stdout'
-    ).stdout
-    hash = hashlib.sha1()
-    hash.update(str.encode(omnibus_last_changes))
-    result = hash.hexdigest()
-    print(f'Hash for last omnibus changes is {result}')
-    return result
+def _hash_paths(hasher, paths: list[str]):
+    """Update hashlib.hash object `hasher` by recursive hashing of the contents provided in `paths`."""
+
+    def hash_file(filepath):
+        with open(filepath, 'rb') as f:
+            while chunk := f.read(4096):
+                hasher.update(chunk)
+
+    def all_files_under(path):
+        for root, _, filenames in os.walk(path):
+            for filename in filenames:
+                yield os.path.join(root, filename)
+
+    for path in sorted(paths):
+        if os.path.isfile(path):
+            hash_file(path)
+        elif os.path.isdir(path):
+            for filepath in sorted(all_files_under(path)):
+                hash_file(filepath)
+        else:
+            raise Exception("provided paths must exist and be either a folder or a regular file")
 
 
 def get_dd_api_key(ctx):
@@ -233,8 +238,17 @@ def get_dd_api_key(ctx):
 def omnibus_compute_cache_key(ctx):
     print('Computing cache key')
     h = hashlib.sha1()
-    omnibus_last_changes = _last_omnibus_changes(ctx)
-    h.update(str.encode(omnibus_last_changes))
+    _hash_paths(
+        h,
+        [
+            'omnibus/config',
+            'omnibus/lib',
+            'omnibus/package-scripts',
+            'omnibus/python-scripts',
+            'omnibus/resources',
+            'omnibus/omnibus.rb',
+        ],
+    )
     h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
     # Some values can be forced through the environment so we need to read it
     # from there first, and fallback to release.json
