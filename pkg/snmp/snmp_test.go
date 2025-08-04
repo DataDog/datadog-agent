@@ -902,7 +902,7 @@ func TestConfig_Digest(t *testing.T) {
 			isSameDigest:     true,
 		},
 		{
-			name:       "test useLegacyFormat",
+			name:       "old format vs. new format with same Community but without useLegacyFormatA",
 			ipAddressA: "1.2.3.5",
 			ipAddressB: "1.2.3.5",
 			configA:    Config{Community: "something"},

@@ -86,6 +86,7 @@ type snmpSubnet struct {
 	devices               map[string]device
 	deviceFailures        map[string]int
 	devicesScannedCounter atomic.Uint32
+	subnetIndex           int
 }
 
 type device struct {
@@ -207,7 +208,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
 		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, true)
-		
+
 		break
 	}
 	if !deviceFound {
@@ -215,7 +216,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	}
 
 	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
-	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &autodiscoveryStatus)
+	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey, job.subnet.subnetIndex), &autodiscoveryStatus)
 }
 
 func (l *SNMPListener) checkDeviceReachable(authentication snmp.Authentication, port uint16, deviceIP string) bool {
@@ -319,7 +320,7 @@ func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
 
 func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 	subnets := []snmpSubnet{}
-	for _, config := range l.config.Configs {
+	for index, config := range l.config.Configs {
 		ipAddr, ipNet, err := net.ParseCIDR(config.Network)
 		if err != nil {
 			log.Errorf("Couldn't parse SNMP network: %s", err)
@@ -358,6 +359,7 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 			cacheKey:       cacheKey,
 			devices:        map[string]device{},
 			deviceFailures: map[string]int{},
+			subnetIndex:    index,
 		}
 		subnets = append(subnets, subnet)
 
@@ -391,7 +393,7 @@ func (l *SNMPListener) checkDevices() {
 	defer discoveryTicker.Stop()
 	for {
 		for _, subnet := range subnets {
-			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
+			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey, subnet.subnetIndex), &expvar.String{})
 		}
 
 		var subnet *snmpSubnet
@@ -693,8 +695,8 @@ func buildCacheKey(configHash string) string {
 }
 
 // GetSubnetVarKey returns a key for a subnet in the expvar map
-func GetSubnetVarKey(network string, cacheKey string) string {
-	return fmt.Sprintf("%s|%s", network, strings.Trim(cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)))
+func GetSubnetVarKey(network string, cacheKey string, subnetIndex int) string {
+	return fmt.Sprintf("%s|%s|%d", network, strings.Trim(cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)), subnetIndex)
 }
 
 func extractSNMPValue[T any](value interface{}) (T, bool) {
