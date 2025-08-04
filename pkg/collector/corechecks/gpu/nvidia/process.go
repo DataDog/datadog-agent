@@ -105,7 +105,6 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 	procs, err := c.device.GetComputeRunningProcesses()
 	log.Debugf("GetComputeRunningProcesses returned %d processes with error: %v", len(procs), err)
 	if err == nil {
-		// we don't check for error here, as the loop simply will be skipped.
 		for _, proc := range procs {
 			pidTag := fmt.Sprintf("pid:%d", proc.Pid)
 			// Only emit memory.usage per process
@@ -197,7 +196,7 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 
 	}
 
-	// Emit device-wide sm_active metric using median of max and sum capped at 100
+	// Emit device-wide sm_active metric using average of max and sum capped at 100
 	if sumSmUtil > 100 {
 		sumSmUtil = 100
 	}
