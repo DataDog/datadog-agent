@@ -214,7 +214,9 @@ func (p *ProcessCheck) IsEnabled() bool {
 		return false
 	}
 
-	return p.config.GetBool("process_config.process_collection.enabled") || p.sysConfig.GetBool("discovery.enabled")
+	// we want the check to be run for process collection or when the new service discovery collection is enabled
+	return p.config.GetBool("process_config.process_collection.enabled") ||
+		(p.sysConfig.GetBool("discovery.enabled") && p.config.GetBool("process_config.process_collection.use_wlm"))
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

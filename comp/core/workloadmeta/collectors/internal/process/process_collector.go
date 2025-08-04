@@ -136,14 +136,12 @@ func GetFxOptions() fx.Option {
 
 // isProcessCollectionEnabled returns a boolean indicating if the process collector is enabled
 func (c *collector) isProcessCollectionEnabled() bool {
-	return c.config.GetBool("process_config.process_collection.enabled") &&
-		// TODO: process_config.process_collection.use_wlm is temporary and will eventually be removed
-		c.config.GetBool("process_config.process_collection.use_wlm")
+	return c.config.GetBool("process_config.process_collection.enabled")
 }
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled
 func (c *collector) isServiceDiscoveryEnabled() bool {
-	return c.systemProbeConfig.GetBool("system_probe_config.enabled") && c.systemProbeConfig.GetBool("discovery.enabled")
+	return c.systemProbeConfig.GetBool("discovery.enabled")
 }
 
 // isLanguageCollectionEnabled returns a boolean indicating if language collection is enabled
@@ -161,7 +159,10 @@ func (c *collector) collectionIntervalConfig() time.Duration {
 // is done. It also gets a reference to the store that started it so it
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
+	// TODO: process_config.process_collection.use_wlm is temporary and will eventually be removed
+	// we want to gate everything for this new collector by the use_wlm config, but eventually
+	// this collector will be gated separately for process_collector OR service discovery
+	if !c.config.GetBool("process_config.process_collection.use_wlm") && !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() {
 		return errors.NewDisabled(componentName, "process collection and service discovery are disabled")
 	}
 

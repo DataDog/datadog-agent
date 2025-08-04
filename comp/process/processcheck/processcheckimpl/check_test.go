@@ -32,9 +32,10 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 		enabled         bool
 	}{
 		{
-			name: "enabled: collection enabled, discovery enabled",
+			name: "check enabled: collection enabled, discovery enabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": true, // temporarily used to gate discovery check
 			},
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": true,
@@ -42,9 +43,10 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			enabled: true,
 		},
 		{
-			name: "enabled: collection enabled, discovery disabled",
+			name: "check enabled: collection enabled, discovery disabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": false, // temporarily used to gate discovery check
 			},
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": false,
@@ -52,9 +54,10 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			enabled: true,
 		},
 		{
-			name: "enabled: collection disabled, discovery enabled",
+			name: "check enabled: collection disabled, discovery enabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": true, // temporarily used to gate discovery check
 			},
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": true,
@@ -62,9 +65,21 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			enabled: true,
 		},
 		{
-			name: "disabled: collection disabled, discovery disabled",
+			name: "check disabled: collection disabled, discovery enabled but use_wlm disabled",
 			configs: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": false, // temporarily used to gate discovery check
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			enabled: false,
+		},
+		{
+			name: "check disabled: collection disabled, discovery disabled",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": false, // temporarily used to gate discovery check
 			},
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": false,
