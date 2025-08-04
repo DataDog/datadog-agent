@@ -10,6 +10,8 @@ package run
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -122,7 +124,22 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		fmt.Println("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
 		return nil
 	}
-	uris := append(params.ConfPaths, params.Sets...)
+
+	// Apply overrides
+	uris := append([]string{}, params.ConfPaths...)
+
+	// Add fleet policy config if DD_FLEET_POLICIES_DIR is set
+	if fleetPoliciesDir := os.Getenv("DD_FLEET_POLICIES_DIR"); fleetPoliciesDir != "" {
+		fleetConfigPath := filepath.Join(fleetPoliciesDir, "otel-config.yaml")
+		// Check if the fleet config file exists before adding it
+		if _, err := os.Stat(fleetConfigPath); err == nil {
+			uris = append(uris, "file:"+fleetConfigPath)
+			fmt.Printf("Using fleet policy config: %s\n", fleetConfigPath)
+		}
+	}
+
+	uris = append(uris, params.Sets...)
+
 	if err == agentConfig.ErrNoDDExporter {
 		return fxutil.Run(
 			fx.Supply(uris),
