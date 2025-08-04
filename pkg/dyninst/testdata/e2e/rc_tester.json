@@ -42,11 +42,11 @@
                     "fields": {
                       "Scheme": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "Opaque": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "User": {
                         "type": "*net/url.Userinfo",
@@ -54,7 +54,7 @@
                       },
                       "Host": {
                         "type": "string",
-                        "isNull": true
+                        "value": "[host network address]"
                       },
                       "Path": {
                         "type": "string",
@@ -62,7 +62,7 @@
                       },
                       "RawPath": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "OmitHost": {
                         "type": "bool",
@@ -74,15 +74,15 @@
                       },
                       "RawQuery": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "Fragment": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "RawFragment": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       }
                     }
                   },
@@ -100,7 +100,41 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "size": "2",
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "Accept-Encoding"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": "1",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "gzip"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "User-Agent"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": "1",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "Go-http-client/1.1"
+                            }
+                          ]
+                        }
+                      ]
+                    ]
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -128,11 +162,11 @@
                   },
                   "Form": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "PostForm": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "MultipartForm": {
                     "type": "*mime/multipart.Form",
@@ -140,7 +174,7 @@
                   },
                   "Trailer": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "RemoteAddr": {
                     "type": "string",
@@ -180,7 +214,7 @@
                       },
                       "method": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "host": {
                         "type": "string",
@@ -188,13 +222,14 @@
                       },
                       "segments": {
                         "type": "[]net/http.segment",
+                        "size": "1",
                         "elements": [
                           {
                             "type": "net/http.segment",
                             "fields": {
                               "s": {
                                 "type": "string",
-                                "isNull": true
+                                "value": ""
                               },
                               "wild": {
                                 "type": "bool",
@@ -210,7 +245,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadogagent]pkg/dyninst/testprogs/progs/[binary]/main.go:[line]"
                       }
                     }
                   },
@@ -220,7 +255,7 @@
                   },
                   "otherValues": {
                     "type": "map[string]string",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   }
                 }
               }
@@ -310,11 +345,11 @@
                     "fields": {
                       "Scheme": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "Opaque": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "User": {
                         "type": "*net/url.Userinfo",
@@ -322,7 +357,7 @@
                       },
                       "Host": {
                         "type": "string",
-                        "isNull": true
+                        "value": "[host network address]"
                       },
                       "Path": {
                         "type": "string",
@@ -330,7 +365,7 @@
                       },
                       "RawPath": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "OmitHost": {
                         "type": "bool",
@@ -342,15 +377,15 @@
                       },
                       "RawQuery": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "Fragment": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "RawFragment": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       }
                     }
                   },
@@ -368,7 +403,41 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "size": "2",
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "Accept-Encoding"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": "1",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "gzip"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "User-Agent"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": "1",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "Go-http-client/1.1"
+                            }
+                          ]
+                        }
+                      ]
+                    ]
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -396,11 +465,11 @@
                   },
                   "Form": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "PostForm": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "MultipartForm": {
                     "type": "*mime/multipart.Form",
@@ -408,7 +477,7 @@
                   },
                   "Trailer": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "RemoteAddr": {
                     "type": "string",
@@ -448,7 +517,7 @@
                       },
                       "method": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "host": {
                         "type": "string",
@@ -456,13 +525,14 @@
                       },
                       "segments": {
                         "type": "[]net/http.segment",
+                        "size": "1",
                         "elements": [
                           {
                             "type": "net/http.segment",
                             "fields": {
                               "s": {
                                 "type": "string",
-                                "isNull": true
+                                "value": ""
                               },
                               "wild": {
                                 "type": "bool",
@@ -478,7 +548,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadogagent]pkg/dyninst/testprogs/progs/[binary]/main.go:[line]"
                       }
                     }
                   },
@@ -488,7 +558,7 @@
                   },
                   "otherValues": {
                     "type": "map[string]string",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   }
                 }
               }
@@ -578,11 +648,11 @@
                     "fields": {
                       "Scheme": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "Opaque": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "User": {
                         "type": "*net/url.Userinfo",
@@ -590,7 +660,7 @@
                       },
                       "Host": {
                         "type": "string",
-                        "isNull": true
+                        "value": "[host network address]"
                       },
                       "Path": {
                         "type": "string",
@@ -598,7 +668,7 @@
                       },
                       "RawPath": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "OmitHost": {
                         "type": "bool",
@@ -610,15 +680,15 @@
                       },
                       "RawQuery": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "Fragment": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "RawFragment": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       }
                     }
                   },
@@ -636,7 +706,41 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "size": "2",
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "Accept-Encoding"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": "1",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "gzip"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "User-Agent"
+                        },
+                        {
+                          "type": "[]string",
+                          "size": "1",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "Go-http-client/1.1"
+                            }
+                          ]
+                        }
+                      ]
+                    ]
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -664,11 +768,11 @@
                   },
                   "Form": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "PostForm": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "MultipartForm": {
                     "type": "*mime/multipart.Form",
@@ -676,7 +780,7 @@
                   },
                   "Trailer": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "RemoteAddr": {
                     "type": "string",
@@ -716,7 +820,7 @@
                       },
                       "method": {
                         "type": "string",
-                        "isNull": true
+                        "value": ""
                       },
                       "host": {
                         "type": "string",
@@ -724,13 +828,14 @@
                       },
                       "segments": {
                         "type": "[]net/http.segment",
+                        "size": "1",
                         "elements": [
                           {
                             "type": "net/http.segment",
                             "fields": {
                               "s": {
                                 "type": "string",
-                                "isNull": true
+                                "value": ""
                               },
                               "wild": {
                                 "type": "bool",
@@ -746,7 +851,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadogagent]pkg/dyninst/testprogs/progs/[binary]/main.go:[line]"
                       }
                     }
                   },
@@ -756,7 +861,7 @@
                   },
                   "otherValues": {
                     "type": "map[string]string",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   }
                 }
               }
