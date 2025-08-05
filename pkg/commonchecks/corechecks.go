@@ -88,7 +88,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(load.CheckName, load.Factory())
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
-	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger))
+	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
