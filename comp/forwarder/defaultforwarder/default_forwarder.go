@@ -498,22 +498,27 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint,
 func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header, priority transaction.Priority, kind transaction.Kind, storableOnDisk bool) []*transaction.HTTPTransaction {
 	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainForwarders))
 	allowArbitraryTags := f.config.GetBool("allow_arbitrary_tags")
+	preaggURL := f.config.GetString("preaggregation.dd_url")
 
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
 			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
 
 			if payload.Destination == transaction.PreaggrOnly {
-				preaggURL := f.config.GetString("preaggregation.dd_url")
-
 				if domain != preaggURL {
 					continue
 				}
+			} else {
+				// Do not send non-preaggr payloads to the preaggr domain. We
+				// have to ensure that the preaggr domain is not also a normal
+				// domain, otherwise we would prevent normal payloads from
+				// going to a normal endpoint. We make sure this is safe by
+				// disallowing the preaggr domain to match any existing
+				// endpoint at config load time.
+				if domain == preaggURL {
+					continue
+				}
 			}
-			// If the preaggregation.dd_url is the same as the primary dd_url,
-			// we will inherit any additional API keys from the configuration of
-			// that site, meaning we'll send preaggr payloads for each of those
-			// orgs.
 
 			if payload.Destination == transaction.LocalOnly {
 				// if it is local payload, we should not send it to the remote endpoint

@@ -25,8 +25,6 @@ var (
 
 	// SeriesEndpoint is the v2 endpoint used to send series
 	SeriesEndpoint = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"}
-	// PreaggrSeriesEndpoint is the endpoint used for experimental preaggregation
-	PreaggrSeriesEndpoint = transaction.Endpoint{Route: "/api/intake/pipelines/ddseries", Name: "preaggr_series"}
 	// EventsEndpoint is the v2 endpoint used to send events
 	EventsEndpoint = transaction.Endpoint{Route: "/api/v2/events", Name: "events_v2"}
 	// ServiceChecksEndpoint is the v2 endpoint used to send service checks
