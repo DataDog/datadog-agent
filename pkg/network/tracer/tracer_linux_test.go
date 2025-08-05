@@ -2554,6 +2554,8 @@ LOOP:
 		conn, found := findConnection(c.LocalAddr(), srv.Addr(), conns)
 		require.True(collect, found, "could not find connection")
 		require.True(collect, conn.IsClosed, "connection should be closed")
+		require.Empty(collect, conn.TCPFailures, "connection should have no failures")
+
 		// after closing the client connection, the duration should be
 		// updated to a value between 1s and 2s
 		require.Greater(collect, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
