@@ -6,9 +6,6 @@
 // Package sharedlibrary implements the layer to interact shared library-based checks.
 package sharedlibrary
 
-/**/
-import "C"
-
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -38,5 +35,5 @@ func init() {
 
 // InitSharedLibrary sets shared library checks environment
 func InitSharedLibrary() {
-	// useful later
+	setCallbacks()
 }

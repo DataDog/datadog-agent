@@ -8,18 +8,75 @@ package sharedlibrary
 /*
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "shared_library_types.h"
 
-void run_shared_library(char *checkID, run_shared_library_check_t *run_function, const char **error)
-{
+static cb_submit_metric_t cb_submit_metric;
+static cb_submit_service_check_t cb_submit_service_check;
+static cb_submit_event_t cb_submit_event;
+static cb_submit_histogram_bucket_t cb_submit_histogram_bucket;
+static cb_submit_event_platform_event_t cb_submit_event_platform_event;
+
+void SubmitMetricSo(char *, metric_type_t, char *, double, char **, char *, bool);
+void SubmitServiceCheckSo(char *, char *, int, char **, char *, char *);
+void SubmitEventSo(char *, event_t *);
+void SubmitHistogramBucketSo(char *, char *, long long, float, float, int, char *, char **, bool);
+void SubmitEventPlatformEventSo(char *, char *, int, char *);
+
+void set_submit_metric_cb(cb_submit_metric_t cb) {
+	cb_submit_metric = cb;
+}
+
+void set_submit_service_check_cb(cb_submit_service_check_t cb) {
+	cb_submit_service_check = cb;
+}
+
+void set_submit_event_cb(cb_submit_event_t cb) {
+	cb_submit_event = cb;
+}
+
+void set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t cb) {
+	cb_submit_histogram_bucket = cb;
+}
+
+void set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb) {
+	cb_submit_event_platform_event = cb;
+}
+
+void set_callbacks(void) {
+	set_submit_metric_cb(SubmitMetricSo);
+	set_submit_service_check_cb(SubmitServiceCheckSo);
+	set_submit_event_cb(SubmitEventSo);
+	set_submit_histogram_bucket_cb(SubmitHistogramBucketSo);
+	set_submit_event_platform_event_cb(SubmitEventPlatformEventSo);
+}
+
+void run_shared_library(char *check_id, run_shared_library_check_t *run_function, const char **error) {
 	// verify the run function pointer
     if (!run_function) {
-        return;
+        *error = "Pointer to shared library run function is null";
+		return;
     }
 
+	check_config_t config = {
+		check_id,
+		cb_submit_metric,
+		cb_submit_service_check,
+		cb_submit_event,
+		cb_submit_histogram_bucket,
+		cb_submit_event_platform_event,
+	};
+
+	printf("Submit Metric: %p\n", config.cb_submit_metric);
+	printf("Submit Service Check: %p\n", config.cb_submit_service_check);
+	printf("Submit Event: %p\n", config.cb_submit_event);
+	printf("Submit Histogram bucket: %p\n", config.cb_submit_histogram_bucket);
+	printf("Submit Event Platform Event: %p\n", config.cb_submit_event_platform_event);
+
     // run the shared library check and check the returned payload`
-    run_function(checkID);
+    //run_function(&config);
+	printf("check execution finished\n");
 }
 */
 import "C"
@@ -75,7 +132,7 @@ func (c *SharedLibraryCheck) Run() error {
 	defer C.free(unsafe.Pointer(cID))
 
 	// execute the check with the symbol retrieved earlier
-	C.run_shared_library(cID, c.libRunPtr, &err)
+	//C.run_shared_library(cID, c.libRunPtr, &err)
 	if err != nil {
 		defer C.free(unsafe.Pointer(err))
 		return fmt.Errorf("failed to run shared library check %s: %s", c.libName, C.GoString(err))
@@ -174,4 +231,9 @@ func (c *SharedLibraryCheck) GetWarnings() []error {
 
 // Stop is not implemented yet
 func (c *SharedLibraryCheck) Stop() {
+}
+
+// set_callbacks
+func setCallbacks() {
+	C.set_callbacks()
 }

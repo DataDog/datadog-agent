@@ -30,8 +30,7 @@ package sharedlibrary
 #    error Platform not supported
 #endif
 
-shared_library_handle_t load_shared_library(const char *lib_name, const char **error)
-{
+shared_library_handle_t load_shared_library(const char *lib_name, const char *error) {
     // resolve the library full name
     char* lib_full_name = malloc(strlen(lib_name) + strlen(LIB_EXTENSION) + 1);
 	sprintf(lib_full_name, "%s%s", lib_name, LIB_EXTENSION);
@@ -39,7 +38,7 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
     // load the library
     void *lib_handle = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
     if (!lib_handle) {
-		// update error
+		*error = "Unable to open shared library";
         shared_library_handle_t lib_handles = { NULL, NULL };
 		goto done;
     }
@@ -50,7 +49,7 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
     run_shared_library_check_t *run_handle = (run_shared_library_check_t *)dlsym(lib_handle, "Run");
     dlsym_error = dlerror();
     if (dlsym_error) {
-		// update error
+		*error = "Unable to find Run symbol in shared library";
         shared_library_handle_t lib_handles = { NULL, NULL };
 		goto done;
     }
@@ -123,6 +122,13 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 
 	// Get the shared library handles
 	libPtrs := C.load_shared_library(cName, &cErr)
+	fmt.Println(config.Name, ":", C.GoString(cErr))
+	if cErr == nil {
+		fmt.Printf("%v\n", libPtrs)
+	} else {
+		fmt.Printf("")
+	}
+	//cErr = C.CString("error")
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 
@@ -130,7 +136,8 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 		errMsg := fmt.Sprintf("failed to find shared library %q", name)
 		return nil, errors.New(errMsg)
 	}
-
+	errMsg := fmt.Sprintf("failed to find shared library %q", name)
+	return nil, errors.New(errMsg)
 	// Create the check
 	c, err := NewSharedLibraryCheck(senderManager, config.Name, libPtrs.lib, libPtrs.run)
 	if err != nil {
