@@ -83,6 +83,7 @@ func TestMoveMount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	t.Run("move-detached-no-propagation", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
@@ -235,6 +236,7 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	t.Run("moved-attached-recursive-no-propagation", func(_ *testing.T) {
 		err = test.GetProbeEvent(func() error {
@@ -291,6 +293,7 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	t.Run("moved-recursive-with-propagation", func(_ *testing.T) {
 		allMounts := map[uint32]uint32{}
