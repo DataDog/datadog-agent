@@ -120,12 +120,7 @@ type FakeCgroupFilesystem struct {
 // SetupTestEnvvars sets the appropriate environment variables to use the fake cgroup filesystem
 // in the test, with proper cleanup.
 func (fs *FakeCgroupFilesystem) SetupTestEnvvars(tb testing.TB) {
-	// Avoid memoization of ProcFSRoot, as we're not using the real procfs for utils.GetProcControlGroups
-	kernel.ResetProcFSRoot()
-	tb.Setenv("HOST_PROC", fs.HostProc)
-	tb.Cleanup(func() {
-		kernel.ResetProcFSRoot()
-	})
+	kernel.WithFakeProcFS(tb, fs.HostProc)
 }
 
 // CreateFakeCgroupFilesystem creates a fake filesystem that contains the given cgroups

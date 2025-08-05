@@ -1,0 +1,12 @@
+issuer: https://token.actions.githubusercontent.com
+
+subject_pattern: repo:DataDog/datadog-agent:pull_request
+
+claim_pattern:
+  event_name: pull_request
+  job_workflow_ref: DataDog/datadog-agent/\\.github/workflows/serverless-benchmarks\\.yml@.*
+  ref: refs/pull/.*/merge
+
+permissions:
+  contents: write
+  pull_requests: write
