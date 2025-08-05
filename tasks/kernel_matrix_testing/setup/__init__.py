@@ -128,7 +128,7 @@ def check_requirements(
             except Exception as e:
                 result = RequirementState(Status.FAIL, f"Exception checking requirement: {e}")
         else:
-            result = RequirementState(Status.FAIL, f"Missing dependencies: {', '.join(missing_requirements)}")
+            result = RequirementState(Status.FAIL, f"Failed prerequisites: {', '.join(missing_requirements)}")
 
         state = summarize_requirement_states(result)
 

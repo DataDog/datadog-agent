@@ -15,11 +15,12 @@ class RequirementState:
     def __str__(self) -> str:
         msg = f"[{self.state}]"
 
-        if self.state != Status.OK and self.reason:
-            msg += f" {self.reason}"
-
         if self.fixable:
             msg += " (fixable)"
+
+        if self.state != Status.OK and self.reason:
+            msg += f"\n\t{self.reason}"
+
         return msg
 
 

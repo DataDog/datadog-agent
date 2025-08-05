@@ -92,7 +92,7 @@ class TestInfraDefinitionsRepo(Requirement):
         if not fix:
             return RequirementState(
                 Status.FAIL,
-                f"test-infra-definitions repository not found in any of the expected locations {candidate_paths}.",
+                f"test-infra-definitions repository not found in any of the expected locations {', '.join(map(os.fspath, candidate_paths))}.",
                 fixable=True,
             )
 
