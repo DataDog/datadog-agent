@@ -615,7 +615,6 @@ func (s *server) handleMessages() {
 func (s *server) restoreFilterListFromLocalConfig() {
 	s.log.Debug("Restoring filterlist with local config.")
 
-
 	s.tlmFilterListUpdates.Inc()
 	s.tlmFilterListSize.Set(float64(len(s.localFilterListConfig.metricNames)))
 
