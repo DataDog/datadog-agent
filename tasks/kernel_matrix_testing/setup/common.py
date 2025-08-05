@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 from pathlib import Path
+import tomllib
 
 from invoke.context import Context
 
@@ -159,28 +160,46 @@ class DDA(Requirement):
                 )
 
             try:
-                ctx.run("dda self dep update")
+                ctx.run("dda self update")
             except Exception as e:
                 return RequirementState(Status.FAIL, f"Failed to update dda: {e}")
 
         return RequirementState(Status.OK, f"dda is installed (version {dda_version.stdout.strip()} >= {min_version}).")
 
-
-class PythonDependenciesRequirement(Requirement):
+class PythonDependencies(Requirement):
     dependencies: list[type[Requirement]] = [DDA]
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
+        try:
+            pyproject_path = self._get_dda_pyproject(ctx)
+        except RuntimeError as e:
+            return RequirementState(Status.FAIL, f"Failed to get dda pyproject.toml file: {e}")
+
+        # parse the pyproject.toml file
+        pyproject = tomllib.loads(pyproject_path.read_text())
+
+        try:
+            depgroups = pyproject["dependency-groups"]["legacy-kernel-matrix-testing"]
+        except KeyError:
+            return RequirementState(Status.FAIL, "legacy-kernel-matrix-testing dependency group not found in dda's pyproject.toml, is your dda installation corrupted?")
+
         installed_dependencies = ctx.run("dda self dep show --legacy", warn=True)
         if installed_dependencies is None or not installed_dependencies.ok:
             return RequirementState(
                 Status.FAIL, "dda is too old or not installed correctly, cannot get installed dependencies."
             )
 
-        if 'legacy-kernel-matrix-testing' in installed_dependencies.stdout:
+        missing_dependencies = []
+        for dep in depgroups:
+            expected_dep = dep.replace("==", " v")  # Match the output format of dda self dep show
+            if expected_dep not in installed_dependencies.stdout:
+                missing_dependencies.append(dep)
+
+        if len(missing_dependencies) == 0:
             return RequirementState(Status.OK, "Python dependencies are already installed.")
 
         if not fix:
-            return RequirementState(Status.FAIL, "Python dependencies not installed.", fixable=True)
+            return RequirementState(Status.FAIL, f"Python dependencies not installed: {missing_dependencies}", fixable=True)
 
         try:
             ctx.run("dda inv --feat legacy-kernel-matrix-testing -- --help", hide=True)
@@ -188,6 +207,24 @@ class PythonDependenciesRequirement(Requirement):
             return RequirementState(Status.FAIL, f"Failed to install Python dependencies: {e}")
 
         return RequirementState(Status.OK, "Python dependencies installed.")
+
+
+    def _get_dda_pyproject(self, ctx: Context) -> Path | None:
+        dda_deps = ctx.run("dda self dep show")
+        if dda_deps is None:
+            raise RuntimeError("Failed to get dda dependencies")
+
+        env_line = dda_deps.stdout.splitlines()[0]
+        env_parts = env_line.split(':')
+        if len(env_parts) < 2:
+            raise RuntimeError(f"Failed to parse dda environment from line: {env_line}")
+
+        pyproject_path = Path(env_parts[1].strip()) / "dda-data" / "pyproject.toml"
+        if not pyproject_path.is_file():
+            raise RuntimeError(f"dda-data/pyproject.toml not found in {pyproject_path}")
+
+        return pyproject_path
+
 
 
 class KMTDirectoriesRequirement(Requirement):
