@@ -6,7 +6,7 @@ claim_pattern:
   event_name: pull_request_target
   ref: refs/heads/main
   ref_protected: "true"
-  job_workflow_ref: DataDog/datadog-agent/\\.github/workflows/external-contributor\\.yml@refs/heads/main
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/external-contributor\.yml@refs/heads/main
 
 permissions:
   contents: write
