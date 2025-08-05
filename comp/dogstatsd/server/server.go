@@ -177,8 +177,8 @@ type server struct {
 	tlmProcessedOk          telemetry.SimpleCounter
 	tlmProcessedError       telemetry.SimpleCounter
 	tlmChannel              telemetry.Histogram
-	tlmBlocklistUpdates     telemetry.SimpleCounter
-	tlmBlocklistSize        telemetry.SimpleGauge
+	tlmFilterListUpdates    telemetry.SimpleCounter
+	tlmFilterListSize       telemetry.SimpleGauge
 	listernersTelemetry     *listeners.TelemetryStore
 	packetsTelemetry        *packets.TelemetryStore
 	stringInternerTelemetry *stringInternerTelemetry
@@ -333,11 +333,11 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		[]string{"shard", "message_type"},
 		"Time in nanosecond to push metrics to the aggregator input buffer",
 		buckets)
-	s.tlmBlocklistUpdates = telemetrycomp.NewSimpleCounter("dogstatsd", "blocklist_updates",
-		"Incremented when a reconfiguration of the blocklist happened",
+	s.tlmFilterListUpdates = telemetrycomp.NewSimpleCounter("dogstatsd", "filterlist_updates",
+		"Incremented when a reconfiguration of the filterlist happened",
 	)
-	s.tlmBlocklistSize = telemetrycomp.NewSimpleGauge("dogstatsd", "blocklist_size",
-		"Blocklist size",
+	s.tlmFilterListSize = telemetrycomp.NewSimpleGauge("dogstatsd", "filterlist_size",
+		"Filter list size",
 	)
 
 	s.listernersTelemetry = listeners.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_latency_buckets"), telemetrycomp)
@@ -615,8 +615,8 @@ func (s *server) handleMessages() {
 func (s *server) restoreBlocklistFromLocalConfig() {
 	s.log.Debug("Restoring blocklist with local config.")
 
-	s.tlmBlocklistUpdates.Inc()
-	s.tlmBlocklistSize.Set(float64(len(s.localBlocklistConfig.metricNames)))
+	s.tlmFilterListUpdates.Inc()
+	s.tlmFilterListSize.Set(float64(len(s.localBlocklistConfig.metricNames)))
 
 	s.SetBlocklist(
 		s.localBlocklistConfig.metricNames,
