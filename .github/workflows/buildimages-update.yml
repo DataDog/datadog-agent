@@ -24,14 +24,11 @@ on:
         required: true
         type: boolean
 
-permissions: {}
-
 jobs:
   open-go-update-pr:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # push commit and branch
-      pull-requests: write
+      id-token: write # This is required for getting the required OIDC token from GitHub
 
     steps:
       - name: Checkout branch
@@ -116,9 +113,16 @@ jobs:
           $INPUT_TEST_VERSION > $TMP_PR_BODY_PATH
           echo "BODY<<EOF"$'\n'"$(cat $TMP_PR_BODY_PATH)"$'\n'EOF >> $GITHUB_OUTPUT
 
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.buildimages-update.create-pr
+
       - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         name: Create pull request
         with:
+          token: ${{ steps.octo-sts.outputs.token }}
           commit-message: ${{ steps.update_build_images.outputs.MESSAGE }}
           branch: ${{ inputs.branch }}
           sign-commits: true

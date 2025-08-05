@@ -23,7 +23,6 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 
 	confFilePath := p.ConfFilePath
 	configName := p.configName
-	failOnMissingFile := !p.configMissingOK
 	defaultConfPath := p.defaultConfPath
 
 	if configName != "" {
@@ -58,9 +57,8 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe().GetEnvVars())
 	}
 
-	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e pkgconfigmodel.ConfigFileNotFoundError
-	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
+	if err != nil && (!errors.As(err, &e) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message
 		if errors.Is(err, fs.ErrPermission) {
 			if runtime.GOOS == "windows" {

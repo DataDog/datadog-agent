@@ -9,11 +9,8 @@ package uprobes
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -126,63 +123,6 @@ func newMockProcessMonitor() *mockProcessMonitor {
 }
 
 // === Test utils
-
-// FakeProcFSEntry represents a fake /proc filesystem entry for testing purposes.
-type FakeProcFSEntry struct {
-	Pid     uint32
-	Cmdline string
-	Command string
-	Exe     string
-	Maps    string
-	Env     map[string]string
-}
-
-// getEnvironContents returns the formatted contents of the /proc/<pid>/environ file for the entry.
-func (f *FakeProcFSEntry) getEnvironContents() string {
-	if len(f.Env) == 0 {
-		return ""
-	}
-
-	formattedEnvVars := make([]string, 0, len(f.Env))
-	for k, v := range f.Env {
-		formattedEnvVars = append(formattedEnvVars, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	return strings.Join(formattedEnvVars, "\x00") + "\x00"
-}
-
-// CreateFakeProcFS creates a fake /proc filesystem with the given entries, useful for testing attachment to processes.
-func CreateFakeProcFS(t *testing.T, entries []FakeProcFSEntry) string {
-	procRoot := t.TempDir()
-
-	for _, entry := range entries {
-		baseDir := filepath.Join(procRoot, strconv.Itoa(int(entry.Pid)))
-
-		createFile(t, filepath.Join(baseDir, "cmdline"), entry.Cmdline)
-		createFile(t, filepath.Join(baseDir, "comm"), entry.Command)
-		createFile(t, filepath.Join(baseDir, "maps"), entry.Maps)
-		createSymlink(t, entry.Exe, filepath.Join(baseDir, "exe"))
-		createFile(t, filepath.Join(baseDir, "environ"), entry.getEnvironContents())
-	}
-
-	return procRoot
-}
-
-func createFile(t *testing.T, path, data string) {
-	dir := filepath.Dir(path)
-	require.NoError(t, os.MkdirAll(dir, 0775))
-	require.NoError(t, os.WriteFile(path, []byte(data), 0775))
-}
-
-func createSymlink(t *testing.T, target, link string) {
-	if target == "" {
-		return
-	}
-
-	dir := filepath.Dir(link)
-	require.NoError(t, os.MkdirAll(dir, 0775))
-	require.NoError(t, os.Symlink(target, link))
-}
 
 func getLibSSLPath(t *testing.T) string {
 	curDir, err := testutil.CurDir()
