@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
@@ -168,22 +167,26 @@ func writeBytesToFile(content []byte, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer tmp.Close()
 	tmpName := tmp.Name()
 
 	_, err = tmp.Write(content)
-	defer os.Remove(tmpName)
 	if err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
 		return err
 	}
 
 	err = tmp.Sync()
 	if err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
 		return err
 	}
+	tmp.Close()
 
 	err = os.Rename(tmpName, dst)
 	if err != nil {
+		os.Remove(tmpName)
 		return err
 	}
 
@@ -193,7 +196,7 @@ func writeBytesToFile(content []byte, dst string) error {
 func copyIISInstrumentationScript(ctx HookContext) (err error) {
 	span, _ := ctx.StartSpan("copy_iis_instrumentation_script")
 	defer func() { span.Finish(err) }()
-	dst := path.Join(paths.RunPath, "iis-instrumentation.bat")
+	dst := filepath.Join(paths.RunPath, "iis-instrumentation.bat")
 	err = writeBytesToFile(embedded.ScriptIISInstrumentation, dst)
 	return err
 }
