@@ -254,3 +254,42 @@ func parseTunnelMetrics(data [][]interface{}) ([]TunnelMetrics, error) {
 	}
 	return rows, nil
 }
+
+// parseQoSMetrics parses the raw AaData response into QoSMetrics structs
+func parseQoSMetrics(data [][]interface{}) ([]QoSMetrics, error) {
+	var rows []QoSMetrics
+	for _, row := range data {
+		m := QoSMetrics{}
+		if len(row) != 19 {
+			return nil, fmt.Errorf("expected 19 columns, got %d", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for DrillKey")
+		}
+		if m.Site, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for Site")
+		}
+		if m.AccessCircuit, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for AccessCircuit")
+		}
+
+		// Floats from index 3–18 (16 float fields)
+		floatFields := []*float64{
+			&m.BestEffortTx, &m.BestEffortTxDrop, &m.ExpeditedForwardTx, &m.ExpeditedForwardDrop,
+			&m.AssuredForwardTx, &m.AssuredForwardDrop, &m.NetworkControlTx, &m.NetworkControlDrop,
+			&m.BestEffortBandwidth, &m.ExpeditedForwardBW, &m.AssuredForwardBW, &m.NetworkControlBW,
+			&m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.Bandwidth,
+		}
+		for i, ptr := range floatFields {
+			if val, ok := row[i+3].(float64); ok {
+				*ptr = val
+			} else {
+				return nil, fmt.Errorf("expected float64 at index %d", i+3)
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
+}

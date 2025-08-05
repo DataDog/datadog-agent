@@ -443,6 +443,36 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 	)
 }
 
+// GetQoSMetrics retrieves QoS (Class of Service) metrics from the Versa Analytics API
+func (client *Client) GetQoSMetrics(tenant string) ([]QoSMetrics, error) {
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"cos(sitename,accckt)",
+		[]string{
+			"betx",        // best effort bytes
+			"betxdrop",    // best effort dropped
+			"eftx",        // expedited forwarding bytes
+			"eftxdrop",    // expedited forwarding dropped
+			"aftx",        // assured forwarding bytes
+			"aftxdrop",    // assured forwarding dropped
+			"nctx",        // network control bytes
+			"nctxdrop",    // network control dropped
+			"bebandwidth", // best effort bps
+			"efbandwidth", // expedited forwarding bw bps
+			"afbandwidth", // assured forwarding bw bps
+			"ncbandwidth", // network control bw bps
+			"volume-tx",   // total volume bytes
+			"totaldrop",   // total drops bytes
+			"percentdrop", // percent drop bytes
+			"bandwidth",   // total bandwidth bps
+		},
+		parseQoSMetrics,
+	)
+}
+
 // GetLinkStatusMetrics retrieves link status metrics from the Versa Analytics API
 func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, error) {
 	return getPaginatedAnalytics(

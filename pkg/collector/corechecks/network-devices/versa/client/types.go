@@ -477,3 +477,26 @@ type TunnelMetrics struct {
 	VolumeRx    float64
 	VolumeTx    float64
 }
+
+// QoSMetrics represents the columns to parse from the QoS (Class of Service) metrics response
+type QoSMetrics struct {
+	DrillKey             string
+	Site                 string
+	AccessCircuit        string
+	BestEffortTx         float64
+	BestEffortTxDrop     float64
+	ExpeditedForwardTx   float64
+	ExpeditedForwardDrop float64
+	AssuredForwardTx     float64
+	AssuredForwardDrop   float64
+	NetworkControlTx     float64
+	NetworkControlDrop   float64
+	BestEffortBandwidth  float64
+	ExpeditedForwardBW   float64
+	AssuredForwardBW     float64
+	NetworkControlBW     float64
+	VolumeTx             float64
+	TotalDrop            float64
+	PercentDrop          float64
+	Bandwidth            float64
+}

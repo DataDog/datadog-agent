@@ -600,4 +600,37 @@ const GetTunnelMetrics = `
             12345.0
         ]
     ]
+}
+`
+
+// GetQoSMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetQoSMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,INET-1",
+            "test-branch-2B",
+            "INET-1",
+            1000.0,
+            50.0,
+            2000.0,
+            25.0,
+            1500.0,
+            75.0,
+            500.0,
+            10.0,
+            8000000.0,
+            16000000.0,
+            12000000.0,
+            4000000.0,
+            5000.0,
+            160.0,
+            3.2,
+            40000000.0
+        ]
+    ]
 }`
