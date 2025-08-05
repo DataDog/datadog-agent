@@ -129,7 +129,6 @@ class StaticQualityGate:
         against max_on_wire_size and max_on_disk_size.
         If the artifact exceeds the maximum allowed size, raise a StaticQualityGateFailed exception.
         """
-        self._measure_on_disk_and_on_wire_size()
         error_message = ""
         if self.artifact_on_wire_size > self.max_on_wire_size:
             error_message += f"On wire size (compressed artifact size) {self.artifact_on_wire_size / 1024 / 1024} MB is higher than the maximum allowed {self.max_on_wire_size / 1024 / 1024} MB by the gate !\n"
@@ -332,7 +331,7 @@ class StaticQualityGateDocker(StaticQualityGate):
         else:
             print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
 
-        print(f"Current image on disk size for {self.artifact_path}: {on_disk_size}")
+        print(f"Current image on disk size for {self.artifact_path}: {on_disk_size / 1024 / 1024} MB")
         self.metric_handler.register_metric(self.gate_name, "current_on_disk_size", on_disk_size)
         self.artifact_on_disk_size = on_disk_size
 
@@ -351,7 +350,7 @@ class StaticQualityGateDocker(StaticQualityGate):
         )
 
         on_wire_size = int(manifest_output.stdout)
-        print(f"Current image on wire size for {self.artifact_path}: {on_wire_size}")
+        print(f"Current image on wire size for {self.artifact_path}: {on_wire_size / 1024 / 1024} MB")
         self.metric_handler.register_metric(self.gate_name, "current_on_wire_size", on_wire_size)
         self.artifact_on_wire_size = on_wire_size
 
