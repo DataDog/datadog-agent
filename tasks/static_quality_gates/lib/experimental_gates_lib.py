@@ -105,13 +105,13 @@ class StaticQualityGate:
         """
         print(
             color_message(
-                f"package_on_wire_size <= max_on_wire_size, ({self.artifact_on_wire_size}) <= ({self.max_on_wire_size})",
+                f"package_on_wire_size <= max_on_wire_size, ({self.artifact_on_wire_size / 1024 / 1024} MB) <= ({self.max_on_wire_size / 1024 / 1024} MB)",
                 "green",
             )
         )
         print(
             color_message(
-                f"package_on_disk_size <= max_on_disk_size, ({self.artifact_on_disk_size}) <= ({self.max_on_disk_size})",
+                f"package_on_disk_size <= max_on_disk_size, ({self.artifact_on_disk_size / 1024 / 1024} MB) <= ({self.max_on_disk_size / 1024 / 1024} MB)",
                 "green",
             )
         )
@@ -132,9 +132,9 @@ class StaticQualityGate:
         self._measure_on_disk_and_on_wire_size()
         error_message = ""
         if self.artifact_on_wire_size > self.max_on_wire_size:
-            error_message += f"On wire size (compressed artifact size) {self.artifact_on_wire_size} is higher than the maximum allowed {self.max_on_wire_size} by the gate !\n"
+            error_message += f"On wire size (compressed artifact size) {self.artifact_on_wire_size / 1024 / 1024} MB is higher than the maximum allowed {self.max_on_wire_size / 1024 / 1024} MB by the gate !\n"
         if self.artifact_on_disk_size > self.max_on_disk_size:
-            error_message += f"On disk size (uncompressed artifact size) {self.artifact_on_disk_size} is higher than the maximum allowed {self.max_on_disk_size} by the gate !\n"
+            error_message += f"On disk size (uncompressed artifact size) {self.artifact_on_disk_size / 1024 / 1024} MB is higher than the maximum allowed {self.max_on_disk_size / 1024 / 1024} MB by the gate !\n"
         if error_message:
             error_message = color_message(f"{self.gate_name} failed!\n" + error_message, "red")
             raise StaticQualityGateFailed(error_message)
@@ -152,9 +152,10 @@ class StaticQualityGate:
         # TODO: quality_gates.py should be refactored. Most probably, the task should be closer
         # to this lib.
         self._measure_on_disk_and_on_wire_size()
-        self.check_artifact_size()
         print(f"Artifact path: {self.artifact_path}")
+        self.check_artifact_size()
         print(color_message(f"✅{self.gate_name} passed.", "green"))
+        print("-" * 10)
         self.print_results()
 
 
@@ -195,7 +196,7 @@ class StaticQualityGatePackage(StaticQualityGate):
         package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
         separator = '_' if self.os == 'debian' else '-'
         if not extension:
-            extension = "deb" if self.os == 'debian' else "rpm"
+            extension = 'deb' if self.os == 'debian' else 'rpm'
         if self.os == "windows":
             package_dir = f"{package_dir}/pipeline-{os.environ['CI_PIPELINE_ID']}"
         glob_pattern = f'{package_dir}/{flavor}{separator}7*{self.arch}.{extension}'

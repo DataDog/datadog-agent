@@ -116,6 +116,7 @@ class TestExperimentalGatesLib(unittest.TestCase):
             ("static_quality_gate_agent_deb_amd64_fips", "/opt/datadog-agent/datadog-fips-agent_7*amd64.deb"),
             ("static_quality_gate_iot_agent_rpm_arm64", "/opt/datadog-agent/datadog-iot-agent-7*aarch64.rpm"),
             ("static_quality_gate_dogstatsd_suse_amd64", "/opt/datadog-agent/datadog-dogstatsd-7*x86_64.rpm"),
+            ("static_quality_gate_agent_heroku_amd64", "/opt/datadog-agent/datadog-agent_7*amd64.deb"),
         ]
 
         for gate_name, expected_pattern in test_cases:
