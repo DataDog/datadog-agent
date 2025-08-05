@@ -253,14 +253,14 @@ class StaticQualityGateDocker(StaticQualityGate):
         return: the url of the docker image
         """
 
-        if "agent" in self.gate_name:
-            flavor = "agent"
-        elif "cluster" in self.gate_name:
+        if "cluster" in self.gate_name:
             flavor = "cluster-agent"
         elif "dogstatsd" in self.gate_name:
             flavor = "dogstatsd"
         elif "cws_instrumentation" in self.gate_name:
             flavor = "cws-instrumentation"
+        elif "agent" in self.gate_name:
+            flavor = "agent"
         else:
             raise ValueError(f"Unknown docker image flavor for gate: {self.gate_name}")
 
