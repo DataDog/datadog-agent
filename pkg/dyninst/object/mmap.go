@@ -46,9 +46,6 @@ func OpenMMappingElfFile(path string) (*MMappingElfFile, error) {
 	}
 	ef, err := newMMappingElfFile(f)
 	if err != nil {
-		if closeErr := f.Close(); closeErr != nil {
-			return nil, fmt.Errorf("%w: (failed to close file: %w)", err, closeErr)
-		}
 		return nil, err
 	}
 	return ef, nil
