@@ -60,7 +60,7 @@ func TestFreezeCommand(t *testing.T) {
 		[]string{"integration", "freeze"},
 		list,
 		func(cliParams *cliParams, secretParams secrets.Params) {
-			require.Equal(t, []string{}, cliParams.args)
+			require.Empty(t, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
 			require.Equal(t, false, secretParams.Enabled)
 		})
