@@ -73,7 +73,7 @@ func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
 			low = append(low, LegacyContainerACExclude)
 		}
 	case MetricsFilter:
-		low = append(low, LegacyContainerMetrics, ContainerADAnnotationsMetrics)
+		low = append(low, LegacyContainerMetrics)
 		high = append(high, ContainerADAnnotationsMetrics)
 	case LogsFilter:
 		low = append(low, LegacyContainerLogs)
