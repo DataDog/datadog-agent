@@ -40,6 +40,17 @@ func (h *VerticalPodAutoscalerHandlers) BeforeMarshalling(ctx processors.Process
 	r := resource.(*v1.VerticalPodAutoscaler)
 	r.Kind = ctx.GetKind()
 	r.APIVersion = ctx.GetAPIVersion()
+
+	// VPAs default to auto mode if not specified
+	// add it here to make it more clear to the user
+	if r.Spec.ResourcePolicy != nil {
+		for i, policy := range r.Spec.ResourcePolicy.ContainerPolicies {
+			if policy.Mode == nil || *policy.Mode == "" {
+				auto := v1.ContainerScalingModeAuto
+				r.Spec.ResourcePolicy.ContainerPolicies[i].Mode = &auto
+			}
+		}
+	}
 	return
 }
 
