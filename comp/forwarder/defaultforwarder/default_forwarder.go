@@ -495,16 +495,11 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint,
 	return f.createAdvancedHTTPTransactions(endpoint, payloads, extra, transaction.TransactionPriorityNormal, kind, true)
 }
 
-func (f *DefaultForwarder) createAdvancedHTTPTransactions(inputEndpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header, priority transaction.Priority, kind transaction.Kind, storableOnDisk bool) []*transaction.HTTPTransaction {
+func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header, priority transaction.Priority, kind transaction.Kind, storableOnDisk bool) []*transaction.HTTPTransaction {
 	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainForwarders))
 	allowArbitraryTags := f.config.GetBool("allow_arbitrary_tags")
 
 	for _, payload := range payloads {
-		endpoint := inputEndpoint
-		if payload.Destination == transaction.PreaggrOnly {
-			endpoint = endpoints.PreaggrSeriesEndpoint
-		}
-
 		for domain, dr := range f.domainResolvers {
 			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
 
