@@ -9,6 +9,8 @@ on:
       - "[0-9]+.[0-9]+.x"
 
 env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO: ${{ github.repository }}
 
 permissions: {}
@@ -18,7 +20,7 @@ jobs:
     if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
     runs-on: ubuntu-latest
     permissions:
-      id-token: write # This is required for getting the required OIDC token from GitHub
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -28,16 +30,9 @@ jobs:
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
-      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
-        id: octo-sts
-        with:
-          scope: DataDog/datadog-agent
-          policy: self.label-analysis.modify-pr
       - name: Auto assign team label
         env:
           PR_ID: ${{ github.event.pull_request.number }}
-          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
-          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: dda inv -- -e github.assign-team-label --pr-id="$PR_ID"
   release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
@@ -143,6 +138,4 @@ jobs:
       - name: Ask for code reviews
         env:
           SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
-          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: dda inv -- -e issue.ask-reviews -p ${{ github.event.pull_request.number }}

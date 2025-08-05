@@ -11,17 +11,13 @@ permissions: {}
 jobs:
   label:
     permissions:
-      id-token: write # This is required for getting the required OIDC token from GitHub
+      contents: read
+      pull-requests: write
     runs-on: ubuntu-latest
     if: github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
     steps:
-      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
-        id: octo-sts
-        with:
-          scope: DataDog/datadog-agent
-          policy: self.labeler.modify-pr
       - uses: actions/labeler@8558fd74291d67161a8a78ce36a881fa63b766a9 # v5.0.0
         with:
-          repo-token: "${{ steps.octo-sts.outputs.token }}"
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
           # currently doesn't work
           sync-labels: true
