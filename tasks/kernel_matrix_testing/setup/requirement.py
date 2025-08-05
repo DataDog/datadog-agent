@@ -28,7 +28,20 @@ class Requirement:
     dependencies: list[type["Requirement"]] | None = None
 
     def check(self, ctx: Context, fix: bool) -> list[RequirementState] | RequirementState:  # noqa: F841
+        """
+        Check if the requirement is met. Returns the state of the requirement, either a single RequirementState or a list of RequirementState.
+
+        If fix is True, the requirement should be fixed if possible.
+        """
         raise NotImplementedError()
+
+    def flare(self, ctx: Context) -> dict[str, str]:
+        """
+        Return a dictionary containing detailed debug information about the requirement state.
+        This can be either printed to the user or used to generate a flare about the current
+        system state.
+        """
+        return {}
 
 
 def summarize_requirement_states(states: list[RequirementState] | RequirementState) -> RequirementState:

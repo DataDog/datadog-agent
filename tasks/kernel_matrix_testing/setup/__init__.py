@@ -93,7 +93,12 @@ def _get_requirements_from_module(module: ModuleType) -> list[Requirement]:
 
 
 def check_requirements(
-    ctx: Context, requirements: list[Requirement], fix: bool, echo: bool = True, verbose: bool = False
+    ctx: Context,
+    requirements: list[Requirement],
+    fix: bool,
+    echo: bool = True,
+    verbose: bool = False,
+    show_flare_for_failures: bool = False,
 ) -> bool:
     if echo:
         info("Checking requirements...")
@@ -140,6 +145,16 @@ def check_requirements(
         if state.state == Status.FAIL:
             any_fail = True
             requirement_succeded[requirement.__class__] = False
+
+            if show_flare_for_failures:
+                flare = requirement.flare(ctx)
+                if flare:
+                    print(f"\n\t=== {name} diagnostic flare === ")
+                    for key, value in flare.items():
+                        print(f"\t\t-- {key}")
+                        for line in value.splitlines():
+                            print(f"\t\t | {line}")
+                    print(f"\n\t=== End of {name} diagnostic flare ===\n")
         else:
             requirement_succeded[requirement.__class__] = True
 

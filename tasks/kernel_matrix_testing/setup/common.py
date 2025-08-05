@@ -231,6 +231,24 @@ class PythonDependencies(Requirement):
 
         return pyproject_path
 
+    def flare(self, ctx: Context) -> dict[str, str]:
+        data: dict[str, str] = {}
+
+        dep_res = ctx.run("dda self dep show --legacy", warn=True)
+        data["dda self dep show --legacy [stdout]"] = dep_res.stdout if dep_res is not None else "None"
+        data["dda self dep show --legacy [stderr]"] = dep_res.stderr if dep_res is not None else "None"
+
+        pyproject_path = self._get_dda_pyproject(ctx)
+        data["detected dda pyproject.toml"] = "None" if not pyproject_path else os.fspath(pyproject_path)
+
+        data["dda pyproject.toml"] = pyproject_path.read_text() if pyproject_path is not None else "None"
+
+        dda_version_res = ctx.run("dda --version", warn=True)
+        data["dda version [stdout]"] = dda_version_res.stdout.strip() if dda_version_res is not None else "None"
+        data["dda version [stderr]"] = dda_version_res.stderr if dda_version_res is not None else "None"
+
+        return data
+
 
 class KMTDirectoriesRequirement(Requirement):
     def check(self, ctx: Context, fix: bool) -> list[RequirementState]:

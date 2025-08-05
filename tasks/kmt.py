@@ -476,9 +476,17 @@ def selfcheck(
     fix: bool = False,
     exclude_requirements: list[str] | None = None,
     only_requirements: list[str] | None = None,
+    show_flare_for_failures: bool = False,
 ):
     requirements = get_requirements(remote_setup_only, exclude_requirements, only_requirements)
-    failed = check_requirements(ctx, requirements, fix=fix, echo=True, verbose=ctx.config["run"]["echo"])
+    failed = check_requirements(
+        ctx,
+        requirements,
+        fix=fix,
+        echo=True,
+        verbose=ctx.config["run"]["echo"],
+        show_flare_for_failures=show_flare_for_failures,
+    )
 
     # flush stdout to ensure formatting is correct
     sys.stdout.flush()
