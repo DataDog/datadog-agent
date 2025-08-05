@@ -478,7 +478,13 @@ def selfcheck(
     only_requirements: list[str] | None = None,
 ):
     requirements = get_requirements(remote_setup_only, exclude_requirements, only_requirements)
-    if check_requirements(ctx, requirements, fix=fix, echo=True, verbose=ctx.config["run"]["echo"]):
+    failed = check_requirements(ctx, requirements, fix=fix, echo=True, verbose=ctx.config["run"]["echo"])
+
+    # flush stdout to ensure formatting is correct
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    if failed:
         raise Exit("[-] KMT setup incorrect")
     else:
         info("[+] KMT setup correct")
