@@ -300,8 +300,6 @@ function Invoke-BuildScript {
         Enable-DevEnv
 
         # Expand modcache
-        # TODO: Can these be moved inside the Install-Deps/Install-TestingDeps functions,
-        #       or is it important that they both be run before `dda inv deps` ?
         if ($InstallDeps) {
             Expand-ModCache -modcache modcache
         }
