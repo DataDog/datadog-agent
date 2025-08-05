@@ -202,6 +202,191 @@ func TestVerticalPodAutoscalerHandlers_BeforeMarshalling(t *testing.T) {
 	assert.Equal(t, "autoscaling.k8s.io/v1", vpa.APIVersion)
 }
 
+func TestVerticalPodAutoscalerHandlers_BeforeMarshalling_DefaultsNilMode(t *testing.T) {
+	handlers := &VerticalPodAutoscalerHandlers{}
+
+	// Create VPA with nil mode to test defaulting behavior
+	vpa := createTestVerticalPodAutoscaler()
+	vpa.Spec.ResourcePolicy.ContainerPolicies[0].Mode = nil
+
+	// Create processor context
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:              cfg,
+			ClusterID:        "test-cluster-id",
+			MsgGroupID:       1,
+			ManifestProducer: true,
+			Kind:             "VerticalPodAutoscaler",
+			APIVersion:       "autoscaling.k8s.io/v1",
+		},
+		APIClient: &apiserver.APIClient{},
+		HostName:  "test-host",
+	}
+
+	resourceModel := &model.VerticalPodAutoscaler{}
+	skip := handlers.BeforeMarshalling(ctx, vpa, resourceModel)
+
+	// Validate that mode was defaulted to Auto
+	assert.False(t, skip)
+	assert.NotNil(t, vpa.Spec.ResourcePolicy.ContainerPolicies[0].Mode)
+	assert.Equal(t, v1.ContainerScalingModeAuto, *vpa.Spec.ResourcePolicy.ContainerPolicies[0].Mode)
+}
+
+func TestVerticalPodAutoscalerHandlers_BeforeMarshalling_DefaultsEmptyMode(t *testing.T) {
+	handlers := &VerticalPodAutoscalerHandlers{}
+
+	// Create VPA with empty mode to test defaulting behavior
+	vpa := createTestVerticalPodAutoscaler()
+	emptyMode := v1.ContainerScalingMode("")
+	vpa.Spec.ResourcePolicy.ContainerPolicies[0].Mode = &emptyMode
+
+	// Create processor context
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:              cfg,
+			ClusterID:        "test-cluster-id",
+			MsgGroupID:       1,
+			ManifestProducer: true,
+			Kind:             "VerticalPodAutoscaler",
+			APIVersion:       "autoscaling.k8s.io/v1",
+		},
+		APIClient: &apiserver.APIClient{},
+		HostName:  "test-host",
+	}
+
+	resourceModel := &model.VerticalPodAutoscaler{}
+	skip := handlers.BeforeMarshalling(ctx, vpa, resourceModel)
+
+	// Validate that mode was defaulted to Auto
+	assert.False(t, skip)
+	assert.NotNil(t, vpa.Spec.ResourcePolicy.ContainerPolicies[0].Mode)
+	assert.Equal(t, v1.ContainerScalingModeAuto, *vpa.Spec.ResourcePolicy.ContainerPolicies[0].Mode)
+}
+
+func TestVerticalPodAutoscalerHandlers_BeforeMarshalling_PreservesExistingMode(t *testing.T) {
+	handlers := &VerticalPodAutoscalerHandlers{}
+
+	// Create VPA with Off mode to test that existing modes are preserved
+	vpa := createTestVerticalPodAutoscaler()
+	offMode := v1.ContainerScalingModeOff
+	vpa.Spec.ResourcePolicy.ContainerPolicies[0].Mode = &offMode
+
+	// Create processor context
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:              cfg,
+			ClusterID:        "test-cluster-id",
+			MsgGroupID:       1,
+			ManifestProducer: true,
+			Kind:             "VerticalPodAutoscaler",
+			APIVersion:       "autoscaling.k8s.io/v1",
+		},
+		APIClient: &apiserver.APIClient{},
+		HostName:  "test-host",
+	}
+
+	resourceModel := &model.VerticalPodAutoscaler{}
+	skip := handlers.BeforeMarshalling(ctx, vpa, resourceModel)
+
+	// Validate that existing mode was preserved
+	assert.False(t, skip)
+	assert.NotNil(t, vpa.Spec.ResourcePolicy.ContainerPolicies[0].Mode)
+	assert.Equal(t, v1.ContainerScalingModeOff, *vpa.Spec.ResourcePolicy.ContainerPolicies[0].Mode)
+}
+
+func TestVerticalPodAutoscalerHandlers_BeforeMarshalling_MultipleContainerPolicies(t *testing.T) {
+	handlers := &VerticalPodAutoscalerHandlers{}
+
+	// Create VPA with multiple container policies - some with nil mode, some with explicit modes
+	vpa := createTestVerticalPodAutoscaler()
+	offMode := v1.ContainerScalingModeOff
+
+	// Add additional container policies
+	vpa.Spec.ResourcePolicy.ContainerPolicies = append(vpa.Spec.ResourcePolicy.ContainerPolicies,
+		v1.ContainerResourcePolicy{
+			ContainerName: "container-with-nil-mode",
+			Mode:          nil, // Should be defaulted to Auto
+		},
+		v1.ContainerResourcePolicy{
+			ContainerName: "container-with-off-mode",
+			Mode:          &offMode, // Should remain Off
+		},
+	)
+
+	// Create processor context
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:              cfg,
+			ClusterID:        "test-cluster-id",
+			MsgGroupID:       1,
+			ManifestProducer: true,
+			Kind:             "VerticalPodAutoscaler",
+			APIVersion:       "autoscaling.k8s.io/v1",
+		},
+		APIClient: &apiserver.APIClient{},
+		HostName:  "test-host",
+	}
+
+	resourceModel := &model.VerticalPodAutoscaler{}
+	skip := handlers.BeforeMarshalling(ctx, vpa, resourceModel)
+
+	// Validate all container policies
+	assert.False(t, skip)
+	assert.Len(t, vpa.Spec.ResourcePolicy.ContainerPolicies, 3)
+
+	// Create a map to validate policies by container name instead of relying on order
+	policyMap := make(map[string]*v1.ContainerScalingMode)
+	for _, policy := range vpa.Spec.ResourcePolicy.ContainerPolicies {
+		policyMap[policy.ContainerName] = policy.Mode
+	}
+
+	// Validate each container policy by name
+	assert.NotNil(t, policyMap["test-container"])
+	assert.Equal(t, v1.ContainerScalingModeAuto, *policyMap["test-container"])
+
+	assert.NotNil(t, policyMap["container-with-nil-mode"])
+	assert.Equal(t, v1.ContainerScalingModeAuto, *policyMap["container-with-nil-mode"])
+
+	assert.NotNil(t, policyMap["container-with-off-mode"])
+	assert.Equal(t, v1.ContainerScalingModeOff, *policyMap["container-with-off-mode"])
+}
+
+func TestVerticalPodAutoscalerHandlers_BeforeMarshalling_NilResourcePolicy(t *testing.T) {
+	handlers := &VerticalPodAutoscalerHandlers{}
+
+	// Create VPA with nil ResourcePolicy to test that the code doesn't panic
+	vpa := createTestVerticalPodAutoscaler()
+	vpa.Spec.ResourcePolicy = nil
+
+	// Create processor context
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:              cfg,
+			ClusterID:        "test-cluster-id",
+			MsgGroupID:       1,
+			ManifestProducer: true,
+			Kind:             "VerticalPodAutoscaler",
+			APIVersion:       "autoscaling.k8s.io/v1",
+		},
+		APIClient: &apiserver.APIClient{},
+		HostName:  "test-host",
+	}
+
+	resourceModel := &model.VerticalPodAutoscaler{}
+	skip := handlers.BeforeMarshalling(ctx, vpa, resourceModel)
+
+	// Validate that it doesn't panic and basic fields are set
+	assert.False(t, skip)
+	assert.Equal(t, "VerticalPodAutoscaler", vpa.Kind)
+	assert.Equal(t, "autoscaling.k8s.io/v1", vpa.APIVersion)
+	assert.Nil(t, vpa.Spec.ResourcePolicy)
+}
+
 func TestVerticalPodAutoscalerHandlers_AfterMarshalling(t *testing.T) {
 	handlers := &VerticalPodAutoscalerHandlers{}
 
