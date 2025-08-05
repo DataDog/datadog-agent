@@ -5,6 +5,7 @@
 
 //go:build linux && test
 
+// Package testutil holds different utilities and stubs for testing
 package testutil
 
 import (
