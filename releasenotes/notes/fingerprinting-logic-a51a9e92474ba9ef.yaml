@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 features:
   - |
-    Adds the logic required to compute checksum fingerprints to more accurately detect instances of rotation and truncation.
+    Adds the logic required to compute checksum fingerprints to more accurately detect instances of log rotation and truncation.

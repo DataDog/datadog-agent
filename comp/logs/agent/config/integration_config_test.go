@@ -170,7 +170,6 @@ func TestFingerprintConfig(t *testing.T) {
 	}
 
 	invalidConfigs := []*FingerprintConfig{
-		nil,
 		{MaxBytes: 0, Count: 0, CountToSkip: 0},
 		{MaxBytes: -1, Count: 0, CountToSkip: 0},
 		{MaxBytes: 256, Count: -1, CountToSkip: 0},

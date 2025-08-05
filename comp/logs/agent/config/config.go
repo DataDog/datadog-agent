@@ -17,7 +17,6 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -165,25 +164,12 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 	return ExpectedTagsDuration(coreConfig) > 0
 }
 
-// applyFingerprintDefaults applies the default values to a fingerprint config
-func applyFingerprintDefaults(config *FingerprintConfig) {
-	config.FingerprintStrategy = pkgconfigsetup.DefaultFingerprintStrategy
-	config.Count = pkgconfigsetup.DefaultFingerprintingMaxLines
-	config.CountToSkip = pkgconfigsetup.DefaultLinesOrBytesToSkip
-	config.MaxBytes = pkgconfigsetup.DefaultFingerprintingMaxBytes
-}
-
 // GlobalFingerprintConfig returns the global fingerprint configuration to apply to all logs.
 func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConfig, error) {
 	var err error
-
 	// Get the complete fingerprint config map without applying defaults immediately
 	raw := coreConfig.Get("logs_config.fingerprint_config")
-	if raw == nil {
-		return nil, nil
-	}
-
-	// Create a config without defaults first
+	// Let the config system handle defaults
 	config := &FingerprintConfig{}
 
 	if s, ok := raw.(string); ok && s != "" {
@@ -197,37 +183,19 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConf
 	if err != nil {
 		return nil, err
 	}
-
 	log.Debugf("GlobalFingerprintConfig: after unmarshaling - FingerprintStrategy: %s, Count: %d, CountToSkip: %d, MaxBytes: %d",
 		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
 
-	// Validate the config
+	//Return the config and validate the fingerprintConfig as well
 	err = ValidateFingerprintConfig(config)
 	if err != nil {
-		if errors.Is(err, ErrEmptyFingerprintConfig) {
-			// If config is empty, apply all defaults
-			applyFingerprintDefaults(config)
-			return config, nil
-		}
 		return nil, err
 	}
-
-	return config, nil
+	return config, err
 }
 
 // ValidateFingerprintConfig validates the fingerprint config and returns an error if the config is invalid
 func ValidateFingerprintConfig(config *FingerprintConfig) error {
-	if config == nil {
-		return ErrEmptyFingerprintConfig
-	}
-
-	// Check if any fingerprint config fields are set
-	hasAnyConfig := config.FingerprintStrategy != "" || config.Count != 0 || config.CountToSkip != 0 || config.MaxBytes != 0
-
-	if !hasAnyConfig {
-		// If no fields are set, return empty error
-		return ErrEmptyFingerprintConfig
-	}
 
 	validStrategies := map[string]bool{
 		FingerprintStrategyLineChecksum: true,
