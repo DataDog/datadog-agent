@@ -6,7 +6,7 @@ claim_pattern:
   event_name: (workflow_dispatch|schedule)
   ref: refs/heads/main
   ref_protected: "true"
-  job_workflow_ref: DataDog/datadog-agent/\\.github/workflows/collector-generate-and-update\\.yml@refs/heads/main
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/collector-generate-and-update\.yml@refs/heads/main
 
 permissions:
   contents: write
