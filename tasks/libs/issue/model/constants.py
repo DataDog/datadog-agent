@@ -3,7 +3,7 @@ BASE_MODEL = "distilbert-base-uncased-finetuned-sst-2-english"
 ## THIS LIST SHOULD NOT BE UPDATED UNLESS THE MODEL IS RE-TRAINED. THE ONLY ALLOWED CHANGE IS THE RENAME OF AN EXISTING TEAM.
 TEAMS = (
     'container-ecosystems',
-    'windows-agent',
+    'windows-products',
     'remote-config',
     'container-platform',
     'documentation',
@@ -20,7 +20,7 @@ TEAMS = (
     'agent-e2e-testing',
     'agent-devx',
     'triage',
-    'windows-agent',
+    'windows-products',
     'container-integrations',
     'software-integrity-and-trust',
     'opentelemetry',

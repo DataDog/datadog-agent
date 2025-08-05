@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
@@ -31,9 +32,9 @@ func TestSymDB(t *testing.T) {
 			binaryPath, err := testprogs.GetBinary("simple", cfg)
 			require.NoError(t, err)
 			t.Logf("exploring binary: %s", binaryPath)
-			symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
+			symBuilder, err := symdb.NewSymDBBuilder(binaryPath, symdb.ExtractScopeAllSymbols)
 			require.NoError(t, err)
-			symbols, err := symBuilder.ExtractSymbols(symdb.ExtractScopeAllSymbols)
+			symbols, err := symBuilder.ExtractSymbols()
 			require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 			require.NotEmpty(t, symbols.Packages)
 
@@ -62,19 +63,22 @@ var rewrite = flag.Bool("rewrite", rewriteFromEnv, "rewrite the snapshot files")
 
 const snapshotDir = "testdata/snapshot"
 
-var cases = []string{"sample"}
-
 func TestSymDBSnapshot(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
-	for _, caseName := range cases {
-		t.Run(caseName, func(t *testing.T) {
+	progs := testprogs.MustGetPrograms(t)
+	sem := dyninsttest.MakeSemaphore()
+	for _, prog := range progs {
+		t.Run(prog, func(t *testing.T) {
+			t.Parallel()
 			for _, cfg := range cfgs {
 				t.Run(cfg.String(), func(t *testing.T) {
-					binaryPath := testprogs.MustGetBinary(t, caseName, cfg)
+					t.Parallel()
+					defer sem.Acquire()()
+					binaryPath := testprogs.MustGetBinary(t, prog, cfg)
 					t.Logf("exploring binary: %s", binaryPath)
-					symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
+					symBuilder, err := symdb.NewSymDBBuilder(binaryPath, symdb.ExtractScopeMainModuleOnly)
 					require.NoError(t, err)
-					symbols, err := symBuilder.ExtractSymbols(symdb.ExtractScopeMainModuleOnly)
+					symbols, err := symBuilder.ExtractSymbols()
 					require.NoError(t, err, "failed to extract symbols from %s", binaryPath)
 					require.NotEmpty(t, symbols.Packages)
 
@@ -82,7 +86,7 @@ func TestSymDBSnapshot(t *testing.T) {
 					symbols.Serialize(symdbutil.MakePanickingWriter(&sb))
 					out := sb.String()
 
-					outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".out")
+					outputFile := path.Join(snapshotDir, prog+"."+cfg.String()+".out")
 					if *rewrite {
 						tmpFile, err := os.CreateTemp(snapshotDir, ".out")
 						require.NoError(t, err)
