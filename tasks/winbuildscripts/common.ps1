@@ -139,12 +139,6 @@ function Install-Deps() {
         Write-Error "Failed to install python requirements"
         exit 1
     }
-    Write-Host "Installing go dependencies"
-    dda inv -- -e deps
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to install dependencies"
-        exit 1
-    }
 }
 
 function Install-TestingDeps() {
