@@ -89,7 +89,9 @@ func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, 
 		s.config.Set("statsd_metric_blocklist", metricNames, model.SourceRC)
 		s.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
 
-		// apply this new filterlist to all the running workers
+		// apply this new blocklist to all the running workers
+		s.tlmFilterListUpdates.Inc()
+		s.tlmFilterListSize.Set(float64(len(metricNames)))
 		s.SetFilterList(metricNames, false)
 
 	} else {
