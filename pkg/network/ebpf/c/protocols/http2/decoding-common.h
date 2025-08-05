@@ -27,6 +27,11 @@ static __always_inline bool is_status_index(const __u64 index) {
     return k200 <= index && index <= k500;
 }
 
+// Returns true if the index is our internal sentinel for the literal "grpc-status" header.
+static __always_inline bool is_grpc_status_sentinel(const __u64 index) {
+    return index == GRPC_STATUS_SENTINEL;
+}
+
 // returns true if the given index is one of the relevant headers we care for in the static table.
 // The full table can be found in the user mode code `createStaticTable`.
 static __always_inline bool is_interesting_static_entry(const __u64 index) {
