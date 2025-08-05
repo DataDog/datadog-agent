@@ -482,7 +482,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithHostNameChange() {
 	err := windowscommon.RenameComputer(s.Env().RemoteHost, newHostname)
 	s.Require().NoError(err)
 
-    // Assert
+	// Assert
 	// start experiment
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
