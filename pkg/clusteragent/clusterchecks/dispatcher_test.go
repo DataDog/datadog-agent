@@ -525,7 +525,6 @@ func TestPatchConfiguration(t *testing.T) {
 	initialDigest := checkConfig.Digest()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeTagger.SetGlobalTags([]string{"kube_cluster_name:testing"}, []string{}, []string{}, []string{})
 
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
@@ -565,7 +564,6 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 	}
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeTagger.SetGlobalTags([]string{"kube_cluster_name:testing"}, []string{}, []string{}, []string{})
 
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
@@ -597,12 +595,12 @@ func TestExtraTags(t *testing.T) {
 		tagNameConfig     string
 		expected          []string
 	}{
-		{nil, "testing", "cluster_name", []string{"cluster_name:testing"}},
-		{nil, "mycluster", "custom_name", []string{"custom_name:mycluster"}},
+		{nil, "testing", "cluster_name", []string{"cluster_name:testing", "kube_cluster_name:testing"}},
+		{nil, "mycluster", "custom_name", []string{"custom_name:mycluster", "kube_cluster_name:mycluster"}},
 		{nil, "", "cluster_name", []string{}},
-		{nil, "testing", "", []string{}},
+		{nil, "testing", "", []string{"kube_cluster_name:testing"}},
 		{[]string{"one", "two"}, "", "", []string{"one", "two"}},
-		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster"}},
+		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster", "kube_cluster_name:mycluster"}},
 	} {
 		t.Run("", func(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)

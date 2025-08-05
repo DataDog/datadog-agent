@@ -6,6 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+fixes:
   - |
-    Adds `psycopg_binary.libs` to the whitelist for the `datadog-agent-integrations-py3` package.
+    When the Autodiscovery scheduler gets blocked, it triggers a health check
+    failure (reported in the `agent health` command).
