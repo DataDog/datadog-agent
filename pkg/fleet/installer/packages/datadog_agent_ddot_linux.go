@@ -8,7 +8,6 @@ package packages
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -82,11 +81,6 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	defer func() {
 		span.Finish(err)
 	}()
-
-	// Write otel-config.yaml with API key substitution
-	if err = writeOtelConfig(); err != nil {
-		return fmt.Errorf("could not write otel-config.yaml file: %s", err)
-	}
 
 	// Ensure the dd-agent user and group exist
 	if err = user.EnsureAgentUserAndGroup(ctx, "/opt/datadog-agent"); err != nil {
@@ -239,27 +233,6 @@ func disableOtelCollectorConfig() error {
 
 	if err := os.WriteFile(datadogYamlPath, updatedData, 0640); err != nil {
 		return fmt.Errorf("failed to write updated datadog.yaml: %w", err)
-	}
-
-	return nil
-}
-
-// writeOtelConfig creates otel-config.yaml by removing environment variable placeholders in the example file
-func writeOtelConfig() error {
-	// Read the example config file
-	exampleData, err := os.ReadFile("/etc/datadog-agent/otel-config.yaml.example")
-	if err != nil {
-		return fmt.Errorf("failed to read otel-config.yaml.example: %w", err)
-	}
-
-	configData := string(exampleData)
-	configData = strings.ReplaceAll(configData, "${env:DD_API_KEY}", "")
-	configData = strings.ReplaceAll(configData, "${env:DD_SITE}", "")
-
-	// Write the processed config
-	err = os.WriteFile("/etc/datadog-agent/otel-config.yaml", []byte(configData), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
 	}
 
 	return nil

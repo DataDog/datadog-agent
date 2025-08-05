@@ -12,6 +12,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -61,6 +62,12 @@ func WriteConfigs(config Config, configDir string) error {
 		err = writeConfig(filepath.Join(configDir, "conf.d", name), config, 0644, false)
 		if err != nil {
 			return fmt.Errorf("could not write %s.yaml: %w", name, err)
+		}
+	}
+	if config.OtelConfigYAML {
+		err = writeOtelConfig(configDir, config.DatadogYAML.APIKey, config.DatadogYAML.Site)
+		if err != nil {
+			return fmt.Errorf("could not write otel-config.yaml: %w", err)
 		}
 	}
 	return nil
@@ -126,6 +133,8 @@ type Config struct {
 	IntegrationConfigs map[string]IntegrationConfig
 	// ApplicationMonitoringYAML is the content of the application_monitoring.yaml configuration file
 	ApplicationMonitoringYAML *ApplicationMonitoringConfig
+	// OtelConfigYAML indicates whether to write otel-config.yaml from the example file
+	OtelConfigYAML bool
 }
 
 // DatadogConfig represents the configuration to write in /etc/datadog-agent/datadog.yaml
@@ -346,4 +355,30 @@ func isScalar(i interface{}) bool {
 // BoolToPtr converts a bool to a pointer of a bool
 func BoolToPtr(b bool) *bool {
 	return &b
+}
+
+// writeOtelConfig creates otel-config.yaml by substituting API key and site values in the example file
+func writeOtelConfig(configDir, apiKey, site string) error {
+	examplePath := filepath.Join(configDir, "otel-config.yaml.example")
+	exampleData, err := os.ReadFile(examplePath)
+	if err != nil {
+		return fmt.Errorf("failed to read otel-config.yaml.example: %w", err)
+	}
+
+	// Default site if not specified
+	if site == "" {
+		site = "datadoghq.com"
+	}
+
+	configData := string(exampleData)
+	configData = strings.ReplaceAll(configData, "${env:DD_API_KEY}", apiKey)
+	configData = strings.ReplaceAll(configData, "${env:DD_SITE}", site)
+
+	outputPath := filepath.Join(configDir, "otel-config.yaml")
+	err = os.WriteFile(outputPath, []byte(configData), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
+	}
+
+	return nil
 }
