@@ -125,6 +125,36 @@ Package: main
 	Function: executeGenericFuncs (main.executeGenericFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [19:25]
 		Var: y: main.typeWithGenerics[int] (declared at line 23, available: )
 		Var: x: main.typeWithGenerics[string] (declared at line 20, available: )
+	Function: testInlinedA (main.testInlinedA) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [17:19]
+		Arg: x: int (declared at line 17, available: [17-18])
+		Arg: y: int (declared at line 17, available: [17-18])
+	Function: testInlinedB (main.testInlinedB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [21:25]
+		Arg: x: int (declared at line 21, available: [21-25])
+		Arg: y: int (declared at line 21, available: [21-25])
+	Function: forceOutOfLine (main.forceOutOfLine) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [28:30]
+		Arg: f: func(int) (declared at line 28, available: [28-29])
+	Function: testInlinedBA (main.testInlinedBA) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [32:35]
+		Arg: x: int (declared at line 32, available: [32-34])
+	Function: testInlinedBB (main.testInlinedBB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [37:42]
+		Arg: x: int (declared at line 37, available: [37-38])
+		Arg: y: int (declared at line 37, available: [37-39])
+		Var: z: int (declared at line 38, available: [37-42])
+	Function: testInlinedBBA (main.testInlinedBBA) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [44:46]
+		Arg: x: int (declared at line 44, available: [44-45])
+	Function: testInlinedBC (main.testInlinedBC) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [52:60]
+		Var: s: int (declared at line 54, available: [55-58])
+		Scope: 55-58
+			Var: i: int (declared at line 55, available: [55-58])
+	Function: testFrameless (main.testFrameless) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [79:80]
+		Arg: x: int (declared at line 79, available: [79-80])
+		Arg: ~r0: int (declared at line 79, available: )
+	Function: testFramelessArray (main.testFramelessArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [92:93]
+		Arg: a: [5]int (declared at line 92, available: [92-93])
+		Arg: ~r0: int (declared at line 92, available: )
+	Function: executeInlined (main.executeInlined) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [97:106]
+		Var: x: int (declared at line 99, available: )
+		Var: y: int (declared at line 100, available: [97-106])
+		Var: a: [5]int (declared at line 98, available: [97-106])
 	Function: testInterface (main.testInterface) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [48:55]
 		Arg: b: main.behavior (declared at line 48, available: [48-51])
 		Arg: ~r0: string (declared at line 48, available: )
@@ -135,7 +165,7 @@ Package: main
 	Function: testError (main.testError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [60:60]
 		Arg: e: error (declared at line 60, available: [60-60])
 	Function: executeInterfaceFuncs (main.executeInterfaceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [63:67]
-	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [19:45]
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [19:46]
 	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.3.0-dev/ddtrace/tracer/option.go [986:989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [987-989])
@@ -396,10 +426,6 @@ Package: main
 	Function: stackB (main.stackB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [18:20]
 	Function: stackC (main.stackC) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [24:25]
 		Arg: ~r0: string (declared at line 24, available: )
-	Function: callInlinedFuncChain (main.callInlinedFuncChain) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [30:32]
-	Function: notInlined (main.notInlined) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [51:52]
-		Arg: ~r0: string (declared at line 51, available: )
-	Function: executeStackAndInlining (main.executeStackAndInlining) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [56:59]
 	Function: testSingleString (main.testSingleString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [12:12]
 		Arg: x: string (declared at line 12, available: [12-12])
 	Function: testThreeStrings (main.testThreeStrings) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [16:16]
@@ -473,6 +499,16 @@ Package: main
 		Var: sta: main.structWithTwoArrays (declared at line 170, available: [103-182])
 		Var: .autotmp_13: [0]uint8 (declared at line 125, available: [103-182])
 		Var: .autotmp_33: main.emptyStruct (declared at line 158, available: [103-182])
+	Function: executeStack (main.executeStack) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [29:30]
+	Function: testInlinedBBB (main.testInlinedBBB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [48:49]
+	Function: testInlinedBCA (main.testInlinedBCA) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [62:63]
+	Function: testInlinedBCB (main.testInlinedBCB) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [66:67]
+	Function: testInlinedPrint (main.testInlinedPrint) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [13:15]
+		Arg: x: int (declared at line 0, available: [13-14])
+	Function: testInlinedSq (main.testInlinedSq) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [74:75]
+		Arg: x: int (declared at line 0, available: [75-75])
+	Function: testInlinedSumArray (main.testInlinedSumArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [70:71]
+		Arg: a: [5]int (declared at line 0, available: [71-71])
 	Type: main.typeAlias
 	Type: main.interfaceComplexityA
 		Field: b: int
@@ -505,6 +541,14 @@ Package: main
 		Field: once: sync.Once
 		Field: wg: sync.WaitGroup
 		Field: a: sync/atomic.Int32
+	Type: main.firstBehavior
+		Field: s: string
+		Function: DoSomething (main.firstBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [26:27]
+			Arg: b: main.firstBehavior (declared at line 0, available: [26-27])
+	Type: main.secondBehavior
+		Field: i: int
+		Function: DoSomething (main.secondBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [30:31]
+			Arg: b: main.secondBehavior (declared at line 0, available: [30-31])
 	Type: main.behavior
 	Type: main.structWithMap
 		Field: m: map[int]int
@@ -629,7 +673,7 @@ Package: main
 	Type: main.structWithNoStrings
 		Field: aUint8: uint8
 		Field: aBool: bool
-Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
-	Function: FooV2 (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.FooV2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [15:16]
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 	Function: Foo (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Foo) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [12:13]
+Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
+	Function: FooV2 (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.FooV2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [15:16]

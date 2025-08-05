@@ -691,6 +691,7 @@ require (
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	k8s.io/cli-runtime v0.31.2
 	k8s.io/kubectl v0.31.2
+	pgregory.net/rapid v1.2.0
 )
 
 require go.opentelemetry.io/collector/pdata/xpdata v0.131.0 // indirect
