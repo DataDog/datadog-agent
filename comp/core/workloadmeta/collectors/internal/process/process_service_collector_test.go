@@ -40,7 +40,7 @@ const (
 var baseTime = time.Date(2025, 1, 12, 1, 0, 0, 0, time.UTC) // 12th of January 2025, 1am UTC
 
 // startTestServer creates a system-probe test server that returns the specified response or error
-func startTestServer(t *testing.T, response *model.ServicesEndpointResponse, shouldError bool) (string, *httptest.Server) {
+func startTestServer(t *testing.T, response *model.ServicesResponse, shouldError bool) (string, *httptest.Server) {
 	t.Helper()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +106,6 @@ func makeModelService(pid int32, name string) model.Service {
 		Language:           "python",
 		Type:               "database",
 		CommandLine:        []string{"python", "-m", "myservice"},
-		StartTimeMilli:     uint64(baseTime.Add(-1 * time.Minute).UnixMilli()),
 		LogFiles:           []string{"/var/log/" + name + ".log"},
 	}
 }
@@ -293,7 +292,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 	tests := []struct {
 		name               string
 		shouldError        bool
-		httpResponse       *model.ServicesEndpointResponse
+		httpResponse       *model.ServicesResponse
 		alivePids          []int32
 		ignoredPids        []int32
 		existingProcesses  []*workloadmeta.Process
@@ -305,7 +304,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 		{
 			name:      "new service discovered",
 			alivePids: []int32{pidNewService},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidNewService, "new-service")},
 			},
 			expectStored: []*workloadmeta.Process{makeProcessEntityServiceProcessCollectionDisabled(pidNewService, "new-service")},
@@ -319,7 +318,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			name:        "ignored pid skipped",
 			alivePids:   []int32{pidIgnoredService},
 			ignoredPids: []int32{pidIgnoredService},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidIgnoredService, "ignored-service")},
 			},
 		},
@@ -330,7 +329,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				makeProcessEntityServiceProcessCollectionDisabled(pidFreshService, "fresh-existing"),
 				makeProcessEntityServiceProcessCollectionDisabled(pidStaleService, "stale-existing"),
 			},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{
 					makeModelService(pidStaleService, "stale-service"),
 				},
@@ -350,7 +349,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 			processCreateTimes: map[int32]time.Time{
 				pidRecentService: baseTime.Add(-30 * time.Second), // Process started 30 seconds ago (too young)
 			},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidRecentService, "recent-service")},
 			},
 			expectNoEntities: []int32{pidRecentService}, // Process should exist but have no service data
@@ -410,7 +409,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 	tests := []struct {
 		name                    string
 		shouldError             bool
-		httpResponse            *model.ServicesEndpointResponse
+		httpResponse            *model.ServicesResponse
 		alivePids               []int32
 		ignoredPids             []int32
 		existingProcesses       []*workloadmeta.Process
@@ -422,7 +421,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 		{
 			name:      "new service discovered and stored",
 			alivePids: []int32{pidNewService},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidNewService, "new-service")},
 			},
 			expectStored: []*workloadmeta.Process{makeProcessEntityService(pidNewService, "new-service")},
@@ -437,7 +436,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 			name:        "ignored pid is skipped",
 			alivePids:   []int32{pidIgnoredService},
 			ignoredPids: []int32{pidIgnoredService},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidIgnoredService, "ignored-service")},
 			},
 			// No expectStored since the PID should be ignored and no service should be stored
@@ -449,7 +448,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 				makeProcessEntityService(pidFreshService, "fresh-existing"), // Recent
 				makeProcessEntityService(pidStaleService, "stale-existing"), // Stale (> 15min)
 			},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{
 					makeModelService(pidStaleService, "stale-service"), // Only stale service should be requested
 				},
@@ -469,7 +468,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 			processCreateTimes: map[int32]time.Time{
 				pidRecentService: baseTime.Add(-30 * time.Second), // Process started 30 seconds ago (too young)
 			},
-			httpResponse: &model.ServicesEndpointResponse{
+			httpResponse: &model.ServicesResponse{
 				Services: []model.Service{makeModelService(pidRecentService, "recent-service")},
 			},
 			expectNoServiceDataPids: []int32{pidRecentService}, // Process should exist but have no service data
@@ -557,7 +556,7 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	c.collector.lastCollectedProcesses = make(map[int32]*procutil.Process)
 	c.collector.pidHeartbeats[pidFreshService] = baseTime
 
-	socketPath, _ := startTestServer(t, &model.ServicesEndpointResponse{}, false)
+	socketPath, _ := startTestServer(t, &model.ServicesResponse{}, false)
 	c.collector.sysProbeClient = sysprobeclient.Get(socketPath)
 	c.mockClock.Set(baseTime)
 
