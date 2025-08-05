@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
 	"gopkg.in/yaml.v3"
@@ -378,6 +379,16 @@ func writeOtelConfig(configDir, apiKey, site string) error {
 	err = os.WriteFile(outputPath, []byte(configData), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
+	}
+
+	configPerm := file.Permission{
+		Path:  "otel-config.yaml",
+		Owner: "dd-agent",
+		Group: "dd-agent",
+		Mode:  0640,
+	}
+	if err := configPerm.Ensure(configDir); err != nil {
+		return fmt.Errorf("failed to set ownership on otel-config.yaml: %w", err)
 	}
 
 	return nil
