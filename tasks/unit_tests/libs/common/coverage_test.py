@@ -5,6 +5,7 @@ Unit tests for the coverage module functions.
 
 import unittest
 from unittest.mock import MagicMock, patch
+
 from invoke import Context
 
 from tasks.libs.common.coverage import upload_codecov
@@ -30,9 +31,7 @@ class TestUploadCodecov(unittest.TestCase):
         upload_codecov(self.mock_context, "coverage.out", [])
 
         # Verify the correct command was executed
-        self.mock_context.run.assert_called_once_with(
-            "codecov -f coverage.out -F ubuntu", warn=True, timeout=2 * 60
-        )
+        self.mock_context.run.assert_called_once_with("codecov -f coverage.out -F ubuntu", warn=True, timeout=2 * 60)
 
     @patch('tasks.libs.common.coverage.get_distro')
     @patch('tasks.libs.common.coverage.platform.system')
@@ -79,9 +78,7 @@ class TestUploadCodecov(unittest.TestCase):
         upload_codecov(self.mock_context, "coverage.out", [])
 
         # Verify the correct command was executed with only the distro tag
-        self.mock_context.run.assert_called_once_with(
-            "codecov -f coverage.out -F alpine", warn=True, timeout=2 * 60
-        )
+        self.mock_context.run.assert_called_once_with("codecov -f coverage.out -F alpine", warn=True, timeout=2 * 60)
 
     @patch('tasks.libs.common.coverage.get_distro')
     @patch('tasks.libs.common.coverage.platform.system')
@@ -129,8 +126,9 @@ class TestUploadCodecov(unittest.TestCase):
 
         # Verify the correct command was executed
         self.mock_context.run.assert_called_once_with(
-            "codecov -f coverage.out -F fedora -F test-tag -F tag_with_underscore -F tag-with-dash", 
-            warn=True, timeout=2 * 60
+            "codecov -f coverage.out -F fedora -F test-tag -F tag_with_underscore -F tag-with-dash",
+            warn=True,
+            timeout=2 * 60,
         )
 
     @patch('tasks.libs.common.coverage.get_distro')
@@ -164,7 +162,7 @@ class TestUploadCodecov(unittest.TestCase):
         # Verify both calls were made correctly
         expected_calls = [
             unittest.mock.call("codecov -f coverage1.out -F centos -F tag1", warn=True, timeout=2 * 60),
-            unittest.mock.call("codecov -f coverage2.out -F centos -F tag2", warn=True, timeout=2 * 60)
+            unittest.mock.call("codecov -f coverage2.out -F centos -F tag2", warn=True, timeout=2 * 60),
         ]
         self.mock_context.run.assert_has_calls(expected_calls)
         self.assertEqual(self.mock_context.run.call_count, 2)
@@ -181,9 +179,7 @@ class TestUploadCodecov(unittest.TestCase):
         upload_codecov(self.mock_context, "coverage.out", None)
 
         # Verify the correct command was executed with only the distro tag
-        self.mock_context.run.assert_called_once_with(
-            "codecov -f coverage.out -F ubuntu", warn=True, timeout=2 * 60
-        )
+        self.mock_context.run.assert_called_once_with("codecov -f coverage.out -F ubuntu", warn=True, timeout=2 * 60)
 
     @patch('tasks.libs.common.coverage.get_distro')
     @patch('tasks.libs.common.coverage.platform.system')
@@ -203,4 +199,4 @@ class TestUploadCodecov(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()

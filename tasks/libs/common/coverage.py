@@ -1,6 +1,8 @@
 import platform
-from tasks.libs.common.utils import get_distro
+
 from invoke import Context
+
+from tasks.libs.common.utils import get_distro
 
 
 def upload_codecov(ctx: Context, coverage_file: str, extra_tag: list[str]):
