@@ -5,24 +5,28 @@
   stage: source_test
   needs: []
   variables:
-    KMT_EXCLUDE_REQUIREMENTS: "Compiler,UserInDockerGroup"
+    KMT_EXCLUDE_REQUIREMENTS: "Compiler,UserInDockerGroup"  # Docker not supported in the local setup yet
   rules:
     - !reference [.on_invoke_tasks_changes]
   script:
-    # Avoid rate limits when running kmt.init (some issues with pulumi)
-    - !reference [.setup_agent_github_app]
     - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - export KMT_TEST_INFRA_DEFINITIONS_PATH=$(go env GOPATH)/src/github.com/DataDog/test-infra-definitions
     - dda inv -- kmt.init --remote-setup-only --skip-ssh-setup --exclude-requirements $KMT_EXCLUDE_REQUIREMENTS
+    - export PATH=$PATH:$HOME/.pulumi/bin  # Simulate a shell restart, required for the check
     - dda inv -- kmt.selfcheck --remote-setup-only --exclude-requirements $KMT_EXCLUDE_REQUIREMENTS
 
 test_kmt_local_setup_linux:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   extends: .test_kmt_local_setup
+  before_script:
+    # Avoid rate limits when running kmt.init (some issues with pulumi downloads)
+    - !reference [.setup_agent_github_app]
 
 test_kmt_local_setup_macos:
-  extends:
-    - .macos_gitlab
-    - .test_kmt_local_setup
+  extends: .test_kmt_local_setup
+  before_script:
+    - !reference [.macos_gitlab, before_script]
+    # Avoid rate limits when running kmt.init (some issues with pulumi downloads)
+    - !reference [.setup_macos_github_app]
   tags: ["macos:ventura-amd64", "specific:true"]

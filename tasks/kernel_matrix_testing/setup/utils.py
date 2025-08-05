@@ -7,7 +7,6 @@ import pwd
 import re
 import tempfile
 from pathlib import Path
-from typing import Any
 
 from invoke.context import Context
 
