@@ -65,6 +65,10 @@ type flowAccumulator struct {
 	aggregationHashUseSyncPool bool
 	getMemoryStats             bool
 
+	// Logging configuration and counter
+	logMapSizesEveryN int
+	callCounter       uint64
+
 	flowAccStats *flowAccStats
 }
 
@@ -76,12 +80,12 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, getMemoryStats bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, getMemoryStats bool, logMapSizesEveryN int, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                      make(map[uint64]flowContext),
 		flowFlushInterval:          aggregatorFlushInterval,
 		flowContextTTL:             aggregatorFlowContextTTL,
-		portRollup:                 portrollup.NewEndpointPairPortRollupStore(portRollupThreshold, portRollupUseFixedSizeKey, logger),
+		portRollup:                 portrollup.NewEndpointPairPortRollupStore(portRollupThreshold, portRollupUseFixedSizeKey, logMapSizesEveryN, logger),
 		portRollupThreshold:        portRollupThreshold,
 		portRollupDisabled:         portRollupDisabled,
 		hashCollisionFlowCount:     atomic.NewUint64(0),
@@ -91,6 +95,8 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 		skipHashCollisionDetection: skipHashCollisionDetection,
 		aggregationHashUseSyncPool: aggregationHashUseSyncPool,
 		getMemoryStats:             getMemoryStats,
+		logMapSizesEveryN:          logMapSizesEveryN,
+		callCounter:                0,
 		flowAccStats:               &flowAccStats{},
 	}
 }
@@ -174,6 +180,21 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
+
+	// Increment call counter and log flows map size
+	f.callCounter++
+	if f.logMapSizesEveryN > 0 && f.callCounter%uint64(f.logMapSizesEveryN) == 0 {
+		flowsMapSize := common.Sizeof(f.flows)
+		flowsMapLen := len(f.flows)
+
+		var avgSize float64
+		if flowsMapLen > 0 {
+			avgSize = float64(flowsMapSize) / float64(flowsMapLen)
+		}
+
+		f.logger.Infof("After %d calls - flows map: %d elements (%d bytes, %.1f bytes/entry)",
+			f.callCounter, flowsMapLen, flowsMapSize, avgSize)
+	}
 
 	defer func() {
 		f.flowAccStats.flowAccAddCount++

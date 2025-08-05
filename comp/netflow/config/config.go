@@ -43,6 +43,7 @@ type NetflowConfig struct {
 	AggregationHashUseSyncPool bool `mapstructure:"aggregation_hash_use_sync_pool"`
 	PortRollupUseFixedSizeKey  bool `mapstructure:"portrollup_use_fixed_size_key"`
 	GetMemoryStats             bool `mapstructure:"get_memory_stats"`
+	LogMapSizesEveryN          int  `mapstructure:"log_map_sizes_every_n"`
 }
 
 // ListenerConfig contains configuration for a single flow listener

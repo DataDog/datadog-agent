@@ -92,7 +92,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, false, 0, logger, rdnsQuerier)
 	acc.add(flowA1)
 	acc.add(flowA2)
 	acc.add(flowB1)
@@ -166,7 +166,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, 3, false, false, false, false, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, 3, false, false, false, false, false, 0, logger, rdnsQuerier)
 	acc.add(flowA1)
 	acc.add(flowA2)
 
@@ -243,7 +243,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, false, 0, logger, rdnsQuerier)
 	acc.add(flow)
 
 	// Then
@@ -359,7 +359,7 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, false, 0, logger, rdnsQuerier)
 
 	// Then
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
@@ -398,11 +398,11 @@ func TestFlowAccumulator_AggregationHashConfigOption(t *testing.T) {
 	}
 
 	// Test with sync pool disabled (original implementation)
-	accOriginal := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, false, logger, rdnsQuerier)
+	accOriginal := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, false, 0, logger, rdnsQuerier)
 	hashOriginal := accOriginal.getAggregationHash(flow)
 
 	// Test with sync pool enabled (optimized implementation)
-	accSyncPool := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, false, true, false, false, logger, rdnsQuerier)
+	accSyncPool := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, false, true, false, false, 0, logger, rdnsQuerier)
 	hashSyncPool := accSyncPool.getAggregationHash(flow)
 
 	// Both should produce the same hash

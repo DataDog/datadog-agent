@@ -70,13 +70,20 @@ type EndpointPairPortRollupStore struct {
 
 	// logger component for logging
 	logger log.Component
+
+	// Call counter for logging store sizes
+	callCounter uint64
+
+	// Logging interval for store sizes (0 disables logging)
+	logMapSizesEveryN int
 }
 
 // NewEndpointPairPortRollupStore create a new *EndpointPairPortRollupStore
-func NewEndpointPairPortRollupStore(portRollupThreshold int, useFixedSizeKey bool, logger log.Component) *EndpointPairPortRollupStore {
+func NewEndpointPairPortRollupStore(portRollupThreshold int, useFixedSizeKey bool, logMapSizesEveryN int, logger log.Component) *EndpointPairPortRollupStore {
 	store := &EndpointPairPortRollupStore{
 		portRollupThreshold: portRollupThreshold,
 		useFixedSizeKey:     useFixedSizeKey,
+		logMapSizesEveryN:   logMapSizesEveryN,
 		ipv6WarningLogged:   false,
 		logger:              logger,
 	}
@@ -138,6 +145,29 @@ func (prs *EndpointPairPortRollupStore) addWithFixedSizeKey(sourceAddr []byte, d
 // AddToStore will add ports to store
 func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, srcToDestKey string, destToSrcKey string, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16, curStoreIsEphemeralStatus IsEphemeralStatus) {
 	prs.storeMu.Lock()
+
+	// Increment call counter and log store sizes
+	prs.callCounter++
+	if prs.logMapSizesEveryN > 0 && prs.callCounter%uint64(prs.logMapSizesEveryN) == 0 {
+		curStoreSize := common.Sizeof(prs.curStore)
+		newStoreSize := common.Sizeof(prs.newStore)
+		curStoreLen := len(prs.curStore)
+		newStoreLen := len(prs.newStore)
+
+		var curAvgSize, newAvgSize float64
+		if curStoreLen > 0 {
+			curAvgSize = float64(curStoreSize) / float64(curStoreLen)
+		}
+		if newStoreLen > 0 {
+			newAvgSize = float64(newStoreSize) / float64(newStoreLen)
+		}
+
+		prs.logger.Infof("After %d calls - curStore: %d elements (%d bytes, %.1f bytes/entry)",
+			prs.callCounter, curStoreLen, curStoreSize, curAvgSize)
+		prs.logger.Infof("After %d calls - newStore: %d elements (%d bytes, %.1f bytes/entry)",
+			prs.callCounter, newStoreLen, newStoreSize, newAvgSize)
+	}
+
 	sourceToDestPorts := len(store[srcToDestKey])
 	destToSourcePorts := len(store[destToSrcKey])
 
@@ -172,6 +202,29 @@ func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, sr
 // AddToStoreIPv4 will add ports to store using fixed-size key for IPv4
 func (prs *EndpointPairPortRollupStore) AddToStoreIPv4(store map[[11]byte][]uint16, srcToDestKey [11]byte, destToSrcKey [11]byte, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16, curStoreIsEphemeralStatus IsEphemeralStatus) {
 	prs.storeMu.Lock()
+
+	// Increment call counter and log store sizes
+	prs.callCounter++
+	if prs.logMapSizesEveryN > 0 && prs.callCounter%uint64(prs.logMapSizesEveryN) == 0 {
+		curStoreSize := common.Sizeof(prs.curStoreIPv4)
+		newStoreSize := common.Sizeof(prs.newStoreIPv4)
+		curStoreLen := len(prs.curStoreIPv4)
+		newStoreLen := len(prs.newStoreIPv4)
+
+		var curAvgSize, newAvgSize float64
+		if curStoreLen > 0 {
+			curAvgSize = float64(curStoreSize) / float64(curStoreLen)
+		}
+		if newStoreLen > 0 {
+			newAvgSize = float64(newStoreSize) / float64(newStoreLen)
+		}
+
+		prs.logger.Infof("After %d calls - curStoreIPv4: %d elements (%d bytes, %.1f bytes/entry)",
+			prs.callCounter, curStoreLen, curStoreSize, curAvgSize)
+		prs.logger.Infof("After %d calls - newStoreIPv4: %d elements (%d bytes, %.1f bytes/entry)",
+			prs.callCounter, newStoreLen, newStoreSize, newAvgSize)
+	}
+
 	sourceToDestPorts := len(store[srcToDestKey])
 	destToSourcePorts := len(store[destToSrcKey])
 
