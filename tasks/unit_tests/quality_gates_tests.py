@@ -53,7 +53,7 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
             }
         )
         mock_quality_gates_module = MagicMock()
-        mock_quality_gates_module.static_quality_gate_package_agent_suse_amd64.execute_gate.side_effect = InfraError(
+        mock_quality_gates_module.static_quality_gate_agent_suse_amd64.execute_gate.side_effect = InfraError(
             "Test infra error message"
         )
         with self.assertRaises(Exit) as cm:
@@ -66,13 +66,13 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                 f,
                 MockMetricHandler(
                     {
-                        "static_quality_gate_package_agent_suse_amd64": {
+                        "static_quality_gate_agent_suse_amd64": {
                             "current_on_wire_size": 50000000,
                             "max_on_wire_size": 100000000,
                             "current_on_disk_size": 50000000,
                             "max_on_disk_size": 100000000,
                         },
-                        "static_quality_gate_package_agent_deb_amd64": {
+                        "static_quality_gate_agent_deb_amd64": {
                             "current_on_wire_size": 4000000,
                             "max_on_wire_size": 5000000,
                             "current_on_disk_size": 4000000,
@@ -87,17 +87,17 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                     }
                 ),
             )
-        assert new_config["static_quality_gate_package_agent_suse_amd64"]["max_on_wire_size"] == "48.64 MiB", print(
-            f"Expected 48.64 MiB got {new_config['static_quality_gate_package_agent_suse_amd64']['max_on_wire_size']}"
+        assert new_config["static_quality_gate_agent_suse_amd64"]["max_on_wire_size"] == "48.64 MiB", print(
+            f"Expected 48.64 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_wire_size']}"
         )
-        assert new_config["static_quality_gate_package_agent_suse_amd64"]["max_on_disk_size"] == "48.64 MiB", print(
-            f"Expected 48.64 MiB got {new_config['static_quality_gate_package_agent_suse_amd64']['max_on_disk_size']}"
+        assert new_config["static_quality_gate_agent_suse_amd64"]["max_on_disk_size"] == "48.64 MiB", print(
+            f"Expected 48.64 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_disk_size']}"
         )
-        assert new_config["static_quality_gate_package_agent_deb_amd64"]["max_on_wire_size"] == "4.77 MiB", print(
-            f"Expected 4.77 MiB got {new_config['static_quality_gate_package_agent_deb_amd64']['max_on_wire_size']}"
+        assert new_config["static_quality_gate_agent_deb_amd64"]["max_on_wire_size"] == "4.77 MiB", print(
+            f"Expected 4.77 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_wire_size']}"
         )
-        assert new_config["static_quality_gate_package_agent_deb_amd64"]["max_on_disk_size"] == "4.77 MiB", print(
-            f"Expected 4.77 MiB got {new_config['static_quality_gate_package_agent_deb_amd64']['max_on_disk_size']}"
+        assert new_config["static_quality_gate_agent_deb_amd64"]["max_on_disk_size"] == "4.77 MiB", print(
+            f"Expected 4.77 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_disk_size']}"
         )
 
     def test_exception_gate_bump(self):
@@ -106,7 +106,7 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                 f,
                 MockMetricHandler(
                     {
-                        "static_quality_gate_package_agent_suse_amd64": {
+                        "static_quality_gate_agent_suse_amd64": {
                             "relative_on_wire_size": 424242,
                             "current_on_wire_size": 50000000,
                             "max_on_wire_size": 100000000,
@@ -114,7 +114,7 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                             "current_on_disk_size": 50000000,
                             "max_on_disk_size": 100000000,
                         },
-                        "static_quality_gate_package_agent_deb_amd64": {
+                        "static_quality_gate_agent_deb_amd64": {
                             "relative_on_wire_size": 424242,
                             "current_on_wire_size": 4000000,
                             "max_on_wire_size": 5000000,
@@ -134,17 +134,17 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                 ),
                 True,
             )
-        assert new_config["static_quality_gate_package_agent_suse_amd64"]["max_on_wire_size"] == "95.77 MiB", print(
-            f"Expected 48.64 MiB got {new_config['static_quality_gate_package_agent_suse_amd64']['max_on_wire_size']}"
+        assert new_config["static_quality_gate_agent_suse_amd64"]["max_on_wire_size"] == "95.77 MiB", print(
+            f"Expected 48.64 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_wire_size']}"
         )
-        assert new_config["static_quality_gate_package_agent_suse_amd64"]["max_on_disk_size"] == "95.6 MiB", print(
-            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_disk_size']}"
+        assert new_config["static_quality_gate_agent_suse_amd64"]["max_on_disk_size"] == "95.6 MiB", print(
+            f"Expected 48.64 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_disk_size']}"
         )
-        assert new_config["static_quality_gate_package_agent_deb_amd64"]["max_on_wire_size"] == "5.17 MiB", print(
-            f"Expected 4.77 MiB got {new_config['static_quality_gate_package_agent_deb_amd64']['max_on_wire_size']}"
+        assert new_config["static_quality_gate_agent_deb_amd64"]["max_on_wire_size"] == "5.17 MiB", print(
+            f"Expected 4.77 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_wire_size']}"
         )
-        assert new_config["static_quality_gate_package_agent_deb_amd64"]["max_on_disk_size"] == "5.0 MiB", print(
-            f"Expected 4.77 MiB got {new_config['static_quality_gate_package_agent_deb_amd64']['max_on_disk_size']}"
+        assert new_config["static_quality_gate_agent_deb_amd64"]["max_on_disk_size"] == "5.0 MiB", print(
+            f"Expected 4.77 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_disk_size']}"
         )
 
 

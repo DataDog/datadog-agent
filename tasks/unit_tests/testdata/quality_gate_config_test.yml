@@ -1,8 +1,8 @@
-static_quality_gate_package_agent_suse_amd64:
+static_quality_gate_agent_suse_amd64:
   max_on_wire_size: 100 MiB
   max_on_disk_size: 100 MiB
 
-static_quality_gate_package_agent_deb_amd64:
+static_quality_gate_agent_deb_amd64:
   max_on_wire_size: 5 MiB
   max_on_disk_size: 5 MiB
 
