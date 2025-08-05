@@ -191,6 +191,8 @@ class StaticQualityGatePackage(StaticQualityGate):
             flavor = "datadog-iot-agent"
         elif "dogstatsd" in self.gate_name:
             flavor = "datadog-dogstatsd"
+        elif "heroku" in self.gate_name:
+            flavor = "datadog-heroku-agent"
 
         package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
         separator = '_' if self.os == 'debian' else '-'

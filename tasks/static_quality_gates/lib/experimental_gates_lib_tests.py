@@ -116,7 +116,7 @@ class TestExperimentalGatesLib(unittest.TestCase):
             ("static_quality_gate_agent_deb_amd64_fips", "/opt/datadog-agent/datadog-fips-agent_7*amd64.deb"),
             ("static_quality_gate_iot_agent_rpm_arm64", "/opt/datadog-agent/datadog-iot-agent-7*aarch64.rpm"),
             ("static_quality_gate_dogstatsd_suse_amd64", "/opt/datadog-agent/datadog-dogstatsd-7*x86_64.rpm"),
-            ("static_quality_gate_agent_heroku_amd64", "/opt/datadog-agent/datadog-agent_7*amd64.deb"),
+            ("static_quality_gate_agent_heroku_amd64", "/opt/datadog-agent/datadog-heroku-agent_7*amd64.deb"),
         ]
 
         for gate_name, expected_pattern in test_cases:
@@ -153,12 +153,14 @@ class TestExperimentalGatesLib(unittest.TestCase):
 
         # Verify the exception message contains information about both failures
         error_message = str(context.exception)
+        # Values are converted to MB in error messages: 150 bytes ≈ 0.000143 MB, 100 bytes ≈ 9.54e-05 MB
         self.assertIn(
-            "On wire size (compressed artifact size) 150 is higher than the maximum allowed 100 by the gate !",
+            "On wire size (compressed artifact size) 0.0001430511474609375 MB is higher than the maximum allowed 9.5367431640625e-05 MB by the gate !",
             error_message,
         )
+        # 400 bytes ≈ 0.000381 MB, 350 bytes ≈ 0.000334 MB
         self.assertIn(
-            "On disk size (uncompressed artifact size) 400 is higher than the maximum allowed 350 by the gate !",
+            "On disk size (uncompressed artifact size) 0.0003814697265625 MB is higher than the maximum allowed 0.0003337860107421875 MB by the gate !",
             error_message,
         )
 
