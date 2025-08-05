@@ -70,6 +70,7 @@ job-owners:
     - deploy_cluster_agent_cloudfoundry
     - do-not-merge
     - dogstatsd_x64_size_test
+    - export_testing_public_key
     - generate-flakes-finder-pipeline
     - generate-fips-e2e-pipeline
     - github_rate_limit_info
