@@ -58,6 +58,13 @@
 /.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes
 /.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent
 
+/.github/chainguard/self.serverless*                 @DataDog/serverless @Datadog/serverless-aws
+/.github/chainguard/self.cws-btfhub-sync*               @DataDog/agent-security
+/.github/chainguard/self.go-update-commenter.*           @DataDog/agent-runtimes
+/.github/chainguard/self.buildimages-update.*            @DataDog/agent-build @DataDog/agent-runtimes
+/.github/chainguard/self.collector-generate-and-update.* @DataDog/opentelemetry-agent
+/.github/chainguard/*                             @DataDog/agent-devx @DataDog/agent-build
+
 /.run                                                @DataDog/agent-devx
 /.run/docker/                                        @DataDog/container-integrations @DataDog/container-platform
 
@@ -656,13 +663,13 @@
 /tasks/components.py                    @DataDog/agent-runtimes
 /tasks/components_templates             @DataDog/agent-runtimes
 /tasks/libs/ciproviders/                @DataDog/agent-devx
-/tasks/libs/common/omnibus.py           @DataDog/agent-delivery
-/tasks/omnibus.py                       @DataDog/agent-delivery
+/tasks/libs/common/omnibus.py           @DataDog/agent-build
+/tasks/omnibus.py                       @DataDog/agent-build
 /tasks/release.py                       @DataDog/agent-delivery
 /tasks/release_metrics/                 @DataDog/agent-delivery
 /tasks/libs/releasing/                  @DataDog/agent-delivery
 /tasks/unit_tests/components_tests.py   @DataDog/agent-runtimes
-/tasks/unit_tests/omnibus_tests.py      @DataDog/agent-delivery
+/tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
 /tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-devx

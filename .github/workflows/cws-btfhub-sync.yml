@@ -79,6 +79,11 @@ jobs:
         env:
           ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
         run: |
+          # fix amd64 missing embed files
+          touch pkg/ebpf/kernelbugs/c/uprobe-trigger.o
+          touch pkg/ebpf/kernelbugs/c/detect-seccomp-bug
+
+          # generate constants
           dda inv -- -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
 
       - name: Upload artifact
@@ -91,8 +96,7 @@ jobs:
     needs: generate
     runs-on: ubuntu-22.04
     permissions:
-      contents: write
-      pull-requests: write
+      id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -118,12 +122,24 @@ jobs:
 
       - name: Combine constants
         run: |
+          # fix amd64 missing embed files
+          touch pkg/ebpf/kernelbugs/c/uprobe-trigger.o
+          touch pkg/ebpf/kernelbugs/c/detect-seccomp-bug
+
+          # combine constants
           dda inv -- -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
           dda inv -- -e security-agent.split-btfhub-constants
+
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.cws-btfhub-sync.create-pr
 
       - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         name: Create pull request
         with:
+          token: ${{ steps.octo-sts.outputs.token }}
           commit-message: "CWS: sync BTFhub constants"
           branch: cws/constants-sync
           branch-suffix: timestamp
