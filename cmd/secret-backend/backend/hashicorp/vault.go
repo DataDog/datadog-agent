@@ -106,7 +106,17 @@ func (b *VaultBackend) GetSecretOutput(secretString string) secret.Output {
 	}
 	secretPath := segments[0]
 	secretKey := segments[1]
-	sec, err := b.Client.Logical().Read(secretPath)
+
+	// KV version detection:
+	// If the mount path is set as /Example/Path, and the secret path is set at /Example/Path/Secret,
+	// then we need to query from /Example/Path/data/Secret in kv v2, and /Example/Path/Secret in kv v1.
+	isKVv2, mountPrefix := isKVv2Mount(b.Client, secretPath)
+
+	readPath := secretPath
+	if isKVv2 {
+		readPath = insertDataPath(secretPath, mountPrefix)
+	}
+	sec, err := b.Client.Logical().Read(readPath)
 	if err != nil {
 		es := err.Error()
 		return secret.Output{Value: nil, Error: &es}
@@ -117,7 +127,24 @@ func (b *VaultBackend) GetSecretOutput(secretString string) secret.Output {
 		return secret.Output{Value: nil, Error: &es}
 	}
 
-	if data, ok := sec.Data[secretKey]; ok {
+	var dataMap map[string]interface{}
+	if isKVv2 {
+		if inner, ok := sec.Data["data"].(map[string]interface{}); ok {
+			dataMap = inner
+		} else {
+			es := "secret data is not in expected format for KV v2"
+			return secret.Output{Value: nil, Error: &es}
+		}
+	} else {
+		dataMap = sec.Data
+	}
+
+	if dataMap == nil {
+		es := "There is no actual data in the secret"
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	if data, ok := dataMap[secretKey]; ok {
 		if strValue, ok := data.(string); ok {
 			return secret.Output{Value: &strValue, Error: nil}
 		}
@@ -127,4 +154,49 @@ func (b *VaultBackend) GetSecretOutput(secretString string) secret.Output {
 
 	es := secret.ErrKeyNotFound.Error()
 	return secret.Output{Value: nil, Error: &es}
+}
+
+func isKVv2Mount(client *api.Client, secretPath string) (bool, string) {
+	mounts, err := client.Sys().ListMounts()
+	if err != nil {
+		return false, ""
+	}
+
+	cleanPath := strings.TrimPrefix(secretPath, "/")
+	parts := strings.Split(cleanPath, "/")
+
+	// Try progressively longer prefixes: Datadog/, Datadog/Production/, etc.
+	for i := 1; i <= len(parts); i++ {
+		prefix := strings.Join(parts[:i], "/") + "/"
+
+		if mountInfo, ok := mounts[prefix]; ok {
+			if mountInfo.Type == "kv" {
+				version := mountInfo.Options["version"]
+				return version == "2", prefix
+			}
+		}
+	}
+
+	// If no mount was found, then assume that it is v1 of the Hashicorp vault secrets engine
+	return false, ""
+}
+
+func insertDataPath(secretPath, mountPrefix string) string {
+
+	trimmedSecret := strings.TrimPrefix(secretPath, "/")
+	trimmedMount := strings.TrimPrefix(mountPrefix, "/")
+
+	if !strings.HasPrefix(trimmedSecret, trimmedMount) {
+		// secret path does not match mount prefix, so we are skipping data insertion
+		return secretPath
+	}
+
+	// remove mount prefix from path
+	relative := strings.TrimPrefix(trimmedSecret, trimmedMount)
+	relative = strings.TrimPrefix(relative, "/")
+
+	if relative == "" {
+		return trimmedMount + "data"
+	}
+	return trimmedMount + "data/" + relative
 }
