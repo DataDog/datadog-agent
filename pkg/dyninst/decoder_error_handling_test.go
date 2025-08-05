@@ -54,13 +54,15 @@ func TestDecoderErrorHandling(t *testing.T) {
 	require.NotEqual(t, -1, idx)
 	cfg := cfgs[idx]
 
-	sampleServicePath := testprogs.MustGetBinary(t, "rc_tester", cfg)
+	const binaryName = "rc_tester"
+
+	sampleServicePath := testprogs.MustGetBinary(t, binaryName, cfg)
 	_, sampleServicePID, serverPort, err := startSampleService(t, sampleServiceConfig{
 		binaryPath: sampleServicePath,
 		tmpDir:     tmpDir,
 	})
 	require.NoError(t, err)
-	probes := testprogs.MustGetProbeDefinitions(t, "rc_tester")
+	probes := testprogs.MustGetProbeDefinitions(t, binaryName)
 
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)

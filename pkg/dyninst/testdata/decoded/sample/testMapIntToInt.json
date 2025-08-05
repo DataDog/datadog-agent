@@ -1,0 +1,166 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapIntToInt",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testMapIntToInt",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 50
+          },
+          {
+            "function": "main.executeMapFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 133
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 43
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": 283
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testMapIntToInt",
+          "location": {
+            "method": "main.testMapIntToInt"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[int]int",
+                "size": "10",
+                "entries": [
+                  [
+                    {
+                      "type": "int",
+                      "value": "1"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "10"
+                    },
+                    {
+                      "type": "int",
+                      "value": "10"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "2"
+                    },
+                    {
+                      "type": "int",
+                      "value": "2"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "3"
+                    },
+                    {
+                      "type": "int",
+                      "value": "3"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "4"
+                    },
+                    {
+                      "type": "int",
+                      "value": "4"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "5"
+                    },
+                    {
+                      "type": "int",
+                      "value": "5"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "6"
+                    },
+                    {
+                      "type": "int",
+                      "value": "6"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "7"
+                    },
+                    {
+                      "type": "int",
+                      "value": "7"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "8"
+                    },
+                    {
+                      "type": "int",
+                      "value": "8"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "9"
+                    },
+                    {
+                      "type": "int",
+                      "value": "9"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

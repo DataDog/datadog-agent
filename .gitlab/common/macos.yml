@@ -28,9 +28,9 @@
     sudo rm -rf "$OLDTMPDIR/gitlabci"
     NEWTMPDIR="$OLDTMPDIR/gitlabci/$CI_JOB_ID"
     mkdir -m 777 -p "$NEWTMPDIR"
-    sudo chown "$USER":staff "$NEWTMPDIR"
     sudo unlink /tmp/gitlabci 2> /dev/null || true
     sudo ln -s "$NEWTMPDIR" /tmp/gitlabci
+    sudo chown "$USER":staff "$NEWTMPDIR" /tmp/gitlabci
     export TMPDIR="/tmp/gitlabci"
     echo "Temporary folder created, TMPDIR=$TMPDIR -> $NEWTMPDIR"
 

@@ -1,0 +1,275 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapWithLinkedList",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testMapWithLinkedList",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 62
+          },
+          {
+            "function": "main.executeMapFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 146
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 43
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": 283
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testMapWithLinkedList",
+          "location": {
+            "method": "main.testMapWithLinkedList"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[bool]main.node",
+                "size": "1",
+                "entries": [
+                  [
+                    {
+                      "type": "bool",
+                      "value": "true"
+                    },
+                    {
+                      "type": "main.node",
+                      "fields": {
+                        "val": {
+                          "type": "int",
+                          "value": "1"
+                        },
+                        "b": {
+                          "type": "*main.node",
+                          "address": "[addr]",
+                          "fields": {
+                            "val": {
+                              "type": "int",
+                              "value": "2"
+                            },
+                            "b": {
+                              "type": "*main.node",
+                              "address": "[addr]",
+                              "fields": {
+                                "val": {
+                                  "type": "int",
+                                  "value": "3"
+                                },
+                                "b": {
+                                  "type": "*main.node",
+                                  "address": "[addr]",
+                                  "fields": {
+                                    "val": {
+                                      "type": "int",
+                                      "value": "4"
+                                    },
+                                    "b": {
+                                      "type": "*main.node",
+                                      "address": "[addr]",
+                                      "fields": {
+                                        "val": {
+                                          "type": "int",
+                                          "value": "5"
+                                        },
+                                        "b": {
+                                          "type": "*main.node",
+                                          "address": "[addr]",
+                                          "fields": {
+                                            "val": {
+                                              "type": "int",
+                                              "value": "6"
+                                            },
+                                            "b": {
+                                              "type": "*main.node",
+                                              "address": "[addr]",
+                                              "fields": {
+                                                "val": {
+                                                  "type": "int",
+                                                  "value": "7"
+                                                },
+                                                "b": {
+                                                  "type": "*main.node",
+                                                  "address": "[addr]",
+                                                  "fields": {
+                                                    "val": {
+                                                      "type": "int",
+                                                      "value": "8"
+                                                    },
+                                                    "b": {
+                                                      "type": "*main.node",
+                                                      "address": "[addr]",
+                                                      "fields": {
+                                                        "val": {
+                                                          "type": "int",
+                                                          "value": "9"
+                                                        },
+                                                        "b": {
+                                                          "type": "*main.node",
+                                                          "address": "[addr]",
+                                                          "fields": {
+                                                            "val": {
+                                                              "type": "int",
+                                                              "value": "10"
+                                                            },
+                                                            "b": {
+                                                              "type": "*main.node",
+                                                              "address": "[addr]",
+                                                              "fields": {
+                                                                "val": {
+                                                                  "type": "int",
+                                                                  "value": "11"
+                                                                },
+                                                                "b": {
+                                                                  "type": "*main.node",
+                                                                  "address": "[addr]",
+                                                                  "fields": {
+                                                                    "val": {
+                                                                      "type": "int",
+                                                                      "value": "12"
+                                                                    },
+                                                                    "b": {
+                                                                      "type": "*main.node",
+                                                                      "address": "[addr]",
+                                                                      "fields": {
+                                                                        "val": {
+                                                                          "type": "int",
+                                                                          "value": "13"
+                                                                        },
+                                                                        "b": {
+                                                                          "type": "*main.node",
+                                                                          "address": "[addr]",
+                                                                          "fields": {
+                                                                            "val": {
+                                                                              "type": "int",
+                                                                              "value": "14"
+                                                                            },
+                                                                            "b": {
+                                                                              "type": "*main.node",
+                                                                              "address": "[addr]",
+                                                                              "fields": {
+                                                                                "val": {
+                                                                                  "type": "int",
+                                                                                  "value": "15"
+                                                                                },
+                                                                                "b": {
+                                                                                  "type": "*main.node",
+                                                                                  "address": "[addr]",
+                                                                                  "fields": {
+                                                                                    "val": {
+                                                                                      "type": "int",
+                                                                                      "value": "16"
+                                                                                    },
+                                                                                    "b": {
+                                                                                      "type": "*main.node",
+                                                                                      "address": "[addr]",
+                                                                                      "fields": {
+                                                                                        "val": {
+                                                                                          "type": "int",
+                                                                                          "value": "17"
+                                                                                        },
+                                                                                        "b": {
+                                                                                          "type": "*main.node",
+                                                                                          "address": "[addr]",
+                                                                                          "fields": {
+                                                                                            "val": {
+                                                                                              "type": "int",
+                                                                                              "value": "18"
+                                                                                            },
+                                                                                            "b": {
+                                                                                              "type": "*main.node",
+                                                                                              "address": "[addr]",
+                                                                                              "fields": {
+                                                                                                "val": {
+                                                                                                  "type": "int",
+                                                                                                  "value": "19"
+                                                                                                },
+                                                                                                "b": {
+                                                                                                  "type": "*main.node",
+                                                                                                  "address": "[addr]",
+                                                                                                  "fields": {
+                                                                                                    "val": {
+                                                                                                      "type": "int",
+                                                                                                      "value": "20"
+                                                                                                    },
+                                                                                                    "b": {
+                                                                                                      "type": "*main.node",
+                                                                                                      "isNull": true
+                                                                                                    }
+                                                                                                  }
+                                                                                                }
+                                                                                              }
+                                                                                            }
+                                                                                          }
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]
