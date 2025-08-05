@@ -160,6 +160,14 @@ func parseFuncName(qualifiedName string) (parseFuncNameResult, error) {
 		name = groups[standaloneFuncRENameIdx]
 	}
 
+	// If the last element of the package's import path contains dots, they are
+	// replaced with %2e in DWARF to differentiate them from the dot
+	// that separates the package path from the function name.
+	// For example, functions in package "gopkg.in/square/go-jose.v2" will
+	// appear in DWARF as "gopkg.in/square/go-jose%2ev2.newBuffer".
+	// See https://groups.google.com/g/golang-nuts/c/Can9WXHrqHg/m/kMfx1x6sBgAJ
+	pkg = strings.ReplaceAll(pkg, "%2e", ".")
+
 	// Check whether we're with anonymous functions. If we are, they might have
 	// parsed as a method, but they are not actually methods, so we need to
 	// rectify the results of the parsing and wipe the type.

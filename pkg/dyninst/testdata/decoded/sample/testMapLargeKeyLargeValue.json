@@ -1,0 +1,526 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapLargeKeyLargeValue",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testMapLargeKeyLargeValue",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 94
+          },
+          {
+            "function": "main.executeMapFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 195
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 43
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": 283
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testMapLargeKeyLargeValue",
+          "location": {
+            "method": "main.testMapLargeKeyLargeValue"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[[4]int][4]int",
+                "size": "10",
+                "entries": [
+                  [
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "1"
+                        },
+                        {
+                          "type": "int",
+                          "value": "2"
+                        },
+                        {
+                          "type": "int",
+                          "value": "3"
+                        },
+                        {
+                          "type": "int",
+                          "value": "4"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "10"
+                        },
+                        {
+                          "type": "int",
+                          "value": "20"
+                        },
+                        {
+                          "type": "int",
+                          "value": "30"
+                        },
+                        {
+                          "type": "int",
+                          "value": "40"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "2"
+                        },
+                        {
+                          "type": "int",
+                          "value": "4"
+                        },
+                        {
+                          "type": "int",
+                          "value": "6"
+                        },
+                        {
+                          "type": "int",
+                          "value": "8"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "20"
+                        },
+                        {
+                          "type": "int",
+                          "value": "40"
+                        },
+                        {
+                          "type": "int",
+                          "value": "60"
+                        },
+                        {
+                          "type": "int",
+                          "value": "80"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "3"
+                        },
+                        {
+                          "type": "int",
+                          "value": "6"
+                        },
+                        {
+                          "type": "int",
+                          "value": "9"
+                        },
+                        {
+                          "type": "int",
+                          "value": "12"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "30"
+                        },
+                        {
+                          "type": "int",
+                          "value": "60"
+                        },
+                        {
+                          "type": "int",
+                          "value": "90"
+                        },
+                        {
+                          "type": "int",
+                          "value": "120"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "4"
+                        },
+                        {
+                          "type": "int",
+                          "value": "8"
+                        },
+                        {
+                          "type": "int",
+                          "value": "12"
+                        },
+                        {
+                          "type": "int",
+                          "value": "16"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "40"
+                        },
+                        {
+                          "type": "int",
+                          "value": "80"
+                        },
+                        {
+                          "type": "int",
+                          "value": "120"
+                        },
+                        {
+                          "type": "int",
+                          "value": "160"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "5"
+                        },
+                        {
+                          "type": "int",
+                          "value": "10"
+                        },
+                        {
+                          "type": "int",
+                          "value": "15"
+                        },
+                        {
+                          "type": "int",
+                          "value": "20"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "50"
+                        },
+                        {
+                          "type": "int",
+                          "value": "100"
+                        },
+                        {
+                          "type": "int",
+                          "value": "150"
+                        },
+                        {
+                          "type": "int",
+                          "value": "200"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "6"
+                        },
+                        {
+                          "type": "int",
+                          "value": "12"
+                        },
+                        {
+                          "type": "int",
+                          "value": "18"
+                        },
+                        {
+                          "type": "int",
+                          "value": "24"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "60"
+                        },
+                        {
+                          "type": "int",
+                          "value": "120"
+                        },
+                        {
+                          "type": "int",
+                          "value": "180"
+                        },
+                        {
+                          "type": "int",
+                          "value": "240"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "7"
+                        },
+                        {
+                          "type": "int",
+                          "value": "14"
+                        },
+                        {
+                          "type": "int",
+                          "value": "21"
+                        },
+                        {
+                          "type": "int",
+                          "value": "28"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "70"
+                        },
+                        {
+                          "type": "int",
+                          "value": "140"
+                        },
+                        {
+                          "type": "int",
+                          "value": "210"
+                        },
+                        {
+                          "type": "int",
+                          "value": "280"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "8"
+                        },
+                        {
+                          "type": "int",
+                          "value": "16"
+                        },
+                        {
+                          "type": "int",
+                          "value": "24"
+                        },
+                        {
+                          "type": "int",
+                          "value": "32"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "80"
+                        },
+                        {
+                          "type": "int",
+                          "value": "160"
+                        },
+                        {
+                          "type": "int",
+                          "value": "240"
+                        },
+                        {
+                          "type": "int",
+                          "value": "320"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "9"
+                        },
+                        {
+                          "type": "int",
+                          "value": "18"
+                        },
+                        {
+                          "type": "int",
+                          "value": "27"
+                        },
+                        {
+                          "type": "int",
+                          "value": "36"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "90"
+                        },
+                        {
+                          "type": "int",
+                          "value": "180"
+                        },
+                        {
+                          "type": "int",
+                          "value": "270"
+                        },
+                        {
+                          "type": "int",
+                          "value": "360"
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]
