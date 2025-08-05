@@ -8,7 +8,9 @@ from tasks.kernel_matrix_testing.tool import info, is_root
 from tasks.libs.common.status import Status
 
 
-def get_requirements(remote_setup_only: bool, exclude_requirements: list[str] | None = None, only_requirements: list[str] | None = None):
+def get_requirements(
+    remote_setup_only: bool, exclude_requirements: list[str] | None = None, only_requirements: list[str] | None = None
+):
     from . import common, linux, linux_localvms, mac, mac_localvms
 
     requirements: list[Requirement] = []

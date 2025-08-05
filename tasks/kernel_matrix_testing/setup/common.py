@@ -167,6 +167,7 @@ class DDA(Requirement):
 
         return RequirementState(Status.OK, f"dda is installed (version {dda_version.stdout.strip()} >= {min_version}).")
 
+
 class PythonDependencies(Requirement):
     dependencies: list[type[Requirement]] = [DDA]
 
@@ -182,7 +183,10 @@ class PythonDependencies(Requirement):
         try:
             depgroups = pyproject["dependency-groups"]["legacy-kernel-matrix-testing"]
         except KeyError:
-            return RequirementState(Status.FAIL, "legacy-kernel-matrix-testing dependency group not found in dda's pyproject.toml, is your dda installation corrupted?")
+            return RequirementState(
+                Status.FAIL,
+                "legacy-kernel-matrix-testing dependency group not found in dda's pyproject.toml, is your dda installation corrupted?",
+            )
 
         installed_dependencies = ctx.run("dda self dep show --legacy", warn=True)
         if installed_dependencies is None or not installed_dependencies.ok:
@@ -200,7 +204,9 @@ class PythonDependencies(Requirement):
             return RequirementState(Status.OK, "Python dependencies are already installed.")
 
         if not fix:
-            return RequirementState(Status.FAIL, f"Python dependencies not installed: {missing_dependencies}", fixable=True)
+            return RequirementState(
+                Status.FAIL, f"Python dependencies not installed: {missing_dependencies}", fixable=True
+            )
 
         try:
             ctx.run("dda inv --feat legacy-kernel-matrix-testing -- --help", hide=True)
@@ -208,7 +214,6 @@ class PythonDependencies(Requirement):
             return RequirementState(Status.FAIL, f"Failed to install Python dependencies: {e}")
 
         return RequirementState(Status.OK, "Python dependencies installed.")
-
 
     def _get_dda_pyproject(self, ctx: Context) -> Path | None:
         dda_deps = ctx.run("dda self dep show")
@@ -225,7 +230,6 @@ class PythonDependencies(Requirement):
             raise RuntimeError(f"dda-data/pyproject.toml not found in {pyproject_path}")
 
         return pyproject_path
-
 
 
 class KMTDirectoriesRequirement(Requirement):
@@ -285,7 +289,9 @@ class Compiler(Requirement):
             return RequirementState(Status.FAIL, "Compiler is not loaded.", fixable=True)
 
         if compiler.running_image_name != compiler.expected_image_name:
-            return RequirementState(Status.FAIL, f"Compiler is not running the expected image {compiler.expected_image_name}.", fixable=True)
+            return RequirementState(
+                Status.FAIL, f"Compiler is not running the expected image {compiler.expected_image_name}.", fixable=True
+            )
 
         if not compiler.is_running:
             return RequirementState(Status.FAIL, "Compiler is not running.", fixable=True)

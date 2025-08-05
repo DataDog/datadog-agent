@@ -141,7 +141,9 @@ class CompilerImage:
 
         image_used = self.running_image_name
         if image_used != self.expected_image_name:
-            warn(f"[!] Running compiler image {image_used} is different from the expected {self.expected_image_name}, will restart")
+            warn(
+                f"[!] Running compiler image {image_used} is different from the expected {self.expected_image_name}, will restart"
+            )
             self.start()
 
     def ensure_in_git_repo(self):
