@@ -1,5 +1,11 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.1.0 / 2025-08-05
+
+* Removing the `zerolog` library.
+* Removing the `logrus` dependency.
+* Adding support for version 2 of the Hashicorp Secrets Engine.
+
 ## 1.0.1 / 2025-07-16
 
 * Replacing the dependency on `hashicorp/vault/api/auth/aws` with the forked `DataDog/vault/api/auth/aws` library.
