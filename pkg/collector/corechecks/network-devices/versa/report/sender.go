@@ -293,6 +293,28 @@ func (s *Sender) SendQoSMetrics(qosMetrics []client.QoSMetrics, deviceNameToIDMa
 	}
 }
 
+// SendDIAMetrics sends DIA (Direct Internet Access) metrics retrieved from Versa Analytics
+func (s *Sender) SendDIAMetrics(diaMetrics []client.DIAMetrics, deviceNameToIDMap map[string]string) {
+	for _, diaMetric := range diaMetrics {
+		var tags = []string{
+			"site:" + diaMetric.Site,
+			"access_circuit:" + diaMetric.AccessCircuit,
+			"ip:" + diaMetric.IP,
+		}
+		if deviceIP, ok := deviceNameToIDMap[diaMetric.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+
+		// Send volume metrics
+		s.Gauge(versaMetricPrefix+"dia.volume_tx", diaMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"dia.volume_rx", diaMetric.VolumeRx, "", tags)
+
+		// Send bandwidth metrics
+		s.Gauge(versaMetricPrefix+"dia.bandwidth_tx", diaMetric.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"dia.bandwidth_rx", diaMetric.BandwidthRx, "", tags)
+	}
+}
+
 // SendInterfaceMetrics sends interface metrics
 func (s *Sender) SendInterfaceMetrics(interfaceMetricsByDevice map[string][]client.InterfaceMetrics) {
 	for deviceIP, interfaceMetrics := range interfaceMetricsByDevice {

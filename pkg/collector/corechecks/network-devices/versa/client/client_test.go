@@ -621,6 +621,67 @@ func TestParseQoSMetrics(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, result)
 }
+
+func TestGetDIAMetrics(t *testing.T) {
+	expectedDIAMetrics := []DIAMetrics{
+		{
+			DrillKey:      "test-branch-2B,DIA-1,192.168.1.1",
+			Site:          "test-branch-2B",
+			AccessCircuit: "DIA-1",
+			IP:            "192.168.1.1",
+			VolumeTx:      15000.0,
+			VolumeRx:      12000.0,
+			BandwidthTx:   150000.0,
+			BandwidthRx:   120000.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	diaMetrics, err := client.GetDIAMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(diaMetrics), 1)
+	require.Equal(t, expectedDIAMetrics, diaMetrics)
+}
+
+func TestParseDIAMetrics(t *testing.T) {
+	testData := [][]interface{}{
+		{
+			"test-branch-2B,DIA-1,192.168.1.1",
+			"test-branch-2B",
+			"DIA-1",
+			"192.168.1.1",
+			15000.0,
+			12000.0,
+			150000.0,
+			120000.0,
+		},
+	}
+
+	expected := []DIAMetrics{
+		{
+			DrillKey:      "test-branch-2B,DIA-1,192.168.1.1",
+			Site:          "test-branch-2B",
+			AccessCircuit: "DIA-1",
+			IP:            "192.168.1.1",
+			VolumeTx:      15000.0,
+			VolumeRx:      12000.0,
+			BandwidthTx:   150000.0,
+			BandwidthRx:   120000.0,
+		},
+	}
+
+	result, err := parseDIAMetrics(testData)
+	require.NoError(t, err)
+	require.Equal(t, expected, result)
+}
 func TestGetApplicationsByAppliance(t *testing.T) {
 	expectedApplicationsByApplianceMetrics := []ApplicationsByApplianceMetrics{
 		{

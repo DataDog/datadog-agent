@@ -500,3 +500,15 @@ type QoSMetrics struct {
 	PercentDrop          float64
 	Bandwidth            float64
 }
+
+// DIAMetrics represents the columns to parse from the DIA (Direct Internet Access) metrics response
+type DIAMetrics struct {
+	DrillKey      string
+	Site          string
+	AccessCircuit string
+	IP            string
+	VolumeTx      float64
+	VolumeRx      float64
+	BandwidthTx   float64
+	BandwidthRx   float64
+}

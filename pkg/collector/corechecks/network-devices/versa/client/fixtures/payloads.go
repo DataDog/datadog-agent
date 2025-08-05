@@ -633,4 +633,26 @@ const GetQoSMetrics = `
             40000000.0
         ]
     ]
+}
+`
+
+// GetDIAMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetDIAMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,DIA-1,192.168.1.1",
+            "test-branch-2B",
+            "DIA-1",
+            "192.168.1.1",
+            15000.0,
+            12000.0,
+            150000.0,
+            120000.0
+        ]
+    ]
 }`

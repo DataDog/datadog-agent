@@ -135,6 +135,7 @@ func getPaginatedAnalytics[T any](
 	feature string,
 	lookback string,
 	query string,
+	filterQuery string,
 	metrics []string,
 	parser func([][]interface{}) ([]T, error),
 ) ([]T, error) {
@@ -149,7 +150,7 @@ func getPaginatedAnalytics[T any](
 	// Paginate through the results
 	for page := 0; page < client.maxPages; page++ {
 		fromCount := page * maxCount
-		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", metrics, maxCount, fromCount)
+		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", filterQuery, metrics, maxCount, fromCount)
 
 		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
 		if err != nil {
