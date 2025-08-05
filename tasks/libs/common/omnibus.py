@@ -103,6 +103,8 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'JARSIGN_JAR',
         'LOCALAPPDATA',
         'MY_RUBY_HOME',
+        'OMNIBUS_GIT_CACHE_DIR',
+        'OMNIBUS_GOMODCACHE',
         'OMNIBUS_WORKERS_OVERRIDE',
         'PACKAGE_VERSION',
         'PYTHONUTF8',
