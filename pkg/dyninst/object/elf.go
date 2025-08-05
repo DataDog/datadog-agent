@@ -115,6 +115,27 @@ func IsStrippedBinaryError(err error) bool {
 	return errors.As(err, &decodeErr)
 }
 
+// InMemoryElfFileLoader is an elf file loader that stores decompressed section
+// data in memory.
+type InMemoryElfFileLoader struct {
+	_ struct{} // prevent instantiation
+}
+
+// Load loads an elf file from the given path.
+func (l *InMemoryElfFileLoader) Load(path string) (*ElfFile, error) {
+	return OpenElfFile(path)
+}
+
+// NewInMemoryElfFileLoader creates an InMemoryElfFileLoader that will load elf
+// files from disk and use anonymous memory mappings for the compressed section
+// data. Importantly these sections are not part of the Go heap, and thus do not
+// contribute to the heap size that the Go runtime tracks to guide garbage
+// collection, but they are in RAM and will count towards the RSS used by the
+// various OOM killers.
+func NewInMemoryElfFileLoader() *InMemoryElfFileLoader {
+	return &InMemoryElfFileLoader{}
+}
+
 // OpenElfFile opens an elf file from a path, using anonymous memory mappings
 // for the compressed sections.
 func OpenElfFile(path string) (*ElfFile, error) {
