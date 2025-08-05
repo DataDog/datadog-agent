@@ -368,8 +368,6 @@ __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
     return val > 0;
 }
 
-
-
 // get_tcp_failure returns an error code for tcp_done/tcp_close, if there was one
 static __always_inline int get_tcp_failure(struct sock *sk) {
     int err = 0;
@@ -377,7 +375,6 @@ static __always_inline int get_tcp_failure(struct sock *sk) {
     if (err != 0) {
         return err;
     }
-
 
     struct sock_common *skc = (struct sock_common*) sk;
     unsigned char state = 0;
