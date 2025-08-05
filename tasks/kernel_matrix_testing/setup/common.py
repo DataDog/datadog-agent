@@ -7,10 +7,11 @@ import tomllib
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.compiler import get_compiler
+from tasks.kernel_matrix_testing.compiler import CompilerImage, get_compiler
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
+from tasks.libs.types.arch import Arch
 
 from .requirement import Requirement, RequirementState
 from .utils import check_directories
@@ -268,12 +269,25 @@ class KMTSSHKey(Requirement):
 
 class Compiler(Requirement):
     def check(self, ctx: Context, fix: bool) -> RequirementState:
-        compiler = get_compiler(ctx)
-        if compiler.is_running:
-            return RequirementState(Status.OK, "Compiler is running.")
+        compiler = CompilerImage(ctx, Arch.local())
 
-        if not fix:
-            return RequirementState(Status.FAIL, "Compiler is not running.", fixable=True)
+        state = self._check_compiler_state(compiler)
 
+        if state.state == Status.OK or not fix or not state.fixable:
+            return state
+
+        # All the possible failure states have the same fix: start the compiler.
         compiler.start()
         return RequirementState(Status.OK, "Compiler started.")
+
+    def _check_compiler_state(self, compiler: CompilerImage) -> RequirementState:
+        if not compiler.is_loaded:
+            return RequirementState(Status.FAIL, "Compiler is not loaded.", fixable=True)
+
+        if compiler.running_image_name != compiler.expected_image_name:
+            return RequirementState(Status.FAIL, f"Compiler is not running the expected image {compiler.expected_image_name}.", fixable=True)
+
+        if not compiler.is_running:
+            return RequirementState(Status.FAIL, "Compiler is not running.", fixable=True)
+
+        return RequirementState(Status.OK, "Compiler is running.")
