@@ -473,9 +473,17 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		for _, eventTypeStr := range eventTypes {
 			if eventTypeStr == "*" {
 				return allEventTypes
-			} else if eventType, err := model.ParseEvalEventType(eventTypeStr); err != nil && eventType != model.UnknownEventType {
-				output = append(output, eventType)
 			}
+			eventType, err := model.ParseEvalEventType(eventTypeStr)
+			if err != nil {
+				seclog.Errorf("failed to parse event type '%s': %v", eventTypeStr, err)
+				continue
+			}
+			if eventType == model.UnknownEventType {
+				seclog.Errorf("unknown event type '%s'", eventTypeStr)
+				continue
+			}
+			output = append(output, eventType)
 		}
 		return output
 	}

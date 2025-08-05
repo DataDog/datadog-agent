@@ -322,12 +322,12 @@ func (b *baseType) encodeValueFields(
 		if len(data) < 2 {
 			return errors.New("passed data not long enough for int16")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint16(data)), 10)))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(int16(binary.NativeEndian.Uint16(data))), 10)))
 	case reflect.Int32:
 		if len(data) != 4 {
 			return errors.New("passed data not long enough for int32")
 		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint32(data)), 10)))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(int32(binary.NativeEndian.Uint32(data))), 10)))
 	case reflect.Int64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for int64")
