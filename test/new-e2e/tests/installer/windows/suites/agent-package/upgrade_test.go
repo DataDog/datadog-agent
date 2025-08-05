@@ -482,14 +482,13 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithHostNameChange() {
 	err := windowscommon.RenameComputer(s.Env().RemoteHost, newHostname)
 	s.Require().NoError(err)
 
+    // Assert
 	// start experiment
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 	_, err = s.Installer().PromoteExperiment(consts.AgentPackage)
 	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
-
-	// Assert
 
 }
 

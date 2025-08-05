@@ -255,6 +255,9 @@ type testAgentUpgradesAfterDCPromotionSuite struct {
 }
 
 // TestAgentUpgradesAfterDCPromotion tests that the agent can be upgraded after a domain controller promotion.
+//
+// This converts all accounts from local accounts to domain accounts, i.e. hostname\username -> domain\username,
+// so we test that our username code handles this change appropriately.
 func TestAgentUpgradesAfterDCPromotion(t *testing.T) {
 	e2e.Run(t, &testAgentUpgradesAfterDCPromotionSuite{},
 		e2e.WithProvisioner(
@@ -269,7 +272,7 @@ func (s *testAgentUpgradesAfterDCPromotionSuite) TestUpgradeAfterDCPromotion() {
 	s.installPreviousAgentVersion()
 
 	// Act
-	// change the host name
+	// Install AD and promote host to domain controller
 	s.UpdateEnv(
 		winawshost.ProvisionerNoAgentNoFakeIntake(
 			winawshost.WithActiveDirectoryOptions(
