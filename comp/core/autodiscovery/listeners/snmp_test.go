@@ -433,7 +433,7 @@ func TestSubnetIndex(t *testing.T) {
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
 	listener, err := NewSNMPListener(ServiceListernerDeps{})
-	assert.Equal(t, nil, err)
+	assert.NoError(t, err)
 
 	l, ok := listener.(*SNMPListener)
 	assert.True(t, ok)
