@@ -175,7 +175,7 @@ Settings: map[key:value]
 
 func TestMarshalUnmarshal(t *testing.T) {
 	// json serialization drops nanoseconds; strip it here
-	testTime := time.Unix(time.Now().Unix(), 0)
+	testTime := time.Unix(time.Now().Unix(), 0).UTC()
 	fakeDpai := createFakePodAutoscaler(testTime)
 	realDpai := fakeDpai.Build()
 	jsonDpai, err := json.Marshal(&realDpai)
@@ -373,6 +373,12 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 		},
 		HorizontalLastActions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
 			{
+				Time:                metav1.Time{Time: testTime.Add(-1 * time.Second)},
+				FromReplicas:        2,
+				ToReplicas:          3,
+				RecommendedReplicas: ptr.To(int32(3)),
+			},
+			{
 				Time:                metav1.Time{Time: testTime},
 				FromReplicas:        2,
 				ToReplicas:          3,
@@ -391,10 +397,6 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 
 func compareTestOutput(t *testing.T, expected, actual string) {
 	expected = strings.ReplaceAll(expected, " ", "")
-	expected = strings.ReplaceAll(expected, "GMT", "UTC")
-
 	actual = strings.ReplaceAll(actual, " ", "")
-	actual = strings.ReplaceAll(actual, "GMT", "UTC")
-
 	assert.Equal(t, expected, actual)
 }
