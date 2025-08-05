@@ -27,6 +27,7 @@ PACKAGE_OS_MAPPING = {
     "rpm": "centos",
     "suse": "suse",
     "heroku": "debian",
+    "msi": "windows",
 }
 
 
@@ -85,6 +86,9 @@ class StaticQualityGate:
             self.arch = "arm64"
         elif "armhf" in self.gate_name:
             self.arch = "armhf"
+        elif "msi" in self.gate_name:
+            # MSI packages are always amd64 (x86_64) on Windows
+            self.arch = "amd64"
         else:
             raise ValueError(f"Unknown arch for gate: {self.gate_name}")
 
@@ -169,6 +173,9 @@ class StaticQualityGatePackage(StaticQualityGate):
                 self.os = PACKAGE_OS_MAPPING[package_type]
                 if self.os in ['centos', 'suse']:
                     self.arch = ARCH_MAPPING[self.arch]
+                elif self.os == 'windows':
+                    # MSI packages use x86_64 naming convention
+                    self.arch = ARCH_MAPPING[self.arch]
                 return
         raise ValueError(f"Unknown os for gate: {self.gate_name}")
 
@@ -184,6 +191,14 @@ class StaticQualityGatePackage(StaticQualityGate):
         param: extension: the extension of the package
         return: the path to the package
         """
+        # MSI special case: requires both ZIP and MSI files
+        if "msi" in self.gate_name:
+            self.zip_path = self._find_package_by_pattern("datadog-agent", "zip")
+            self.msi_path = self._find_package_by_pattern("datadog-agent", "msi")
+            self.artifact_path = self.msi_path  # Primary artifact for reporting
+            return
+
+        # Determine flavor based on gate name
         flavor = "datadog-agent"
         if "fips" in self.gate_name:
             flavor = "datadog-fips-agent"
@@ -194,19 +209,30 @@ class StaticQualityGatePackage(StaticQualityGate):
         elif "heroku" in self.gate_name:
             flavor = "datadog-heroku-agent"
 
-        package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
+        # Determine separator and extension based on OS
         separator = '_' if self.os == 'debian' else '-'
         if not extension:
             extension = 'deb' if self.os == 'debian' else 'rpm'
+
+        # Use generic helper to find the package
+        self.artifact_path = self._find_package_by_pattern(flavor, extension, separator)
+
+    def _find_package_by_pattern(self, flavor: str, extension: str, separator: str = '-') -> str:
+        """
+        Generic helper to find packages by flavor, extension and separator.
+        Handles common package discovery logic with proper error handling.
+        """
+        package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
         if self.os == "windows":
             package_dir = f"{package_dir}/pipeline-{os.environ['CI_PIPELINE_ID']}"
+
         glob_pattern = f'{package_dir}/{flavor}{separator}7*{self.arch}.{extension}'
         package_paths = glob.glob(glob_pattern)
         if len(package_paths) > 1:
-            raise ValueError(f"Too many files matching {glob_pattern}: {package_paths}")
+            raise ValueError(f"Too many {extension.upper()} files matching {glob_pattern}: {package_paths}")
         elif len(package_paths) == 0:
-            raise ValueError(f"Couldn't find any file matching {glob_pattern}")
-        self.artifact_path = package_paths[0]
+            raise ValueError(f"Couldn't find any {extension.upper()} file matching {glob_pattern}")
+        return package_paths[0]
 
     def _calculate_package_size(self) -> None:
         """
@@ -214,10 +240,20 @@ class StaticQualityGatePackage(StaticQualityGate):
         TODO: Think of testing this function, unit tests are not possible because real
         packages are used.
         """
-        with tempfile.TemporaryDirectory() as extract_dir:
-            extract_package(ctx=self.ctx, package_os=self.os, package_path=self.artifact_path, extract_dir=extract_dir)
-            package_on_wire_size = file_size(path=self.artifact_path)
-            package_on_disk_size = directory_size(path=extract_dir)
+        if "msi" in self.gate_name:
+            # MSI special case: extract ZIP file for disk size, measure MSI file for wire size
+            with tempfile.TemporaryDirectory() as extract_dir:
+                extract_package(ctx=self.ctx, package_os=self.os, package_path=self.zip_path, extract_dir=extract_dir)
+                package_on_wire_size = file_size(path=self.msi_path)
+                package_on_disk_size = directory_size(path=extract_dir)
+        else:
+            # Standard package handling
+            with tempfile.TemporaryDirectory() as extract_dir:
+                extract_package(
+                    ctx=self.ctx, package_os=self.os, package_path=self.artifact_path, extract_dir=extract_dir
+                )
+                package_on_wire_size = file_size(path=self.artifact_path)
+                package_on_disk_size = directory_size(path=extract_dir)
 
         self.metric_handler.register_metric(self.gate_name, "current_on_wire_size", package_on_wire_size)
         self.metric_handler.register_metric(self.gate_name, "current_on_disk_size", package_on_disk_size)
@@ -378,10 +414,8 @@ def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQuality
     for gate_name in config:
         if "docker" in gate_name:
             gates.append(StaticQualityGateDocker(gate_name, config[gate_name], ctx))
-        elif any(package_type in gate_name for package_type in ["deb", "rpm", "heroku", "suse"]):
+        elif any(package_type in gate_name for package_type in ["deb", "rpm", "heroku", "suse", "msi"]):
             gates.append(StaticQualityGatePackage(gate_name, config[gate_name], ctx))
-        elif "msi" in gate_name:
-            print(color_message(f"MSI gates are not supported yet: {gate_name}", "orange"))
         else:
             raise UnsupportedOperation(f"Unknown gate type: {gate_name}")
 

@@ -1,33 +1,12 @@
-import glob
 import json
 import math
 import os
-import types
 from datetime import datetime
-from types import SimpleNamespace
-
-from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.utils import get_metric_origin
-
-
-def argument_extractor(entry_args, **kwargs) -> SimpleNamespace:
-    """
-    Allow clean extraction of arguments from parsed quality gates, also allows to execute pre-process function on kwargs
-
-    :param entry_args: Dictionary containing parsed arguments from a static quality gate
-    :param kwargs: Dictionary containing arguments that we want to extract (optionally pre-process function to apply as values)
-    :return: SimpleNamespace with extracted arguments as attributes
-    """
-    for key in kwargs.keys():
-        if isinstance(kwargs[key], types.FunctionType):
-            kwargs[key] = kwargs[key](entry_args[key])
-        else:
-            kwargs[key] = entry_args[key]
-    return SimpleNamespace(**kwargs)
 
 
 def byte_to_string(size, unit_power=None, with_unit=True):
@@ -46,7 +25,7 @@ def byte_to_string(size, unit_power=None, with_unit=True):
     # Goal is to output +0 / -0 for very small changes and 0 for no changes at all
     if id(s) != id(0) and s == 0:
         s = 0
-    return f"{sign}{s}{' '+size_name[unit_power] if with_unit else ''}"
+    return f"{sign}{s}{' ' + size_name[unit_power] if with_unit else ''}"
 
 
 def string_to_latex_color(text):
@@ -78,22 +57,6 @@ def read_byte_input(byte_input):
         return string_to_byte(byte_input)
     else:
         return byte_input
-
-
-def find_package_path(flavor, package_os, arch, extension=None):
-    package_dir = os.environ['OMNIBUS_PACKAGE_DIR']
-    separator = '_' if package_os == 'debian' else '-'
-    if not extension:
-        extension = "deb" if package_os == 'debian' else "rpm"
-    if package_os == "windows":
-        package_dir = f"{package_dir}/pipeline-{os.environ['CI_PIPELINE_ID']}"
-    glob_pattern = f'{package_dir}/{flavor}{separator}7*{arch}.{extension}'
-    package_paths = glob.glob(glob_pattern)
-    if len(package_paths) > 1:
-        raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
-    elif len(package_paths) == 0:
-        raise Exit(code=1, message=color_message(f"Couldn't find any file matching {glob_pattern}", "red"))
-    return package_paths[0]
 
 
 class GateMetricHandler:

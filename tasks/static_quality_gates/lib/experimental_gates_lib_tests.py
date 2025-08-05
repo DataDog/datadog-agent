@@ -39,7 +39,7 @@ class TestExperimentalGatesLib(unittest.TestCase):
         from tasks.static_quality_gates.lib.experimental_gates_lib import get_quality_gates_list
 
         gates = get_quality_gates_list("tasks/static_quality_gates/lib/static_quality_gates_test.yaml", MagicMock())
-        assert len(gates) == 21
+        assert len(gates) == 22
 
     def test_set_arch(self):
         gate = StaticQualityGatePackage(
@@ -90,6 +90,11 @@ class TestExperimentalGatesLib(unittest.TestCase):
             MagicMock(),
         )
         self.assertEqual(gate.os, "docker")
+        gate = StaticQualityGatePackage(
+            "static_quality_gate_agent_msi", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+        )
+        self.assertEqual(gate.os, "windows")
+        self.assertEqual(gate.arch, "x86_64")
         with self.assertRaises(ValueError):
             gate = StaticQualityGatePackage(
                 "static_quality_gate_agent_unknown_unknown",
@@ -131,6 +136,28 @@ class TestExperimentalGatesLib(unittest.TestCase):
 
                 actual_pattern = mock_glob.call_args[0][0]
                 self.assertEqual(actual_pattern, expected_pattern)
+
+    def test_find_package_path_msi(self):
+        """Test MSI package path finding with dual-file discovery"""
+        mock_glob = MagicMock()
+        # First call returns ZIP file, second call returns MSI file
+        mock_glob.side_effect = [
+            ["/opt/datadog-agent/pipeline-123/datadog-agent-7.50.0-x86_64.zip"],
+            ["/opt/datadog-agent/pipeline-123/datadog-agent-7.50.0-x86_64.msi"],
+        ]
+
+        with patch("glob.glob", mock_glob):
+            gate = StaticQualityGatePackage(
+                "static_quality_gate_agent_msi", {"max_on_wire_size": 100, "max_on_disk_size": 350}, MagicMock()
+            )
+            gate._find_package_path()
+
+        # Verify both ZIP and MSI paths are set
+        self.assertTrue(hasattr(gate, 'zip_path'))
+        self.assertTrue(hasattr(gate, 'msi_path'))
+        self.assertEqual(gate.zip_path, "/opt/datadog-agent/pipeline-123/datadog-agent-7.50.0-x86_64.zip")
+        self.assertEqual(gate.msi_path, "/opt/datadog-agent/pipeline-123/datadog-agent-7.50.0-x86_64.msi")
+        self.assertEqual(gate.artifact_path, gate.msi_path)  # MSI is the primary artifact
 
     def test_check_artifact_size(self):
         # Test case where quality gate passes - sizes are within limits
@@ -315,3 +342,32 @@ class TestExperimentalGatesLib(unittest.TestCase):
             with self.assertRaises(StaticQualityGateFailed) as context:
                 gate._get_image_url()
             self.assertIn("Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA", str(context.exception))
+
+    def test_execute_gate_package_success(self):
+        """Test successful execution of execute_gate for StaticQualityGatePackage"""
+        gate = StaticQualityGatePackage(
+            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 350}, MagicMock()
+        )
+
+        # Mock the internal methods that execute_gate calls
+        gate._measure_on_disk_and_on_wire_size = MagicMock()
+        gate.check_artifact_size = MagicMock()
+        gate.print_results = MagicMock()
+        gate.artifact_path = "/opt/datadog-agent/test-package.deb"
+
+        # Capture printed output
+        with patch('builtins.print') as mock_print:
+            gate.execute_gate()
+
+        # Verify that all internal methods were called
+        gate._measure_on_disk_and_on_wire_size.assert_called_once()
+        gate.check_artifact_size.assert_called_once()
+        gate.print_results.assert_called_once()
+
+        # Verify the expected print statements
+        # Check that print was called the expected number of times
+        self.assertEqual(mock_print.call_count, 4)
+
+        # Verify the execution message
+        mock_print.assert_any_call("Executing static_quality_gate_agent_deb_amd64")
+        mock_print.assert_any_call("Artifact path: /opt/datadog-agent/test-package.deb")
