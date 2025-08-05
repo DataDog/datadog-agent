@@ -387,6 +387,9 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	if err != nil {
 		return fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s\n%s", target, err, logFile, string(output))
 	}
+
+	UpdateIISScriptIfNeeded(ctx)
+
 	return nil
 }
 

@@ -265,6 +265,11 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 		return fmt.Errorf("could not store package installation in db: %w", err)
 	}
 
+	// TODO is this where we update the install scripts?
+	if runtime.GOOS == "windows" {
+		packages.UpdateIISScriptIfNeeded(ctx)
+	}
+
 	return nil
 
 }

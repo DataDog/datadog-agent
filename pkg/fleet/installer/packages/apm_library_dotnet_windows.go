@@ -8,10 +8,13 @@ package packages
 import (
 	"context"
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -193,10 +196,25 @@ func writeBytesToFile(content []byte, dst string) error {
 	return nil
 }
 
-func copyIISInstrumentationScript(ctx HookContext) (err error) {
-	span, _ := ctx.StartSpan("copy_iis_instrumentation_script")
+func copyIISInstrumentationScript(ctx context.Context) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "copy_iis_instrumentation_script")
 	defer func() { span.Finish(err) }()
 	dst := filepath.Join(paths.RunPath, "iis-instrumentation.bat")
 	err = writeBytesToFile(embedded.ScriptIISInstrumentation, dst)
 	return err
+}
+
+func UpdateIISScriptIfNeeded(ctx context.Context) (err error) {
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+	if err != nil {
+		return err
+	}
+	ok, err := db.HasPackage("datadog-apm-library-dotnet")
+	if err != nil {
+		return err
+	}
+	if ok {
+		return copyIISInstrumentationScript(ctx)
+	}
+	return nil
 }
