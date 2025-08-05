@@ -154,10 +154,14 @@ Error: <nil>
 ----------- PodAutoscaler Status -----------
 Error: test error
 --------------------------------
-Horizontal Last Action: Timestamp: %[1]s
+Horizontal Last Action: Timestamp: %[2]s
 From Replicas: 2
 To Replicas: 3
 Recommended Replicas: 3
+Horizontal Last Action: Timestamp: %[1]s
+From Replicas: 3
+To Replicas: 4
+Recommended Replicas: 4
 --------------------------------
 Vertical Last Action Error: test vertical last action error
 Vertical Last Action: Timestamp: %[1]s
@@ -169,7 +173,7 @@ Endpoint: https://custom-recommender.com
 Settings: map[key:value]
 
 ===
-`, testTime.String())
+`, testTime.String(), testTime.Add(-1*time.Second).String())
 	compareTestOutput(t, expectedOutput, output)
 }
 
@@ -380,9 +384,9 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 			},
 			{
 				Time:                metav1.Time{Time: testTime},
-				FromReplicas:        2,
-				ToReplicas:          3,
-				RecommendedReplicas: ptr.To(int32(3)),
+				FromReplicas:        3,
+				ToReplicas:          4,
+				RecommendedReplicas: ptr.To(int32(4)),
 			},
 		},
 		VerticalLastAction: &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
