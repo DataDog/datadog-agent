@@ -5,6 +5,8 @@
 
 package main
 
+import "strings"
+
 //nolint:all
 //go:noinline
 func testSingleString(x string) {}
@@ -36,10 +38,29 @@ func testThreeStringsInStructPointer(a *threeStringStruct) {}
 func testOneStringInStructPointer(a *oneStringStruct) {}
 
 //nolint:all
+//go:noinline
+func testMassiveString(x string) {}
+
+//nolint:all
+//go:noinline
+func testUnitializedString(x string) {}
+
+//nolint:all
+//go:noinline
+func testEmptyString(x string) {}
+
+//nolint:all
 func executeStringFuncs() {
 	testSingleString("abc")
 	testThreeStrings("abc", "def", "ghi")
 	testThreeStringsInStruct(threeStringStruct{a: "abc", b: "def", c: "ghi"})
 	testThreeStringsInStructPointer(&threeStringStruct{a: "abc", b: "def", c: "ghi"})
 	testOneStringInStructPointer(&oneStringStruct{a: "omg"})
+	testMassiveString(x)
+
+	var uninitializedString string
+	testUnitializedString(uninitializedString)
+	testEmptyString("")
 }
+
+var x = strings.Repeat("x", 100000)
