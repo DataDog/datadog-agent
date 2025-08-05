@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -404,9 +405,19 @@ func TestPurge(t *testing.T) {
 		rootPath := t.TempDir()
 		installer := newTestPackageManager(t, s, rootPath)
 		installer.testHooks.noop = true
+
+		// Create a tmppath and set it as the root tmp directory
 		tmpPath := filepath.Join(rootPath, "tmp")
 		err := os.MkdirAll(tmpPath, 0755)
 		assert.NoError(t, err)
+
+		oldRootTmpDir := paths.RootTmpDir
+		paths.RootTmpDir = tmpPath
+		defer func() {
+			paths.RootTmpDir = oldRootTmpDir
+		}()
+
+		// Create a file in the tmp directory
 		err = os.WriteFile(filepath.Join(tmpPath, "test.txt"), []byte("test"), 0644)
 		assert.NoError(t, err)
 
@@ -422,7 +433,7 @@ func TestPurge(t *testing.T) {
 		assert.NoFileExists(t, filepath.Join(rootPath, "packages.db"), "purge should remove the packages database")
 		assert.NoDirExists(t, rootPath, "purge should remove the packages directory")
 		assert.Nil(t, installer.db, "purge should close the packages database")
-		assert.NoFileExists(t, filepath.Join(tmpPath, "test.txt"), "purge should remove all files in the tmp directory")
+		assert.NoDirExists(t, tmpPath, "purge should remove the tmp directory")
 	})
 }
 
