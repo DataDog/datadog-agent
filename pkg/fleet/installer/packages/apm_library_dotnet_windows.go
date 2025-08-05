@@ -191,7 +191,7 @@ func writeBytesToFile(content []byte, dst string) error {
 }
 
 func copyIISInstrumentationScript(ctx HookContext) (err error) {
-	span, ctx := ctx.StartSpan("copy_iis_instrumentation_script")
+	span, _ := ctx.StartSpan("copy_iis_instrumentation_script")
 	defer func() { span.Finish(err) }()
 	dst := path.Join(paths.RunPath, "iis-instrumentation.bat")
 	err = writeBytesToFile(embedded.ScriptIISInstrumentation, dst)
