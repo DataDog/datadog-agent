@@ -33,6 +33,7 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 	"k8s.io/kube-state-metrics/v2/pkg/watch"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,9 +53,10 @@ type Builder struct {
 
 	resync time.Duration
 
-	collectPodsFromKubelet    bool
 	collectOnlyUnassignedPods bool
-	KubeletReflector          *kubeletReflector
+	useWorkloadmetaForPods    bool
+	WorkloadmetaReflector     *workloadmetaReflector
+	workloadmetaStore         workloadmeta.Component
 }
 
 // New returns new Builder instance
@@ -137,11 +139,12 @@ func (b *Builder) WithAllowAnnotations(l map[string][]string) {
 	_ = b.ksmBuilder.WithAllowAnnotations(l)
 }
 
-// WithPodCollectionFromKubelet configures the builder to collect pods from the
-// Kubelet instead of the API server. This has no effect if pod collection is
-// disabled.
-func (b *Builder) WithPodCollectionFromKubelet() {
-	b.collectPodsFromKubelet = true
+// WithPodCollectionFromWorkloadmeta configures the builder to collect pods from
+// workloadmeta instead of the API server. This has no effect if pod collection
+// is disabled.
+func (b *Builder) WithPodCollectionFromWorkloadmeta(store workloadmeta.Component) {
+	b.useWorkloadmetaForPods = true
+	b.workloadmetaStore = store
 }
 
 // WithUnassignedPodsCollection configures the builder to only collect pods that
@@ -162,11 +165,11 @@ func (b *Builder) Build() metricsstore.MetricsWriterList {
 func (b *Builder) BuildStores() [][]cache.Store {
 	stores := b.ksmBuilder.BuildStores()
 
-	if b.KubeletReflector != nil {
-		// Starting the reflector here allows us to start just one for all stores.
-		err := b.KubeletReflector.start(b.ctx)
+	if b.WorkloadmetaReflector != nil {
+		// Starting the workloadmeta reflector here allows us to start just one for all stores.
+		err := b.WorkloadmetaReflector.start(b.ctx)
 		if err != nil {
-			log.Errorf("Failed to start the kubelet reflector: %s", err)
+			log.Errorf("Failed to start the workloadmeta reflector: %s", err)
 		}
 	}
 
@@ -323,23 +326,23 @@ func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object
 }
 
 func handlePodCollection[T any](b *Builder, store cache.Store, client T, listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher, namespace string, useAPIServerCache bool) {
-	if b.collectPodsFromKubelet {
-		if b.KubeletReflector == nil {
-			kr, err := newKubeletReflector(b.namespaces)
+	if b.useWorkloadmetaForPods {
+		if b.WorkloadmetaReflector == nil {
+			wr, err := newWorkloadmetaReflector(b.workloadmetaStore, b.namespaces)
 			if err != nil {
-				log.Errorf("Failed to create kubeletReflector: %s", err)
+				log.Errorf("Failed to create workloadmetaReflector: %s", err)
 				return
 			}
-			b.KubeletReflector = &kr
+			b.WorkloadmetaReflector = &wr
 		}
 
-		err := b.KubeletReflector.addStore(store)
+		err := b.WorkloadmetaReflector.addStore(store)
 		if err != nil {
-			log.Errorf("Failed to add store to kubeletReflector: %s", err)
+			log.Errorf("Failed to add store to workloadmetaReflector: %s", err)
 			return
 		}
 
-		// The kubelet reflector will be started when all stores are added.
+		// The workloadmeta reflector will be started when all stores are added.
 		return
 	}
 

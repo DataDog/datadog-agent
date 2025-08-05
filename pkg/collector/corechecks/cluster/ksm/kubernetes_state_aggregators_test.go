@@ -173,7 +173,7 @@ func Test_counterAggregator(t *testing.T) {
 	}
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger)
+	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
 
 	for _, tt := range tests {
 		s := mocksender.NewMockSender("ksm")
@@ -279,7 +279,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 	}
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger)
+	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
 
 	for _, tt := range tests {
 		s := mocksender.NewMockSender("ksm")
