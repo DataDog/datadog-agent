@@ -30,7 +30,8 @@ type Process struct {
 
 	// ports are stored on the process because they may/should be collected by default in the future
 	// however, currently this data is collected by service discovery collection
-	Ports []uint16
+	TCPPorts []uint16
+	UDPPorts []uint16
 
 	Stats   *Stats
 	Service *Service
@@ -74,6 +75,14 @@ func (p *Process) DeepCopy() *Process {
 	copy.Gids = make([]int32, len(p.Gids))
 	for i := range p.Gids {
 		copy.Gids[i] = p.Gids[i]
+	}
+	copy.TCPPorts = make([]uint16, len(p.TCPPorts))
+	for i := range p.TCPPorts {
+		copy.TCPPorts[i] = p.TCPPorts[i]
+	}
+	copy.UDPPorts = make([]uint16, len(p.UDPPorts))
+	for i := range p.UDPPorts {
+		copy.UDPPorts[i] = p.UDPPorts[i]
 	}
 	if p.Stats != nil {
 		copy.Stats = p.Stats.DeepCopy()

@@ -97,7 +97,7 @@ func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 // mapWLMProcToProc maps the workloadmeta process entity to an intermediate representation used in the process check
 func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) *procutil.Process {
 	var service *procutil.Service
-	var ports []uint16
+	var tcpPorts, udpPorts []uint16
 	if wlmProc.Service != nil {
 		service = &procutil.Service{
 			GeneratedName:            wlmProc.Service.GeneratedName,
@@ -107,7 +107,8 @@ func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) 
 			DDService:                wlmProc.Service.DDService,
 			APMInstrumentation:       wlmProc.Service.APMInstrumentation,
 		}
-		ports = wlmProc.Service.Ports
+		tcpPorts = wlmProc.Service.TCPPorts
+		udpPorts = wlmProc.Service.UDPPorts
 	}
 	return &procutil.Process{
 		Pid:      wlmProc.Pid,
@@ -121,26 +122,40 @@ func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) 
 		Uids:     wlmProc.Uids,
 		Gids:     wlmProc.Gids,
 		Stats:    stats,
-		Ports:    ports,
+		TCPPorts: tcpPorts,
+		UDPPorts: udpPorts,
 		Language: wlmProc.Language,
 		Service:  service,
 	}
 }
 
-// formatPorts converts a list of uin16 ports to a int32 PortInfo
-// TODO: because the service discovery response does not distinguish between tcp and udp currently, we currently send everything as TCP
-func formatPorts(ports []uint16) *model.PortInfo {
-	// if ports were not collected, we want to semantically indicate that no data was collected instead of
+// formatPorts converts separate TCP and UDP uint16 port lists to a int32 PortInfo
+func formatPorts(tcpPorts, udpPorts []uint16) *model.PortInfo {
+	// if both port lists are nil, we want to semantically indicate that no data was collected instead of
 	// returning no open ports
-	if ports == nil {
+	if tcpPorts == nil && udpPorts == nil {
 		return nil
 	}
-	newPorts := make([]int32, len(ports))
-	for i, port := range ports {
-		newPorts[i] = int32(port)
+
+	var newTCPPorts []int32
+	if tcpPorts != nil {
+		newTCPPorts = make([]int32, len(tcpPorts))
+		for i, port := range tcpPorts {
+			newTCPPorts[i] = int32(port)
+		}
 	}
+
+	var newUDPPorts []int32
+	if udpPorts != nil {
+		newUDPPorts = make([]int32, len(udpPorts))
+		for i, port := range udpPorts {
+			newUDPPorts[i] = int32(port)
+		}
+	}
+
 	return &model.PortInfo{
-		Tcp: newPorts,
+		Tcp: newTCPPorts,
+		Udp: newUDPPorts,
 	}
 }
 
