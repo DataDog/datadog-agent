@@ -66,14 +66,14 @@ The symbols from the specified binary will be extracted and printed to stdout
 func run(binaryPath string) error {
 	log.Infof("Analyzing binary: %s", binaryPath)
 	start := time.Now()
-	symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
-	if err != nil {
-		return err
-	}
 	opt := symdb.ExtractScopeAllSymbols
 	if *onlyFirstParty {
 		log.Infof("Extracting only 1st party symbols")
 		opt = symdb.ExtractScopeModulesFromSameOrg
+	}
+	symBuilder, err := symdb.NewSymDBBuilder(binaryPath, opt)
+	if err != nil {
+		return err
 	}
 
 	// Start tracing if we were asked to.
@@ -93,7 +93,7 @@ func run(binaryPath string) error {
 		defer trace.Stop()
 	}
 
-	symbols, err := symBuilder.ExtractSymbols(opt)
+	symbols, err := symBuilder.ExtractSymbols()
 	if err != nil {
 		return err
 	}

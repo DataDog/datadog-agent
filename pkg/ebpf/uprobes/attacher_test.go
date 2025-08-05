@@ -55,7 +55,7 @@ func TestInternalProcessesRegex(t *testing.T) {
 
 func TestAttachPidExcludesInternal(t *testing.T) {
 	exe := "datadog-agent/bin/system-probe"
-	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
 	config := AttacherConfig{
 		ExcludeTargets: ExcludeInternal,
 		ProcRoot:       procRoot,
@@ -78,7 +78,7 @@ func TestAttachPidExcludesContainerdTmp(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(exe), 0755))
 	require.NoError(t, os.WriteFile(exe, []byte{}, 0644))
 
-	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
 	config := AttacherConfig{
 		ExcludeTargets:        ExcludeContainerdTmp,
 		ProcRoot:              procRoot,
@@ -107,7 +107,7 @@ func TestAttachPidReadsSharedLibraries(t *testing.T) {
 	pid := uint32(1)
 	libname := "/target/libssl.so"
 	maps := fmt.Sprintf("08048000-08049000 r-xp 00000000 03:00 8312       %s", libname)
-	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe, Maps: maps}})
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe, Maps: maps}})
 	config := AttacherConfig{
 		ProcRoot: procRoot,
 		Rules: []*AttachRule{
@@ -167,7 +167,7 @@ func TestAttachToBinaryContainerdTmpReturnsErrEnvironment(t *testing.T) {
 
 func TestGetExecutablePath(t *testing.T) {
 	exe := "/bin/bash"
-	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: "", Command: exe, Exe: exe}})
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 1, Cmdline: "", Command: exe, Exe: exe}})
 	config := AttacherConfig{
 		ProcRoot: procRoot,
 	}
@@ -210,7 +210,7 @@ ffffe000-fffff000 r-xp 00000000 00:00 0          [vdso]
 
 func TestGetLibrariesFromMapsFile(t *testing.T) {
 	pid := 1
-	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: uint32(pid), Maps: mapsFileSample}})
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: uint32(pid), Maps: mapsFileSample}})
 	config := AttacherConfig{
 		ProcRoot: procRoot,
 	}
@@ -470,13 +470,13 @@ func TestSync(t *testing.T) {
 	}}
 
 	t.Run("DetectsExistingProcesses", func(tt *testing.T) {
-		procs := []FakeProcFSEntry{
+		procs := []kernel.FakeProcFSEntry{
 			{Pid: 1, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
 			{Pid: 2, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
 			{Pid: 3, Cmdline: "/bin/donttrack", Command: "/bin/donttrack", Exe: "/bin/donttrack"},
 			{Pid: uint32(selfPID), Cmdline: "datadog-agent/bin/system-probe", Command: "sysprobe", Exe: "sysprobe"},
 		}
-		procFS := CreateFakeProcFS(t, procs)
+		procFS := kernel.CreateFakeProcFS(t, procs)
 
 		config := AttacherConfig{
 			ProcRoot:                       procFS,
@@ -503,13 +503,13 @@ func TestSync(t *testing.T) {
 	})
 
 	t.Run("RemovesDeletedProcesses", func(tt *testing.T) {
-		procs := []FakeProcFSEntry{
+		procs := []kernel.FakeProcFSEntry{
 			{Pid: 1, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
 			{Pid: 2, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
 			{Pid: 3, Cmdline: "/bin/donttrack", Command: "/bin/donttrack", Exe: "/bin/donttrack"},
 			{Pid: uint32(selfPID), Cmdline: "datadog-agent/bin/system-probe", Command: "sysprobe", Exe: "sysprobe"},
 		}
-		procFS := CreateFakeProcFS(t, procs)
+		procFS := kernel.CreateFakeProcFS(t, procs)
 
 		config := AttacherConfig{
 			ProcRoot:                       procFS,
@@ -573,12 +573,12 @@ func TestParseSymbolFromEBPFProbeName(t *testing.T) {
 }
 
 func TestAttachToBinaryAndDetach(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Exe:     "/bin/bash",
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,
@@ -639,12 +639,12 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 }
 
 func TestAttachToBinaryAtReturnLocation(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Exe:     "/bin/bash",
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,
@@ -702,13 +702,13 @@ const mapsFileWithSSL = `
 `
 
 func TestAttachToLibrariesOfPid(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Exe:     "/bin/bash",
 		Maps:    mapsFileWithSSL,
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,
@@ -1169,14 +1169,14 @@ func methodHasBeenCalledWithPredicate(registry *MockFileRegistry, methodName str
 }
 
 func TestSyncRetryAndReattach(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Command: "/bin/bash",
 		Exe:     "/bin/bash",
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
-	emptyProcFS := CreateFakeProcFS(t, []FakeProcFSEntry{})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
+	emptyProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,
@@ -1236,14 +1236,14 @@ func TestSyncRetryAndReattach(t *testing.T) {
 }
 
 func TestSyncNoAttach(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Command: "/bin/bash",
 		Exe:     "/bin/bash",
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
-	emptyProcFS := CreateFakeProcFS(t, []FakeProcFSEntry{})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
+	emptyProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,
