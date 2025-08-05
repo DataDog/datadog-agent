@@ -8,6 +8,7 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -82,6 +83,12 @@ func setupCommonServerMux() *http.ServeMux {
 	// 	return int(h.Calls.Load())
 	// }
 	mux := http.NewServeMux()
+
+	// mock session auth
+	mux.HandleFunc("/versa/analytics/auth/user", fixtureHandler("{}"))
+	mux.HandleFunc("/versa/j_spring_security_check", fixtureHandler("{}"))
+	mux.HandleFunc("/versa/analytics/login", fixtureHandler("{}"))
+
 	return mux
 }
 
@@ -139,10 +146,119 @@ func SetupMockAPIServer() *httptest.Server {
 		}
 	})
 
-	// mock session auth
-	mux.HandleFunc("/versa/analytics/auth/user", fixtureHandler("{}"))
-	mux.HandleFunc("/versa/j_spring_security_check", fixtureHandler("{}"))
-	mux.HandleFunc("/versa/analytics/login", fixtureHandler("{}"))
-
 	return httptest.NewServer(mux)
+}
+
+// SetupPaginationMockAPIServer creates a mock server that handles pagination for analytics endpoints
+func SetupPaginationMockAPIServer() *httptest.Server {
+	mux := setupCommonServerMux()
+
+	// Setup pagination-aware analytics endpoint
+	mux.HandleFunc(AnalyticsSDWANMetricsURL, func(w http.ResponseWriter, r *http.Request) {
+		queryParams := r.URL.Query()
+		query := queryParams.Get("q")
+		fromCount := queryParams.Get("from-count")
+		count := queryParams.Get("count")
+
+		// Only handle SLA metrics pagination for now - can be extended for other types
+		if strings.Contains(query, "slam(") {
+			// Parse pagination parameters
+			fromCountInt := 0
+			if fromCount != "" {
+				if parsed, err := strconv.Atoi(fromCount); err == nil {
+					fromCountInt = parsed
+				}
+			}
+
+			countInt := 2000 // default
+			if count != "" {
+				if parsed, err := strconv.Atoi(count); err == nil {
+					countInt = parsed
+				}
+			}
+
+			// Return different pages based on from-count and count
+			if fromCountInt == 0 {
+				if countInt >= 3 {
+					// Large page size - return all data in one page by combining fixtures
+					combinedData, err := combineAnalyticsFixtures(fixtures.GetSLAMetricsPage1, fixtures.GetSLAMetricsPage2)
+					if err != nil {
+						http.Error(w, fmt.Sprintf("Failed to combine fixtures: %v", err), http.StatusInternalServerError)
+						return
+					}
+					fixtureHandler(combinedData)(w, r)
+				} else {
+					// Small page size - return first page (2 items)
+					fixtureHandler(fixtures.GetSLAMetricsPage1)(w, r)
+				}
+			} else if fromCountInt == 2 && countInt < 3 {
+				// Second page for small page size (1 item)
+				fixtureHandler(fixtures.GetSLAMetricsPage2)(w, r)
+			} else {
+				// No more data - return empty page
+				emptyData, _ := combineAnalyticsFixtures() // Empty fixtures list returns empty response
+				fixtureHandler(emptyData)(w, r)
+			}
+		} else {
+			// For other query types, use default fixtures
+			if strings.Contains(query, "linkusage(") {
+				fixtureHandler(fixtures.GetLinkUsageMetrics)(w, r)
+			} else if strings.Contains(query, "linkstatus(") {
+				fixtureHandler(fixtures.GetLinkStatusMetrics)(w, r)
+			} else if strings.Contains(query, "app(") {
+				fixtureHandler(fixtures.GetApplicationsByApplianceMetrics)(w, r)
+			} else if strings.Contains(query, "appUser(") {
+				fixtureHandler(fixtures.GetTopUsers)(w, r)
+			} else {
+				http.Error(w, "Unknown query type", http.StatusBadRequest)
+			}
+		}
+	})
+
+	server := httptest.NewServer(mux)
+	return server
+}
+
+// combineAnalyticsFixtures combines multiple analytics fixture responses into a single response
+func combineAnalyticsFixtures(fixtures ...string) (string, error) {
+	if len(fixtures) == 0 {
+		return `{"qTime": 1, "sEcho": 0, "iTotalDisplayRecords": 0, "iTotalRecords": 0, "aaData": []}`, nil
+	}
+
+	var combinedAaData [][]interface{}
+	var totalRecords int
+
+	for _, fixtureData := range fixtures {
+		var response struct {
+			AaData [][]interface{} `json:"aaData"`
+		}
+
+		if err := json.Unmarshal([]byte(fixtureData), &response); err != nil {
+			return "", fmt.Errorf("failed to parse fixture: %v", err)
+		}
+
+		combinedAaData = append(combinedAaData, response.AaData...)
+		totalRecords += len(response.AaData)
+	}
+
+	combinedResponse := struct {
+		QTime                int             `json:"qTime"`
+		SEcho                int             `json:"sEcho"`
+		ITotalDisplayRecords int             `json:"iTotalDisplayRecords"`
+		ITotalRecords        int             `json:"iTotalRecords"`
+		AaData               [][]interface{} `json:"aaData"`
+	}{
+		QTime:                1,
+		SEcho:                0,
+		ITotalDisplayRecords: totalRecords,
+		ITotalRecords:        totalRecords,
+		AaData:               combinedAaData,
+	}
+
+	combinedBytes, err := json.Marshal(combinedResponse)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal combined response: %v", err)
+	}
+
+	return string(combinedBytes), nil
 }
