@@ -8,7 +8,10 @@ package packages
 import (
 	"context"
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"io/fs"
+	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
@@ -62,6 +65,10 @@ func postInstallAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
+	err = copyIISInstrumentationScript(ctx)
+	if err != nil {
+		log.Errorf("Failed to copy iis instrumentation script: %v", err)
+	}
 	return nil
 }
 
@@ -84,6 +91,10 @@ func postStartExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
+	err = copyIISInstrumentationScript(ctx)
+	if err != nil {
+		log.Errorf("Failed to copy iis instrumentation script: %v", err)
+	}
 	return nil
 }
 
@@ -105,6 +116,10 @@ func preStopExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
 	if err != nil {
 		return err
+	}
+	err = copyIISInstrumentationScript(ctx)
+	if err != nil {
+		log.Errorf("Failed to copy iis instrumentation script: %v", err)
 	}
 	return nil
 }
@@ -146,4 +161,39 @@ func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath s
 		return shouldDelete, err
 	}
 	return true, nil
+}
+
+func writeBytesToFile(content []byte, dst string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(dst), "")
+	if err != nil {
+		return err
+	}
+	defer tmp.Close()
+	tmpName := tmp.Name()
+
+	_, err = tmp.Write(content)
+	defer os.Remove(tmpName)
+	if err != nil {
+		return err
+	}
+
+	err = tmp.Sync()
+	if err != nil {
+		return err
+	}
+
+	err = os.Rename(tmpName, dst)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func copyIISInstrumentationScript(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("copy_iis_instrumentation_script")
+	defer func() { span.Finish(err) }()
+	dst := path.Join(paths.RunPath, "iis-instrumentation.bat")
+	err = writeBytesToFile(embedded.ScriptIISInstrumentation, dst)
+	return err
 }

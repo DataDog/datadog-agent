@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 // Package embedded provides embedded files for the installer.
 package embedded
 
@@ -13,17 +15,17 @@ import (
 
 // ScriptDDCleanup is the embedded dd-cleanup script.
 //
-//go:embed scripts/dd-cleanup
+//go:embed scripts/linux/dd-cleanup
 var ScriptDDCleanup []byte
 
 // ScriptDDContainerInstall is the embedded dd-container-install script.
 //
-//go:embed scripts/dd-container-install
+//go:embed scripts/linux/dd-container-install
 var ScriptDDContainerInstall []byte
 
 // ScriptDDHostInstall is the embedded dd-host-install script.
 //
-//go:embed scripts/dd-host-install
+//go:embed scripts/linux/dd-host-install
 var ScriptDDHostInstall []byte
 
 //go:embed templates/gen/oci/*.service
