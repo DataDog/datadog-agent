@@ -9,18 +9,30 @@ on:
       - "[0-9]+.[0-9]+.x"
 
 env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO: ${{ github.repository }}
 
-permissions: {}
-
 jobs:
+  dd-octo-sts:
+    runs-on: ubuntu-latest
+    outputs:
+      token: ${{ steps.dd-octo-sts.outputs.token }}
+    permissions:
+      id-token: write # Needed to federate tokens with dd-octo-sts
+    name: Get access token from dd-octo-sts
+    steps:
+      - name: Get access token from dd-octo-sts
+        id: dd-octo-sts
+        uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.label-analysis.modify-pr
+
   assign-team-label:
     if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
     runs-on: ubuntu-latest
+    needs: dd-octo-sts
     permissions:
-      pull-requests: write
+      id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -33,10 +45,13 @@ jobs:
       - name: Auto assign team label
         env:
           PR_ID: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: "${{ needs.dd-octo-sts.outputs.token }}"
+          GH_TOKEN: "${{ needs.dd-octo-sts.outputs.token }}"
         run: dda inv -- -e github.assign-team-label --pr-id="$PR_ID"
   release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
+    needs: dd-octo-sts
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -51,6 +66,7 @@ jobs:
         env:
           BRANCH_NAME: ${{ github.head_ref }}
           PR_ID: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: "${{ needs.dd-octo-sts.outputs.token }}"
         run: dda inv -- -e linter.releasenote
   fetch-labels:
     needs: assign-team-label
@@ -111,6 +127,7 @@ jobs:
   agenttelemetry-list-change-ack-check:
     if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
     runs-on: ubuntu-latest
+    needs: dd-octo-sts
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -122,10 +139,13 @@ jobs:
           features: legacy-tasks
       - name: Check agent telemetry metric list
         run: dda inv -- -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
+        env:
+          GITHUB_TOKEN: "${{ needs.dd-octo-sts.outputs.token }}"
 
   ask-reviews:
     if: github.triggering_actor != 'dd-devflow[bot]' && github.event.action == 'labeled' && github.event.label.name == 'ask-review'
     runs-on: ubuntu-latest
+    needs: dd-octo-sts
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -138,4 +158,6 @@ jobs:
       - name: Ask for code reviews
         env:
           SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          GH_TOKEN: "${{ needs.dd-octo-sts.outputs.token }}"
+          GITHUB_TOKEN: "${{ needs.dd-octo-sts.outputs.token }}"
         run: dda inv -- -e issue.ask-reviews -p ${{ github.event.pull_request.number }}
