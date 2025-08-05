@@ -216,7 +216,7 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	}
 
 	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
-	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey, job.subnet.index), &autodiscoveryStatus)
+	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.index), &autodiscoveryStatus)
 }
 
 func (l *SNMPListener) checkDeviceReachable(authentication snmp.Authentication, port uint16, deviceIP string) bool {
@@ -329,21 +329,7 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 
 		startingIP := ipAddr.Mask(ipNet.Mask)
 
-		configHash := config.Digest(config.Network, false)
-		cacheKey := buildCacheKey(configHash)
-		if !persistentcache.Exists(cacheKey) {
-			legacyConfigHash := config.Digest(config.Network, true)
-			legacyCacheKey := buildCacheKey(legacyConfigHash)
-			if persistentcache.Exists(legacyCacheKey) {
-				err = persistentcache.Rename(legacyCacheKey, cacheKey)
-				if err != nil {
-					log.Errorf("Failed to rename cache '%s' to '%s': %v", legacyConfigHash, configHash, err)
-
-					// Use legacy cache hash when we fail to rename
-					cacheKey = legacyCacheKey
-				}
-			}
-		}
+		cacheKey := migrateCache(config)
 
 		adIdentifier := config.ADIdentifier
 		if adIdentifier == "" {
@@ -366,6 +352,30 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 	}
 
 	return subnets
+}
+
+func migrateCache(config snmp.Config) string {
+	configHash := config.Digest(config.Network, false)
+	cacheKey := buildCacheKey(configHash)
+	if persistentcache.Exists(cacheKey) {
+		return cacheKey
+	}
+
+	legacyConfigHash := config.Digest(config.Network, true)
+	legacyCacheKey := buildCacheKey(legacyConfigHash)
+	if !persistentcache.Exists(legacyCacheKey) {
+		return cacheKey
+	}
+
+	err := persistentcache.Rename(legacyCacheKey, cacheKey)
+	if err != nil {
+		log.Errorf("Failed to rename cache '%s' to '%s': %v", legacyConfigHash, configHash, err)
+
+		// Use legacy cache hash when we fail to rename
+		return legacyCacheKey
+	}
+
+	return cacheKey
 }
 
 func (l *SNMPListener) checkDevices() {
@@ -392,7 +402,7 @@ func (l *SNMPListener) checkDevices() {
 	defer discoveryTicker.Stop()
 	for {
 		for _, subnet := range subnets {
-			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey, subnet.index), &expvar.String{})
+			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.index), &expvar.String{})
 		}
 
 		var subnet *snmpSubnet
@@ -694,8 +704,8 @@ func buildCacheKey(configHash string) string {
 }
 
 // GetSubnetVarKey returns a key for a subnet in the expvar map
-func GetSubnetVarKey(network string, cacheKey string, subnetIndex int) string {
-	return fmt.Sprintf("%s|%s|%d", network, strings.Trim(cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)), subnetIndex)
+func GetSubnetVarKey(network string, subnetIndex int) string {
+	return fmt.Sprintf("%s|%d", network, subnetIndex)
 }
 
 func extractSNMPValue[T any](value interface{}) (T, bool) {

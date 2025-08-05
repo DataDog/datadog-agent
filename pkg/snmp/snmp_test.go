@@ -863,6 +863,16 @@ func TestConfig_Digest(t *testing.T) {
 			useNewFormatB: true,
 		},
 		{
+			name:          "new format same Community",
+			ipAddressA:    "1.2.3.5",
+			ipAddressB:    "1.2.3.5",
+			configA:       Config{Authentications: []Authentication{{Community: "something"}}},
+			configB:       Config{Authentications: []Authentication{{Community: "something"}}},
+			useNewFormatA: true,
+			useNewFormatB: true,
+			isSameDigest:  true,
+		},
+		{
 			name:          "old format vs. new format with same Community",
 			ipAddressA:    "1.2.3.5",
 			ipAddressB:    "1.2.3.5",
@@ -870,15 +880,6 @@ func TestConfig_Digest(t *testing.T) {
 			configB:       Config{Community: "something"},
 			useNewFormatA: true,
 			isSameDigest:  true,
-		},
-		{
-			name:          "old format vs. new format with same Community but both use new format",
-			ipAddressA:    "1.2.3.5",
-			ipAddressB:    "1.2.3.5",
-			configA:       Config{Authentications: []Authentication{{Community: "something"}}},
-			configB:       Config{Community: "something"},
-			useNewFormatA: true,
-			useNewFormatB: true,
 		},
 	}
 	for _, tt := range tests {

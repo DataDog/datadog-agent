@@ -79,7 +79,6 @@ type subnetStatus struct {
 	DevicesScanned int
 	IpsCount       int
 	DevicesFound   []string
-	configHash     string
 	subnetIndex    int
 }
 
@@ -93,11 +92,10 @@ func getSubnetsStatus(discoveryVar expvar.Var) []subnetStatus {
 	for subnetKey, autodiscoveryStatus := range discoverySubnets {
 		subnetParts := strings.Split(subnetKey, "|")
 		subnet := subnetParts[0]
-		configHash := subnetParts[1]
 
 		subnetIndex := 0
-		if len(subnetParts) > 2 {
-			indexString := subnetParts[2]
+		if len(subnetParts) > 1 {
+			indexString := subnetParts[1]
 			index, err := strconv.Atoi(indexString)
 			if err == nil {
 				subnetIndex = index
@@ -114,7 +112,6 @@ func getSubnetsStatus(discoveryVar expvar.Var) []subnetStatus {
 			autodiscoveryStatus.DevicesScannedCount,
 			ipsTotalCount,
 			autodiscoveryStatus.DevicesFoundList,
-			configHash,
 			subnetIndex,
 		})
 	}

@@ -155,7 +155,7 @@ func (d *Discovery) discoverDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
-		discoveryVar.Set(listeners.GetSubnetVarKey(d.config.Network, subnet.cacheKey, 0), &expvar.String{})
+		discoveryVar.Set(listeners.GetSubnetVarKey(d.config.Network, 0), &expvar.String{})
 		subnet.devicesScannedCounter.Store(uint32(len(subnet.config.IgnoredIPAddresses)))
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
@@ -224,7 +224,7 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 	}
 
 	discoveryStatus := listeners.AutodiscoveryStatus{DevicesFoundList: d.getDevicesFound(), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
-	discoveryVar.Set(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey, 0), &discoveryStatus)
+	discoveryVar.Set(listeners.GetSubnetVarKey(job.subnet.config.Network, 0), &discoveryStatus)
 
 	return nil
 }
