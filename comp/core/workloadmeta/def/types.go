@@ -996,6 +996,9 @@ type ECSTask struct {
 	ContainerInstanceTags   MapTags
 	ClusterName             string
 	ContainerInstanceARN    string
+	ClusterARN              string
+	ServiceARN              string
+	TaskDefinitionARN       string
 	AWSAccountID            string
 	Region                  string
 	AvailabilityZone        string

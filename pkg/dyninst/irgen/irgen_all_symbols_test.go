@@ -30,6 +30,9 @@ import (
 )
 
 func TestIRGenAllProbes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
 	programs := testprogs.MustGetPrograms(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	var objcopy string

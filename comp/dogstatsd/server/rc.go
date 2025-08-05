@@ -11,6 +11,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
@@ -36,6 +37,8 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 	// special case: we received a response from RC, but RC didn't have any
 	// configuration for this agent, let's restore the local config and return
 	if len(updates) == 0 {
+		s.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
+		s.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
 		s.restoreBlocklistFromLocalConfig()
 		return
 	}
@@ -81,10 +84,20 @@ func (s *server) onBlocklistUpdateCallback(updates map[string]state.RawConfig, a
 	metricNames := slices.Collect(maps.Keys(m))
 
 	if len(metricNames) > 0 {
+		// update the runtime config to be consistent
+		// in `agent config` calls.
+		s.config.Set("statsd_metric_blocklist", metricNames, model.SourceRC)
+		s.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
+
 		// apply this new blocklist to all the running workers
+		s.tlmFilterListUpdates.Inc()
+		s.tlmFilterListSize.Set(float64(len(metricNames)))
 		s.SetBlocklist(metricNames, false)
+
 	} else {
 		// special case: if the metric names list is empty, fallback to local
+		s.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
+		s.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
 		s.restoreBlocklistFromLocalConfig()
 	}
 }
