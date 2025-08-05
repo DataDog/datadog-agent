@@ -46,6 +46,7 @@ func NewFakeEvent() *Event {
 		BaseEvent: BaseEvent{
 			FieldHandlers:    &FakeFieldHandlers{},
 			ContainerContext: &ContainerContext{},
+			ProcessContext:   &ProcessContext{},
 			Os:               runtime.GOOS,
 		},
 		CGroupContext: &CGroupContext{},
