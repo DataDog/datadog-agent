@@ -369,6 +369,11 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
+	containerName, imageName, podNamespace := utils.GetContainerFilterTags(workload.Tags)
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(nil, containerName, imageName, podNamespace) {
+		return
+	}
+
 	defaultConfigs, err := m.getDefaultLoadConfigs()
 	if err != nil {
 		seclog.Errorf("couldn't get default load configs: %v", err)

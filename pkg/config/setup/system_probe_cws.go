@@ -41,6 +41,9 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.rate_limiter.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.reduced_proc_pid_cache_size", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.env_as_tags", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.container_exclude", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.container_include", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.exclude_pause_container", true)
 
 	cfg.SetDefault("runtime_security_config.windows_filename_cache_max", 16384)
 	cfg.SetDefault("runtime_security_config.windows_registry_cache_max", 4096)

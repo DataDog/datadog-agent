@@ -102,9 +102,10 @@ func (c *Controller) checkForUpdates() {
 
 		runtimeID := c.store.ensureExists(update)
 		actuatorUpdates = append(actuatorUpdates, actuator.ProcessUpdate{
-			ProcessID:  update.ProcessID,
-			Executable: update.Executable,
-			Probes:     update.Probes,
+			ProcessID:         update.ProcessID,
+			Executable:        update.Executable,
+			Probes:            update.Probes,
+			ShouldUploadSymDB: update.ShouldUploadSymDB,
 		})
 		for _, probe := range update.Probes {
 			c.diagnostics.reportReceived(runtimeID, probe)
