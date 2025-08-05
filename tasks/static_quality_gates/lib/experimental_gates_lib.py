@@ -107,17 +107,15 @@ class StaticQualityGate:
         Print the results of the gate
         in case of success
         """
-        print(
-            color_message(
-                f"package_on_wire_size <= max_on_wire_size, ({self.artifact_on_wire_size / 1024 / 1024} MB) <= ({self.max_on_wire_size / 1024 / 1024} MB)",
-                "green",
-            )
-        )
-        print(
-            color_message(
-                f"package_on_disk_size <= max_on_disk_size, ({self.artifact_on_disk_size / 1024 / 1024} MB) <= ({self.max_on_disk_size / 1024 / 1024} MB)",
-                "green",
-            )
+        from .static_quality_gates_reporter import QualityGateOutputFormatter
+
+        QualityGateOutputFormatter.print_enhanced_gate_result(
+            self.gate_name,
+            self.artifact_path,
+            self.artifact_on_wire_size,
+            self.max_on_wire_size,
+            self.artifact_on_disk_size,
+            self.max_on_disk_size,
         )
 
     @abstractmethod
@@ -146,7 +144,8 @@ class StaticQualityGate:
         """
         Execute the quality gate.
         """
-        print(f"Executing {self.gate_name}")
+        from .static_quality_gates_reporter import QualityGateOutputFormatter
+
         # To ensure execute_gate is generic we define an abstract method
         # to measure the size of the artifact on disk and on wire
         # and a method to check the size of the artifact against the maximum allowed size.
@@ -155,11 +154,11 @@ class StaticQualityGate:
         # TODO: quality_gates.py should be refactored. Most probably, the task should be closer
         # to this lib.
         self._measure_on_disk_and_on_wire_size()
-        print(f"Artifact path: {self.artifact_path}")
+        QualityGateOutputFormatter.print_enhanced_gate_execution(self.gate_name, self.artifact_path)
         self.check_artifact_size()
-        print(color_message(f"✅{self.gate_name} passed.", "green"))
-        print("-" * 10)
+        QualityGateOutputFormatter.print_enhanced_gate_success(self.gate_name)
         self.print_results()
+        print("-" * 80)
 
 
 class StaticQualityGatePackage(StaticQualityGate):
@@ -419,9 +418,7 @@ def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQuality
         else:
             raise UnsupportedOperation(f"Unknown gate type: {gate_name}")
 
-    newline_tab = "\n\t"
-    print(f"{config_path} correctly parsed !")
-    print(
-        f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate.gate_name for gate in gates)}"
-    )
+    from .static_quality_gates_reporter import QualityGateOutputFormatter
+
+    QualityGateOutputFormatter.print_startup_message(len(gates), config_path)
     return gates

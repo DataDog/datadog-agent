@@ -195,7 +195,14 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
             )
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
-    _print_quality_gates_report(gate_states)
+    # Print comprehensive summary first
+    from tasks.static_quality_gates.lib.static_quality_gates_reporter import QualityGateOutputFormatter
+
+    QualityGateOutputFormatter.print_summary_table(gate_list, gate_states)
+
+    # Then print the traditional report for any failures
+    if final_state != "success":
+        _print_quality_gates_report(gate_states)
 
     metric_handler = get_metric_handler()
     metric_handler.send_metrics_to_datadog()
