@@ -14,8 +14,10 @@ import (
 	"os"
 	"strconv"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -28,6 +30,13 @@ type Config struct {
 	DynamicInstrumentationEnabled bool
 	LogUploaderURL                string
 	DiagsUploaderURL              string
+
+	// DiskCacheEnabled enables the disk cache for debug info.  If this is
+	// false, no disk cache will be used and the debug info will be stored in
+	// memory.
+	DiskCacheEnabled bool
+	// DiskCacheConfig is the configuration for the disk cache for debug info.
+	DiskCacheConfig object.DiskCacheConfig
 
 	actuatorConstructor erasedActuatorConstructor
 }
@@ -88,24 +97,65 @@ func defaultActuatorConstructor(
 	return eraseActuator(actuator.NewActuator(l))
 }
 
-// NewConfig creates a new Config object
+// NewConfig creates a new Config object.
 func NewConfig(spConfig *sysconfigtypes.Config, opts ...Option) (*Config, error) {
 	var diEnabled bool
 	if spConfig != nil {
 		_, diEnabled = spConfig.EnabledModules[sysconfig.DynamicInstrumentationModule]
 	}
 	traceAgentURL := getTraceAgentURL(os.Getenv)
+	cacheConfig, cacheEnabled, err := getDebugInfoDiskCacheConfig()
+	if err != nil {
+		return nil, err
+	}
 	c := &Config{
 		Config:                        *ebpf.NewConfig(),
 		DynamicInstrumentationEnabled: diEnabled,
 		LogUploaderURL:                withPath(traceAgentURL, logUploaderPath),
 		DiagsUploaderURL:              withPath(traceAgentURL, diagsUploaderPath),
+		DiskCacheEnabled:              cacheEnabled,
+		DiskCacheConfig:               cacheConfig,
 		actuatorConstructor:           defaultActuatorConstructor,
 	}
 	for _, opt := range opts {
 		opt.apply(c)
 	}
 	return c, nil
+}
+
+const diNS = "dynamic_instrumentation"
+
+func getDebugInfoDiskCacheConfig() (
+	cacheConfig object.DiskCacheConfig, enabled bool, err error,
+) {
+	cfg := pkgconfigsetup.SystemProbe()
+	sysconfig.Adjust(cfg)
+	key := func(k string) string {
+		return sysconfig.FullKeyPath(diNS, "debug_info_disk_cache", k)
+	}
+	getUint64 := func(k string) (uint64, error) {
+		kk := key(k)
+		v := cfg.GetInt64(kk)
+		if v < 0 {
+			return 0, fmt.Errorf("%s must be non-negative, got %d", kk, v)
+		}
+		return uint64(v), nil
+	}
+
+	enabled = cfg.GetBool(key("enabled"))
+	cacheConfig.DirPath = cfg.GetString(key("dir"))
+	maxTotalBytes, err := getUint64("max_total_bytes")
+	if err != nil {
+		return object.DiskCacheConfig{}, false, err
+	}
+	cacheConfig.MaxTotalBytes = maxTotalBytes
+	requiredDiskSpaceBytes, err := getUint64("required_disk_space_bytes")
+	if err != nil {
+		return object.DiskCacheConfig{}, false, err
+	}
+	cacheConfig.RequiredDiskSpaceBytes = requiredDiskSpaceBytes
+	cacheConfig.RequiredDiskSpacePercent = cfg.GetFloat64(key("required_disk_space_percent"))
+	return
 }
 
 func withPath(u url.URL, path string) string {

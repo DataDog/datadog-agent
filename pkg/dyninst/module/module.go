@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
@@ -71,10 +72,19 @@ func NewModule(
 	if err != nil {
 		return nil, fmt.Errorf("error creating loader: %w", err)
 	}
+	var elfFileLoader irgen.ElfFileLoader
+	if config.DiskCacheEnabled {
+		elfFileLoader, err = object.NewDiskCache(config.DiskCacheConfig)
+		if err != nil {
+			return nil, fmt.Errorf("error creating disk cache: %w", err)
+		}
+	} else {
+		elfFileLoader = object.NewInMemoryElfFileLoader()
+	}
 
 	actuator := config.actuatorConstructor(loader)
 	rcScraper := rcscrape.NewScraper(actuator)
-	irGenerator := irgen.NewGenerator()
+	irGenerator := irgen.NewGenerator(irgen.WithElfFileLoader(elfFileLoader))
 	controller := NewController(
 		actuator, logUploader, diagsUploader, rcScraper, DefaultDecoderFactory{}, irGenerator,
 	)
