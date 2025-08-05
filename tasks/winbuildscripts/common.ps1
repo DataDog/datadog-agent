@@ -139,6 +139,10 @@ function Install-Deps() {
         Write-Error "Failed to install python requirements"
         exit 1
     }
+    # Note on Go dependencies
+    # CI: downloaded in the CI via the modcache archive, see Expand-ModCache
+    # Locally: go automatically downloads deps when running go build/test.
+    #          if you want to pre-download everything, see `dda inv deps`
 }
 
 function Install-TestingDeps() {
