@@ -55,8 +55,6 @@ type FlowAggregator struct {
 	dropFlowsBeforeAggregator    bool             // config option to drop flows before aggregation for performance testing
 	dropFlowsBeforeEPForwarder   bool             // config option to drop flows before sending to EP forwarder for performance testing
 	getMemoryStats               bool             // config option to enable memory statistics collection and metrics
-	flowSizeBytes                uint64
-	flowSizeCount                uint64
 
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
@@ -144,27 +142,15 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.ReceivedFlowCount.Inc()
-			if !agg.dropFlowsBeforeAggregator {
-				memUsage := agg.flowAcc.add(flow)
-
-				// Only track memory stats and send metrics if enabled in config
-				if agg.getMemoryStats {
-					agg.logger.Tracef("Flow added - Size: %d bytes", memUsage.FlowSizeBytes)
-
-					// Send distribution metrics
-					if memUsage.FlowSizeBytes > 0 {
-						agg.flowSizeBytes += memUsage.FlowSizeBytes
-						agg.flowSizeCount++
-						//JMWagg.sender.Count("datadog.netflow.aggregator.flow_size_bytes", float64(memUsage.FlowSizeBytes), "", nil)
-					}
-				}
-			} else {
+			if agg.dropFlowsBeforeAggregator {
 				droppedFlowCount++
 				// Log every 1000000 dropped flows for visibility
 				if droppedFlowCount%1000000 == 0 {
 					agg.logger.Infof("Dropped %d flows before aggregator (performance testing mode)", droppedFlowCount)
 				}
+				return
 			}
+			agg.flowAcc.add(flow)
 		}
 	}
 }
@@ -297,7 +283,10 @@ func (agg *FlowAggregator) flushLoop() {
 func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := agg.TimeNowFunction()
-	flowsToFlush := agg.flowAcc.flush()
+
+	flowsToFlush, flowAccStats := agg.flowAcc.flush()
+	agg.sender.Gauge("datadog.netflow.aggregator.perf_flowacc_flush_duration", time.Since(flushTime).Seconds(), "", nil)
+
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)
@@ -327,13 +316,21 @@ func (agg *FlowAggregator) flush() int {
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(cap(agg.flowIn)), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.length", float64(len(agg.flowIn)), "", nil)
 
-	if agg.getMemoryStats {
-		if agg.flowSizeBytes > 0 {
-			agg.sender.Count("datadog.netflow.aggregator.flow_size_bytes", float64(agg.flowSizeBytes), "", nil)
-			agg.sender.Count("datadog.netflow.aggregator.flow_size_count", float64(agg.flowSizeCount), "", nil)
-			agg.flowSizeBytes = 0
-			agg.flowSizeCount = 0
-		}
+	if flowAccStats.flowAccAddCount > 0 {
+		agg.sender.Count("datadog.netflow.aggregator.perf_flow_acc_add_count", float64(flowAccStats.flowAccAddCount), "", nil)
+		agg.sender.Count("datadog.netflow.aggregator.perf_flow_acc_add_duration", float64(flowAccStats.flowAccAddDurationSec), "", nil)
+	}
+	if flowAccStats.getAggregationHashCount > 0 {
+		agg.sender.Count("datadog.netflow.aggregator.perf_get_aggregation_hash_count", float64(flowAccStats.getAggregationHashCount), "", nil)
+		agg.sender.Count("datadog.netflow.aggregator.perf_get_aggregation_hash_duration", float64(flowAccStats.getAggregationHashDurationSec), "", nil)
+	}
+	if flowAccStats.portRollupAddCount > 0 {
+		agg.sender.Count("datadog.netflow.aggregator.perf_port_rollup_add_count", float64(flowAccStats.portRollupAddCount), "", nil)
+		agg.sender.Count("datadog.netflow.aggregator.perf_port_rollup_add_duration", float64(flowAccStats.portRollupAddDurationSec), "", nil)
+	}
+	if flowAccStats.flowSizeBytes > 0 {
+		agg.sender.Count("datadog.netflow.aggregator.perf_flow_size_count", float64(flowAccStats.flowSizeCount), "", nil)
+		agg.sender.Count("datadog.netflow.aggregator.perf_flow_size_bytes", float64(flowAccStats.flowSizeBytes), "", nil)
 	}
 
 	err := agg.submitCollectorMetrics()
