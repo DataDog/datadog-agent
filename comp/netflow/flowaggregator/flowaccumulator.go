@@ -64,6 +64,7 @@ type flowAccumulator struct {
 	skipHashCollisionDetection bool
 	aggregationHashUseSyncPool bool
 	getMemoryStats             bool
+	getCodeTimings             bool
 
 	// Logging configuration and counter
 	logMapSizesEveryN int
@@ -80,7 +81,7 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, getMemoryStats bool, logMapSizesEveryN int, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, getMemoryStats bool, getCodeTimings bool, logMapSizesEveryN int, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                      make(map[uint64]flowContext),
 		flowFlushInterval:          aggregatorFlushInterval,
@@ -95,6 +96,7 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 		skipHashCollisionDetection: skipHashCollisionDetection,
 		aggregationHashUseSyncPool: aggregationHashUseSyncPool,
 		getMemoryStats:             getMemoryStats,
+		getCodeTimings:             getCodeTimings,
 		logMapSizesEveryN:          logMapSizesEveryN,
 		callCounter:                0,
 		flowAccStats:               &flowAccStats{},
@@ -158,16 +160,24 @@ func (f *flowAccumulator) shouldSampleMemoryStats() bool {
 }
 
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
-	startFull := timeNow()
+	var startFull time.Time
+	if f.getCodeTimings {
+		startFull = timeNow()
+	}
 
 	f.logger.Tracef("Add new flow: %+v", flowToAdd)
 
 	if !f.portRollupDisabled {
 		// Handle port rollup
-		start := timeNow()
+		var start time.Time
+		if f.getCodeTimings {
+			start = timeNow()
+		}
 		f.portRollup.Add(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
-		f.flowAccStats.portRollupAddDurationSec += time.Since(start).Seconds()
-		f.flowAccStats.portRollupAddCount++
+		if f.getCodeTimings {
+			f.flowAccStats.portRollupAddDurationSec += time.Since(start).Seconds()
+			f.flowAccStats.portRollupAddCount++
+		}
 
 		ephemeralStatus := f.portRollup.IsEphemeral(flowToAdd.SrcAddr, flowToAdd.DstAddr, uint16(flowToAdd.SrcPort), uint16(flowToAdd.DstPort))
 		switch ephemeralStatus {
@@ -197,14 +207,21 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	}
 
 	defer func() {
-		f.flowAccStats.flowAccAddCount++
-		f.flowAccStats.flowAccAddDurationSec += time.Since(startFull).Seconds()
+		if f.getCodeTimings {
+			f.flowAccStats.flowAccAddDurationSec += time.Since(startFull).Seconds()
+			f.flowAccStats.flowAccAddCount++
+		}
 	}()
 
-	start := nanoNow()
+	var start int64
+	if f.getCodeTimings {
+		start = nanoNow()
+	}
 	aggHash := f.getAggregationHash(flowToAdd)
-	f.flowAccStats.getAggregationHashDurationSec = float64(nanoSince(start)) / 1e9 // convert to seconds
-	f.flowAccStats.getAggregationHashCount++
+	if f.getCodeTimings {
+		f.flowAccStats.getAggregationHashDurationSec = float64(nanoSince(start)) / 1e9 // convert to seconds
+		f.flowAccStats.getAggregationHashCount++
+	}
 
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
