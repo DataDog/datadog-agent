@@ -103,6 +103,67 @@ var (
 				},
 			},
 		},
+		{
+			name: "detect container.id from PID",
+			inMetrics: testResourceMetrics([]metricWithResource{
+				{
+					metricNames: inMetricNames,
+					resourceAttributes: map[string]any{
+						"process.pid": int64(12345),
+					},
+				},
+			}),
+			outResourceAttributes: []map[string]any{
+				{
+					"global":       "tag",
+					"process.pid":  int64(12345),
+					"container.id": "test",
+					"container":    "id",
+				},
+			},
+		},
+		{
+			name: "detect container.id from cgroup inode",
+			inMetrics: testResourceMetrics([]metricWithResource{
+				{
+					metricNames: inMetricNames,
+					resourceAttributes: map[string]any{
+						"datadog.container.cgroup_inode": int64(12345),
+					},
+				},
+			}),
+			outResourceAttributes: []map[string]any{
+				{
+					"global":                         "tag",
+					"datadog.container.cgroup_inode": int64(12345),
+					"container.id":                   "test",
+					"container":                      "id",
+				},
+			},
+		},
+		{
+			name: "detect container.id from pod UID + container name",
+			inMetrics: testResourceMetrics([]metricWithResource{
+				{
+					metricNames: inMetricNames,
+					resourceAttributes: map[string]any{
+						"k8s.pod.uid":               "01234567-89ab-cdef-0123-456789abcdef",
+						"k8s.container.name":        "mycontainer",
+						"datadog.container.is_init": true,
+					},
+				},
+			}),
+			outResourceAttributes: []map[string]any{
+				{
+					"global":                    "tag",
+					"k8s.pod.uid":               "01234567-89ab-cdef-0123-456789abcdef",
+					"k8s.container.name":        "mycontainer",
+					"datadog.container.is_init": true,
+					"container.id":              "test",
+					"container":                 "id",
+				},
+			},
+		},
 	}
 )
 
@@ -134,6 +195,9 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			tc.TagMap["container_id://test"] = []string{"container:id"}
 			tc.TagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.TagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
+			tc.ContainerIDMap["pid:12345"] = "test"
+			tc.ContainerIDMap["inode:12345"] = "test"
+			tc.ContainerIDMap["pod:01234567-89ab-cdef-0123-456789abcdef,name:mycontainer,init:true"] = "test"
 
 			factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
 				return "test-host", nil
