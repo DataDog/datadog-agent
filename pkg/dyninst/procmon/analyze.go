@@ -335,7 +335,7 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 		return false, fmt.Errorf("failed to get symbols: %w", err)
 	}
 	defer symtabStrings.Close()
-	return bytes.Contains(symtabStrings.Data, ddTraceSymbolSuffix), nil
+	return bytes.Contains(symtabStrings.Data(), ddTraceSymbolSuffix), nil
 }
 
 var ddTraceSymbolSuffix = []byte("ddtrace/tracer.passProbeConfiguration")
