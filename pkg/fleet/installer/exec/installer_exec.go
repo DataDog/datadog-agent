@@ -153,12 +153,15 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 }
 
 // InstallConfigExperiment installs an experiment.
-func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) (err error) {
+func (i *InstallerExec) InstallConfigExperiment(
+	ctx context.Context, pkg string, version string, rawConfigs [][]byte, _ []string,
+) (err error) {
 	if len(rawConfigs) == 0 {
 		return fmt.Errorf("no configs provided")
 	}
 
 	var cmdLineArgs = []string{pkg, version}
+
 	for _, config := range rawConfigs {
 		cmdLineArgs = append(cmdLineArgs, string(config))
 	}

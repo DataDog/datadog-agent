@@ -16,7 +16,7 @@ jobs:
   comment:
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write # Add comment to PR
+      id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
       - name: Checkout datadog-agent repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -170,10 +170,18 @@ jobs:
           cd go/src/github.com/DataDog/datadog-agent
           ./test/integration/serverless_perf/write_message.sh
 
-      - name: Post comment
-        uses: marocchino/sticky-pull-request-comment@67d0dec7b07ed060a405f9b2a64b8ab319fdd7db # v2.9.2
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
         if: steps.should.outputs.should_run == 'true'
         with:
+          scope: DataDog/datadog-agent
+          policy: self.serverless-binary-size.modify-pr
+
+      - name: Post comment
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
+        if: steps.should.outputs.should_run == 'true'
+        with:
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
           header: serverless-binary-size
           recreate: true
           path: ${{ steps.write.outputs.filename }}

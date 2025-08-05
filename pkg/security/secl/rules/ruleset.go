@@ -332,7 +332,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 	for _, rule := range policyRules {
 		for _, actionDef := range rule.Def.Actions {
-			if err := actionDef.Check(opts); err != nil {
+			if err := actionDef.PreCheck(opts); err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("skipping invalid action in rule %s: %w", rule.Def.ID, err))
 				continue
 			}
@@ -449,9 +449,15 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					variableProvider = rs.globalVariables
 				}
 
-				opts := eval.VariableOpts{TTL: actionDef.Set.TTL.GetDuration(), Size: actionDef.Set.Size, Private: actionDef.Set.Private, Inherited: actionDef.Set.Inherited}
+				opts := eval.VariableOpts{
+					TTL:       actionDef.Set.TTL.GetDuration(),
+					Size:      actionDef.Set.Size,
+					Private:   actionDef.Set.Private,
+					Inherited: actionDef.Set.Inherited,
+					Telemetry: rs.evalOpts.Telemetry,
+				}
 
-				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, opts)
+				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, string(actionDef.Set.Scope), opts)
 				if err != nil {
 					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s' (%+v): %w", reflect.TypeOf(variableValue), actionDef.Set.Name, actionDef.Set, err))
 					continue
@@ -500,13 +506,6 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 // WithExcludedRuleFromDiscarders set excluded rule from discarders
 func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool) {
 	rs.opts.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
-}
-
-func (rs *RuleSet) isActionAvailable(eventType eval.EventType, action *Action) bool {
-	if action.Def.Name() == HashAction && eventType != model.FileOpenEventType.String() && eventType != model.ExecEventType.String() {
-		return false
-	}
-	return true
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
@@ -582,18 +581,16 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 	}
 
 	for _, action := range rule.PolicyRule.Actions {
-		if !rs.isActionAvailable(eventType, action) {
-			return "", &ErrRuleLoad{Rule: pRule, Err: &ErrActionNotAvailable{ActionName: action.Def.Name(), EventType: eventType}}
-		}
-
-		// compile action filter
 		if action.Def.Filter != nil {
+			// compile action filter
 			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
 				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 
-		if action.Def.Set != nil {
+		switch {
+
+		case action.Def.Set != nil:
 			// compile scope field
 			if len(action.Def.Set.ScopeField) > 0 {
 				if err := action.CompileScopeField(rs.model); err != nil {
@@ -620,6 +617,11 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return "", fmt.Errorf("failed to compile action expression: %w", err)
 				}
 				rs.fieldEvaluators[expression] = evaluator.(eval.Evaluator)
+			}
+
+		case action.Def.Hash != nil:
+			if err := action.Def.Hash.PostCheck(evalRule); err != nil {
+				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 	}

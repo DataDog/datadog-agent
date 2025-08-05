@@ -38,6 +38,7 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,12 +66,13 @@ type collector struct {
 	containerProvider      proccontainers.ContainerProvider
 
 	// Service discovery fields
-	sysProbeClient *http.Client
-	startTime      time.Time
-	startupTimeout time.Duration
-	serviceRetries map[int32]uint
-	ignoredPids    core.PidSet
-	pidHeartbeats  map[int32]time.Time
+	sysProbeClient           *http.Client
+	startTime                time.Time
+	startupTimeout           time.Duration
+	serviceRetries           map[int32]uint
+	ignoredPids              core.PidSet
+	pidHeartbeats            map[int32]time.Time
+	metricDiscoveredServices telemetry.Gauge
 }
 
 // EventType represents the type of collector event
@@ -134,9 +136,7 @@ func GetFxOptions() fx.Option {
 
 // isProcessCollectionEnabled returns a boolean indicating if the process collector is enabled
 func (c *collector) isProcessCollectionEnabled() bool {
-	// TODO: implement the logic to check if the process collector is enabled based on dependent configs (process collection, language detection, service discovery)
-	// hardcoded to false until the new collector has all functionality/consolidation completed (service discovery, language collection, etc)
-	return false
+	return c.config.GetBool("process_config.process_collection.use_wlm")
 }
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled
@@ -178,6 +178,15 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	if c.isServiceDiscoveryEnabled() {
+		// Initialize service discovery metric
+		c.metricDiscoveredServices = telemetry.NewGaugeWithOpts(
+			collectorID,
+			"discovered_services",
+			[]string{},
+			"Number of discovered alive services.",
+			telemetry.DefaultOptions,
+		)
+
 		if c.isProcessCollectionEnabled() {
 			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
 		} else {
@@ -530,6 +539,17 @@ func (c *collector) cleanDiscoveryMaps(alivePids core.PidSet) {
 	cleanPidMaps(alivePids, c.pidHeartbeats)
 }
 
+// updateDiscoveredServicesMetric updates the metric with the count of discovered services
+func (c *collector) updateDiscoveredServicesMetric() {
+	if c.metricDiscoveredServices == nil {
+		return
+	}
+
+	count := len(c.pidHeartbeats)
+	log.Debugf("discovered services count: %d", count)
+	c.metricDiscoveredServices.Set(float64(count))
+}
+
 // getDiscoveryURL builds the URL for the discovery endpoint
 func getDiscoveryURL(endpoint string) string {
 	URL := &url.URL{
@@ -618,6 +638,7 @@ func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker
 			c.mux.Unlock()
 
 			c.cleanDiscoveryMaps(alivePids)
+			c.updateDiscoveredServicesMetric()
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return
@@ -666,6 +687,7 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 			}
 
 			c.cleanDiscoveryMaps(alivePids)
+			c.updateDiscoveredServicesMetric()
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return

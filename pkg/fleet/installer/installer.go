@@ -61,7 +61,9 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error
+	InstallConfigExperiment(
+		ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string,
+	) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -86,6 +88,11 @@ type installerImpl struct {
 
 	packagesDir    string
 	userConfigsDir string
+}
+
+type experimentConfigAction struct {
+	ActionType configFileAction `json:"action_type"`
+	Files      []configFile     `json:"files"`
 }
 
 // NewInstaller returns a new Package Manager.
@@ -305,7 +312,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not remove package installation in db: %w", err)
 	}
-	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
+	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
@@ -363,7 +370,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		)
 	}
 	defer os.RemoveAll(tmpDir)
-	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
+	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -494,7 +501,10 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
+// TODO: remove the last parameter (configOrder)
+func (i *installerImpl) InstallConfigExperiment(
+	ctx context.Context, pkg string, version string, rawConfigs [][]byte, _ []string,
+) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -507,15 +517,8 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Merge config files
-	mergedConfigs, err := mergeConfigs(rawConfigs)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrConfigMergeFailed,
-			fmt.Errorf("could not merge configs: %w", err),
-		)
-	}
-	err = i.writeConfig(tmpDir, mergedConfigs)
+	// TODO: starts with copying the stable config files
+	err = i.writeConfig(tmpDir, rawConfigs)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -831,42 +834,64 @@ type configFileAction string
 
 const (
 	configFileActionUnknown configFileAction = ""
-	configFileActionAdd     configFileAction = "add"
+	configFileActionWrite   configFileAction = "write"
 	configFileActionRemove  configFileAction = "remove"
 )
 
 type configFile struct {
-	Path     string           `json:"path"`
-	Action   configFileAction `json:"action"`
-	Contents json.RawMessage  `json:"contents"`
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
 }
 
-func (i *installerImpl) writeConfig(dir string, files map[string]configFile) error {
-	for _, file := range files {
-		file.Path = cleanConfigName(file.Path)
-		if !configNameAllowed(file.Path) {
-			return fmt.Errorf("config file %s is not allowed", file)
+func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error {
+	for _, rawConfigAction := range rawConfigActions {
+		var configAction experimentConfigAction
+		err := json.Unmarshal(rawConfigAction, &configAction)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal config files: %w", err)
 		}
 
-		if file.Action != configFileActionAdd {
-			return fmt.Errorf("config file %s has unknown action %s", file.Path, file.Action)
-		}
-		var c interface{}
-		err := json.Unmarshal(file.Contents, &c)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal config file contents: %w", err)
-		}
-		serialized, err := yaml.Marshal(c)
-		if err != nil {
-			return fmt.Errorf("could not serialize config file contents: %w", err)
-		}
-		err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
-		if err != nil {
-			return fmt.Errorf("could not create config file directory: %w", err)
-		}
-		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
-		if err != nil {
-			return fmt.Errorf("could not write config file: %w", err)
+		for _, file := range configAction.Files {
+			file.Path = cleanConfigName(file.Path)
+
+			if !configNameAllowed(file.Path) {
+				return fmt.Errorf("config file %s is not allowed", file)
+			}
+
+			switch configAction.ActionType {
+			case configFileActionRemove:
+				err = os.Remove(filepath.Join(dir, file.Path))
+				if err != nil {
+					if os.IsNotExist(err) {
+						log.Warnf("config file %s does not exist, skipping", file.Path)
+						continue
+					}
+					return fmt.Errorf("could not remove config file: %w", err)
+				}
+			case configFileActionWrite:
+				var c interface{}
+				err = json.Unmarshal(file.Contents, &c)
+				if err != nil {
+					return fmt.Errorf("could not unmarshal config file contents: %w", err)
+				}
+				serialized, err := yaml.Marshal(c)
+				if err != nil {
+					return fmt.Errorf("could not serialize config file contents: %w", err)
+				}
+				if len(serialized) == 0 {
+					return fmt.Errorf("config file %s has no contents, skipping", file.Path)
+				}
+				err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
+				if err != nil {
+					return fmt.Errorf("could not create config file directory: %w", err)
+				}
+				err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
+				if err != nil {
+					return fmt.Errorf("could not write config file: %w", err)
+				}
+			default:
+				return fmt.Errorf("unknown config file action: %s", configAction.ActionType)
+			}
 		}
 	}
 	return nil
@@ -960,40 +985,4 @@ func ensureRepositoriesExist() error {
 	}
 
 	return nil
-}
-
-// mergeConfigs merges multiple config files into a single map of config files.
-// Takes remote-config configs as an input, and returns a map of files to write
-// on disk. The map is keyed by the path of the file to write, and the value is
-// the contents of the file.
-//
-// The input is a slice of bytes, which is the JSON-encoded contents of the
-// remote-config config files. The JSON is expected to be an array of objects,
-// each with a `path` and `contents` field.
-func mergeConfigs(rawConfigs [][]byte) (map[string]configFile, error) {
-	mergedFiles := make(map[string]configFile)
-	for _, rawConfig := range rawConfigs {
-		var configFiles []configFile
-		err := json.Unmarshal(rawConfig, &configFiles)
-		if err != nil {
-			return nil, fmt.Errorf("could not unmarshal config files: %w", err)
-		}
-		for _, file := range configFiles {
-			if file.Action == configFileActionUnknown {
-				// Default to add if action is unknown
-				file.Action = configFileActionAdd
-			}
-			file.Path = cleanConfigName(file.Path)
-			if !configNameAllowed(file.Path) {
-				return nil, fmt.Errorf("config file %s is not allowed", file)
-			}
-
-			if file.Action == configFileActionRemove {
-				delete(mergedFiles, file.Path)
-			} else if file.Action == configFileActionAdd {
-				mergedFiles[file.Path] = file
-			}
-		}
-	}
-	return mergedFiles, nil
 }

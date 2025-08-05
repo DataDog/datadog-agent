@@ -47,9 +47,11 @@ build do
   else
     mkdir "#{install_dir}/embedded/ssl/certs"
     copy "#{project_dir}/cacert.pem", "#{install_dir}/embedded/ssl/certs/cacert.pem"
-
-    link "#{install_dir}/embedded/ssl/certs/cacert.pem", "#{install_dir}/embedded/ssl/cert.pem"
-
-    block { File.chmod(0644, "#{install_dir}/embedded/ssl/certs/cacert.pem") }
+    block 'set certificate permissions and relative symlink within embedded SSL configuration' do
+      Dir.chdir "#{install_dir}/embedded/ssl" do
+        File.chmod 0644, 'certs/cacert.pem'
+        File.symlink 'certs/cacert.pem', 'cert.pem'
+      end
+    end
   end
 end

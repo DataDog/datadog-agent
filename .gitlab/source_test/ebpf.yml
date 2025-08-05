@@ -24,7 +24,12 @@
     - dda inv -- -e system-probe.object-files
     - dda inv -- -e linter.go --build system-probe-unit-tests --cpus 4 --targets ./pkg
     - dda inv -- -e security-agent.run-ebpf-unit-tests --verbose
+    # Run a subset of the dyninst tests that will at least exercise analysis of
+    # the test programs to try to prevent skew between concurrent changes.
+    - dda inv -- -e system-probe.build-dyninst-test-programs
+    - dda inv -- -e system-probe.test --packages='pkg/dyninst/irgen pkg/dyninst/symdb' --extra-arguments=--short --skip-object-files
     - dda inv -- -e linter.go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata"
+  retry: !reference [.retry_only_infra_failure, retry]
 
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
