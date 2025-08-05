@@ -2,12 +2,12 @@ import getpass
 import os
 import re
 import shutil
-from pathlib import Path
 import tomllib
+from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.compiler import CompilerImage, get_compiler
+from tasks.kernel_matrix_testing.compiler import CompilerImage
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
