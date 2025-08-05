@@ -165,6 +165,7 @@ build do
             delete "#{install_dir}/embedded/bin/pg_config"
 
             # Edit rpath from a true path to relative path for each binary
+            mv "#{install_dir}/embedded/lib" "#{install_dir}/embedded/lib-XXX"
             command "inv omnibus.rpath-edit #{install_dir} /opt/datadog-packages/datadog-agent/experiment:/opt/datadog-packages/datadog-agent/stable:/opt/datadog-agent", cwd: Dir.pwd
         end
 

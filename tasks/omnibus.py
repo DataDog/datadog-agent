@@ -540,14 +540,14 @@ def _replace_dylib_id_paths_with_rpath(ctx, otool_output, install_path, file):
 
 def _patch_binary_rpath(ctx, new_rpaths, install_path, binary_rpath, platform, file):
     if platform == "linux":
-        rpath_concat = ":".join([f"\\$ORIGIN/{new_rpath}/embedded/lib" for new_rpath in new_rpaths])
+        rpath_concat = ":".join([f"\\$ORIGIN/{new_rpath}/embedded/lib-XXX" for new_rpath in new_rpaths])
         ctx.run(f"patchelf --force-rpath --set-rpath {rpath_concat} {file}")
     else:
         # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
         # but just in case we're replacing them all.
         # We're also avoiding unnecessary `install_name_tool` call as much as possible.
         number_of_rpaths = binary_rpath.count('\n') // 3
-        rpath_concat = ":".join([f"@loader_path/{new_rpath}/embedded/lib" for new_rpath in new_rpaths])
+        rpath_concat = ":".join([f"@loader_path/{new_rpath}/embedded/lib-XXX" for new_rpath in new_rpaths])
         for _ in range(number_of_rpaths):
             exit_code = ctx.run(
                 f"install_name_tool -rpath {install_path}/embedded/lib {rpath_concat} {file}",

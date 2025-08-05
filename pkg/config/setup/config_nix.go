@@ -8,6 +8,8 @@
 package setup
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -26,11 +28,11 @@ var (
 
 var (
 	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
-	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
+	DefaultSystemProbeAddress string
 	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
-	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
+	defaultEventMonitorAddress string
 	// DefaultDDAgentBin the process agent's binary
-	DefaultDDAgentBin = filepath.Join(InstallPath, "bin/agent/agent")
+	DefaultDDAgentBin string
 )
 
 const (
@@ -56,6 +58,16 @@ const (
 // called by init in config.go, to ensure any os-specific config is done
 // in time
 func osinit() {
+	DefaultDDAgentBin, err := os.Executable()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get executable path: %v", err))
+	}
+	// {InstallPath}/bin/agent/agent is the executable path, so we have to go two levels ups
+	InstallPath = filepath.Dir(filepath.Dir(filepath.Dir(DefaultDDAgentBin)))
+
+	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
+	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
+
 	if defaultRunPath == "" {
 		defaultRunPath = filepath.Join(InstallPath, "run")
 	}
