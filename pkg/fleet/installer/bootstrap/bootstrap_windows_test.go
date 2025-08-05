@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 func TestGetInstallPath(t *testing.T) {
@@ -46,6 +48,21 @@ func TestGetInstallPathSystemTemp(t *testing.T) {
 	// create temp directory
 	tmpDir := t.TempDir()
 
+	// backup original CreateSystemTempDir() function and restore the original function once we're done
+	// Use a different function that creates a directory in the test's temp directory
+	var originalCreateSystemTempDir = paths.CreateSystemTempDir
+	defer func() {
+		paths.CreateSystemTempDir = originalCreateSystemTempDir
+	}()
+
+	paths.CreateSystemTempDir = func() (string, error) {
+		err := os.Mkdir(filepath.Join(tmpDir, "datadog-installer"), 0755)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(tmpDir, "datadog-installer"), nil
+	}
+
 	// add an exe to the temp directory
 	exePath := filepath.Join(tmpDir, "datadog-installer.exe")
 
@@ -70,16 +87,22 @@ func TestGetInstallPathSystemTemp(t *testing.T) {
 		t.Fatalf("Expected install path to be %s, got %s", exePath, installPath)
 	}
 
-	// check the install path is in the system temp directory
-	systemTempPath := filepath.Join(os.TempDir(), "datadog-installer.exe")
-
+	// move the installer to the system temp directory
 	installPath, err = moveInstallerToSystemTemp(installPath)
 	if err != nil {
 		t.Fatalf("Failed to move installer to system temp: %v", err)
 	}
 
-	// check the install path is in the system temp directory
-	if installPath != systemTempPath {
-		t.Fatalf("Expected install path to be %s, got %s", systemTempPath, installPath)
+	tempPaths, err := filepath.Glob(filepath.Join(tmpDir, "datadog-installer\\*\\datadog-installer.exe"))
+	if err != nil {
+		t.Fatalf("Failed to glob system temp path: %v", err)
+	}
+
+	if len(tempPaths) != 1 {
+		t.Fatalf("Expected 1 temp path, got %d", len(tempPaths))
+	}
+
+	if installPath != tempPaths[0] {
+		t.Fatalf("Expected install path to be %s, got %s", tempPaths[0], installPath)
 	}
 }
