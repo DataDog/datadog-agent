@@ -56,7 +56,7 @@ func addStream(t *testing.T, streamHandlers *streamCollection, pid uint32, strea
 		gpuUUID:     gpuUUID,
 	}
 
-	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, getStreamLimits(config.New()), streamHandlers.telemetry)
+	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, config.New().StreamConfig, streamHandlers.telemetry)
 	require.NoError(t, err)
 	streamHandlers.streams[key] = stream
 
@@ -73,7 +73,7 @@ func addGlobalStream(t *testing.T, streamHandlers *streamCollection, pid uint32,
 		gpuUUID:     gpuUUID,
 	}
 
-	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, getStreamLimits(config.New()), streamHandlers.telemetry)
+	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, config.New().StreamConfig, streamHandlers.telemetry)
 	require.NoError(t, err)
 	streamHandlers.globalStreams[key] = stream
 
