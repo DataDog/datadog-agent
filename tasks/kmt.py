@@ -422,6 +422,7 @@ def ls(_, distro=True, custom=False):
         "all-images": "Download all available VM images for the current architecture.",
         "skip-ssh-setup": "Skip step to setup SSH files for interacting with remote AWS VMs",
         "exclude-requirements": "Comma separated list of requirements to exclude. Refer to the output of `dda inv kmt.selfcheck` for the available requirements.",
+        "only-requirements": "Comma separated list of requirements to include, no other requirements will be checked. Refer to the output of `dda inv kmt.selfcheck` for the available requirements.",
     }
 )
 def init(
@@ -431,6 +432,7 @@ def init(
     remote_setup_only=False,
     skip_ssh_setup=False,
     exclude_requirements: list[str] | None = None,
+    only_requirements: list[str] | None = None,
 ):
     if not remote_setup_only and not all_images and images is None:
         if (
@@ -453,6 +455,7 @@ def init(
             all_images,
             remote_setup_only,
             exclude_requirements,
+            only_requirements,
         )
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
@@ -472,8 +475,9 @@ def selfcheck(
     remote_setup_only: bool = False,
     fix: bool = False,
     exclude_requirements: list[str] | None = None,
+    only_requirements: list[str] | None = None,
 ):
-    requirements = get_requirements(remote_setup_only, exclude_requirements)
+    requirements = get_requirements(remote_setup_only, exclude_requirements, only_requirements)
     if check_requirements(ctx, requirements, fix=fix, echo=True, verbose=ctx.config["run"]["echo"]):
         raise Exit("[-] KMT setup incorrect")
     else:
