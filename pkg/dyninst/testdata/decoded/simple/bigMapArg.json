@@ -14,7 +14,28 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": [
+          {
+            "function": "main.bigMapArg",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 102
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 30
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": 283
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
         "probe": {
           "id": "bigMapArg",
           "location": {
@@ -26,7 +47,567 @@
             "arguments": {
               "m": {
                 "type": "map[string]main.bigStruct",
-                "notCapturedReason": "unimplemented"
+                "size": "1",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "b"
+                    },
+                    {
+                      "type": "*main.bigStruct",
+                      "address": "[addr]",
+                      "fields": {
+                        "Field1": {
+                          "type": "int",
+                          "value": "1"
+                        },
+                        "Field2": {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        "Field3": {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        "Field4": {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        "Field5": {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        "Field6": {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        "Field7": {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        "data": {
+                          "type": "[128]uint8",
+                          "size": "128",
+                          "elements": [
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            },
+                            {
+                              "type": "uint8",
+                              "value": "0"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                ]
               }
             }
           }

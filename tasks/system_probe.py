@@ -480,7 +480,6 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
-        "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
         "pkg/gpu/compile.go": "gpu",
     }
 
@@ -600,7 +599,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
-            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/base_event.h"],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
             ],
@@ -1082,7 +1080,9 @@ def go_package_dirs(packages, build_tags):
     else:
         packages_arg = " ".join(packages)
 
-    cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
+    # Disable buildvcs to avoid attempting to invoke git, which can be slow in
+    # VMs and we don't need its output here.
+    cmd = f"go list -find -buildvcs=false -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
     return [p for p in target_packages if len(p) > 0]
@@ -2167,7 +2167,7 @@ def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bo
         nw.pool(name="gobuild", depth=go_parallelism)
         nw.rule(
             name="gobin",
-            command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
+            command="$chdir && $env $go build -o $out $extra_arguments $tags $ldflags $in $tool",
         )
         ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
     ctx.run(f"ninja -d explain -v -f {nf_path}")
@@ -2199,7 +2199,9 @@ def ninja_add_dyninst_test_programs(
     # Run from within the progs directory so that the go list command can find
     # the go.mod file.
     with ctx.cd(progs_path):
-        list_cmd = f"go list -test -f '{list_format}' {tags_flag} ./..."
+        # Disable buildvcs to avoid attempting to invoke git, which can be
+        # slow in VMs and we don't need it for our tests.
+        list_cmd = f"go list -buildvcs=false -mod=readonly -test -f '{list_format}' {tags_flag} ./..."
         # Disable GOWORK because our testprogs go.mod isn't listed there.
         env = {"GOWORK": "off"}
         res = ctx.run(list_cmd, hide=True, env=env)
@@ -2248,6 +2250,16 @@ def ninja_add_dyninst_test_programs(
             pool="gobuild",
             variables={
                 "go": go_path,
+                "extra_arguments": " ".join(
+                    [
+                        # Trimpath is used so that the binaries have predictable
+                        # source paths.
+                        "-trimpath",
+                        # Disable buildvcs to avoid attempting to invoke git, which can
+                        # be slow in VMs and we don't need it for our tests.
+                        "-buildvcs=false",
+                    ]
+                ),
                 # Run from within the package directory so that the go build
                 # command finds the go.mod file.
                 "chdir": f"cd {pkg_path}",

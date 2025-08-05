@@ -111,7 +111,7 @@ type localBlocklistConfig struct {
 // Server represent a Dogstatsd server
 type server struct {
 	log    log.Component
-	config model.Reader
+	config model.ReaderWriter
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
 
@@ -177,6 +177,8 @@ type server struct {
 	tlmProcessedOk          telemetry.SimpleCounter
 	tlmProcessedError       telemetry.SimpleCounter
 	tlmChannel              telemetry.Histogram
+	tlmFilterListUpdates    telemetry.SimpleCounter
+	tlmFilterListSize       telemetry.SimpleGauge
 	listernersTelemetry     *listeners.TelemetryStore
 	packetsTelemetry        *packets.TelemetryStore
 	stringInternerTelemetry *stringInternerTelemetry
@@ -215,7 +217,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg model.Reader, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -331,6 +333,12 @@ func newServerCompat(cfg model.Reader, log log.Component, hostname hostnameinter
 		[]string{"shard", "message_type"},
 		"Time in nanosecond to push metrics to the aggregator input buffer",
 		buckets)
+	s.tlmFilterListUpdates = telemetrycomp.NewSimpleCounter("dogstatsd", "filterlist_updates",
+		"Incremented when a reconfiguration of the filterlist happened",
+	)
+	s.tlmFilterListSize = telemetrycomp.NewSimpleGauge("dogstatsd", "filterlist_size",
+		"Filter list size",
+	)
 
 	s.listernersTelemetry = listeners.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_latency_buckets"), telemetrycomp)
 	s.packetsTelemetry = packets.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_channel_latency_buckets"), telemetrycomp)
@@ -605,6 +613,11 @@ func (s *server) handleMessages() {
 }
 
 func (s *server) restoreBlocklistFromLocalConfig() {
+	s.log.Debug("Restoring blocklist with local config.")
+
+	s.tlmFilterListUpdates.Inc()
+	s.tlmFilterListSize.Set(float64(len(s.localBlocklistConfig.metricNames)))
+
 	s.SetBlocklist(
 		s.localBlocklistConfig.metricNames,
 		s.localBlocklistConfig.matchPrefix,

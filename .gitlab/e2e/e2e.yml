@@ -82,6 +82,7 @@
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
+    E2E_COVERAGE_OUT_DIR: $CI_PROJECT_DIR/coverage
     PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
   script:
@@ -98,9 +99,11 @@
       - $E2E_RESULT_JSON
       # junit tarball, kept for investigations
       - junit-*.tgz
+      - $E2E_COVERAGE_OUT_DIR
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 .needs_new_e2e_template:
   - go_e2e_deps
@@ -305,7 +308,7 @@ new-e2e-windows-fips-compliance-test:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/fips-compliance
-    TEAM: windows-agent
+    TEAM: windows-products
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestWindowsVM$"
@@ -321,7 +324,7 @@ new-e2e-windows-service-test:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/windows/service-test
-    TEAM: windows-agent
+    TEAM: windows-products
     ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
@@ -348,7 +351,7 @@ new-e2e-windows-certificate:
     - deploy_windows_testing-a7
   variables:
     TARGETS: ./tests/windows/windows-certificate
-    TEAM: windows-agent
+    TEAM: windows-products
     EXTRA_PARAMS: --run "TestRemoteCertificates$"
 
 new-e2e-language-detection:
@@ -492,7 +495,6 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    REMOTE_STACK_CLEANING: "true"
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
   parallel:
@@ -606,6 +608,7 @@ new-e2e-installer:
     - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
     - deploy_agent_oci
+    - installer-install-scripts
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -664,6 +667,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
+      - EXTRA_PARAMS: --run "TestUpgradeWithMissingPassword$/TestUpgradeWithMissingPassword$"
       # agent config experiment
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
@@ -789,7 +793,7 @@ new-e2e-windows-systemprobe:
     - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/sysprobe-functional
-    TEAM: windows-agent
+    TEAM: windows-products
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
@@ -806,7 +810,7 @@ new-e2e-windows-security-agent:
     - tests_windows_secagent_x64
   variables:
     TARGETS: ./tests/security-agent-functional
-    TEAM: windows-agent
+    TEAM: windows-products
 
 new-e2e-otel-eks-init:
   stage: e2e_init
