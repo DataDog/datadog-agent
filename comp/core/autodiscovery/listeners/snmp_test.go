@@ -557,11 +557,11 @@ func TestMigrateCache(t *testing.T) {
 			legacyCacheKey := buildCacheKey(legacyConfigHash)
 
 			if tt.newCacheExists {
-				err = persistentcache.Write(newCacheKey, ``)
+				err = persistentcache.Write(newCacheKey, `[{"ip":"192.168.1.6","auth_index":1}]`)
 				assert.NoError(t, err)
 			}
 			if tt.legacyCacheExists {
-				err = persistentcache.Write(legacyCacheKey, ``)
+				err = persistentcache.Write(legacyCacheKey, `[{"ip":"192.168.1.6","auth_index":1}]`)
 				assert.NoError(t, err)
 			}
 
