@@ -27,6 +27,10 @@ var (
 	hostnameExpvars  = expvar.NewMap("hostname")
 	hostnameProvider = expvar.String{}
 	hostnameErrors   = expvar.Map{}
+	driftCalculator  = driftService{
+		initialDelay:      DefaultInitialDelay,
+		recurringInterval: DefaultRecurringInterval,
+	}
 )
 
 func init() {
@@ -230,7 +234,7 @@ func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution 
 
 	if hostname != "" {
 		hostnameData := saveHostname(cacheHostnameKey, hostname, providerName, legacyHostnameResolution)
-		scheduleHostnameDriftChecks(ctx, hostnameData)
+		driftCalculator.scheduleHostnameDriftChecks(ctx, hostnameData)
 		return hostnameData, nil
 	}
 

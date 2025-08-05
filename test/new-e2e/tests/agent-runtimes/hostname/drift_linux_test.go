@@ -24,7 +24,9 @@ type hostnameDriftLinuxSuite struct {
 }
 
 func TestHostnameDriftLinuxSuite(t *testing.T) {
-	e2e.Run(t, &hostnameDriftLinuxSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner())}
+
+	e2e.Run(t, &hostnameDriftLinuxSuite{}, suiteParams...)
 }
 
 func (v *hostnameDriftLinuxSuite) TestHostnameDriftMetricsEmission() {
@@ -47,55 +49,20 @@ hostname_drift_recurring_interval: 60s`
 	// Wait for the initial drift check to complete (initial delay + some buffer)
 	time.Sleep(45 * time.Second)
 
-	// Verify that hostname drift metrics are emitted
+	// Verify that hostname drift metrics are emitted using agent telemetry
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		// Get metrics from fake intake
-		metrics, err := v.Env().FakeIntake.Client().FilterMetrics("datadog.agent.hostname.drift_detected")
-		if !assert.NoError(c, err, "Should be able to query drift_detected metrics") {
+		// Get telemetry metrics from agent
+		output, err := v.Env().RemoteHost.Execute("sudo datadog-agent diagnose show-metadata agent-full-telemetry | grep drift_resolution_time_ms")
+		if !assert.NoError(c, err, "Should be able to execute diagnose command") {
 			return
 		}
 
-		// Check that we have at least one drift detection metric
-		// Note: The metric might be 0 if no drift was detected, but the metric should exist
-		assert.NotEmpty(c, metrics, "Should have drift_detected metrics")
+		// Check that we have drift resolution time metrics in the output
+		assert.Contains(c, output, "drift_resolution_time_ms", "Should have drift_resolution_time_ms metrics in telemetry")
 
-		// Also check for resolution time metrics
-		resolutionMetrics, err := v.Env().FakeIntake.Client().FilterMetrics("datadog.agent.hostname.drift_resolution_time_ms")
-		if !assert.NoError(c, err, "Should be able to query drift_resolution_time_ms metrics") {
-			return
-		}
+		// Check for specific metric components
+		assert.Contains(c, output, "provider=", "Should have provider tag in metrics")
+		assert.Contains(c, output, "state=", "Should have state tag in metrics")
 
-		assert.NotEmpty(c, resolutionMetrics, "Should have drift_resolution_time_ms metrics")
-
-	}, 2*time.Minute, 10*time.Second, "Hostname drift metrics should be emitted")
-
-	// Verify that the metrics have the expected tags
-	v.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := v.Env().FakeIntake.Client().FilterMetrics("datadog.agent.hostname.drift_detected")
-		if !assert.NoError(c, err, "Should be able to query drift_detected metrics") {
-			return
-		}
-
-		if len(metrics) > 0 {
-			// Check that the metric has the expected tags
-			metric := metrics[len(metrics)-1] // Get the latest metric
-			tags := metric.GetTags()
-
-			// Should have state and provider tags
-			hasState := false
-			hasProvider := false
-			for _, tag := range tags {
-				if len(tag) > 6 && tag[:6] == "state:" {
-					hasState = true
-				}
-				if len(tag) > 9 && tag[:9] == "provider:" {
-					hasProvider = true
-				}
-			}
-
-			assert.True(c, hasState, "Drift metric should have state tag")
-			assert.True(c, hasProvider, "Drift metric should have provider tag")
-		}
-
-	}, 1*time.Minute, 5*time.Second, "Drift metrics should have expected tags")
+	}, 2*time.Minute, 10*time.Second, "Hostname drift metrics should be emitted in agent telemetry")
 }

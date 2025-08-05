@@ -9,7 +9,6 @@ package hostname
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -17,14 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
-// Default timing values that can be modified for testing
-var (
-	// defaultInitialDelay is the default delay before the first check (20 minutes)
-	defaultInitialDelay = 20 * time.Minute
-	// defaultRecurringInterval is the default interval for recurring checks (6 hours)
-	defaultRecurringInterval = 6 * time.Hour
-	// timingMutex protects access to the timing variables
-	timingMutex sync.RWMutex
+// driftService contains configuration for hostname drift detection
+type driftService struct {
+	initialDelay      time.Duration
+	recurringInterval time.Duration
+}
+
+// Default timing values
+const (
+	DefaultInitialDelay      = 20 * time.Minute
+	DefaultRecurringInterval = 6 * time.Hour
 )
 
 // Telemetry metrics
@@ -48,40 +49,22 @@ type driftInfo struct {
 	hasDrift bool
 }
 
-func setDefaultInitialDelay(delay time.Duration) {
-	timingMutex.Lock()
-	defaultInitialDelay = delay
-	timingMutex.Unlock()
-}
-
-func setDefaultRecurringInterval(interval time.Duration) {
-	timingMutex.Lock()
-	defaultRecurringInterval = interval
-	timingMutex.Unlock()
-}
-
 // getInitialDelay returns the initial delay for drift checks, with config override
-func getInitialDelay() time.Duration {
-	timingMutex.RLock()
-	defer timingMutex.RUnlock()
-
+func (ds *driftService) getInitialDelay() time.Duration {
 	// Check if config override is set
 	if configDelay := setup.Datadog().GetDuration("hostname_drift_initial_delay"); configDelay > 0 {
 		return configDelay
 	}
-	return defaultInitialDelay
+	return ds.initialDelay
 }
 
 // getRecurringInterval returns the recurring interval for drift checks, with config override
-func getRecurringInterval() time.Duration {
-	timingMutex.RLock()
-	defer timingMutex.RUnlock()
-
+func (ds *driftService) getRecurringInterval() time.Duration {
 	// Check if config override is set
 	if configInterval := setup.Datadog().GetDuration("hostname_drift_recurring_interval"); configInterval > 0 {
 		return configInterval
 	}
-	return defaultRecurringInterval
+	return ds.recurringInterval
 }
 
 // determineDriftState determines the drift state and whether any drift occurred
@@ -99,32 +82,32 @@ func determineDriftState(oldData, newData Data) driftInfo {
 	return driftInfo{state: noDrift, hasDrift: false}
 }
 
-func scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
+func (ds *driftService) scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
 	cacheHostnameKey := cache.BuildAgentKey("hostname_check")
 	cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
 
 	go func() {
 		// Wait for the initial delay before the first check
-		initialDelay := getInitialDelay()
+		initialDelay := ds.getInitialDelay()
 		initialTimer := time.NewTimer(initialDelay)
 		defer initialTimer.Stop()
 
 		select {
 		case <-initialTimer.C:
 			// First check after initial delay
-			checkHostnameDrift(ctx, cacheHostnameKey)
+			ds.checkHostnameDrift(ctx, cacheHostnameKey)
 		case <-ctx.Done():
 			return
 		}
 
 		// Then start the recurring checks
-		recurringInterval := getRecurringInterval()
+		recurringInterval := ds.getRecurringInterval()
 		driftTicker := time.NewTicker(recurringInterval)
 		defer driftTicker.Stop()
 		for {
 			select {
 			case <-driftTicker.C:
-				checkHostnameDrift(ctx, cacheHostnameKey)
+				ds.checkHostnameDrift(ctx, cacheHostnameKey)
 			case <-ctx.Done():
 				return
 			}
@@ -132,7 +115,7 @@ func scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
 	}()
 }
 
-func checkHostnameDrift(ctx context.Context, cacheHostnameKey string) {
+func (ds *driftService) checkHostnameDrift(ctx context.Context, cacheHostnameKey string) {
 	var hostname string
 	var providerName string
 	var hostnameData Data

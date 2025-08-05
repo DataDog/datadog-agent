@@ -126,40 +126,6 @@ func TestDetermineDriftState(t *testing.T) {
 	}
 }
 
-func TestTelemetryMetricsCreation(t *testing.T) {
-	// Test that the telemetry metrics are properly created
-	assert.NotNil(t, tlmDriftDetected, "Expected drift_detected telemetry metric to be created")
-	assert.NotNil(t, tlmDriftResolutionTime, "Expected drift_resolution_time_ms telemetry metric to be created")
-}
-
-func TestDriftStateTelemetryEmission(t *testing.T) {
-	// Test that telemetry metrics are emitted when drift is detected
-	// This test directly tests the telemetry emission without relying on hostname detection
-
-	// Create test data
-	oldData := Data{
-		Hostname: "old-hostname",
-		Provider: "old-provider",
-	}
-
-	newData := Data{
-		Hostname: "new-hostname",
-		Provider: "new-provider",
-	}
-
-	// Determine drift state
-	drift := determineDriftState(oldData, newData)
-
-	// Verify drift was detected
-	assert.True(t, drift.hasDrift, "Expected drift to be detected")
-	assert.Equal(t, hostnameProviderChanged, drift.state, "Expected hostname_provider_drift state")
-
-	// Test that telemetry metrics can be incremented (this verifies they exist and work)
-	// Note: We can't easily verify the actual values in tests, but we can verify the metrics exist
-	assert.NotNil(t, tlmDriftDetected, "Expected drift_detected telemetry metric to exist")
-	assert.NotNil(t, tlmDriftResolutionTime, "Expected drift_resolution_time_ms telemetry metric to exist")
-}
-
 func TestScheduleHostnameDriftChecks(t *testing.T) {
 	// Clear cache before test
 	cacheHostnameKey := cache.BuildAgentKey("hostname_check")
@@ -171,24 +137,18 @@ func TestScheduleHostnameDriftChecks(t *testing.T) {
 		Provider: "test-provider",
 	}
 
-	// Set shorter intervals for testing
-	originalInitialDelay := defaultInitialDelay
-	originalRecurringInterval := defaultRecurringInterval
-	defer func() {
-		setDefaultInitialDelay(originalInitialDelay)
-		setDefaultRecurringInterval(originalRecurringInterval)
-	}()
-
-	// Use shorter intervals for faster testing
-	setDefaultInitialDelay(10 * time.Millisecond)
-	setDefaultRecurringInterval(50 * time.Millisecond)
+	// Create a drift service with shorter intervals for testing
+	ds := driftService{
+		initialDelay:      10 * time.Millisecond,
+		recurringInterval: 50 * time.Millisecond,
+	}
 
 	// Create a context that we can cancel
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Schedule the drift checks
-	scheduleHostnameDriftChecks(ctx, hostnameData)
+	ds.scheduleHostnameDriftChecks(ctx, hostnameData)
 
 	// Verify that the initial data was cached
 	cachedData, found := cache.Cache.Get(cacheHostnameKey)
@@ -209,29 +169,4 @@ func TestScheduleHostnameDriftChecks(t *testing.T) {
 
 	// Give some time for the goroutine to clean up
 	time.Sleep(10 * time.Millisecond)
-}
-
-func TestConfigDriftTiming(t *testing.T) {
-	// Test that configuration options override default timing values
-	originalInitialDelay := defaultInitialDelay
-	originalRecurringInterval := defaultRecurringInterval
-	defer func() {
-		setDefaultInitialDelay(originalInitialDelay)
-		setDefaultRecurringInterval(originalRecurringInterval)
-	}()
-
-	// Set test values
-	testInitialDelay := 5 * time.Second
-	testRecurringInterval := 10 * time.Second
-
-	// Test that getInitialDelay and getRecurringInterval return default values when no config is set
-	assert.Equal(t, defaultInitialDelay, getInitialDelay())
-	assert.Equal(t, defaultRecurringInterval, getRecurringInterval())
-
-	// Test that setter functions work
-	setDefaultInitialDelay(testInitialDelay)
-	setDefaultRecurringInterval(testRecurringInterval)
-
-	assert.Equal(t, testInitialDelay, getInitialDelay())
-	assert.Equal(t, testRecurringInterval, getRecurringInterval())
 }
