@@ -7,7 +7,7 @@ require go.opentelemetry.io/collector/otelcol v0.131.0
 require (
 	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
-	sigs.k8s.io/yaml v1.5.0 // indirect
+	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
 require (
