@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
@@ -59,6 +60,30 @@ func setDefaultRecurringInterval(interval time.Duration) {
 	timingMutex.Unlock()
 }
 
+// getInitialDelay returns the initial delay for drift checks, with config override
+func getInitialDelay() time.Duration {
+	timingMutex.RLock()
+	defer timingMutex.RUnlock()
+
+	// Check if config override is set
+	if configDelay := setup.Datadog().GetDuration("hostname_drift_initial_delay"); configDelay > 0 {
+		return configDelay
+	}
+	return defaultInitialDelay
+}
+
+// getRecurringInterval returns the recurring interval for drift checks, with config override
+func getRecurringInterval() time.Duration {
+	timingMutex.RLock()
+	defer timingMutex.RUnlock()
+
+	// Check if config override is set
+	if configInterval := setup.Datadog().GetDuration("hostname_drift_recurring_interval"); configInterval > 0 {
+		return configInterval
+	}
+	return defaultRecurringInterval
+}
+
 // determineDriftState determines the drift state and whether any drift occurred
 func determineDriftState(oldData, newData Data) driftInfo {
 	hostnameDiff := oldData.Hostname != newData.Hostname
@@ -80,9 +105,7 @@ func scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
 
 	go func() {
 		// Wait for the initial delay before the first check
-		timingMutex.RLock()
-		initialDelay := defaultInitialDelay
-		timingMutex.RUnlock()
+		initialDelay := getInitialDelay()
 		initialTimer := time.NewTimer(initialDelay)
 		defer initialTimer.Stop()
 
@@ -95,9 +118,7 @@ func scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
 		}
 
 		// Then start the recurring checks
-		timingMutex.RLock()
-		recurringInterval := defaultRecurringInterval
-		timingMutex.RUnlock()
+		recurringInterval := getRecurringInterval()
 		driftTicker := time.NewTicker(recurringInterval)
 		defer driftTicker.Stop()
 		for {
