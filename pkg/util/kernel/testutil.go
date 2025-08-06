@@ -22,10 +22,10 @@ import (
 // test. procRoot should be a path to a directory that contains the /proc
 // filesystem. CreateFakeProcFS can be used to create a fake /proc filesystem.
 // in a structured manner
-func WithFakeProcFS(t *testing.T, procRoot string) {
+func WithFakeProcFS(tb testing.TB, procRoot string) {
 	resetProcFSRoot()
-	t.Setenv("HOST_PROC", procRoot)
-	t.Cleanup(func() {
+	tb.Setenv("HOST_PROC", procRoot)
+	tb.Cleanup(func() {
 		resetProcFSRoot()
 	})
 }
