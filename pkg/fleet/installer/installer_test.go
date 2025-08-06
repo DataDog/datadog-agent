@@ -415,8 +415,10 @@ func TestPurge(t *testing.T) {
 		// On other platforms, it's a constant and cannot be modified
 		if runtime.GOOS == "windows" {
 			oldRootTmpDir := paths.RootTmpDir
+			//nolint:staticcheck // RootTmpDir is a var on Windows, const on other platforms
 			paths.RootTmpDir = tmpPath
 			defer func() {
+				//nolint:staticcheck // RootTmpDir is a var on Windows, const on other platforms
 				paths.RootTmpDir = oldRootTmpDir
 			}()
 		}
