@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
@@ -149,10 +150,17 @@ func (c *collector) isLanguageCollectionEnabled() bool {
 	return c.config.GetBool("language_detection.enabled")
 }
 
-// collectionIntervalConfig returns the configured collection interval
-func (c *collector) collectionIntervalConfig() time.Duration {
-	// TODO: read configured collection interval once implemented
-	return time.Second * 10
+// processCollectionIntervalConfig returns the configured collection interval
+func (c *collector) processCollectionIntervalConfig() time.Duration {
+	processCollectionInterval := checks.GetInterval(c.config, checks.ProcessCheckName)
+	// service discovery data will be incorrect/empty if the process collection interval > service collection interval
+	// therefore, the service collection interval must be the max interval for process collection
+	if processCollectionInterval > serviceCollectionInterval {
+		log.Warnf("process collection interval %v cannot be larger than the service collection interval %v. falling back to service interval",
+			processCollectionInterval, serviceCollectionInterval)
+		return serviceCollectionInterval
+	}
+	return processCollectionInterval
 }
 
 // Start starts the collector. The collector should run until the context
@@ -180,7 +188,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	c.store = store
 
 	if c.isProcessCollectionEnabled() {
-		go c.collectProcesses(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
+		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()))
 	}
 
 	if c.isServiceDiscoveryEnabled() {
