@@ -188,7 +188,14 @@ var hostCCRIDFetcher = cachedfetch.Fetcher{
 
 // GetHostCCRID returns the Canonical Cloud Resource ID for the Azure host
 func GetHostCCRID(ctx context.Context) (string, error) {
-	return hostCCRIDFetcher.FetchString(ctx)
+	caseInsensitiveCCRID, err := hostCCRIDFetcher.FetchString(ctx)
+	if err != nil {
+		return "", err
+	}
+	// Azure APIs are inconsistent with handling case, so it is recommended to
+	// lower-case returned strings that represent stable IDs
+	// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-resource-group-and-subscription?tabs=azure-cli
+	return strings.ToLower(caseInsensitiveCCRID), nil
 }
 
 var publicIPv4Fetcher = cachedfetch.Fetcher{
