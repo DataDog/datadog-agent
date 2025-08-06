@@ -3,18 +3,6 @@
 build --disk_cache=/tmp/bazel
 build --verbose_failures
 
-# Set up bazel HOST platform specific flags
-#
-# These configurations set flags for the OS we are building *on*, not the OS we
-# are building *for*.
-common --enable_platform_specific_config
-build:linux --sandbox_add_mount_pair=/tmp
-build:macos --sandbox_add_mount_pair=/var/tmp
-build:windows --sandbox_add_mount_pair=C:\Temp
-# Point to the mingw location and other settings that point to local stuff
-# TODO: This should eventually go somewhere else (to avoid requiring specific environment setups)
-build:windows --action_env=PATH --define=MINGW_PATH=c:/tools/msys64/mingw64 --define=GCC_VERSION="12.2.0"
-
 # Caching
 common --config=cache
 common:cache --remote_instance_name=remote-caching
