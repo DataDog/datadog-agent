@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 from botocore.exceptions import ClientError
 
-from tasks.libs.common.s3 import download_folder_from_s3, upload_file_to_s3
+from tasks.libs.common.s3 import download_folder_from_s3, list_subfolders_in_s3, upload_file_to_s3
 
 
 class TestUploadFileToS3(unittest.TestCase):
@@ -52,7 +52,7 @@ class TestUploadFileToS3(unittest.TestCase):
     def test_upload_file_not_found(self):
         """Test upload when file doesn't exist"""
         with self.assertRaises(FileNotFoundError):
-            upload_file_to_s3(file_path="/nonexistent/file.txt", s3_bucket="test-bucket", s3_key="test/path/file.txt")
+            upload_file_to_s3(file_path="/nonexistent/file.txt", s3_path="s3://test-bucket/test/path/file.txt")
 
     @patch('boto3.client')
     def test_upload_file_s3_error(self, mock_boto3_client):
@@ -68,7 +68,7 @@ class TestUploadFileToS3(unittest.TestCase):
         # Call the function and expect it to raise ClientError
         with self.assertRaises(ClientError):
             upload_file_to_s3(
-                file_path=self.temp_file_path, s3_bucket="nonexistent-bucket", s3_key="test/path/file.txt"
+                file_path=self.temp_file_path, s3_path="s3://nonexistent-bucket/test/path/file.txt"
             )
 
     @patch('boto3.client')
@@ -81,7 +81,7 @@ class TestUploadFileToS3(unittest.TestCase):
 
         # Call the function and expect it to raise the exception
         with self.assertRaises(RuntimeError):
-            upload_file_to_s3(file_path=self.temp_file_path, s3_bucket="test-bucket", s3_key="test/path/file.txt")
+            upload_file_to_s3(file_path=self.temp_file_path, s3_path="s3://test-bucket/test/path/file.txt")
 
 
 class TestDownloadFolderFromS3(unittest.TestCase):
@@ -123,7 +123,7 @@ class TestDownloadFolderFromS3(unittest.TestCase):
         mock_paginator.paginate.return_value = mock_page_iterator
 
         # Call the function
-        result = download_folder_from_s3(s3_bucket="test-bucket", s3_prefix="test-folder/", local_path=self.temp_dir)
+        result = download_folder_from_s3(s3_path="s3://test-bucket/test-folder/", local_path=self.temp_dir)
 
         # Verify the result
         self.assertTrue(result)
@@ -162,7 +162,7 @@ class TestDownloadFolderFromS3(unittest.TestCase):
         mock_paginator.paginate.return_value = mock_page_iterator
 
         # Call the function
-        result = download_folder_from_s3(s3_bucket="test-bucket", s3_prefix="empty-folder/", local_path=self.temp_dir)
+        result = download_folder_from_s3(s3_path="s3://test-bucket/empty-folder/", local_path=self.temp_dir)
 
         # Verify the result
         self.assertTrue(result)
@@ -183,7 +183,7 @@ class TestDownloadFolderFromS3(unittest.TestCase):
 
         # Call the function and expect it to raise ClientError
         with self.assertRaises(ClientError):
-            download_folder_from_s3(s3_bucket="nonexistent-bucket", s3_prefix="test-folder/", local_path=self.temp_dir)
+            download_folder_from_s3(s3_path="s3://nonexistent-bucket/test-folder/", local_path=self.temp_dir)
 
     @patch('boto3.client')
     def test_download_folder_skip_prefix_marker(self, mock_boto3_client):
@@ -208,7 +208,7 @@ class TestDownloadFolderFromS3(unittest.TestCase):
         mock_paginator.paginate.return_value = mock_page_iterator
 
         # Call the function
-        result = download_folder_from_s3(s3_bucket="test-bucket", s3_prefix="test-folder/", local_path=self.temp_dir)
+        result = download_folder_from_s3(s3_path="s3://test-bucket/test-folder/", local_path=self.temp_dir)
 
         # Verify the result
         self.assertTrue(result)
@@ -217,6 +217,135 @@ class TestDownloadFolderFromS3(unittest.TestCase):
         mock_s3_client.download_file.assert_called_once_with(
             "test-bucket", "test-folder/file1.txt", os.path.join(self.temp_dir, "file1.txt")
         )
+
+
+class TestListSubfoldersInS3(unittest.TestCase):
+    """Test cases for list_subfolders_in_s3 function"""
+
+    @patch('boto3.client')
+    def test_list_subfolders_success(self, mock_boto3_client):
+        """Test successful listing of direct subfolders"""
+        # Mock the S3 client
+        mock_s3_client = Mock()
+        mock_boto3_client.return_value = mock_s3_client
+
+        # Mock paginator
+        mock_paginator = Mock()
+        mock_s3_client.get_paginator.return_value = mock_paginator
+
+        # Mock page iterator with CommonPrefixes (subfolders)
+        mock_page_iterator = [
+            {
+                'CommonPrefixes': [
+                    {'Prefix': 'dynamic-test/commit123/job1/'},
+                    {'Prefix': 'dynamic-test/commit123/job2/'},
+                    {'Prefix': 'dynamic-test/commit123/job3/'},
+                ]
+            }
+        ]
+        mock_paginator.paginate.return_value = mock_page_iterator
+
+        # Call the function
+        result = list_subfolders_in_s3("s3://test-bucket/dynamic-test/commit123/")
+
+        # Verify the result
+        expected_subfolders = ['job1', 'job2', 'job3']
+        self.assertEqual(result, expected_subfolders)
+
+        # Verify boto3.client was called
+        mock_boto3_client.assert_called_once_with('s3')
+
+        # Verify paginator was created with delimiter
+        mock_s3_client.get_paginator.assert_called_once_with('list_objects_v2')
+        mock_paginator.paginate.assert_called_once_with(
+            Bucket="test-bucket", Prefix="dynamic-test/commit123/", Delimiter='/'
+        )
+
+    @patch('boto3.client')
+    def test_list_subfolders_no_slash_prefix(self, mock_boto3_client):
+        """Test listing subfolders when prefix doesn't end with slash"""
+        # Mock the S3 client
+        mock_s3_client = Mock()
+        mock_boto3_client.return_value = mock_s3_client
+
+        # Mock paginator
+        mock_paginator = Mock()
+        mock_s3_client.get_paginator.return_value = mock_paginator
+
+        # Mock page iterator
+        mock_page_iterator = [{'CommonPrefixes': [{'Prefix': 'dynamic-test/commit123/job1/'}]}]
+        mock_paginator.paginate.return_value = mock_page_iterator
+
+        # Call the function without trailing slash
+        result = list_subfolders_in_s3("test-bucket/dynamic-test/commit123")
+
+        # Verify the result
+        self.assertEqual(result, ['job1'])
+
+        # Verify paginate was called with trailing slash added
+        mock_paginator.paginate.assert_called_once_with(
+            Bucket="test-bucket", Prefix="dynamic-test/commit123/", Delimiter='/'
+        )
+
+    @patch('boto3.client')
+    def test_list_subfolders_empty(self, mock_boto3_client):
+        """Test listing when no subfolders exist"""
+        # Mock the S3 client
+        mock_s3_client = Mock()
+        mock_boto3_client.return_value = mock_s3_client
+
+        # Mock paginator
+        mock_paginator = Mock()
+        mock_s3_client.get_paginator.return_value = mock_paginator
+
+        # Mock empty page iterator
+        mock_page_iterator = [{}]  # No 'CommonPrefixes' key
+        mock_paginator.paginate.return_value = mock_page_iterator
+
+        # Call the function
+        result = list_subfolders_in_s3("s3://test-bucket/empty-folder/")
+
+        # Verify the result
+        self.assertEqual(result, [])
+
+    @patch('boto3.client')
+    def test_list_subfolders_s3_error(self, mock_boto3_client):
+        """Test listing when S3 returns an error"""
+        # Mock the S3 client to raise a ClientError
+        mock_s3_client = Mock()
+        mock_s3_client.get_paginator.side_effect = ClientError(
+            error_response={'Error': {'Code': 'NoSuchBucket', 'Message': 'The specified bucket does not exist'}},
+            operation_name='ListObjects',
+        )
+        mock_boto3_client.return_value = mock_s3_client
+
+        # Call the function and expect it to raise ClientError
+        with self.assertRaises(ClientError):
+            list_subfolders_in_s3("nonexistent-bucket/test-folder/")
+
+    @patch('boto3.client')
+    def test_list_subfolders_root_bucket(self, mock_boto3_client):
+        """Test listing subfolders at bucket root"""
+        # Mock the S3 client
+        mock_s3_client = Mock()
+        mock_boto3_client.return_value = mock_s3_client
+
+        # Mock paginator
+        mock_paginator = Mock()
+        mock_s3_client.get_paginator.return_value = mock_paginator
+
+        # Mock page iterator for root level
+        mock_page_iterator = [{'CommonPrefixes': [{'Prefix': 'folder1/'}, {'Prefix': 'folder2/'}]}]
+        mock_paginator.paginate.return_value = mock_page_iterator
+
+        # Call the function at bucket root
+        result = list_subfolders_in_s3("s3://test-bucket/")
+
+        # Verify the result
+        self.assertEqual(result, ['folder1', 'folder2'])
+
+        # Verify paginate was called with empty prefix
+        mock_paginator.paginate.assert_called_once_with(Bucket="test-bucket", Prefix="", Delimiter='/')
 
 
 if __name__ == '__main__':

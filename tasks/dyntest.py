@@ -6,7 +6,7 @@ import os
 
 from invoke import Context, task
 
-from tasks.libs.dynamic_test.dyntest import CoverageDynTestUploader, consolidate_index
+from tasks.libs.dynamic_test.uploader import CoverageDynTestUploader, consolidate_index
 
 
 @task

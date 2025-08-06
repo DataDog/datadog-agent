@@ -125,6 +125,9 @@ func (e *Host) getAgentCoverageCommands(family os.Family) (map[string]string, er
 
 // Coverage runs the coverage command for each agent and downloads the coverage folders to the output directory
 func (e *Host) Coverage(outputDir string) error {
+	if e.Agent == nil {
+		return fmt.Errorf("no agent found, skipping coverage")
+	}
 	coverageFolders := map[string]bool{} // Used as a set to avoid duplicates
 	failedCoverageAgents := map[string]error{}
 	commandCoverages, err := e.getAgentCoverageCommands(e.RemoteHost.OSFamily)

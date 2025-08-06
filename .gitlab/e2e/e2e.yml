@@ -95,6 +95,7 @@
     - chmod +x /usr/local/bin/codecov
     - |
       if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
+        pip install boto3==1.38.8
         dda inv -- -e coverage.process-e2e-coverage-folders $E2E_COVERAGE_OUT_DIR
         dda inv -- -e dyntest.compute-and-upload-index
       fi

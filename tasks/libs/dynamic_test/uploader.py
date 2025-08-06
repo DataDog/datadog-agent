@@ -186,10 +186,10 @@ class CoverageDynTestUploader:
         commit_sha = os.environ["CI_COMMIT_SHA"]
 
         upload_file_to_s3(
-            file_path=index_file, s3_bucket=s3_path, s3_key=f"dynamic_test/{commit_sha[:8]}/{job_id}/index.json"
+            file_path=index_file, s3_path=f"{s3_path}/dynamic_test/{commit_sha[:8]}/{job_id}/index.json"
         )
         upload_file_to_s3(
-            file_path=metadata_file, s3_bucket=s3_path, s3_key=f"dynamic_test/{commit_sha[:8]}/{job_id}/metadata.json"
+            file_path=metadata_file, s3_path=f"{s3_path}/dynamic_test/{commit_sha[:8]}/{job_id}/metadata.json"
         )
 
 
@@ -200,7 +200,7 @@ def consolidate_index(ctx: Context, commit_sha: str, s3_bucket_uri: str, upload_
     s3_prefix = "/".join(s3_bucket_uri.split("/")[3:])
     print(f"Downloading index files from {s3_bucket_uri}/dynamic_test/{commit_sha[:8]}")
     download_folder_from_s3(
-        s3_bucket=s3_bucket, s3_prefix=f"{s3_prefix}/dynamic_test/{commit_sha[:8]}", local_path=tmp_folder
+        s3_path=f"s3://{s3_bucket}/{s3_prefix}/dynamic_test/{commit_sha[:8]}", local_path=tmp_folder
     )
 
     consolidated_index = {}
@@ -222,6 +222,5 @@ def consolidate_index(ctx: Context, commit_sha: str, s3_bucket_uri: str, upload_
     if upload_to_s3:
         upload_file_to_s3(
             file_path=os.path.join(tmp_folder, "consolidated_index.json"),
-            s3_bucket=s3_bucket,
-            s3_key=f"{s3_prefix}/dynamic_test/{commit_sha[:8]}/full_index.json",
+            s3_path=f"s3://{s3_bucket}/{s3_prefix}/dynamic_test/{commit_sha[:8]}/full_index.json",
         )
