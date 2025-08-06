@@ -1088,8 +1088,7 @@ workflow:
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
-        - comp/core/autodiscovery/providers/gpu.go
-        - pkg/config/autodiscovery/autodiscovery.go
+        - comp/core/autodiscovery/listeners/staticconfig.go
       compare_to: $COMPARE_TO_BRANCH
 
 .on_installer_systemd_changes:
