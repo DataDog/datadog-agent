@@ -8,6 +8,7 @@ package integration
 
 import (
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"math"
 	"os"
 	"path/filepath"
@@ -125,6 +126,7 @@ func (s *Launcher) run() {
 	for {
 		select {
 		case cfg := <-s.addedConfigs:
+			log.Info("Received integration config for integration ID:", cfg.IntegrationID)
 			if s.combinedUsageMax == 0 {
 				continue
 			}
@@ -144,21 +146,28 @@ func (s *Launcher) run() {
 
 // receiveSources handles receiving incoming sources
 func (s *Launcher) receiveSources(cfg integrations.IntegrationConfig) {
+	log.Info("Creating file for integration ID:", cfg.IntegrationID)
 	sources, err := ad.CreateSources(cfg.Config)
+	log.Info("Received sources for integration ID:", cfg.IntegrationID, "err", err)
 	if err != nil {
 		ddLog.Errorf("Failed to create source for %q: %v", cfg.Config.Name, err)
 		return
 	}
 
 	for _, source := range sources {
+		log.Info("Received source for integration ID:", cfg.IntegrationID, "source name:", source.Name)
 		// TODO: integrations should only be allowed to have one IntegrationType config.
 		if source.Config.Type == config.IntegrationType {
+			log.Info("Creating file for integration ID:", cfg.IntegrationID, "source name:", source.Name)
 			// This check avoids duplicating files that have already been created
 			// by scanInitialFiles
 			logFile, exists := s.integrationToFile[cfg.IntegrationID]
 
+			log.Info("Checking if file exists for integration ID:", cfg.IntegrationID, "exists:", exists)
+
 			if !exists {
 				logFile, err = s.createFile(cfg.IntegrationID)
+				log.Info("Created file for integration ID:", cfg.IntegrationID, "file path:", logFile.fileWithPath, "err:", err)
 				if err != nil {
 					ddLog.Errorf("Failed to create integration log file for %q: %v", source.Config.IntegrationName, err)
 					continue
