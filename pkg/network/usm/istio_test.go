@@ -18,8 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -27,10 +27,8 @@ const (
 )
 
 func TestIsIstioBinary(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
-		t.Skip("TLS not supported")
-	}
-	procRoot := uprobes.CreateFakeProcFS(t, []uprobes.FakeProcFSEntry{})
+	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
 	m := newIstioTestMonitor(t, procRoot)
 
 	t.Run("an actual envoy process", func(t *testing.T) {
@@ -42,9 +40,7 @@ func TestIsIstioBinary(t *testing.T) {
 }
 
 func TestGetEnvoyPathWithConfig(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
-		t.Skip("TLS not supported")
-	}
+	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableIstioMonitoring = true
 	cfg.EnvoyPath = "/test/envoy"
@@ -55,11 +51,9 @@ func TestGetEnvoyPathWithConfig(t *testing.T) {
 }
 
 func TestIstioSync(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) || !usmconfig.UretprobeSupported() {
-		t.Skip("TLS not supported")
-	}
+	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
 	t.Run("calling sync for the first time", func(tt *testing.T) {
-		procRoot := uprobes.CreateFakeProcFS(tt, []uprobes.FakeProcFSEntry{
+		procRoot := kernel.CreateFakeProcFS(tt, []kernel.FakeProcFSEntry{
 			{Pid: 1, Exe: defaultEnvoyName},
 			{Pid: 2, Exe: "/bin/bash"},
 			{Pid: 3, Exe: defaultEnvoyName},
@@ -79,7 +73,7 @@ func TestIstioSync(t *testing.T) {
 	})
 
 	t.Run("detecting a dangling process", func(tt *testing.T) {
-		procRoot := uprobes.CreateFakeProcFS(tt, []uprobes.FakeProcFSEntry{
+		procRoot := kernel.CreateFakeProcFS(tt, []kernel.FakeProcFSEntry{
 			{Pid: 1, Exe: defaultEnvoyName},
 			{Pid: 2, Exe: "/bin/bash"},
 			{Pid: 3, Exe: defaultEnvoyName},

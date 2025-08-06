@@ -69,7 +69,7 @@ func listCommands(_ *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -92,7 +92,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -145,7 +145,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -223,7 +223,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -284,7 +284,7 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(diffActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
