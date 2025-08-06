@@ -6,7 +6,7 @@
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*_${MAJOR_VERSION}.*${PACKAGE_ARCH}.deb" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/deb/${PACKAGE_ARCH}/"
+    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}"
 
 .deploy_packages_deb-6:
   extends: .deploy_packages_deb
@@ -44,7 +44,7 @@
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "*-${MAJOR_VERSION}.*${PACKAGE_ARCH}.rpm" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/${ARTIFACTS_PREFIX}rpm/${PACKAGE_ARCH}/"
+    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}"
 
 .deploy_packages_rpm-6:
   extends: .deploy_packages_rpm
@@ -99,7 +99,7 @@
   script:
     - !reference [.setup_dd_pkg]
     # --signed is used here since Omnibus is still signing the packages when building, this should be dropped when we stop signing in Omnibus
-    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" --project-name "datadog-installer" --signed
+    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" --project-name "datadog-installer"
 
 .deploy_installer_rpm:
   rules:
@@ -115,7 +115,7 @@
   script:
     - !reference [.setup_dd_pkg]
     # --signed is used here since Omnibus is still signing the packages when building, this should be dropped when we stop signing in Omnibus
-    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" --project-name "datadog-installer" --signed "${DD_PKG_EXTRA_ARGS}"
+    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" --project-name "datadog-installer" "${DD_PKG_EXTRA_ARGS}"
 
 .deploy_installer_suse_rpm:
   extends: .deploy_installer_rpm
