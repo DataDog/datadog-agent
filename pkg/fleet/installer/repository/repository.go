@@ -19,6 +19,7 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -215,7 +216,12 @@ func (r *Repository) Delete(ctx context.Context) error {
 }
 
 // CopyStable copies the stable package to the given destination path.
-func (r *Repository) CopyStable(ctx context.Context, destPath string) error {
+func (r *Repository) CopyStable(ctx context.Context, destPath string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "repository.CopyStable")
+	defer func() { 
+		span.Finish(err)
+	}()
+
 	repository, err := readRepository(r.rootPath, nil)
 	if err != nil {
 		return err
