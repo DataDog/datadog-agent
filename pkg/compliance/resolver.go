@@ -590,14 +590,10 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			if err != nil {
 				return nil, err
 			}
-			// Ignore deprecation warning
-			//nolint:staticcheck
-			imageRepo := parseImageRepo(image.ContainerConfig.Image)
 			resolved = append(resolved, map[string]interface{}{
-				"id":         image.ID,
-				"tags":       image.RepoTags,
-				"image_repo": imageRepo,
-				"inspect":    image,
+				"id":      image.ID,
+				"tags":    image.RepoTags,
+				"inspect": image,
 			})
 		}
 	case "container":

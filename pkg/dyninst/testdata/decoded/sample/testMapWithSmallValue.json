@@ -1,0 +1,166 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapWithSmallValue",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testMapWithSmallValue",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 66
+          },
+          {
+            "function": "main.executeMapFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 168
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 43
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": 283
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testMapWithSmallValue",
+          "location": {
+            "method": "main.testMapWithSmallValue"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[int]uint8",
+                "size": "10",
+                "entries": [
+                  [
+                    {
+                      "type": "int",
+                      "value": "1"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "10"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "10"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "2"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "2"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "3"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "3"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "4"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "4"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "5"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "5"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "6"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "6"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "7"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "7"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "8"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "8"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "int",
+                      "value": "9"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "9"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

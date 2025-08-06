@@ -63,7 +63,7 @@ var (
 )
 
 const (
-	testActivityDumpDuration = time.Minute * 10
+	testActivityDumpDuration = time.Second * 30
 )
 
 var testMod *testModule
