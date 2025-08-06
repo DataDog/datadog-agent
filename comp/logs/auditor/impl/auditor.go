@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -39,8 +38,6 @@ type RegistryEntry struct {
 	Offset             string
 	TailingMode        string
 	IngestionTimestamp int64
-	Fingerprint        uint64
-	FingerprintConfig  *logsconfig.FingerprintConfig
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -184,16 +181,6 @@ func (a *registryAuditor) GetOffset(identifier string) string {
 		return ""
 	}
 	return entry.Offset
-}
-
-// GetFingerprint returns the last committed fingerprint for a given identifier,
-// returns 0 if it doesn't existz
-func (a *registryAuditor) GetFingerprint(identifier string) uint64 {
-	entry, exists := a.readOnlyRegistryEntryCopy(identifier)
-	if !exists {
-		return 0
-	}
-	return entry.Fingerprint
 }
 
 // GetTailingMode returns the last committed offset for a given identifier,

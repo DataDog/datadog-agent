@@ -174,7 +174,7 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForFingerprintConfig()
 	maxBytes := 1024
 	maxLines := 10
 	linesToSkip := 5
-	fingerprintStrategy := "line_checksum"
+	fingerprintStrategy := config.FingerprintStrategyLineChecksum
 	expectedConfig := &config.FingerprintConfig{
 		MaxBytes:            maxBytes,
 		Count:               maxLines,

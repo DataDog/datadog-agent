@@ -35,11 +35,26 @@ const (
 	UTF16LE string = "utf-16-le"
 	// SHIFTJIS for Shift JIS (Japanese) encoding
 	SHIFTJIS string = "shift-jis"
-
-	// Fingerprint strategy options
-	FingerprintStrategyLineChecksum string = "line_checksum"
-	FingerprintStrategyByteChecksum string = "byte_checksum"
 )
+
+type FingerprintStrategy string
+
+const (
+	FingerprintStrategyLineChecksum FingerprintStrategy = "line_checksum"
+	FingerprintStrategyByteChecksum FingerprintStrategy = "byte_checksum"
+)
+
+func (s FingerprintStrategy) String() string {
+	return string(s)
+}
+
+func (s FingerprintStrategy) Validate() error {
+	switch s {
+	case FingerprintStrategyLineChecksum, FingerprintStrategyByteChecksum:
+		return nil
+	}
+	return fmt.Errorf("invalid fingerprint strategy: %s", s)
+}
 
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
@@ -105,7 +120,7 @@ type LogsConfig struct {
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
 	AutoMultiLineSamples      []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
-	FingerprintConfig         FingerprintConfig      `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
+	FingerprintConfig         *FingerprintConfig     `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
 	RotationDetectionStrategy string                 `mapstructure:"rotation_detection_strategy" json:"rotation_detection_strategy" yaml:"rotation_detection_strategy"`
 }
 
@@ -143,7 +158,7 @@ type FingerprintConfig struct {
 	// FingerprintStrategy defines the strategy used for fingerprinting. Options are:
 	// - "line_checksum": compute checksum based on line content (default)
 	// - "byte_checksum": compute checksum based on byte content
-	FingerprintStrategy string `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
+	FingerprintStrategy FingerprintStrategy `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
 
 	// Count is the number of lines or bytes to use for fingerprinting, depending on the strategy
 	Count int `json:"count" mapstructure:"count" yaml:"count"`

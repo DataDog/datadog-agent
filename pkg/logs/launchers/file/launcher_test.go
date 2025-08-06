@@ -193,8 +193,8 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	}
 	filePath := tailer.Identifier()[5:]
 	fingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
-	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
-	s.registry.(*auditorMock.Registry).SetFingerprintConfig(fingerprintConfig)
+	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint.Value)
+	s.registry.(*auditorMock.Registry).SetFingerprintConfig(fingerprint.Config)
 
 	// Rotate file
 	os.Rename(suite.testPath, suite.testRotatedPath)
@@ -475,7 +475,7 @@ func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
-	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: config.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: "line_checksum"}})
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: config.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: config.FingerprintStrategyLineChecksum}})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
 	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))

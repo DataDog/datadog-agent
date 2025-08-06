@@ -11,46 +11,38 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	tailerfile "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 )
 
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, mode config.TailingMode, rotationDetectionStrategy string) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
 
 	value := registry.GetOffset(identifier)
-	fingerprintConfig := registry.GetFingerprintConfig(identifier)
-	previousFingerprint := registry.GetFingerprint(identifier)
+
 	filePath := ""
 	if len(identifier) > 5 {
 		filePath = identifier[5:]
 	}
-	newFingerprint := tailerfile.ComputeFingerprint(filePath, fingerprintConfig)
 
-	// Check if fingerprinting is currently enabled based on the provided strategy
-	fingerprintingEnabled := rotationDetectionStrategy == "checksum"
+	fingerprintsAlign := true
+
+	if fingerprinter.IsFingerprintingEnabled() {
+		prevFingerprintConfig := registry.GetFingerprintConfig(identifier)
+		prevFingerprintValue := registry.GetFingerprint(identifier)
+		newFingerprint := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprintConfig)
+		fingerprintsAlign = prevFingerprintValue == newFingerprint.Value
+	}
 
 	switch {
 	case mode == config.ForceBeginning:
 		offset, whence = 0, io.SeekStart
 	case mode == config.ForceEnd:
 		offset, whence = 0, io.SeekEnd
-	case value != "" && fingerprintingEnabled && (previousFingerprint == newFingerprint || previousFingerprint == 0): // fingerprint valid and fingerprinting is currently enabled
-		// an offset was registered, tailing mode is not forced, fingerprinting is enabled, and fingerprint is valid
-		whence = io.SeekStart
-		offset, err = strconv.ParseInt(value, 10, 64)
-		if err != nil {
-			offset = 0
-			if mode == config.End {
-				whence = io.SeekEnd
-			} else if mode == config.Beginning {
-				whence = io.SeekStart
-			}
-		}
-	case value != "" && !fingerprintingEnabled:
-		// an offset was registered but fingerprinting is disabled - use offset without fingerprint validation
+	case value != "" && fingerprintsAlign:
+		// an offset was registered, tailing mode is not forced, fingerprints are disabled or equivalent
 		whence = io.SeekStart
 		offset, err = strconv.ParseInt(value, 10, 64)
 		if err != nil {
