@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -594,7 +595,39 @@ func copyDirectory(sourcePath, targetPath string) error {
 			return os.MkdirAll(targetFilePath, info.Mode())
 		}
 
-		return copyFile(path, targetFilePath)
+		// open source file
+		source, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("failed to open source file: %w", err)
+		}
+		defer source.Close()
+
+		var stat *syscall.Stat_t
+		var ok bool
+		stat, ok = info.Sys().(*syscall.Stat_t)
+		if !ok || stat == nil {
+			return fmt.Errorf("could not get file stat")
+		}
+
+		// create dst file with same permissions
+		var dstFile *os.File
+		dstFile, err = os.OpenFile(targetFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer dstFile.Close()
+
+		// copy content
+		if _, err = io.Copy(dstFile, source); err != nil {
+			return err
+		}
+
+		// set ownership
+		if err = os.Chown(targetFilePath, int(stat.Uid), int(stat.Gid)); err != nil {
+			return err
+		}
+
+		return nil
 	})
 }
 
