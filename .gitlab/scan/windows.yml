@@ -3,7 +3,7 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   tags: ["arch:amd64"]
   variables:
-    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-7*.msi"
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -101,7 +101,7 @@ scan_packages_windows-x64:
   extends: .scan_windows_package
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
   variables:
-    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-7*.msi"
   allow_failure: true
 
 scan_packages_windows-fips-x64:
@@ -113,5 +113,5 @@ scan_packages_windows-fips-x64:
   extends: .scan_windows_package
   needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
   variables:
-    SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+    SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-7*.msi"
   allow_failure: true
