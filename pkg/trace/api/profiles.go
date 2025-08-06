@@ -264,7 +264,21 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 			}
 			setTarget(attemptReq, u, apiKey)
 
-			resp, lastErr = m.rt.RoundTrip(attemptReq)
+			// Use fresh transport for retries to avoid stale connection issues
+			// that can cause 502 errors from load balancers
+			roundTripper := m.rt
+			if attempt > 0 {
+				if transport, ok := m.rt.(*http.Transport); ok {
+					// Clone the transport to get fresh connection pools
+					// The idea is that we won't inherit any idle connections from the previous attempt
+					freshTransport := transport.Clone()
+					freshTransport.IdleConnTimeout = transport.IdleConnTimeout // retain existing timeout settings
+					roundTripper = freshTransport
+					log.Debugf("Using fresh transport for retry attempt %d to %s", attempt+1, u.Host)
+				}
+			}
+
+			resp, lastErr = roundTripper.RoundTrip(attemptReq)
 
 			// Check if this is the final attempt
 			isLastAttempt := attempt == maxRetryAttempts-1
