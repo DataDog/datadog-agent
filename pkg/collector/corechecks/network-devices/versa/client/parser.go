@@ -98,7 +98,7 @@ func parseLinkStatusMetrics(data [][]interface{}) ([]LinkStatusMetrics, error) {
 	var rows []LinkStatusMetrics
 	for _, row := range data {
 		m := LinkStatusMetrics{}
-		if len(row) < 4 {
+		if len(row) != 4 {
 			return nil, fmt.Errorf("missing columns in row: got %d columns, expected 4", len(row))
 		}
 		// Type assertions for each value
@@ -125,7 +125,7 @@ func parseLinkUsageMetrics(data [][]interface{}) ([]LinkUsageMetrics, error) {
 	var rows []LinkUsageMetrics
 	for _, row := range data {
 		m := LinkUsageMetrics{}
-		if len(row) < 13 {
+		if len(row) != 13 {
 			return nil, fmt.Errorf("missing columns in row: got %d columns, expected 13", len(row))
 		}
 		// Type assertions for each value
