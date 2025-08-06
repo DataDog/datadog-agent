@@ -206,10 +206,10 @@ func copyIISInstrumentationScript(ctx context.Context) (err error) {
 
 func updateIISScriptIfNeeded(ctx context.Context) (err error) {
 	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
-	defer db.Close()
 	if err != nil {
 		return err
 	}
+	defer db.Close()
 	ok, err := db.HasPackage("datadog-apm-library-dotnet")
 	if err != nil {
 		return err
