@@ -60,7 +60,7 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(showSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -106,7 +106,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(listSecurityProfiles,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
@@ -213,7 +213,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(saveSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					ConfigParams: config.NewAgentParams(""),
 					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
