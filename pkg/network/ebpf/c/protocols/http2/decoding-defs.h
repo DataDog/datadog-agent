@@ -146,9 +146,16 @@ typedef struct {
     __u8 raw_buffer[HTTP2_STATUS_CODE_MAX_LEN];
     bool is_huffman_encoded;
 
-    __u8 static_table_entry;
+    __u8 static_table_entry;   /* used only for :status from static table */
     bool finalized;
 } status_code_t;
+
+/* Holds the numeric grpc-status header value (0-16). */
+typedef struct {
+    __u8 raw_buffer[HTTP2_STATUS_CODE_MAX_LEN];
+    bool is_huffman_encoded;
+    bool finalized;
+} grpc_status_code_t;
 
 typedef struct {
     __u8 raw_buffer[HTTP2_METHOD_MAX_LEN];
@@ -173,7 +180,8 @@ typedef struct {
     __u64 request_started;
     __u8 tags;
 
-    status_code_t status_code;
+    status_code_t       status_code;       /* HTTP :status */
+    grpc_status_code_t  grpc_status_code;  /* gRPC grpc-status */
     method_t request_method;
     path_t path;
     bool end_of_stream_seen;

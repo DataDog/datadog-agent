@@ -49,6 +49,11 @@ type http2StatusCode struct {
 	Static_table_entry uint8
 	Finalized          bool
 }
+type grpcStatusCode struct {
+	Raw_buffer         [3]uint8
+	Is_huffman_encoded bool
+	Finalized          bool
+}
 type http2requestMethod struct {
 	Raw_buffer         [7]uint8
 	Is_huffman_encoded bool
@@ -68,10 +73,11 @@ type HTTP2Stream struct {
 	Request_started    uint64
 	Tags               uint8
 	Status_code        http2StatusCode
+	Grpc_status_code   grpcStatusCode
 	Request_method     http2requestMethod
 	Path               http2Path
 	End_of_stream_seen bool
-	Pad_cgo_0          [1]byte
+	Pad_cgo_0          [4]byte
 }
 type EbpfTx struct {
 	Tuple  ConnTuple

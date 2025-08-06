@@ -33,6 +33,7 @@ type HTTP2DynamicTableIndex C.dynamic_table_index_t
 type HTTP2DynamicTableEntry C.dynamic_table_entry_t
 type HTTP2StreamKey C.http2_stream_key_t
 type http2StatusCode C.status_code_t
+type grpcStatusCode C.grpc_status_code_t
 type http2requestMethod C.method_t
 type http2Path C.path_t
 type HTTP2Stream C.http2_stream_t

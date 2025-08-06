@@ -144,6 +144,13 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
             pktbuf_load_bytes_from_current_offset(pkt, &first, 1);
             bpf_printk("tasik gs_first=0x%x huffman=%u",
                        (__u64)first, (__u64)is_huffman_encoded);
+            /* skip header name to position at value */
+            pktbuf_advance(pkt, str_len);
+            str_len = 0;
+            /* read value length */
+            if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+                return false;
+            }
         }
         
         if (!is_grpc_status_code) {
@@ -399,13 +406,20 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
                 bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
                 /* Debug: path value details */
                 bpf_printk("tasik path dyn first=0x%x len=%u huff=%u", (__u64)dynamic_value->buffer[0], (__u64)dynamic_value->string_len, (__u64)dynamic_value->is_huffman_encoded);
-            } else if (is_status_index(dynamic_value->original_index) ||
-                       is_grpc_status_sentinel(dynamic_value->original_index)) {
+            } else if (is_status_index(dynamic_value->original_index)) {
+                /* HTTP :status */
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
                 /* Debug: status value details */
                 bpf_printk("tasik status dyn first=0x%x len=%u huff=%u", (__u64)dynamic_value->buffer[0], (__u64)dynamic_value->string_len, (__u64)dynamic_value->is_huffman_encoded);
+            } else if (is_grpc_status_sentinel(dynamic_value->original_index)) {
+                /* gRPC status */
+                bpf_memcpy(current_stream->grpc_status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
+                current_stream->grpc_status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->grpc_status_code.finalized = true;
+                /* Debug: status value details */
+                bpf_printk("tasik grpc-status dyn first=0x%x len=%u huff=%u", (__u64)dynamic_value->buffer[0], (__u64)dynamic_value->string_len, (__u64)dynamic_value->is_huffman_encoded);
             } else if (is_method_index(dynamic_value->original_index)) {
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
@@ -428,12 +442,22 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
                 current_stream->path.finalized = true;
                 bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
                 bpf_printk("tasik path new first=0x%x len=%u huff=%u", (__u64)dynamic_value.buffer[0], (__u64)current_header->new_dynamic_value_size, (__u64)current_header->is_huffman_encoded);
-            } else if (is_status_index(current_header->original_index) ||
-                       is_grpc_status_sentinel(current_header->original_index)) {
+            } else if (is_status_index(current_header->original_index)) {
+                /* HTTP :status */
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
                 bpf_printk("tasik status new first=0x%x len=%u huff=%u", (__u64)dynamic_value.buffer[0], (__u64)current_header->new_dynamic_value_size, (__u64)current_header->is_huffman_encoded);
+            } else if (is_grpc_status_sentinel(current_header->original_index)) {
+                /* gRPC status */
+                bpf_memcpy(current_stream->grpc_status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
+                current_stream->grpc_status_code.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->grpc_status_code.finalized = true;
+                __u32 grpc_code_new = (dynamic_value.buffer[0] - '0');
+                if (current_header->new_dynamic_value_size == 2) {
+                    grpc_code_new = grpc_code_new * 10 + (dynamic_value.buffer[1] - '0');
+                }
+                bpf_printk("tasik grpc-status new value=%u len=%u huff=%u", (__u64)grpc_code_new, (__u64)current_header->new_dynamic_value_size, (__u64)current_header->is_huffman_encoded);
             } else if (is_method_index(current_header->original_index)) {
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;

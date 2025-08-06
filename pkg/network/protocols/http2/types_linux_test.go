@@ -24,6 +24,10 @@ func TestCgoAlignment_http2StatusCode(t *testing.T) {
 	ebpftest.TestCgoAlignment[http2StatusCode](t)
 }
 
+func TestCgoAlignment_grpcStatusCode(t *testing.T) {
+	ebpftest.TestCgoAlignment[grpcStatusCode](t)
+}
+
 func TestCgoAlignment_http2requestMethod(t *testing.T) {
 	ebpftest.TestCgoAlignment[http2requestMethod](t)
 }
