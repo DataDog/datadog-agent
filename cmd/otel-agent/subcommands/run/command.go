@@ -130,21 +130,29 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 
 	// Add fleet policy config if DD_FLEET_POLICIES_DIR is set
 	if fleetPoliciesDir := os.Getenv("DD_FLEET_POLICIES_DIR"); fleetPoliciesDir != "" {
-		absFleetPoliciesDir, err := filepath.Abs(fleetPoliciesDir)
+		resolvedFleetPoliciesDir, err := filepath.EvalSymlinks(fleetPoliciesDir)
 		if err != nil {
-			fmt.Printf("Warning: failed to get absolute path for fleet policies dir %s: %v\n", fleetPoliciesDir, err)
-		} else {
-			resolvedFleetPoliciesDir, err := filepath.EvalSymlinks(absFleetPoliciesDir)
-			if err != nil {
-				fmt.Printf("Warning: failed to resolve symlinks for fleet policies dir %s: %v\n", absFleetPoliciesDir, err)
-				resolvedFleetPoliciesDir = absFleetPoliciesDir
+			if os.IsNotExist(err) {
+				// Expected behavior
+				fmt.Printf("Fleet policies directory does not exist: %s\n", fleetPoliciesDir)
+			} else {
+				fmt.Printf("Warning: failed to resolve symlinks for fleet policies dir %s: %v\n", fleetPoliciesDir, err)
 			}
+			resolvedFleetPoliciesDir = fleetPoliciesDir
+		}
 
-			fleetConfigPath := filepath.Join(resolvedFleetPoliciesDir, "otel-config.yaml")
+		// Make it absolute
+		absFleetPoliciesDir, err := filepath.Abs(resolvedFleetPoliciesDir)
+		if err != nil {
+			fmt.Printf("Warning: failed to get absolute path for fleet policies dir %s: %v\n", resolvedFleetPoliciesDir, err)
+		} else {
+			fleetConfigPath := filepath.Join(absFleetPoliciesDir, "otel-config.yaml")
 
 			if _, err := os.Stat(fleetConfigPath); err == nil {
 				uris = append(uris, "file:"+fleetConfigPath)
 				fmt.Printf("Using fleet policy config: %s\n", fleetConfigPath)
+			} else if !os.IsNotExist(err) {
+				fmt.Printf("Warning: failed to access fleet policy config %s: %v\n", fleetConfigPath, err)
 			}
 		}
 	}
