@@ -9,6 +9,8 @@
   rules:
     - !reference [.on_invoke_tasks_changes]
   script:
+    # Avoid rate limits when running kmt.init (pulumi queries the Github API to get the releases of plugins)
+    - export GITHUB_TOKEN=$(dda inv github_tasks.get_token_from_app)
     - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
     - export KMT_TEST_INFRA_DEFINITIONS_PATH=$(go env GOPATH)/src/github.com/DataDog/test-infra-definitions
     - dda inv -- kmt.init --remote-setup-only --skip-ssh-setup --exclude-requirements $KMT_EXCLUDE_REQUIREMENTS
@@ -20,13 +22,11 @@ test_kmt_local_setup_linux:
   tags: ["arch:amd64"]
   extends: .test_kmt_local_setup
   before_script:
-    # Avoid rate limits when running kmt.init (some issues with pulumi downloads)
     - !reference [.setup_agent_github_app]
 
 test_kmt_local_setup_macos:
   extends: .test_kmt_local_setup
   before_script:
     - !reference [.macos_gitlab, before_script]
-    # Avoid rate limits when running kmt.init (some issues with pulumi downloads)
     - !reference [.setup_macos_github_app]
   tags: ["macos:ventura-amd64", "specific:true"]
