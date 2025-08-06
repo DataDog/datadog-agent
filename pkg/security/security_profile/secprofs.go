@@ -454,6 +454,18 @@ func (m *Manager) onWorkloadDeletedEvent(workload *tags.Workload) {
 	m.shouldDeleteProfile(p)
 }
 
+// onWorkloadEvent handles workload events in order to ensure proper sequencing
+func (m *Manager) onWorkloadEvent(event *WorkloadEvent) {
+	switch event.Type {
+	case WorkloadEventResolved:
+		m.onWorkloadSelectorResolvedEvent(event.Workload)
+	case WorkloadEventDeleted:
+		m.onWorkloadDeletedEvent(event.Workload)
+	default:
+		seclog.Warnf("Unknown workload event type: %d", event.Type)
+	}
+}
+
 func (m *Manager) shouldDeleteProfile(p *profile.Profile) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
