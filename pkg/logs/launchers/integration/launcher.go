@@ -167,7 +167,12 @@ func (s *Launcher) receiveSources(cfg integrations.IntegrationConfig) {
 
 			if !exists {
 				logFile, err = s.createFile(cfg.IntegrationID)
-				log.Info("Created file for integration ID:", cfg.IntegrationID, "file path:", logFile.fileWithPath, "err:", err)
+				log.Info("Created file for integration ID:", cfg.IntegrationID, "err:", err)
+				if logFile != nil {
+					log.Info("Created file for integration ID:", cfg.IntegrationID, "file path:", logFile.fileWithPath)
+				} else {
+					log.Info("Failed to create file for integration ID:", cfg.IntegrationID, "err:", err)
+				}
 				if err != nil {
 					ddLog.Errorf("Failed to create integration log file for %q: %v", source.Config.IntegrationName, err)
 					continue
