@@ -538,9 +538,12 @@ def _replace_dylib_id_paths_with_rpath(ctx, otool_output, install_path, file):
         ctx.run(f"install_name_tool -id {new_dylib_path} {file}")
 
 
-def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file):
+def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file, force_rpath=True):
     if platform == "linux":
-        ctx.run(f"patchelf --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
+        force_rpath_arg = ""
+        if not force_rpath:
+            force_rpath_arg = "--force-rpath"
+        ctx.run(f"patchelf {force_rpath_arg} --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
     else:
         # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
         # but just in case we're replacing them all.
