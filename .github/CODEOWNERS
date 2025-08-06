@@ -25,10 +25,11 @@
 
 /.bazel*                                @DataDog/agent-build
 /MODULE.bazel*                          @DataDog/agent-build
-deps/**                                 @DataDog/agent-build
+/deps/**                                @DataDog/agent-build
 /bazel/                                 @DataDog/agent-build
 # Temporary during migration
-**/BUILD.bazel                          @DataDog/agent-build
+/**/BUILD.bazel                         @DataDog/agent-build
+/**/*.bzl                               @DataDog/agent-build
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
