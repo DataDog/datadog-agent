@@ -37,6 +37,11 @@
         CACHE_SOURCE=""
       fi
     - |
+      if [ -n "$PLZ_CLEAN" ]; then
+        echo "CELIAN CLEANING CACHE"
+        docker buildx prune --filter until=24h --force
+      fi
+    - |
       if [[ -n "${CACHE_TO}" && -n "${CACHE_TARGET}" ]]; then
         # Build cacheable target to only export certain steps to registry.
         # Doing this first build separately lets us avoid uploading heavy artifacts (such as Agent packages),
@@ -202,6 +207,7 @@ docker_build_agent7_jmx_arm64:
   variables:
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
+    PLZ_CLEAN: true
 
 docker_build_fips_agent7_jmx:
   extends: [.docker_build_amd64, .docker_build_agent7]
