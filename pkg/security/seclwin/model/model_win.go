@@ -9,7 +9,6 @@
 package model
 
 import (
-	"fmt"
 	"runtime"
 	"strconv"
 	"time"
@@ -244,21 +243,4 @@ func (pc *ProcessCacheEntry) Hash() string {
 // ParentScope returns the parent entity scope
 func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
 	return pc.Ancestor, pc.Ancestor != nil
-}
-
-// GetFileField returns the FileEvent associated with a field name
-func (e *Event) GetFileField(field string) (*FileEvent, error) {
-	// TODO(lebauce): generate this function
-	switch field {
-	case "exec.file":
-		return &e.Exec.FileEvent, nil
-	case "exit.file":
-		return &e.Exit.FileEvent, nil
-	case "process.file":
-		return &e.ProcessContext.FileEvent, nil
-	case "process.parent.file":
-		return &e.ProcessContext.Parent.FileEvent, nil
-	default:
-		return nil, fmt.Errorf("invalid field %s on event %s", field, e.GetEventType())
-	}
 }

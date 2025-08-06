@@ -14,8 +14,10 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,21 +28,77 @@ type Config struct {
 	DynamicInstrumentationEnabled bool
 	LogUploaderURL                string
 	DiagsUploaderURL              string
+
+	actuatorConstructor erasedActuatorConstructor
+}
+
+// Option is an option that can be passed to NewConfig.
+type Option interface {
+	apply(c *Config)
+}
+
+type wrappedActuator[A Actuator[T], T ActuatorTenant] struct {
+	actuator A
+}
+
+func eraseActuator[A Actuator[T], T ActuatorTenant](a A) erasedActuator {
+	return wrappedActuator[A, T]{actuator: a}
+}
+
+func (a wrappedActuator[A, T]) Shutdown() error {
+	return a.actuator.Shutdown()
+}
+
+func (a wrappedActuator[A, T]) NewTenant(
+	name string,
+	reporter actuator.Reporter,
+	irGenerator actuator.IRGenerator,
+) ActuatorTenant {
+	return a.actuator.NewTenant(name, reporter, irGenerator)
+}
+
+type erasedActuator = Actuator[ActuatorTenant]
+
+type actuatorConstructor[A Actuator[T], T ActuatorTenant] func(*loader.Loader) A
+type erasedActuatorConstructor = actuatorConstructor[erasedActuator, ActuatorTenant]
+
+func (a actuatorConstructor[A, T]) apply(c *Config) {
+	c.actuatorConstructor = func(t *loader.Loader) erasedActuator {
+		return eraseActuator(a(t))
+	}
+}
+
+// WithActuatorConstructor is an option that allows the user to provide a
+func WithActuatorConstructor[
+	A Actuator[T], T ActuatorTenant,
+](
+	f actuatorConstructor[A, T],
+) Option {
+	return actuatorConstructor[A, T](f)
+}
+
+func defaultActuatorConstructor(t *loader.Loader) erasedActuator {
+	return eraseActuator(actuator.NewActuator(t))
 }
 
 // NewConfig creates a new Config object
-func NewConfig(spConfig *sysconfigtypes.Config) (*Config, error) {
+func NewConfig(spConfig *sysconfigtypes.Config, opts ...Option) (*Config, error) {
 	var diEnabled bool
 	if spConfig != nil {
-		_, diEnabled = spConfig.EnabledModules[config.DynamicInstrumentationModule]
+		_, diEnabled = spConfig.EnabledModules[sysconfig.DynamicInstrumentationModule]
 	}
 	traceAgentURL := getTraceAgentURL(os.Getenv)
-	return &Config{
+	c := &Config{
 		Config:                        *ebpf.NewConfig(),
 		DynamicInstrumentationEnabled: diEnabled,
 		LogUploaderURL:                withPath(traceAgentURL, logUploaderPath),
 		DiagsUploaderURL:              withPath(traceAgentURL, diagsUploaderPath),
-	}, nil
+		actuatorConstructor:           defaultActuatorConstructor,
+	}
+	for _, opt := range opts {
+		opt.apply(c)
+	}
+	return c, nil
 }
 
 func withPath(u url.URL, path string) string {
