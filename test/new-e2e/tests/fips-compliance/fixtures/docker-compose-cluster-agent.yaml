@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  # FIPS server for testing TLS cipher negotiation
+  dd-fips-server:
+    container_name: dd-fips-server
+    image: "ghcr.io/datadog/apps-fips-server:{APPS_VERSION}"
+    ports:
+      - "443:443"
+    entrypoint: ["./run.sh", "${CERT:-rsa}", "${CIPHER}", "${TLS_MAX}"]
+
+  # Cluster agent for FIPS testing
+  cluster-agent:
+    container_name: cluster-agent
+    image: "${CLUSTER_AGENT_IMAGE}"
+    environment:
+      DD_API_KEY: ${DD_API_KEY:-dummy-key-for-startup}
+      DD_FIPS_ENABLED: "true"
+      DD_SKIP_SSL_VALIDATION: "true"
+      DD_HOSTNAME: cluster-agent-fips-test
+    # Override entrypoint to keep container running without starting cluster agent daemon
+    entrypoint: ["sleep", "3600"] 
