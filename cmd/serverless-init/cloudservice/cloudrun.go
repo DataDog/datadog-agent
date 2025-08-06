@@ -160,6 +160,11 @@ func (c *CloudRun) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix)
 }
 
+// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
+func (c *CloudRun) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return false
+}
+
 func isCloudRunService() bool {
 	_, exists := os.LookupEnv(ServiceNameEnvVar)
 	return exists
