@@ -6,8 +6,6 @@
 package inventorychecksimpl
 
 import (
-	"net/http"
-
 	"go.uber.org/fx"
 
 	icinterface "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -54,18 +52,6 @@ func (m *InventorychecksMock) GetInstanceMetadata(instanceID string) map[string]
 		return metadata
 	}
 	return nil
-}
-
-// WritePayloadAsJSON is a mock implementation for the WritePayloadAsJSON method
-func (m *InventorychecksMock) WritePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	// Mock implementation - just write empty JSON payload
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"is_cluster_check": false, "check_metadata": {}, "logs_metadata": {}}`))
-}
-
-// SetClusterHandler is a mock implementation for the SetClusterHandler method
-func (m *InventorychecksMock) SetClusterHandler(handler interface{}) {
-	// Mock implementation - no-op
 }
 
 // MockModule defines the fx options for the mock component.
