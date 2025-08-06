@@ -1507,12 +1507,6 @@ core,github.com/open-policy-agent/opa/internal/file/archive,Apache-2.0,Copyright
 core,github.com/open-policy-agent/opa/internal/file/url,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/future,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/gojsonschema,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/gqlparser/ast,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/gqlparser/gqlerror,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/gqlparser/lexer,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/gqlparser/parser,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/gqlparser/validator,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/gqlparser/validator/rules,MIT,Copyright (c) 2018 Adam Scarr | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/json/patch,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/jwx/buffer,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/jwx/jwa,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
@@ -2207,6 +2201,13 @@ core,github.com/urfave/negroni,MIT,Copyright (c) 2014 Jeremy Saenz
 core,github.com/valyala/fastjson,MIT,Copyright (c) 2018 Aliaksandr Valialkin
 core,github.com/valyala/fastjson/fastfloat,MIT,Copyright (c) 2018 Aliaksandr Valialkin
 core,github.com/vbatts/tar-split/archive/tar,BSD-3-Clause,"Copyright (c) 2015 Vincent Batts, Raleigh, NC, USA"
+core,github.com/vektah/gqlparser/v2/ast,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/gqlerror,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/lexer,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/parser,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/validator,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/validator/core,MIT,Copyright (c) 2018 Adam Scarr
+core,github.com/vektah/gqlparser/v2/validator/rules,MIT,Copyright (c) 2018 Adam Scarr
 core,github.com/vibrantbyte/go-antpath/antpath,Apache-2.0,vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 core,github.com/vibrantbyte/go-antpath/extend,Apache-2.0,vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 core,github.com/vishvananda/netlink,Apache-2.0,"Copyright 2014 Docker, Inc | Copyright 2014 Vishvananda Ishaya"
