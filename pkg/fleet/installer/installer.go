@@ -664,7 +664,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		log.Warnf("could not delete packages dir: %v", err)
 	}
 
-	err = os.RemoveAll(paths.RootTmpDir)
+	err = purgeTmpDirectory(paths.RootTmpDir)
 	if err != nil {
 		log.Warnf("could not delete tmp directory: %v", err)
 	}
@@ -1042,5 +1042,14 @@ func cleanupTmpDirectory(rootTmpDir string) error {
 		return fmt.Errorf("tmp directory cleanup completed with errors: %s", strings.Join(cleanupErrors, "; "))
 	}
 
+	return nil
+}
+
+// purgeTmpDirectory removes the tmp directory
+var purgeTmpDirectory = func(rootTmpDir string) error {
+	err := os.RemoveAll(rootTmpDir)
+	if err != nil {
+		return err
+	}
 	return nil
 }

@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -411,17 +410,17 @@ func TestPurge(t *testing.T) {
 		err := os.MkdirAll(tmpPath, 0755)
 		assert.NoError(t, err)
 
-		// Only modify RootTmpDir on Windows where it's a variable
-		// On other platforms, it's a constant and cannot be modified
-		if runtime.GOOS == "windows" {
-			oldRootTmpDir := paths.RootTmpDir
-			//nolint:staticcheck // RootTmpDir is a var on Windows, const on other platforms
-			paths.RootTmpDir = tmpPath
-			defer func() {
-				//nolint:staticcheck // RootTmpDir is a var on Windows, const on other platforms
-				paths.RootTmpDir = oldRootTmpDir
-			}()
+		oldPurgeTmpDirectory := purgeTmpDirectory
+		purgeTmpDirectory = func(_ string) error {
+			err := os.RemoveAll(tmpPath)
+			if err != nil {
+				t.Fatalf("could not delete tmp directory: %v", err)
+			}
+			return nil
 		}
+		defer func() {
+			purgeTmpDirectory = oldPurgeTmpDirectory
+		}()
 
 		// Create a file in the tmp directory
 		err = os.WriteFile(filepath.Join(tmpPath, "test.txt"), []byte("test"), 0644)
