@@ -36,8 +36,10 @@ func ToTraces(logger *zap.Logger, payload map[string]any, req *http.Request, req
 	newSpan := in.Spans().AppendEmpty()
 	if eventType, ok := payload[AttrType].(string); ok {
 		newSpan.SetName("datadog.rum." + eventType)
+		newSpan.Attributes().PutStr("operation.name", "datadog.rum."+eventType)
 	} else {
 		newSpan.SetName("datadog.rum.event")
+		newSpan.Attributes().PutStr("operation.name", "datadog.rum.event")
 	}
 	newSpan.SetTraceID(traceID)
 	newSpan.SetSpanID(spanID)
