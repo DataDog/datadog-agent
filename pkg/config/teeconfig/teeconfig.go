@@ -134,6 +134,18 @@ func (t *teeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	t.compare.ParseEnvAsSlice(key, fn)
 }
 
+// ClearEnvTransformer tells the config to assume that no env transformer is registered for the given key
+func (t *teeConfig) ClearEnvTransformer(key string) {
+	t.baseline.ClearEnvTransformer(key)
+	t.compare.ClearEnvTransformer(key)
+}
+
+// CompletelyClearEnvTransformers tells the config to assume that no env transformers are registered
+func (t *teeConfig) CompletelyClearEnvTransformers() {
+	t.baseline.CompletelyClearEnvTransformers()
+	t.compare.CompletelyClearEnvTransformers()
+}
+
 // IsSet wraps Viper for concurrent access
 func (t *teeConfig) IsSet(key string) bool {
 	base := t.baseline.IsSet(key)

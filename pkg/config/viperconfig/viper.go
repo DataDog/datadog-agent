@@ -60,7 +60,7 @@ type safeConfig struct {
 	// warnings contains the warnings that were logged during the configuration loading
 	warnings []error
 
-	existingTransformers []string
+	existingTransformers map[string]bool
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -233,12 +233,22 @@ func (c *safeConfig) setEnvTransformer(key string, fn func(string) interface{}) 
 	//
 	// This is yet another edge case of working with Viper, this edge cases is already handled by the nodetremodel
 	// replacement.
-	if slices.Contains(c.existingTransformers, key) {
+	if _, exists := c.existingTransformers[key]; exists {
 		panic(fmt.Sprintf("env transform for %s already exists", key))
 	}
-	c.existingTransformers = append(c.existingTransformers, key)
+	c.existingTransformers[key] = true
 	c.configSources[model.SourceEnvVar].SetEnvKeyTransformer(key, fn)
 	c.Viper.SetEnvKeyTransformer(key, fn)
+}
+
+// ClearEnvTransformer tells the config to assume that no env transformer is registered for the given key
+func (c *safeConfig) ClearEnvTransformer(key string) {
+	delete(c.existingTransformers, key)
+}
+
+// CompletelyClearEnvTransformers tells the config to assume that no env transformers are registered
+func (c *safeConfig) CompletelyClearEnvTransformers() {
+	c.existingTransformers = make(map[string]bool)
 }
 
 // ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
@@ -809,12 +819,13 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 // NewViperConfig returns a new Config object.
 func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := safeConfig{
-		Viper:               viper.New(),
-		configSources:       map[model.Source]*viper.Viper{},
-		sequenceID:          0,
-		configEnvVars:       map[string]struct{}{},
-		unknownKeys:         map[string]struct{}{},
-		notificationChannel: make(chan model.ConfigChangeNotification, 1000),
+		Viper:                viper.New(),
+		configSources:        map[model.Source]*viper.Viper{},
+		sequenceID:           0,
+		configEnvVars:        map[string]struct{}{},
+		unknownKeys:          map[string]struct{}{},
+		notificationChannel:  make(chan model.ConfigChangeNotification, 1000),
+		existingTransformers: make(map[string]bool),
 	}
 
 	// load one Viper instance per source of setting change
