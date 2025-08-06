@@ -19,11 +19,5 @@ git_override(
 ## Native dependencies ##
 #########################
 
-register_toolchains(
-    "//bazel/toolchains/config:glibc_cc_toolchain_x86",
-    "//bazel/toolchains/config:glibc_cc_toolchain_arm64",
-    "//bazel/toolchains/mingw:mingw_cc_toolchain",
-)
-
 # Make our 3rd parties depencency repositories known
 include("//deps:repos.MODULE.bazel")
