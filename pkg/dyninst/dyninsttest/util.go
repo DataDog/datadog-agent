@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -42,6 +43,23 @@ func SkipIfKernelNotSupported(t *testing.T) {
 	if curKernelVersion < MinimumKernelVersion {
 		t.Skipf("Kernel version %v is not supported", curKernelVersion)
 	}
+}
+
+// Semaphore is a semaphore that can be used to limit the number of concurrent
+// operations.
+type Semaphore chan struct{}
+
+// MakeSemaphore creates a new semaphore with a number of slots equal to the
+// number of CPUs.
+func MakeSemaphore() Semaphore {
+	return make(Semaphore, max(runtime.GOMAXPROCS(0), 1))
+}
+
+// Acquire acquires a slot in the semaphore. It returns a function that must be
+// called to release the slot.
+func (s Semaphore) Acquire() (release func()) {
+	s <- struct{}{}
+	return func() { <-s }
 }
 
 // SetupLogging is used to have a consistent logging setup for all tests.

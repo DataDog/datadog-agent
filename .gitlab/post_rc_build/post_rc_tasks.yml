@@ -16,7 +16,7 @@ update_rc_build_links:
       artifacts: false
     - job: publish_internal_container_image-full
       artifacts: false
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   tags: ["arch:amd64"]
   script:
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
