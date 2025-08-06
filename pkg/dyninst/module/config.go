@@ -59,16 +59,21 @@ func (a wrappedActuator[A, T]) NewTenant(
 
 type erasedActuator = Actuator[ActuatorTenant]
 
-type actuatorConstructor[A Actuator[T], T ActuatorTenant] func(*loader.Loader) A
+type actuatorConstructor[A Actuator[T], T ActuatorTenant] func(
+	*loader.Loader,
+) A
 type erasedActuatorConstructor = actuatorConstructor[erasedActuator, ActuatorTenant]
 
 func (a actuatorConstructor[A, T]) apply(c *Config) {
-	c.actuatorConstructor = func(t *loader.Loader) erasedActuator {
-		return eraseActuator(a(t))
+	c.actuatorConstructor = func(
+		l *loader.Loader,
+	) erasedActuator {
+		return eraseActuator(a(l))
 	}
 }
 
 // WithActuatorConstructor is an option that allows the user to provide a
+// custom actuator constructor.
 func WithActuatorConstructor[
 	A Actuator[T], T ActuatorTenant,
 ](
@@ -77,8 +82,10 @@ func WithActuatorConstructor[
 	return actuatorConstructor[A, T](f)
 }
 
-func defaultActuatorConstructor(t *loader.Loader) erasedActuator {
-	return eraseActuator(actuator.NewActuator(t))
+func defaultActuatorConstructor(
+	l *loader.Loader,
+) erasedActuator {
+	return eraseActuator(actuator.NewActuator(l))
 }
 
 // NewConfig creates a new Config object
