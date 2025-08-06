@@ -71,11 +71,11 @@ require (
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
-	go.opentelemetry.io/collector/component v1.31.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.31.0 // indirect
-	go.opentelemetry.io/collector/internal/telemetry v0.125.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.31.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.125.0 // indirect
+go.opentelemetry.io/collector/component v1.37.0
+go.opentelemetry.io/collector/featuregate v1.37.0
+go.opentelemetry.io/collector/internal/telemetry v0.131.0
+go.opentelemetry.io/collector/pdata v1.37.0
+go.opentelemetry.io/collector/pdata/pprofile v0.131.0
 	go.opentelemetry.io/collector/semconv v0.125.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.10.0 // indirect
 	go.opentelemetry.io/otel v1.36.0 // indirect
