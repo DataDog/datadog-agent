@@ -24,6 +24,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -169,8 +170,9 @@ func (c *Check) Run() error {
 
 	groupID := nextGroupID()
 	metadataAsTags := utils.GetMetadataAsTags(c.cfg)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()["pods"]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()["pods"]
+	resourceType := utilTypes.GetResourceType(utilTypes.PodName, utilTypes.PodVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              c.config,
