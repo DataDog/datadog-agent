@@ -234,8 +234,8 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
-	// ActivityDumpCgroupsManagers defines the cgroup managers we generate dumps for.
-	ActivityDumpCgroupsManagers []string
+	// ActivityDumpTraceSystemdCgroups defines if you want to trace systemd cgroups
+	ActivityDumpTraceSystemdCgroups bool
 
 	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
 	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
@@ -534,12 +534,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// activity dump
 		ActivityDumpEnabled:                   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.enabled"),
+		ActivityDumpTraceSystemdCgroups:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.trace_systemd_cgroups"),
 		ActivityDumpCleanupPeriod:             pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cleanup_period"),
 		ActivityDumpTagsResolutionPeriod:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.tags_resolution_period"),
 		ActivityDumpLoadControlPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.load_controller_period"),
 		ActivityDumpLoadControlMinDumpTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.min_timeout"),
 		ActivityDumpTracedCgroupsCount:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
-		ActivityDumpCgroupsManagers:           pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.cgroup_managers"),
 		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.dump_duration"),
 		ActivityDumpCgroupWaitListTimeout:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
