@@ -66,8 +66,6 @@ func (s *packageDDOTSuite) TestInstallWithDDOT() {
 
 	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
-	// Substitute API & site into otel-config.yaml
-	s.host.Run("sudo sh -c \"sed -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml.example > /etc/datadog-agent/otel-config.yaml\"")
 
 	s.host.WaitForUnitActive(s.T(), ddotUnit)
 
