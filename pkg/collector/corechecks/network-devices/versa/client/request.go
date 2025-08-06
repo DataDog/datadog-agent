@@ -7,12 +7,10 @@ package client
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptrace"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,39 +18,11 @@ import (
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // newRequest creates a new request for this client.
 func (client *Client) newRequest(method, uri string, body io.Reader, useSessionAuth bool) (*http.Request, error) {
-	// TODO: remove after triage
-	trace := &httptrace.ClientTrace{
-		GetConn: func(hostPort string) {
-			log.Tracef("Getting Conn for: %s", hostPort)
-		},
-		GotConn: func(connInfo httptrace.GotConnInfo) {
-			log.Tracef("Got Conn: %+v", connInfo.Conn.RemoteAddr())
-		},
-		DNSStart: func(dnsInfo httptrace.DNSStartInfo) {
-			log.Tracef("DNS Start: %s", dnsInfo.Host)
-		},
-		DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
-			log.Tracef("DNS Done: Found %+v, Error: %+v", dnsInfo.Addrs, dnsInfo.Err)
-		},
-		ConnectStart: func(network, addr string) {
-			log.Tracef("Connect Start: network %s, addr %s", network, addr)
-		},
-		ConnectDone: func(network, addr string, err error) {
-			log.Tracef("Connect Done: network %s, addr %s, error %+v", network, addr, err)
-		},
-		TLSHandshakeStart: func() {
-			log.Trace("TLS Handshake Started")
-		},
-		TLSHandshakeDone: func(state tls.ConnectionState, err error) {
-			log.Tracef("TLS Handshake Done State: %+v, Error: %+v", state, err)
-		},
-	}
-
 	// session auth requires token authentication
 	if useSessionAuth {
-		return http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), method, client.directorEndpoint+uri, body)
+		return http.NewRequestWithContext(context.Background(), method, client.directorEndpoint+uri, body)
 	}
-	return http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
+	return http.NewRequestWithContext(context.Background(), method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
