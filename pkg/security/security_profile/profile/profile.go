@@ -642,9 +642,6 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
-	p.InstancesLock.Lock()
-	defer p.InstancesLock.Unlock()
-
 	for _, workload := range p.Instances {
 		if entry.ContainerID == workload.ContainerID {
 			return true
@@ -720,8 +717,6 @@ func (p *Profile) ListAllVersionStates() {
 			}
 		}
 		fmt.Printf("Instances:\n")
-		p.InstancesLock.Lock()
-		defer p.InstancesLock.Unlock()
 		for _, instance := range p.Instances {
 			fmt.Printf("  - %+v\n", instance.ContainerID)
 		}
