@@ -818,12 +818,12 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 }
 
 func TestMultipleRulesForBinaryOnlyOneMatchesFunctions(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Exe:     "/bin/bash",
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,
