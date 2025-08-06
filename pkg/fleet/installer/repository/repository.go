@@ -218,7 +218,7 @@ func (r *Repository) Delete(ctx context.Context) error {
 // CopyStable copies the stable package to the given destination path.
 func (r *Repository) CopyStable(ctx context.Context, destPath string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "repository.CopyStable")
-	defer func() { 
+	defer func() {
 		span.Finish(err)
 	}()
 
