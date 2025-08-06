@@ -156,7 +156,7 @@ func TestController(t *testing.T) {
 		Name:       kafkaConsumerIntegrationName,
 		Instances:  []integration.Data{integration.Data(modifiedConfig)},
 		InitConfig: integration.Data{},
-		LogsConfig: integration.Data("[{\"type\":\"integration\",\"service\":\"kafka_consumer\",\"source\":\"kafka_consumer\"}]"),
+		LogsConfig: integration.Data(logsConfig),
 	}
 	assert.Equal(t, expectedUnscheduled, cfg.Unschedule[0])
 	assert.Equal(t, expectedScheduled, cfg.Schedule[0])

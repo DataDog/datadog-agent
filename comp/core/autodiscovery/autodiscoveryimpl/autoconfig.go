@@ -339,7 +339,9 @@ func (ac *AutoConfig) scrubConfig(config integration.Config) integration.Config 
 	}
 
 	if len(config.LogsConfig) > 0 {
+		log.Info("Scrubbing data", "logs_config", string(config.LogsConfig))
 		scrubbedData, err := scrubData(config.LogsConfig)
+		log.Info("Scrubbed data", "logs_config", string(scrubbedData), "err", err)
 		if err != nil {
 			ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
 			scrubbedConfig.LogsConfig = []byte{}
