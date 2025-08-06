@@ -34,7 +34,7 @@ build do
   # and only provides a makefile. We can't use use `-DLUA_USE_LINUX` or the `make linux`
   # methods because they make the assumption that the readline package has been installed.
   mycflags = "-I#{install_dir}/embedded/include -O2 -DLUA_USE_POSIX -DLUA_USE_DLOPEN -fpic"
-  myldflags = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib "
+  myldflags = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
   mylibs = "-ldl"
   make "liblua.a MYCFLAGS='#{mycflags}' MYLDFLAGS='#{myldflags}' MYLIBS='#{mylibs}'", env: env, cwd: "#{project_dir}/src"
   copy "#{project_dir}/src/liblua.a", "#{install_dir}/embedded/lib/"
