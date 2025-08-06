@@ -179,7 +179,7 @@ func parseSiteMetrics(data [][]interface{}) ([]SiteMetrics, error) {
 	var rows []SiteMetrics
 	for _, row := range data {
 		m := SiteMetrics{}
-		if len(row) < 10 {
+		if len(row) != 10 {
 			return nil, fmt.Errorf("missing columns in row: got %d columns, expected 10", len(row))
 		}
 		// Type assertions for each value
