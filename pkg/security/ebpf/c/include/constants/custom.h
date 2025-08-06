@@ -4,7 +4,6 @@
 #include "macros.h"
 
 #define TTY_NAME_LEN 64
-#define CONTAINER_ID_LEN 64
 #define MAX_XATTR_NAME_LEN 200
 #define CHAR_TO_UINT32_BASE_10_MAX_LEN 11
 #define BASENAME_FILTER_SIZE 256
