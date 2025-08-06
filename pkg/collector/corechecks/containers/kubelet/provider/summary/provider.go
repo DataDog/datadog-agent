@@ -226,7 +226,10 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			continue
 		}
 		ctr.Name = containerName
-		if p.filterStore.IsContainerExcluded(workloadmetafilter.CreateContainerFromOrch(ctr, workloadmetafilter.CreatePod(podData)), workloadfilter.GetContainerSharedMetricFilters()) {
+
+		filterableContainer := workloadmetafilter.CreateContainerFromOrch(ctr, workloadmetafilter.CreatePod(podData))
+		selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+		if p.filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
 			continue
 		}
 		tags, err := p.tagger.Tag(types.NewEntityID(types.ContainerID, ctr.ID), types.HighCardinality)

@@ -22,6 +22,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	dockerfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/docker"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -231,37 +232,20 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 			resolvedImageName = rawContainer.Image
 		}
 
-		// We do reports some metrics about excluded containers, but the tagger won't have tags
-		// We always use rawContainer.Names[0] to match historic behavior
-		var containerName string
-		if len(rawContainer.Names) > 0 {
-			containerName = rawContainer.Names[0]
-		}
-
-		// Retrieve workloadmeta objects
-		wmetaContainer, err := d.store.GetContainer(rawContainer.ID)
-		if err != nil {
-			// Fallback: create a minimal container object for filtering
-			wmetaContainer = &workloadmeta.Container{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   rawContainer.ID,
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: containerName,
-				},
-				Image: workloadmeta.ContainerImage{
-					RawName: resolvedImageName,
-				},
-				Runtime: workloadmeta.ContainerRuntimeDocker,
-				State: workloadmeta.ContainerState{
-					Running: rawContainer.State == string(workloadmeta.ContainerStatusRunning),
-				},
-			}
-		}
+		// Retrieve filterable objects
 		pod, _ := d.store.GetKubernetesPodForContainer(rawContainer.ID)
+		filterablePod := workloadmetafilter.CreatePod(pod)
+		wmetaContainer, err := d.store.GetContainer(rawContainer.ID)
+		var filterableContainer *workloadfilter.Container
+		if err != nil {
+			// Backup partial definition of container from the summary in case of race conditions
+			filterableContainer = dockerfilter.CreateContainer(rawContainer, resolvedImageName, filterablePod)
+		} else {
+			filterableContainer = workloadmetafilter.CreateContainer(wmetaContainer, filterablePod)
+		}
+		selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
 
-		isContainerExcluded := d.filterStore.IsContainerExcluded(workloadmetafilter.CreateContainer(wmetaContainer, workloadmetafilter.CreatePod(pod)), workloadfilter.GetContainerSharedMetricFilters())
+		isContainerExcluded := d.filterStore.IsContainerExcluded(filterableContainer, selectedFilters)
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
 		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID)
 		tags, err := d.getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)

@@ -37,7 +37,9 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			continue
 		}
 
-		if split[1] == "images" && c.filterStore.IsContainerExcluded(workloadfilter.CreateContainerImage(e.ID), workloadfilter.GetContainerSharedMetricFilters()) {
+		filterableContainerImage := workloadfilter.CreateContainerImage(e.ID)
+		selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+		if split[1] == "images" && c.filterStore.IsContainerExcluded(filterableContainerImage, selectedFilters) {
 			continue
 		}
 

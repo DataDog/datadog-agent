@@ -203,7 +203,9 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 		if pod == nil {
 			continue
 		}
-		if p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(pod), workloadfilter.GetPodSharedMetricFilters()) {
+		filterablePod := workloadmetafilter.CreatePod(pod)
+		selectedFilters := workloadfilter.GetPodSharedMetricFilters()
+		if p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			continue
 		}
 		if strings.Contains(metricName, ".network.") && p.podUtils.IsHostNetworkedPod(podUID) {
@@ -380,7 +382,9 @@ func (p *Provider) getPodByMetricLabel(labels model.Metric) *workloadmeta.Kubern
 		podName = labels["pod_name"]
 	}
 	if pod, err := p.store.GetKubernetesPodByName(string(podName), string(namespace)); err == nil {
-		if !p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(pod), workloadfilter.GetPodSharedMetricFilters()) {
+		filterablePod := workloadmetafilter.CreatePod(pod)
+		selectedFilters := workloadfilter.GetPodSharedMetricFilters()
+		if !p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			return pod
 		}
 	}

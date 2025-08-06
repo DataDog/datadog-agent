@@ -56,18 +56,6 @@ func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
 	return flist
 }
 
-// FlattenFilterSets flattens a slice of filter sets into a single slice.
-func FlattenFilterSets[T ~int](
-	filterSets [][]T, // Generic filter types
-) []T {
-	// Flatten the filter sets into a single slice
-	flattened := make([]T, 0)
-	for _, set := range filterSets {
-		flattened = append(flattened, set...)
-	}
-	return flattened
-}
-
 // GetContainerSharedMetricFilters identifies the filtering component's individual Container Filters for container metrics.
 func GetContainerSharedMetricFilters() [][]ContainerFilter {
 
@@ -101,4 +89,21 @@ func GetContainerSharedMetricFilters() [][]ContainerFilter {
 // GetPodSharedMetricFilters identifies the filtering component's individual Pod Filters for pod metrics.
 func GetPodSharedMetricFilters() [][]PodFilter {
 	return [][]PodFilter{{PodADAnnotations, PodADAnnotationsMetrics}, {LegacyPod}}
+}
+
+// GetContainerSBOMFilters identifies the filter component's individual Container Filters for SBOM.
+func GetContainerSBOMFilters() [][]ContainerFilter {
+	return [][]ContainerFilter{{LegacyContainerSBOM}}
+}
+
+// FlattenFilterSets flattens a slice of filter sets into a single slice.
+func FlattenFilterSets[T ~int](
+	filterSets [][]T, // Generic filter types
+) []T {
+	// Flatten the filter sets into a single slice
+	flattened := make([]T, 0)
+	for _, set := range filterSets {
+		flattened = append(flattened, set...)
+	}
+	return flattened
 }

@@ -167,10 +167,12 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 	for _, metric := range metricFam.Samples {
 		pvcName := metric.Metric["persistentvolumeclaim"]
 		namespace := metric.Metric["namespace"]
-		tempPod := &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{Namespace: string(namespace)}}
-		if pvcName == "" || namespace == "" || p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(tempPod), workloadfilter.GetPodSharedMetricFilters()) {
+		filterablePod := workloadmetafilter.CreatePod(&workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{Namespace: string(namespace)}})
+		selectedFilters := workloadfilter.GetPodSharedMetricFilters()
+		if pvcName == "" || namespace == "" || p.filterStore.IsPodExcluded(filterablePod, selectedFilters) {
 			continue
 		}
+
 		tags := p.MetricTags(metric)
 		if podTags := p.podUtils.GetPodTagsByPVC(string(namespace), string(pvcName)); len(podTags) > 0 {
 			tags = utils.ConcatenateTags(tags, podTags)

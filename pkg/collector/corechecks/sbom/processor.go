@@ -47,6 +47,7 @@ type processor struct {
 	queue                 chan *model.SBOMEntity
 	workloadmetaStore     workloadmeta.Component
 	filterStore           workloadfilter.Component
+	selectedFilters       [][]workloadfilter.ContainerFilter
 	tagger                tagger.Component
 	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
@@ -94,6 +95,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		}),
 		workloadmetaStore:     workloadmetaStore,
 		filterStore:           filterStore,
+		selectedFilters:       workloadfilter.GetContainerSBOMFilters(),
 		tagger:                tagger,
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
@@ -133,7 +135,8 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 	for _, event := range imageEvents {
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
-			if p.filterStore.IsContainerExcluded(workloadfilter.CreateContainerImage(event.Entity.(*workloadmeta.ContainerImageMetadata).Name), [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.LegacyContainerSBOM)}}) {
+			filterableContainerImage := workloadfilter.CreateContainerImage(event.Entity.(*workloadmeta.ContainerImageMetadata).Name)
+			if p.filterStore.IsContainerExcluded(filterableContainerImage, p.selectedFilters) {
 				continue
 			}
 
@@ -152,7 +155,8 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			container := event.Entity.(*workloadmeta.Container)
 			p.registerContainer(container)
 
-			if p.filterStore.IsContainerExcluded(workloadmetafilter.CreateContainer(container, nil), [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.LegacyContainerSBOM)}}) {
+			filterableContainer := workloadmetafilter.CreateContainer(container, nil)
+			if p.filterStore.IsContainerExcluded(filterableContainer, p.selectedFilters) {
 				continue
 			}
 

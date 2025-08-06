@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	kubeletfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -107,7 +108,9 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			runningAggregator.recordContainer(p, pod, &cStatus, cID)
 
 			// don't exclude filtered containers from aggregation, but filter them out from other reported metrics
-			if p.filterStore.IsContainerExcluded(common.CreateFilterableContainerFromStatus(cStatus, common.CreateFilterablePodFromKubelet(pod)), workloadfilter.GetContainerSharedMetricFilters()) {
+			filterableContainer := kubeletfilter.CreateContainer(cStatus, kubeletfilter.CreatePod(pod))
+			selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+			if p.filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
 				continue
 			}
 
