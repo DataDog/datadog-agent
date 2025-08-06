@@ -15,7 +15,7 @@ Probes:
       events:
         - ID: 11
           Type: 63 EventRootType Probe[main.PointerChainArg]
-          InjectionPoints: [{PC: "0x4a8006", Frameless: true}]
+          InjectionPoints: [{PC: "0x4a8006", Frameless: false}]
           Condition: null
     - id: PointerSmallChainArg
       version: 0
@@ -32,7 +32,7 @@ Probes:
       events:
         - ID: 12
           Type: 64 EventRootType Probe[main.PointerSmallChainArg]
-          InjectionPoints: [{PC: "0x4a8050", Frameless: true}]
+          InjectionPoints: [{PC: "0x4a8050", Frameless: false}]
           Condition: null
     - id: bigMapArg
       version: 0
@@ -63,7 +63,7 @@ Probes:
             - PC: "0x4a83ca"
               Frameless: false
             - PC: "0x4a7dce"
-              Frameless: true
+              Frameless: false
           Condition: null
     - id: intArg
       version: 0
@@ -299,7 +299,9 @@ Subprograms:
     - ID: 1
       Name: main.inlined
       OutOfLinePCRanges: [0x4a83c0..0x4a8422]
-      InlinePCRanges: [[0x4a7dce..0x4a7e1f]]
+      InlinePCRanges:
+        - Ranges: [0x4a7dce..0x4a7e1f]
+          RootRanges: [0x4a7c40..0x4a809d]
       Variables:
         - Name: x
           Type: 1 BaseType int
@@ -313,7 +315,9 @@ Subprograms:
     - ID: 2
       Name: main.PointerChainArg
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0x4a8006..0x4a8045]]
+      InlinePCRanges:
+        - Ranges: [0x4a8006..0x4a8045]
+          RootRanges: [0x4a7c40..0x4a809d]
       Variables:
         - Name: ptr
           Type: 2 PointerType *****int
@@ -325,7 +329,9 @@ Subprograms:
     - ID: 3
       Name: main.PointerSmallChainArg
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0x4a8050..0x4a808a]]
+      InlinePCRanges:
+        - Ranges: [0x4a8050..0x4a808a]
+          RootRanges: [0x4a7c40..0x4a809d]
       Variables:
         - Name: ptr
           Type: 5 PointerType **int

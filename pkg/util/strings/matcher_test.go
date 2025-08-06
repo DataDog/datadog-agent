@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewBlocklist(t *testing.T) {
+func TestNewMatcher(t *testing.T) {
 	check := func(data []string) []string {
-		b := NewBlocklist(data, true)
+		b := NewMatcher(data, true)
 		return b.data
 	}
 
@@ -26,11 +26,11 @@ func TestNewBlocklist(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "b", "bb"}))
 }
 
-func TestIsStringBlocked(t *testing.T) {
+func TestIsStringMatching(t *testing.T) {
 	cases := []struct {
 		result      bool
 		name        string
-		blocklist   []string
+		list        []string
 		matchPrefix bool
 	}{
 		{false, "some", []string{}, false},
@@ -45,9 +45,9 @@ func TestIsStringBlocked(t *testing.T) {
 		{true, "foobar", []string{"foo", "baz"}, true},
 	}
 	for _, c := range cases {
-		t.Run(fmt.Sprintf("%v-%v-%v", c.name, c.blocklist, c.matchPrefix),
+		t.Run(fmt.Sprintf("%v-%v-%v", c.name, c.list, c.matchPrefix),
 			func(t *testing.T) {
-				b := NewBlocklist(c.blocklist, c.matchPrefix)
+				b := NewMatcher(c.list, c.matchPrefix)
 				assert.Equal(t, c.result, b.Test(c.name))
 			})
 	}
@@ -64,7 +64,7 @@ func randomString(size uint) string {
 	return str
 }
 
-func BenchmarkBlocklist(b *testing.B) {
+func BenchmarkStringsMatcher(b *testing.B) {
 	words := []string{
 		"foo",
 		"longer.name.but.still.small",
@@ -72,17 +72,17 @@ func BenchmarkBlocklist(b *testing.B) {
 		"bar",
 	}
 	for i := 1000; i <= 10000; i += 1000 {
-		b.Run(fmt.Sprintf("blocklist-%d", i), func(b *testing.B) {
+		b.Run(fmt.Sprintf("strings-matcher-%d", i), func(b *testing.B) {
 			var values []string
 			for range i {
 				values = append(values, randomString(50))
 			}
-			benchmarkBlocklist(b, words, values)
+			benchmarkStringsMatcher(b, words, values)
 		})
 	}
 }
 
-func benchmarkBlocklist(b *testing.B, words, values []string) {
+func benchmarkStringsMatcher(b *testing.B, words, values []string) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
@@ -90,9 +90,9 @@ func benchmarkBlocklist(b *testing.B, words, values []string) {
 	words[0] = values[0]
 	words[3] = values[100]
 
-	blocklist := NewBlocklist(values, false)
+	matcher := NewMatcher(values, false)
 
 	for n := 0; n < b.N; n++ {
-		blocklist.Test(words[n%len(words)])
+		matcher.Test(words[n%len(words)])
 	}
 }

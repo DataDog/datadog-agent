@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"expvar"
 	"testing"
 	"time"
 
@@ -132,6 +133,8 @@ func TestNewManifestBuffer(t *testing.T) {
 func TestFlushManifest(t *testing.T) {
 	// Reset global stats
 	manifestToSend = []*model.CollectorManifest{}
+	manifestFlushed = &expvar.Int{}
+	bufferFlushedTotal = &expvar.Int{}
 
 	mb := getManifestBuffer(t)
 	sender := getSender(t)

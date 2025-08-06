@@ -36,6 +36,7 @@ func testInlinedBA(x int) {
 
 func testInlinedBB(x, y int) {
 	z := x * y
+	testInlinedPrint(z)
 	testInlinedBBA(z)
 	testInlinedBBB()
 }
@@ -66,11 +67,40 @@ func testInlinedBCB() {
 	fmt.Println("inlinedBCB")
 }
 
+func testInlinedSumArray(a [5]int) int {
+	return a[0] + a[1] + a[2] + a[3] + a[4]
+}
+
+func testInlinedSq(x int) int {
+	return x * x
+}
+
+//go:noinline
+func testFrameless(x int) int {
+	return testInlinedSq(x)
+}
+
+// Despite best efforts, the compiler doesn't make the following function
+// frameless. Seems impossible currently to have a function inlined into
+// a frameless function if it accesses stack (even though the data is put
+// on the stack by the caller). Best we can do is the function above, which
+// doesn't test cfa resolution, but at least we test stack unwinding. We
+// keep this test in case, in the future, the compiler decides to make this
+// function frameless.
+//
+//go:noinline
+func testFramelessArray(a [5]int) int {
+	return testInlinedSumArray(a)
+}
+
 //nolint:all
 func executeInlined() {
+	a := [5]int{1, 2, 3, 4, 5}
 	x := 10
-	y := 20
+	y := testInlinedSumArray(a)
 	testInlinedA(x, y)
 	testInlinedB(x, y)
 	forceOutOfLine(testInlinedPrint)
+	fmt.Println(testFrameless(x))
+	fmt.Println(testFramelessArray(a))
 }
