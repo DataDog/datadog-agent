@@ -218,7 +218,7 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 
 	for _, child := range allChildren {
 		child.Path = ""
-		mr.getMountPath(child.MountID, 0, 0)
+		_, _, _, _ = mr.getMountPath(child.MountID, 0, 0)
 	}
 }
 
