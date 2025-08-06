@@ -194,7 +194,7 @@ func GetHostCCRID(ctx context.Context) (string, error) {
 	}
 	// Azure APIs are inconsistent with handling case, so it is recommended to
 	// lower-case returned strings that represent stable IDs
-	// https://docs.google.com/document/d/1WyATANotBEXJg9gK70RJTliewuVMUkAnKDT7YV19ml4/edit?tab=t.0#heading=h.9zts2pof3eet
+	// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-resource-group-and-subscription?tabs=azure-cli
 	return strings.ToLower(caseInsensitiveCCRID), nil
 }
 
