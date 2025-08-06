@@ -266,13 +266,13 @@ class TestRpathEdit(unittest.TestCase):
             'run', 'objdump -x some/file | grep "RPATH"', Result("some/path/result/binary/path")
         )
         self.mock_ctx.set_result_for(
-            'run', 'patchelf --set-runpath \\$ORIGIN/other/path/embedded/lib some/file', Result()
+            'run', 'patchelf --set-rpath \\$ORIGIN/other/path/embedded/lib some/file', Result()
         )
         omnibus.rpath_edit(self.mock_ctx, "some/path", "some/other/path")
         call_list = self.mock_ctx.run.mock_calls
         assert mock.call('find some/path -type f -exec file --mime-type \\{\\} \\+', hide=True) in call_list
         assert mock.call('objdump -x some/file | grep "RPATH"', warn=True, hide=True) in call_list
-        assert mock.call('patchelf --set-runpath \\$ORIGIN/other/path/embedded/lib some/file') in call_list
+        assert mock.call('patchelf --set-rpath \\$ORIGIN/other/path/embedded/lib some/file') in call_list
 
     def test_rpath_edit_macos(self):
         self.mock_ctx.set_result_for(
