@@ -543,7 +543,9 @@ def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, fi
         force_rpath_arg = ""
         if not force_rpath:
             force_rpath_arg = "--force-rpath"
-        ctx.run(f"patchelf {force_rpath_arg} --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
+
+        rpath = ':'.join(f"\\$ORIGIN/{r}/embedded/lib" for r in new_rpath.split(':'))
+        ctx.run(f"patchelf {force_rpath_arg} --set-rpath {rpath} {file}")
     else:
         # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
         # but just in case we're replacing them all.
@@ -595,5 +597,7 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
 
         # if a binary has an rpath that use our installation path we are patching it
         if install_path in binary_rpath:
-            new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
+            new_rpath = ':'.join(
+                [os.path.relpath(path, os.path.dirname(file)) for path in target_rpath_dd_folder.split(':')]
+            )
             _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)

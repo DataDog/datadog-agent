@@ -166,7 +166,7 @@ build do
 
             # Edit rpath from a true path to relative path for each binary if install_dir contains /opt/datadog-packages
             if install_dir.include?("/opt/datadog-packages")
-              command "inv omnibus.rpath-edit #{install_dir} /opt/datadog-packages/datadog-agent/stable --force-rpath=False", cwd: Dir.pwd
+              command "inv omnibus.rpath-edit #{install_dir} /opt/datadog-packages/datadog-agent/stable:#{install_dir} --force-rpath=False", cwd: Dir.pwd
             end
         end
 
