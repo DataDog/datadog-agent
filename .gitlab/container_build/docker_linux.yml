@@ -43,9 +43,7 @@
         # that can't be usefully cached, to the remote cache.
         echo "Building ${CACHE_TARGET} for cache"
         docker buildx build --pull --platform linux/$ARCH \
-          ${CACHE_SOURCE} \
-          ${CACHE_TO} \
-          ${DOCKER_NO_CACHE} \
+          --no-cache \
           --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
           --build-arg CIBUILD=true \
           --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
@@ -62,8 +60,7 @@
     # Build image, use target none label to avoid replication
     - |-
       docker buildx build --push --pull --platform linux/$ARCH \
-        ${CACHE_SOURCE} \
-        ${DOCKER_NO_CACHE} \
+        --no-cache \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
         --build-arg CIBUILD=true \
         --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
@@ -197,6 +194,7 @@ docker_build_agent7_jmx:
 
 docker_build_agent7_jmx_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
+  parallel: 4
   needs:
     - job: datadog-agent-7-arm64
   variables:
