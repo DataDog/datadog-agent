@@ -30,8 +30,7 @@ func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
 	flist := make([][]ContainerFilter, 2)
 
 	// TODO: Add config option for users to configure AD annotations to take lower priority
-	flist[highPrecedence] = []ContainerFilter{ContainerADAnnotations}
-
+	high := []ContainerFilter{ContainerADAnnotations}
 	low := []ContainerFilter{LegacyContainerGlobal}
 
 	switch filterScope {
@@ -43,11 +42,15 @@ func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
 			low = append(low, LegacyContainerACExclude)
 		}
 	case MetricsFilter:
-		low = append(low, LegacyContainerMetrics, ContainerADAnnotationsMetrics)
+		low = append(low, LegacyContainerMetrics)
+		high = append(high, ContainerADAnnotationsMetrics)
 	case LogsFilter:
-		low = append(low, LegacyContainerLogs, ContainerADAnnotationsLogs)
+		low = append(low, LegacyContainerLogs)
+		high = append(high, ContainerADAnnotationsLogs)
+	default:
 	}
 
+	flist[highPrecedence] = high
 	flist[lowPrecedence] = low
 
 	return flist
