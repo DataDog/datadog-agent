@@ -156,7 +156,7 @@ func (c *collector) processCollectionIntervalConfig() time.Duration {
 	// service discovery data will be incorrect/empty if the process collection interval > service collection interval
 	// therefore, the service collection interval must be the max interval for process collection
 	if processCollectionInterval > serviceCollectionInterval {
-		log.Warnf("process collection interval %v cannot be larger than the service collection interval %v. falling back to service interval",
+		log.Warnf("process collection interval %v cannot be larger than the service collection interval %v. falling back to service collection interval",
 			processCollectionInterval, serviceCollectionInterval)
 		return serviceCollectionInterval
 	}
