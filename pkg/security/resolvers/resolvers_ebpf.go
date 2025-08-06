@@ -250,7 +250,7 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 }
 
 // ResolveCGroupContext resolves the cgroup context from a cgroup path key
-func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) (*model.CGroupContext, bool, error) {
+func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey) (*model.CGroupContext, bool, error) {
 	if cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey); found {
 		return cgroupContext, true, nil
 	}
@@ -261,10 +261,8 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 	}
 
 	cgroupContext := &model.CGroupContext{
-		CGroupID:      containerutils.CGroupID(cgroup),
-		CGroupFlags:   containerutils.CGroupFlags(cgroupFlags),
-		CGroupFile:    pathKey,
-		CGroupManager: cgroupFlags.GetCGroupManager().String(),
+		CGroupID:   containerutils.CGroupID(cgroup),
+		CGroupFile: pathKey,
 	}
 
 	return cgroupContext, false, nil
