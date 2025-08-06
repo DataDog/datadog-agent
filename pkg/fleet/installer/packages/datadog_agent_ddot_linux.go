@@ -257,13 +257,8 @@ func writeOtelConfig() error {
 		return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
 	}
 
-	apiKey, _ := existingConfig["api_key"].(string)
-	site, _ := existingConfig["site"].(string)
-
-	// Default site if not specified
-	if site == "" {
-		site = "datadoghq.com"
-	}
+	apiKey, apiOk := existingConfig["api_key"].(string)
+	site, siteOk := existingConfig["site"].(string)
 
 	// Read the example config file
 	exampleData, err := os.ReadFile("/etc/datadog-agent/otel-config.yaml.example")
@@ -273,8 +268,13 @@ func writeOtelConfig() error {
 
 	// Substitute values
 	configData := string(exampleData)
-	configData = strings.ReplaceAll(configData, "${env:DD_API_KEY}", apiKey)
-	configData = strings.ReplaceAll(configData, "${env:DD_SITE}", site)
+	if apiOk && apiKey != "" {
+		configData = strings.ReplaceAll(configData, "${env:DD_API_KEY}", apiKey)
+	}
+
+	if siteOk && site != "" {
+		configData = strings.ReplaceAll(configData, "${env:DD_SITE}", site)
+	}
 
 	// Write the processed config
 	err = os.WriteFile("/etc/datadog-agent/otel-config.yaml", []byte(configData), 0644)
