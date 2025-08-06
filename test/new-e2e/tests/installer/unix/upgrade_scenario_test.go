@@ -627,11 +627,11 @@ func (s *upgradeScenarioSuite) TestUpgradeAppendConfig() {
 		},
 	}
 
-	s.mustStartConfigExperiment(datadogAgent, installerConfig{ID: "append-config"}, configActions2)
-	s.assertSuccessfulConfigStartExperiment(timestamp, "append-config")
+	s.mustStartConfigExperiment(datadogAgent, installerConfig{ID: "append-config-2"}, configActions2)
+	s.assertSuccessfulConfigStartExperiment(timestamp, "append-config-2")
 
 	s.mustPromoteConfigExperiment(datadogAgent)
-	s.assertSuccessfulConfigPromoteExperiment(timestamp, "append-config")
+	s.assertSuccessfulConfigPromoteExperiment(timestamp, "append-config-2")
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeRemoveAllConfig() {
