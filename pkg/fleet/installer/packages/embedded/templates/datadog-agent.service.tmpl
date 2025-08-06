@@ -19,6 +19,9 @@ PIDFile={{.InstallDir}}/run/agent.pid
 User=dd-agent
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+{{- if not .Stable}}
+Environment="LD_LIBRARY_PATH={{.InstallDir}}/embedded/lib"
+{{- end}}
 RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
