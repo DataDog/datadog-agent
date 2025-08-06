@@ -9,6 +9,7 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -34,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,11 +75,12 @@ func NewComponent(reqs Requires) Provides {
 func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 	shutdownChan := make(chan struct{})
 	comp := &remoteAgentRegistry{
-		conf:           reqs.Config,
-		agentMap:       make(map[string]*remoteAgentDetails),
-		shutdownChan:   shutdownChan,
-		telemetry:      reqs.Telemetry,
-		telemetryStore: newTelemetryStore(reqs.Telemetry),
+		conf:             reqs.Config,
+		agentMap:         make(map[string]*remoteAgentDetails),
+		shutdownChan:     shutdownChan,
+		telemetry:        reqs.Telemetry,
+		configEventsChan: make(chan *settingsUpdates),
+		telemetryStore:   newTelemetryStore(reqs.Telemetry),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -176,12 +180,20 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 // remoteAgentRegistry is the main registry for remote agents. It tracks which remote agents are currently registered, when
 // they were last seen, and handles collecting status and flare data from them on request.
 type remoteAgentRegistry struct {
-	conf           config.Component
-	agentMap       map[string]*remoteAgentDetails
-	agentMapMu     sync.Mutex
-	shutdownChan   chan struct{}
-	telemetry      telemetry.Component
-	telemetryStore *telemetryStore
+	conf             config.Component
+	agentMap         map[string]*remoteAgentDetails
+	agentMapMu       sync.Mutex
+	shutdownChan     chan struct{}
+	telemetry        telemetry.Component
+	configEventsChan chan *settingsUpdates
+	telemetryStore   *telemetryStore
+}
+
+type settingsUpdates struct {
+	setting    string
+	source     model.Source
+	newValue   interface{}
+	sequenceID uint64
 }
 
 // RegisterRemoteAgent registers a remote agent with the registry.
@@ -209,7 +221,7 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		//
 		// This won't try and connect to the given gRPC endpoint immediately, but will instead surface any errors with
 		// connecting when we try to query the remote agent for status or flare data.
-		details, err := newRemoteAgentDetails(registration)
+		details, err := newRemoteAgentDetails(registration, ra.conf)
 		if err != nil {
 			ra.telemetryStore.remoteAgentRegisteredError.Inc(details.sanatizedDisplayName)
 			return 0, err
@@ -225,16 +237,20 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	// We already have an entry for this remote agent, so check if we need to update the gRPC client, and then update
 	// the other bits.
 	if entry.apiEndpoint != registration.APIEndpoint {
-		entry.apiEndpoint = registration.APIEndpoint
+		// The API endpoint has changed, so we need to create a new client and restart the config stream.
+		// To do that, we'll just remove the old entry and create a new one.
+		entry.configStream.Cancel()
+		delete(ra.agentMap, agentID)
 
-		client, err := newRemoteAgentClient(registration)
+		newEntry, err := newRemoteAgentDetails(registration, ra.conf)
 		if err != nil {
 			ra.telemetryStore.remoteAgentUpdatedError.Inc(sanatizeString(registration.DisplayName))
 			return 0, err
 		}
-		entry.client = client
-	}
 
+		ra.agentMap[agentID] = newEntry
+		entry = newEntry
+	}
 	entry.displayName = registration.DisplayName
 	entry.sanatizedDisplayName = sanatizeString(registration.DisplayName)
 	entry.lastSeen = time.Now()
@@ -252,6 +268,14 @@ func (ra *remoteAgentRegistry) registerCollector() {
 func (ra *remoteAgentRegistry) start() {
 	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent_registry.idle_timeout")
 	ra.registerCollector()
+	ra.conf.OnUpdate(func(setting string, source model.Source, _, newValue interface{}, sequenceID uint64) {
+		ra.configEventsChan <- &settingsUpdates{
+			setting:    setting,
+			source:     source,
+			newValue:   newValue,
+			sequenceID: sequenceID,
+		}
+	})
 
 	go func() {
 		log.Info("Remote Agent registry started.")
@@ -264,6 +288,8 @@ func (ra *remoteAgentRegistry) start() {
 			case <-ra.shutdownChan:
 				log.Info("Remote Agent registry stopped.")
 				return
+			case update := <-ra.configEventsChan:
+				ra.handleConfigUpdate(update)
 			case <-ticker.C:
 				ra.agentMapMu.Lock()
 
@@ -277,6 +303,8 @@ func (ra *remoteAgentRegistry) start() {
 				for _, id := range agentsToRemove {
 					details, ok := ra.agentMap[id]
 					if ok {
+						details.configStream.Cancel()
+
 						delete(ra.agentMap, id)
 						log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
 						ra.telemetryStore.remoteAgentRegistered.Dec(details.sanatizedDisplayName)
@@ -602,6 +630,75 @@ collect:
 	return nil
 }
 
+func (ra *remoteAgentRegistry) handleConfigUpdate(update *settingsUpdates) {
+	ra.agentMapMu.Lock()
+	defer ra.agentMapMu.Unlock()
+
+	pbValue, err := structpb.NewValue(update.newValue)
+	if err != nil {
+		log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", update.setting, err)
+		return
+	}
+
+	configUpdate := &pb.ConfigUpdate{
+		SequenceId: int32(update.sequenceID),
+		Setting: &pb.ConfigSetting{
+			Key:    update.setting,
+			Value:  pbValue,
+			Source: update.source.String(),
+		},
+	}
+
+	for agentID, details := range ra.agentMap {
+		if !details.configStream.TrySendUpdate(configUpdate) {
+			log.Warnf("Remote agent '%s' not processing configuration updates in a timely manner. Dropping update.", agentID)
+		}
+	}
+}
+
+func createConfigSnapshot(conf config.Component) (*pb.ConfigEvent, uint64, error) {
+	allSettings, sequenceID := conf.AllSettingsWithSequenceID()
+
+	// Note: AllSettings returns a map[string]interface{}. The inner values may be a type that structpb.NewValue is not able to
+	// handle (ex: map[string]string), so we perform a hacky operation by marshalling the data into a JSON string first.
+	data, err := json.Marshal(allSettings)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Unmarshal the data into a map[string]interface{} so that the values have a type that structpb.NewValue can handle.
+	var intermediateMap map[string]interface{}
+	if err := json.Unmarshal(data, &intermediateMap); err != nil {
+		return nil, 0, err
+	}
+
+	settings := make([]*pb.ConfigSetting, 0, len(intermediateMap))
+	for setting, value := range intermediateMap {
+		pbValue, err := structpb.NewValue(value)
+		source := conf.GetSource(setting).String()
+		if err != nil {
+			log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", setting, err)
+			continue
+		}
+		settings = append(settings, &pb.ConfigSetting{
+			Source: source,
+			Key:    setting,
+			Value:  pbValue,
+		})
+	}
+
+	snapshot := &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: int32(sequenceID),
+				Settings:   settings,
+			},
+		},
+	}
+
+	return snapshot, sequenceID, nil
+}
+
 func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (pb.RemoteAgentClient, error) {
 	// NOTE: we're using InsecureSkipVerify because the gRPC server only
 	// persists its TLS certs in memory, and we currently have no
@@ -623,29 +720,6 @@ func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (p
 	}
 
 	return pb.NewRemoteAgentClient(conn), nil
-}
-
-type remoteAgentDetails struct {
-	lastSeen             time.Time
-	displayName          string
-	sanatizedDisplayName string
-	apiEndpoint          string
-	client               pb.RemoteAgentClient
-}
-
-func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (*remoteAgentDetails, error) {
-	client, err := newRemoteAgentClient(registration)
-	if err != nil {
-		return nil, err
-	}
-
-	return &remoteAgentDetails{
-		displayName:          registration.DisplayName,
-		sanatizedDisplayName: sanatizeString(registration.DisplayName),
-		apiEndpoint:          registration.APIEndpoint,
-		client:               client,
-		lastSeen:             time.Now(),
-	}, nil
 }
 
 func sanatizeString(s string) string {
