@@ -32,8 +32,8 @@ const (
 var (
 	// ddotConfigPermissions are the ownerships and modes that are enforced on the DDOT configuration files
 	ddotConfigPermissions = file.Permissions{
-		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
-		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
+		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
+		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
 
 	// ddotPackagePermissions are the ownerships and modes that are enforced on the DDOT package files
@@ -244,17 +244,37 @@ func disableOtelCollectorConfig() error {
 	return nil
 }
 
-// writeOtelConfig creates otel-config.yaml by removing environment variable placeholders in the example file
+// writeOtelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml
 func writeOtelConfig() error {
+	// Read existing datadog.yaml to extract API key and site
+	var existingConfig map[string]interface{}
+	data, err := os.ReadFile(datadogYamlPath)
+	if err != nil {
+		return fmt.Errorf("failed to read datadog.yaml: %w", err)
+	}
+
+	if err := yaml.Unmarshal(data, &existingConfig); err != nil {
+		return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
+	}
+
+	apiKey, _ := existingConfig["api_key"].(string)
+	site, _ := existingConfig["site"].(string)
+
+	// Default site if not specified
+	if site == "" {
+		site = "datadoghq.com"
+	}
+
 	// Read the example config file
 	exampleData, err := os.ReadFile("/etc/datadog-agent/otel-config.yaml.example")
 	if err != nil {
 		return fmt.Errorf("failed to read otel-config.yaml.example: %w", err)
 	}
 
+	// Substitute values
 	configData := string(exampleData)
-	configData = strings.ReplaceAll(configData, "${env:DD_API_KEY}", "")
-	configData = strings.ReplaceAll(configData, "${env:DD_SITE}", "")
+	configData = strings.ReplaceAll(configData, "${env:DD_API_KEY}", apiKey)
+	configData = strings.ReplaceAll(configData, "${env:DD_SITE}", site)
 
 	// Write the processed config
 	err = os.WriteFile("/etc/datadog-agent/otel-config.yaml", []byte(configData), 0644)
