@@ -255,6 +255,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 				"30minutesAgo",
 				"test(id,value)",
 				"",
+				"",
 				[]string{"metric1", "metric2"},
 				parseTestMetrics,
 			)

@@ -122,6 +122,8 @@ func SetupMockAPIServer() *httptest.Server {
 		query := queryParams.Get("q")
 		if strings.Contains(query, "slam(") {
 			fixtureHandler(fixtures.GetSLAMetrics)(w, r)
+		} else if strings.Contains(query, "linkusage(site,site.address") {
+			fixtureHandler(fixtures.GetSiteMetrics)(w, r)
 		} else if strings.Contains(query, "linkusage(") {
 			fixtureHandler(fixtures.GetLinkUsageMetrics)(w, r)
 		} else if strings.Contains(query, "linkstatus(") {
@@ -205,7 +207,9 @@ func SetupPaginationMockAPIServer() *httptest.Server {
 			}
 		} else {
 			// For other query types, use default fixtures
-			if strings.Contains(query, "linkusage(") {
+			if strings.Contains(query, "linkusage(site,site.address") {
+				fixtureHandler(fixtures.GetSiteMetrics)(w, r)
+			} else if strings.Contains(query, "linkusage(") {
 				fixtureHandler(fixtures.GetLinkUsageMetrics)(w, r)
 			} else if strings.Contains(query, "linkstatus(") {
 				fixtureHandler(fixtures.GetLinkStatusMetrics)(w, r)

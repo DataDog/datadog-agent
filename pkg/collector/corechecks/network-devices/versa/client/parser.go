@@ -174,6 +174,48 @@ func parseLinkUsageMetrics(data [][]interface{}) ([]LinkUsageMetrics, error) {
 	return rows, nil
 }
 
+// parseSiteMetrics parses the raw AaData response into SiteMetrics structs
+func parseSiteMetrics(data [][]interface{}) ([]SiteMetrics, error) {
+	var rows []SiteMetrics
+	for _, row := range data {
+		m := SiteMetrics{}
+		if len(row) < 10 {
+			return nil, fmt.Errorf("missing columns in row: got %d columns, expected 10", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.Site, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for Site")
+		}
+		if m.Address, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for Address")
+		}
+		if m.Latitude, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for Latitude")
+		}
+		if m.Longitude, ok = row[3].(string); !ok {
+			return nil, fmt.Errorf("expected string for Longitude")
+		}
+		if m.LocationSource, ok = row[4].(string); !ok {
+			return nil, fmt.Errorf("expected string for LocationSource")
+		}
+
+		// Floats from index 5–9 (5 float fields)
+		floatFields := []*float64{
+			&m.VolumeTx, &m.VolumeRx, &m.BandwidthTx, &m.BandwidthRx, &m.Availability,
+		}
+		for i, ptr := range floatFields {
+			if val, ok := row[i+5].(float64); ok {
+				*ptr = val
+			} else {
+				return nil, fmt.Errorf("expected float64 at index %d", i+6)
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
+}
+
 // parseTopUserMetrics parses the raw AaData response into TopUser structs
 // TODO: can I use a shared struct for the response for application metrics?
 func parseTopUserMetrics(data [][]interface{}) ([]TopUserMetrics, error) {

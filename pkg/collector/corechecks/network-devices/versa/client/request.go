@@ -129,6 +129,8 @@ func isValidStatusCode(code int) bool {
 }
 
 // getPaginatedAnalytics handles the common pagination pattern for all analytics endpoints
+// TODO: perhaps this can be a struct? that way there's no passing around of arguments through
+// layers of stuff
 func getPaginatedAnalytics[T any](
 	client *Client,
 	tenant string,
@@ -136,6 +138,7 @@ func getPaginatedAnalytics[T any](
 	lookback string,
 	query string,
 	filterQuery string,
+	joinQuery string,
 	metrics []string,
 	parser func([][]interface{}) ([]T, error),
 ) ([]T, error) {
@@ -150,7 +153,7 @@ func getPaginatedAnalytics[T any](
 	// Paginate through the results
 	for page := 0; page < client.maxPages; page++ {
 		fromCount := page * maxCount
-		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", filterQuery, metrics, maxCount, fromCount)
+		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", filterQuery, joinQuery, metrics, maxCount, fromCount)
 
 		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
 		if err != nil {

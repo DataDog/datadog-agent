@@ -433,6 +433,20 @@ type LinkUsageMetrics struct {
 	BandwidthRx       float64
 }
 
+// SiteMetrics represents the columns to parse from the Site metrics response
+type SiteMetrics struct {
+	Site           string
+	Address        string
+	Latitude       string
+	Longitude      string
+	LocationSource string
+	VolumeTx       float64
+	VolumeRx       float64
+	BandwidthTx    float64
+	BandwidthRx    float64
+	Availability   float64
+}
+
 // LinkStatusMetrics represents the columns to parse from the LinkStatusMetricsResponse
 type LinkStatusMetrics struct {
 	DrillKey      string

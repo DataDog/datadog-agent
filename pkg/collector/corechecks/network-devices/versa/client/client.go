@@ -432,6 +432,7 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 		client.lookback,
 		"slam(localsite,remotesite,localaccckt,remoteaccckt,fc)",
 		"",
+		"",
 		[]string{
 			"delay",
 			"fwdDelayVar",
@@ -452,6 +453,7 @@ func (client *Client) GetQoSMetrics(tenant string) ([]QoSMetrics, error) {
 		"SDWAN",
 		client.lookback,
 		"cos(sitename,accckt)",
+		"",
 		"",
 		[]string{
 			"betx",        // best effort bytes
@@ -484,6 +486,7 @@ func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, 
 		client.lookback,
 		"linkstatus(site,accckt)",
 		"",
+		"",
 		[]string{
 			"availability",
 		},
@@ -500,6 +503,7 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 		client.lookback,
 		"linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,accckt.ip,accckt.isp)",
 		"",
+		"",
 		[]string{
 			"volume-tx",
 			"volume-rx",
@@ -507,6 +511,27 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 			"bw-rx",
 		},
 		parseLinkUsageMetrics,
+	)
+}
+
+// GetSiteMetrics gets site metrics for a Versa tenant
+func (client *Client) GetSiteMetrics(tenant string) ([]SiteMetrics, error) {
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"linkusage(site,site.address,site.latitude,site.longitude,site.locationSource)",
+		"",
+		"siteStatus",
+		[]string{
+			"volume-tx",
+			"volume-rx",
+			"bw-tx",
+			"bw-rx",
+			"availability",
+		},
+		parseSiteMetrics,
 	)
 }
 
@@ -519,6 +544,7 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 		"SDWAN",
 		"1daysAgo",
 		"app(site,appId)",
+		"",
 		"",
 		[]string{
 			"sessions",
@@ -541,6 +567,7 @@ func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
 		"SDWAN",
 		"1daysAgo",
 		"appUser(site,user)",
+		"",
 		"",
 		[]string{
 			"sessions",
@@ -567,6 +594,7 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 		client.lookback,
 		"tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)",
 		"",
+		"",
 		[]string{
 			"volume-tx",
 			"volume-rx",
@@ -588,6 +616,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 		"1daysAgo",
 		"usage(site,accckt,accckt.ip)",
 		"(accessType:DIA)",
+		"",
 		[]string{
 			"volume-tx",
 			"volume-rx",
@@ -599,6 +628,8 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 }
 
 // buildAnalyticsPath constructs a Versa Analytics query path in a cleaner way so multiple metrics can be added.
+// TODO: maybe this becomes a struct function. Modifications will be easier and the function signature will be
+// much cleaner
 //
 // Parameters:
 //   - tenant: tenant name within the environment (e.g., "datadog")
@@ -612,7 +643,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 //   - fromCount: row to start at (similar to offset)
 //
 // Returns the full encoded URL string.
-func buildAnalyticsPath(tenant string, feature string, lookback string, query string, queryType string, filterQuery string, metrics []string, count int, fromCount int) string {
+func buildAnalyticsPath(tenant string, feature string, lookback string, query string, queryType string, filterQuery string, joinQuery string, metrics []string, count int, fromCount int) string {
 	baseAnalyticsPath := "/versa/analytics/v1.0.0/data/provider"
 	path := fmt.Sprintf("%s/tenants/%s/features/%s", baseAnalyticsPath, tenant, feature)
 	params := url.Values{
@@ -627,6 +658,11 @@ func buildAnalyticsPath(tenant string, feature string, lookback string, query st
 	// only include in the params if needed
 	if filterQuery != "" {
 		params.Add("fq", filterQuery)
+	}
+	// joinQuery is not required for most calls
+	// only include in the params if needed
+	if joinQuery != "" {
+		params.Add("jq", joinQuery)
 	}
 	for _, m := range metrics {
 		params.Add("metrics", m)

@@ -682,6 +682,74 @@ func TestParseDIAMetrics(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, result)
 }
+
+func TestGetSiteMetrics(t *testing.T) {
+	expectedSiteMetrics := []SiteMetrics{
+		{
+			Site:           "test-branch-2B",
+			Address:        "123 Main St, Anytown, USA",
+			Latitude:       "40.7128",
+			Longitude:      "-74.0060",
+			LocationSource: "GPS",
+			VolumeTx:       15000.0,
+			VolumeRx:       12000.0,
+			BandwidthTx:    150000.0,
+			BandwidthRx:    120000.0,
+			Availability:   99.5,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	siteMetrics, err := client.GetSiteMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(siteMetrics), 1)
+	require.Equal(t, expectedSiteMetrics, siteMetrics)
+}
+
+func TestParseSiteMetrics(t *testing.T) {
+	testData := [][]interface{}{
+		{
+			"test-branch-2B",
+			"123 Main St, Anytown, USA",
+			"40.7128",
+			"-74.0060",
+			"GPS",
+			15000.0,
+			12000.0,
+			150000.0,
+			120000.0,
+			99.5,
+		},
+	}
+
+	expected := []SiteMetrics{
+		{
+			Site:           "test-branch-2B",
+			Address:        "123 Main St, Anytown, USA",
+			Latitude:       "40.7128",
+			Longitude:      "-74.0060",
+			LocationSource: "GPS",
+			VolumeTx:       15000.0,
+			VolumeRx:       12000.0,
+			BandwidthTx:    150000.0,
+			BandwidthRx:    120000.0,
+			Availability:   99.5,
+		},
+	}
+
+	result, err := parseSiteMetrics(testData)
+	require.NoError(t, err)
+	require.Equal(t, expected, result)
+}
+
 func TestGetApplicationsByAppliance(t *testing.T) {
 	expectedApplicationsByApplianceMetrics := []ApplicationsByApplianceMetrics{
 		{

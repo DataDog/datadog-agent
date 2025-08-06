@@ -655,4 +655,28 @@ const GetDIAMetrics = `
             120000.0
         ]
     ]
+}
+`
+
+// GetSiteMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetSiteMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B",
+            "123 Main St, Anytown, USA",
+            "40.7128",
+            "-74.0060",
+            "GPS",
+            15000.0,
+            12000.0,
+            150000.0,
+            120000.0,
+            99.5
+        ]
+    ]
 }`
