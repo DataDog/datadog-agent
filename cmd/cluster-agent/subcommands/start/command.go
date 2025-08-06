@@ -114,10 +114,13 @@ import (
 
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	dcametadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 
 	// Core checks
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
@@ -233,6 +236,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				metadatarunnerimpl.Module(),
 				dcametadatafx.Module(),
+				inventorychecksimpl.Module(),
 				ipcfx.ModuleReadWrite(),
 			)
 		},
@@ -261,6 +265,7 @@ func start(log log.Component,
 	ipc ipc.Component,
 	diagnoseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
+	invChecks inventorychecks.Component,
 	_ metadatarunner.Component,
 ) error {
 	stopCh := make(chan struct{})
@@ -326,7 +331,7 @@ func start(log log.Component,
 	})
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, telemetry); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, invChecks, telemetry); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -430,6 +435,9 @@ func start(log log.Component,
 	registerChecks(wmeta, taggerComp, config)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp), true)
 
+	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
+	check.InitializeInventoryChecksContext(invChecks)
+
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
@@ -440,6 +448,9 @@ func start(log log.Component,
 			api.ModifyAPIRouter(func(r *mux.Router) {
 				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
 			})
+
+			// Set cluster checks handler in inventorychecks component
+			invChecks.SetClusterHandler(clusterCheckHandler)
 		} else {
 			pkglog.Errorf("Error while setting up cluster check Autodiscovery, CLC API endpoints won't be available, err: %v", err)
 		}
