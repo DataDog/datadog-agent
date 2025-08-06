@@ -81,10 +81,12 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 
 	flarecommon.GetLogFiles(fb, logFilePath)
 	flarecommon.GetConfigFiles(fb, confSearchPaths)
-	getClusterAgentConfigCheck(fb, client)   //nolint:errcheck
-	flarecommon.GetExpVar(fb)                //nolint:errcheck
-	getMetadataMap(fb)                       //nolint:errcheck
-	getInventoryChecks(fb, client)           //nolint:errcheck
+	getClusterAgentConfigCheck(fb, client) //nolint:errcheck
+	flarecommon.GetExpVar(fb)              //nolint:errcheck
+	getMetadataMap(fb)                     //nolint:errcheck
+	if err := getClusterChecksMetadata(fb, client); err != nil {
+		log.Errorf("Error collecting cluster checks metadata for flare: %v", err)
+	}
 	getClusterAgentClusterChecks(fb, client) //nolint:errcheck
 
 	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                                                                    //nolint:errcheck
@@ -141,25 +143,25 @@ func getMetadataMap(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("cluster-agent-metadatamapper.log", []byte(str))
 }
 
-// getInventoryChecks collects inventory checks metadata from cluster agent
-func getInventoryChecks(fb flaretypes.FlareBuilder, client ipc.HTTPClient) error {
+// getClusterChecksMetadata collects cluster checks metadata from cluster agent
+func getClusterChecksMetadata(fb flaretypes.FlareBuilder, client ipc.HTTPClient) error {
 	targetURL := url.URL{
 		Scheme: "https",
 		Host:   fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")),
-		Path:   "metadata/inventory-checks",
+		Path:   "/metadata/cluster-checks",
 	}
 
 	r, err := client.Get(targetURL.String(), ipchttp.WithCloseConnection)
 	if err != nil {
 		if r != nil && string(r) != "" {
-			// If inventory checks return an error, create a file indicating this
-			return fb.AddFile("checks.json", []byte(fmt.Sprintf(`{"error": "inventory checks unavailable: %s"}`, string(r))))
+			// If cluster checks metadata return an error, create a file indicating this
+			return fb.AddFile("cluster-checks-metadata.json", []byte(fmt.Sprintf(`{"error": "cluster checks metadata unavailable: %s"}`, string(r))))
 		}
 		// If completely failed to query, create error file
-		return fb.AddFile("checks.json", []byte(fmt.Sprintf(`{"error": "failed to query inventory checks endpoint: %s"}`, err.Error())))
+		return fb.AddFile("cluster-checks-metadata.json", []byte(fmt.Sprintf(`{"error": "failed to query cluster checks metadata endpoint: %s"}`, err.Error())))
 	}
 
-	return fb.AddFile("checks.json", r)
+	return fb.AddFile("cluster-checks-metadata.json", r)
 }
 
 func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder, client ipc.HTTPClient) error {
