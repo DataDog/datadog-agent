@@ -611,7 +611,6 @@ func TestWriteAndRemoveConfigFiles(t *testing.T) {
 		_, err = os.Stat(filepath.Join(tempDir, "datadog.yaml"))
 		assert.True(t, os.IsNotExist(err))
 	})
-}
 
 	// Test case 2: Write config file in subdirectory
 	t.Run("write_config_in_subdirectory", func(t *testing.T) {
