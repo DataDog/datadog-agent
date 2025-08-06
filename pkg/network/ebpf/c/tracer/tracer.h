@@ -16,6 +16,8 @@
 #define TCP_CONN_FAILED_REFUSED 111
 #define TCP_CONN_FAILED_EHOSTUNREACH 113
 #define TCP_CONN_FAILED_ENETUNREACH 101
+// this isn't really a failure from the kernel, this happens when userspace closes the socket during SYN_SENT
+#define TCP_CONN_FAILED_CANCELED 125
 
 typedef enum {
     CONN_DIRECTION_UNKNOWN = 0b00,
