@@ -155,9 +155,6 @@ def _hash_paths(hasher, paths: list[str]):
 
 
 def get_dd_api_key(ctx):
-    print(f'sjain:sys.platform: {sys.platform}')
-    for key, value in os.environ.items():
-        print(f"{key}: {value}")
     if sys.platform == 'win32':
         cmd = f'aws.exe ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
     elif sys.platform == 'darwin':
