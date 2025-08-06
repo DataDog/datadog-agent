@@ -8,8 +8,6 @@ package inventorychecks
 
 // team: agent-configuration
 
-import "net/http"
-
 // Component is the component type.
 //
 // TODO: (components) - Once the collector is migrated to a component it might make more sense for this metadata provider
@@ -21,8 +19,4 @@ type Component interface {
 	GetInstanceMetadata(instanceID string) map[string]interface{}
 	// Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
 	Refresh()
-	// WritePayloadAsJSON writes the payload as JSON to the response writer. It is used by inventory-checks metadata endpoint.
-	WritePayloadAsJSON(w http.ResponseWriter, _ *http.Request)
-	// SetClusterHandler sets the cluster checks handler for collecting cluster check metadata (cluster agent only)
-	SetClusterHandler(handler interface{})
 }
