@@ -603,8 +603,8 @@ const GetTunnelMetrics = `
 }
 `
 
-// GetQoSMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
-const GetQoSMetrics = `
+// GetPathQoSMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetPathQoSMetrics = `
 {
     "qTime": 1,
     "sEcho": 0,
@@ -612,9 +612,9 @@ const GetQoSMetrics = `
     "iTotalRecords": 1,
     "aaData": [
         [
-            "test-branch-2B,INET-1",
+            "test-branch-2B,test-branch-2C",
             "test-branch-2B",
-            "INET-1",
+			"test-branch-2C",
             1000.0,
             50.0,
             2000.0,
@@ -679,4 +679,5 @@ const GetSiteMetrics = `
             99.5
         ]
     ]
-}`
+}
+`

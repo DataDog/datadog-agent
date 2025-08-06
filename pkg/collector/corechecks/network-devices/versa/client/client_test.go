@@ -465,9 +465,9 @@ func TestGetLinkStatusMetrics(t *testing.T) {
 func TestGetQoSMetrics(t *testing.T) {
 	expectedQoSMetrics := []QoSMetrics{
 		{
-			DrillKey:             "test-branch-2B,INET-1",
-			Site:                 "test-branch-2B",
-			AccessCircuit:        "INET-1",
+			DrillKey:             "test-branch-2B,test-branch-2C",
+			LocalSiteName:        "test-branch-2B",
+			RemoteSiteName:       "test-branch-2C",
 			BestEffortTx:         1000.0,
 			BestEffortTxDrop:     50.0,
 			ExpeditedForwardTx:   2000.0,
@@ -495,7 +495,7 @@ func TestGetQoSMetrics(t *testing.T) {
 	client.directorEndpoint = server.URL
 	require.NoError(t, err)
 
-	qosMetrics, err := client.GetQoSMetrics("datadog")
+	qosMetrics, err := client.GetPathQoSMetrics("datadog")
 	require.NoError(t, err)
 
 	require.Equal(t, len(qosMetrics), 1)
@@ -568,12 +568,12 @@ func TestParseLinkStatusMetrics(t *testing.T) {
 	require.Equal(t, expected, result)
 }
 
-func TestParseQoSMetrics(t *testing.T) {
+func TestParsePathQoSMetrics(t *testing.T) {
 	testData := [][]interface{}{
 		{
-			"test-branch-2B,INET-1",
+			"test-branch-2B,test-branch-2C",
 			"test-branch-2B",
-			"INET-1",
+			"test-branch-2C",
 			1000.0,
 			50.0,
 			2000.0,
@@ -595,9 +595,9 @@ func TestParseQoSMetrics(t *testing.T) {
 
 	expected := []QoSMetrics{
 		{
-			DrillKey:             "test-branch-2B,INET-1",
-			Site:                 "test-branch-2B",
-			AccessCircuit:        "INET-1",
+			DrillKey:             "test-branch-2B,test-branch-2C",
+			LocalSiteName:        "test-branch-2B",
+			RemoteSiteName:       "test-branch-2C",
 			BestEffortTx:         1000.0,
 			BestEffortTxDrop:     50.0,
 			ExpeditedForwardTx:   2000.0,
@@ -617,7 +617,7 @@ func TestParseQoSMetrics(t *testing.T) {
 		},
 	}
 
-	result, err := parseQoSMetrics(testData)
+	result, err := parsePathQoSMetrics(testData)
 	require.NoError(t, err)
 	require.Equal(t, expected, result)
 }

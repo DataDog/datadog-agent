@@ -279,14 +279,14 @@ func (s *Sender) SendTunnelMetrics(tunnelMetrics []client.TunnelMetrics, deviceN
 	}
 }
 
-// SendQoSMetrics sends QoS (Class of Service) metrics retrieved from Versa Analytics
-func (s *Sender) SendQoSMetrics(qosMetrics []client.QoSMetrics, deviceNameToIDMap map[string]string) {
+// SendPathQoSMetrics sends QoS (Class of Service) metrics retrieved from Versa Analytics
+func (s *Sender) SendPathQoSMetrics(qosMetrics []client.QoSMetrics, deviceNameToIDMap map[string]string) {
 	for _, qosMetric := range qosMetrics {
 		var tags = []string{
-			"site:" + qosMetric.Site,
-			"access_circuit:" + qosMetric.AccessCircuit,
+			"local_site:" + qosMetric.LocalSiteName,
+			"remote_site:" + qosMetric.RemoteSiteName,
 		}
-		if deviceIP, ok := deviceNameToIDMap[qosMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[qosMetric.LocalSiteName]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 

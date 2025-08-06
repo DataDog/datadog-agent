@@ -133,7 +133,7 @@ func SetupMockAPIServer() *httptest.Server {
 		} else if strings.Contains(query, "appUser(") {
 			fixtureHandler(fixtures.GetTopUsers)(w, r)
 		} else if strings.Contains(query, "cos(") {
-			fixtureHandler(fixtures.GetQoSMetrics)(w, r)
+			fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
 		} else if strings.Contains(query, "usage(") {
 			fixtureHandler(fixtures.GetDIAMetrics)(w, r)
 		} else {
@@ -218,7 +218,7 @@ func SetupPaginationMockAPIServer() *httptest.Server {
 			} else if strings.Contains(query, "appUser(") {
 				fixtureHandler(fixtures.GetTopUsers)(w, r)
 			} else if strings.Contains(query, "cos(") {
-				fixtureHandler(fixtures.GetQoSMetrics)(w, r)
+				fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
 			} else if strings.Contains(query, "usage(") {
 				fixtureHandler(fixtures.GetDIAMetrics)(w, r)
 			} else {

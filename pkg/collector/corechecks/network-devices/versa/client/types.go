@@ -495,8 +495,8 @@ type TunnelMetrics struct {
 // QoSMetrics represents the columns to parse from the QoS (Class of Service) metrics response
 type QoSMetrics struct {
 	DrillKey             string
-	Site                 string
-	AccessCircuit        string
+	LocalSiteName        string
+	RemoteSiteName       string
 	BestEffortTx         float64
 	BestEffortTxDrop     float64
 	ExpeditedForwardTx   float64

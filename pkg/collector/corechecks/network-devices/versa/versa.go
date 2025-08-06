@@ -326,11 +326,11 @@ func (v *VersaCheck) Run() error {
 
 		// Collect QoS metrics if enabled
 		if *v.config.CollectQoSMetrics {
-			qosMetrics, err := c.GetQoSMetrics(org.Name)
+			qosMetrics, err := c.GetPathQoSMetrics(org.Name)
 			if err != nil {
 				log.Errorf("error getting QoS metrics from organization %s: %v", org.Name, err)
 			} else {
-				v.metricsSender.SendQoSMetrics(qosMetrics, deviceNameToIDMap)
+				v.metricsSender.SendPathQoSMetrics(qosMetrics, deviceNameToIDMap)
 			}
 		}
 

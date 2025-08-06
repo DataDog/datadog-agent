@@ -297,8 +297,8 @@ func parseTunnelMetrics(data [][]interface{}) ([]TunnelMetrics, error) {
 	return rows, nil
 }
 
-// parseQoSMetrics parses the raw AaData response into QoSMetrics structs
-func parseQoSMetrics(data [][]interface{}) ([]QoSMetrics, error) {
+// parsePathQoSMetrics parses the raw AaData response into QoSMetrics structs
+func parsePathQoSMetrics(data [][]interface{}) ([]QoSMetrics, error) {
 	var rows []QoSMetrics
 	for _, row := range data {
 		m := QoSMetrics{}
@@ -310,11 +310,11 @@ func parseQoSMetrics(data [][]interface{}) ([]QoSMetrics, error) {
 		if m.DrillKey, ok = row[0].(string); !ok {
 			return nil, fmt.Errorf("expected string for DrillKey")
 		}
-		if m.Site, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for Site")
+		if m.LocalSiteName, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for LocalSiteName")
 		}
-		if m.AccessCircuit, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for AccessCircuit")
+		if m.RemoteSiteName, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for RemoteSiteName")
 		}
 
 		// Floats from index 3–18 (16 float fields)
