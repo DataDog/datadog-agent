@@ -307,9 +307,7 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 // StartExperimentCurrentVersion starts an experiment of current agent version
 func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 	return s.startExperimentWithCustomPackage(WithName(consts.AgentPackage),
-		// Default to using OCI package from current pipeline
-		WithPipeline(s.Env().Environment.PipelineID()),
-		WithDevEnvOverrides("CURRENT_AGENT"),
+		WithPackage(s.CurrentAgentVersion().OCIPackage()),
 	)
 }
 
