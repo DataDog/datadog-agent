@@ -11,7 +11,6 @@ package process
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"testing"
@@ -663,15 +662,12 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}, sy
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: configOverrides}),
 	))
-	fmt.Printf("config %v\n", mockConfig.AllSettings())
 
 	// mock language detection system probe configOverrides
 	mockSystemProbeConfig := fxutil.Test[sysprobeconfig.Component](t, fx.Options(
 		sysprobeconfigimpl.MockModule(),
 		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysProbeConfigOverrides}),
 	))
-	fmt.Printf("system probe config %v\n", mockSystemProbeConfig.AllSettings())
-	fmt.Printf("system probe config overrides %v\n", sysProbeConfigOverrides)
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, mockConfig, mockSystemProbeConfig)
 	processCollector.sysProbeClient = &http.Client{}
 	processCollector.containerProvider = mockContainerProvider
