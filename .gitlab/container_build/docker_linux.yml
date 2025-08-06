@@ -46,7 +46,6 @@
           --no-cache \
           --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
           --build-arg CIBUILD=true \
-          --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
           --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent \
           --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} \
           $BUILD_ARG \
@@ -63,7 +62,6 @@
         --no-cache \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
         --build-arg CIBUILD=true \
-        --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
         $BUILD_ARG \
         $TARGET_ARG \
         --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent \
