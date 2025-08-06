@@ -11,16 +11,16 @@ import (
 	"strings"
 )
 
-// Blocklist is a strings blocklist.
-// See `NewBlocklist` for details.
-type Blocklist struct {
+// Matcher test a string for match against a list of strings.
+// See `NewMatcher` for details.
+type Matcher struct {
 	data        []string
 	matchPrefix bool
 }
 
-// NewBlocklist creates a new strings blocklist.
-// Use `matchPrefix` to  create a prefixes blocklist.
-func NewBlocklist(data []string, matchPrefix bool) Blocklist {
+// NewMatcher creates a new strings matcher.
+// Use `matchPrefix` to  create a prefixes matcher.
+func NewMatcher(data []string, matchPrefix bool) Matcher {
 	data = slices.Clone(data)
 	sort.Strings(data)
 
@@ -41,29 +41,28 @@ func NewBlocklist(data []string, matchPrefix bool) Blocklist {
 	// Invariants for data:
 	// For all i, j such that i < j, data[i] < data[j].
 	// for all i, j such that i != j, !HasPrefix(data[i], data[j]).
-	return Blocklist{
+	return Matcher{
 		data:        data,
 		matchPrefix: matchPrefix,
 	}
 }
 
-// Test returns true if the given name is in the blocklist
-// or matching by prefix if the string blocklist has been
-// created with `matchPrefix`.
-func (b *Blocklist) Test(name string) bool {
-	if b == nil {
+// Test returns true if the given string matches one in the matcher list.
+// or is matching by prefix if the matcher has been created with `matchPrefix`.
+func (m *Matcher) Test(name string) bool {
+	if m == nil {
 		return false
 	}
 
-	if len(b.data) == 0 {
+	if len(m.data) == 0 {
 		return false
 	}
 
-	i := sort.SearchStrings(b.data, name)
+	i := sort.SearchStrings(m.data, name)
 
 	// SearchStrings returns an index such that either:
 	// - data[i] == name
-	// - data[i-1] < name (if i > 0) && data[i] > name (if i < len(b.data))
+	// - data[i-1] < name (if i > 0) && data[i] > name (if i < len(m.data))
 	//
 	// If for some j, data[j] is a prefix of name, then:
 	//
@@ -74,11 +73,11 @@ func (b *Blocklist) Test(name string) bool {
 	// data.
 	//
 	// Thus j must be i - 1.
-	if b.matchPrefix && i > 0 && strings.HasPrefix(name, b.data[i-1]) {
+	if m.matchPrefix && i > 0 && strings.HasPrefix(name, m.data[i-1]) {
 		return true
 	}
-	if i < len(b.data) {
-		return name == b.data[i]
+	if i < len(m.data) {
+		return name == m.data[i]
 	}
 
 	return false

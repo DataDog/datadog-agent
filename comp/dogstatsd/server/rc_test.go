@@ -27,7 +27,7 @@ type resultTester struct {
 }
 
 // Validating that the Agent isn't crashing on malformed updates.
-func TestMalformedBlocklistUpdate(t *testing.T) {
+func TestMalformedFilterListUpdate(t *testing.T) {
 	require := require.New(t)
 	test := func(results updateRes, tester resultTester) {
 		require.Len(results[state.ApplyStateAcknowledged], tester.Acked, "wrong amount of acked")
@@ -53,7 +53,7 @@ func TestMalformedBlocklistUpdate(t *testing.T) {
 	updates := map[string]state.RawConfig{
 		"first": {Config: []byte(`malformedjson":{}}`)},
 	}
-	s.onBlocklistUpdateCallback(updates, callback)
+	s.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    0,
 		Unacked:  0,
@@ -67,7 +67,7 @@ func TestMalformedBlocklistUpdate(t *testing.T) {
 		"first":  {Config: []byte(`malformedjson":{}}`)},
 		"second": {Config: []byte(`malformedjson":{}}`)},
 	}
-	s.onBlocklistUpdateCallback(updates, callback)
+	s.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    0,
 		Unacked:  0,
@@ -82,7 +82,7 @@ func TestMalformedBlocklistUpdate(t *testing.T) {
 		"first":  {Config: []byte(`malformedjson":{}}`)},
 		"second": {Config: []byte(`{"random":"json","field":[]}`)},
 	}
-	s.onBlocklistUpdateCallback(updates, callback)
+	s.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    1,
 		Unacked:  0,
@@ -96,7 +96,7 @@ func TestMalformedBlocklistUpdate(t *testing.T) {
 		"first":  {Config: []byte(`{"blocking_metrics":{"by_name":["hello","world"]}`)},
 		"second": {Config: []byte(`{"random":"json","field":[]}`)},
 	}
-	s.onBlocklistUpdateCallback(updates, callback)
+	s.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    1,
 		Unacked:  0,
@@ -107,7 +107,7 @@ func TestMalformedBlocklistUpdate(t *testing.T) {
 
 	// nothing
 	updates = map[string]state.RawConfig{}
-	s.onBlocklistUpdateCallback(updates, callback)
+	s.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    0,
 		Unacked:  0,
@@ -120,7 +120,7 @@ func TestMalformedBlocklistUpdate(t *testing.T) {
 	updates = map[string]state.RawConfig{
 		"first": {Config: []byte("")},
 	}
-	s.onBlocklistUpdateCallback(updates, callback)
+	s.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    0,
 		Unacked:  0,

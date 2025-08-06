@@ -4,7 +4,7 @@ subject: repo:DataDog/datadog-agent:pull_request
 
 claim_pattern:
   event_name: pull_request
-  job_workflow_ref: DataDog/datadog-agent/\\.github/workflows/add_milestone\\.yml@.*
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/add_milestone\.yml@.*
   ref: refs/pull/.*/merge
 
 permissions:
