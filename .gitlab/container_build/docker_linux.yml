@@ -2,7 +2,7 @@
 .docker_build_job_definition:
   stage: container_build
   script:
-    - TAG_SUFFIX=${TAG_SUFFIX:-}
+    - TAG_SUFFIX=${TAG_SUFFIX:-}-incident-41677
     - BUILD_ARG=${BUILD_ARG:-}
     - EXTRA_BUILD_CONTEXT=${ARTIFACTS_BUILD_CONTEXT:+"--build-context artifacts=$ARTIFACTS_BUILD_CONTEXT"}
     - |
@@ -35,11 +35,6 @@
       if [[ "$DEPLOY_AGENT" == "true" ]]; then
         DOCKER_NO_CACHE="--no-cache"
         CACHE_SOURCE=""
-      fi
-    - |
-      if [ -n "$PLZ_CLEAN" ]; then
-        echo "CELIAN CLEANING CACHE"
-        docker buildx prune --filter until=24h --force
       fi
     - |
       if [[ -n "${CACHE_TO}" && -n "${CACHE_TARGET}" ]]; then
@@ -207,7 +202,6 @@ docker_build_agent7_jmx_arm64:
   variables:
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
-    PLZ_CLEAN: true
 
 docker_build_fips_agent7_jmx:
   extends: [.docker_build_amd64, .docker_build_agent7]
