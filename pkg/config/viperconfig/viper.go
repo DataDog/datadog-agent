@@ -59,6 +59,8 @@ type safeConfig struct {
 
 	// warnings contains the warnings that were logged during the configuration loading
 	warnings []error
+
+	existingTransformers []string
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -231,6 +233,10 @@ func (c *safeConfig) setEnvTransformer(key string, fn func(string) interface{}) 
 	//
 	// This is yet another edge case of working with Viper, this edge cases is already handled by the nodetremodel
 	// replacement.
+	if slices.Contains(c.existingTransformers, key) {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
+	c.existingTransformers = append(c.existingTransformers, key)
 	c.configSources[model.SourceEnvVar].SetEnvKeyTransformer(key, fn)
 	c.Viper.SetEnvKeyTransformer(key, fn)
 }
