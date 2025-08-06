@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 const (
@@ -91,9 +92,11 @@ type Manager struct {
 	remoteStorage             *storage.ActivityDumpRemoteStorageForwarder
 	configuredStorageRequests map[config.StorageFormat][]config.StorageRequest
 
-	activeDumps         []*dump.ActivityDump
-	snapshotQueue       chan *dump.ActivityDump
-	contextTags         []string
+	activeDumps      []*dump.ActivityDump
+	snapshotQueue    chan *dump.ActivityDump
+	contextTags      []string
+	containerFilters *containers.Filter
+
 	hostname            string
 	lastStoppedDumpTime time.Time
 
@@ -235,6 +238,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		contextTags = append(contextTags, fmt.Sprintf("source:%s", ActivityDumpSource))
 	}
 
+	containerFilters, err := utils.NewContainerFilter()
+	if err != nil {
+		return nil, err
+	}
+
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *profile.Profile](cfg.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
@@ -275,8 +283,9 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		remoteStorage:             remoteStorage,
 		configuredStorageRequests: perFormatStorageRequests(configuredStorageRequests),
 
-		contextTags: contextTags,
-		hostname:    hostname,
+		contextTags:      contextTags,
+		containerFilters: containerFilters,
+		hostname:         hostname,
 
 		minDumpTimeout: minDumpTimeout,
 

@@ -189,12 +189,12 @@ jira_statuses = ["TRIAGE", "In Progress", "Done"]
 github_team = "container-experiences"
 github_labels = ["team/container-experiences"]
 
-[teams."Windows Agent"]
+[teams."Windows Products"]
 jira_project = "WINA"
 jira_issue_type = "QA Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "windows-agent"
-github_labels = ["team/windows-agent"]
+github_team = "windows-products"
+github_labels = ["team/windows-products"]
 
 [teams."Database Monitoring"]
 jira_project = "DBMON"

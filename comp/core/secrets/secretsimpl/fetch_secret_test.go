@@ -11,8 +11,10 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,12 +27,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func build(outTarget, pkg string) {
-	output, err := exec.Command("go", "build", "-o", outTarget, pkg).CombinedOutput()
+func build(t *testing.T, outTarget string) {
+	// -mod=vendor ensures the `go` command will not use the network to look
+	// for modules. See https://go.dev/ref/mod#build-commands
+	cmd := exec.Command("go", "build", "-v", "-mod=vendor", "-o", outTarget)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
 	if err != nil {
-		fmt.Printf("Could not compile secret backend binary: %s\n%s", err, output)
-		os.Exit(1)
+		t.Fatalf("Could not compile secret backend binary: %s", err)
 	}
+	t.Logf("Compilation succeeded!")
 }
 
 func TestLimitBuffer(t *testing.T) {
@@ -55,25 +62,59 @@ func TestLimitBuffer(t *testing.T) {
 	assert.Equal(t, []byte("012ab"), lb.buf.Bytes())
 }
 
+func copyFileToBuildDir(t *testing.T, inFile, targetDir string) {
+	destFile := filepath.Join(targetDir, filepath.Base(inFile))
+	data, err := os.ReadFile(inFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = os.WriteFile(destFile, data, 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // getBackendCommandBinary compiles a binary from source, then sets the proper
 // permissions on it
 func getBackendCommandBinary(t *testing.T) (string, func()) {
 	platform := fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH)
-	outFile, err := os.CreateTemp("", "test_command_"+platform)
+
+	// create a temp directory to build the command in
+	builddir, err := os.MkdirTemp("", "build")
 	if err != nil {
 		t.Fatal(err)
 	}
-	targetBin := outFile.Name()
+	cleanup := func() {
+		defer os.RemoveAll(builddir)
+	}
+
+	// name of the target executable to build
+	targetBin := filepath.Join(builddir, "test_command_"+platform)
 	if runtime.GOOS == "windows" {
 		targetBin = targetBin + ".exe"
 	}
-	outFile.Close()
-	cleanup := func() {
-		os.Remove(targetBin)
-	}
 
+	// copy source file
+	copyFileToBuildDir(t, "test/src/test_command/main.go", builddir)
+	// create a go.mod file, to make the compiler happy
+	goModContent := `module test_command
+
+%s
+`
+	os.WriteFile(filepath.Join(builddir, "go.mod"),
+		[]byte(strings.Replace(fmt.Sprintf(goModContent, runtime.Version()), "go", "go ", -1)),
+		0755)
+
+	// change to the build directory
+	pwd, _ := os.Getwd()
+	os.Chdir(builddir)
+	defer func() {
+		os.Chdir(pwd)
+	}()
+
+	// compile it
 	t.Logf("compiling secret backend binary '%s'", targetBin)
-	build(targetBin, "./test/src/test_command")
+	build(t, targetBin)
 	setCorrectRight(targetBin)
 
 	return targetBin, cleanup
@@ -81,11 +122,13 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 
 // TestMain runs before other tests in this package. It hooks the getDDAgentUserSID
 // function to make it work for Windows tests
-func TestMain(_ *testing.M) {
+func TestMain(m *testing.M) {
 	// Windows-only fix for running on CI. Instead of checking the registry for
 	// permissions (the agent wasn't installed, so that wouldn't work), use a stub
 	// function that gets permissions info directly from the current User
 	testCheckRightsStub()
+
+	os.Exit(m.Run())
 }
 
 func TestExecCommandError(t *testing.T) {
