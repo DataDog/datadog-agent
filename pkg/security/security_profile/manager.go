@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -73,11 +72,12 @@ type Manager struct {
 	pathsReducer  *activity_tree.PathsReducer
 
 	// fields from ActivityDumpManager
-	activityDumpLoadConfig map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig
+	activityDumpLoadConfig *model.ActivityDumpLoadConfig
 
 	// ebpf maps
 	tracedPIDsMap              *ebpf.Map
 	tracedCgroupsMap           *ebpf.Map
+	tracedCgroupsDiscardedMap  *ebpf.Map
 	cgroupWaitList             *ebpf.Map
 	activityDumpsConfigMap     *ebpf.Map
 	activityDumpConfigDefaults *ebpf.Map
@@ -143,6 +143,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	tracedCgroupsMap, err := managerhelper.Map(ebpf, "traced_cgroups")
+	if err != nil {
+		return nil, err
+	}
+
+	tracedCgroupsDiscardedMap, err := managerhelper.Map(ebpf, "traced_cgroups_discarded")
 	if err != nil {
 		return nil, err
 	}
@@ -269,6 +274,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 
 		tracedPIDsMap:              tracedPIDs,
 		tracedCgroupsMap:           tracedCgroupsMap,
+		tracedCgroupsDiscardedMap:  tracedCgroupsDiscardedMap,
 		cgroupWaitList:             cgroupWaitList,
 		activityDumpsConfigMap:     activityDumpsConfigMap,
 		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
@@ -313,16 +319,10 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 
 	m.initMetricsMap()
 
-	defaultLoadConfigs, err := m.getDefaultLoadConfigs()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get default load configs: %w", err)
-	}
-
+	defaultConfig := m.getDefaultLoadConfig()
 	// push default load config values
-	for cgroupManager, defaultConfig := range defaultLoadConfigs {
-		if err := m.activityDumpConfigDefaults.Put(uint32(cgroupManager), defaultConfig); err != nil {
-			return nil, fmt.Errorf("couldn't update default activity dump load config for manager %s: %w", cgroupManager.String(), err)
-		}
+	if err := m.activityDumpConfigDefaults.Put(uint32(0), defaultConfig); err != nil {
+		return nil, fmt.Errorf("couldn't update default activity dump load config: %w", err)
 	}
 
 	return m, nil
