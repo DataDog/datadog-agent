@@ -5,13 +5,21 @@ Param(
     [string] $omnibusOutput = "$(Get-Location)\omnibus\pkg\"
 )
 
-if (-not (Test-Path C:\tools\datadog-package.exe)) {
+$datadogPackagesDir = "C:\devtools\datadog-packages"
+$datadogPackageExe = "$datadogPackagesDir\datadog-package.exe"
+
+if (-not (Test-Path $datadogPackageExe -ErrorAction SilentlyContinue)) {
     Write-Host "Downloading datadog-package.exe"
     git config --global url."https://gitlab-ci-token:${env:CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     go env -w GOPRIVATE="github.com/DataDog/*"
-    $env:PATH += ";$(go env GOPATH)\bin"
     go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
-    Copy-Item "$env:GOPATH\bin\datadog-package.exe" "C:\tools\datadog-package.exe" -Force
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to install datadog-package.exe"
+        exit 1
+    }
+    New-Item -ItemType Directory $datadogPackagesDir -ErrorAction SilentlyContinue | Out-Null
+    Copy-Item "$env:GOPATH\bin\datadog-package.exe" $datadogPackageExe -Force
+    $env:PATH += ";$datadogPackagesDir"
 }
 if ([string]::IsNullOrWhitespace($version)) {
     $version = "{0}-1" -f (dda inv -- agent.version --url-safe --major-version 7)
@@ -34,14 +42,14 @@ Copy-Item (Get-ChildItem $omnibusOutput\${package}-${version}-x86_64.msi).FullNa
 
 $installerPath = "C:\opt\datadog-installer\datadog-installer.exe"
 if (Test-Path $installerPath) {
-    $installerArg = "--installer `"$installerPath`""
+    $installerArg = @("--installer", "`"$installerPath`"")
 } else {
-    $installerArg = ""
+    $installerArg = @()
 }
 
 # The argument --archive-path ".\omnibus\pkg\datadog-agent-${version}.tar.gz" is currently broken and has no effects
-Write-Host "Running: C:\tools\datadog-package.exe create $installerArg --package $package --os windows --arch amd64 --archive --version $version C:\oci-pkg"
-& C:\tools\datadog-package.exe create $installerArg --package $package --os windows --arch amd64 --archive --version $version C:\oci-pkg
+Write-Host "Running: $datadogPackageExe create $installerArg --package $package --os windows --arch amd64 --archive --version $version C:\oci-pkg"
+& $datadogPackageExe create @installerArg --package $package --os windows --arch amd64 --archive --version $version C:\oci-pkg
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to create OCI package"
     exit 1
