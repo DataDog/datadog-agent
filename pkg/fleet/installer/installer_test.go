@@ -411,11 +411,15 @@ func TestPurge(t *testing.T) {
 		err := os.MkdirAll(tmpPath, 0755)
 		assert.NoError(t, err)
 
-		oldRootTmpDir := paths.RootTmpDir
-		paths.RootTmpDir = tmpPath
-		defer func() {
-			paths.RootTmpDir = oldRootTmpDir
-		}()
+		// Only modify RootTmpDir on Windows where it's a variable
+		// On other platforms, it's a constant and cannot be modified
+		if runtime.GOOS == "windows" {
+			oldRootTmpDir := paths.RootTmpDir
+			paths.RootTmpDir = tmpPath
+			defer func() {
+				paths.RootTmpDir = oldRootTmpDir
+			}()
+		}
 
 		// Create a file in the tmp directory
 		err = os.WriteFile(filepath.Join(tmpPath, "test.txt"), []byte("test"), 0644)
