@@ -5,15 +5,15 @@ on:
     # Only run on PR label events (in particular not on every commit)
     types: [ labeled ]
 
-permissions:
-  # write permissions are needed to create the comment
-  pull-requests: write
+permissions: {}
 
 jobs:
   old-versions-match:
     # Only run if the PR is labeled with 'go-update'
     if: ${{ github.event.label.name == 'go-update' }}
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
       # get the Go version of the target branch
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -62,6 +62,12 @@ jobs:
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.go-update-commenter.modify-pr
+
       # and display it
       - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         env:
@@ -69,6 +75,7 @@ jobs:
           # as it will likely not be a valid JS string (eg. if it contains a quote character)
           CONTENT: ${{ steps.old_versions.outputs.matches }}
         with:
+          github-token: ${{ steps.octo-sts.outputs.token }}
           script: |
             github.rest.issues.createComment({
               issue_number: context.issue.number,

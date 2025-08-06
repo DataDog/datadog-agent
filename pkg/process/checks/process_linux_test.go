@@ -14,10 +14,15 @@ import (
 	"testing"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	probemocks "github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -28,17 +33,62 @@ import (
 
 // TestProcessesByPIDWLM tests processesByPID map creation when WLM collection is ON
 func TestProcessesByPIDWLM(t *testing.T) {
+	mockConstantClock := constantMockClock(time.Now())
+	nowMs := mockConstantClock.Now().UnixMilli()
+	// TEST DATA 1
+	proc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowMs)
+	proc2 := wlmProcessWithCreateTime(2, "mine-bitcoins -all -x", nowMs-1)
+	proc3 := wlmProcessWithCreateTime(3, "datadog-agent --cfgpath datadog.conf", nowMs+2)
+	proc4 := wlmProcessWithServiceDiscovery(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowMs-3)
+	wlmProcesses := []*wmdef.Process{proc1, proc2, proc3, proc4}
+	statsByPid := createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
+	expected1 := map[int32]*procutil.Process{
+		proc1.Pid: mapWLMProcToProc(proc1, statsByPid[proc1.Pid]),
+		proc2.Pid: mapWLMProcToProc(proc2, statsByPid[proc2.Pid]),
+		proc3.Pid: mapWLMProcToProc(proc3, statsByPid[proc3.Pid]),
+		proc4.Pid: mapWLMProcToProc(proc4, statsByPid[proc4.Pid]),
+	}
+
+	// TEST DATA 2
+	statsByPidMissingProc1 := createTestWLMProcessStats([]*wmdef.Process{proc2, proc3, proc4}, true)
+	expected2 := map[int32]*procutil.Process{
+		proc2.Pid: mapWLMProcToProc(proc2, statsByPidMissingProc1[proc2.Pid]),
+		proc3.Pid: mapWLMProcToProc(proc3, statsByPidMissingProc1[proc3.Pid]),
+		proc4.Pid: mapWLMProcToProc(proc4, statsByPidMissingProc1[proc4.Pid]),
+	}
+
+	// TEST DATA 3
+	newProc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowMs+10)
+	statsByPidNewProc1 := createTestWLMProcessStats([]*wmdef.Process{newProc1, proc2, proc3, proc4}, true)
+	expected3 := map[int32]*procutil.Process{
+		proc2.Pid: mapWLMProcToProc(proc2, statsByPidNewProc1[proc2.Pid]),
+		proc3.Pid: mapWLMProcToProc(proc3, statsByPidNewProc1[proc3.Pid]),
+		proc4.Pid: mapWLMProcToProc(proc4, statsByPidNewProc1[proc4.Pid]),
+	}
+
 	for _, tc := range []struct {
 		description  string
-		collectStats bool
+		wlmProcesses []*wmdef.Process
+		statsByPid   map[int32]*procutil.Stats
+		expected     map[int32]*procutil.Process
 	}{
 		{
-			description:  "wlm collection ENABLED, with stats ENABLED",
-			collectStats: true,
+			description:  "normal wlm collection",
+			wlmProcesses: wlmProcesses,
+			statsByPid:   statsByPid,
+			expected:     expected1,
 		},
 		{
-			description:  "wlm collection ENABLED, with stats DISABLED",
-			collectStats: false,
+			description:  "race condition - process dies after wlm collection before stat collection",
+			wlmProcesses: []*wmdef.Process{proc1, proc2, proc3, proc4},
+			statsByPid:   statsByPidMissingProc1,
+			expected:     expected2,
+		},
+		{
+			description:  "race condition - process dies after wlm collection with new process and same PID before stat collection",
+			wlmProcesses: []*wmdef.Process{proc1, proc2, proc3, proc4},
+			statsByPid:   statsByPidNewProc1,
+			expected:     expected3,
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
@@ -49,7 +99,6 @@ func TestProcessesByPIDWLM(t *testing.T) {
 				workloadmetafxmock.MockModule(wmdef.NewParams()),
 			))
 
-			mockConstantClock := constantMockClock(time.Now())
 			processCheck := &ProcessCheck{
 				wmeta:                   mockWLM,
 				probe:                   mockProbe,
@@ -58,34 +107,293 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			}
 
 			// MOCKING
-			nowSeconds := mockConstantClock.Now().Unix()
-			proc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowSeconds)
-			proc2 := wlmProcessWithCreateTime(2, "mine-bitcoins -all -x", nowSeconds-1)
-			proc3 := wlmProcessWithCreateTime(3, "datadog-agent --cfgpath datadog.conf", nowSeconds+2)
-			proc4 := wlmProcessWithCreateTime(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds-3)
-			procs := []*wmdef.Process{proc1, proc2, proc3, proc4}
-			statsByPid := make(map[int32]*procutil.Stats)
-			for _, p := range procs {
+			for _, p := range tc.wlmProcesses {
 				mockWLM.Set(p)
 			}
-			if tc.collectStats {
-				// elevatedPermissions is irrelevant since we are mocking the probe so no internal logic is tested
-				statsByPid = createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
-				mockProbe.EXPECT().StatsForPIDs(mock.Anything, mockConstantClock.Now()).Return(statsByPid, nil).Once()
-			}
 
-			// EXPECTED
-			expected := map[int32]*procutil.Process{
-				proc1.Pid: mapWLMProcToProc(proc1, statsByPid[proc1.Pid]),
-				proc2.Pid: mapWLMProcToProc(proc2, statsByPid[proc2.Pid]),
-				proc3.Pid: mapWLMProcToProc(proc3, statsByPid[proc3.Pid]),
-				proc4.Pid: mapWLMProcToProc(proc4, statsByPid[proc4.Pid]),
-			}
+			// elevatedPermissions is irrelevant since we are mocking the probe so no internal logic is tested
+			mockProbe.EXPECT().StatsForPIDs(mock.Anything, mockConstantClock.Now()).Return(tc.statsByPid, nil).Once()
 
 			// TESTING
-			actual, err := processCheck.processesByPID(tc.collectStats)
+			actual, err := processCheck.processesByPID()
 			assert.NoError(t, err)
-			assert.Equal(t, expected, actual)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+// TODO: service discovery does not yet distinguish between tcp and udp, so everything is sent as TCP
+func TestFormatPorts(t *testing.T) {
+	for _, tc := range []struct {
+		description      string
+		ports            []uint16
+		expectedPortInfo *model.PortInfo
+	}{
+		{
+			description: "normal ports",
+			ports:       []uint16{80, 443},
+			expectedPortInfo: &model.PortInfo{
+				Tcp: []int32{80, 443},
+			},
+		},
+		{
+			description: "empty ports",
+			ports:       []uint16{},
+			expectedPortInfo: &model.PortInfo{
+				Tcp: []int32{},
+			},
+		},
+		{
+			description:      "ports not collected",
+			ports:            nil,
+			expectedPortInfo: nil,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			actual := formatPorts(tc.ports)
+			assert.Equal(t, tc.expectedPortInfo, actual)
+		})
+	}
+}
+
+func TestFormatLanguage(t *testing.T) {
+	for _, tc := range []struct {
+		description      string
+		language         *languagemodels.Language
+		expectedLanguage model.Language
+	}{
+		{
+			description: "go",
+			language: &languagemodels.Language{
+				Name: languagemodels.Go,
+			},
+			expectedLanguage: model.Language_LANGUAGE_GO,
+		},
+		{
+			description: "node",
+			language: &languagemodels.Language{
+				Name: languagemodels.Node,
+			},
+			expectedLanguage: model.Language_LANGUAGE_NODE,
+		},
+		{
+			description: "dotnet",
+			language: &languagemodels.Language{
+				Name: languagemodels.Dotnet,
+			},
+			expectedLanguage: model.Language_LANGUAGE_DOTNET,
+		},
+		{
+			description: "python",
+			language: &languagemodels.Language{
+				Name: languagemodels.Python,
+			},
+			expectedLanguage: model.Language_LANGUAGE_PYTHON,
+		},
+		{
+			description: "java",
+			language: &languagemodels.Language{
+				Name: languagemodels.Java,
+			},
+			expectedLanguage: model.Language_LANGUAGE_JAVA,
+		},
+		{
+			description: "ruby",
+			language: &languagemodels.Language{
+				Name: languagemodels.Ruby,
+			},
+			expectedLanguage: model.Language_LANGUAGE_RUBY,
+		},
+		{
+			description: "php",
+			language: &languagemodels.Language{
+				Name: languagemodels.PHP,
+			},
+			expectedLanguage: model.Language_LANGUAGE_PHP,
+		},
+		{
+			description: "cpp",
+			language: &languagemodels.Language{
+				Name: languagemodels.CPP,
+			},
+			expectedLanguage: model.Language_LANGUAGE_CPP,
+		},
+		{
+			description: "unknown",
+			language: &languagemodels.Language{
+				Name: languagemodels.Unknown,
+			},
+			expectedLanguage: model.Language_LANGUAGE_UNKNOWN,
+		},
+		{
+			description:      "not collected",
+			language:         nil,
+			expectedLanguage: model.Language_LANGUAGE_UNKNOWN,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			actual := formatLanguage(tc.language)
+			assert.Equal(t, tc.expectedLanguage, actual)
+		})
+	}
+}
+
+func TestServiceNameSourceMap(t *testing.T) {
+	for _, tc := range []struct {
+		description               string
+		serviceNameSource         string
+		expectedServiceNameSource model.ServiceNameSource
+	}{
+		{
+			description:               "command line",
+			serviceNameSource:         string(usm.CommandLine),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_COMMAND_LINE,
+		},
+		{
+			description:               "laravel",
+			serviceNameSource:         string(usm.Laravel),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_LARAVEL,
+		},
+		{
+			description:               "python",
+			serviceNameSource:         string(usm.Python),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_PYTHON,
+		},
+		{
+			description:               "nodejs",
+			serviceNameSource:         string(usm.Nodejs),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_NODEJS,
+		},
+		{
+			description:               "gunicorn",
+			serviceNameSource:         string(usm.Gunicorn),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_GUNICORN,
+		},
+		{
+			description:               "rails",
+			serviceNameSource:         string(usm.Rails),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_RAILS,
+		},
+		{
+			description:               "spring",
+			serviceNameSource:         string(usm.Spring),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_SPRING,
+		},
+		{
+			description:               "jboss",
+			serviceNameSource:         string(usm.JBoss),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_JBOSS,
+		},
+		{
+			description:               "tomcat",
+			serviceNameSource:         string(usm.Tomcat),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_TOMCAT,
+		},
+		{
+			description:               "weblogic",
+			serviceNameSource:         string(usm.WebLogic),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBLOGIC,
+		},
+		{
+			description:               "websphere",
+			serviceNameSource:         string(usm.WebSphere),
+			expectedServiceNameSource: model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBSPHERE,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			actual := serviceNameSource(tc.serviceNameSource)
+			assert.Equal(t, tc.expectedServiceNameSource, actual)
+		})
+	}
+}
+
+func TestFormatServiceDiscovery(t *testing.T) {
+	for _, tc := range []struct {
+		description     string
+		service         *procutil.Service
+		expectedService *model.ServiceDiscovery
+	}{
+		{
+			description: "complete service",
+			service: &procutil.Service{
+				GeneratedName:            "gen_name",
+				GeneratedNameSource:      "unknown",
+				AdditionalGeneratedNames: []string{"additional_name1", "additional_name2"},
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{
+						RuntimeID:   "run_id1",
+						ServiceName: "service_name1",
+					},
+					{
+						RuntimeID:   "run_id2",
+						ServiceName: "service_name2",
+					},
+				},
+				DDService:          "dd_service_name",
+				APMInstrumentation: "provided",
+			},
+			expectedService: &model.ServiceDiscovery{
+				GeneratedServiceName: &model.ServiceName{
+					Name:   "gen_name",
+					Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+				},
+				DdServiceName: &model.ServiceName{
+					Name:   "dd_service_name",
+					Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_DD_SERVICE,
+				},
+				AdditionalGeneratedNames: []*model.ServiceName{
+					{
+						Name:   "additional_name1",
+						Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+					},
+					{
+						Name:   "additional_name2",
+						Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+					},
+				},
+				TracerMetadata: []*model.TracerMetadata{
+					{
+						RuntimeId:   "run_id1",
+						ServiceName: "service_name1",
+					},
+					{
+						RuntimeId:   "run_id2",
+						ServiceName: "service_name2",
+					},
+				},
+				ApmInstrumentation: true,
+			},
+		},
+		{
+			description: "empty service names",
+			service: &procutil.Service{
+				GeneratedName:            "",
+				GeneratedNameSource:      "",
+				AdditionalGeneratedNames: []string{"", ""},
+				DDService:                "",
+				APMInstrumentation:       "none",
+			},
+			expectedService: &model.ServiceDiscovery{
+				GeneratedServiceName:     nil,
+				DdServiceName:            nil,
+				AdditionalGeneratedNames: nil,
+				ApmInstrumentation:       false,
+			},
+		},
+		{
+			description:     "empty service",
+			service:         &procutil.Service{},
+			expectedService: &model.ServiceDiscovery{},
+		},
+		{
+			description:     "service not collected",
+			service:         nil,
+			expectedService: nil,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			actual := formatServiceDiscovery(tc.service)
+			assert.Equal(t, tc.expectedService, actual)
 		})
 	}
 }
@@ -102,10 +410,29 @@ func wlmProcessWithCreateTime(pid int32, spaceSeparatedCmdline string, creationT
 	}
 }
 
+func wlmProcessWithServiceDiscovery(pid int32, spaceSeparatedCmdline string, creationTime int64) *wmdef.Process {
+	proc := wlmProcessWithCreateTime(pid, spaceSeparatedCmdline, creationTime)
+	proc.Service = &wmdef.Service{
+		GeneratedName:            "some generated name",
+		GeneratedNameSource:      string(usm.CommandLine),
+		AdditionalGeneratedNames: []string{"some additional name", "another additional name"},
+		TracerMetadata: []tracermetadata.TracerMetadata{
+			{
+				RuntimeID:   "some-runtime-id",
+				ServiceName: "some-tracer-service",
+			},
+		},
+		DDService:          "dd service name",
+		Ports:              []uint16{6400, 5200},
+		APMInstrumentation: string(apm.Provided),
+	}
+	return proc
+}
+
 func createTestWLMProcessStats(wlmProcs []*wmdef.Process, elevatedPermissions bool) map[int32]*procutil.Stats {
 	statsByPid := make(map[int32]*procutil.Stats, len(wlmProcs))
 	for _, wlmProc := range wlmProcs {
-		statsByPid[wlmProc.Pid] = randomProcessStats(wlmProc.CreationTime.Unix(), elevatedPermissions)
+		statsByPid[wlmProc.Pid] = randomProcessStats(wlmProc.CreationTime.UnixMilli(), elevatedPermissions)
 	}
 	return statsByPid
 }
