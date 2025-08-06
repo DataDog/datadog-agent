@@ -9,16 +9,21 @@ package tags
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -161,39 +166,81 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 }
 
 func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2internal.EC2Identity, awsCreds aws.CredentialsProvider) ([]string, error) {
-	connection := ec2.New(ec2.Options{
-		Region:      instanceIdentity.Region,
-		Credentials: awsCreds,
-	})
-
-	// We want to use 'ec2_metadata_timeout' here instead of current context. 'ctx' comes from the agent main and will
-	// only be canceled if the agent is stopped. The default timeout for the AWS SDK is 1 minutes (20s timeout with
-	// 3 retries). Since we call getTagsWithCreds twice in a row, it can be a 2 minutes latency.
-	ctx, cancel := context.WithTimeout(ctx, pkgconfigsetup.Datadog().GetDuration("ec2_metadata_timeout")*time.Millisecond)
-	defer cancel()
-
-	ec2Tags, err := connection.DescribeTags(ctx,
-		&ec2.DescribeTagsInput{
-			Filters: []types.Filter{{
-				Name: aws.String("resource-id"),
-				Values: []string{
-					instanceIdentity.InstanceID,
-				},
-			}},
-		},
-	)
-
+	// Get credentials
+	creds, err := awsCreds.Retrieve(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to retrieve credentials: %w", err)
 	}
 
+	// Build the EC2 API URL with query parameters
+	baseURL := fmt.Sprintf("https://ec2.%s.amazonaws.com/", instanceIdentity.Region)
+	params := url.Values{}
+	params.Set("Action", "DescribeTags")
+	params.Set("Version", "2016-11-15")
+	params.Set("Filter.1.Name", "resource-id")
+	params.Set("Filter.1.Value.1", instanceIdentity.InstanceID)
+
+	// Create the request
+	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"?"+params.Encode(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set the opaque URL to prevent automatic escaping
+	req.URL.Opaque = fmt.Sprintf("//ec2.%s.amazonaws.com/", instanceIdentity.Region)
+
+	// Create v4 signer
+	signer := v4.NewSigner()
+
+	// Calculate payload hash (empty string for GET request)
+	emptyHash := sha256.New().Sum(nil)
+	payloadHash := hex.EncodeToString(emptyHash)
+
+	// Sign the request
+	err = signer.SignHTTP(ctx, creds, req, payloadHash, "ec2", instanceIdentity.Region, time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign request: %w", err)
+	}
+
+	// Make the request using existing HTTP utilities
+	client := &http.Client{
+		// Transport: datadogHttp.CreateHTTPTransport(pkgconfigsetup.Datadog()),
+		Timeout: pkgconfigsetup.Datadog().GetDuration("ec2_metadata_timeout") * time.Millisecond,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check for errors
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("EC2 API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the XML response
+	var result struct {
+		Tags []struct {
+			Key   string `xml:"key"`
+			Value string `xml:"value"`
+		} `xml:"tagSet>item"`
+	}
+
+	if err := xml.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Convert to tags format
 	tags := []string{}
-	for _, tag := range ec2Tags.Tags {
-		if isTagExcluded(*tag.Key) {
+	for _, tag := range result.Tags {
+		if isTagExcluded(tag.Key) {
 			continue
 		}
-		tags = append(tags, fmt.Sprintf("%s:%s", *tag.Key, *tag.Value))
+		tags = append(tags, fmt.Sprintf("%s:%s", tag.Key, tag.Value))
 	}
+
 	return tags, nil
 }
 
