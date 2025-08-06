@@ -164,9 +164,10 @@ build do
             # recipe, but we need pg_config to build psycopq.
             delete "#{install_dir}/embedded/bin/pg_config"
 
-            # Edit rpath from a true path to relative path for each binary
-            mv "#{install_dir}/embedded/lib" "#{install_dir}/embedded/lib-XXX"
-            command "inv omnibus.rpath-edit #{install_dir} /opt/datadog-packages/datadog-agent/experiment:/opt/datadog-packages/datadog-agent/stable:/opt/datadog-agent", cwd: Dir.pwd
+            # Edit rpath from a true path to relative path for each binary if install_dir contains /opt/datadog-packages
+            if install_dir.include?("/opt/datadog-packages")
+              command "inv omnibus.rpath-edit #{install_dir} /opt/datadog-packages/datadog-agent/stable", cwd: Dir.pwd
+            end
         end
 
         if osx_target?
