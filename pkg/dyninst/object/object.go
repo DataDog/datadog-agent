@@ -24,6 +24,8 @@ type Architecture = bininspect.GoArch
 type File interface {
 	io.Closer
 
+	// Architecture returns the architecture of the object file.
+	Architecture() Architecture
 	// Access to the DWARF sections.
 	DwarfSections() *DebugSections
 	// Access to the DWARF data.
