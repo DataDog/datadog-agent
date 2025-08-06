@@ -117,7 +117,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	for i := 0; i < 400; i++ {
 		job := <-testChan
 		subnets[fmt.Sprintf("%p", job.subnet)] = true
-		entities[job.subnet.config.Digest(job.currentIP.String(), false)] = true
+		entities[job.subnet.config.Digest(job.currentIP.String())] = true
 	}
 
 	// make sure we have 100 subnets and 400 different entity hashes
@@ -551,9 +551,9 @@ func TestMigrateCache(t *testing.T) {
 			listenerConfig, err := snmp.NewListenerConfig()
 			assert.NoError(t, err)
 
-			newConfigHash := listenerConfig.Configs[0].Digest(tt.subnet, false)
+			newConfigHash := listenerConfig.Configs[0].Digest(tt.subnet)
 			newCacheKey := buildCacheKey(newConfigHash)
-			legacyConfigHash := listenerConfig.Configs[0].Digest(tt.subnet, true)
+			legacyConfigHash := listenerConfig.Configs[0].LegacyDigest(tt.subnet)
 			legacyCacheKey := buildCacheKey(legacyConfigHash)
 
 			if tt.newCacheExists {

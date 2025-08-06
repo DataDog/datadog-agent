@@ -137,7 +137,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 	err = json.Unmarshal([]byte(cacheValue), &deviceIPs)
 	if err == nil {
 		for _, deviceIP := range deviceIPs {
-			entityID := subnet.config.Digest(deviceIP.String(), false)
+			entityID := subnet.config.Digest(deviceIP.String())
 			deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[0], subnet.config.Port, deviceIP.String())
 
 			l.createService(entityID, subnet, deviceIP.String(), deviceInfo, 0, false)
@@ -152,7 +152,7 @@ func (l *SNMPListener) loadCache(subnet *snmpSubnet) {
 		return
 	}
 	for _, device := range devices {
-		entityID := subnet.config.Digest(device.IP.String(), false)
+		entityID := subnet.config.Digest(device.IP.String())
 		deviceInfo := l.checkDeviceInfo(subnet.config.Authentications[device.AuthIndex], subnet.config.Port, device.IP.String())
 
 		l.createService(entityID, subnet, device.IP.String(), deviceInfo, device.AuthIndex, false)
@@ -193,7 +193,7 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
 	deviceIP := job.currentIP.String()
-	entityID := job.subnet.config.Digest(deviceIP, false)
+	entityID := job.subnet.config.Digest(deviceIP)
 
 	deviceFound := false
 	for authIndex, authentication := range job.subnet.config.Authentications {
@@ -355,13 +355,13 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 }
 
 func migrateCache(config snmp.Config) string {
-	configHash := config.Digest(config.Network, false)
+	configHash := config.Digest(config.Network)
 	cacheKey := buildCacheKey(configHash)
 	if persistentcache.Exists(cacheKey) {
 		return cacheKey
 	}
 
-	legacyConfigHash := config.Digest(config.Network, true)
+	legacyConfigHash := config.LegacyDigest(config.Network)
 	legacyCacheKey := buildCacheKey(legacyConfigHash)
 	if !persistentcache.Exists(legacyCacheKey) {
 		return cacheKey
@@ -503,7 +503,7 @@ func (l *SNMPListener) registerDedupedDevices() {
 }
 
 func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice) {
-	entityID := pendingDevice.Config.Digest(pendingDevice.IP, false)
+	entityID := pendingDevice.Config.Digest(pendingDevice.IP)
 
 	svc, ok := l.services[entityID]
 	if !ok {
