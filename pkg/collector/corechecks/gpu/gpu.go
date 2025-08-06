@@ -185,9 +185,7 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 	devices := c.deviceCache.AllPhysicalDevices()
 	gpuToContainers := make(map[string]*workloadmeta.Container, len(devices))
 
-	wmetaContainers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
-		return len(cont.ResolvedAllocatedResources) > 0
-	})
+	wmetaContainers := c.wmeta.ListContainersWithFilter(containers.HasGPUs)
 
 	// Iterate over devices and find matching containers
 	for _, device := range devices {
