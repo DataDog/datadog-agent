@@ -2,7 +2,7 @@
 .docker_build_job_definition:
   stage: container_build
   script:
-    - TAG_SUFFIX=${TAG_SUFFIX:-}-incident-41677
+    - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
     - EXTRA_BUILD_CONTEXT=${ARTIFACTS_BUILD_CONTEXT:+"--build-context artifacts=$ARTIFACTS_BUILD_CONTEXT"}
     - |
