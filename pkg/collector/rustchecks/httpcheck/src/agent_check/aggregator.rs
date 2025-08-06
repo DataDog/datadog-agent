@@ -1,6 +1,6 @@
 use super::helpers::*;
 
-use std::{ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong, CString}, ops::Sub};
+use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong, CStr};
 
 // replica of the Agent metric type enum
 #[repr(C)]
@@ -78,30 +78,41 @@ type SubmitEventPlatformEvent = extern "C" fn(
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct CheckConfig {
+pub struct CheckInstance {
     check_id: *mut c_char,
-    cb_submit_metric: SubmitMetric,
-    cb_submit_service_check: SubmitServiceCheck,
-    cb_submit_event: SubmitEvent,
-    cb_submit_histogram_bucket: SubmitHistogramBucket,
-    cb_submit_event_platform_event: SubmitEventPlatformEvent,
+    cb_submit_metric: Option<SubmitMetric>,
+    cb_submit_service_check: Option<SubmitServiceCheck>,
+    cb_submit_event: Option<SubmitEvent>,
+    cb_submit_histogram_bucket: Option<SubmitHistogramBucket>,
+    cb_submit_event_platform_event: Option<SubmitEventPlatformEvent>,
+    // ...
 }
 
-impl CheckConfig {
+impl CheckInstance {
     pub fn get_check_id(&self) -> String {
-        unsafe {
-            CString::from_raw(self.check_id)
-                .into_string().unwrap()
-        }
+        unsafe { CStr::from_ptr(self.check_id) }.to_str().unwrap().to_string()
     }
 
     pub fn get_callbacks(&self) -> Aggregator {
-        Aggregator {
-            cb_submit_metric: self.cb_submit_metric,
-            cb_submit_service_check: self.cb_submit_service_check,
-            cb_submit_event: self.cb_submit_event,
-            cb_submit_histogram_bucket: self.cb_submit_histogram_bucket,
-            cb_submit_platform_event: self.cb_submit_event_platform_event, 
+        if let (
+                Some(cb_submit_metric),
+                Some(cb_submit_service_check),
+                Some(cb_submit_event),
+                Some(cb_submit_histogram_bucket),
+                Some(cb_submit_event_platform_event)
+            ) = (self.cb_submit_metric, self.cb_submit_service_check, self.cb_submit_event, self.cb_submit_histogram_bucket, self.cb_submit_event_platform_event) {
+            
+            Aggregator {
+                cb_submit_metric,
+                cb_submit_service_check,
+                cb_submit_event,
+                cb_submit_histogram_bucket,
+                cb_submit_event_platform_event,
+            }
+                
+        } else {
+            println!("Some callbacks are null, using default aggregator");
+            Aggregator::default()
         }
     }
 }
@@ -114,7 +125,7 @@ pub struct Aggregator {
     cb_submit_service_check: SubmitServiceCheck,
     cb_submit_event: SubmitEvent,
     cb_submit_histogram_bucket: SubmitHistogramBucket,
-    cb_submit_platform_event: SubmitEventPlatformEvent,
+    cb_submit_event_platform_event: SubmitEventPlatformEvent,
 }
 
 impl Aggregator {
@@ -169,5 +180,60 @@ impl Aggregator {
         free_cstring(cstr_hostname);
         free_cstring(cstr_message);
 
+    }
+}
+
+extern "C" fn dummy_submit_metric(
+    _check_id: *mut c_char,
+    _metric_type: MetricType,
+    _name: *mut c_char,
+    _value: c_double,
+    _tags: *mut *mut c_char,
+    _hostname: *mut c_char,
+    _flush_first_value: bool,
+) {}
+
+extern "C" fn dummy_submit_service_check(
+    _check_id: *mut c_char,
+    _name: *mut c_char,
+    _status: c_int,
+    _tags: *mut *mut c_char,
+    _hostname: *mut c_char,
+    _message: *mut c_char,
+) {}
+
+extern "C" fn dummy_submit_event(
+    _check_id: *mut c_char,
+    _event: Event,
+) {}
+
+extern "C" fn dummy_submit_histogram_bucket(
+    _check_id: *mut c_char,
+    _metric_name: *mut c_char,
+    _value: c_longlong,
+    _lower_bound: c_float,
+    _upper_bound: c_float,
+    _monotonic: c_int,
+    _hostname: *mut c_char,
+    _tags: *mut *mut c_char,
+    _flush_first_value: bool,
+) {}
+
+extern "C" fn dummy_submit_event_platform_event(
+    _check_id: *mut c_char,
+    _raw_event_ptr: *mut c_char,
+    _raw_event_size: c_int,
+    _event_type: *mut c_char,
+) {}
+
+impl Default for Aggregator {
+    fn default() -> Self {
+        Aggregator {
+            cb_submit_metric: dummy_submit_metric,
+            cb_submit_service_check: dummy_submit_service_check,
+            cb_submit_event: dummy_submit_event,
+            cb_submit_histogram_bucket: dummy_submit_histogram_bucket,
+            cb_submit_event_platform_event: dummy_submit_event_platform_event,
+        }
     }
 }

@@ -1,6 +1,6 @@
-use super::aggregator::{CheckConfig, MetricType, Aggregator};
+use super::aggregator::{CheckInstance, MetricType, Aggregator};
 
-pub type Config = CheckConfig;
+pub type Instance = CheckInstance;
 
 #[repr(i32)]
 pub enum ServiceCheckStatus {
@@ -12,16 +12,26 @@ pub enum ServiceCheckStatus {
 
 pub struct AgentCheck {
     check_id: String,
-    pub aggregator: Aggregator,
+    aggregator: Aggregator,
 }
 
 impl AgentCheck {
-    pub fn new(config: Config) -> Self {
-        //let check_id  = config.get_check_id();
-        let check_id = String::new();
-        let aggregator = config.get_callbacks();
-        
+    pub fn new(instance_ptr: *const Instance) -> Self {
+        let instance = unsafe { &*instance_ptr };
+
+        let check_id  = instance.get_check_id();
+
+        let aggregator  = instance.get_callbacks();
+
         AgentCheck { check_id, aggregator }
+    }
+
+    pub fn print_check_id(&self) {
+        println!("Check ID: {}", self.check_id);
+    }
+
+    pub fn print_aggregator(&self) {
+        println!("Aggregator: {:?}", self.aggregator);
     }
 
     // TODO: maybe use Option for optional arguments (tags, hostname, flush_first_value)

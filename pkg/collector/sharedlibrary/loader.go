@@ -30,16 +30,21 @@ package sharedlibrary
 #    error Platform not supported
 #endif
 
-shared_library_handle_t load_shared_library(const char *lib_name, const char *error) {
+shared_library_handle_t load_shared_library(const char *lib_name, const char **error) {
+	shared_library_handle_t lib_handles = { NULL, NULL };
+
     // resolve the library full name
     char* lib_full_name = malloc(strlen(lib_name) + strlen(LIB_EXTENSION) + 1);
+	if (!lib_full_name) {
+		*error = strdup("memory allocation for library name failed");
+		goto done;
+	}
 	sprintf(lib_full_name, "%s%s", lib_name, LIB_EXTENSION);
 
     // load the library
     void *lib_handle = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
     if (!lib_handle) {
-		*error = "Unable to open shared library";
-        shared_library_handle_t lib_handles = { NULL, NULL };
+		*error = strdup("unable to open shared library");
 		goto done;
     }
 
@@ -49,14 +54,17 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char *er
     run_shared_library_check_t *run_handle = (run_shared_library_check_t *)dlsym(lib_handle, "Run");
     dlsym_error = dlerror();
     if (dlsym_error) {
-		*error = "Unable to find Run symbol in shared library";
-        shared_library_handle_t lib_handles = { NULL, NULL };
+		dlclose(lib_handle);
+		*error = strdup(dlsym_error);
 		goto done;
     }
-	shared_library_handle_t lib_handles = { lib_handle, run_handle };
+
+	// set up handles if loading was successful
+	lib_handles.lib = lib_handle;
+	lib_handles.run = run_handle;
 
 done:
-	free(lib_full_name);
+	//free(lib_full_name);
 	return lib_handles;
 }
 */
@@ -108,7 +116,7 @@ func (sl *SharedLibraryCheckLoader) String() string {
 
 // Load returns a Shared Library check
 func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
-	if pkgconfigsetup.Datadog().GetBool("shared_library_lazy_loading") {
+	if pkgconfigsetup.Datadog().GetBool("shared_libraries_check_lazy_loading") {
 		sharedlibraryOnce.Do(InitSharedLibrary)
 	}
 
@@ -122,13 +130,6 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 
 	// Get the shared library handles
 	libPtrs := C.load_shared_library(cName, &cErr)
-	fmt.Println(config.Name, ":", C.GoString(cErr))
-	if cErr == nil {
-		fmt.Printf("%v\n", libPtrs)
-	} else {
-		fmt.Printf("")
-	}
-	//cErr = C.CString("error")
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 
@@ -136,8 +137,7 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 		errMsg := fmt.Sprintf("failed to find shared library %q", name)
 		return nil, errors.New(errMsg)
 	}
-	errMsg := fmt.Sprintf("failed to find shared library %q", name)
-	return nil, errors.New(errMsg)
+
 	// Create the check
 	c, err := NewSharedLibraryCheck(senderManager, config.Name, libPtrs.lib, libPtrs.run)
 	if err != nil {
