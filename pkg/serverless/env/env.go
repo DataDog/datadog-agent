@@ -20,4 +20,3 @@ func IsAzureAppServicesExtension() bool {
 	value, exists := os.LookupEnv(AzureAppServicesEnvVar)
 	return exists && value == "1"
 }
-

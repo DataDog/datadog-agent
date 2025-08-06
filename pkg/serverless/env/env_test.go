@@ -65,4 +65,3 @@ func TestIsAzureAppServicesExtension(t *testing.T) {
 		})
 	}
 }
-
