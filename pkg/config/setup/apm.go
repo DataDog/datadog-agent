@@ -243,8 +243,6 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		}
 		return out
 	})
-
-	config.BindEnvAndSetDefault("apm_config.disable_remote_tagger", false, "DD_APM_DISABLE_REMOTE_TAGGER")
 }
 
 func parseKVList(key string) func(string) []string {
