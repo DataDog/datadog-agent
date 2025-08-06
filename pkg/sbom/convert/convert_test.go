@@ -5,7 +5,7 @@
 
 //go:build trivy || windows
 
-package sbom
+package convert
 
 import (
 	"testing"
@@ -24,7 +24,7 @@ func FuzzConvertBOM(f *testing.F) {
 		f.Fuzz(&bom)
 		bom.SpecVersion = cyclonedx.SpecVersion1_6
 
-		pb := convertBOM(&bom)
+		pb := BOM(&bom)
 		_, err := proto.Marshal(pb)
 
 		assert.Nil(t, err)
