@@ -118,13 +118,6 @@ func (h *Handler) GetAllClusterCheckConfigs() ([]integration.Config, error) {
 	}
 }
 
-// IsLeader returns true if this cluster agent is the leader for cluster checks
-func (h *Handler) IsLeader() bool {
-	h.m.RLock()
-	defer h.m.RUnlock()
-	return h.state == leader
-}
-
 // RebalanceClusterChecks triggers an attempt to rebalance cluster checks
 func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse, error) {
 	if !h.dispatcher.advancedDispatching.Load() {

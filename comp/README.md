@@ -356,6 +356,12 @@ by the Agent.
 
 Package clusteragent is the metadata provider for datadog-cluster-agent process
 
+### [comp/metadata/clusterchecks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/clusterchecks)
+
+*Datadog Team*: container-platform
+
+Package clusterchecks provides the clusterchecks metadata component
+
 ### [comp/metadata/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/haagent)
 
 *Datadog Team*: ndm-core
