@@ -638,6 +638,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 //   - query: Versa query expression (e.g., "slam(...columns...)")
 //   - queryType: type of query (e.g., "tableData", "table", "summary")
 //   - filterQuery: filter query (e.g. "(accessType:DIA)")
+//   - joinQuery: table to join from (e.g. "siteStatus")
 //   - metrics: list of metric strings (e.g., "delay", "fwdLossRatio")
 //   - count: number of rows to retrieve (similar to limit)
 //   - fromCount: row to start at (similar to offset)
