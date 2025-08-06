@@ -51,10 +51,11 @@ type Check struct {
 }
 
 type checkTelemetry struct {
-	metricsSent      telemetry.Counter
-	duplicateMetrics telemetry.Counter
-	collectorErrors  telemetry.Counter
-	activeMetrics    telemetry.Gauge
+	metricsSent                telemetry.Counter
+	duplicateMetrics           telemetry.Counter
+	collectorErrors            telemetry.Counter
+	activeMetrics              telemetry.Gauge
+	missingContainerGpuMapping telemetry.Counter
 }
 
 // Factory creates a new check factory
@@ -76,10 +77,11 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
-		metricsSent:      tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
-		collectorErrors:  tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
-		activeMetrics:    tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
-		duplicateMetrics: tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
+		metricsSent:                tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
+		collectorErrors:            tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		activeMetrics:              tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		duplicateMetrics:           tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
+		missingContainerGpuMapping: tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"device"}, "Number of containers with no matching GPU device"),
 	}
 }
 
@@ -196,6 +198,7 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 			if logLimitCheck.ShouldLog() {
 				log.Warnf("no matching container found for the device %v", deviceUUID)
 			}
+			c.telemetry.missingContainerGpuMapping.Add(1, deviceUUID)
 		}
 	}
 
