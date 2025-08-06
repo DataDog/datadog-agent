@@ -803,6 +803,7 @@ func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err 
 var (
 	allowedConfigFiles = []string{
 		"/datadog.yaml",
+		"/otel-config.yaml",
 		"/security-agent.yaml",
 		"/system-probe.yaml",
 		"/application_monitoring.yaml",
