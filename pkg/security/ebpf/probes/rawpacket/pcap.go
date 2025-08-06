@@ -29,6 +29,18 @@ const (
 
 	// packetCaptureSize see kernel definition
 	packetCaptureSize = 256
+
+	// raw packet data, see kernel definition
+	structRawPacketEventDataSize   = 256
+	structRawPacketEventDataOffset = 92
+
+	// state of tc action
+	// TCActOk will terminate the packet processing pipeline and allows the packet to proceed
+	TCActOk = 0
+	// TCActShot will terminate the packet processing pipeline and drop the packet
+	TCActShot = 2
+	// TCActUnspec will continue packet processing
+	TCActUnspec = -1
 )
 
 // ProgOpts defines options
@@ -191,12 +203,6 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts as
 func FiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Filter, opts ProgOpts) ([]*ebpf.ProgramSpec, error) {
 	var mErr *multierror.Error
 
-	const (
-		// raw packet data, see kernel definition
-		dataSize   = 256
-		dataOffset = 164
-	)
-
 	opts.tailCallMapFd = clsRouterMapFd
 
 	headerInsts := append(asm.Instructions{},
@@ -213,9 +219,9 @@ func FiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Fi
 		asm.Return(),
 		// place in result in the start register and end register
 		asm.Mov.Reg(opts.PacketStart, asm.R0).WithSymbol("raw-packet-event-not-null"),
-		asm.Add.Imm(opts.PacketStart, dataOffset),
+		asm.Add.Imm(opts.PacketStart, structRawPacketEventDataOffset),
 		asm.Mov.Reg(opts.PacketEnd, opts.PacketStart),
-		asm.Add.Imm(opts.PacketEnd, dataSize),
+		asm.Add.Imm(opts.PacketEnd, structRawPacketEventDataSize),
 	)
 
 	senderInsts := asm.Instructions{

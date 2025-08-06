@@ -44,8 +44,8 @@ type ControlGroup struct {
 	Path string
 }
 
-// GetContainerContext returns both the container ID and its flags
-func (cg ControlGroup) GetContainerContext() (containerutils.ContainerID, containerutils.CGroupFlags) {
+// GetContainerContext returns the container ID
+func (cg ControlGroup) GetContainerContext() containerutils.ContainerID {
 	return containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
 }
 
@@ -153,7 +153,6 @@ func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
 // CGroupContext holds the cgroup context of a process
 type CGroupContext struct {
 	CGroupID          containerutils.CGroupID
-	CGroupFlags       containerutils.CGroupFlags
 	CGroupFileMountID uint32
 	CGroupFileInode   uint64
 }
@@ -239,9 +238,8 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 
 			if exists, err = checkPidExists(cgroupPath, pid); err == nil && exists {
 				cgroupID := containerutils.CGroupID(cgroupPath)
-				ctrID, flags := containerutils.FindContainerID(cgroupID)
+				ctrID := containerutils.FindContainerID(cgroupID)
 				cgroupContext.CGroupID = cgroupID
-				cgroupContext.CGroupFlags = containerutils.CGroupFlags(flags)
 				containerID = ctrID
 
 				var (
@@ -296,7 +294,7 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 func GetCgroup2MountPoint() (string, error) {
 	file, err := os.Open(kernel.HostProc("/1/mountinfo"))
 	if err != nil {
-		return "", fmt.Errorf("couldn't resolve cgroup2 mount point: failed to open /proc/self/mountinfo: %w", err)
+		return "", fmt.Errorf("couldn't resolve cgroup2 mount point: failed to open /proc/1/mountinfo: %w", err)
 	}
 	defer file.Close()
 
