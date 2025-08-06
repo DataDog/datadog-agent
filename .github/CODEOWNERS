@@ -23,6 +23,12 @@
 /.pre-commit-config.yaml                @DataDog/agent-devx
 /.vscode/                               @DataDog/agent-devx
 
+/.bazel*                                @DataDog/agent-build
+/MODULE.bazel*                          @DataDog/agent-build
+# Temporary during Bazel migration
+/**/BUILD.bazel                         @DataDog/agent-build
+/**/*.bzl                               @DataDog/agent-build
+
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
 /CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-delivery @DataDog/container-ecosystems
