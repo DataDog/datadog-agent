@@ -5,10 +5,12 @@ Tooling to allow us to dynamically run tests that are impacted by a change
 import json
 import os
 import pathlib
+import tempfile
 
 from invoke import Context
 
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.s3 import download_folder_from_s3, upload_file_to_s3
 
 
 class CoverageDynTestUploader:
@@ -173,9 +175,6 @@ class CoverageDynTestUploader:
         return index_file, metadata_file
 
     def upload_index(self, ctx: Context, index_file: str, metadata_file: str):
-        if "S3_PERMANENT_ARTIFACTS_URI" not in os.environ:
-            raise ValueError("S3_PERMANENT_ARTIFACTS_URI is not set")
-
         if "CI_JOB_ID" not in os.environ:
             raise ValueError("CI_JOB_ID is not set")
 
@@ -186,5 +185,43 @@ class CoverageDynTestUploader:
         job_id = os.environ["CI_JOB_ID"]
         commit_sha = os.environ["CI_COMMIT_SHA"]
 
-        ctx.run(f"aws s3 cp {index_file} {s3_path}/dynamic_test/{commit_sha[:8]}/{job_id}/index.json")
-        ctx.run(f"aws s3 cp {metadata_file} {s3_path}/dynamic_test/{commit_sha[:8]}/{job_id}/metadata.json --recursive")
+        upload_file_to_s3(
+            file_path=index_file, s3_bucket=s3_path, s3_key=f"dynamic_test/{commit_sha[:8]}/{job_id}/index.json"
+        )
+        upload_file_to_s3(
+            file_path=metadata_file, s3_bucket=s3_path, s3_key=f"dynamic_test/{commit_sha[:8]}/{job_id}/metadata.json"
+        )
+
+
+def consolidate_index(ctx: Context, commit_sha: str, s3_bucket_uri: str, upload_to_s3: bool = False):
+    # Get system temp folder for downloading index files
+    tmp_folder = tempfile.mkdtemp(prefix="dynamic_test_")
+    s3_bucket = s3_bucket_uri.split("/")[2]
+    s3_prefix = "/".join(s3_bucket_uri.split("/")[3:])
+    print(f"Downloading index files from {s3_bucket_uri}/dynamic_test/{commit_sha[:8]}")
+    download_folder_from_s3(
+        s3_bucket=s3_bucket, s3_prefix=f"{s3_prefix}/dynamic_test/{commit_sha[:8]}", local_path=tmp_folder
+    )
+
+    consolidated_index = {}
+    for folder in os.listdir(tmp_folder):
+        index_file = os.path.join(tmp_folder, folder, "index.json")
+        with open(index_file) as f:
+            index = json.load(f)
+        for job, package_to_tests in index.items():
+            if job not in consolidated_index:
+                consolidated_index[job] = {}
+            for package, tests in package_to_tests.items():
+                if package not in consolidated_index:
+                    consolidated_index[job][package] = []
+                consolidated_index[job][package].extend(tests)
+
+    with open(os.path.join(tmp_folder, "consolidated_index.json"), "w") as f:
+        json.dump(consolidated_index, f, indent=2)
+
+    if upload_to_s3:
+        upload_file_to_s3(
+            file_path=os.path.join(tmp_folder, "consolidated_index.json"),
+            s3_bucket=s3_bucket,
+            s3_key=f"{s3_prefix}/dynamic_test/{commit_sha[:8]}/full_index.json",
+        )

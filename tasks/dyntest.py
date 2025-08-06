@@ -6,7 +6,7 @@ import os
 
 from invoke import Context, task
 
-from tasks.libs.dynamic_test.dyntest import CoverageDynTestUploader
+from tasks.libs.dynamic_test.dyntest import CoverageDynTestUploader, consolidate_index
 
 
 @task
@@ -23,3 +23,8 @@ def compute_and_upload_index(ctx: Context):
     uploader = CoverageDynTestUploader(s3_path, coverage_folder)
     index_file, metadata_file = uploader.compute_index(ctx)
     uploader.upload_index(ctx, index_file, metadata_file)
+
+
+@task
+def consolidate_index_in_s3(ctx: Context, commit_sha: str, s3_uri: str):
+    consolidate_index(ctx, commit_sha, s3_uri)

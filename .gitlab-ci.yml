@@ -34,6 +34,7 @@ include:
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/trigger_distribution/trigger_distribution.yml
   - .gitlab/trigger_distribution/conditions.yml
+  - .gitlab/test_index_consolidation/consolidate.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
   - .gitlab/scan/windows.yml
@@ -79,6 +80,7 @@ stages:
   - e2e_pre_test
   - e2e_init
   - e2e
+  - test_index_consolidation
   - e2e_cleanup
   - e2e_k8s
   - e2e_install_packages
