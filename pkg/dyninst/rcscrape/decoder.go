@@ -434,7 +434,6 @@ func (d *symdbEventDecoder) decodeSymdbEnabled(
 	); err != nil {
 		return "", false, fmt.Errorf("error decoding runtimeID: %w", err)
 	}
-	log.Debugf("symdb enabled: %v %x %x", d.symdbExprs.enabledExpr.Offset, rootData, rootData[d.symdbExprs.enabledExpr.Offset:])
 	symdbEnabledByte := rootData[d.symdbExprs.enabledExpr.Offset]
 	symdbEnabled = symdbEnabledByte == 1
 	return runtimeID, symdbEnabled, nil

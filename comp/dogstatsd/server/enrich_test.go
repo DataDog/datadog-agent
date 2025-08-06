@@ -989,9 +989,9 @@ func TestConvertNamespaceBlacklist(t *testing.T) {
 	assert.Equal(t, "default-hostname", parsed.Host)
 }
 
-func TestMetricBlocklistShouldBlock(t *testing.T) {
+func TestMetricFilterListShouldBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	blocklist := utilstrings.NewBlocklist([]string{"custom.metric.a", "custom.metric.b"}, false)
+	filter := utilstrings.NewMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1002,7 +1002,7 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &blocklist)
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filter)
 
 	assert.Equal(t, 0, len(samples))
 }
@@ -1026,9 +1026,9 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 	assert.Equal(t, "", samples[0].Host)
 }
 
-func TestMetricBlocklistShouldNotBlock(t *testing.T) {
+func TestMetricFilterListShouldNotBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	blocklist := utilstrings.NewBlocklist([]string{"custom.metric.b", "custom.metric.c"}, false)
+	filterList := utilstrings.NewMatcher([]string{"custom.metric.b", "custom.metric.c"}, false)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1038,7 +1038,7 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &blocklist)
+	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filterList)
 
 	assert.Equal(t, 1, len(samples))
 }
