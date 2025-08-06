@@ -7,7 +7,11 @@ Param(
 
 if (-not (Test-Path C:\tools\datadog-package.exe)) {
     Write-Host "Downloading datadog-package.exe"
-    (New-Object System.Net.WebClient).DownloadFile("https://dd-agent-omnibus.s3.amazonaws.com/datadog-package.exe", "C:\\tools\\datadog-package.exe")
+    git config --global url."https://gitlab-ci-token:${env:CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    go env -w GOPRIVATE="github.com/DataDog/*"
+    $env:PATH += ";$(go env GOPATH)\bin"
+    go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+    Copy-Item "$env:GOPATH\bin\datadog-package.exe" "C:\tools\datadog-package.exe" -Force
 }
 if ([string]::IsNullOrWhitespace($version)) {
     $version = "{0}-1" -f (dda inv -- agent.version --url-safe --major-version 7)
