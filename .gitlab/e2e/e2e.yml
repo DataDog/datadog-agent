@@ -257,6 +257,7 @@ new-e2e-agent-runtimes:
     TARGETS: ./tests/agent-runtimes
     TEAM: agent-runtimes
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
