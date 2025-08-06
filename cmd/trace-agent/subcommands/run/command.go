@@ -27,6 +27,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
@@ -91,9 +92,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		statsd.Module(),
 		optionalRemoteTaggerfx.Module(
 			tagger.OptionalRemoteParams{
-				Disable: func(c coreconfig.Component) bool {
-					return c.GetBool("apm_config.disable_remote_tagger")
-				},
+				Disable: serverlessenv.IsAzureAppServicesExtension,
 			},
 			tagger.RemoteParams{
 				RemoteTarget: func(c coreconfig.Component) (string, error) {
