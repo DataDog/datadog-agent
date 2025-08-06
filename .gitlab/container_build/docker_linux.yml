@@ -43,6 +43,8 @@
         # that can't be usefully cached, to the remote cache.
         echo "Building ${CACHE_TARGET} for cache"
         docker buildx build --pull --platform linux/$ARCH \
+          --cache-from="" \
+          --cache-to="" \
           --no-cache \
           --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
           --build-arg CIBUILD=true \
@@ -59,6 +61,8 @@
     # Build image, use target none label to avoid replication
     - |-
       docker buildx build --push --pull --platform linux/$ARCH \
+        --cache-from="" \
+        --cache-to="" \
         --no-cache \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
         --build-arg CIBUILD=true \
