@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -39,5 +40,14 @@ func InstrumentAPMInjector(_ context.Context, _ string) (err error) {
 
 // UninstrumentAPMInjector uninstruments the APM injector
 func UninstrumentAPMInjector(_ context.Context, _ string) (err error) {
+	return nil
+}
+
+// AgentUpdateHooks is called when the agent is upgraded and after the first installation
+func AgentUpdateHooks(ctx context.Context) (err error) {
+	err = updateIISScriptIfNeeded(ctx)
+	if err != nil {
+		log.Warnf("Failed to update IIS uninstallation script: %v", err)
+	}
 	return nil
 }

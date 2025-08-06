@@ -5,7 +5,12 @@
 
 package packages
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+import (
+	"context"
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+)
 
 var (
 	// packagesHooks is a map of package names to their hooks
@@ -25,3 +30,8 @@ var (
 	// packageCommands is a map of package names to their command handlers
 	packageCommands = map[string]PackageCommandHandler{}
 )
+
+// AgentUpdateHooks is called when the agent is upgraded and after the first installation
+func AgentUpdateHooks(_ context.Context) (err error) {
+	return fmt.Errorf("Not implemented on this platform")
+}

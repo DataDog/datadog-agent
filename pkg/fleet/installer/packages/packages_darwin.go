@@ -7,6 +7,7 @@ package packages
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
@@ -33,4 +34,9 @@ func InstrumentAPMInjector(_ context.Context, _ string) (err error) {
 // UninstrumentAPMInjector uninstruments the APM injector
 func UninstrumentAPMInjector(_ context.Context, _ string) (err error) {
 	return nil
+}
+
+// AgentUpdateHooks is called when the agent is upgraded and after the first installation
+func AgentUpdateHooks(_ context.Context) (err error) {
+	return fmt.Errorf("Not implemented on this platform")
 }

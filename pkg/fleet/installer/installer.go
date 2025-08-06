@@ -38,7 +38,6 @@ const (
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
 	packageDatadogInstaller = "datadog-installer"
-	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
 )
 
 // Installer is a package manager that installs and uninstalls packages.
@@ -265,9 +264,11 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 		return fmt.Errorf("could not store package installation in db: %w", err)
 	}
 
-	// TODO is this where we update the install scripts?
 	if runtime.GOOS == "windows" {
-		packages.UpdateIISScriptIfNeeded(ctx)
+		err = packages.AgentUpdateHooks(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to run agent update hooks: %w", err)
+		}
 	}
 
 	return nil
