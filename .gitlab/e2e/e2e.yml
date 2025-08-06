@@ -8,7 +8,6 @@
   needs:
     - !reference [.needs_new_e2e_template]
   before_script:
-    - dda inv agent-ci-api.hello --env prod
     - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
