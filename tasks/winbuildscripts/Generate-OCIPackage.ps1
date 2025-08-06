@@ -10,13 +10,32 @@ $datadogPackageExe = "$datadogPackagesDir\datadog-package.exe"
 
 if (-not (Test-Path $datadogPackageExe -ErrorAction SilentlyContinue)) {
     Write-Host "Downloading datadog-package.exe"
-    git config --global url."https://gitlab-ci-token:${env:CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    go env -w GOPRIVATE="github.com/DataDog/*"
-    go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+    powershell.exe -Command {
+        if ($env:CI_JOB_TOKEN) {
+            # CI variable
+            $gitlabToken = $env:CI_JOB_TOKEN
+        } elseif ($env:GITLAB_TOKEN) {
+            # local variable
+            $gitlabToken = $env:GITLAB_TOKEN
+        } else {
+            Write-Error "No GitLab token found, set CI_JOB_TOKEN or GITLAB_TOKEN"
+            exit 1
+        }
+        # Use env var to temporarily override git config just to install datadog-packages, instead of
+        # affecting the config for the entire image.
+        $env:GIT_CONFIG_PARAMETERS="'url.https://gitlab-ci-token:${gitlabToken}@gitlab.ddbuild.io/DataDog/.insteadOf=https://github.com/DataDog/'"
+        go env -w GOPRIVATE="github.com/DataDog/*"
+        go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to install datadog-package.exe"
+            exit 1
+        }
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install datadog-package.exe"
         exit 1
     }
+
     New-Item -ItemType Directory $datadogPackagesDir -ErrorAction SilentlyContinue | Out-Null
     Copy-Item "$env:GOPATH\bin\datadog-package.exe" $datadogPackageExe -Force
     $env:PATH += ";$datadogPackagesDir"
