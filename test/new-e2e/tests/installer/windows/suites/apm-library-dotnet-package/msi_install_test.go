@@ -288,8 +288,8 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallScript() {
 	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(oldLibraryPath, version.Version())
 
-	output, err := s.Env().RemoteHost.Execute(`C:/ProgramData/Datadog/Installer/packages/run/iis-instrumentation.bat --uninstall`)
-	s.Require().NoErrorf(err, "failed to get content from site: %s", output)
+	output, err := s.Env().RemoteHost.Execute(`C:\ProgramData\Datadog\Installer\packages\run\iis-instrumentation.bat --uninstall`)
+	s.Require().NoErrorf(err, "failed to run uninstall script: %s", output)
 
 	s.stopIISApp()
 	defer s.stopIISApp()
