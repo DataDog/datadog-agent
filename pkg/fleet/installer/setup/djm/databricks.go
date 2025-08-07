@@ -285,13 +285,23 @@ func setupDatabricksDriver(s *common.Setup) {
 
 func setupDatabricksWorker(s *common.Setup) {
 	setClearHostTag(s, "spark_node", "worker")
+	var sparkIntegration config.IntegrationConfig
 
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
-		var sparkIntegration config.IntegrationConfig
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
 		s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
+	}
+	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {
+		sparkIntegration.Instances = []any{
+			config.IntegrationConfigInstanceSpark{
+				SparkURL:         "http://" + os.Getenv("DB_DRIVER_IP") + ":40001",
+				SparkClusterMode: "spark_driver_mode",
+				ClusterName:      os.Getenv("DB_CLUSTER_NAME"),
+				StreamingMetrics: true,
+			},
+		}
 	}
 }
 
