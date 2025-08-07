@@ -22,8 +22,8 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/htlhash"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DiskCacheConfig is the configuration for a DiskCache.
@@ -410,7 +410,7 @@ type cacheEntry struct {
 
 func cleanupCacheEntry(e *cacheEntry) {
 	if err := e.release(); err != nil {
-		log.Errorf("failed to cleanup cache entry: %w", err)
+		log.Errorf("failed to cleanup cache entry: %v", err)
 	}
 }
 
@@ -438,7 +438,7 @@ func (e *cacheEntry) release() error {
 
 	shouldDelete, err := decrementRefCount()
 	if err != nil {
-		log.Errorf("release invariant violation: %w", err)
+		log.Errorf("release invariant violation: %v", err)
 		return err
 	}
 	if !shouldDelete {
