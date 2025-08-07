@@ -517,7 +517,16 @@ func (i *installerImpl) InstallConfigExperiment(
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// TODO: starts with copying the stable config files
+	// Copy the files from the stable config
+	configRepo := i.configs.Get(pkg)
+	err = configRepo.CopyStable(ctx, tmpDir)
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not copy stable config: %w", err),
+		)
+	}
+
 	err = i.writeConfig(tmpDir, rawConfigs)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -526,7 +535,6 @@ func (i *installerImpl) InstallConfigExperiment(
 		)
 	}
 
-	configRepo := i.configs.Get(pkg)
 	err = configRepo.SetExperiment(ctx, version, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -833,9 +841,10 @@ func cleanConfigName(p string) string {
 type configFileAction string
 
 const (
-	configFileActionUnknown configFileAction = ""
-	configFileActionWrite   configFileAction = "write"
-	configFileActionRemove  configFileAction = "remove"
+	configFileActionUnknown   configFileAction = ""
+	configFileActionWrite     configFileAction = "write"
+	configFileActionRemove    configFileAction = "remove"
+	configFileActionRemoveAll configFileAction = "remove_all"
 )
 
 type configFile struct {
@@ -848,18 +857,31 @@ func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error
 		var configAction experimentConfigAction
 		err := json.Unmarshal(rawConfigAction, &configAction)
 		if err != nil {
-			return fmt.Errorf("could not unmarshal config files: %w", err)
+			return fmt.Errorf("could not unmarshal config files: %w (raw: %s)", err, string(rawConfigAction))
 		}
 
-		for _, file := range configAction.Files {
-			file.Path = cleanConfigName(file.Path)
-
-			if !configNameAllowed(file.Path) {
-				return fmt.Errorf("config file %s is not allowed", file)
+		switch configAction.ActionType {
+		case configFileActionRemoveAll:
+			// Remove all the files and directory under `dir`, but not `dir` itself
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				return fmt.Errorf("could not read config directory: %w", err)
 			}
+			for _, entry := range entries {
+				entryPath := filepath.Join(dir, entry.Name())
+				err = os.RemoveAll(entryPath)
+				if err != nil {
+					return fmt.Errorf("could not remove config file/directory %s: %w", entryPath, err)
+				}
+			}
+		case configFileActionRemove:
+			for _, file := range configAction.Files {
+				file.Path = cleanConfigName(file.Path)
 
-			switch configAction.ActionType {
-			case configFileActionRemove:
+				if !configNameAllowed(file.Path) {
+					return fmt.Errorf("config file %s is not allowed", file)
+				}
+
 				err = os.Remove(filepath.Join(dir, file.Path))
 				if err != nil {
 					if os.IsNotExist(err) {
@@ -868,7 +890,15 @@ func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error
 					}
 					return fmt.Errorf("could not remove config file: %w", err)
 				}
-			case configFileActionWrite:
+			}
+		case configFileActionWrite:
+			for _, file := range configAction.Files {
+				file.Path = cleanConfigName(file.Path)
+
+				if !configNameAllowed(file.Path) {
+					return fmt.Errorf("config file %s is not allowed", file)
+				}
+
 				var c interface{}
 				err = json.Unmarshal(file.Contents, &c)
 				if err != nil {
@@ -889,9 +919,9 @@ func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error
 				if err != nil {
 					return fmt.Errorf("could not write config file: %w", err)
 				}
-			default:
-				return fmt.Errorf("unknown config file action: %s", configAction.ActionType)
 			}
+		default:
+			return fmt.Errorf("unknown config file action: %s", configAction.ActionType)
 		}
 	}
 	return nil
