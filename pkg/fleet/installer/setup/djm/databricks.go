@@ -23,9 +23,9 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.40.0-1"
-	databricksJavaTracerVersion = "1.49.0-1"
-	databricksAgentVersion      = "7.66.0-1"
+	databricksInjectorVersion   = "0.43.1-1"
+	databricksJavaTracerVersion = "1.51.1-1"
+	databricksAgentVersion      = "7.68.2-1"
 	fetchTimeoutDuration        = 5 * time.Second
 	gpuIntegrationRestartDelay  = 60 * time.Second
 	restartLogFile              = "/var/log/datadog-gpu-restart"
@@ -241,7 +241,7 @@ func setupGPUIntegration(s *common.Setup) {
 	s.Out.WriteString("Setting up GPU monitoring based on env variable GPU_MONITORING_ENABLED=true\n")
 
 	s.Config.DatadogYAML.CollectGPUTags = true
-	s.Config.DatadogYAML.EnableNVMLDetection = true
+	s.Config.DatadogYAML.GPUCheck.Enabled = true
 
 	if s.Config.SystemProbeYAML == nil {
 		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}

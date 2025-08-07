@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // TODO(OASIS-79): fix data race then remove !race
-//go:build otlp && !race
+//go:build otlp && test && !race
 
 package integrationtest
 
@@ -37,6 +37,7 @@ import (
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -44,7 +45,7 @@ import (
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
@@ -166,6 +167,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 			PIDFilePath: "",
 		}),
 		tracecomp.Bundle(),
+		agenttelemetryfx.Module(),
 	)
 }
 

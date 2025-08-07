@@ -150,6 +150,7 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		CollectorTags:              container.CollectorTags,
 		CgroupPath:                 container.CgroupPath,
 		ResolvedAllocatedResources: protoResolvedAllocatedResources,
+		Resources:                  toProtoContainerResources(container.Resources),
 	}, nil
 }
 
@@ -216,7 +217,6 @@ func toProtoEntityMetaFromContainer(container *workloadmeta.Container) *pb.Entit
 }
 
 func toProtoImage(image *workloadmeta.ContainerImage) *pb.ContainerImage {
-
 	return &pb.ContainerImage{
 		Id:         image.ID,
 		RawName:    image.RawName,
@@ -294,6 +294,22 @@ func toProtoResolvedAllocatedResources(resources []workloadmeta.ContainerAllocat
 	}
 
 	return protoResolvedAllocatedResources
+}
+
+func toProtoContainerResources(resources workloadmeta.ContainerResources) *pb.ContainerResources {
+	if resources.CPURequest == nil &&
+		resources.CPULimit == nil &&
+		resources.MemoryRequest == nil &&
+		resources.MemoryLimit == nil {
+		return nil
+	}
+
+	return &pb.ContainerResources{
+		CpuRequest:    resources.CPURequest,
+		CpuLimit:      resources.CPULimit,
+		MemoryRequest: resources.MemoryRequest,
+		MemoryLimit:   resources.MemoryLimit,
+	}
 }
 
 func toProtoContainerStatus(status workloadmeta.ContainerStatus) (pb.ContainerStatus, error) {
@@ -637,6 +653,7 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		CollectorTags:              protoContainer.CollectorTags,
 		CgroupPath:                 protoContainer.CgroupPath,
 		ResolvedAllocatedResources: resources,
+		Resources:                  toWorkloadmetaContainerResources(protoContainer.Resources),
 	}, nil
 }
 
@@ -658,6 +675,19 @@ func toWorkloadmetaResolvedAllocatedResources(protoResolvedAllocatedResources []
 	}
 
 	return resources
+}
+
+func toWorkloadmetaContainerResources(protoResources *pb.ContainerResources) workloadmeta.ContainerResources {
+	if protoResources == nil {
+		return workloadmeta.ContainerResources{}
+	}
+
+	return workloadmeta.ContainerResources{
+		CPURequest:    protoResources.CpuRequest,
+		CPULimit:      protoResources.CpuLimit,
+		MemoryRequest: protoResources.MemoryRequest,
+		MemoryLimit:   protoResources.MemoryLimit,
+	}
 }
 
 func toWorkloadmetaEntityID(protoEntityID *pb.WorkloadmetaEntityId) (workloadmeta.EntityID, error) {

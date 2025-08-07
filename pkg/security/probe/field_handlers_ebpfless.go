@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -172,19 +171,9 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(_ *model.Event, _ *model.C
 	return 0
 }
 
-// ResolveCGroupManager resolves the manager of the cgroup
-func (fh *EBPFLessFieldHandlers) ResolveCGroupManager(_ *model.Event, _ *model.CGroupContext) string {
-	return ""
-}
-
 // ResolveContainerContext retrieve the ContainerContext of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	return ev.ContainerContext, ev.ContainerContext != nil
-}
-
-// ResolveContainerRuntime retrieves the container runtime managing the container
-func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *model.ContainerContext) string {
-	return ""
 }
 
 // ResolveContainerID resolves the container ID of the event
@@ -261,16 +250,6 @@ func (fh *EBPFLessFieldHandlers) ResolveFileFieldsUser(_ *model.Event, e *model.
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (fh *EBPFLessFieldHandlers) ResolveFileFilesystem(_ *model.Event, e *model.FileEvent) string {
 	return e.Filesystem
-}
-
-// ResolveFileExtension resolves the extension of a file
-func (fh *EBPFLessFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
-	if f.Extension == "" {
-		if baseName := fh.ResolveFileBasename(ev, f); baseName != "" {
-			f.Extension = filepath.Ext(baseName)
-		}
-	}
-	return f.Extension
 }
 
 // ResolveFileMetadataSize resolves file metadata size
@@ -567,4 +546,10 @@ func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, _ *
 func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, _ *model.SetSockOptEvent) string {
 	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
 	return ""
+}
+
+// ResolveSetSockOptUsedImmediates resolves the immediates in the bpf filter of a setsockopt event
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, _ *model.SetSockOptEvent) []int {
+	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
+	return nil
 }

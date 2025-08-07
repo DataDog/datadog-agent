@@ -18,7 +18,7 @@ python_version = "3.12"
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python#{python_version}/site-packages/.libsaerospike"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/aerospike.libs"
-whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg_binary.libs"
+whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg2"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
@@ -86,7 +86,7 @@ build do
     when linux_target?
       arm_target? ? "linux-aarch64" : "linux-x86_64"
     when osx_target?
-      "macos-x86_64"
+      arm_target? ? "macos-aarch64" : "macos-x86_64"
     when windows_target?
       "windows-x86_64"
   end + "_#{python_version}.txt"

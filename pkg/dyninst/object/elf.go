@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"syscall"
 	"unsafe"
 
 	dlvdwarf "github.com/go-delve/delve/pkg/dwarf"
@@ -43,12 +44,9 @@ type ElfFile struct {
 	Underlying *MMappingElfFile
 
 	dwarfSections *DebugSections
-	dwarfData     *dwarf.Data
+	dwarfData     dwarf.Data
 	architecture  bininspect.GoArch
-
-	// Maps the compile unit entry offset to the version of the DWARF spec
-	// that was used to parse it.
-	unitVersions map[dwarf.Offset]uint8
+	reader        loclist.Reader
 }
 
 // TextSectionHeader implements File.
@@ -67,28 +65,40 @@ func (e *ElfFile) Architecture() Architecture {
 }
 
 // DwarfData implements File.
+//
+// Note that the returned dwarf.Data is not usable after the ElfFile is closed.
 func (e *ElfFile) DwarfData() *dwarf.Data {
-	return e.dwarfData
+	// By making the dwarf.Data part of the ElfFile struct, we can ensure
+	// that the ElfFile is not finalized while the dwarf.Data is in use.
+	return &e.dwarfData
 }
 
 // DwarfSections implements File.
+//
+// Note that the returned DebugSections are not usable after the ElfFile is
+// closed.
 func (e *ElfFile) DwarfSections() *DebugSections {
 	return e.dwarfSections
 }
 
 // LoclistReader implements File.
+//
+// Note that the returned loclist.Reader is not usable after the ElfFile is
+// closed.
 func (e *ElfFile) LoclistReader() *loclist.Reader {
-	return loclist.NewReader(
-		e.dwarfSections.Loc,
-		e.dwarfSections.LocLists,
-		e.dwarfSections.Addr,
-		uint8(e.architecture.PointerSize()),
-		e.unitVersions,
-	)
+	return &e.reader
 }
 
 // Close implements File.
+//
+// Note that various items returned from methods on the ElfFile are not usable
+// after the ElfFile is closed.
 func (e *ElfFile) Close() error {
+	for _, s := range e.dwarfSections.sections() {
+		if s != nil {
+			s.Close()
+		}
+	}
 	return e.Underlying.Close()
 }
 
@@ -105,20 +115,42 @@ func IsStrippedBinaryError(err error) bool {
 	return errors.As(err, &decodeErr)
 }
 
-// OpenElfFile opens an elf file from a path.
+// InMemoryElfFileLoader is an elf file loader that stores decompressed section
+// data in memory.
+type InMemoryElfFileLoader struct {
+	_ struct{} // prevent instantiation
+}
+
+// Load loads an elf file from the given path.
+func (l *InMemoryElfFileLoader) Load(path string) (*ElfFile, error) {
+	return OpenElfFile(path)
+}
+
+// NewInMemoryElfFileLoader creates an InMemoryElfFileLoader that will load elf
+// files from disk and use anonymous memory mappings for the compressed section
+// data. Importantly these sections are not part of the Go heap, and thus do not
+// contribute to the heap size that the Go runtime tracks to guide garbage
+// collection, but they are in RAM and will count towards the RSS used by the
+// various OOM killers.
+func NewInMemoryElfFileLoader() *InMemoryElfFileLoader {
+	return &InMemoryElfFileLoader{}
+}
+
+// OpenElfFile opens an elf file from a path, using anonymous memory mappings
+// for the compressed sections.
 func OpenElfFile(path string) (*ElfFile, error) {
 	mmf, err := OpenMMappingElfFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load elf file: %w", err)
 	}
-	return newElfObject(mmf)
+	return newElfObject(mmf, anonymousMmapCompressedSectionLoader{})
 }
 
 // newElfObject creates a new Binary from an elf file.
 //
 // Note that this does not take ownership of the file -- it will not
 // be closed when the ElfFile is closed.
-func newElfObject(mmf *MMappingElfFile) (_ *ElfFile, retErr error) {
+func newElfObject(mmf *MMappingElfFile, l compressedSectionLoader) (_ *ElfFile, retErr error) {
 	// The safeelf package also has functionality to load the DWARF sections
 	// but it doesn't provide enough control to get our hands on the sections
 	// we need to access later.
@@ -142,22 +174,23 @@ func newElfObject(mmf *MMappingElfFile) (_ *ElfFile, retErr error) {
 	if err != nil {
 		return nil, err
 	}
-	ds, err := loadDebugSections(mmf)
+	ds, err := loadDebugSections(mmf, l)
 	if err != nil {
 		return nil, err
 	}
-	if ds.Info == nil {
+	info := ds.Info()
+	if info == nil {
 		return nil, fmt.Errorf("no .debug_info section found")
 	}
 	d, err := ds.loadDwarfData()
 	if err != nil {
 		return nil, err
 	}
-	_, _, dwarfVersion, byteOrder := dlvdwarf.ReadDwarfLengthVersion(ds.Info)
+	_, _, dwarfVersion, byteOrder := dlvdwarf.ReadDwarfLengthVersion(info)
 	if byteOrder != binary.LittleEndian {
 		return nil, fmt.Errorf("unexpected DWARF byte order: %v", byteOrder)
 	}
-	unitVersions := dlvdwarf.ReadUnitVersions(ds.Info)
+	unitVersions := dlvdwarf.ReadUnitVersions(ds.Info())
 	if dwarfVersion >= 5 {
 		// Delve unit offset calculations are 1 byte off.
 		// If tests fail, and following code now handles DWARF5, just remove this adjustment:
@@ -168,12 +201,19 @@ func newElfObject(mmf *MMappingElfFile) (_ *ElfFile, retErr error) {
 		}
 		unitVersions = uv
 	}
+	reader := loclist.MakeReader(
+		ds.Loc(),
+		ds.LocLists(),
+		ds.Addr(),
+		uint8(arch.PointerSize()),
+		unitVersions,
+	)
 	return &ElfFile{
 		Underlying:    mmf,
 		dwarfSections: ds,
-		dwarfData:     d,
+		dwarfData:     *d,
 		architecture:  arch,
-		unitVersions:  unitVersions,
+		reader:        reader,
 	}, nil
 }
 
@@ -184,7 +224,10 @@ func newElfObject(mmf *MMappingElfFile) (_ *ElfFile, retErr error) {
 // which could be used to load the section into a file we then mmap or something
 // like that.
 
-func loadDebugSections(mef *MMappingElfFile) (*DebugSections, error) {
+func loadDebugSections(
+	mef *MMappingElfFile,
+	l compressedSectionLoader,
+) (_ *DebugSections, retErr error) {
 	dwarfSuffix := func(s *safeelf.Section) string {
 		const debug = ".debug_"
 		const zdebug = ".zdebug_"
@@ -200,6 +243,16 @@ func loadDebugSections(mef *MMappingElfFile) (*DebugSections, error) {
 	// There are many DWARf sections, but these are the ones
 	// the debug/dwarf package started with.
 	var ds DebugSections
+	defer func() {
+		if retErr == nil {
+			return
+		}
+		for _, s := range ds.sections() {
+			if s != nil {
+				_ = s.Close()
+			}
+		}
+	}()
 	for _, s := range mef.Elf.Sections {
 		suffix := dwarfSuffix(s)
 		if suffix == "" {
@@ -213,9 +266,11 @@ func loadDebugSections(mef *MMappingElfFile) (*DebugSections, error) {
 			return nil, fmt.Errorf("section %s already loaded", s.Name)
 		}
 
-		cr, err := sectionData(s, mef.Elf, mef.f)
+		cr, err := readCompressedFileRange(s, mef.Elf, mef.f)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get section data for %s: %w", s.Name, err)
+			return nil, fmt.Errorf(
+				"failed to read compressed file range for %s: %w", s.Name, err,
+			)
 		}
 
 		// TODO: Figure out whether it is important that we aren't applying
@@ -225,7 +280,10 @@ func loadDebugSections(mef *MMappingElfFile) (*DebugSections, error) {
 		// like the stdlib when loading this data.
 		//
 		// 0: https://github.com/golang/go/blob/db55b83c/src/debug/elf/file.go#L1351-L1377
-		data, err := cr.data(mef)
+		data, err := compressedSection{
+			name:                s.Name,
+			compressedFileRange: cr,
+		}.data(mef, l)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"failed to get section data for %s: %w", s.Name, err,
@@ -244,6 +302,13 @@ const (
 	compressionFormatZlib
 )
 
+// compressedSection represents a section and the information needed to load
+// it from the file.
+type compressedSection struct {
+	name string
+	compressedFileRange
+}
+
 type compressedFileRange struct {
 	format compressionFormat
 	// The offset of the compressed data in the file.
@@ -251,11 +316,18 @@ type compressedFileRange struct {
 	offset int64
 	// The length of the compressed data.
 	compressedLength int64
-	// The length of the uncompressed data.
+	// The length of the uncompressed data (same as the compressed length for
+	// uncompressed sections).
 	uncompressedLength int64
 }
 
-func (r compressedFileRange) data(mef *MMappingElfFile) ([]byte, error) {
+type compressedSectionLoader interface {
+	load(compressedSection, *MMappingElfFile) (SectionData, error)
+}
+
+func (r compressedSection) data(
+	mef *MMappingElfFile, loader compressedSectionLoader,
+) (SectionData, error) {
 	// We don't want to let an invalid section header cause us to load
 	// too much data into memory.
 	const maxSectionSize = 512 << 20 // 512MiB
@@ -269,34 +341,76 @@ func (r compressedFileRange) data(mef *MMappingElfFile) ([]byte, error) {
 		)
 	}
 
-	var reader io.Reader
 	switch r.format {
 	case compressionFormatUnknown:
 		return nil, fmt.Errorf("unknown compression format")
 	case compressionFormatNone:
-		reader = io.NewSectionReader(mef.f, int64(r.offset), int64(r.compressedLength))
+		return mef.mmap(uint64(r.offset), uint64(r.uncompressedLength))
 	case compressionFormatZlib:
-		md, err := mef.mmap(uint64(r.offset), uint64(r.compressedLength))
+		uncompressedData, err := loader.load(r, mef)
 		if err != nil {
-			return nil, fmt.Errorf("failed to mmap section: %w", err)
+			return nil, fmt.Errorf("failed to load section data: %w", err)
 		}
-		defer md.Close()
-		zrd, err := zlib.NewReader(bytes.NewReader(md.Data))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create zlib reader: %w", err)
-		}
-		reader = zrd
+		return uncompressedData, nil
+	default:
+		return nil, fmt.Errorf("unknown compression format: %d", r.format)
 	}
-
-	data := make([]byte, r.uncompressedLength)
-	_, err := io.ReadFull(reader, data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read section data: %w", err)
-	}
-	return data, nil
 }
 
-func sectionData(
+type anonymousMmapCompressedSectionLoader struct{}
+
+var _ compressedSectionLoader = anonymousMmapCompressedSectionLoader{}
+
+func (anonymousMmapCompressedSectionLoader) load(
+	cr compressedSection, mef *MMappingElfFile,
+) (_ SectionData, retErr error) {
+	md, zrd, err := mmapCompressedSection(cr.compressedFileRange, mef)
+	if err != nil {
+		return nil, err
+	}
+	defer md.Close()
+	mapped, err := syscall.Mmap(
+		0, // fd
+		0, // offset
+		int(cr.uncompressedLength),
+		syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_GROWSUP,
+		syscall.MAP_PRIVATE|syscall.MAP_ANONYMOUS,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mmap section: %w", err)
+	}
+	defer func() {
+		if retErr != nil {
+			_ = syscall.Munmap(mapped)
+		}
+	}()
+	if _, err := io.ReadFull(zrd, mapped); err != nil {
+		return nil, fmt.Errorf("failed to read section data: %w", err)
+	}
+	if err := zrd.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close zlib reader: %w", err)
+	}
+	return newMMappedData(mapped, mapped), nil
+}
+
+func mmapCompressedSection(
+	cr compressedFileRange, mef *MMappingElfFile,
+) (*MMappedData, io.ReadCloser, error) {
+	md, err := mef.mmap(uint64(cr.offset), uint64(cr.compressedLength))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to mmap section: %w", err)
+	}
+	zrd, err := zlib.NewReader(bytes.NewReader(md.Data()))
+	if err != nil {
+		_ = md.Close()
+		return nil, nil, fmt.Errorf("failed to create zlib reader: %w", err)
+	}
+	return md, zrd, nil
+}
+
+// readCompressedFileRange determines the compression and file range information
+// for a section.
+func readCompressedFileRange(
 	s *safeelf.Section,
 	elfFile *safeelf.File,
 	fileReaderAt io.ReaderAt,

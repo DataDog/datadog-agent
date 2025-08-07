@@ -54,7 +54,7 @@ pull_test_dockers_arm64:
 # -- BTF
 .upload_minimized_btfs:
   stage: kernel_matrix_testing_prepare
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   tags: ["arch:amd64"]
   script:
     # Build dependencies directory
@@ -170,8 +170,9 @@ kmt_setup_env_sysprobe_x64:
 upload_sysprobe_tests_x64:
   extends:
     - .upload_sysprobe_tests
-  needs: ["go_deps", "prepare_sysprobe_ebpf_functional_tests_x64", "tests_ebpf_x64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  needs:
+    ["go_deps", "prepare_sysprobe_ebpf_functional_tests_x64", "tests_ebpf_x64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   tags: ["arch:amd64"]
   variables:
     ARCH: x86_64
@@ -180,8 +181,13 @@ upload_sysprobe_tests_x64:
 upload_sysprobe_tests_arm64:
   extends:
     - .upload_sysprobe_tests
-  needs: ["go_deps", "prepare_sysprobe_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  needs:
+    [
+      "go_deps",
+      "prepare_sysprobe_ebpf_functional_tests_arm64",
+      "tests_ebpf_arm64",
+    ]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
@@ -198,7 +204,7 @@ upload_sysprobe_tests_arm64:
 kmt_run_sysprobe_tests_x64:
   extends:
     - .kmt_run_sysprobe_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_sysprobe_x64
@@ -215,6 +221,7 @@ kmt_run_sysprobe_tests_x64:
           - "ubuntu_20.04"
           - "ubuntu_22.04"
           - "ubuntu_24.04"
+          - "ubuntu_24.10"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
@@ -238,7 +245,7 @@ kmt_run_sysprobe_tests_x64:
 kmt_run_sysprobe_tests_arm64:
   extends:
     - .kmt_run_sysprobe_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_sysprobe_arm64
@@ -254,6 +261,7 @@ kmt_run_sysprobe_tests_arm64:
           - "ubuntu_20.04"
           - "ubuntu_22.04"
           - "ubuntu_24.04"
+          - "ubuntu_24.10"
           - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
@@ -305,7 +313,6 @@ kmt_sysprobe_cleanup_x64:
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"
-
 
 kmt_sysprobe_cleanup_arm64_manual:
   extends:

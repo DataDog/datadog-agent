@@ -25,8 +25,17 @@ type MMappingElfFile struct {
 // MMappedData is a portion of a file that has been mmapped into memory.
 // Call Close() to release resources.
 type MMappedData struct {
-	Data   []byte
-	mmaped []byte
+	data    []byte
+	mmaped  []byte
+	cleanup runtime.Cleanup
+}
+
+// Data returns the data of the mmapped section.
+//
+// The returned data is valid until the MMappedData is closed; users must take
+// care to retain a reference to the MMappedData in order to call Close.
+func (m *MMappedData) Data() []byte {
+	return m.data
 }
 
 // OpenMMappingElfFile creates a new MMappingElfFile for the given path.
@@ -37,9 +46,6 @@ func OpenMMappingElfFile(path string) (*MMappingElfFile, error) {
 	}
 	ef, err := newMMappingElfFile(f)
 	if err != nil {
-		if closeErr := f.Close(); closeErr != nil {
-			return nil, fmt.Errorf("%w: (failed to close file: %w)", err, closeErr)
-		}
 		return nil, err
 	}
 	return ef, nil
@@ -98,12 +104,20 @@ func (m *MMappingElfFile) mmap(offset uint64, size uint64) (*MMappedData, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to mmap section: %w", err)
 	}
+	return newMMappedData(mmaped[offsetDelta:], mmaped), nil
+}
+
+func newMMappedData(data, mmaped []byte) *MMappedData {
 	md := &MMappedData{
-		Data:   mmaped[offsetDelta:],
+		data:   data,
 		mmaped: mmaped,
 	}
-	runtime.SetFinalizer(md, (*MMappedData).Close)
-	return md, nil
+	md.cleanup = runtime.AddCleanup(md, munmapCleanup, md.mmaped)
+	return md
+}
+
+func munmapCleanup(m []byte) {
+	_ = syscall.Munmap(m) // ignore errors
 }
 
 // Close unmaps the section from memory.
@@ -111,6 +125,8 @@ func (m *MMappedData) Close() error {
 	if m.mmaped == nil {
 		return nil
 	}
+	m.cleanup.Stop()
+	runtime.KeepAlive(m) // out of an abundance of caution
 	err := syscall.Munmap(m.mmaped)
 	m.mmaped = nil
 	return err

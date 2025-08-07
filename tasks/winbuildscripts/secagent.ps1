@@ -14,14 +14,7 @@ $ddaversion = Get-Content -Path ".dda/version" -Raw
 $PROBE_BUILD_ROOT=(Get-Location).Path
 $Env:PATH="$PROBE_BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:Python2_ROOT_DIR;$Env:Python2_ROOT_DIR\Scripts;$Env:PATH"
 
-& dda inv -- -e deps
 & dda inv -- -e install-tools
-
-# Must build the rtloader libs cgo depends on before running golangci-lint, which requires code to be compilable
-$archflag = "x64"
-if ($Env:TARGET_ARCH -eq "x86") {
-    $archflag = "x86"
-}
 
 & dda inv -- -e security-agent.e2e-prepare-win
 
