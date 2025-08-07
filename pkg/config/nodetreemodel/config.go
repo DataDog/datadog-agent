@@ -592,6 +592,9 @@ func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval stri
 func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -599,6 +602,9 @@ func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) 
 func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -606,6 +612,9 @@ func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map
 func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -613,7 +622,20 @@ func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[s
 func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
+}
+
+// ClearEnvTransformer tells the config to assume that no env transformer is registered for the given key
+func (c *ntmConfig) ClearEnvTransformer(key string) {
+	delete(c.envTransform, strings.ToLower(key))
+}
+
+// CompletelyClearEnvTransformers tells the config to assume that no env transformers are registered
+func (c *ntmConfig) CompletelyClearEnvTransformers() {
+	c.envTransform = make(map[string]func(string) interface{})
 }
 
 // IsSet checks if a key is set in the config

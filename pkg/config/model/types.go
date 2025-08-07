@@ -247,6 +247,8 @@ type Setup interface {
 	ParseEnvAsMapStringInterface(key string, fx func(string) map[string]interface{})
 	ParseEnvAsSliceMapString(key string, fx func(string) []map[string]string)
 	ParseEnvAsSlice(key string, fx func(string) []interface{})
+	ClearEnvTransformer(key string)
+	CompletelyClearEnvTransformers()
 
 	// SetKnown adds a key to the set of known valid config keys
 	SetKnown(key string)
