@@ -132,6 +132,8 @@ build do
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
+    mkdir "#{install_dir}/bin/scripts/"
+    copy "#{project_dir}/omnibus/windows-scripts/iis-instrumentation.bat", "#{install_dir}/bin/scripts/"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
