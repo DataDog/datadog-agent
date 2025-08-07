@@ -14,43 +14,55 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": [
-          {
-            "function": "main.testLinkedList",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go",
-            "lineNumber": 42
-          },
-          {
-            "function": "main.executePointerFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go",
-            "lineNumber": 155
-          },
-          {
-            "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 35
-          },
-          {
-            "function": "runtime.main",
-            "fileName": "runtime/proc.go",
-            "lineNumber": 283
-          },
-          {
-            "function": "runtime.goexit",
-            "fileName": "runtime/asm_[arch].s",
-            "lineNumber": "[lineNumber]"
-          }
-        ],
+        "stack": [],
         "probe": {
           "id": "testLinkedList",
           "location": {
             "method": "main.testLinkedList"
           }
         },
-        "captures": {}
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "main.node",
+                "fields": {
+                  "val": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "b": {
+                    "type": "*main.node",
+                    "address": "[addr]",
+                    "fields": {
+                      "val": {
+                        "type": "int",
+                        "value": "2"
+                      },
+                      "b": {
+                        "type": "*main.node",
+                        "address": "[addr]",
+                        "fields": {
+                          "val": {
+                            "type": "int",
+                            "value": "3"
+                          },
+                          "b": {
+                            "type": "*main.node",
+                            "isNull": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "evaluationErrors": [
-        "no decoder type found"
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
       ]
     },
     "timestamp": "[ts]"

@@ -27,11 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -74,10 +72,6 @@ func testDyninstWithFaultInjection(
 	codeDump, err := os.Create(filepath.Join(tempDir, "probe.sm.txt"))
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, codeDump.Close()) }()
-
-	objectFile, err := os.Create(filepath.Join(tempDir, "probe.bpf.o"))
-	require.NoError(t, err)
-	defer func() { assert.NoError(t, objectFile.Close()) }()
 
 	loaderOpts := []loader.Option{
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
@@ -188,38 +182,7 @@ func testDyninstWithFaultInjection(
 	require.NoError(t, a.Shutdown())
 
 	t.Logf("processing output")
-	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	obj, err := object.OpenElfFile(servicePath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, obj.Close()) }()
-
-	moduledata, err := object.ParseModuleData(obj.Underlying)
-	require.NoError(t, err)
-
-	goVersion, err := object.ReadGoVersion(obj.Underlying)
-	require.NoError(t, err)
-
-	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, goDebugSections.Close()) }()
-
-	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
-	require.NoError(t, err)
-	symbolicator := symbol.NewGoSymbolicator(symbolTable)
-	require.NotNil(t, symbolicator)
-
-	cachingSymbolicator, err := symbol.NewCachingSymbolicator(symbolicator, 10000)
-	require.NotNil(t, symbolicator)
-	require.NoError(t, err)
-
+	symbolicator := &faultySymbolicator{}
 	decoder, err := decode.NewDecoder(sink.irp)
 	require.NoError(t, err)
 
@@ -238,15 +201,13 @@ func testDyninstWithFaultInjection(
 		}
 		err = injectMissingDecoderType(sink.irp, ev)
 		require.NoError(t, err)
-		decoder, err = decode.NewDecoder(sink.irp)
-		require.NoError(t, err)
 
 		var (
 			output []byte
 			probe  ir.ProbeDefinition
 			err    error
 		)
-		output, probe, err = decoder.Decode(event, cachingSymbolicator, output)
+		output, probe, err = decoder.Decode(event, symbolicator, output)
 		require.NoError(t, err)
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Output: %s", string(output))
@@ -338,4 +299,11 @@ func runIntegrationTestSuiteWithFaultInjection(
 			}
 		})
 	}
+}
+
+type faultySymbolicator struct {
+}
+
+func (s *faultySymbolicator) Symbolicate(_ []uint64, _ uint64) ([]symbol.StackFrame, error) {
+	return nil, fmt.Errorf("error symbolicating stack")
 }

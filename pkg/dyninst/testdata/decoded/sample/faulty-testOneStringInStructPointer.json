@@ -14,43 +14,32 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": [
-          {
-            "function": "main.testOneStringInStructPointer",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 38
-          },
-          {
-            "function": "main.executeStringFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 58
-          },
-          {
-            "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 29
-          },
-          {
-            "function": "runtime.main",
-            "fileName": "runtime/proc.go",
-            "lineNumber": 283
-          },
-          {
-            "function": "runtime.goexit",
-            "fileName": "runtime/asm_[arch].s",
-            "lineNumber": "[lineNumber]"
-          }
-        ],
+        "stack": [],
         "probe": {
           "id": "testOneStringInStructPointer",
           "location": {
             "method": "main.testOneStringInStructPointer"
           }
         },
-        "captures": {}
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*main.oneStringStruct",
+                "address": "[addr]",
+                "fields": {
+                  "a": {
+                    "type": "string",
+                    "value": "omg"
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "evaluationErrors": [
-        "no decoder type found for pointee type"
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
       ]
     },
     "timestamp": "[ts]"

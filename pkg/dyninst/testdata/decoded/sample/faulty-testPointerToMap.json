@@ -14,33 +14,7 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": [
-          {
-            "function": "main.testPointerToMap",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 46
-          },
-          {
-            "function": "main.executeMapFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
-            "lineNumber": 137
-          },
-          {
-            "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 43
-          },
-          {
-            "function": "runtime.main",
-            "fileName": "runtime/proc.go",
-            "lineNumber": 283
-          },
-          {
-            "function": "runtime.goexit",
-            "fileName": "runtime/asm_[arch].s",
-            "lineNumber": "[lineNumber]"
-          }
-        ],
+        "stack": [],
         "probe": {
           "id": "testPointerToMap",
           "location": {
@@ -50,7 +24,8 @@
         "captures": {}
       },
       "evaluationErrors": [
-        "no decoder type found for pointee type"
+        "error symbolicating stack: error symbolicating stack error symbolicating stack",
+        "could not encode referenced value: no type for header type"
       ]
     },
     "timestamp": "[ts]"
