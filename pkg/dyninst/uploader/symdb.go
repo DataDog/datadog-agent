@@ -21,15 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 )
 
-// SymDBRoot represents the root structure for SymDB uploads, following the JSON schema
-type SymDBRoot struct {
-	Service  string  `json:"service,omitempty"`
-	Env      string  `json:"env,omitempty"`
-	Version  string  `json:"version,omitempty"`
-	Language string  `json:"language"`
-	Scopes   []Scope `json:"scopes"`
-}
-
 // ScopeType represents the type of scope in the SymDB schema
 type ScopeType string
 
@@ -81,35 +72,41 @@ type LineRange struct {
 	End   int `json:"end"`
 }
 
-type EventMetadata struct {
-	DDSource  string `json:"ddsource"`
-	Service   string `json:"service"`
-	RuntimeID string `json:"runtimeId"`
-}
-
 type SymDBUploader struct {
+	service string
+	env     string
+	version string
+
 	*batcher
 }
 
-func NewSymDBUploader(opts ...Option) *SymDBUploader {
+func NewSymDBUploader(
+	service string,
+	env string,
+	version string,
+	runtimeID string,
+	opts ...Option,
+) *SymDBUploader {
 	cfg := defaultConfig()
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	sender := newSymDBSender(cfg.client, cfg.url.String())
+	sender := newSymDBSender(
+		cfg.client, cfg.url.String(),
+		service, env, version, runtimeID,
+	)
 	return &SymDBUploader{
+		service: service,
+		env:     env,
+		version: version,
 		batcher: newBatcher("symdb", sender, cfg.batcherConfig),
 	}
 }
 
-// Enqueue adds a SymDB root object to the uploader's queue
-func (u *SymDBUploader) Enqueue(eventMetadata *EventMetadata, symdbRoot *SymDBRoot) error {
-	msg := map[string]interface{}{
-		"metadata": eventMetadata,
-		"symdb":    symdbRoot,
-	}
-
-	data, err := json.Marshal(msg)
+// Enqueue adds a package to the uploader's queue.
+func (u *SymDBUploader) Enqueue(pkg symdb.Package) error {
+	scope := convertPackageToScope(pkg)
+	data, err := json.Marshal(scope)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
@@ -123,44 +120,60 @@ func (u *SymDBUploader) Stop() {
 }
 
 type symdbSender struct {
-	client *http.Client
-	url    string
+	client    *http.Client
+	url       string
+	service   string
+	env       string
+	version   string
+	runtimeID string
 }
 
-func newSymDBSender(client *http.Client, urlStr string) *symdbSender {
+func newSymDBSender(
+	client *http.Client,
+	urlStr string,
+	service string,
+	env string,
+	version string,
+	runtimeID string,
+) *symdbSender {
 	return &symdbSender{
-		client: client,
-		url:    urlStr,
+		client:    client,
+		url:       urlStr,
+		service:   service,
+		env:       env,
+		version:   version,
+		runtimeID: runtimeID,
 	}
 }
 
 func (s *symdbSender) send(batch []json.RawMessage) error {
-	for _, msgData := range batch {
-		var msg map[string]interface{}
-		if err := json.Unmarshal(msgData, &msg); err != nil {
-			return fmt.Errorf("failed to unmarshal message: %w", err)
+	// Wrap the data in an envelope expected by the debugger backend.
+	var buf bytes.Buffer
+	// !!! switch language to go
+	buf.WriteString(`
+service: "` + s.service + `",
+env: "` + s.env + `",
+version: "` + s.version + `",
+language: "python",
+scopes: [`)
+	for i, msgData := range batch {
+		if i > 0 {
+			buf.WriteString(",")
 		}
+		buf.Write(msgData)
+	}
 
-		// Marshal both parts separately for multipart upload
-		symdbData, err := json.Marshal(msg["symdb"])
-		if err != nil {
-			return fmt.Errorf("failed to marshal SymDB data: %w", err)
-		}
-
-		metadataData, err := json.Marshal(msg["metadata"])
-		if err != nil {
-			return fmt.Errorf("failed to marshal metadata: %w", err)
-		}
-
-		if err := s.upload(symdbData, metadataData); err != nil {
-			return fmt.Errorf("failed to send individual SymDB: %w", err)
-		}
+	if err := s.upload(buf.Bytes()); err != nil {
+		return fmt.Errorf("failed to send individual SymDB: %w", err)
 	}
 
 	return nil
 }
 
-func (s *symdbSender) upload(symdbData []byte, eventMetadata []byte) error {
+func (s *symdbSender) upload(symdbData []byte) error {
+	// The upload is a multipart containing metadata expected by the event platform
+	// and the gzipped SymDB data.
+
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
@@ -191,7 +204,12 @@ func (s *symdbSender) upload(symdbData []byte, eventMetadata []byte) error {
 		return fmt.Errorf("failed to create event part: %w", err)
 	}
 
-	if _, err := eventPart.Write(eventMetadata); err != nil {
+	meta := []byte(`{
+"ddsource": "dd_debugger",
+"service": "` + s.service + `",
+"runtimeId": "` + s.runtimeID + `"
+}`)
+	if _, err := eventPart.Write(meta); err != nil {
 		return fmt.Errorf("failed to write event data: %w", err)
 	}
 
@@ -235,34 +253,6 @@ func compressSymDBData(data []byte) ([]byte, error) {
 
 func cleanString(s string) string {
 	return strings.ReplaceAll(s, " ", "")
-}
-
-// NewSymDBRoot converts symdb.Symbols to the SymDB JSON schema format
-func NewSymDBRoot(service, env, version string, symbols symdb.Symbols) *SymDBRoot {
-	root := SymDBRoot{
-		Service:  service,
-		Env:      env,
-		Version:  version,
-		Language: "python",
-		Scopes:   make([]Scope, 0, len(symbols.Packages)),
-	}
-
-	for _, pkg := range symbols.Packages {
-		packageScope := convertPackageToScope(pkg)
-		root.Scopes = append(root.Scopes, packageScope)
-	}
-
-	return &root
-}
-
-// NewEventMetadata creates a new EventMetadata with the given service
-// and runtimeID.
-func NewEventMetadata(service, runtimeID string) *EventMetadata {
-	return &EventMetadata{
-		DDSource:  "dd_debugger",
-		Service:   service,
-		RuntimeID: runtimeID,
-	}
 }
 
 // convertPackageToScope converts a symdb.Package to a Scope
