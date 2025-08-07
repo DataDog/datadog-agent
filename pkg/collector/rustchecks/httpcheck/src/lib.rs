@@ -25,19 +25,16 @@ pub extern "C" fn Run(instance: *const Instance) {
     // create the instance using the provided configuration
     let check = AgentCheck::new(instance);
 
-    check.gauge("network.http.response_time", 1.0, &Vec::new(), "", false);
-    println!("[SharedLibraryCheck] Check completed successfully.");
-
     // run the custom check implementation
     // TODO: change prints to logs
-    // match check.check() {
-    //     Ok(()) => {
-    //         println!("[SharedLibraryCheck] Check completed successfully.");
-    //     }
-    //     Err(e) => {
-    //         eprintln!("[SharedLibraryCheck] Error when running check: {e}");
-    //     }
-    // }
+    match check.check() {
+        Ok(()) => {
+            //println!("[SharedLibraryCheck] Check completed successfully.");
+        }
+        Err(e) => {
+            eprintln!("[SharedLibraryCheck] Error when running check: {e}");
+        }
+    }
 }
 
 // custom check implementation

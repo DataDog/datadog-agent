@@ -77,7 +77,6 @@ type SubmitEventPlatformEvent = extern "C" fn(
 );
 
 #[repr(C)]
-#[derive(Debug)]
 pub struct CheckInstance {
     check_id: *mut c_char,
     cb_submit_metric: Option<SubmitMetric>,
@@ -119,7 +118,6 @@ impl CheckInstance {
 
 // Aggregator stores callbacks for submitting metrics, service checks...
 #[repr(C)]
-#[derive(Debug)]
 pub struct Aggregator {
     cb_submit_metric: SubmitMetric,
     cb_submit_service_check: SubmitServiceCheck,

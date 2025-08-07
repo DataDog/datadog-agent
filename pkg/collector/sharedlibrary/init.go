@@ -33,7 +33,7 @@ func init() {
 	}
 }
 
-// InitSharedLibrary sets shared library checks environment
+// InitSharedLibrary sets shared library loader environment
 func InitSharedLibrary() {
 	setCallbacks()
 }

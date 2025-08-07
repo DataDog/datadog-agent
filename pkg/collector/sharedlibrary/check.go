@@ -60,7 +60,7 @@ void run_shared_library(char *check_id, run_shared_library_check_t *run_function
 		return;
     }
 
-	check_config_t config = {
+	check_instance_t config = {
 		check_id,
 		cb_submit_metric,
 		cb_submit_service_check,
@@ -99,7 +99,7 @@ type SharedLibraryCheck struct {
 	id            checkid.ID
 	interval      time.Duration
 	libName       string
-	libPtr        unsafe.Pointer                // pointer to the shared library (unused in RTLoader because it only needs the symbols)
+	libPtr        unsafe.Pointer                // pointer to the shared library (unused)
 	libRunPtr     *C.run_shared_library_check_t // pointer to the function symbol that runs the check
 }
 

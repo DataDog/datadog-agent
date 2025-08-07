@@ -34,7 +34,7 @@ func getCheckContext() (*checkContext, error) {
 	defer checkContextMutex.Unlock()
 
 	if checkCtx == nil {
-		return nil, errors.New("Python check context was not set")
+		return nil, errors.New("Shared library check context was not set")
 	}
 	return checkCtx, nil
 }

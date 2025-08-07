@@ -26,14 +26,6 @@ impl AgentCheck {
         AgentCheck { check_id, aggregator }
     }
 
-    pub fn print_check_id(&self) {
-        println!("Check ID: {}", self.check_id);
-    }
-
-    pub fn print_aggregator(&self) {
-        println!("Aggregator: {:?}", self.aggregator);
-    }
-
     // TODO: maybe use Option for optional arguments (tags, hostname, flush_first_value)
 
     // metric functions
