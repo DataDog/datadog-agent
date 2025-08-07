@@ -4,7 +4,7 @@
 
 .agent_release_management_trigger:
   stage: trigger_release
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   tags: ["arch:amd64"]
   # We don't directly depend/need the package deploy jobs, because
   # that would make us deploy even when there are e2e tests failures etc
@@ -64,7 +64,7 @@ trigger_manual_prod_release:
 
 generate_windows_gitlab_runner_bump_pr:
   stage: trigger_release
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
   needs: ["trigger_auto_staging_release"]
   tags: ["arch:arm64"]
   rules:
@@ -83,7 +83,7 @@ generate_windows_gitlab_runner_bump_pr:
 # Manual job to generate the gitlab bump pr on ci-platform-machine-images if trigger_auto_staging_release fails
 generate_windows_gitlab_runner_bump_pr_manual:
   stage: trigger_release
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
   needs: ["trigger_auto_staging_release"]
   tags: ["arch:arm64"]
   rules:

@@ -171,19 +171,9 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(_ *model.Event, _ *model.C
 	return 0
 }
 
-// ResolveCGroupManager resolves the manager of the cgroup
-func (fh *EBPFLessFieldHandlers) ResolveCGroupManager(_ *model.Event, _ *model.CGroupContext) string {
-	return ""
-}
-
 // ResolveContainerContext retrieve the ContainerContext of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	return ev.ContainerContext, ev.ContainerContext != nil
-}
-
-// ResolveContainerRuntime retrieves the container runtime managing the container
-func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *model.ContainerContext) string {
-	return ""
 }
 
 // ResolveContainerID resolves the container ID of the event
