@@ -36,7 +36,7 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
 }
 
 static __always_inline void http_batch_enqueue_wrapper(conn_tuple_t *tuple, http_transaction_t *http) {
-    bool is_hello = !http_responding(http) && http->request_method == HTTP_GET && http->request_fragment[4] == '/' && http->request_fragment[5] == 'h' && http->request_fragment[6] == 'e' && http->request_fragment[7] == 'l' && http->request_fragment[8] == 'l' && http->request_fragment[9] == 'o';
+    bool is_hello = http->request_fragment[4] == '/' && http->request_fragment[5] == 'h' && http->request_fragment[6] == 'e' && http->request_fragment[7] == 'l' && http->request_fragment[8] == 'l' && http->request_fragment[9] == 'o';
     if (is_hello) {
         log_debug("GUY GET /hello http_batch_enqueue_wrapper");
     }
