@@ -10,16 +10,16 @@ package decode
 import "github.com/go-json-experiment/json/jsontext"
 
 var (
-	notCapturedReason jsontext.Token = jsontext.String("notCapturedReason")
+	tokenNotCapturedReason = jsontext.String("tokenNotCapturedReason")
 
-	notCapturedReasonLength         jsontext.Token = jsontext.String("length")
-	notCapturedReasonDepth          jsontext.Token = jsontext.String("depth")
-	notCapturedReasonCollectionSize jsontext.Token = jsontext.String("collectionSize")
-	notCapturedReasonPruned         jsontext.Token = jsontext.String("pruned")
-	notCapturedReasonUnavailable    jsontext.Token = jsontext.String("unavailable")
-	notCapturedReasonUnimplemented  jsontext.Token = jsontext.String("unimplemented")
-	notCapturedReasonCycle          jsontext.Token = jsontext.String("circular reference")
-	// notCapturedReasonFieldCount     jsontext.Token = jsontext.String("fieldCount")
+	tokenNotCapturedReasonLength         = jsontext.String("length")
+	tokenNotCapturedReasonDepth          = jsontext.String("depth")
+	tokenNotCapturedReasonCollectionSize = jsontext.String("collectionSize")
+	tokenNotCapturedReasonPruned         = jsontext.String("pruned")
+	tokenNotCapturedReasonUnavailable    = jsontext.String("unavailable")
+	tokenNotCapturedReasonUnimplemented  = jsontext.String("unimplemented")
+	tokenNotCapturedReasonCycle          = jsontext.String("circular reference")
+	// tokenNotCapturedReasonFieldCount     = jsontext.String("fieldCount")
 
-	truncated jsontext.Token = jsontext.String("truncated")
+	tokenTruncated = jsontext.String("truncated")
 )
