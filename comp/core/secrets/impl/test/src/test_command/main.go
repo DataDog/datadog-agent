@@ -29,7 +29,7 @@ func main() {
 			time.Sleep(2 * time.Second)
 		case "error":
 			// Write to stdout but also exit code is non-zero
-			fmt.Printf("{\"" + secretHandle + "\":{\"value\":\"" + secretValue + "\"}}")
+			fmt.Printf("{\"%s\":{\"value\":\"%s\"}}", secretHandle, secretValue)
 			os.Exit(1)
 		}
 	} else {
@@ -44,5 +44,5 @@ func main() {
 		}
 		secretHandle = obj["secrets"].([]interface{})[0].(string)
 	}
-	fmt.Printf("{\"" + secretHandle + "\":{\"value\":\"" + secretValue + "\"}}")
+	fmt.Printf("{\"%s\":{\"value\":\"%s\"}}", secretHandle, secretValue)
 }

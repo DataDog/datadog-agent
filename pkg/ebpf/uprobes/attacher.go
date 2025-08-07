@@ -850,23 +850,53 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 
 	inspectResult, err := ua.inspector.Inspect(fpath, symbolsToRequest)
 	if err != nil {
-		// Not wrapping this one in an UnknownAttachmentError as it can happen if we're trying to
-		// attach to a process that just doesn't have the symbols we're looking for.
-		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
+		return utils.NewUnknownAttachmentError(fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err))
 	}
 
 	uid := getUID(fpath.ID)
 
-	for _, rule := range matchingRules {
+	anyRuleAttached := false
+	var attachErrors error
+	for ruleID, rule := range matchingRules {
+		result, ok := inspectResult[ruleID]
+		if !ok {
+			// This should not happen, Inspect should always return a result for each rule if there was no global error
+			return utils.NewUnknownAttachmentError(fmt.Errorf("error inspecting %s, no result for rule %d", fpath.HostPath, ruleID))
+		}
+
+		if result.Error != nil {
+			// Do not wrap this in an UnknownAttachmentError as it can happen if we're trying to
+			// attach to a process that just doesn't have the symbols we're looking for in this rule.
+			attachErrors = errors.Join(attachErrors, result.Error)
+			if ua.shouldLogRegistryError(result.Error) {
+				log.Warnf("Error inspecting %s for rule %d: %v", fpath.HostPath, ruleID, result.Error)
+			}
+			continue
+		}
+
 		for _, selector := range rule.ProbesSelector {
-			err = ua.attachProbeSelector(selector, fpath, uid, rule, inspectResult)
+			err = ua.attachProbeSelector(selector, fpath, uid, rule, result.SymbolMap)
 			if err != nil {
 				// At this point we have done enough validation so that the
 				// probe attachment should work, if it doesn't it's an issue we
 				// don't expect and we want to know about it.
-				return utils.NewUnknownAttachmentError(err)
+				err = utils.NewUnknownAttachmentError(err)
+				attachErrors = errors.Join(attachErrors, err)
+				if ua.shouldLogRegistryError(err) {
+					log.Warnf("Error attaching probe selector %v to %s for rule %d: %v", selector, fpath.HostPath, ruleID, err)
+				}
+				continue
 			}
+			anyRuleAttached = true
 		}
+	}
+
+	// Return all the errors we found if no rule was attached.
+	// If a rule was attached, we consider the attachment was successful.
+	// If we returned an error here with partial attachment, the file registry would
+	// de-register the file and remove all attachments.
+	if !anyRuleAttached {
+		return attachErrors
 	}
 
 	return nil
@@ -962,9 +992,9 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 	return nil
 }
 
-func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) ([]SymbolRequest, error) {
-	var requests []SymbolRequest
-	for _, rule := range rules {
+func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) (map[int][]SymbolRequest, error) {
+	requests := make(map[int][]SymbolRequest)
+	for ruleID, rule := range rules {
 		for _, selector := range rule.ProbesSelector {
 			_, isBestEffort := selector.(*manager.BestEffort)
 			for _, selector := range selector.GetProbesIdentificationPairList() {
@@ -973,7 +1003,7 @@ func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) ([]Symbol
 					return nil, fmt.Errorf("error parsing probe name %s: %w", selector.EBPFFuncName, err)
 				}
 
-				requests = append(requests, SymbolRequest{
+				requests[ruleID] = append(requests[ruleID], SymbolRequest{
 					Name:                   opts.Symbol,
 					IncludeReturnLocations: opts.IsManualReturn,
 					BestEffort:             isBestEffort,
