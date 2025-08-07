@@ -115,19 +115,6 @@ api_key:
 #
 # hostname_trust_uts_namespace: false
 
-## @param hostname_drift_initial_delay - duration - optional - default: 20m
-## @env DD_HOSTNAME_DRIFT_INITIAL_DELAY - duration - optional - default: 20m
-## The initial delay before the first hostname drift check. This allows the agent
-## to settle before starting drift detection.
-#
-# hostname_drift_initial_delay: 20m
-
-## @param hostname_drift_recurring_interval - duration - optional - default: 6h
-## @env DD_HOSTNAME_DRIFT_RECURRING_INTERVAL - duration - optional - default: 6h
-## The interval between recurring hostname drift checks after the initial check.
-#
-# hostname_drift_recurring_interval: 6h
-
 ## @param host_aliases - list of strings - optional
 ## @env DD_HOST_ALIASES - space separated list of strings - optional
 ## List of host aliases to report in addition to any aliases collected

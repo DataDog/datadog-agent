@@ -24,8 +24,8 @@ type driftService struct {
 
 // Default timing values
 const (
-	DefaultInitialDelay      = 20 * time.Minute
-	DefaultRecurringInterval = 6 * time.Hour
+	defaultInitialDelay      = 20 * time.Minute
+	defaultRecurringInterval = 6 * time.Hour
 )
 
 // Telemetry metrics

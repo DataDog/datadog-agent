@@ -343,6 +343,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// (Linux only)
 	config.BindEnvAndSetDefault("hostname_trust_uts_namespace", false)
 
+	// Internal hostname drift detection configuration
+	// These options are not exposed to customers and are used for testing purposes
+	config.BindEnvAndSetDefault("hostname_drift_initial_delay", 20*time.Minute)
+	config.BindEnvAndSetDefault("hostname_drift_recurring_interval", 6*time.Hour)
+
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
 	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)

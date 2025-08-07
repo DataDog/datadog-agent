@@ -28,8 +28,8 @@ var (
 	hostnameProvider = expvar.String{}
 	hostnameErrors   = expvar.Map{}
 	driftCalculator  = driftService{
-		initialDelay:      DefaultInitialDelay,
-		recurringInterval: DefaultRecurringInterval,
+		initialDelay:      defaultInitialDelay,
+		recurringInterval: defaultRecurringInterval,
 	}
 )
 
