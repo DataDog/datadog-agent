@@ -62,10 +62,10 @@ func (v *baseHostnameDriftSuite) TestHostnameDriftMetricsEmission() {
 		assert.Contains(c, output, "state=", "Should have state tag in metrics")
 
 		// Assert specific provider values that should be present
-		assert.Contains(c, output, "provider=aws", "Should have aws provider in metrics")
+		assert.Contains(c, output, "provider=\"aws\"", "Should have aws provider in metrics")
 
 		// Assert specific state values that should be present
-		assert.Contains(c, output, "state=no_drift", "Should have no_drift state in metrics but got: "+output)
+		assert.Contains(c, output, "state=\"no_drift\"", "Should have no_drift state in metrics but got: "+output)
 
 	}, 2*time.Minute, 10*time.Second, "Hostname drift metrics should be emitted in agent telemetry")
 }
