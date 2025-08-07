@@ -113,7 +113,7 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 					Name:     "memory.usage",
 					Value:    float64(proc.UsedGpuMemory),
 					Type:     metrics.GaugeType,
-					Priority: 10,
+					Priority: High,
 					Tags:     []string{pidTag},
 				},
 			)
@@ -127,7 +127,7 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 			Name:     "memory.limit",
 			Value:    float64(devInfo.Memory),
 			Type:     metrics.GaugeType,
-			Priority: 10,
+			Priority: High,
 			Tags:     allPidTags,
 		},
 	)
