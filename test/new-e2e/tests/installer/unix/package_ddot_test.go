@@ -26,7 +26,7 @@ func testDDOT(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethod
 	}
 }
 
-func (s *packageDDOTSuite) TestInstallDDOTWithAgent() {
+func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 	// Install agent and DDOT together via environment variable
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_OTELCOLLECTOR_ENABLED=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
@@ -53,7 +53,7 @@ func (s *packageDDOTSuite) TestInstallDDOTWithAgent() {
 	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
 }
 
-func (s *packageDDOTSuite) TestInstallWithDDOT() {
+func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	// Install datadog-agent (base infrastructure)
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
