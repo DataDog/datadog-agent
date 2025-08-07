@@ -72,13 +72,6 @@ func run(binaryPath string) error {
 		log.Infof("Extracting only 1st party symbols")
 		scope = symdb.ExtractScopeModulesFromSameOrg
 	}
-	symBuilder, err := symdb.NewSymDBBuilder(binaryPath, symdb.ExtractOptions{
-		Scope:                   scope,
-		IncludeInlinedFunctions: !*stream,
-	})
-	if err != nil {
-		return err
-	}
 
 	// Start tracing if we were asked to.
 	tracing := *traceFile != ""
@@ -98,13 +91,22 @@ func run(binaryPath string) error {
 	}
 
 	var symbols symdb.Symbols
+	opt := symdb.ExtractOptions{
+		Scope:                   scope,
+		IncludeInlinedFunctions: !*stream,
+	}
 	if !*stream {
-		symbols, err = symBuilder.ExtractSymbols()
+		var err error
+		symbols, err = symdb.ExtractSymbols(binaryPath, opt)
 		if err != nil {
 			return err
 		}
 	} else {
-		for pkg, err := range symBuilder.PackagesIterator() {
+		it, err := symdb.PackagesIterator(binaryPath, opt)
+		if err != nil {
+			return err
+		}
+		for pkg, err := range it {
 			if err != nil {
 				return err
 			}
