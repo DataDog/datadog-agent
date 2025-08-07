@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"syscall"
 )
 
@@ -28,6 +29,11 @@ func copyFileWithPermissions(src, dst string, info os.FileInfo) error {
 	stat, ok = info.Sys().(*syscall.Stat_t)
 	if !ok || stat == nil {
 		return fmt.Errorf("could not get file stat")
+	}
+
+	// Ensure the destination directory exists
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
 	}
 
 	// create dst file with same permissions

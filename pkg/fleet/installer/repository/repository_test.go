@@ -522,8 +522,8 @@ func TestCopyDirectoryTargetDoesNotExist(t *testing.T) {
 	targetDir := filepath.Join(t.TempDir(), "non-existent-target")
 
 	err := copyDirectory(sourceDir, targetDir)
-	assert.Error(t, err)
-	assert.NoDirExists(t, targetDir)
+	assert.NoError(t, err)
+	assert.DirExists(t, targetDir)
 }
 
 func TestCopyDirectoryWithSpecialCharacters(t *testing.T) {
