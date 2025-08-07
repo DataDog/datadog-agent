@@ -1087,7 +1087,6 @@ workflow:
         - pkg/gpu/**/*
         - pkg/ebpf/**/*
         - pkg/util/kernel/**/*
-        - pkg/gpu/**/*
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
