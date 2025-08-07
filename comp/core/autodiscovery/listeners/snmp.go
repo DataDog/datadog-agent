@@ -69,7 +69,6 @@ type SNMPService struct {
 	adIdentifier string
 	entityID     string
 	deviceIP     string
-	authIndex    int
 	config       snmp.Config
 	subnet       *snmpSubnet
 	pending      bool
@@ -456,23 +455,23 @@ func (l *SNMPListener) createService(
 
 	_, exists := l.services[entityID]
 	if exists {
-		if !writeCache {
-			return
-		}
-
 		device, exists := subnet.devices[entityID]
 		if !exists {
-			device = deviceCache{
-				IP:        net.ParseIP(deviceIP),
-				AuthIndex: authIndex,
-				Failures:  deviceFailures,
+			// This case should happen only when device is a pending device (service created but not registered yet)
+			found := l.deviceDeduper.SetPendingDeviceFailures(deviceIP, deviceFailures)
+			if !found {
+				return
 			}
+
+			writeCache = false
 		} else {
 			device.Failures = deviceFailures
+			subnet.devices[entityID] = device
 		}
-		subnet.devices[entityID] = device
 
-		l.writeCache(subnet)
+		if writeCache {
+			l.writeCache(subnet)
+		}
 
 		return
 	}
@@ -499,7 +498,6 @@ func (l *SNMPListener) createService(
 		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
-		authIndex:    authIndex,
 		config:       config,
 		subnet:       subnet,
 		pending:      true,
@@ -560,25 +558,42 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 		return
 	}
 
+	var failures int
+	isPendingDevice := false
+	writeCache := false
+
 	device, exists := subnet.devices[entityID]
 	if !exists {
-		device = deviceCache{
-			IP:        net.ParseIP(svc.deviceIP),
-			AuthIndex: svc.authIndex,
-			Failures:  1,
+		// This case should happen only when device is a pending device (service created but not registered yet)
+		newFailures, found := l.deviceDeduper.IncreasePendingDeviceFailures(svc.deviceIP)
+		if !found {
+			return
 		}
+
+		failures = newFailures
+		isPendingDevice = true
 	} else {
 		device.Failures++
-	}
-	subnet.devices[entityID] = device
+		subnet.devices[entityID] = device
 
-	if l.config.AllowedFailures != -1 && device.Failures >= l.config.AllowedFailures {
+		failures = device.Failures
+		writeCache = true
+	}
+
+	if l.config.AllowedFailures != -1 && failures >= l.config.AllowedFailures {
 		l.delService <- svc
 		delete(l.services, entityID)
 		delete(subnet.devices, entityID)
+		if isPendingDevice {
+			l.deviceDeduper.DeletePendingDevice(svc.deviceIP)
+		}
+
+		writeCache = true
 	}
 
-	l.writeCache(subnet)
+	if writeCache {
+		l.writeCache(subnet)
+	}
 }
 
 // Stop queues a shutdown of SNMPListener

@@ -50,7 +50,10 @@ func (d DeviceInfo) equal(other DeviceInfo) bool {
 type DeviceDeduper interface {
 	MarkIPAsProcessed(ip string)
 	AddPendingDevice(device PendingDevice)
+	DeletePendingDevice(ip string)
 	GetDedupedDevices() []PendingDevice
+	SetPendingDeviceFailures(ip string, failures int) bool
+	IncreasePendingDeviceFailures(ip string) (int, bool)
 }
 
 type deviceDeduperImpl struct {
@@ -146,6 +149,20 @@ func (d *deviceDeduperImpl) AddPendingDevice(device PendingDevice) {
 	d.pendingDevices = newPendingDevices
 }
 
+// DeletePendingDevice deletes a pending device
+func (d *deviceDeduperImpl) DeletePendingDevice(ip string) {
+	d.Lock()
+	defer d.Unlock()
+
+	newPendingDevices := make([]PendingDevice, 0)
+	for _, pendingDevice := range d.pendingDevices {
+		if pendingDevice.IP != ip {
+			newPendingDevices = append(newPendingDevices, pendingDevice)
+		}
+	}
+	d.pendingDevices = newPendingDevices
+}
+
 // GetDedupedDevices returns the list of devices to activate
 func (d *deviceDeduperImpl) GetDedupedDevices() []PendingDevice {
 	d.Lock()
@@ -176,6 +193,38 @@ func (d *deviceDeduperImpl) MarkIPAsProcessed(ip string) {
 	if exists {
 		counter.Add(^uint32(0)) // Subtract 1 using bitwise NOT of 0
 	}
+}
+
+// SetPendingDeviceFailures sets the failures count of a pending device
+func (d *deviceDeduperImpl) SetPendingDeviceFailures(ip string, failures int) bool {
+	d.Lock()
+	defer d.Unlock()
+
+	for i := range d.pendingDevices {
+		if d.pendingDevices[i].IP == ip {
+			d.pendingDevices[i].Failures = failures
+
+			return true
+		}
+	}
+
+	return false
+}
+
+// IncreasePendingDeviceFailures increases the failures count of a pending device
+func (d *deviceDeduperImpl) IncreasePendingDeviceFailures(ip string) (int, bool) {
+	d.Lock()
+	defer d.Unlock()
+
+	for i := range d.pendingDevices {
+		if d.pendingDevices[i].IP == ip {
+			d.pendingDevices[i].Failures++
+
+			return d.pendingDevices[i].Failures, true
+		}
+	}
+
+	return 0, false
 }
 
 func minimumIP(ipStr1, ipStr2 string) string {
