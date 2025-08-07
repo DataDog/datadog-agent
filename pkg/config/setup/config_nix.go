@@ -9,6 +9,7 @@ package setup
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -59,11 +60,16 @@ const (
 // in time
 func osinit() {
 	// Agent binary
-	_here, err := executable.Folder() // {InstallPath}/bin/agent OR {InstallPath}/embedded/bin
-	if err != nil {
-		panic(fmt.Sprintf("Failed to get executable path: %v", err))
+	if installPathOverride, ok := os.LookupEnv("DD_TEST_INSTALL_PATH_OVERRIDE"); ok {
+		InstallPath = installPathOverride
+	} else {
+		_here, err := executable.Folder() // {InstallPath}/bin/agent OR {InstallPath}/embedded/bin
+		if err != nil {
+			panic(fmt.Sprintf("Failed to get executable path: %v", err))
+		}
+		InstallPath = filepath.Join(_here, "..", "..")
 	}
-	InstallPath = filepath.Join(_here, "..", "..")
+
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent")
 	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
 	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
