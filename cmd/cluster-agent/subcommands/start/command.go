@@ -641,7 +641,7 @@ func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg con
 
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
-	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
+	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	if cfg.GetBool("use_diskv2_check") {
 		corecheckLoader.RegisterCheck(disk.CheckName, diskv2.Factory())

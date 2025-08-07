@@ -388,7 +388,6 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		suite.Contains(stdout, "Collector")
 		suite.Contains(stdout, "Running Checks")
-		suite.Contains(stdout, "kubernetes_state_core")
 		if suite.Env().Agent.FIPSEnabled {
 			// Verify FIPS mode is reported as enabled
 			suite.Contains(stdout, "FIPS Mode: enabled", "Cluster agent should report FIPS Mode as enabled")
@@ -430,17 +429,6 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		}
 	})
 
-	suite.Run("cluster-agent checkconfig", func() {
-		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
-		suite.Contains(stdout, "=== kubernetes_state_core check ===")
-		suite.Contains(stdout, "Config for instance ID: kubernetes_state_core:")
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
-		}
-	})
-
 	suite.Run("cluster-agent clusterchecks", func() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
 		suite.Require().NoError(err)
@@ -448,6 +436,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Contains(stdout, "agents reporting ===")
 		suite.Contains(stdout, "===== Checks on ")
 		suite.Contains(stdout, "=== helm check ===")
+		suite.Contains(stdout, "=== kubernetes_state_core check ===")
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
@@ -567,6 +556,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_service:nginx$`,
 				`^url:http://`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -596,6 +586,7 @@ func (suite *k8sSuite) TestNginx() {
 				Max: 5,
 				Min: 1,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -697,6 +688,7 @@ func (suite *k8sSuite) TestRedis() {
 				Max: 5,
 				Min: 1,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -912,6 +904,7 @@ func (suite *k8sSuite) TestKSM() {
 				Max: 1,
 				Min: 1,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -935,6 +928,7 @@ func (suite *k8sSuite) TestKSM() {
 				Max: 1,
 				Min: 1,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -955,6 +949,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 }
