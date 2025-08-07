@@ -16,6 +16,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // This function tests both the function that converts a workloadmeta.Event into
@@ -87,6 +88,12 @@ func TestConversions(t *testing.T) {
 					ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
 					},
+					Resources: workloadmeta.ContainerResources{
+						CPURequest:    pointer.Ptr(0.5),
+						CPULimit:      pointer.Ptr(1.0),
+						MemoryRequest: pointer.Ptr[uint64](1024),
+						MemoryLimit:   pointer.Ptr[uint64](2048),
+					},
 				},
 			},
 			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
@@ -143,6 +150,12 @@ func TestConversions(t *testing.T) {
 					},
 					ResolvedAllocatedResources: []*pb.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
+					},
+					Resources: &pb.ContainerResources{
+						CpuRequest:    pointer.Ptr(0.5),
+						CpuLimit:      pointer.Ptr(1.0),
+						MemoryRequest: pointer.Ptr[uint64](1024),
+						MemoryLimit:   pointer.Ptr[uint64](2048),
 					},
 				},
 			},
@@ -485,7 +498,6 @@ func TestConvertWorkloadEventToProtoWithUnpopulatedFields(t *testing.T) {
 }
 
 func TestProtobufFilterFromWorkloadmetaFilter(t *testing.T) {
-
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceRuntime).
 		SetEventType(workloadmeta.EventTypeSet).
