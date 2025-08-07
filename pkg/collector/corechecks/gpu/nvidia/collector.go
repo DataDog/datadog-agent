@@ -15,9 +15,6 @@ package nvidia
 import (
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -40,6 +37,7 @@ const (
 	process      CollectorName = "process"
 	nvlink       CollectorName = "nvlink"
 	gpm          CollectorName = "gpm"
+	ebpf         CollectorName = "ebpf"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -47,7 +45,8 @@ type Metric struct {
 	Name     string  // Name holds the name of the metric.
 	Value    float64 // Value holds the value of the metric.
 	Type     metrics.MetricType
-	Priority int // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. 0 (default) is the lowest priority.
+	Priority int      // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. 0 (default) is the lowest priority.
+	Tags     []string // Tags holds optional metric-specific tags (e.g., process ID).
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
@@ -65,18 +64,18 @@ type Collector interface {
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
-type subsystemBuilder func(device ddnvml.SafeDevice) (Collector, error)
+type subsystemBuilder func(device ddnvml.Device) (Collector, error)
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
-	field:        newFieldsCollector,
-	device:       newDeviceCollector,
-	remappedRows: newRemappedRowsCollector,
 	clock:        newClocksCollector,
-	samples:      newSamplesCollector,
-	process:      newProcessCollector,
-	nvlink:       newNVLinkCollector,
+	device:       newDeviceCollector,
+	field:        newFieldsCollector,
 	gpm:          newGPMCollector,
+	nvlink:       newNVLinkCollector,
+	process:      newProcessCollector,
+	remappedRows: newRemappedRowsCollector,
+	samples:      newSamplesCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
@@ -86,14 +85,17 @@ type CollectorDependencies struct {
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
-func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
-	return buildCollectors(deps, factory)
+// If spCache is provided, additional system-probe virtual collectors will be created for all devices.
+func BuildCollectors(deps *CollectorDependencies, spCache *SystemProbeCache) ([]Collector, error) {
+	return buildCollectors(deps, factory, spCache)
 }
 
-func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
+func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder, spCache *SystemProbeCache) ([]Collector, error) {
 	var collectors []Collector
 
-	for _, dev := range deps.DeviceCache.All() {
+	// Step 1: Build NVML collectors for physical devices only,
+	// (since most of NVML API doesn't support MIG devices)
+	for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
@@ -105,6 +107,18 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 			}
 
 			collectors = append(collectors, c)
+		}
+	}
+
+	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
+	if spCache != nil {
+		for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
+			spCollector, err := newEbpfCollector(dev, spCache)
+			if err != nil {
+				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
+				continue
+			}
+			collectors = append(collectors, spCollector)
 		}
 	}
 
@@ -120,7 +134,7 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 
 	tagsMapping := make(map[string][]string, devCount)
 
-	for _, dev := range deviceCache.All() {
+	for _, dev := range deviceCache.AllPhysicalDevices() {
 		uuid := dev.GetDeviceInfo().UUID
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
@@ -140,15 +154,65 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 	return tagsMapping
 }
 
-// RemoveDuplicateMetrics removes duplicate metrics from the given list, keeping the highest priority metric.
-func RemoveDuplicateMetrics(metrics []Metric) []Metric {
-	metricsByName := make(map[string]Metric)
+// RemoveDuplicateMetrics filters metrics by priority across collectors while preserving all metrics within each collector.
+// For each metric name, it finds the collector with the highest priority metric of that name, then includes
+// ALL metrics with that name from the winning collector. This preserves multiple metrics with the same name
+// but different tags (e.g., multiple memory.usage metrics with different PIDs) from the same collector,
+// while still allowing cross-collector deduplication based on priority.
+//
+// Input: map from collector ID to slice of metrics from that collector
+// Output: flat slice of metrics with duplicates removed according to the priority rules
+//
+// Example:
+//
+//	CollectorA: [
+//	  {Name: "memory.usage", Priority: 10, Tags: ["pid:1001"]},
+//	  {Name: "memory.usage", Priority: 10, Tags: ["pid:1002"]},
+//	  {Name: "core.temp", Priority: 0}
+//	]
+//	CollectorB: [
+//	  {Name: "memory.usage", Priority: 5, Tags: ["pid:1003"]},
+//	  {Name: "fan.speed", Priority: 0}
+//	]
+//
+// Result: [
+//
+//	{Name: "memory.usage", Priority: 10, Tags: ["pid:1001"]},  // From CollectorA (winner)
+//	{Name: "memory.usage", Priority: 10, Tags: ["pid:1002"]},  // From CollectorA (winner)
+//	{Name: "core.temp", Priority: 0},                          // From CollectorA (unique)
+//	{Name: "fan.speed", Priority: 0}                           // From CollectorB (unique)
+//
+// ]
+func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
+	// Map metric name -> collector ID -> []Metric (with that name)
+	nameToCollectorMetrics := make(map[string]map[CollectorName][]Metric)
 
-	for _, metric := range metrics {
-		if existing, ok := metricsByName[metric.Name]; !ok || existing.Priority < metric.Priority {
-			metricsByName[metric.Name] = metric
+	for collectorID, metrics := range allMetrics {
+		for _, m := range metrics {
+			if _, ok := nameToCollectorMetrics[m.Name]; !ok {
+				nameToCollectorMetrics[m.Name] = make(map[CollectorName][]Metric)
+			}
+			nameToCollectorMetrics[m.Name][collectorID] = append(nameToCollectorMetrics[m.Name][collectorID], m)
 		}
 	}
 
-	return slices.Collect(maps.Values(metricsByName))
+	var result []Metric
+
+	// For each metric name, pick all matching metrics from the collector with the highest-priority metric of that name
+	for _, collectorMetrics := range nameToCollectorMetrics {
+		maxPriority := -1
+		var winningCollectorID CollectorName
+		for collectorID, metrics := range collectorMetrics {
+			for _, m := range metrics {
+				if m.Priority > maxPriority {
+					maxPriority = m.Priority
+					winningCollectorID = collectorID
+				}
+			}
+		}
+		// Add all metrics for that name from the winning collector
+		result = append(result, collectorMetrics[winningCollectorID]...)
+	}
+
+	return result
 }
