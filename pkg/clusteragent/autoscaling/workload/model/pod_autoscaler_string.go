@@ -387,5 +387,14 @@ func (p *PodAutoscalerInternal) UnmarshalJSON(data []byte) error {
 	p.fallbackScalingValues.Error = stringToError(temp.FallbackScalingValuesError)
 	p.fallbackScalingValues.HorizontalError = stringToError(temp.FallbackScalingValuesHorizontalError)
 	p.fallbackScalingValues.VerticalError = stringToError(temp.FallbackScalingValuesVerticalError)
+
+	// convert metav1.Time to UTC
+	for i := range p.horizontalLastActions {
+		p.horizontalLastActions[i].Time.Time = p.horizontalLastActions[i].Time.Time.UTC()
+	}
+	if p.verticalLastAction != nil {
+		p.verticalLastAction.Time.Time = p.verticalLastAction.Time.Time.UTC()
+	}
+
 	return nil
 }

@@ -12,7 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -83,7 +83,8 @@ func newComponent(deps dependencies) (provides, error) {
 }
 
 func newConfig(deps dependencies) (*cfg, error) {
-	config := pkgconfigsetup.Datadog()
+	config := pkgconfigsetup.GlobalConfigBuilder()
+
 	warnings, err := setupConfig(config, deps)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {

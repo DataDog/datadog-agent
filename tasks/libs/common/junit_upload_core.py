@@ -218,7 +218,7 @@ def _upload_junitxmls(team_dirs: list[Path], executor: ThreadPoolExecutor):
     futures = []
     for team_dir in team_dirs:
         for args, env in _generate_junitxmls(team_dir):
-            futures.append(executor.submit(check_call, args=datadog_ci_command + args, env=env))
+            futures.append(executor.submit(_execute_with_specific_temp_dir, args=datadog_ci_command + args, env=env))
     exceptions = []
     for future in futures:
         try:
@@ -242,6 +242,17 @@ def _generate_junitxmls(team_dir: Path) -> Iterator[tuple[list[str], dict[str, s
         args = set_tags(owner, flavor, flags, additional_tags, files[0])
         args.extend(files)
         yield args, process_env
+
+
+def _execute_with_specific_temp_dir(args, env):
+    """
+    Execute the given command with TEMP, TMP and TMPDIR set to a fresh temporary directory, deleted after execution.
+
+    This ensures that temporary files are isolated, since most runtimes (Python, Node.js, etc.) use some of these well
+    known environment variables to determine where to write - which applies to `tempfile.TemporaryDirectory` used here.
+    """
+    with tempfile.TemporaryDirectory(prefix="junit-upload-") as tmp_dir:
+        return check_call(args, env=env | {"TEMP": tmp_dir, "TMP": tmp_dir, "TMPDIR": tmp_dir})
 
 
 def group_per_tags(team_dir: Path, additional_tags: list):
