@@ -87,6 +87,18 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 			[]string{"image:nginx.*", "kube_namespace:foo", "name:bar"},
 			`image.name.matches("nginx.*")`,
 		},
+		{
+			"process raw regex pattern",
+			workloadfilter.ProcessType,
+			[]string{"java.*-jar.*app"},
+			`process.cmdline.matches("java.*-jar.*app")`,
+		},
+		{
+			"multiple process raw regex patterns",
+			workloadfilter.ProcessType,
+			[]string{"java.*", "python.*script", "node.*server"},
+			`process.cmdline.matches("java.*|python.*script|node.*server")`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

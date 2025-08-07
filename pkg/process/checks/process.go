@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -20,6 +19,8 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/cpu"
 
+	workloadfiltercomp "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfiltertypedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	gpusubscriber "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -47,7 +48,7 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface, grpcServerTLSConfig *tls.Config) *ProcessCheck {
+func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, workloadFilter workloadfiltercomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface, grpcServerTLSConfig *tls.Config) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
@@ -58,6 +59,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		lookupIdProbe:       NewLookupIDProbe(config),
 		serviceExtractor:    parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
 		wmeta:               wmeta,
+		workloadFilter:      workloadFilter,
 		gpuSubscriber:       gpuSubscriber,
 		statsd:              statsd,
 		grpcServerTLSConfig: grpcServerTLSConfig,
@@ -85,8 +87,8 @@ type ProcessCheck struct {
 	// scrubber is a DataScrubber to hide command line sensitive words
 	scrubber *procutil.DataScrubber
 
-	// disallowList to hide processes
-	disallowList []*regexp.Regexp
+	// workloadFilter to hide processes
+	workloadFilter workloadfiltercomp.Component
 
 	// determine if zombies process will be collected
 	ignoreZombieProcesses bool
@@ -179,8 +181,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	}
 
 	initScrubber(p.config, p.scrubber)
-
-	p.disallowList = initDisallowList(p.config)
 
 	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
 
@@ -313,7 +313,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, time.Now())
+	procsByCtr := fmtProcesses(p.scrubber, p.workloadFilter, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, time.Now())
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -475,7 +475,7 @@ func chunkProcessesAndContainers(
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
 	scrubber *procutil.DataScrubber,
-	disallowList []*regexp.Regexp,
+	filter workloadfiltercomp.Component,
 	procs, lastProcs map[int32]*procutil.Process,
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
@@ -490,7 +490,7 @@ func fmtProcesses(
 	procsByCtr := make(map[string][]*model.Process)
 
 	for _, fp := range procs {
-		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
+		if skipProcess(filter, fp, lastProcs, zombiesIgnored) {
 			continue
 		}
 
@@ -637,7 +637,7 @@ func formatCPU(statsNow, statsBefore *procutil.Stats, syst2, syst1 cpu.TimesStat
 // skipProcess will skip a given process if it's disallow-listed or hasn't existed
 // for multiple collections.
 func skipProcess(
-	disallowList []*regexp.Regexp,
+	filter workloadfiltercomp.Component,
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
 	zombiesIgnored bool,
@@ -647,7 +647,7 @@ func skipProcess(
 		cl = []string{fp.Exe}
 		log.Debugf("Empty commandline for pid:%d using exe:[%s] to check if the process should be skipped", fp.Pid, cl)
 	}
-	if isDisallowListed(cl, disallowList) {
+	if isDisallowListed(cl, filter) {
 		return true
 	}
 	if _, ok := lastProcs[fp.Pid]; !ok {
@@ -701,29 +701,13 @@ func initScrubber(config pkgconfigmodel.Reader, scrubber *procutil.DataScrubber)
 	}
 }
 
-func initDisallowList(config pkgconfigmodel.Reader) []*regexp.Regexp {
-	var disallowList []*regexp.Regexp
-	// A list of regex patterns that will exclude a process if matched.
-	if config.IsSet(configDisallowList) {
-		for _, b := range config.GetStringSlice(configDisallowList) {
-			r, err := regexp.Compile(b)
-			if err != nil {
-				log.Warnf("Ignoring invalid disallow list pattern: %s", b)
-				continue
-			}
-			disallowList = append(disallowList, r)
-		}
-	}
-	return disallowList
-}
-
 // isDisallowListed returns a boolean indicating if the given command is disallow-listed by our config.
-func isDisallowListed(cmdline []string, disallowList []*regexp.Regexp) bool {
-	cmd := strings.Join(cmdline, " ")
-	for _, b := range disallowList {
-		if b.MatchString(cmd) {
-			return true
-		}
+func isDisallowListed(cmdline []string, filter workloadfiltercomp.Component) bool {
+	process := &workloadfiltercomp.Process{
+		FilterProcess: &workloadfiltertypedef.FilterProcess{
+			Cmdline: strings.Join(cmdline, " "),
+		},
 	}
-	return false
+
+	return filter.IsProcessExcluded(process, [][]workloadfiltercomp.ProcessFilter{{workloadfiltercomp.LegacyProcessDisallowlist}})
 }

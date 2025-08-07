@@ -42,3 +42,9 @@ message FilterKubeEndpoint {
 message FilterImage {
   string name = 1;
 }
+
+message FilterProcess {
+  string name = 1;
+  string cmdline = 2;
+  repeated string args = 3;
+}

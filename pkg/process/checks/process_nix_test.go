@@ -9,7 +9,6 @@ package checks
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"testing"
 	"time"
@@ -17,9 +16,15 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadfiltercomp "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func makeContainer(id string) *model.Container {
@@ -116,15 +121,19 @@ func TestBasicProcessMessages(t *testing.T) {
 		},
 	} {
 		t.Run(tc.testName, func(t *testing.T) {
-			disallowList := make([]*regexp.Regexp, 0, len(tc.disallowList))
-			for _, s := range tc.disallowList {
-				disallowList = append(disallowList, regexp.MustCompile(s))
-			}
+			filter := fxutil.Test[workloadfiltercomp.Component](t, fx.Options(
+				core.MockBundle(),
+				workloadfilterfxmock.MockModule(),
+				fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+					"process_config.blacklist_patterns": tc.disallowList,
+				}}),
+			))
+
 			serviceExtractorEnabled := true
 			useWindowsServiceName := true
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, false, ex, nil, now)
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), filter, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, nil, false, ex, nil, now)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, procs, tc.containers, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
@@ -239,7 +248,11 @@ func TestContainerProcessChunking(t *testing.T) {
 			useWindowsServiceName := true
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, false, ex, nil, now)
+			emptyFilter := fxutil.Test[workloadfiltercomp.Component](t, fx.Options(
+				core.MockBundle(),
+				workloadfilterfxmock.MockModule(),
+			))
+			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), emptyFilter, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, nil, false, ex, nil, now)
 			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, processes, ctrs, tc.maxSize, maxBatchBytes, int32(i), "nid", 0)
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
@@ -419,7 +432,11 @@ func TestProcessGPUTagging(t *testing.T) {
 			useWindowsServiceName := true
 			useImprovedAlgorithm := false
 			ex := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, tc.processes, tc.processes, nil, syst2, syst1, lastRun, nil, false, ex, tc.pidToGPUTags, now)
+			emptyFilter := fxutil.Test[workloadfiltercomp.Component](t, fx.Options(
+				core.MockBundle(),
+				workloadfilterfxmock.MockModule(),
+			))
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), emptyFilter, tc.processes, tc.processes, nil, syst2, syst1, lastRun, nil, false, ex, tc.pidToGPUTags, now)
 
 			assert.Len(t, procs, 1)
 			assert.Equal(t, tc.expectedProcs, len(procs[""]))
