@@ -51,5 +51,7 @@ func TestCloudProviderAliases(t *testing.T) {
 	assert.True(t, detector3Called, "host alias callback for 'detector3' was not called")
 
 	assert.Equal(t, []string{"alias1", "alias2"}, aliases)
-	assert.Equal(t, "detector3", cloudprovider)
+	// Which detector wins depends upon timing, either one is fine
+	// In reality we expect only 1 possible cloudprovider to return host aliases
+	assert.Contains(t, []string{"detector1", "detector3"}, cloudprovider)
 }
