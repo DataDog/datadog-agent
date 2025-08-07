@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import gitlab
+import gitlab.exceptions
 import yaml
 from invoke.context import Context
 from invoke.tasks import task
@@ -48,6 +49,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_get_stack_or_exit, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
+from tasks.kernel_matrix_testing.types import PlatformInfo, component_from_str, dict_to_platform_info
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import (
@@ -101,7 +103,7 @@ try:
     from termcolor import colored
 except ImportError:
 
-    def colored(text: str, color: str | None) -> str:  # noqa: U100
+    def colored(text: str, color: Any) -> str:  # noqa: U100
         return text
 
 
@@ -774,7 +776,7 @@ def ninja_copy_ebpf_files(
 @task
 def kmt_secagent_prepare(
     ctx: Context,
-    stack: str | None = None,
+    stack: str,
     arch: Arch | str = "local",
     packages: str | None = None,
     verbose: bool = True,
@@ -842,6 +844,9 @@ def prepare(
     if ci:
         stack = "ci"
         return _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only)
+
+    if stack is None:
+        raise Exit("stack is required")
 
     domains = None
     if not compile_only:
@@ -933,6 +938,9 @@ def _prepare(
 
     if ci or compile_only:
         return
+
+    if domains is None:
+        raise Exit("domains is required when not in CI or compile_only mode")
 
     info(f"[+] Preparing VMs in stack {stack} for {arch_obj}")
 
@@ -1197,6 +1205,9 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
     not_matches = []
     for tag in platforms[arch]:
         platinfo = platforms[arch][tag]
+        if 'os_id' not in platinfo or 'os_version' not in platinfo:
+            continue
+
         vmid = f"{platinfo['os_id']}_{platinfo['os_version']}"
 
         check_tag = False
@@ -1310,6 +1321,7 @@ def test(
     stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
     domains = get_target_domains(ctx, stack, ssh_key, None, vms, alien_vms)
     used_archs = get_archs_in_domains(domains)
+    component = component_from_str(component)
 
     if alien_vms is not None:
         err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
@@ -1735,16 +1747,10 @@ def update_platform_info(
                 'VERSION_ID': 'os_version',
             }
 
-            if image_name not in platforms[arch.kmt_arch]:
-                platforms[arch.kmt_arch][image_name] = {}
-            img_data = platforms[arch.kmt_arch][image_name]
-
+            img_data = PlatformInfo(image=image_filename + ".xz", image_version=version)
             for mkey, pkey in manifest_to_platinfo_keys.items():
                 if mkey in keyvals:
                     img_data[pkey] = keyvals[mkey]
-
-            img_data['image'] = image_filename + ".xz"
-            img_data['image_version'] = version
 
             if 'VERSION_CODENAME' in keyvals:
                 altname = keyvals['VERSION_CODENAME']
@@ -1754,6 +1760,11 @@ def update_platform_info(
                     altnames.append(altname)
 
                 img_data['alt_version_names'] = altnames
+
+            if image_name not in platforms[arch.kmt_arch]:
+                platforms[arch.kmt_arch][image_name] = img_data
+            else:
+                platforms[arch.kmt_arch][image_name].update(img_data)
 
     info(f"[+] Writing output to {platforms_file}...")
 
@@ -2331,6 +2342,9 @@ def install_ddagent(
         with open("release.json") as f:
             release = json.load(f)
         version = release["last_stable"]["7"]
+
+    if version is None:
+        raise Exit("version is required")
 
     match = VERSION_RE.match(version)
     if not match:
