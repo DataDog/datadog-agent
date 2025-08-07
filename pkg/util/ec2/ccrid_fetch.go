@@ -11,7 +11,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 )
 
 const (
@@ -24,40 +25,7 @@ var (
 	getAccountID  = GetAccountID
 )
 
-type fetcher struct {
-	Name    string
-	Attempt func(context.Context) (interface{}, error)
-
-	mu    sync.Mutex
-	cache interface{}
-	err   error
-	ready bool
-}
-
-func (f *fetcher) fetch(ctx context.Context) (interface{}, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.ready {
-		return f.cache, f.err
-	}
-	f.cache, f.err = f.Attempt(ctx)
-	f.ready = true
-	return f.cache, f.err
-}
-
-func (f *fetcher) fetchString(ctx context.Context) (string, error) {
-	val, err := f.fetch(ctx)
-	if err != nil {
-		return "", err
-	}
-	s, ok := val.(string)
-	if !ok {
-		return "", fmt.Errorf("%s returned non-string", f.Name)
-	}
-	return s, nil
-}
-
-var regionFetcher = fetcher{
+var regionFetcher = cachedfetch.Fetcher{
 	Name: "EC2 Region",
 	Attempt: func(_ context.Context) (interface{}, error) {
 		return httpGetMetadata("placement/region")
@@ -66,7 +34,7 @@ var regionFetcher = fetcher{
 
 // GetRegion returns the AWS region as reported by EC2 IMDS.
 func GetRegion(ctx context.Context) (string, error) {
-	return regionFetcher.fetchString(ctx)
+	return regionFetcher.FetchString(ctx)
 }
 
 func httpGetMetadata(path string) (string, error) {
