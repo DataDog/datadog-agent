@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,7 +19,7 @@ import (
 )
 
 func TestCertCommunication(t *testing.T) {
-	res, err := generateCertKeyPair()
+	res, err := generateCertKeyPair([]net.IP{}, nil, nil)
 	assert.NoError(t, err)
 
 	// Load server certificate

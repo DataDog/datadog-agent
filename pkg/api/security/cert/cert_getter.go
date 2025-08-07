@@ -9,10 +9,12 @@ package cert
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"net"
 	"path/filepath"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -42,7 +44,7 @@ type certificateFactory struct {
 }
 
 func (certificateFactory) Generate() (Certificate, []byte, error) {
-	cert, err := generateCertKeyPair()
+	cert, err := generateCertKeyPair([]net.IP{}, nil, nil)
 	return cert, bytes.Join([][]byte{cert.cert, cert.key}, []byte{}), err
 }
 
@@ -105,4 +107,11 @@ func GetTLSConfigFromCert(ipccert, ipckey []byte) (*tls.Config, *tls.Config, err
 	}
 
 	return clientTLSConfig, serverTLSConfig, nil
+}
+
+// GenerateCertFromCA generates a new certificate and private key signed by the provided CA certificate and key.
+// It returns the certificate and private key in PEM format, or an error if generation fails.
+func GenerateCertFromCA(caCert *x509.Certificate, caKey *ecdsa.PrivateKey, additionalIPs []net.IP) ([]byte, []byte, error) {
+	cert, err := generateCertKeyPair(additionalIPs, caCert, caKey)
+	return cert.cert, cert.key, err
 }
