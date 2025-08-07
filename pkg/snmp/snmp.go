@@ -312,7 +312,7 @@ func (c *Config) IsIPIgnored(ip net.IP) bool {
 // BuildSNMPParams returns a valid GoSNMP struct to start making queries
 func (a *Authentication) BuildSNMPParams(deviceIP string, port uint16) (*gosnmp.GoSNMP, error) {
 	if a.Community == "" && a.User == "" {
-		return nil, errors.New("No a mechanism specified")
+		return nil, errors.New("No authentication mechanism specified")
 	}
 
 	var version gosnmp.SnmpVersion
