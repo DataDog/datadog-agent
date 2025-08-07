@@ -21,6 +21,8 @@ import (
 type procRuntimeID struct {
 	procmon.ProcessID
 	service       string
+	version       string
+	environment   string
 	runtimeID     string
 	gitInfo       *procmon.GitInfo
 	containerInfo *procmon.ContainerInfo
@@ -36,6 +38,7 @@ type Controller struct {
 
 	store                    *processStore
 	diagnostics              *diagnosticsManager
+	symdb                    *symdbManager
 	procRuntimeIDbyProgramID sync.Map // map[ir.ProgramID]procRuntimeID
 }
 
@@ -44,16 +47,19 @@ func NewController[AT ActuatorTenant, LU LogsUploader](
 	a Actuator[AT],
 	logUploader LogsUploaderFactory[LU],
 	diagUploader DiagnosticsUploader,
+	symdbUploader SymDBUploader,
 	rcScraper Scraper,
 	decoderFactory DecoderFactory,
 	irGenerator actuator.IRGenerator,
 ) *Controller {
+	store := newProcessStore()
 	c := &Controller{
 		logUploader:    logsUploaderFactoryImpl[LU]{factory: logUploader},
 		diagUploader:   diagUploader,
 		rcScraper:      rcScraper,
-		store:          newProcessStore(),
+		store:          store,
 		diagnostics:    newDiagnosticsManager(diagUploader),
+		symdb:          newSymdbManager(symdbUploader, store),
 		decoderFactory: decoderFactory,
 	}
 	c.actuator = a.NewTenant(
@@ -102,13 +108,16 @@ func (c *Controller) checkForUpdates() {
 
 		runtimeID := c.store.ensureExists(update)
 		actuatorUpdates = append(actuatorUpdates, actuator.ProcessUpdate{
-			ProcessID:         update.ProcessID,
-			Executable:        update.Executable,
-			Probes:            update.Probes,
-			ShouldUploadSymDB: update.ShouldUploadSymDB,
+			ProcessID:  update.ProcessID,
+			Executable: update.Executable,
+			Probes:     update.Probes,
 		})
 		for _, probe := range update.Probes {
 			c.diagnostics.reportReceived(runtimeID, probe)
+		}
+
+		if update.ShouldUploadSymDB {
+			c.symdb.requestUpload(runtimeID, update.Executable)
 		}
 	}
 	if len(actuatorUpdates) > 0 {

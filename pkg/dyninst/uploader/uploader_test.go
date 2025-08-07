@@ -8,6 +8,8 @@
 package uploader
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"io"
 	"mime"
@@ -104,6 +106,82 @@ func validateLogsRequest(t *testing.T, expectedMessages []json.RawMessage, req *
 	for i, msg := range expectedMessages {
 		assert.Equal(t, string(msg), string(batch[i]))
 	}
+}
+
+func validateSymDBRequest(
+	t *testing.T, expectedService, expectedRuntimeID string, req *http.Request,
+) {
+	contentType, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "multipart/form-data", contentType)
+
+	// No additional custom headers expected (consistent with other uploaders)
+
+	reader := multipart.NewReader(req.Body, params["boundary"])
+
+	// We expect 2 parts: "file" and "event"
+	var filePart, eventPart *multipart.Part
+	var fileData, eventData []byte
+
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+
+		data, err := io.ReadAll(part)
+		require.NoError(t, err)
+
+		switch part.FormName() {
+		case "file":
+			filePart = part
+			fileData = data
+		case "event":
+			eventPart = part
+			eventData = data
+		default:
+			t.Errorf("unexpected form part: %s", part.FormName())
+		}
+	}
+
+	// Validate both parts are present
+	require.NotNil(t, filePart, "missing 'file' part in multipart request")
+	require.NotNil(t, eventPart, "missing 'event' part in multipart request")
+
+	// Validate event part metadata
+	require.Equal(t, "event.json", eventPart.FileName())
+	require.Equal(t, "application/json", eventPart.Header.Get("Content-Type"))
+
+	var eventMetadata EventMetadata
+	require.NoError(t, json.Unmarshal(eventData, &eventMetadata))
+	require.Equal(t, "dd_debugger", eventMetadata.DDSource)
+	require.Equal(t, expectedService, eventMetadata.Service)
+	require.Equal(t, expectedRuntimeID, eventMetadata.RuntimeID)
+
+	// Validate file part - it should always be compressed as file.gz
+	require.Equal(t, "file.gz", filePart.FileName())
+	require.Equal(t, "application/gzip", filePart.Header.Get("Content-Type"))
+
+	// Decompress the data to validate the SymDB content
+	gzReader, err := gzip.NewReader(bytes.NewReader(fileData))
+	require.NoError(t, err)
+	defer gzReader.Close()
+
+	actualSymDBData, err := io.ReadAll(gzReader)
+	require.NoError(t, err)
+
+	// Validate the SymDB JSON structure
+	var symdbRoot SymDBRoot
+	require.NoError(t, json.Unmarshal(actualSymDBData, &symdbRoot))
+
+	// Validate service matches
+	require.Equal(t, expectedService, symdbRoot.Service)
+	require.Equal(t, "go", symdbRoot.Language)
+
+	// Validate basic structure exists
+	require.NotEmpty(t, symdbRoot.Scopes)
+	require.Equal(t, "main", symdbRoot.Scopes[0].Name)
 }
 
 func TestDiagnosticsUploader(t *testing.T) {
