@@ -83,8 +83,7 @@ func newComponent(deps dependencies) (provides, error) {
 }
 
 func newConfig(deps dependencies) (*cfg, error) {
-	config := pkgconfigsetup.GlobalConfigBuilder()
-
+	config := pkgconfigsetup.Datadog()
 	warnings, err := setupConfig(config, deps)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
