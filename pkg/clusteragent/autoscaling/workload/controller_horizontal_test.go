@@ -117,6 +117,7 @@ func (f *horizontalControllerFixture) testScalingDecision(args horizontalScaling
 		Timestamp: f.clock.Now().Add(-args.dataOffset),
 		Replicas:  args.recReplicas,
 	}
+	args.fakePai.HorizontalLastRecommendations = append(args.fakePai.HorizontalLastRecommendations, *args.fakePai.ScalingValues.Horizontal)
 
 	autoscaler, result, err := f.runSync(args.fakePai)
 	f.scaler.AssertNumberOfCalls(f.t, "get", 1)
@@ -1038,21 +1039,21 @@ func TestStabilizeRecommendations(t *testing.T) {
 	currentTime := time.Now()
 
 	tests := []struct {
-		name            string
-		actions         []datadoghqcommon.DatadogPodAutoscalerHorizontalAction
-		currentReplicas int32
-		recReplicas     int32
-		expected        int32
-		expectedReason  string
-		scaleUpWindow   int32
-		scaleDownWindow int32
-		scaleDirection  common.ScaleDirection
+		name                string
+		lastRecommendations []model.HorizontalScalingValues
+		currentReplicas     int32
+		recReplicas         int32
+		expected            int32
+		expectedReason      string
+		scaleUpWindow       int32
+		scaleDownWindow     int32
+		scaleDirection      common.ScaleDirection
 	}{
 		{
 			name: "no scale down stabilization - constant scale up",
-			actions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-				newHorizontalAction(currentTime.Add(-60*time.Second), 4, 5, 6),
-				newHorizontalAction(currentTime.Add(-30*time.Second), 6, 4, 4),
+			lastRecommendations: []model.HorizontalScalingValues{
+				{Timestamp: currentTime.Add(-60 * time.Second), Replicas: 6},
+				{Timestamp: currentTime.Add(-30 * time.Second), Replicas: 4},
 			},
 			currentReplicas: 4,
 			recReplicas:     8,
@@ -1064,58 +1065,58 @@ func TestStabilizeRecommendations(t *testing.T) {
 		},
 		{
 			name: "scale down stabilization",
-			actions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-				newHorizontalAction(currentTime.Add(-60*time.Second), 8, 6, 6),
-				newHorizontalAction(currentTime.Add(-30*time.Second), 6, 5, 5),
+			lastRecommendations: []model.HorizontalScalingValues{
+				{Timestamp: currentTime.Add(-60 * time.Second), Replicas: 6},
+				{Timestamp: currentTime.Add(-30 * time.Second), Replicas: 5},
 			},
 			currentReplicas: 5,
 			recReplicas:     4,
 			expected:        5,
-			expectedReason:  "desired replica count limited to 5 (originally 4) due to stabilization window",
+			expectedReason:  "desired replica count adjusted to 5 (originally 4) due to stabilization window",
 			scaleUpWindow:   0,
 			scaleDownWindow: 300,
 			scaleDirection:  common.ScaleDown,
 		},
 		{
 			name: "scale down stabilization, recommendation flapping",
-			actions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-				newHorizontalAction(currentTime.Add(-90*time.Second), 8, 6, 6),
-				newHorizontalAction(currentTime.Add(-60*time.Second), 6, 9, 9),
-				newHorizontalAction(currentTime.Add(-30*time.Second), 9, 7, 7),
+			lastRecommendations: []model.HorizontalScalingValues{
+				{Timestamp: currentTime.Add(-90 * time.Second), Replicas: 6},
+				{Timestamp: currentTime.Add(-60 * time.Second), Replicas: 9},
+				{Timestamp: currentTime.Add(-30 * time.Second), Replicas: 7},
 			},
 			currentReplicas: 7,
 			recReplicas:     5,
 			expected:        7,
-			expectedReason:  "desired replica count limited to 7 (originally 5) due to stabilization window",
+			expectedReason:  "desired replica count adjusted to 7 (originally 5) due to stabilization window",
 			scaleUpWindow:   0,
 			scaleDownWindow: 300,
 			scaleDirection:  common.ScaleDown,
 		},
 		{
 			name: "scale up stabilization",
-			actions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-				newHorizontalAction(currentTime.Add(-60*time.Second), 5, 6, 6),
-				newHorizontalAction(currentTime.Add(-30*time.Second), 6, 8, 8),
+			lastRecommendations: []model.HorizontalScalingValues{
+				{Timestamp: currentTime.Add(-60 * time.Second), Replicas: 6},
+				{Timestamp: currentTime.Add(-30 * time.Second), Replicas: 8},
 			},
 			currentReplicas: 8,
 			recReplicas:     12,
 			expected:        8,
-			expectedReason:  "desired replica count limited to 8 (originally 12) due to stabilization window",
+			expectedReason:  "desired replica count adjusted to 8 (originally 12) due to stabilization window",
 			scaleUpWindow:   300,
 			scaleDownWindow: 0,
 			scaleDirection:  common.ScaleUp,
 		},
 		{
 			name: "scale up stabilization, recommendation flapping",
-			actions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-				newHorizontalAction(currentTime.Add(-90*time.Second), 6, 8, 8),
-				newHorizontalAction(currentTime.Add(-60*time.Second), 8, 7, 7),
-				newHorizontalAction(currentTime.Add(-30*time.Second), 7, 9, 9),
+			lastRecommendations: []model.HorizontalScalingValues{
+				{Timestamp: currentTime.Add(-90 * time.Second), Replicas: 8},
+				{Timestamp: currentTime.Add(-60 * time.Second), Replicas: 7},
+				{Timestamp: currentTime.Add(-30 * time.Second), Replicas: 9},
 			},
 			currentReplicas: 9,
 			recReplicas:     12,
 			expected:        9,
-			expectedReason:  "desired replica count limited to 9 (originally 12) due to stabilization window",
+			expectedReason:  "desired replica count adjusted to 9 (originally 12) due to stabilization window",
 			scaleUpWindow:   300,
 			scaleDownWindow: 0,
 			scaleDirection:  common.ScaleUp,
@@ -1124,7 +1125,7 @@ func TestStabilizeRecommendations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recommendedReplicas, limitReason := stabilizeRecommendations(currentTime, tt.actions, tt.currentReplicas, tt.recReplicas, tt.scaleUpWindow, tt.scaleDownWindow, tt.scaleDirection)
+			recommendedReplicas, limitReason := stabilizeRecommendations(currentTime, tt.lastRecommendations, tt.currentReplicas, tt.recReplicas, tt.scaleUpWindow, tt.scaleDownWindow)
 			assert.Equal(t, tt.expected, recommendedReplicas)
 			assert.Equal(t, tt.expectedReason, limitReason)
 		})
@@ -1168,19 +1169,12 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 				},
 			},
 		},
-		HorizontalLastActions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-			newHorizontalAction(f.clock.Now().Add(-60*time.Second), 90, 94, 94),
-			newHorizontalAction(f.clock.Now().Add(-30*time.Second), 94, 97, 97),
+		HorizontalLastRecommendations: []model.HorizontalScalingValues{
+			{Timestamp: f.clock.Now().Add(-60 * time.Second), Replicas: 94},
+			{Timestamp: f.clock.Now().Add(-30 * time.Second), Replicas: 97},
 		},
-		ScalingValues: model.ScalingValues{
-			Horizontal: &model.HorizontalScalingValues{
-				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
-				Timestamp: f.clock.Now().Add(-defaultStepDuration),
-				Replicas:  100,
-			},
-		},
-		TargetGVK:                 expectedGVK,
-		HorizontalEventsRetention: 5 * time.Minute,
+		TargetGVK:                          expectedGVK,
+		HorizontalRecommendationsRetention: 5 * time.Minute,
 	}
 
 	// Test scale up to 100 replicas (not limited)
@@ -1207,7 +1201,7 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 		statusReplicas:   100,
 		recReplicas:      97,
 		scaleReplicas:    100,
-		scaleLimitReason: "desired replica count limited to 100 (originally 97) due to stabilization window",
+		scaleLimitReason: "desired replica count adjusted to 100 (originally 97) due to stabilization window",
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
@@ -1222,14 +1216,14 @@ func TestHorizontalControllerSyncScaleDownWithStabilization(t *testing.T) {
 		statusReplicas:   100,
 		recReplicas:      95,
 		scaleReplicas:    100,
-		scaleLimitReason: "desired replica count limited to 100 (originally 95) due to stabilization window",
+		scaleLimitReason: "desired replica count adjusted to 100 (originally 95) due to stabilization window",
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
 
 	// Test scale down to 92 replicas (not limited)
-	// Moving clock 4 minutes forward to get past stabilization window
-	f.clock.Step(4 * time.Minute)
+	// Moving clock 5 minutes forward to get past stabilization window
+	f.clock.Step(5 * time.Minute)
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
@@ -1294,9 +1288,9 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 				},
 			},
 		},
-		HorizontalLastActions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-			newHorizontalAction(f.clock.Now().Add(-60*time.Second), 120, 110, 110),
-			newHorizontalAction(f.clock.Now().Add(-30*time.Second), 110, 104, 104),
+		HorizontalLastRecommendations: []model.HorizontalScalingValues{
+			{Timestamp: f.clock.Now().Add(-60 * time.Second), Replicas: 110, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
+			{Timestamp: f.clock.Now().Add(-30 * time.Second), Replicas: 104, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
 		},
 		ScalingValues: model.ScalingValues{
 			Horizontal: &model.HorizontalScalingValues{
@@ -1333,7 +1327,7 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 		statusReplicas:   100,
 		recReplicas:      102,
 		scaleReplicas:    100,
-		scaleLimitReason: "desired replica count limited to 100 (originally 102) due to stabilization window",
+		scaleLimitReason: "desired replica count adjusted to 100 (originally 102) due to stabilization window",
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
@@ -1348,7 +1342,7 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 		statusReplicas:   100,
 		recReplicas:      105,
 		scaleReplicas:    100,
-		scaleLimitReason: "desired replica count limited to 100 (originally 105) due to stabilization window",
+		scaleLimitReason: "desired replica count adjusted to 100 (originally 105) due to stabilization window",
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
@@ -1378,6 +1372,115 @@ func TestHorizontalControllerSyncScaleUpWithStabilization(t *testing.T) {
 		statusReplicas:  102,
 		recReplicas:     100,
 		scaleReplicas:   100,
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+}
+
+// See good explanation of stabilization envelope in https://github.com/kubernetes/kubernetes/issues/96671
+func TestHorizontalControllerSyncScaleWithBothStabilizationWindows(t *testing.T) {
+	testTime := time.Now()
+	startTime := testTime.Add(-time.Hour)
+	defaultStepDuration := 30 * time.Second
+
+	f := newHorizontalControllerFixture(t, startTime)
+	autoscalerNamespace := "default"
+	autoscalerName := "test"
+
+	expectedGVK := schema.GroupVersionKind{
+		Group:   "apps",
+		Version: "v1",
+		Kind:    "Deployment",
+	}
+
+	// Both stabilization windows set to 5 minutes.
+	// We seed recommendation history with values that create an envelope
+	// around the current replica count so that we can verify that no scaling
+	// happens while within the envelope and scaling resumes once bounds expire.
+	fakePai := &model.FakePodAutoscalerInternal{
+		Namespace: autoscalerNamespace,
+		Name:      autoscalerName,
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{
+				Name:       autoscalerName,
+				Kind:       expectedGVK.Kind,
+				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
+			},
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					StabilizationWindowSeconds: 300,
+				},
+				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					StabilizationWindowSeconds: 300,
+				},
+			},
+		},
+		HorizontalLastRecommendations: []model.HorizontalScalingValues{
+			{Timestamp: f.clock.Now().Add(-4 * time.Minute), Replicas: 95, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
+			{Timestamp: f.clock.Now().Add(-2 * time.Minute), Replicas: 105, Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource},
+		},
+		TargetGVK:                          expectedGVK,
+		HorizontalRecommendationsRetention: 5 * time.Minute,
+	}
+
+	// Step 1: Desired jumps to 120 but current (100) is inside the envelope [95, 120],
+	// so no scaling should occur, and stabilization should report a limit reason.
+	f.clock.Step(defaultStepDuration)
+	result, err := f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:          fakePai,
+		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		dataOffset:       defaultStepDuration,
+		currentReplicas:  100,
+		statusReplicas:   100,
+		recReplicas:      120,
+		scaleReplicas:    100,
+		scaleLimitReason: "desired replica count adjusted to 100 (originally 120) due to stabilization window",
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+
+	// Step 2: After 5 minutes the lower bound (95) expires; the envelope allows scaling up.
+	// We should scale up to 120 now that we are outside the envelope.
+	f.clock.Step(5 * time.Minute)
+	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:         fakePai,
+		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		dataOffset:      defaultStepDuration,
+		currentReplicas: 100,
+		statusReplicas:  100,
+		recReplicas:     120,
+		scaleReplicas:   120,
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+
+	// Step 3: Desired drops to 80 but recent high recommendation (120) keeps the
+	// upper envelope bound at 120; current 120 is on the boundary, so no scale down.
+	f.clock.Step(defaultStepDuration)
+	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:          fakePai,
+		dataSource:       datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		dataOffset:       defaultStepDuration,
+		currentReplicas:  120,
+		statusReplicas:   120,
+		recReplicas:      80,
+		scaleReplicas:    120,
+		scaleLimitReason: "desired replica count adjusted to 120 (originally 80) due to stabilization window",
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+
+	// Step 4: After 5 minutes the upper bound (120) expires; now current 120 is
+	// outside the envelope and we scale down to 80.
+	f.clock.Step(5 * time.Minute)
+	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:         fakePai,
+		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		dataOffset:      defaultStepDuration,
+		currentReplicas: 120,
+		statusReplicas:  120,
+		recReplicas:     80,
+		scaleReplicas:   80,
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
