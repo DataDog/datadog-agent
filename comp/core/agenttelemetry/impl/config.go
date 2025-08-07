@@ -305,6 +305,14 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: runtime.running
+  - name: rtloader
+	metric:
+	  exclude:
+		zero_metric: true
+	  metrics:
+		- name: rtloader.inuse_bytes
+		- name: rtloader.frees
+		- name: rtloader.allocations
   - name: otlp
     metric:
       exclude:
