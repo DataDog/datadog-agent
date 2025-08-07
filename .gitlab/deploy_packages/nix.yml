@@ -170,13 +170,13 @@ deploy_packages_dogstatsd_suse_rpm-x64-7:
   variables:
     PACKAGE_ARCH: x86_64
 
-deploy_packages_suse_ddot_rpm-x64:
+deploy_packages_ddot_suse_rpm-x64:
   extends: .deploy_packages_suse_rpm-7
   needs: [ ddot_suse_rpm-x64 ]
   variables:
     PACKAGE_ARCH: x86_64
 
-deploy_packages_suse_ddot_rpm-arm64:
+deploy_packages_ddot_suse_rpm-arm64:
   extends: .deploy_packages_suse_rpm-7
   needs: [ ddot_suse_rpm-arm64 ]
   variables:
