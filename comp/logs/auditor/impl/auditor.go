@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -39,8 +38,6 @@ type RegistryEntry struct {
 	Offset             string
 	TailingMode        string
 	IngestionTimestamp int64
-	Fingerprint        uint64
-	FingerprintConfig  *logsconfig.FingerprintConfig
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -184,16 +181,6 @@ func (a *registryAuditor) GetOffset(identifier string) string {
 		return ""
 	}
 	return entry.Offset
-}
-
-// GetFingerprint returns the last committed fingerprint for a given identifier,
-// returns 0 if it doesn't existz
-func (a *registryAuditor) GetFingerprint(identifier string) uint64 {
-	entry, exists := a.readOnlyRegistryEntryCopy(identifier)
-	if !exists {
-		return 0
-	}
-	return entry.Fingerprint
 }
 
 // GetTailingMode returns the last committed offset for a given identifier,
@@ -404,22 +391,5 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 		return unmarshalRegistryV0(b)
 	default:
 		return nil, fmt.Errorf("invalid registry version number")
-	}
-}
-
-// SetOffset allows direct setting of an offset for an identifier, marking it as tailed
-func (a *registryAuditor) SetOffset(identifier string, offset string) {
-	a.registryMutex.Lock()
-	defer a.registryMutex.Unlock()
-	if entry, exists := a.registry[identifier]; exists {
-		entry.Offset = offset
-		entry.LastUpdated = time.Now().UTC()
-	} else {
-		// Create a new entry if it doesn't exist
-		a.registry[identifier] = &RegistryEntry{
-			LastUpdated: time.Now().UTC(),
-			Offset:      offset,
-			TailingMode: "", // Default to empty, can be set later
-		}
 	}
 }

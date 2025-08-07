@@ -196,13 +196,11 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConf
 
 // ValidateFingerprintConfig validates the fingerprint config and returns an error if the config is invalid
 func ValidateFingerprintConfig(config *FingerprintConfig) error {
-
-	validStrategies := map[string]bool{
-		FingerprintStrategyLineChecksum: true,
-		FingerprintStrategyByteChecksum: true,
+	if config == nil {
+		return nil
 	}
 
-	if !validStrategies[config.FingerprintStrategy] {
+	if err := config.FingerprintStrategy.Validate(); err != nil {
 		return fmt.Errorf("fingerprintStrategy must be one of: line_checksum, byte_checksum, got: %s", config.FingerprintStrategy)
 	}
 

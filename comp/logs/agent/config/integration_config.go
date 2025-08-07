@@ -7,13 +7,11 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,11 +33,27 @@ const (
 	UTF16LE string = "utf-16-le"
 	// SHIFTJIS for Shift JIS (Japanese) encoding
 	SHIFTJIS string = "shift-jis"
-
-	// Fingerprint strategy options
-	FingerprintStrategyLineChecksum string = "line_checksum"
-	FingerprintStrategyByteChecksum string = "byte_checksum"
 )
+
+type FingerprintStrategy string
+
+// Fingerprint strategy options
+const (
+	FingerprintStrategyLineChecksum FingerprintStrategy = "line_checksum"
+	FingerprintStrategyByteChecksum FingerprintStrategy = "byte_checksum"
+)
+
+func (s FingerprintStrategy) String() string {
+	return string(s)
+}
+
+func (s FingerprintStrategy) Validate() error {
+	switch s {
+	case FingerprintStrategyLineChecksum, FingerprintStrategyByteChecksum:
+		return nil
+	}
+	return fmt.Errorf("invalid fingerprint strategy: %s", s)
+}
 
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
@@ -105,7 +119,7 @@ type LogsConfig struct {
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
 	AutoMultiLineSamples      []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
-	FingerprintConfig         FingerprintConfig      `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
+	FingerprintConfig         *FingerprintConfig     `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
 	RotationDetectionStrategy string                 `mapstructure:"rotation_detection_strategy" json:"rotation_detection_strategy" yaml:"rotation_detection_strategy"`
 }
 
@@ -143,7 +157,7 @@ type FingerprintConfig struct {
 	// FingerprintStrategy defines the strategy used for fingerprinting. Options are:
 	// - "line_checksum": compute checksum based on line content (default)
 	// - "byte_checksum": compute checksum based on byte content
-	FingerprintStrategy string `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
+	FingerprintStrategy FingerprintStrategy `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
 
 	// Count is the number of lines or bytes to use for fingerprinting, depending on the strategy
 	Count int `json:"count" mapstructure:"count" yaml:"count"`
@@ -277,19 +291,19 @@ func (c *LogsConfig) Dump(multiline bool) string {
 func (c *LogsConfig) PublicJSON() ([]byte, error) {
 	// Export only fields that are explicitly documented in the public documentation
 	return json.Marshal(&struct {
-		Type              string            `json:"type,omitempty"`
-		Port              int               `json:"port,omitempty"`           // Network
-		Path              string            `json:"path,omitempty"`           // File, Journald
-		Encoding          string            `json:"encoding,omitempty"`       // File
-		ExcludePaths      []string          `json:"exclude_paths,omitempty"`  // File
-		TailingMode       string            `json:"start_position,omitempty"` // File
-		ChannelPath       string            `json:"channel_path,omitempty"`   // Windows Event
-		Service           string            `json:"service,omitempty"`
-		Source            string            `json:"source,omitempty"`
-		Tags              []string          `json:"tags,omitempty"`
-		ProcessingRules   []*ProcessingRule `json:"log_processing_rules,omitempty"`
-		AutoMultiLine     *bool             `json:"auto_multi_line_detection,omitempty"`
-		FingerprintConfig FingerprintConfig `json:"fingerprint_config,omitempty"`
+		Type              string             `json:"type,omitempty"`
+		Port              int                `json:"port,omitempty"`           // Network
+		Path              string             `json:"path,omitempty"`           // File, Journald
+		Encoding          string             `json:"encoding,omitempty"`       // File
+		ExcludePaths      []string           `json:"exclude_paths,omitempty"`  // File
+		TailingMode       string             `json:"start_position,omitempty"` // File
+		ChannelPath       string             `json:"channel_path,omitempty"`   // Windows Event
+		Service           string             `json:"service,omitempty"`
+		Source            string             `json:"source,omitempty"`
+		Tags              []string           `json:"tags,omitempty"`
+		ProcessingRules   []*ProcessingRule  `json:"log_processing_rules,omitempty"`
+		AutoMultiLine     *bool              `json:"auto_multi_line_detection,omitempty"`
+		FingerprintConfig *FingerprintConfig `json:"fingerprint_config,omitempty"`
 	}{
 		Type:              c.Type,
 		Port:              c.Port,
@@ -371,7 +385,7 @@ func (c *LogsConfig) Validate() error {
 	}
 
 	// Validate fingerprint configuration
-	err := c.validateFingerprintConfig()
+	err := ValidateFingerprintConfig(c.FingerprintConfig)
 	if err != nil {
 		return err
 	}
@@ -391,32 +405,6 @@ func (c *LogsConfig) validateTailingMode() error {
 	if ContainsWildcard(c.Path) && (mode == Beginning || mode == ForceBeginning) {
 		return fmt.Errorf("tailing from the beginning is not supported for wildcard path %v", c.Path)
 	}
-	return nil
-}
-
-func (c *LogsConfig) validateFingerprintConfig() error {
-	// Check if any fingerprint config fields are set at the log level
-	hasLogLevelConfig := c.FingerprintConfig.FingerprintStrategy != "" || c.FingerprintConfig.Count != 0 || c.FingerprintConfig.CountToSkip != 0 || c.FingerprintConfig.MaxBytes != 0
-
-	if hasLogLevelConfig {
-		// If any fields are set at log level, validate the config as-is (without defaults)
-		// This will catch incomplete configurations at the log level
-		err := ValidateFingerprintConfig(&c.FingerprintConfig)
-		if err != nil && !errors.Is(err, ErrEmptyFingerprintConfig) {
-			return fmt.Errorf("invalid fingerprint config at log level: %w", err)
-		}
-		// If validation passes, use the log-level config as-is (no fallback)
-		return nil
-	}
-
-	// If no fields are set at log level, fall back to global config
-	globalConfig, err := GlobalFingerprintConfig(pkgconfigsetup.Datadog())
-	if err != nil {
-		return fmt.Errorf("failed to load global fingerprint config: %w", err)
-	}
-	// Use global config (which already has defaults applied if needed)
-	c.FingerprintConfig = *globalConfig
-
 	return nil
 }
 

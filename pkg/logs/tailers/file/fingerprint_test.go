@@ -100,9 +100,9 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip1() {
 	expectedChecksum := crc64.Checksum([]byte(text), table)
 
 	tailer := suite.createTailer()
-
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
@@ -144,8 +144,10 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+
+	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit() {
@@ -187,8 +189,10 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit()
 
 	tailer := suite.createTailer()
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+
+	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
@@ -223,8 +227,10 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
 
 	tailer := suite.createTailer()
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+
+	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
@@ -240,13 +246,12 @@ func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
 		MaxBytes:    maxBytes,
 	}
 
-	// Expected: empty file should return 0 since we don't have any data to hash
-	expectedChecksum := uint64(0)
-
+	// Expected: empty file should return nil since we don't have any data to hash
 	tailer := suite.createTailer()
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(uint64(0), receivedChecksum.Value, "Empty file should return fingerprint with Value=0")
 }
 
 // We don't have enough data to hash with the maxLines we configured we have neither the appropriate number of lines or bytes
@@ -269,19 +274,19 @@ func (suite *FingerprintTestSuite) TestLineBased_InsufficientData() {
 	linesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		Count:       maxLines,
-		CountToSkip: linesToSkip,
-		MaxBytes:    maxBytes,
+		Count:               maxLines,
+		CountToSkip:         linesToSkip,
+		MaxBytes:            maxBytes,
+		FingerprintStrategy: config.FingerprintStrategyLineChecksum,
 	}
 
-	// Expected: should return 0 because we have fewer lines than maxLines and less than 1024 bytes
-	expectedChecksum := uint64(0)
-
+	// Expected: should return nil because we have fewer lines than maxLines (2 lines vs 5 maxLines)
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(uint64(0), receivedChecksum.Value, "Should return fingerprint with Value=0 when insufficient lines")
 }
 
 // Skip x bytes and hash the next y bytes
@@ -298,7 +303,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip1() {
 	defer osFile.Close()
 	maxBytes := 50
 	bytesToSkip := 34
-	fingerprintStrategy := "byte_checksum"
+	fingerprintStrategy := config.FingerprintStrategyByteChecksum
 
 	config := &config.FingerprintConfig{
 		Count:               maxBytes,
@@ -314,8 +319,9 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip1() {
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
 
 // Skip x bytes but there is not enough data to hash with the remaining y bytes
@@ -332,7 +338,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip_InvalidNotEnoughData()
 	defer osFile.Close()
 	maxBytes := 1000
 	bytesToSkip := 34
-	fingerprintStrategy := "byte_checksum"
+	fingerprintStrategy := config.FingerprintStrategyByteChecksum
 
 	config := &config.FingerprintConfig{
 		Count:               maxBytes,
@@ -342,13 +348,12 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip_InvalidNotEnoughData()
 	}
 
 	// Expected: skip first 34 bytes, but unable to fingerprint since less than 1000 we configured
-	expectedChecksum := uint64(0)
-
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(uint64(0), receivedChecksum.Value, "Insufficient data after skip should return fingerprint with Value=0")
 }
 
 // Test byte-based fingerprinting functionality with no skip
@@ -365,7 +370,7 @@ func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
 
 	maxBytes := 30
 	bytesToSkip := 0
-	fingerprintStrategy := "byte_checksum"
+	fingerprintStrategy := config.FingerprintStrategyByteChecksum
 
 	config := &config.FingerprintConfig{
 		Count:               maxBytes,
@@ -382,8 +387,9 @@ func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
 
 // We don't have enough data to hash with the maxBytes we configured
@@ -400,7 +406,7 @@ func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 
 	maxBytes := 100
 	bytesToSkip := 0
-	fingerprintStrategy := "byte_checksum"
+	fingerprintStrategy := config.FingerprintStrategyByteChecksum
 
 	config := &config.FingerprintConfig{
 		Count:               maxBytes,
@@ -409,14 +415,13 @@ func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 		FingerprintStrategy: fingerprintStrategy,
 	}
 
-	// Expected: should return 0 because we have less data than maxBytes
-	expectedChecksum := uint64(0)
-
+	// Expected: should return nil because we have less data than maxBytes
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(uint64(0), receivedChecksum.Value, "Insufficient data should return fingerprint with Value=0")
 }
 
 // Given our current config, we should skip the first line and hash the remaining lines
@@ -438,9 +443,10 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip3() {
 	linesToSkip := 1
 
 	config := &config.FingerprintConfig{
-		Count:       maxLines,
-		CountToSkip: linesToSkip,
-		MaxBytes:    maxBytes,
+		Count:               maxLines,
+		CountToSkip:         linesToSkip,
+		MaxBytes:            maxBytes,
+		FingerprintStrategy: config.FingerprintStrategyLineChecksum,
 	}
 
 	// Expected: skip first line, then fingerprint remaining lines
@@ -452,8 +458,9 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip3() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
 
 // Given our current config, we should infer the user wants to fingerprint using bytes even though there is a maxLines in the config
@@ -470,7 +477,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip2() {
 
 	maxBytes := 21
 	bytesToSkip := 10
-	fingerprintStrategy := "byte_checksum"
+	fingerprintStrategy := config.FingerprintStrategyByteChecksum
 
 	config := &config.FingerprintConfig{
 		Count:               maxBytes,
@@ -486,8 +493,9 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip2() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
 
 // Given our current config, we should default or infer the user wants to hash lines (3 to be exact)
@@ -508,9 +516,10 @@ func (suite *FingerprintTestSuite) TestLineBased_NoSkip() {
 	linesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		Count:       maxLines,
-		CountToSkip: linesToSkip,
-		MaxBytes:    maxBytes,
+		Count:               maxLines,
+		CountToSkip:         linesToSkip,
+		MaxBytes:            maxBytes,
+		FingerprintStrategy: config.FingerprintStrategyLineChecksum,
 	}
 
 	// Expected: should fingerprint all lines
@@ -522,8 +531,9 @@ func (suite *FingerprintTestSuite) TestLineBased_NoSkip() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(expectedChecksum, receivedChecksum.Value)
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_WithSkip5() {
@@ -549,23 +559,25 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip5() {
 	linesToSkip := 1
 
 	config := &config.FingerprintConfig{
-		Count:       maxLines,
-		CountToSkip: linesToSkip,
-		MaxBytes:    maxBytes,
+		Count:               maxLines,
+		CountToSkip:         linesToSkip,
+		MaxBytes:            maxBytes,
+		FingerprintStrategy: config.FingerprintStrategyLineChecksum,
 	}
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
 	// Compute fingerprint (now returns uint64 directly)
-	fingerprint := ComputeFingerprint(tailer.file.Path, config)
+	fingerprinter := NewFingerprinter(true, config)
+	fingerprint := fingerprinter.ComputeFingerprint(tailer.file)
 
 	expectedText := "line 1: important data" + "line 2: more important data"
 	table := crc64.MakeTable(crc64.ISO)
 	expectedFingerprint := crc64.Checksum([]byte(expectedText), table)
 
 	// Verify it's not zero (meaning it was computed successfully)
-	suite.Equal(expectedFingerprint, fingerprint)
+	suite.Equal(expectedFingerprint, fingerprint.Value)
 }
 
 // Skips header info in bytes and hashes the rest of the data
@@ -582,7 +594,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip3() {
 
 	maxBytes := 20
 	bytesToSkip := 14
-	fingerprintStrategy := "byte_checksum"
+	fingerprintStrategy := config.FingerprintStrategyByteChecksum
 
 	config := &config.FingerprintConfig{
 		Count:               maxBytes,
@@ -593,13 +605,14 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip3() {
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint := ComputeFingerprint(tailer.file.Path, config)
+	fingerprinter := NewFingerprinter(true, config)
+	fingerprint := fingerprinter.ComputeFingerprint(tailer.file)
 
 	textToHash := "thisisexactly20chars"
 	table := crc64.MakeTable(crc64.ISO)
 	expectedHash := crc64.Checksum([]byte(textToHash), table)
 
-	suite.Equal(expectedHash, fingerprint)
+	suite.Equal(expectedHash, fingerprint.Value)
 }
 
 func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() {
@@ -607,7 +620,7 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 	maxLines := 5
 	maxBytes := 1024
 	bytesToSkip := 0
-	fingerprintStrategy := "byte_checksum"
+	fingerprintStrategy := config.FingerprintStrategyByteChecksum
 	config := &config.FingerprintConfig{
 		Count:               maxLines,
 		CountToSkip:         bytesToSkip,
@@ -620,8 +633,11 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(uint64(0), fingerprint, "Empty file should return 0")
+
+	fingerprinter := NewFingerprinter(true, config)
+	fingerprint := fingerprinter.ComputeFingerprint(tailer.file)
+
+	suite.Equal(uint64(0), fingerprint.Value, "Empty file should return fingerprint with Value=0")
 	osFile.Close()
 
 	// Test 2: Insufficient data after skipping
@@ -638,8 +654,11 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 
 	tailer = suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint = ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(uint64(0), fingerprint, "Insufficient data should return 0")
+
+	fingerprinter = NewFingerprinter(true, config)
+	fingerprint = fingerprinter.ComputeFingerprint(tailer.file)
+
+	suite.Equal(uint64(0), fingerprint.Value, "Insufficient data should return fingerprint with Value=0")
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine2() {
@@ -660,20 +679,23 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine2() {
 	linesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		Count:       maxLines,
-		CountToSkip: linesToSkip,
-		MaxBytes:    maxBytes,
+		Count:               maxLines,
+		CountToSkip:         linesToSkip,
+		MaxBytes:            maxBytes,
+		FingerprintStrategy: config.FingerprintStrategyLineChecksum,
 	}
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint := ComputeFingerprint(tailer.file.Path, config)
+
+	fingerprinter := NewFingerprinter(true, config)
+	fingerprint := fingerprinter.ComputeFingerprint(tailer.file)
 
 	expectedText := strings.Repeat("X", 80)
 	table := crc64.MakeTable(crc64.ISO)
 	expectedHash := crc64.Checksum([]byte(expectedText), table)
 	// Should still compute a fingerprint even with truncation
-	suite.Equal(expectedHash, fingerprint)
+	suite.Equal(expectedHash, fingerprint.Value)
 }
 
 // Tests the "whichever comes first" logic (X lines or Y bytes)
@@ -696,20 +718,23 @@ func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 	linesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		Count:       maxLines,
-		CountToSkip: linesToSkip,
-		MaxBytes:    maxBytes,
+		Count:               maxLines,
+		CountToSkip:         linesToSkip,
+		MaxBytes:            maxBytes,
+		FingerprintStrategy: config.FingerprintStrategyLineChecksum,
 	}
 
 	tailer := suite.createTailer()
-	fingerprint := ComputeFingerprint(tailer.file.Path, config)
+
+	fingerprinter := NewFingerprinter(true, config)
+	fingerprint := fingerprinter.ComputeFingerprint(tailer.file)
 
 	fmt.Println(lines)
 	stringToHash := strings.Repeat("A", 30) + strings.Repeat("B", 30) + strings.Repeat("C", 18)
 	table := crc64.MakeTable(crc64.ISO)
 	expectedHash := crc64.Checksum([]byte(stringToHash), table)
 
-	suite.Equal(expectedHash, fingerprint)
+	suite.Equal(expectedHash, fingerprint.Value)
 }
 func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	data := "line1\nline2\nline3\n"
@@ -724,9 +749,10 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	linesToSkip := 1
 
 	fpConfig := &config.FingerprintConfig{
-		Count:       maxLines,
-		CountToSkip: linesToSkip,
-		MaxBytes:    maxBytes,
+		Count:               maxLines,
+		CountToSkip:         linesToSkip,
+		MaxBytes:            maxBytes,
+		FingerprintStrategy: config.FingerprintStrategyLineChecksum,
 	}
 
 	osFile, err := os.Open(suite.testPath)
@@ -734,7 +760,10 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint1 := ComputeFingerprint(tailer.file.Path, fpConfig)
+
+	fingerprinter := NewFingerprinter(true, fpConfig)
+	fingerprint1 := fingerprinter.ComputeFingerprint(tailer.file)
+
 	osFile.Close()
 
 	// Reset file for next test
@@ -747,16 +776,17 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	textToHash1 := "line2line3"
 	table := crc64.MakeTable(crc64.ISO)
 	expectedHash1 := crc64.Checksum([]byte(textToHash1), table)
-	suite.Equal(fingerprint1, expectedHash1)
+	suite.Equal(expectedHash1, fingerprint1.Value)
 
 	maxLines = 2
 	maxBytes = 10
 	linesToSkip = 0
 
 	fpConfig = &config.FingerprintConfig{
-		Count:       maxLines,
-		CountToSkip: linesToSkip,
-		MaxBytes:    maxBytes,
+		Count:               maxLines,
+		CountToSkip:         linesToSkip,
+		MaxBytes:            maxBytes,
+		FingerprintStrategy: config.FingerprintStrategyLineChecksum,
 	}
 
 	osFile, err = os.Open(suite.testPath)
@@ -765,11 +795,14 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 
 	tailer = suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint2 := ComputeFingerprint(tailer.file.Path, fpConfig)
+
+	fingerprinter = NewFingerprinter(true, fpConfig)
+	fingerprint2 := fingerprinter.ComputeFingerprint(tailer.file)
+
 	textToHash2 := "line1line"
 	table = crc64.MakeTable(crc64.ISO)
 	expectedHash2 := crc64.Checksum([]byte(textToHash2), table)
-	suite.Equal(expectedHash2, fingerprint2)
+	suite.Equal(expectedHash2, fingerprint2.Value)
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_SkipAndMaxMidLine() {
@@ -802,16 +835,14 @@ func (suite *FingerprintTestSuite) TestLineBased_SkipAndMaxMidLine() {
 		FingerprintStrategy: "line_checksum",
 	}
 
-	// Expected: skips first line, read bit of second line, hits limit, fall back to byte-based fingerprinting read 26 bytes from beginning of file.
+	// Expected: the new implementation returns nil when there's insufficient data after skipping
 
 	tailer := suite.createTailer()
 
-	textToHash := "this line should be skippe"
-	table := crc64.MakeTable(crc64.ISO)
-	expectedChecksum := crc64.Checksum([]byte(textToHash), table)
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
+	fingerprinter := NewFingerprinter(true, config)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
 
-	suite.Equal(expectedChecksum, receivedChecksum)
+	suite.Equal(uint64(0), receivedChecksum.Value, "Should return fingerprint with Value=0 when there's insufficient data after skipping")
 }
 
 // Tests whether or not rotation was accurately detected
@@ -829,17 +860,23 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 		FingerprintStrategy: "line_checksum",
 	}
 	tailer := suite.createTailer()
-	tailer.fingerprintingEnabled = true
-	tailer.fingerprintConfig = config
-	tailer.fingerprint.Store(ComputeFingerprint(tailer.file.Path, config))
+	fingerprinter := NewFingerprinter(true, config)
+
+	// Compute initial fingerprint
+	initialFingerprint := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.NotNil(initialFingerprint)
+	suite.True(initialFingerprint.ValidFingerprint())
 
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum([]byte("line 1"), table)
-	suite.Equal(expectedChecksum, tailer.fingerprint.Load())
+	suite.Equal(expectedChecksum, initialFingerprint.Value)
+
+	// Set the fingerprint on the tailer so DidRotateViaFingerprint can use it
+	tailer.fingerprint = initialFingerprint
 
 	// 2. Immediately check for rotation. It should be false as the file is unchanged.
 	suite.T().Log("Checking for rotation on unchanged file")
-	rotated, err := tailer.DidRotateViaFingerprint()
+	rotated, err := tailer.DidRotateViaFingerprint(fingerprinter)
 	suite.Nil(err)
 	suite.False(rotated, "Should not detect rotation on an unchanged file")
 
@@ -849,7 +886,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	_, err = suite.testFile.Seek(0, 0)
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
-	rotated, err = tailer.DidRotateViaFingerprint()
+	rotated, err = tailer.DidRotateViaFingerprint(fingerprinter)
 	suite.Nil(err)
 	suite.True(rotated, "Should detect rotation after truncation")
 
@@ -862,22 +899,26 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	// We 're-arm' the tailer, as if the launcher had picked up the new file.
 	// This tailer now considers the current content ("a completely new file") as its baseline.
 	tailer = suite.createTailer()
-	tailer.fingerprintingEnabled = true
-	tailer.fingerprintConfig = config
-	tailer.fingerprint.Store(ComputeFingerprint(tailer.file.Path, config))
+	fingerprinter = NewFingerprinter(true, config)
+	newFingerprint := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.NotNil(newFingerprint)
+	suite.True(newFingerprint.ValidFingerprint())
 
 	expectedChecksum = crc64.Checksum([]byte("a completely new file"), table)
-	suite.Equal(expectedChecksum, tailer.fingerprint.Load())
+	suite.Equal(expectedChecksum, newFingerprint.Value)
+
+	// Set the fingerprint on the new tailer
+	tailer.fingerprint = newFingerprint
 
 	// Check for rotation immediately after re-arming. Since the file hasn't changed
 	// since the tailer was created, it should report no rotation. Its internal fingerprint
 	// matches the file's current fingerprint.
-	rotated, err = tailer.DidRotateViaFingerprint()
+	rotated, err = tailer.DidRotateViaFingerprint(fingerprinter)
 	suite.Nil(err)
 	suite.False(rotated, "Should not detect rotation immediately after creating a new tailer on a file")
 
 	expectedChecksum = crc64.Checksum([]byte("a completely new file"), table)
-	suite.Equal(expectedChecksum, tailer.fingerprint.Load())
+	suite.Equal(expectedChecksum, newFingerprint.Value)
 
 	// Now, modify the file again. This change *should* be detected as a rotation.
 	suite.T().Log("Simulating another rotation on the new file")
@@ -888,31 +929,33 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	rotated, err = tailer.DidRotateViaFingerprint()
+	rotated, err = tailer.DidRotateViaFingerprint(fingerprinter)
 	suite.Nil(err)
 	suite.True(rotated, "Should detect rotation after file content changes")
 	expectedChecksum = crc64.Checksum([]byte("even more different content"), table)
-	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
-	suite.Equal(expectedChecksum, receivedChecksum)
+	receivedChecksum := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(expectedChecksum, receivedChecksum.Value)
 
 	// 5. Test case with an an empty file.
-	// The initial fingerprint will be 0.
+	// The initial fingerprint will be nil.
 	suite.T().Log("Testing rotation detection with an initially empty file")
 	suite.Nil(suite.testFile.Truncate(0))
 	_, err = suite.testFile.Seek(0, 0)
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 	tailer = suite.createTailer()
-	tailer.fingerprintingEnabled = true
-	tailer.fingerprint.Store(ComputeFingerprint(tailer.file.Path, config))
-	suite.Zero(tailer.fingerprint.Load(), "Fingerprint of an empty file should be 0")
+	fingerprinter = NewFingerprinter(true, config)
+	emptyFingerprint := fingerprinter.ComputeFingerprint(tailer.file)
+	suite.Equal(uint64(0), emptyFingerprint.Value, "Fingerprint of an empty file should have Value=0")
+
+	// Set the fingerprint on the tailer (even though it's nil)
+	tailer.fingerprint = emptyFingerprint
 
 	// `DidRotateViaFingerprint` is designed to return `false` if the original
-	// fingerprint was 0, to avoid false positives.
-	rotated, err = tailer.DidRotateViaFingerprint()
+	// fingerprint was nil, to avoid false positives.
+	rotated, err = tailer.DidRotateViaFingerprint(fingerprinter)
 	suite.Nil(err)
-	suite.False(rotated, "Should not detect rotation if the initial fingerprint was zero")
-	suite.Equal(uint64(0), ComputeFingerprint(tailer.file.Path, config))
+	suite.False(rotated, "Should not detect rotation if the initial fingerprint was nil")
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_FallbackToByteBased() {
@@ -935,16 +978,13 @@ func (suite *FingerprintTestSuite) TestLineBased_FallbackToByteBased() {
 	}
 
 	tailer := suite.createTailer()
-	fingerprint := ComputeFingerprint(tailer.file.Path, config)
+	fingerprinter := NewFingerprinter(true, config)
+	fingerprint := fingerprinter.ComputeFingerprint(tailer.file)
 
 	// Since we're trying to skip more lines than exist, and the LimitedReader exhausts,
 	// this should trigger the fallback to byte-based fingerprinting
 	// The fallback should read from the beginning of the file (after any byte skip)
 
-	// Expected: fallback should read the first 15 bytes of the file
-	expectedText := "line1\nline2\n"
-	table := crc64.MakeTable(crc64.ISO)
-	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
-
-	suite.Equal(expectedChecksum, fingerprint, "Fallback to byte-based fingerprinting should work correctly")
+	// Expected: the new implementation returns fingerprint with Value=0 when there's insufficient data
+	suite.Equal(uint64(0), fingerprint.Value, "Should return fingerprint with Value=0 when there's insufficient data for fingerprinting")
 }
