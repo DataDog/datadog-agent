@@ -56,10 +56,13 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 
 		var podNamespace string
 		var podAnnotations map[string]string
-		if pod, err := c.MetadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
+		pod, err := c.MetadataStore.GetKubernetesPodForContainer(container.ID)
+		if err == nil {
 			podNamespace = pod.Namespace
 			podAnnotations = pod.Annotations
 		}
+
+		log.Errorf("dbg: container_name=%s image_name=%s pod_namespace=%s pod_annotations=%v", container.Name, container.Image.Name, podNamespace, podAnnotations)
 
 		if (value == "yes" || value == "true") ||
 			c.containerFilter.IsExcluded(podAnnotations, container.Name, container.Image.Name, podNamespace) {
