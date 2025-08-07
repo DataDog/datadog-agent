@@ -22,11 +22,6 @@ if TYPE_CHECKING:
 
 CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
 
-DOCKER_BASE_IMAGES = {
-    "x64": "registry.ddbuild.io/ci/datadog-agent-buildimages/linux",
-    "arm64": "registry.ddbuild.io/ci/datadog-agent-buildimages/linux",
-}
-
 APT_URIS = {"amd64": "http://archive.ubuntu.com/ubuntu/", "arm64": "http://ports.ubuntu.com/ubuntu-ports/"}
 
 
@@ -62,7 +57,7 @@ class CompilerImage:
     def image(self):
         suffix, version = get_build_image_suffix_and_version()
 
-        return f"{DOCKER_BASE_IMAGES[self.arch.ci_arch]}{suffix}:{version}"
+        return f"registry.ddbuild.io/ci/datadog-agent-buildimages/linux{suffix}:{version}"
 
     def _check_container_exists(self, allow_stopped=False):
         if self.ctx.config.run["dry"]:

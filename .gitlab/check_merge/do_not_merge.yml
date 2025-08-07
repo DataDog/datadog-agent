@@ -16,7 +16,6 @@ do-not-merge:
          [ -n "$CI_IMAGE_DOCKER_ARM64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_GITLAB_AGENT_DEPLOY_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_SUFFIX" ] ||
-         [ -n "$CI_IMAGE_LINUX_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_RPM_X64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_RPM_ARM64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_RPM_ARMHF_SUFFIX" ] ||
