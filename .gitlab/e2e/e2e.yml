@@ -704,6 +704,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallScript$"
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
