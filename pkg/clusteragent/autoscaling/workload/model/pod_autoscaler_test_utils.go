@@ -25,53 +25,57 @@ import (
 
 // FakePodAutoscalerInternal is a fake PodAutoscalerInternal object.
 type FakePodAutoscalerInternal struct {
-	Namespace                      string
-	Name                           string
-	Generation                     int64
-	Spec                           *datadoghq.DatadogPodAutoscalerSpec
-	SettingsTimestamp              time.Time
-	CreationTimestamp              time.Time
-	ScalingValues                  ScalingValues
-	MainScalingValues              ScalingValues
-	FallbackScalingValues          ScalingValues
-	HorizontalLastActions          []datadoghqcommon.DatadogPodAutoscalerHorizontalAction
-	HorizontalLastLimitReason      string
-	HorizontalLastActionError      error
-	HorizontalEventsRetention      time.Duration
-	VerticalLastAction             *datadoghqcommon.DatadogPodAutoscalerVerticalAction
-	VerticalLastActionError        error
-	CurrentReplicas                *int32
-	ScaledReplicas                 *int32
-	Error                          error
-	Deleted                        bool
-	TargetGVK                      schema.GroupVersionKind
-	CustomRecommenderConfiguration *RecommenderConfiguration
+	Namespace                          string
+	Name                               string
+	Generation                         int64
+	Spec                               *datadoghq.DatadogPodAutoscalerSpec
+	SettingsTimestamp                  time.Time
+	CreationTimestamp                  time.Time
+	ScalingValues                      ScalingValues
+	MainScalingValues                  ScalingValues
+	FallbackScalingValues              ScalingValues
+	HorizontalLastActions              []datadoghqcommon.DatadogPodAutoscalerHorizontalAction
+	HorizontalLastRecommendations      []HorizontalScalingValues
+	HorizontalLastLimitReason          string
+	HorizontalLastActionError          error
+	HorizontalEventsRetention          time.Duration
+	HorizontalRecommendationsRetention time.Duration
+	VerticalLastAction                 *datadoghqcommon.DatadogPodAutoscalerVerticalAction
+	VerticalLastActionError            error
+	CurrentReplicas                    *int32
+	ScaledReplicas                     *int32
+	Error                              error
+	Deleted                            bool
+	TargetGVK                          schema.GroupVersionKind
+	CustomRecommenderConfiguration     *RecommenderConfiguration
 }
 
 // Build creates a PodAutoscalerInternal object from the FakePodAutoscalerInternal.
 func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 	return PodAutoscalerInternal{
-		namespace:                      f.Namespace,
-		name:                           f.Name,
-		generation:                     f.Generation,
-		spec:                           f.Spec,
-		settingsTimestamp:              f.SettingsTimestamp,
-		creationTimestamp:              f.CreationTimestamp,
-		scalingValues:                  f.ScalingValues,
-		mainScalingValues:              f.MainScalingValues,
-		fallbackScalingValues:          f.FallbackScalingValues,
-		horizontalLastActions:          f.HorizontalLastActions,
-		horizontalLastLimitReason:      f.HorizontalLastLimitReason,
-		horizontalLastActionError:      f.HorizontalLastActionError,
-		horizontalEventsRetention:      f.HorizontalEventsRetention,
-		verticalLastAction:             f.VerticalLastAction,
-		verticalLastActionError:        f.VerticalLastActionError,
-		currentReplicas:                f.CurrentReplicas,
-		scaledReplicas:                 f.ScaledReplicas,
-		error:                          f.Error,
-		deleted:                        f.Deleted,
-		targetGVK:                      f.TargetGVK,
-		customRecommenderConfiguration: f.CustomRecommenderConfiguration,
+		namespace:                          f.Namespace,
+		name:                               f.Name,
+		generation:                         f.Generation,
+		spec:                               f.Spec,
+		settingsTimestamp:                  f.SettingsTimestamp,
+		creationTimestamp:                  f.CreationTimestamp,
+		scalingValues:                      f.ScalingValues,
+		mainScalingValues:                  f.MainScalingValues,
+		fallbackScalingValues:              f.FallbackScalingValues,
+		horizontalLastActions:              f.HorizontalLastActions,
+		horizontalLastRecommendations:      f.HorizontalLastRecommendations,
+		horizontalLastLimitReason:          f.HorizontalLastLimitReason,
+		horizontalLastActionError:          f.HorizontalLastActionError,
+		horizontalEventsRetention:          f.HorizontalEventsRetention,
+		horizontalRecommendationsRetention: f.HorizontalRecommendationsRetention,
+		verticalLastAction:                 f.VerticalLastAction,
+		verticalLastActionError:            f.VerticalLastActionError,
+		currentReplicas:                    f.CurrentReplicas,
+		scaledReplicas:                     f.ScaledReplicas,
+		error:                              f.Error,
+		deleted:                            f.Deleted,
+		targetGVK:                          f.TargetGVK,
+		customRecommenderConfiguration:     f.CustomRecommenderConfiguration,
 	}
 }
 
@@ -100,8 +104,8 @@ func ComparePodAutoscalers(expected any, actual any) string {
 			return t == reflect.TypeOf(PodAutoscalerInternal{})
 		}),
 		cmp.FilterValues(
-			func(x, y interface{}) bool {
-				for _, v := range []interface{}{x, y} {
+			func(x, y any) bool {
+				for _, v := range []any{x, y} {
 					switch v.(type) {
 					case FakePodAutoscalerInternal:
 					case PodAutoscalerInternal:
@@ -121,8 +125,8 @@ func ComparePodAutoscalers(expected any, actual any) string {
 			}),
 		),
 		cmp.FilterValues(
-			func(x, y interface{}) bool {
-				for _, v := range []interface{}{x, y} {
+			func(x, y any) bool {
+				for _, v := range []any{x, y} {
 					switch v.(type) {
 					case []FakePodAutoscalerInternal:
 					case []PodAutoscalerInternal:
