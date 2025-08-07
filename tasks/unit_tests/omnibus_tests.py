@@ -1,6 +1,8 @@
+import functools
 import os
 import re
 import unittest
+from contextlib import nullcontext
 from unittest import mock
 
 from invoke.context import MockContext
@@ -30,7 +32,6 @@ def _run_calls_to_string(mock_calls):
     return '\n'.join(commands_run)
 
 
-@mock.patch('sys.platform', 'linux')
 @mock.patch.dict(
     'os.environ',
     {
@@ -40,15 +41,33 @@ def _run_calls_to_string(mock_calls):
         'CI_PROJECT_DIR': '',
         'CI_PIPELINE_ID': '',
         'S3_OMNIBUS_GIT_CACHE_BUCKET': 'omnibus-cache',
-        'API_KEY_ORG2': 'api-key',
-        'AGENT_API_KEY_ORG2': 'agent-api-key',
-        'POD_NAMESPACE': os.environ.get('POD_NAMESPACE', 'gitlab-runner'),
     },
     clear=True,
 )
 class TestOmnibusCache(unittest.TestCase):
     def setUp(self):
         self.mock_ctx = MockContextRaising(run={})
+
+    @staticmethod
+    def _for_each_platform(calls_get_dd_api_key: bool = False):
+        def decorator(test_func):
+            @functools.wraps(test_func)
+            def wrapper(self, *args, **kwargs):
+                for platform, get_dd_api_key_env in {
+                    "darwin": {"AGENT_API_KEY_ORG2": "agent-api-key"},
+                    "linux": {"AGENT_API_KEY_ORG2": "agent-api-key", "POD_NAMESPACE": "pod-ns"},
+                    "win32": {"API_KEY_ORG2": "api-key"},
+                }.items():
+                    with (
+                        self.subTest(platform=platform),
+                        mock.patch("sys.platform", platform),
+                        mock.patch.dict(os.environ, get_dd_api_key_env) if calls_get_dd_api_key else nullcontext(),
+                    ):
+                        test_func(self, *args, **kwargs)
+
+            return wrapper
+
+        return decorator
 
     def _set_up_default_command_mocks(self):
         # This should allow to postpone the setting up of these broadly catching patterns
@@ -57,10 +76,10 @@ class TestOmnibusCache(unittest.TestCase):
             (r'bundle .*', Result()),
             (r'git describe --tags .*', Result('6.0.0-beta.0-1-g4f19118')),
             (r'git .*', Result()),
-            (r'aws s3 .*', Result()),
+            (r'aws(\.exe)? s3 .*', Result()),
             (r'go mod .*', Result()),
             (r'grep .*', Result()),
-            (r'aws ssm .*', Result()),
+            (r'aws(\.exe)? ssm .*', Result()),
             (r'vault kv get .*', Result()),
         ]
         for pattern, result in patterns:
@@ -76,6 +95,7 @@ class TestOmnibusCache(unittest.TestCase):
             f'Failed to match pattern {line_patterns}.',
         )
 
+    @_for_each_platform()
     def test_successful_cache_hit(self):
         self.mock_ctx.set_result_for(
             'run',
@@ -109,10 +129,11 @@ class TestOmnibusCache(unittest.TestCase):
         for line in lines:
             self.assertIsNone(re.search(line, commands))
 
+    @_for_each_platform(calls_get_dd_api_key=True)
     def test_cache_miss(self):
         self.mock_ctx.set_result_for(
             'run',
-            re.compile(r'aws s3 cp (\S* )?s3://omnibus-cache/\S* /\S+/omnibus-git-cache-bundle'),
+            re.compile(r'aws(\.exe)? s3 cp (\S* )?s3://omnibus-cache/\S* /\S+/omnibus-git-cache-bundle'),
             Result(exited=1),
         )
         self.mock_ctx.set_result_for(
@@ -149,6 +170,7 @@ class TestOmnibusCache(unittest.TestCase):
             ],
         )
 
+    @_for_each_platform()
     def test_cache_hit_with_corruption(self):
         # Case where we get a bundle from S3 but git finds it to be corrupted
 
@@ -165,17 +187,20 @@ class TestOmnibusCache(unittest.TestCase):
         # We're satisfied if we ran the build despite that failure
         self.assertRunLines([r'bundle exec omnibus build agent'])
 
+    @_for_each_platform()
     def test_cache_is_disabled_by_unsetting_env_var(self):
-        del os.environ['OMNIBUS_GIT_CACHE_DIR']
         self._set_up_default_command_mocks()
 
-        omnibus.build(self.mock_ctx)
+        with mock.patch.dict("os.environ") as env:
+            del env["OMNIBUS_GIT_CACHE_DIR"]
+            omnibus.build(self.mock_ctx)
 
         # We ran the build but no command related to the cache
         self.assertRunLines(['bundle exec omnibus build agent'])
         commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
         self.assertNotIn('omnibus-git-cache', commands)
 
+    @_for_each_platform(calls_get_dd_api_key=True)
     def test_mutated_cache(self):
         self.mock_ctx.set_result_for(
             'run',

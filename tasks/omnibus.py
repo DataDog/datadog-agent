@@ -36,14 +36,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
         if host_distribution:
             overrides_cmd += f" --override=host_distribution:{host_distribution}"
 
-        omnibus = "bundle exec omnibus"
-        if sys.platform == 'win32':
-            omnibus = "bundle exec omnibus.bat"
-        elif sys.platform == 'darwin':
-            # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
-            # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
-            omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
-
+        omnibus = f"bundle exec {"omnibus.bat" if sys.platform == "win32" else "omnibus"}"
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
