@@ -322,7 +322,8 @@ func (agg *FlowAggregator) flush() int {
 	}
 	if flowAccStats.getAggregationHashCount > 0 {
 		agg.sender.Count("datadog.netflow.aggregator.perf_get_aggregation_hash_count", float64(flowAccStats.getAggregationHashCount), "", nil)
-		agg.sender.Count("datadog.netflow.aggregator.perf_get_aggregation_hash_duration", float64(flowAccStats.getAggregationHashDurationSec), "", nil)
+		agg.sender.Count("datadog.netflow.aggregator.perf_get_aggregation_hash_duration_nanonow", float64(flowAccStats.getAggregationHashDurationSecNanoNow), "", nil)
+		agg.sender.Count("datadog.netflow.aggregator.perf_get_aggregation_hash_duration_unixnano", float64(flowAccStats.getAggregationHashDurationSecUnixNano), "", nil)
 	}
 	if flowAccStats.portRollupAddCount > 0 {
 		agg.sender.Count("datadog.netflow.aggregator.perf_port_rollup_add_count", float64(flowAccStats.portRollupAddCount), "", nil)
