@@ -50,10 +50,17 @@ func (a *NullAuditor) GetFingerprintConfig(_ string) *logsconfig.FingerprintConf
 
 // KeepAlive is a no-op
 func (a *NullAuditor) KeepAlive(_ string) {
+	// No-op
 }
 
-// SetTailed is a no-op
+// SetTailed does nothing in the null auditor
 func (a *NullAuditor) SetTailed(_ string, _ bool) {
+	// No-op
+}
+
+// SetOffset does nothing in the null auditor
+func (a *NullAuditor) SetOffset(_ string, _ string) {
+	// No-op
 }
 
 // Start starts the NullAuditor main loop

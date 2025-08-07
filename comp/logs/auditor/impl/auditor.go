@@ -406,3 +406,20 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 		return nil, fmt.Errorf("invalid registry version number")
 	}
 }
+
+// SetOffset allows direct setting of an offset for an identifier, marking it as tailed
+func (a *registryAuditor) SetOffset(identifier string, offset string) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if entry, exists := a.registry[identifier]; exists {
+		entry.Offset = offset
+		entry.LastUpdated = time.Now().UTC()
+	} else {
+		// Create a new entry if it doesn't exist
+		a.registry[identifier] = &RegistryEntry{
+			LastUpdated: time.Now().UTC(),
+			Offset:      offset,
+			TailingMode: "", // Default to empty, can be set later
+		}
+	}
+}

@@ -38,8 +38,8 @@ func run(binary string, pc uint64) error {
 		return err
 	}
 	symtab, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,

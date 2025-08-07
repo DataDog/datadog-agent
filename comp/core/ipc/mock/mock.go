@@ -20,6 +20,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 
 	"github.com/stretchr/testify/require"
 
@@ -84,6 +85,17 @@ func New(t testing.TB) *IPCMock {
 		tlsClientConfig, tlsServerConfig, err = cert.GetTLSConfigFromCert(testIPCCert, testIPCKey)
 		require.NoError(t, err)
 	})
+
+	// Enable cross-node TLS verification if configured
+	var crossNodeClientTLSConfig *tls.Config
+	if config.GetBool("cluster_agent.enable_tls_verification") {
+		crossNodeClientTLSConfig = tlsClientConfig
+	} else {
+		crossNodeClientTLSConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+	pkgapiutil.SetCrossNodeClientTLSConfig(crossNodeClientTLSConfig)
 
 	return &IPCMock{
 		t:      t,

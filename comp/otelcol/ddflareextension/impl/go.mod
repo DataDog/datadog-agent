@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl
 
-go 1.24.0
+go 1.24.5
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.0.0-00010101000000-000000000000
@@ -159,10 +159,11 @@ require (
 
 require (
 	cloud.google.com/go/compute v1.37.0 // indirect
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/fx v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.0.0-20250129172314-517df3f51a84 // indirect
@@ -223,7 +224,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0 // indirect
@@ -556,7 +556,11 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../../comp/core/log/impl
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ../../../../comp/core/log/impl-trace
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../../comp/core/log/mock
-	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../../../comp/core/secrets/def
+	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../../comp/core/secrets/fx
+	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../../comp/core/secrets/impl
+	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ../../../../comp/core/secrets/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ../../../../comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../../comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ../../../../comp/core/status/statusimpl
 	github.com/DataDog/datadog-agent/comp/core/tagger/def => ../../../../comp/core/tagger/def
