@@ -299,14 +299,12 @@ class StaticQualityGate:
     artifact_on_disk_size: int
     artifact_on_wire_size: int
     artifact_path: str  # Path to the artifact to be used for the gate
-    ctx: Context
 
-    def __init__(self, gate_name: str, gate_max_size_values: dict, ctx: Context):
+    def __init__(self, gate_name: str, gate_max_size_values: dict):
         self.gate_name = gate_name
         self.max_on_wire_size = read_byte_input(gate_max_size_values["max_on_wire_size"])
         self.max_on_disk_size = read_byte_input(gate_max_size_values["max_on_disk_size"])
         self._set_arch()
-        self.ctx = ctx
 
     def _set_arch(self):
         if "amd64" in self.gate_name:
@@ -338,7 +336,7 @@ class StaticQualityGate:
         )
 
     @abstractmethod
-    def _measure_on_disk_and_on_wire_size(self):
+    def _measure_on_disk_and_on_wire_size(self, ctx: Context) -> None:
         """
         Measure the size of the artifact on disk and on wire
         """
@@ -359,7 +357,7 @@ class StaticQualityGate:
             error_message = color_message(f"{self.gate_name} failed!\n" + error_message, "red")
             raise StaticQualityGateFailed(error_message)
 
-    def execute_gate(self):
+    def execute_gate(self, ctx: Context):
         """
         Execute the quality gate.
         """
@@ -372,7 +370,7 @@ class StaticQualityGate:
         # and then can handle exceptions centrally in quality_gates.py
         # TODO: quality_gates.py should be refactored. Most probably, the task should be closer
         # to this lib.
-        self._measure_on_disk_and_on_wire_size()
+        self._measure_on_disk_and_on_wire_size(ctx)
         QualityGateOutputFormatter.print_enhanced_gate_execution(self.gate_name, self.artifact_path)
         self.check_artifact_size()
         QualityGateOutputFormatter.print_enhanced_gate_success(self.gate_name)
@@ -397,8 +395,8 @@ class StaticQualityGatePackage(StaticQualityGate):
                 return
         raise ValueError(f"Unknown os for gate: {self.gate_name}")
 
-    def __init__(self, gate_name: str, gate_max_size_values: dict, ctx: Context):
-        super().__init__(gate_name, gate_max_size_values, ctx)
+    def __init__(self, gate_name: str, gate_max_size_values: dict):
+        super().__init__(gate_name, gate_max_size_values)
         self._set_os()
 
     def _find_package_path(self, extension: str = None) -> None:
@@ -451,7 +449,7 @@ class StaticQualityGatePackage(StaticQualityGate):
             raise ValueError(f"Couldn't find any {extension.upper()} file matching {glob_pattern}")
         return package_paths[0]
 
-    def _calculate_package_size(self) -> None:
+    def _calculate_package_size(self, ctx: Context) -> None:
         """
         Calculate the size of the package on wire and on disk
         TODO: Think of testing this function, unit tests are not possible because real
@@ -460,27 +458,25 @@ class StaticQualityGatePackage(StaticQualityGate):
         if "msi" in self.gate_name:
             # MSI special case: extract ZIP file for disk size, measure MSI file for wire size
             with tempfile.TemporaryDirectory() as extract_dir:
-                extract_package(ctx=self.ctx, package_os=self.os, package_path=self.zip_path, extract_dir=extract_dir)
+                extract_package(ctx=ctx, package_os=self.os, package_path=self.zip_path, extract_dir=extract_dir)
                 package_on_wire_size = file_size(path=self.msi_path)
                 package_on_disk_size = directory_size(path=extract_dir)
         else:
             # Standard package handling
             with tempfile.TemporaryDirectory() as extract_dir:
-                extract_package(
-                    ctx=self.ctx, package_os=self.os, package_path=self.artifact_path, extract_dir=extract_dir
-                )
+                extract_package(ctx=ctx, package_os=self.os, package_path=self.artifact_path, extract_dir=extract_dir)
                 package_on_wire_size = file_size(path=self.artifact_path)
                 package_on_disk_size = directory_size(path=extract_dir)
 
         self.artifact_on_wire_size = package_on_wire_size
         self.artifact_on_disk_size = package_on_disk_size
 
-    def _measure_on_disk_and_on_wire_size(self):
+    def _measure_on_disk_and_on_wire_size(self, ctx: Context) -> None:
         """
         Measure the size of the package on disk and on wire
         """
         self._find_package_path()
-        self._calculate_package_size()
+        self._calculate_package_size(ctx)
 
 
 class StaticQualityGateDocker(StaticQualityGate):
@@ -491,8 +487,8 @@ class StaticQualityGateDocker(StaticQualityGate):
     def _set_os(self):
         self.os = "docker"
 
-    def __init__(self, gate_name: str, gate_max_size_values: dict, ctx: Context):
-        super().__init__(gate_name, gate_max_size_values, ctx)
+    def __init__(self, gate_name: str, gate_max_size_values: dict):
+        super().__init__(gate_name, gate_max_size_values)
         self._set_os()
 
     def _get_image_url(self) -> str:
@@ -541,7 +537,7 @@ class StaticQualityGateDocker(StaticQualityGate):
         )
         return self.artifact_path
 
-    def _calculate_image_on_disk_size(self) -> None:
+    def _calculate_image_on_disk_size(self, ctx: Context) -> None:
         """
         Calculate the size of the docker image on disk.
         To do so we use crane to pull the image locally
@@ -551,15 +547,13 @@ class StaticQualityGateDocker(StaticQualityGate):
         images are used.
         """
         # Pull image locally to get on disk size
-        crane_output = self.ctx.run(f"crane pull {self.artifact_path} output.tar", warn=True)
+        crane_output = ctx.run(f"crane pull {self.artifact_path} output.tar", warn=True)
         if crane_output.exited != 0:
             raise InfraError(f"Crane pull failed to retrieve {self.artifact_path}. Retrying... (infra flake)")
         # The downloaded image contains some metadata files and another tar.gz file. We are computing the sum of
         # these metadata files and the uncompressed size of the tar.gz inside of output.tar.
-        self.ctx.run("tar -xf output.tar")
-        image_content = self.ctx.run(
-            "tar -tvf output.tar | awk -F' ' '{print $3; print $6}'", hide=True
-        ).stdout.splitlines()
+        ctx.run("tar -xf output.tar")
+        image_content = ctx.run("tar -tvf output.tar | awk -F' ' '{print $3; print $6}'", hide=True).stdout.splitlines()
         on_disk_size = 0
         image_tar_gz = []
         for k, line in enumerate(image_content):
@@ -570,21 +564,21 @@ class StaticQualityGateDocker(StaticQualityGate):
                     on_disk_size += int(line)
         if image_tar_gz:
             for image in image_tar_gz:
-                on_disk_size += int(self.ctx.run(f"tar -xf {image} --to-stdout | wc -c", hide=True).stdout)
+                on_disk_size += int(ctx.run(f"tar -xf {image} --to-stdout | wc -c", hide=True).stdout)
         else:
             print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
 
         print(f"Current image on disk size for {self.artifact_path}: {on_disk_size / 1024 / 1024} MB")
         self.artifact_on_disk_size = on_disk_size
 
-    def _calculate_image_on_wire_size(self) -> None:
+    def _calculate_image_on_wire_size(self, ctx: Context) -> None:
         """
         Calculate the size of the docker image on wire.
         To do so we use docker manifest inspect to get the size of the image on wire.
         return: the size of the docker image on wire
         TODO: Add unit test with mocked manifest output
         """
-        manifest_output = self.ctx.run(
+        manifest_output = ctx.run(
             "DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect -v "
             + self.artifact_path
             + " | grep size | awk -F ':' '{sum+=$NF} END {printf(\"%d\",sum)}'",
@@ -595,13 +589,13 @@ class StaticQualityGateDocker(StaticQualityGate):
         print(f"Current image on wire size for {self.artifact_path}: {on_wire_size / 1024 / 1024} MB")
         self.artifact_on_wire_size = on_wire_size
 
-    def _measure_on_disk_and_on_wire_size(self):
+    def _measure_on_disk_and_on_wire_size(self, ctx: Context) -> None:
         """
         Measure the size of the docker image on disk and on wire
         """
         self._get_image_url()
-        self._calculate_image_on_disk_size()
-        self._calculate_image_on_wire_size()
+        self._calculate_image_on_disk_size(ctx)
+        self._calculate_image_on_wire_size(ctx)
 
 
 def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQualityGate]:
@@ -616,9 +610,9 @@ def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQuality
     gates: list[StaticQualityGate] = []
     for gate_name in config:
         if "docker" in gate_name:
-            gates.append(StaticQualityGateDocker(gate_name, config[gate_name], ctx))
+            gates.append(StaticQualityGateDocker(gate_name, config[gate_name]))
         elif any(package_type in gate_name for package_type in ["deb", "rpm", "heroku", "suse", "msi"]):
-            gates.append(StaticQualityGatePackage(gate_name, config[gate_name], ctx))
+            gates.append(StaticQualityGatePackage(gate_name, config[gate_name]))
         else:
             raise UnsupportedOperation(f"Unknown gate type: {gate_name}")
 

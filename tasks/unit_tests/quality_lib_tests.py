@@ -124,6 +124,7 @@ class TestQualityLib(unittest.TestCase):
     "tasks.static_quality_gates.lib.gates_lib.StaticQualityGateDocker._calculate_image_on_disk_size",
     new=MagicMock(return_value=(100, 350)),
 )
+@patch("tasks.static_quality_gates.lib.gates_lib.Context", new=MagicMock())
 class TestGatesLib(unittest.TestCase):
     """Test quality gate classes and functionality from gates_lib.py"""
 
@@ -149,85 +150,76 @@ class TestGatesLib(unittest.TestCase):
     def test_set_arch(self):
         """Test architecture setting for quality gates"""
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate.arch, "amd64")
 
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_deb_arm64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+            "static_quality_gate_agent_deb_arm64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate.arch, "arm64")
 
         gate = StaticQualityGatePackage(
-            "static_quality_gate_iot_agent_rpm_armhf", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+            "static_quality_gate_iot_agent_rpm_armhf", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate.arch, "armv7hl")
 
         with self.assertRaises(ValueError):
             gate = StaticQualityGatePackage(
-                "static_quality_gate_agent_deb_unknown", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+                "static_quality_gate_agent_deb_unknown", {"max_on_wire_size": 100, "max_on_disk_size": 100}
             )
 
     def test_set_os(self):
         """Test OS setting for quality gates"""
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate.os, "debian")
         self.assertEqual(gate.arch, "amd64")
 
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_rpm_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+            "static_quality_gate_agent_rpm_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate.os, "centos")
         self.assertEqual(gate.arch, "x86_64")
 
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_suse_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+            "static_quality_gate_agent_suse_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate.os, "suse")
 
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_heroku_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+            "static_quality_gate_agent_heroku_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate.os, "debian")
         self.assertEqual(gate.arch, "amd64")
 
         gate = StaticQualityGateDocker(
-            "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
-        )
-        self.assertEqual(gate.os, "docker")
-
-        gate = StaticQualityGateDocker(
-            "static_quality_gate_docker_agent_windows_2022_servercore_amd64",
-            {"max_on_wire_size": 100, "max_on_disk_size": 100},
-            MagicMock(),
+            "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate.os, "docker")
 
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_msi", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+            "static_quality_gate_agent_msi", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate.os, "windows")
         self.assertEqual(gate.arch, "x86_64")
 
         with self.assertRaises(ValueError):
             gate = StaticQualityGatePackage(
-                "static_quality_gate_agent_unknown_unknown",
-                {"max_on_wire_size": 100, "max_on_disk_size": 100},
-                MagicMock(),
+                "static_quality_gate_agent_unknown_unknown", {"max_on_wire_size": 100, "max_on_disk_size": 100}
             )
 
     def test_max_sizes(self):
         """Test maximum size setting for quality gates"""
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 350}, MagicMock()
+            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 350}
         )
         self.assertEqual(gate.max_on_wire_size, 100)
         self.assertEqual(gate.max_on_disk_size, 350)
 
         gate = StaticQualityGateDocker(
-            "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 125, "max_on_disk_size": 250}, MagicMock()
+            "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 125, "max_on_disk_size": 250}
         )
         self.assertEqual(gate.max_on_wire_size, 125)
         self.assertEqual(gate.max_on_disk_size, 250)
@@ -247,9 +239,7 @@ class TestGatesLib(unittest.TestCase):
                 mock_glob = MagicMock(return_value=["/opt/datadog-agent/some_package.ext"])
 
                 with patch("glob.glob", mock_glob):
-                    gate = StaticQualityGatePackage(
-                        gate_name, {"max_on_wire_size": 100, "max_on_disk_size": 350}, MagicMock()
-                    )
+                    gate = StaticQualityGatePackage(gate_name, {"max_on_wire_size": 100, "max_on_disk_size": 350})
                     gate._find_package_path()
 
                 actual_pattern = mock_glob.call_args[0][0]
@@ -266,7 +256,7 @@ class TestGatesLib(unittest.TestCase):
 
         with patch("glob.glob", mock_glob):
             gate = StaticQualityGatePackage(
-                "static_quality_gate_agent_msi", {"max_on_wire_size": 100, "max_on_disk_size": 350}, MagicMock()
+                "static_quality_gate_agent_msi", {"max_on_wire_size": 100, "max_on_disk_size": 350}
             )
             gate._find_package_path()
 
@@ -281,7 +271,7 @@ class TestGatesLib(unittest.TestCase):
         """Test artifact size checking logic"""
         # Test case where quality gate passes - sizes are within limits
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 350}, MagicMock()
+            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 350}
         )
         gate.artifact_on_wire_size = 100
         gate.artifact_on_disk_size = 350
@@ -289,7 +279,7 @@ class TestGatesLib(unittest.TestCase):
 
         # Test case where quality gate fails - sizes exceed maximum allowed
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 350}, MagicMock()
+            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 350}
         )
         gate.artifact_on_wire_size = 150  # Exceeds max_on_wire_size of 100
         gate.artifact_on_disk_size = 400  # Exceeds max_on_disk_size of 350
@@ -314,16 +304,14 @@ class TestGatesLib(unittest.TestCase):
         """Test Docker image URL generation"""
         # Test basic agent image
         gate = StaticQualityGateDocker(
-            "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+            "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-amd64")
 
         # Test nightly builds
         with patch.dict('os.environ', {"BUCKET_BRANCH": "nightly"}):
             gate = StaticQualityGateDocker(
-                "static_quality_gate_docker_agent_amd64",
-                {"max_on_wire_size": 100, "max_on_disk_size": 100},
-                MagicMock(),
+                "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
             )
             self.assertEqual(
                 gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent-nightly:v71580015-668844-7-amd64"
@@ -331,7 +319,7 @@ class TestGatesLib(unittest.TestCase):
 
         # Test cluster-agent flavor
         gate = StaticQualityGateDocker(
-            "static_quality_gate_docker_cluster_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}, MagicMock()
+            "static_quality_gate_docker_cluster_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(
             gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/cluster-agent:v71580015-668844-amd64"
@@ -339,17 +327,13 @@ class TestGatesLib(unittest.TestCase):
 
         # Test dogstatsd flavor
         gate = StaticQualityGateDocker(
-            "static_quality_gate_docker_dogstatsd_arm64",
-            {"max_on_wire_size": 100, "max_on_disk_size": 100},
-            MagicMock(),
+            "static_quality_gate_docker_dogstatsd_arm64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/dogstatsd:v71580015-668844-arm64")
 
         # Test cws_instrumentation flavor
         gate = StaticQualityGateDocker(
-            "static_quality_gate_docker_cws_instrumentation_amd64",
-            {"max_on_wire_size": 100, "max_on_disk_size": 100},
-            MagicMock(),
+            "static_quality_gate_docker_cws_instrumentation_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(
             gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/cws-instrumentation:v71580015-668844-amd64"
@@ -357,9 +341,7 @@ class TestGatesLib(unittest.TestCase):
 
         # Test JMX images
         gate = StaticQualityGateDocker(
-            "static_quality_gate_docker_agent_jmx_amd64",
-            {"max_on_wire_size": 100, "max_on_disk_size": 100},
-            MagicMock(),
+            "static_quality_gate_docker_agent_jmx_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
         )
         self.assertEqual(
             gate._get_image_url(), "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-jmx-amd64"
@@ -368,9 +350,7 @@ class TestGatesLib(unittest.TestCase):
         # Test nightly with other flavors
         with patch.dict('os.environ', {"BUCKET_BRANCH": "nightly"}):
             gate = StaticQualityGateDocker(
-                "static_quality_gate_docker_cluster_amd64",
-                {"max_on_wire_size": 100, "max_on_disk_size": 100},
-                MagicMock(),
+                "static_quality_gate_docker_cluster_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
             )
             self.assertEqual(
                 gate._get_image_url(),
@@ -382,9 +362,7 @@ class TestGatesLib(unittest.TestCase):
         # Test unknown flavor
         with self.assertRaises(ValueError) as context:
             gate = StaticQualityGateDocker(
-                "static_quality_gate_docker_unknown_flavor_amd64",
-                {"max_on_wire_size": 100, "max_on_disk_size": 100},
-                MagicMock(),
+                "static_quality_gate_docker_unknown_flavor_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
             )
             gate._get_image_url()
         self.assertIn("Unknown docker image flavor for gate", str(context.exception))
@@ -392,9 +370,7 @@ class TestGatesLib(unittest.TestCase):
         # Test missing CI_PIPELINE_ID
         with patch.dict('os.environ', {"CI_PIPELINE_ID": ""}):
             gate = StaticQualityGateDocker(
-                "static_quality_gate_docker_agent_amd64",
-                {"max_on_wire_size": 100, "max_on_disk_size": 100},
-                MagicMock(),
+                "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
             )
             with self.assertRaises(StaticQualityGateFailed) as context:
                 gate._get_image_url()
@@ -403,9 +379,7 @@ class TestGatesLib(unittest.TestCase):
         # Test missing CI_COMMIT_SHORT_SHA
         with patch.dict('os.environ', {"CI_COMMIT_SHORT_SHA": ""}):
             gate = StaticQualityGateDocker(
-                "static_quality_gate_docker_agent_amd64",
-                {"max_on_wire_size": 100, "max_on_disk_size": 100},
-                MagicMock(),
+                "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 100}
             )
             with self.assertRaises(StaticQualityGateFailed) as context:
                 gate._get_image_url()
@@ -414,7 +388,7 @@ class TestGatesLib(unittest.TestCase):
     def test_execute_gate_package_success(self):
         """Test successful execution of execute_gate for StaticQualityGatePackage"""
         gate = StaticQualityGatePackage(
-            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 350}, MagicMock()
+            "static_quality_gate_agent_deb_amd64", {"max_on_wire_size": 100, "max_on_disk_size": 350}
         )
 
         # Mock the internal methods that execute_gate calls
@@ -425,7 +399,7 @@ class TestGatesLib(unittest.TestCase):
 
         # Capture printed output
         with patch('builtins.print') as mock_print:
-            gate.execute_gate()
+            gate.execute_gate(MagicMock())
 
         # Verify that all internal methods were called
         gate._measure_on_disk_and_on_wire_size.assert_called_once()

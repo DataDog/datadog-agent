@@ -177,7 +177,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
 
     for gate in gate_list:
         try:
-            gate.execute_gate()
+            gate.execute_gate(ctx)
             gate_states.append({"name": gate.gate_name, "state": True, "error_type": None, "message": None})
         except AssertionError as e:
             final_state = "failure"
