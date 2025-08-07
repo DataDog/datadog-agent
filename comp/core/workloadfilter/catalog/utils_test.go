@@ -81,6 +81,18 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 			[]string{"image:nginx.*"},
 			`image.name.matches("nginx.*")`,
 		},
+		{
+			"process raw regex pattern",
+			workloadfilter.ProcessType,
+			[]string{"java.*-jar.*app"},
+			`process.cmdline.join().matches("java.*-jar.*app")`,
+		},
+		{
+			"multiple process raw regex patterns",
+			workloadfilter.ProcessType,
+			[]string{"java.*", "python.*script", "node.*server"},
+			`process.cmdline.join().matches("java.*|python.*script|node.*server")`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -122,5 +134,51 @@ func TestConvertOldToNewFilter_Errors(t *testing.T) {
 		prog, err := createProgramFromOldFilters([]string{"other_field:some_value"}, workloadfilter.ContainerType)
 		assert.Error(t, err, "should return an error for invalid filter key")
 		assert.Nil(t, prog, "should return a nil program for invalid filter key")
+	})
+}
+
+func TestJoinFunction(t *testing.T) {
+	tests := []struct {
+		name       string
+		expression string
+		expected   string
+	}{
+		{
+			name:       "join multiple strings",
+			expression: `['hello', 'world'].join()`,
+			expected:   "helloworld",
+		},
+		{
+			name:       "join single string",
+			expression: `['hello'].join()`,
+			expected:   "hello",
+		},
+		{
+			name:       "join empty list",
+			expression: `[].join()`,
+			expected:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prg, err := createCELProgram(tt.expression, workloadfilter.ProcessType)
+			require.NoError(t, err)
+
+			out, _, err := prg.Eval(map[string]interface{}{
+				"process": map[string]interface{}{},
+			})
+			require.NoError(t, err)
+
+			result := out.Value().(string)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestJoinFunctionErrors(t *testing.T) {
+	t.Run("join with non-string elements", func(t *testing.T) {
+		_, err := createCELProgram(`[1, 2, 3].join()`, workloadfilter.ProcessType)
+		require.Error(t, err)
 	})
 }

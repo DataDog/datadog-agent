@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
@@ -95,6 +96,7 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 				fx.Replace(config.MockParams{Overrides: tc.configs}),
 				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+				workloadfilterfxmock.MockModule(),
 				gpusubscriberfxmock.MockModule(),
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}

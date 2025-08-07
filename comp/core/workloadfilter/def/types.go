@@ -38,6 +38,7 @@ const (
 	ServiceType   ResourceType = "service"
 	EndpointType  ResourceType = "endpoint"
 	ImageType     ResourceType = "image"
+	ProcessType   ResourceType = "process"
 )
 
 //
@@ -306,4 +307,69 @@ const (
 	LegacyImage ImageFilter = iota
 	ImagePaused
 	ImageSBOM
+)
+
+//
+// Process Definition
+//
+
+// Process represents a filterable process object.
+type Process struct {
+	*typedef.FilterProcess
+	Owner Filterable
+}
+
+// CreateProcess creates a Filterable Process object from a workloadmeta.Process and an owner.
+func CreateProcess(process *workloadmeta.Process, owner Filterable) *Process {
+	if process == nil {
+		return nil
+	}
+
+	p := &typedef.FilterProcess{
+		Comm:    process.Comm,
+		Cmdline: process.Cmdline,
+	}
+
+	setProcessOwner(p, owner)
+
+	return &Process{
+		FilterProcess: p,
+		Owner:         owner,
+	}
+}
+
+// setProcessOwner sets the owner field in the FilterProcess based on the owner type.
+func setProcessOwner(p *typedef.FilterProcess, owner Filterable) {
+	if owner == nil {
+		return
+	}
+
+	switch o := owner.(type) {
+	case *Container:
+		if o != nil && o.FilterContainer != nil {
+			p.Owner = &typedef.FilterProcess_Container{
+				Container: o.FilterContainer,
+			}
+		}
+	}
+}
+
+var _ Filterable = &Process{}
+
+// Serialize converts the Process object to a filterable object.
+func (p *Process) Serialize() any {
+	return p.FilterProcess
+}
+
+// Type returns the resource type of the process.
+func (p *Process) Type() ResourceType {
+	return ProcessType
+}
+
+// ProcessFilter defines the type of process filter.
+type ProcessFilter int
+
+// Defined Process filter kinds
+const (
+	LegacyProcessBlacklist ProcessFilter = iota
 )
