@@ -78,13 +78,23 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
 
+	// assert that setup was successful
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "debug")
+
 	// Act
 	config := installerwindows.ConfigExperiment{
 		ID: "config-1",
 		Files: []installerwindows.ConfigExperimentFile{
 			{
-				Path:     "/datadog.yaml",
-				Contents: json.RawMessage(`{"log_to_console": "ENC[hi]"}`), // Invalid config
+				Path: "/datadog.yaml",
+				// TODO: This used to trigger an "unknown secret" error that would
+				//       cause the Agent to fail to start. Now it's "unknown log level"
+				//       and with other options the Agent starts just fine, so keep at
+				//       using log_level for now.
+				Contents: json.RawMessage(`{"log_level": "ENC[hi]"}`), // Invalid config
 			},
 		},
 	}
@@ -105,7 +115,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	// Config should be reverted to the stable config
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig().
-		WithValueEqual("log_to_console", true)
+		WithValueEqual("log_level", "debug")
 
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
