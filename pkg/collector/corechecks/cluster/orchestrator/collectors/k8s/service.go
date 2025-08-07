@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type ServiceCollector struct {
 // NewServiceCollector creates a new collector for the Kubernetes Service
 // resource.
 func NewServiceCollector(metadataAsTags utils.MetadataAsTags) *ServiceCollector {
-	resourceType := getResourceType(serviceName, serviceVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.ServiceName, utilTypes.ServiceVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewServiceCollector(metadataAsTags utils.MetadataAsTags) *ServiceCollector 
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 serviceName,
+			Name:                                 utilTypes.ServiceName,
 			Kind:                                 kubernetes.ServiceKind,
 			NodeType:                             orchestrator.K8sService,
-			Version:                              serviceVersion,
+			Version:                              utilTypes.ServiceVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
