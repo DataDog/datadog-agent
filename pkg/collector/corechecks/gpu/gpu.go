@@ -195,7 +195,7 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 		}
 
 		// despite an error, we still might have some devices assigned to the container
-		// we also assume that each device can be assigned to only one container, in any case we will hold only the last matching container
+		// we also assume that each device can be assigned to only one container, and we store only the first one
 		for _, device := range containerDevices {
 			deviceID := device.GetDeviceInfo().UUID
 			// the device was assigned to multiple containers concurrently, we don't support this case, but we update internal telemetry
