@@ -610,6 +610,7 @@ namespace WixSetup.Datadog_Agent
                 },
                 agentBinDir,
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree),
+                new WixSharp.File(_agentBinaries.SecretGenericConnector),
                 new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",
                     new ServiceInstaller
                     {
