@@ -2,3 +2,9 @@
 enhancements:
   - |
     Add an option to enable protobuf communication with the Kubernetes apiserver
+init_config:
+  instances:
+    - use_component_status: false
+agent:
+  version: 7.49.0
+  disableComponentstatus: true
