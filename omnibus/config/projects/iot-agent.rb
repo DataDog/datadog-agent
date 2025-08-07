@@ -231,8 +231,7 @@ exclude '\.git*'
 exclude 'bundler\/git'
 
 # Exclude headers that are not needed in the final package
-# TODO(alopezz): figure out the right way to write these patterns
-exclude "**/embedded/include"
+exclude "embedded/include"
 
 if linux_target? or windows_target?
   strip_build windows_target? || !do_package
