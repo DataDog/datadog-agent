@@ -23,12 +23,12 @@
   variables:
     KUBERNETES_CPU_REQUEST: 16
   rules:
-  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    variables:
-      POLICY: pull-push
-  - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
-    variables:
-      POLICY: pull
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        POLICY: pull-push
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      variables:
+        POLICY: pull
   retry: 2
 
 # HACK: If you change the behavior of this job, change the `cache:key:prefix` value to invalidate the cache
@@ -113,7 +113,7 @@ fetch_openjdk:
   rules:
     - !reference [.manual]
   stage: deps_fetch
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   variables:
     JDK_FILENAME: OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip
     JDK_URL: https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9

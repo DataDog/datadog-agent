@@ -17,7 +17,7 @@
 notify-on-tagged-success:
   extends: .notify-job
   stage: notify
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
   rules: !reference [.on_deploy_stable_or_beta_repo_branch]
   dependencies: []
   tags: ["arch:arm64"]
@@ -32,7 +32,7 @@ notify-on-tagged-success:
 notify:
   extends: .notify-job
   stage: notify
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
   rules: !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
   tags: ["arch:arm64"]
@@ -45,7 +45,7 @@ notify:
 
 send_pipeline_stats:
   extends: .notify-job
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   tags: ["arch:amd64"]
   when: always
   dependencies: []
@@ -54,12 +54,12 @@ send_pipeline_stats:
     - dda inv -- -e notify.send-stats
 
 notify_gitlab_ci_changes:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   extends: .notify-job
   needs: [compute_gitlab_ci_config]
   tags: ["arch:amd64"]
   rules:
-    - !reference  [.except_mergequeue]
+    - !reference [.except_mergequeue]
     - changes:
         paths:
           - .gitlab-ci.yml
@@ -75,13 +75,12 @@ notify_gitlab_ci_changes:
     - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
 
 .failure_summary_job:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   extends: .notify-job
   dependencies: []
   tags: ["arch:amd64"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
-
 
 # Upload failure summary data to S3 at the end of each main pipeline
 notify_failure_summary_on_pipeline:
@@ -119,7 +118,7 @@ notify_failure_summary_daily:
 
 close_failing_tests_stale_issues:
   extends: .notify-job
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
   rules:
     - !reference [.on_scheduled_main]
   needs: []

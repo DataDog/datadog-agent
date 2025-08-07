@@ -204,6 +204,39 @@ func GetNTPHosts(ctx context.Context) []string {
 	return nil
 }
 
+var ccridFetcher = cachedfetch.Fetcher{
+	Name: "GCP CCRID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		projectID, err := getResponse(ctx, metadataURL+"/project/project-id")
+		if err != nil {
+			return "", fmt.Errorf("could not query project/project-id GCP API: %s", err)
+		}
+
+		instanceName, err := nameFetcher.FetchString(ctx)
+		if err != nil {
+			return "", fmt.Errorf("could not query GCP instance name: %s", err)
+		}
+
+		zone, err := getResponse(ctx, metadataURL+"/instance/zone")
+		if err != nil {
+			return "", fmt.Errorf("could not query instance/zone GCP API: %s", err)
+		}
+		// zone will be in the format of 'projects/PROJECT_NUM/zones/ZONE'
+		zoneSplit := strings.Split(zone, "/")
+		if len(zoneSplit) != 4 {
+			return "", fmt.Errorf("Unknown zone name from GCP API: expecting 'projects/PROJECT_NUM/zones/ZONE' but got '%s", zone)
+		}
+		zoneName := zoneSplit[3]
+
+		return fmt.Sprintf("//compute.googleapis.com/projects/%s/zones/%s/instances/%s", projectID, zoneName, instanceName), nil
+	},
+}
+
+// GetCCRID return the CCRID for the current instance
+func GetCCRID(ctx context.Context) (string, error) {
+	return ccridFetcher.FetchString(ctx)
+}
+
 func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength int) (string, error) {
 	result, err := getResponse(ctx, endpoint)
 	if err != nil {
