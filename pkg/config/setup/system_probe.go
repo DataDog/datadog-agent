@@ -43,6 +43,11 @@ const (
 	// defaultBTFOutputDir is the default path for extracted BTF
 	defaultBTFOutputDir = "/var/tmp/datadog-agent/system-probe/btf"
 
+	// defaultDynamicInstrumentationDebugInfoDir is the default path for debug
+	// info for dynamic instrumentation this is the directory where the debug
+	// info is decompressed into during processing.
+	defaultDynamicInstrumentationDebugInfoDir = "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
+
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
 
@@ -169,12 +174,17 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "zypper_repos_dir"), suffixHostEtc(defaultZypperReposDirSuffix), "DD_ZYPPER_REPOS_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "attach_kprobes_with_kprobe_events_abi"), false, "DD_ATTACH_KPROBES_WITH_KPROBE_EVENTS_ABI")
 
-	// User Tracer
+	// Dynamic Instrumentation settings
 	cfg.BindEnvAndSetDefault(join(diNS, "enabled"), false, "DD_DYNAMIC_INSTRUMENTATION_ENABLED")
 	cfg.BindEnvAndSetDefault(join(diNS, "offline_mode"), false, "DD_DYNAMIC_INSTRUMENTATION_OFFLINE_MODE")
 	cfg.BindEnvAndSetDefault(join(diNS, "probes_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_PROBES_FILE_PATH")
 	cfg.BindEnvAndSetDefault(join(diNS, "snapshot_output_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_SNAPSHOT_FILE_PATH")
 	cfg.BindEnvAndSetDefault(join(diNS, "diagnostics_output_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_FILE_PATH")
+	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "enabled"), true)
+	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "dir"), defaultDynamicInstrumentationDebugInfoDir)
+	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "max_total_bytes"), int64(2<<30 /* 2GiB */))
+	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_bytes"), int64(512<<20 /* 512MiB */))
+	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_percent"), float64(0.0))
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
