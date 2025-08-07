@@ -258,6 +258,7 @@ func (prs *EndpointPairPortRollupStore) AddToStoreIPv4(store map[[11]byte][]uint
 		prs.storeMu.Unlock()
 		return
 	}
+
 	if destToSourcePorts+1 < prs.portRollupThreshold && curStoreIsEphemeralStatus != IsEphemeralSourcePort {
 		store[srcToDestKey] = appendPort(store[srcToDestKey], destPort)
 	}
@@ -284,6 +285,7 @@ func (prs *EndpointPairPortRollupStore) AddToStoreIPv4(store map[[11]byte][]uint
 // AddToSingleStore will add ports to single store for string keys
 func (prs *EndpointPairPortRollupStore) AddToSingleStore(srcToDestKey string, destToSrcKey string, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
 	prs.storeMu.Lock()
+	defer prs.storeMu.Unlock()
 
 	// Increment call counter and log store sizes
 	prs.callCounter++
@@ -300,7 +302,21 @@ func (prs *EndpointPairPortRollupStore) AddToSingleStore(srcToDestKey string, de
 			prs.callCounter, singleStoreLen, singleStoreSize, singleAvgSize)
 	}
 
-	// Get or create source-to-dest entry
+	// Check existing entries first to see if either source or dest port is already ephemeral
+	var sourceToDestPorts, destToSourcePorts int
+	if srcToDest, exists := prs.singleStore[srcToDestKey]; exists {
+		sourceToDestPorts = len(srcToDest.ports)
+	}
+	if destToSrc, exists := prs.singleStore[destToSrcKey]; exists {
+		destToSourcePorts = len(destToSrc.ports)
+	}
+
+	// either source or dest port is already ephemeral
+	if sourceToDestPorts >= prs.portRollupThreshold || destToSourcePorts >= prs.portRollupThreshold {
+		return
+	}
+
+	// Get or create source-to-dest entry (only if not ephemeral)
 	srcToDest, srcToDestExists := prs.singleStore[srcToDestKey]
 	if !srcToDestExists {
 		srcToDest = &portsAndActiveFlag{ports: []uint16{}, active: true}
@@ -308,22 +324,13 @@ func (prs *EndpointPairPortRollupStore) AddToSingleStore(srcToDestKey string, de
 	}
 	srcToDest.active = true
 
-	// Get or create dest-to-source entry
+	// Get or create dest-to-source entry (only if not ephemeral)
 	destToSrc, destToSrcExists := prs.singleStore[destToSrcKey]
 	if !destToSrcExists {
 		destToSrc = &portsAndActiveFlag{ports: []uint16{}, active: true}
 		prs.singleStore[destToSrcKey] = destToSrc
 	}
 	destToSrc.active = true
-
-	sourceToDestPorts := len(srcToDest.ports)
-	destToSourcePorts := len(destToSrc.ports)
-
-	// either source or dest port is already ephemeral
-	if sourceToDestPorts >= prs.portRollupThreshold || destToSourcePorts >= prs.portRollupThreshold {
-		prs.storeMu.Unlock()
-		return
-	}
 
 	if destToSourcePorts+1 < prs.portRollupThreshold {
 		srcToDest.ports = appendPort(srcToDest.ports, destPort)
@@ -344,13 +351,12 @@ func (prs *EndpointPairPortRollupStore) AddToSingleStore(srcToDestKey string, de
 			delete(prs.singleStore, buildStoreKey(sourceAddr, destAddr, isSourceEndpoint, port))
 		}
 	}
-
-	prs.storeMu.Unlock()
 }
 
 // AddToSingleStoreIPv4 will add ports to single store for IPv4 fixed-size keys
 func (prs *EndpointPairPortRollupStore) AddToSingleStoreIPv4(srcToDestKey [11]byte, destToSrcKey [11]byte, sourceAddr []byte, destAddr []byte, sourcePort uint16, destPort uint16) {
 	prs.storeMu.Lock()
+	defer prs.storeMu.Unlock()
 
 	// Increment call counter and log store sizes
 	prs.callCounter++
@@ -367,7 +373,21 @@ func (prs *EndpointPairPortRollupStore) AddToSingleStoreIPv4(srcToDestKey [11]by
 			prs.callCounter, singleStoreLen, singleStoreSize, singleAvgSize)
 	}
 
-	// Get or create source-to-dest entry
+	// Check existing entries first to see if either source or dest port is already ephemeral
+	var sourceToDestPorts, destToSourcePorts int
+	if srcToDest, exists := prs.singleStoreIPv4[srcToDestKey]; exists {
+		sourceToDestPorts = len(srcToDest.ports)
+	}
+	if destToSrc, exists := prs.singleStoreIPv4[destToSrcKey]; exists {
+		destToSourcePorts = len(destToSrc.ports)
+	}
+
+	// either source or dest port is already ephemeral
+	if sourceToDestPorts >= prs.portRollupThreshold || destToSourcePorts >= prs.portRollupThreshold {
+		return
+	}
+
+	// Get or create source-to-dest entry (only if not ephemeral)
 	srcToDest, srcToDestExists := prs.singleStoreIPv4[srcToDestKey]
 	if !srcToDestExists {
 		srcToDest = &portsAndActiveFlag{ports: []uint16{}, active: true}
@@ -375,22 +395,13 @@ func (prs *EndpointPairPortRollupStore) AddToSingleStoreIPv4(srcToDestKey [11]by
 	}
 	srcToDest.active = true
 
-	// Get or create dest-to-source entry
+	// Get or create dest-to-source entry (only if not ephemeral)
 	destToSrc, destToSrcExists := prs.singleStoreIPv4[destToSrcKey]
 	if !destToSrcExists {
 		destToSrc = &portsAndActiveFlag{ports: []uint16{}, active: true}
 		prs.singleStoreIPv4[destToSrcKey] = destToSrc
 	}
 	destToSrc.active = true
-
-	sourceToDestPorts := len(srcToDest.ports)
-	destToSourcePorts := len(destToSrc.ports)
-
-	// either source or dest port is already ephemeral
-	if sourceToDestPorts >= prs.portRollupThreshold || destToSourcePorts >= prs.portRollupThreshold {
-		prs.storeMu.Unlock()
-		return
-	}
 
 	if destToSourcePorts+1 < prs.portRollupThreshold {
 		srcToDest.ports = appendPort(srcToDest.ports, destPort)
@@ -411,8 +422,6 @@ func (prs *EndpointPairPortRollupStore) AddToSingleStoreIPv4(srcToDestKey [11]by
 			delete(prs.singleStoreIPv4, buildIPv4StoreKey(sourceAddr, destAddr, isSourceEndpoint, port))
 		}
 	}
-
-	prs.storeMu.Unlock()
 }
 
 // GetPortCount returns max port count and indicate whether the source or destination is ephemeral (isEphemeralSource)
