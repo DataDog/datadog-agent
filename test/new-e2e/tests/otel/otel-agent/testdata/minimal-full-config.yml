@@ -129,6 +129,14 @@ processors:
       metric: []
     traces:
       span: []
+  filter/drop-prometheus-internal-metrics/dd-autoconfigured:
+    metrics: 
+      exclude:
+        match_type: regexp
+        metric_names:
+          - scrape_.*
+          - up
+          - promhttp_metric_handler_errors_total
 receivers:
   otlp:
     protocols:
@@ -215,6 +223,7 @@ service:
       processors:
         - batch
         - infraattributes/dd-autoconfigured
+        - filter/drop-prometheus-internal-metrics/dd-autoconfigured
       receivers:
         - otlp
         - datadog/connector

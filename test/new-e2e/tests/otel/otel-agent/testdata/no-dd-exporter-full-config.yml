@@ -104,7 +104,15 @@ extensions:
     response_headers: {}
     tls: null
     write_timeout: 0s
-processors: {}
+processors:
+  filter/drop-prometheus-internal-metrics/dd-autoconfigured:
+    metrics: 
+      exclude:
+        match_type: regexp
+        metric_names:
+          - scrape_.*
+          - up
+          - promhttp_metric_handler_errors_total
 receivers:
   otlp:
     protocols:
@@ -192,7 +200,8 @@ service:
     metrics/dd-autoconfigured/datadog:
       exporters:
       - datadog
-      processors: []
+      processors:
+      - filter/drop-prometheus-internal-metrics/dd-autoconfigured
       receivers:
       - prometheus/dd-autoconfigured
     traces:
