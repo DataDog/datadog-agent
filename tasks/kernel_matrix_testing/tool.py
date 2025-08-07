@@ -2,22 +2,16 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import invoke.exceptions as ie
 from invoke.context import Context
 
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.types.arch import Arch
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import KMTArchName, KMTArchNameOrLocal, PathOrStr
-
-try:
-    from termcolor import colored
-except ImportError:
-
-    def colored(text: str, color: Any) -> str:  # noqa: U100
-        return text
 
 
 def _logprint(msg: str):
@@ -25,27 +19,27 @@ def _logprint(msg: str):
 
 
 def ask(question: str) -> str:
-    return input(colored(question, "blue"))
+    return input(color_message(question, Color.BLUE))
 
 
 def debug(msg: str):
-    _logprint(colored(msg, "white"))
+    _logprint(color_message(msg, Color.GREY))
 
 
 def info(msg: str):
-    _logprint(colored(msg, "green"))
+    _logprint(color_message(msg, Color.GREEN))
 
 
 def warn(msg: str):
-    _logprint(colored(msg, "yellow"))
+    _logprint(color_message(msg, Color.ORANGE))
 
 
 def error(msg: str):
-    _logprint(colored(msg, "red"))
+    _logprint(color_message(msg, Color.RED))
 
 
 def Exit(msg: str):
-    return ie.Exit(colored(msg, "red"))
+    return ie.Exit(color_message(msg, Color.RED))
 
 
 def is_root():

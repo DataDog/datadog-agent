@@ -11,7 +11,6 @@ from invoke.context import Context
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, error, info
-from tasks.libs.types.arch import Arch
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput

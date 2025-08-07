@@ -6,7 +6,7 @@ extra packages that might not be available in runtime.
 from __future__ import annotations
 
 import os
-from typing import Literal, NotRequired, Protocol, Required, TypedDict, TypeVar, cast, get_args
+from typing import Literal, Protocol, Required, TypedDict, TypeVar, cast, get_args
 
 from tasks.libs.types.arch import KMTArchName
 
@@ -36,14 +36,6 @@ class PlatformInfo(TypedDict, total=False):
     os_id: str  # Short ID for the OS (e.g., "centos" for CentOS)  # noqa: F841
     image: Required[str]  # Name of the image file
     alt_version_names: list[str]  # Alternative version names (e.g., "jammy" for Ubuntu 22)  # noqa: F841
-
-
-def dict_to_platform_info(dict: dict[str, str]) -> PlatformInfo:
-    # Extract all keys from the TypedDict and check that they are present in the dict
-    for key in PlatformInfo.__annotations__.keys():
-        if key not in dict:
-            raise ValueError(f"Missing key {key} in platform info")
-    return cast(PlatformInfo, dict)
 
 
 class Platforms(TypedDict):  # noqa: F841
