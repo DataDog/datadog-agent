@@ -17,11 +17,11 @@ import (
 const remappedRowsMetricPrefix = "remapped_rows"
 
 type remappedRowsCollector struct {
-	device ddnvml.SafeDevice
+	device ddnvml.Device
 }
 
 // newRemappedRowsCollector creates a new remappedRowsMetricsCollector for the given NVML device.
-func newRemappedRowsCollector(device ddnvml.SafeDevice) (Collector, error) {
+func newRemappedRowsCollector(device ddnvml.Device) (Collector, error) {
 	// Do a first check to see if the device supports remapped rows metrics
 	_, _, _, _, err := device.GetRemappedRows()
 
@@ -36,8 +36,7 @@ func newRemappedRowsCollector(device ddnvml.SafeDevice) (Collector, error) {
 }
 
 func (c *remappedRowsCollector) DeviceUUID() string {
-	uuid, _ := c.device.GetUUID()
-	return uuid
+	return c.device.GetDeviceInfo().UUID
 }
 
 // Collect collects remapped rows metrics from the NVML device.
