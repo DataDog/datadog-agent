@@ -195,9 +195,6 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 		if container := containers.GetByDevice(wmetaContainers, device); container != nil {
 			gpuToContainers[deviceUUID] = container
 		} else {
-			if logLimitCheck.ShouldLog() {
-				log.Warnf("no matching container found for the device %v", deviceUUID)
-			}
 			c.telemetry.missingContainerGpuMapping.Add(1, deviceUUID)
 		}
 	}
