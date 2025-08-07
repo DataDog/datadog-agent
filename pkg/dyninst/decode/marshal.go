@@ -108,8 +108,8 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 				jsontext.BeginObject,
 				jsontext.String("type"),
 				jsontext.String(parameterType.GetName()),
-				notCapturedReason,
-				notCapturedReasonUnavailable,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonUnavailable,
 				jsontext.EndObject,
 			); err != nil {
 				return err
