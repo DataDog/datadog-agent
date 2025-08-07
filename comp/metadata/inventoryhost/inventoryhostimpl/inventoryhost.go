@@ -267,7 +267,7 @@ func (ih *invHost) fillData() {
 
 	ih.data.CloudProviderSource = cloudproviders.GetSource(cloudProvider)
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
-	ih.data.CanonicalCloudResourceID = cloudproviders.GetHostCCRID(context.Background(), []string{cloudProvider})
+	ih.data.CanonicalCloudResourceID = cloudproviders.GetHostCCRID(context.Background(), cloudProvider)
 	ih.data.OsVersion = osVersionGet()
 
 	gpgcheck, repoGPGCheck := pkgSigningGet(ih.log)
