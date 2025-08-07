@@ -24,6 +24,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// SymDBRoot models the root structure for SymDB uploads, following the JSON
+// schema produced by the uploader and expected by the backend.
+type SymDBRoot struct {
+	Service  string  `json:"service,omitempty"`
+	Env      string  `json:"env,omitempty"`
+	Version  string  `json:"version,omitempty"`
+	Language string  `json:"language"`
+	Scopes   []Scope `json:"scopes"`
+}
+
+type EventMetadata struct {
+	DDSource  string `json:"ddsource"`
+	Service   string `json:"service"`
+	RuntimeID string `json:"runtimeId"`
+}
+
 type testServer struct {
 	requests  <-chan receivedRequest
 	server    *httptest.Server
