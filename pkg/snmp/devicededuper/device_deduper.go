@@ -34,6 +34,7 @@ type PendingDevice struct {
 	AuthIndex  int
 	WriteCache bool
 	IP         string
+	Failures   int
 }
 
 func (d DeviceInfo) equal(other DeviceInfo) bool {
