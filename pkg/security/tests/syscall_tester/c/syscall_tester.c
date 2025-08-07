@@ -1453,6 +1453,8 @@ int test_bind_and_listen(int argc, char **argv) {
 }
 
 int test_connect_and_send(int argc, char **argv) {
+    // Check arguments
+    // port to send, protocol, listen port, client port
     if (argc != 5) {
         fprintf(stderr, "%s: please pass a port and a protocol (tcp/udp)\n", __FUNCTION__);
         return EXIT_FAILURE;

@@ -5541,8 +5541,6 @@ func startDualProtocolServer(
 		return
 	}
 
-	// Ready to receive connections
-	close(serverReady)
 	// TCP handling
 	go func() {
 		connFd, _, err := syscall.Accept(tcpFd)
@@ -5571,6 +5569,8 @@ func startDualProtocolServer(
 		}
 		close(udpReceived)
 	}()
+	// Ready to receive connections
+	close(serverReady)
 
 	<-canStopServer
 	syscall.Close(tcpFd)
