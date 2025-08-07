@@ -43,6 +43,7 @@ func (c *collector) generateImageEventFromContainer(ctx context.Context, contain
 
 // convertImageToEvent converts a CRI-O image and additional metadata into a workloadmeta CollectorEvent.
 func (c *collector) convertImageToEvent(img *v1.Image, info map[string]string, namespace string) *workloadmeta.CollectorEvent {
+
 	var annotations map[string]string
 	if img.GetSpec() == nil {
 		annotations = nil
@@ -216,52 +217,42 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 }
 
 // generateImageEventsFromImageList creates workloadmeta image events from the full image list.
-// This method checks if each image already exists in the workloadmeta store to avoid
-// unnecessary expensive image status calls.
-func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]workloadmeta.CollectorEvent, error) {
+// Returns events for new images and IDs of all current images (for seenImages tracking).
+func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]workloadmeta.CollectorEvent, []workloadmeta.EntityID, error) {
 	images, err := c.client.ListImages(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list images: %w", err)
+		return nil, nil, fmt.Errorf("failed to list images: %w", err)
 	}
 
 	imageEvents := make([]workloadmeta.CollectorEvent, 0)
+	allImageIDs := make([]workloadmeta.EntityID, 0, len(images))
 
 	for _, img := range images {
-		// Extract the image ID - prefer digest over the raw ID
-		imgID := img.GetId()
+		// Extract the image ID - prefer digest over the raw ID (same logic as convertImageToEvent)
+		rawID := img.GetId()
+		imgID := rawID
 		if imgIDAsDigest, err := parseDigests(img.GetRepoDigests()); err == nil {
 			imgID = imgIDAsDigest
 		}
 
-		// Check if image already exists in workloadmeta store
-		// Try both computed ID and raw ID to handle ID format inconsistencies that can occur when:
-		// 1. ListImages() returns digest info but GetContainerImage() returns empty digests (dangling images)
-		// 2. Digest parsing fails differently between lookup and storage phases
-		// 3. Images are stored with raw ID due to empty repo digests but lookup computes digest ID
-		// The fallback ensures we find existing images regardless of which ID format was used during storage
-		rawID := img.GetId()
-		var foundID string
+		// Always track with the computed ID (same as what convertImageToEvent would use)
+		entityID := workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: imgID}
+		allImageIDs = append(allImageIDs, entityID)
 
+		// Check if image already exists in workloadmeta store
+		// Try computed ID first, then raw ID as fallback for edge cases
+		var existsInStore bool
 		if _, err := c.store.GetImage(imgID); err == nil {
-			foundID = imgID
-		} else if _, err := c.store.GetImage(rawID); err == nil {
-			foundID = rawID
+			existsInStore = true
+		} else if imgID != rawID {
+			// Only try raw ID if it's different from computed ID
+			if _, err := c.store.GetImage(rawID); err == nil {
+				existsInStore = true
+			}
 		}
 
-		if foundID != "" {
-			// Create skipped image event to prevent it from being marked as removed
-			skippedImageEvent := workloadmeta.CollectorEvent{
-				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceRuntime,
-				Entity: &workloadmeta.ContainerImageMetadata{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainerImageMetadata,
-						ID:   foundID,
-					},
-				},
-			}
-			imageEvents = append(imageEvents, skippedImageEvent)
-
+		if existsInStore {
+			// Image already exists in store - no need to send event, metadata persists automatically
 			continue
 		}
 
@@ -279,7 +270,7 @@ func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]wor
 		imageEvents = append(imageEvents, *imageEvent)
 	}
 
-	return imageEvents, nil
+	return imageEvents, allImageIDs, nil
 }
 
 // parseLayerInfo reads a JSON file from the given path and returns a list of layerInfo
@@ -300,6 +291,15 @@ func parseLayerInfo(rootPath string, imgID string) ([]layerInfo, error) {
 	}
 
 	return manifest.Layers, nil
+}
+
+// getMapKeys returns the keys of a string map for logging
+func getMapKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // layerInfo holds the size and mediaType of each layer

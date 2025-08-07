@@ -340,7 +340,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:hash1"},
 				},
 			},
-			expectedEvents: 2, // Both images create events (image1 skipped event + image2 new event)
+			expectedEvents: 1, // Only image2 creates an event (image1 is skipped entirely)
 			expectedError:  false,
 		},
 		{
@@ -412,7 +412,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:digestid456"},
 				},
 			},
-			expectedEvents: 1, // Creates skipped event due to digest ID match
+			expectedEvents: 0, // No event created - image exists and is skipped
 			expectedError:  false,
 		},
 		{
@@ -440,7 +440,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "rawid123"},
 				},
 			},
-			expectedEvents: 1, // Creates skipped event due to raw ID fallback match
+			expectedEvents: 0, // No event created - image exists and is skipped
 			expectedError:  false,
 		},
 		{
@@ -468,7 +468,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "7f7fbb837cb1da28"},
 				},
 			},
-			expectedEvents: 1, // Creates skipped event due to raw ID fallback match
+			expectedEvents: 0, // No event created - image exists and is skipped
 			expectedError:  false,
 		},
 		{
@@ -510,7 +510,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 				},
 				// Image3 is new
 			},
-			expectedEvents: 3, // All images create events (image1 & image2 skipped events + image3 new event)
+			expectedEvents: 1, // Only image3 creates an event (image1 & image2 are skipped)
 			expectedError:  false,
 		},
 	}
@@ -529,13 +529,15 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 				store:  store,
 			}
 
-			events, err := collector.generateImageEventsFromImageList(context.Background())
+			events, imageIDs, err := collector.generateImageEventsFromImageList(context.Background())
 
 			if tt.expectedError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedEvents, len(events))
+				// imageIDs should include all current images (events are only for new images, but imageIDs tracks all)
+				assert.GreaterOrEqual(t, len(imageIDs), len(events), "imageIDs should include at least as many images as events")
 			}
 		})
 	}

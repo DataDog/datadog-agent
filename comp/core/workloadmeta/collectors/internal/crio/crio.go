@@ -90,52 +90,48 @@ func (c *collector) Pull(ctx context.Context) error {
 	}
 
 	seenContainers := make(map[workloadmeta.EntityID]struct{})
-	seenImages := make(map[workloadmeta.EntityID]struct{})
 	containerEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
+	var imageEvents []workloadmeta.CollectorEvent
 
 	collectImages := imageMetadataCollectionIsEnabled()
 
 	for _, container := range containers {
-		// Generate container event
 		containerEvent := c.convertContainerToEvent(ctx, container)
 		seenContainers[containerEvent.Entity.GetID()] = struct{}{}
 		containerEvents = append(containerEvents, containerEvent)
 	}
 
-	// Handle image collection using the optimized approach
 	if collectImages {
-		// Use the new optimized method to get image events
-		imageEvents, err := c.generateImageEventsFromImageList(ctx)
+		// Get events for new images and IDs of all current images
+		var currentImageIDs []workloadmeta.EntityID
+		imageEvents, currentImageIDs, err = c.generateImageEventsFromImageList(ctx)
 		if err != nil {
-			log.Warnf("Optimized approach failed: %v - falling back to per-container approach", err)
-			// Fall back to the old per-container approach if image list fails
-			imageEvents = make([]workloadmeta.CollectorEvent, 0, len(containers))
-			for _, container := range containers {
-				imageEvent, err := c.generateImageEventFromContainer(ctx, container)
-				if err != nil {
-					log.Warnf("Image event generation failed for container %+v: %v", container, err)
-					continue
-				}
-				imageEvents = append(imageEvents, *imageEvent)
-			}
+			log.Errorf("Image collection failed: %v", err)
+			return err
 		}
 
-		// Build seenImages map from the events for cleanup
-		for _, event := range imageEvents {
-			if event.Type == workloadmeta.EventTypeSet {
-				seenImages[event.Entity.GetID()] = struct{}{}
-			}
+		// Build new seenImages from current run
+		newSeenImages := make(map[workloadmeta.EntityID]struct{})
+		for _, imageID := range currentImageIDs {
+			newSeenImages[imageID] = struct{}{}
 		}
 
-		// Handle unset events for images that are no longer present
-		for seenID := range c.seenImages {
-			if _, ok := seenImages[seenID]; !ok {
-				unsetEvent := generateUnsetImageEvent(seenID)
+		// Handle cleanup: send unset events for images in old seenImages but not in new
+		for oldImageID := range c.seenImages {
+			if _, stillExists := newSeenImages[oldImageID]; !stillExists {
+				unsetEvent := generateUnsetImageEvent(oldImageID)
 				imageEvents = append(imageEvents, *unsetEvent)
 			}
 		}
-		c.seenImages = seenImages
-		c.store.Notify(imageEvents)
+
+		// Update seenImages for next run
+		c.seenImages = newSeenImages
+		if len(imageEvents) > 0 {
+			log.Debugf("About to notify workloadmeta store with %d new/updated image events", len(imageEvents))
+			c.store.Notify(imageEvents)
+		} else {
+			log.Debugf("No new image events to notify (all images already exist in store)")
+		}
 	}
 
 	// Handle unset events for containers

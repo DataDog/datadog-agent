@@ -576,7 +576,7 @@ func TestOptimizedImageCollection(t *testing.T) {
 				},
 			},
 			expectedImageStatusCalls: 1, // Only image2 should trigger GetContainerImage
-			expectedEventCount:       2, // Both images generate events (image1 skipped event + image2 new event)
+			expectedEventCount:       1, // Only image2 generates a new event (image1 is skipped entirely)
 			expectError:              false,
 		},
 		{
@@ -650,7 +650,7 @@ func TestOptimizedImageCollection(t *testing.T) {
 				store:  store,
 			}
 
-			events, err := crioCollector.generateImageEventsFromImageList(context.Background())
+			events, imageIDs, err := crioCollector.generateImageEventsFromImageList(context.Background())
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -658,7 +658,253 @@ func TestOptimizedImageCollection(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedEventCount, len(events))
 				assert.Equal(t, tt.expectedImageStatusCalls, imageStatusCallCount, "Unexpected number of GetContainerImage calls")
+				// imageIDs should include all current images (both new events + existing skipped)
+				assert.GreaterOrEqual(t, len(imageIDs), len(events), "imageIDs should include at least as many images as events")
 			}
+		})
+	}
+}
+
+func TestPullWithImageCollectionEnabled(t *testing.T) {
+	const envVarName = "DD_CONTAINER_IMAGE_ENABLED"
+	originalValue := os.Getenv(envVarName)
+	defer os.Setenv(envVarName, originalValue)
+
+	// Enable image collection to test the optimized image collection path
+	os.Setenv(envVarName, "true")
+
+	createTime := time.Now().Add(-10 * time.Minute).UnixNano()
+	startTime := time.Now().Add(-5 * time.Minute).UnixNano()
+
+	tests := []struct {
+		name                     string
+		mockGetAllContainers     func(ctx context.Context) ([]*v1.Container, error)
+		mockGetPodStatus         func(ctx context.Context, podID string) (*v1.PodSandboxStatus, error)
+		mockGetContainerStatus   func(ctx context.Context, containerID string) (*v1.ContainerStatusResponse, error)
+		mockListImages           func(ctx context.Context) ([]*v1.Image, error)
+		mockGetContainerImage    func(ctx context.Context, imageSpec *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error)
+		existingImages           map[string]*workloadmeta.ContainerImageMetadata
+		expectedContainerEvents  int
+		expectedImageEvents      int
+		expectedImageStatusCalls int
+		expectedError            bool
+	}{
+		{
+			name: "Pull with image collection enabled - new images",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return []*v1.Container{
+					{
+						Id:           "container1",
+						Image:        &v1.ImageSpec{Image: "image123"},
+						ImageRef:     "myrepo/myimage@sha256:123abc",
+						PodSandboxId: "pod1",
+						Metadata:     &v1.ContainerMetadata{Name: "container1"},
+					},
+				}, nil
+			},
+			mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
+				return &v1.PodSandboxStatus{Metadata: &v1.PodSandboxMetadata{Namespace: "default"}}, nil
+			},
+			mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+				return &v1.ContainerStatusResponse{
+					Status: &v1.ContainerStatus{
+						Metadata:  &v1.ContainerMetadata{Name: "container1"},
+						State:     v1.ContainerState_CONTAINER_RUNNING,
+						CreatedAt: createTime,
+						StartedAt: startTime,
+						Image:     &v1.ImageSpec{Image: "myrepo/myimage:latest"},
+						ImageRef:  "myrepo/myimage@sha256:123abc",
+					},
+				}, nil
+			},
+			mockListImages: func(_ context.Context) ([]*v1.Image, error) {
+				return []*v1.Image{
+					{
+						Id:          "image123",
+						RepoTags:    []string{"myrepo/myimage:latest"},
+						RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
+					},
+				}, nil
+			},
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+				return &v1.ImageStatusResponse{
+					Image: &v1.Image{
+						Id:          "image123",
+						RepoTags:    []string{"myrepo/myimage:latest"},
+						RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
+					},
+					Info: map[string]string{
+						"info": `{
+							"labels": {"test": "label"},
+							"imageSpec": {
+								"os": "linux",
+								"architecture": "amd64"
+							}
+						}`,
+					},
+				}, nil
+			},
+			existingImages:           nil, // No existing images
+			expectedContainerEvents:  1,   // 1 container event
+			expectedImageEvents:      1,   // 1 new image event
+			expectedImageStatusCalls: 1,   // 1 GetContainerImage call for new image
+			expectedError:            false,
+		},
+		{
+			name: "Pull with image collection enabled - existing images skipped",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return []*v1.Container{
+					{
+						Id:           "container1",
+						Image:        &v1.ImageSpec{Image: "image123"},
+						ImageRef:     "myrepo/myimage@sha256:123abc",
+						PodSandboxId: "pod1",
+						Metadata:     &v1.ContainerMetadata{Name: "container1"},
+					},
+				}, nil
+			},
+			mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
+				return &v1.PodSandboxStatus{Metadata: &v1.PodSandboxMetadata{Namespace: "default"}}, nil
+			},
+			mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+				return &v1.ContainerStatusResponse{
+					Status: &v1.ContainerStatus{
+						Metadata:  &v1.ContainerMetadata{Name: "container1"},
+						State:     v1.ContainerState_CONTAINER_RUNNING,
+						CreatedAt: createTime,
+						StartedAt: startTime,
+						Image:     &v1.ImageSpec{Image: "myrepo/myimage:latest"},
+						ImageRef:  "myrepo/myimage@sha256:123abc",
+					},
+				}, nil
+			},
+			mockListImages: func(_ context.Context) ([]*v1.Image, error) {
+				return []*v1.Image{
+					{
+						Id:          "image123",
+						RepoTags:    []string{"myrepo/myimage:latest"},
+						RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
+					},
+				}, nil
+			},
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+				// This should not be called since image already exists
+				t.Errorf("GetContainerImage should not be called for existing images")
+				return nil, errors.New("unexpected call")
+			},
+			existingImages: map[string]*workloadmeta.ContainerImageMetadata{
+				"sha256:123abc": {
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:123abc"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "myrepo/myimage:latest",
+					},
+				},
+			},
+			expectedContainerEvents:  1, // 1 container event
+			expectedImageEvents:      0, // No image events - image exists and is skipped
+			expectedImageStatusCalls: 0, // No GetContainerImage calls - image exists
+			expectedError:            false,
+		},
+		{
+			name: "Pull with image collection enabled - ListImages fails, should return error",
+			mockGetAllContainers: func(_ context.Context) ([]*v1.Container, error) {
+				return []*v1.Container{
+					{
+						Id:           "container1",
+						Image:        &v1.ImageSpec{Image: "image123"},
+						ImageRef:     "myrepo/myimage@sha256:123abc",
+						PodSandboxId: "pod1",
+						Metadata:     &v1.ContainerMetadata{Name: "container1"},
+					},
+				}, nil
+			},
+			mockGetPodStatus: func(_ context.Context, _ string) (*v1.PodSandboxStatus, error) {
+				return &v1.PodSandboxStatus{Metadata: &v1.PodSandboxMetadata{Namespace: "default"}}, nil
+			},
+			mockGetContainerStatus: func(_ context.Context, _ string) (*v1.ContainerStatusResponse, error) {
+				return &v1.ContainerStatusResponse{
+					Status: &v1.ContainerStatus{
+						Metadata:  &v1.ContainerMetadata{Name: "container1"},
+						State:     v1.ContainerState_CONTAINER_RUNNING,
+						CreatedAt: createTime,
+						StartedAt: startTime,
+						Image:     &v1.ImageSpec{Image: "myrepo/myimage:latest"},
+						ImageRef:  "myrepo/myimage@sha256:123abc",
+					},
+				}, nil
+			},
+			mockListImages: func(_ context.Context) ([]*v1.Image, error) {
+				return nil, errors.New("ListImages failed")
+			},
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+				return &v1.ImageStatusResponse{
+					Image: &v1.Image{
+						Id:          "image123",
+						RepoTags:    []string{"myrepo/myimage:latest"},
+						RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
+					},
+				}, nil
+			},
+			existingImages:           nil,
+			expectedContainerEvents:  0,    // No container events due to early error
+			expectedImageEvents:      0,    // No image events due to ListImages failure
+			expectedImageStatusCalls: 0,    // No GetContainerImage calls due to early error
+			expectedError:            true, // Should return error when ListImages fails
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imageStatusCallCount := 0
+			client := &mockCRIOClient{
+				mockGetAllContainers:   tt.mockGetAllContainers,
+				mockGetPodStatus:       tt.mockGetPodStatus,
+				mockGetContainerStatus: tt.mockGetContainerStatus,
+				mockListImages:         tt.mockListImages,
+				mockGetContainerImage: func(ctx context.Context, imageSpec *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error) {
+					imageStatusCallCount++
+					return tt.mockGetContainerImage(ctx, imageSpec, verbose)
+				},
+			}
+
+			store := &mockWorkloadmetaStore{
+				existingImages: tt.existingImages,
+			}
+			crioCollector := collector{
+				client:     client,
+				store:      store,
+				seenImages: make(map[workloadmeta.EntityID]struct{}),
+			}
+
+			err := crioCollector.Pull(context.Background())
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Verify the expected number of events were notified
+			// The store should receive both container and image events
+			totalEvents := len(store.notifiedEvents)
+			expectedTotalEvents := tt.expectedContainerEvents + tt.expectedImageEvents
+			assert.Equal(t, expectedTotalEvents, totalEvents, "Total events should match expected container + image events")
+
+			// Count container vs image events
+			containerEventCount := 0
+			imageEventCount := 0
+			for _, event := range store.notifiedEvents {
+				switch event.Entity.(type) {
+				case *workloadmeta.Container:
+					containerEventCount++
+				case *workloadmeta.ContainerImageMetadata:
+					imageEventCount++
+				}
+			}
+
+			assert.Equal(t, tt.expectedContainerEvents, containerEventCount, "Container event count mismatch")
+			assert.Equal(t, tt.expectedImageEvents, imageEventCount, "Image event count mismatch")
+			assert.Equal(t, tt.expectedImageStatusCalls, imageStatusCallCount, "GetContainerImage call count mismatch")
 		})
 	}
 }
