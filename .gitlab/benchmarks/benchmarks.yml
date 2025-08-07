@@ -10,7 +10,7 @@ benchmark:
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   script:
     - export ARTIFACTS_DIR="$(pwd)/artifacts" && mkdir -p $ARTIFACTS_DIR
-    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX_GLIBC_2_23_ARM64#*-}"
+    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@${DDA_VERSION}"
     - dda self dep sync -f legacy-tasks

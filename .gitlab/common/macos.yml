@@ -93,7 +93,7 @@
 
 .install_python_dependencies:
   # Get the commit from the build image variable in the format `vPIPELINE_ID-COMMIT`
-  - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX_GLIBC_2_23_ARM64#*-}"
+  - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
   - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
   - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@${DDA_VERSION}" --break-system-packages
   - pyenv rehash
