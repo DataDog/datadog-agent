@@ -19,10 +19,9 @@ import (
 )
 
 var (
-	imdsHostname       = "/hostname"
-	imdsIPv4           = "/public-ipv4"
-	imdsNetworkMacs    = "/network/interfaces/macs"
-	imdsSecurityGroups = "/security-groups"
+	imdsHostname    = "/hostname"
+	imdsIPv4        = "/public-ipv4"
+	imdsNetworkMacs = "/network/interfaces/macs"
 )
 
 var publicIPv4Fetcher = cachedfetch.Fetcher{
@@ -72,7 +71,7 @@ var networkIDFetcher = cachedfetch.Fetcher{
 }
 
 // GetNetworkID retrieves the network ID using the EC2 metadata endpoint. For
-// EC2 instances, the the network ID is the VPC ID, if the instance is found to
+// EC2 instances, the network ID is the VPC ID, if the instance is found to
 // be a part of exactly one VPC.
 func GetNetworkID(ctx context.Context) (string, error) {
 	return networkIDFetcher.FetchString(ctx)
@@ -162,35 +161,7 @@ func GetVPCSubnetsForHost(ctx context.Context) ([]string, error) {
 	return vpcSubnetFetcher.FetchStringSlice(ctx)
 }
 
-var securityGroupsFetcher = cachedfetch.Fetcher{
-	Name: "Security Groups",
-	Attempt: func(ctx context.Context) (interface{}, error) {
-		resp, err := ec2internal.GetMetadataItem(ctx, imdsSecurityGroups, ec2internal.UseIMDSv2(), true)
-		if err != nil {
-			return nil, fmt.Errorf("EC2: GetSecurityGroups failed to get security groups: %w", err)
-		}
-
-		// Security groups are returned as a newline-separated list
-		securityGroups := strings.Split(strings.TrimSpace(resp), "\n")
-
-		// Filter out empty strings
-		var result []string
-		for _, sg := range securityGroups {
-			if sg = strings.TrimSpace(sg); sg != "" {
-				result = append(result, sg)
-			}
-		}
-
-		return result, nil
-	},
-}
-
-// GetSecurityGroups retrieves the security group IDs for the current EC2 instance
-// using the EC2 metadata endpoint.
-func GetSecurityGroups(ctx context.Context) ([]string, error) {
-	return securityGroupsFetcher.FetchStringSlice(ctx)
-}
-
+// securityGroupsForInterfaceFetcher retrieves all security group IDs for all network interfaces
 var securityGroupsForInterfaceFetcher = cachedfetch.Fetcher{
 	Name: "Security Groups for Network Interface",
 	Attempt: func(ctx context.Context) (interface{}, error) {

@@ -8,8 +8,9 @@ package payload
 
 // Via has info about the routing decision for a flow
 type Via struct {
-	Subnet    Subnet    `json:"subnet,omitempty"`
-	Interface Interface `json:"interface,omitempty"`
+	Subnet    Subnet        `json:"subnet,omitempty"`
+	Interface Interface     `json:"interface,omitempty"`
+	SG        SecurityGroup `json:"security_group,omitempty"`
 }
 
 // Interface has information about a network interface
@@ -20,4 +21,8 @@ type Interface struct {
 // Subnet stores info about a subnet
 type Subnet struct {
 	Alias string `json:"alias,omitempty"`
+}
+
+type SecurityGroup struct {
+	ID string `json:"id,omitempty"`
 }
