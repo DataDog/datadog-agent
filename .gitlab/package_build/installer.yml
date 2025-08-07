@@ -40,7 +40,7 @@ datadog-agent-oci-x64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs:
     [
@@ -61,7 +61,7 @@ datadog-agent-oci-arm64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   needs:
     [
@@ -84,7 +84,7 @@ installer-install-scripts:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs:
     [
@@ -171,7 +171,7 @@ installer-amd64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
@@ -186,7 +186,7 @@ installer-arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
