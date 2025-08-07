@@ -25,6 +25,7 @@ type ScanOptions struct {
 	Fast             bool
 	UseMount         bool
 	OverlayFsScan    bool
+	AdditionalDirs   []string
 }
 
 const (

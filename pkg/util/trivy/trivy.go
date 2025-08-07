@@ -130,6 +130,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
 			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
 		}
+		option.WalkerOption.OnlyDirs = append(option.WalkerOption.OnlyDirs, opts.AdditionalDirs...)
 	} else if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
 		option.WalkerOption.SkipDirs = append(
 			option.WalkerOption.SkipDirs,
