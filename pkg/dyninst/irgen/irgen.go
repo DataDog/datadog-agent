@@ -78,10 +78,15 @@ func NewGenerator(options ...Option) *Generator {
 // and any probes that failed during generation.
 func (g *Generator) GenerateIR(
 	programID ir.ProgramID,
-	objFile *object.ElfFile,
+	binaryPath string,
 	probeDefs []ir.ProbeDefinition,
 ) (*ir.Program, error) {
-	return generateIR(g.config, programID, objFile, probeDefs)
+	elfFile, err := g.config.elfFileLoader.Load(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load elf file: %w", err)
+	}
+	defer elfFile.Close()
+	return generateIR(g.config, programID, elfFile, probeDefs)
 }
 
 // GenerateIR generates an IR program from a binary and a list of probes.
