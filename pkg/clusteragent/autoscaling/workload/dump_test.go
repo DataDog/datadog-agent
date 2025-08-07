@@ -163,6 +163,13 @@ From Replicas: 3
 To Replicas: 4
 Recommended Replicas: 4
 --------------------------------
+Horizontal Last Recommendation: Source: Autoscaling
+Timestamp: %[1]s
+Replicas: 100
+Horizontal Last Recommendation: Source: Autoscaling
+Timestamp: %[1]s
+Replicas: 102
+--------------------------------
 Vertical Last Action Error: test vertical last action error
 Vertical Last Action: Timestamp: %[1]s
 Version: 1
@@ -387,6 +394,18 @@ func createFakePodAutoscaler(testTime time.Time) model.FakePodAutoscalerInternal
 				FromReplicas:        3,
 				ToReplicas:          4,
 				RecommendedReplicas: ptr.To(int32(4)),
+			},
+		},
+		HorizontalLastRecommendations: []model.HorizontalScalingValues{
+			{
+				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				Timestamp: testTime,
+				Replicas:  100,
+			},
+			{
+				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				Timestamp: testTime,
+				Replicas:  102,
 			},
 		},
 		VerticalLastAction: &datadoghqcommon.DatadogPodAutoscalerVerticalAction{
