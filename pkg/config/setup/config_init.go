@@ -8,9 +8,6 @@
 package setup
 
 func initConfig() {
-	cfg := GlobalConfigBuilder()
-	InitConfig(cfg)
-
-	sysprobe := GlobalSystemProbeConfigBuilder()
-	InitSystemProbeConfig(sysprobe)
+	InitConfig(Datadog())
+	InitSystemProbeConfig(SystemProbe())
 }

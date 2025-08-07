@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
+func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
 	conf := newTestConf(t)
 	conf.SetConfigType("yaml")
 	err := conf.ReadConfig(strings.NewReader(yamlConfig))
