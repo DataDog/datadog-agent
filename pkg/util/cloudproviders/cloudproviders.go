@@ -9,7 +9,6 @@ package cloudproviders
 import (
 	"context"
 	"errors"
-	"sort"
 	"sync"
 
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -120,9 +119,9 @@ var hostAliasesDetectors = []cloudProviderAliasesDetector{
 }
 
 // GetHostAliases returns the hostname aliases and the name of the possible cloud providers
-func GetHostAliases(ctx context.Context) ([]string, []string) {
+func GetHostAliases(ctx context.Context) ([]string, string) {
 	aliases := []string{}
-	cloudproviders := []string{}
+	cloudprovider := ""
 
 	// cloud providers endpoints can take a few seconds to answer. We're using a WaitGroup to call all of them
 	// concurrently since GetHostAliases is called during the agent startup and is blocking.
@@ -140,15 +139,18 @@ func GetHostAliases(ctx context.Context) ([]string, []string) {
 			} else if len(cloudAliases) > 0 {
 				m.Lock()
 				aliases = append(aliases, cloudAliases...)
-				cloudproviders = append(cloudproviders, cloudAliasesDetector.name)
+				if cloudprovider == "" {
+					cloudprovider = cloudAliasesDetector.name
+				} else {
+					log.Warnf("Ambiguous cloud provider: %s or %s", cloudprovider, cloudAliasesDetector.name)
+				}
 				m.Unlock()
 			}
 		}(cloudAliasesDetector)
 	}
 	wg.Wait()
 
-	sort.Strings(cloudproviders)
-	return utilsort.UniqInPlace(aliases), cloudproviders
+	return utilsort.UniqInPlace(aliases), cloudprovider
 }
 
 type cloudProviderCCRIDDetector func(context.Context) (string, error)
@@ -159,16 +161,14 @@ var hostCCRIDDetectors = map[string]cloudProviderCCRIDDetector{
 }
 
 // GetHostCCRID returns the host CCRID from the first provider that works
-func GetHostCCRID(ctx context.Context, cloudproviders []string) string {
-	for _, cloudname := range cloudproviders {
-		if callback, found := hostCCRIDDetectors[cloudname]; found {
-			hostCCRID, err := callback(ctx)
-			if err != nil {
-				log.Debugf("Could not fetch %s Host CCRID: %s", cloudname, err)
-				return ""
-			}
-			return hostCCRID
+func GetHostCCRID(ctx context.Context, cloudname string) string {
+	if callback, found := hostCCRIDDetectors[cloudname]; found {
+		hostCCRID, err := callback(ctx)
+		if err != nil {
+			log.Debugf("Could not fetch %s Host CCRID: %s", cloudname, err)
+			return ""
 		}
+		return hostCCRID
 	}
 	log.Infof("No Host CCRID found")
 	return ""

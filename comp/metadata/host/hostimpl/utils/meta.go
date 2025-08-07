@@ -67,9 +67,9 @@ func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnameinterf
 	}
 
 	ccrid := ""
-	hostAliases, cloudnames := cloudproviders.GetHostAliases(ctx)
+	hostAliases, cloudname := cloudproviders.GetHostAliases(ctx)
 	if !conf.GetBool("host_disable_ccrid_fetch") {
-		ccrid = cloudproviders.GetHostCCRID(ctx, cloudnames)
+		ccrid = cloudproviders.GetHostCCRID(ctx, cloudname)
 	}
 
 	m := &Meta{

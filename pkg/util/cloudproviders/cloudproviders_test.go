@@ -45,11 +45,11 @@ func TestCloudProviderAliases(t *testing.T) {
 		},
 	}
 
-	aliases, cloudproviders := GetHostAliases(context.TODO())
+	aliases, cloudprovider := GetHostAliases(context.TODO())
 	assert.True(t, detector1Called, "host alias callback for 'detector1' was not called")
 	assert.True(t, detector2Called, "host alias callback for 'detector2' was not called")
 	assert.True(t, detector3Called, "host alias callback for 'detector3' was not called")
 
 	assert.Equal(t, []string{"alias1", "alias2"}, aliases)
-	assert.Equal(t, []string{"detector1", "detector3"}, cloudproviders)
+	assert.Equal(t, "detector3", cloudprovider)
 }
