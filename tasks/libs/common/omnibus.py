@@ -160,7 +160,7 @@ def get_dd_api_key(ctx):
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:
-        cmd = f'vault kv get -field=token kv/k8s/{os.environ["POD_NAMESPACE"]}/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
+        cmd = f'vault kv get -field=token kv/k8s/{os.environ.get('POD_NAMESPACE', 'gitlab-runner')}/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     return ctx.run(cmd, hide=True).stdout.strip()
 
 
