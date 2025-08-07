@@ -386,6 +386,8 @@ func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*
 		Synthetics:     aggrKey.Synthetics,
 		IsTraceRoot:    aggrKey.IsTraceRoot,
 		GRPCStatusCode: aggrKey.GRPCStatusCode,
+		HTTPMethod:     aggrKey.HTTPMethod,
+		Endpoint:       aggrKey.Endpoint,
 		PeerTags:       stats.peerTags,
 		TopLevelHits:   stats.topLevelHits,
 		Hits:           stats.hits,
