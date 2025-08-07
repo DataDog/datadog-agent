@@ -54,15 +54,14 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 		value := container.EnvVars["DOCKER_DD_AGENT"]
 		value = strings.ToLower(value)
 
-		var podNamespace string
+		// c.MetadataStore.GetKubernetesPodForContainer doesn't work currently
+		// because the owner information is not forwarded in the workloadmeta
+		// protobuf.
+		// Temporarily, we use the container labels to extract the pod namespace.
+		podNamespace := container.EntityMeta.Labels["io.kubernetes.pod.namespace"]
 		var podAnnotations map[string]string
-		pod, err := c.MetadataStore.GetKubernetesPodForContainer(container.ID)
-		if err == nil {
-			podNamespace = pod.Namespace
-			podAnnotations = pod.Annotations
-		}
 
-		log.Errorf("dbg: container_name=%s image_name=%s pod_namespace=%s pod_annotations=%v err=%v", container.Name, container.Image.Name, podNamespace, podAnnotations, err)
+		log.Errorf("dbg: container_name=%s image_name=%s pod_namespace=%s pod_annotations=%v", container.Name, container.Image.Name, podNamespace, podAnnotations)
 
 		if (value == "yes" || value == "true") ||
 			c.containerFilter.IsExcluded(podAnnotations, container.Name, container.Image.Name, podNamespace) {
