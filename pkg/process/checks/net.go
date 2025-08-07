@@ -20,6 +20,7 @@ import (
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -76,6 +77,8 @@ type ConnectionsCheck struct {
 	npCollector npcollector.Component
 
 	sysprobeClient *http.Client
+
+	hostTagProvider *hosttags.HostTagProvider
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -105,6 +108,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
+	c.hostTagProvider = hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration"))
 
 	// LocalResolver is a singleton LocalResolver
 	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
@@ -175,7 +179,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
 }
 
@@ -312,6 +316,7 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
 	hostInfo *HostInfo,
+	hostTagProvider *hosttags.HostTagProvider,
 	maxConnsPerMessage int,
 	groupID int32,
 	cxs []*model.Connection,
@@ -431,6 +436,13 @@ func batchConnections(
 				remapDNSStatsByOffset(c, indexToOffset)
 			}
 		}
+
+		hostTagsIndex := -1
+		// Add host tags if needed
+		if hostTags := hostTagProvider.GetHostTags(); len(hostTags) > 0 {
+			hostTagsIndex = tagsEncoder.Encode(hostTags)
+		}
+
 		cc := &model.CollectorConnections{
 			AgentConfiguration:     agentCfg,
 			HostName:               hostInfo.HostName,
@@ -445,6 +457,7 @@ func batchConnections(
 			Routes:                 batchRoutes,
 			EncodedConnectionsTags: connectionsTagsEncoder.Buffer(),
 			EncodedTags:            tagsEncoder.Buffer(),
+			HostTagsIndex:          int32(hostTagsIndex),
 		}
 
 		// Add OS telemetry
