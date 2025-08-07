@@ -291,7 +291,6 @@ func setupDatabricksWorker(s *common.Setup) {
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
-		s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {
 		sparkIntegration.Instances = []any{
@@ -302,7 +301,9 @@ func setupDatabricksWorker(s *common.Setup) {
 				StreamingMetrics: true,
 			},
 		}
+		s.Span.SetTag("host_tag_set.worker_spark_enabled", "true")
 	}
+	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
 
 func addCustomHostTags(s *common.Setup) {
