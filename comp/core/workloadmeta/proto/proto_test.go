@@ -162,6 +162,132 @@ func TestConversions(t *testing.T) {
 			expectsError: false,
 		},
 		{
+			name: "event with a container with an owner",
+			workloadmetaEvent: workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "123",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "abc",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"an_annotation": "an_annotation_value",
+						},
+						Labels: map[string]string{
+							"a_label": "a_label_value",
+						},
+					},
+					EnvVars: map[string]string{
+						"an_env": "an_env_val",
+					},
+					Hostname: "test_host",
+					Image: workloadmeta.ContainerImage{
+						ID:        "123",
+						RawName:   "datadog/agent:7",
+						Name:      "datadog/agent",
+						ShortName: "agent",
+						Tag:       "7",
+					},
+					NetworkIPs: map[string]string{
+						"net1": "10.0.0.1",
+						"net2": "192.168.0.1",
+					},
+					PID: 0,
+					Ports: []workloadmeta.ContainerPort{
+						{
+							Port:     2000,
+							Protocol: "tcp",
+						},
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
+					State: workloadmeta.ContainerState{
+						Running:    true,
+						Status:     workloadmeta.ContainerStatusRunning,
+						Health:     workloadmeta.ContainerHealthHealthy,
+						CreatedAt:  createdAt,
+						StartedAt:  createdAt,
+						FinishedAt: time.Time{},
+						ExitCode:   nil,
+					},
+					CollectorTags: []string{
+						"tag1",
+					},
+					ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+						{Name: "nvidia.com/gpu", ID: "gpu1"},
+					},
+					Owner: &workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "pod123",
+					},
+				},
+			},
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
+				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
+				Container: &pb.Container{
+					EntityId: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_CONTAINER,
+						Id:   "123",
+					},
+					EntityMeta: &pb.EntityMeta{
+						Name:      "abc",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"an_annotation": "an_annotation_value",
+						},
+						Labels: map[string]string{
+							"a_label": "a_label_value",
+						},
+					},
+					EnvVars: map[string]string{
+						"an_env": "an_env_val",
+					},
+					Hostname: "test_host",
+					Image: &pb.ContainerImage{
+						Id:        "123",
+						RawName:   "datadog/agent:7",
+						Name:      "datadog/agent",
+						ShortName: "agent",
+						Tag:       "7",
+					},
+					NetworkIps: map[string]string{
+						"net1": "10.0.0.1",
+						"net2": "192.168.0.1",
+					},
+					Pid: 0,
+					Ports: []*pb.ContainerPort{
+						{
+							Port:     2000,
+							Protocol: "tcp",
+						},
+					},
+					Runtime: pb.Runtime_CONTAINERD,
+					State: &pb.ContainerState{
+						Running:    true,
+						Status:     pb.ContainerStatus_CONTAINER_STATUS_RUNNING,
+						Health:     pb.ContainerHealth_CONTAINER_HEALTH_HEALTHY,
+						CreatedAt:  createdAt.Unix(),
+						StartedAt:  createdAt.Unix(),
+						FinishedAt: time.Time{}.Unix(),
+						ExitCode:   0,
+					},
+					CollectorTags: []string{
+						"tag1",
+					},
+					ResolvedAllocatedResources: []*pb.ContainerAllocatedResource{
+						{Name: "nvidia.com/gpu", ID: "gpu1"},
+					},
+					Owner: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_KUBERNETES_POD,
+						Id:   "pod123",
+					},
+				},
+			},
+			expectsError: false,
+		},
+		{
 			name: "event with a Kubernetes pod",
 			workloadmetaEvent: workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
