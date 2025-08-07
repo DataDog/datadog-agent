@@ -71,7 +71,7 @@ var networkIDFetcher = cachedfetch.Fetcher{
 }
 
 // GetNetworkID retrieves the network ID using the EC2 metadata endpoint. For
-// EC2 instances, the the network ID is the VPC ID, if the instance is found to
+// EC2 instances, the network ID is the VPC ID, if the instance is found to
 // be a part of exactly one VPC.
 func GetNetworkID(ctx context.Context) (string, error) {
 	return networkIDFetcher.FetchString(ctx)
@@ -159,4 +159,48 @@ var vpcSubnetFetcher = cachedfetch.Fetcher{
 // GetVPCSubnetsForHost gets all the subnets in the VPCs this host has network interfaces for
 func GetVPCSubnetsForHost(ctx context.Context) ([]string, error) {
 	return vpcSubnetFetcher.FetchStringSlice(ctx)
+}
+
+// securityGroupsForInterfaceFetcher retrieves all security group IDs for all network interfaces
+var securityGroupsForInterfaceFetcher = cachedfetch.Fetcher{
+	Name: "Security Groups for Network Interface",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		// First get the MAC addresses
+		resp, err := ec2internal.GetMetadataItem(ctx, imdsNetworkMacs, ec2internal.ImdsV2, true)
+		if err != nil {
+			return nil, fmt.Errorf("EC2: GetSecurityGroupsForInterface failed to get mac addresses: %w", err)
+		}
+
+		macs := strings.Split(strings.TrimSpace(resp), "\n")
+		allSecurityGroups := common.NewStringSet()
+
+		for _, mac := range macs {
+			if mac == "" {
+				continue
+			}
+			mac = strings.TrimSuffix(mac, "/")
+
+			// Get security groups for this specific interface
+			sgResp, err := ec2internal.GetMetadataItem(ctx, fmt.Sprintf("%s/%s/security-groups", imdsNetworkMacs, mac), ec2internal.ImdsV2, true)
+			if err != nil {
+				// If this interface doesn't have security groups, continue to next
+				continue
+			}
+
+			sgList := strings.Split(strings.TrimSpace(sgResp), "\n")
+			for _, sg := range sgList {
+				if sg = strings.TrimSpace(sg); sg != "" {
+					allSecurityGroups.Add(sg)
+				}
+			}
+		}
+
+		return allSecurityGroups.GetAll(), nil
+	},
+}
+
+// GetSecurityGroupsForInterface retrieves all security group IDs for all network interfaces
+// of the current EC2 instance using the EC2 metadata endpoint.
+func GetSecurityGroupsForInterface(ctx context.Context) ([]string, error) {
+	return securityGroupsForInterfaceFetcher.FetchStringSlice(ctx)
 }
