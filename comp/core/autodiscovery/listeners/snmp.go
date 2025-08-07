@@ -453,7 +453,27 @@ func (l *SNMPListener) createService(
 ) {
 	l.Lock()
 	defer l.Unlock()
-	if _, present := l.services[entityID]; present {
+
+	_, exists := l.services[entityID]
+	if exists {
+		if !writeCache {
+			return
+		}
+
+		device, exists := subnet.devices[entityID]
+		if !exists {
+			device = deviceCache{
+				IP:        net.ParseIP(deviceIP),
+				AuthIndex: authIndex,
+				Failures:  deviceFailures,
+			}
+		} else {
+			device.Failures = deviceFailures
+		}
+		subnet.devices[entityID] = device
+
+		l.writeCache(subnet)
+
 		return
 	}
 
@@ -475,7 +495,7 @@ func (l *SNMPListener) createService(
 	config.ContextEngineID = authentication.ContextEngineID
 	config.ContextName = authentication.ContextName
 
-	svc := SNMPService{
+	l.services[entityID] = &SNMPService{
 		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
@@ -484,7 +504,6 @@ func (l *SNMPListener) createService(
 		subnet:       subnet,
 		pending:      true,
 	}
-	l.services[entityID] = &svc
 
 	pendingDevice := devicededuper.PendingDevice{
 		Config:     config,
@@ -535,27 +554,31 @@ func (l *SNMPListener) registerService(pendingDevice devicededuper.PendingDevice
 func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 	l.Lock()
 	defer l.Unlock()
-	if svc, present := l.services[entityID]; present {
-		device, exists := subnet.devices[entityID]
-		if !exists {
-			device = deviceCache{
-				IP:        net.ParseIP(svc.deviceIP),
-				AuthIndex: svc.authIndex,
-				Failures:  1,
-			}
-		} else {
-			device.Failures++
-		}
-		subnet.devices[entityID] = device
 
-		if l.config.AllowedFailures != -1 && device.Failures >= l.config.AllowedFailures {
-			l.delService <- svc
-			delete(l.services, entityID)
-			delete(subnet.devices, entityID)
-		}
-
-		l.writeCache(subnet)
+	svc, exists := l.services[entityID]
+	if !exists {
+		return
 	}
+
+	device, exists := subnet.devices[entityID]
+	if !exists {
+		device = deviceCache{
+			IP:        net.ParseIP(svc.deviceIP),
+			AuthIndex: svc.authIndex,
+			Failures:  1,
+		}
+	} else {
+		device.Failures++
+	}
+	subnet.devices[entityID] = device
+
+	if l.config.AllowedFailures != -1 && device.Failures >= l.config.AllowedFailures {
+		l.delService <- svc
+		delete(l.services, entityID)
+		delete(subnet.devices, entityID)
+	}
+
+	l.writeCache(subnet)
 }
 
 // Stop queues a shutdown of SNMPListener
