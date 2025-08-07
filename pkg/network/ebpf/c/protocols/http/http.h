@@ -36,6 +36,11 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
 }
 
 static __always_inline void http_batch_enqueue_wrapper(conn_tuple_t *tuple, http_transaction_t *http) {
+    bool is_hello = http->request_fragment[4] == '/' && http->request_fragment[5] == 'h' && http->request_fragment[6] == 'e' && http->request_fragment[7] == 'l' && http->request_fragment[8] == 'l' && http->request_fragment[9] == 'o';
+    if (is_hello) {
+        log_debug("GUY GET /hello http_batch_enqueue_wrapper");
+    }
+
     u32 zero = 0;
     http_event_t *event = bpf_map_lookup_elem(&http_scratch_buffer, &zero);
     if (!event) {
@@ -196,8 +201,16 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_parse_data(buffer, &packet_type, &method);
 
+    bool is_hello = packet_type == HTTP_REQUEST && method == HTTP_GET && buffer[4] == '/' && buffer[5] == 'h' && buffer[6] == 'e' && buffer[7] == 'l' && buffer[8] == 'l' && buffer[9] == 'o';
+    if (is_hello) {
+        log_debug("GUY GET /hello http_process");
+    }
+
     http = http_fetch_state(tuple, http, packet_type);
     if (!http || http_seen_before(http, skb_info, packet_type)) {
+        if (is_hello) {
+            log_debug("GUY GET /hello got empty http or already seen before, skipping");
+        }
         return;
     }
 
