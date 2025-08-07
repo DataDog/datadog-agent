@@ -19,7 +19,7 @@ func Test_endpointPairPortRollupStore_Add(t *testing.T) {
 	IP1 := []byte{10, 10, 10, 10}
 	IP2 := []byte{10, 10, 10, 11}
 	logger := logmock.New(t)
-	store := NewEndpointPairPortRollupStore(3, false, 0, logger)
+	store := NewEndpointPairPortRollupStore(3, false, false, 0, logger)
 
 	// 1/ Add
 	store.Add(IP1, IP2, 80, 2001)
@@ -50,7 +50,7 @@ func Test_endpointPairPortRollupStore_test_useNewStoreAsCurrentStore_and_AddToSt
 	IP1 := []byte{10, 10, 10, 10}
 	IP2 := []byte{10, 10, 10, 11}
 	logger := logmock.New(t)
-	store := NewEndpointPairPortRollupStore(3, false, 0, logger)
+	store := NewEndpointPairPortRollupStore(3, false, false, 0, logger)
 
 	// 1/ Add
 	store.Add(IP1, IP2, 80, 2000)
@@ -122,7 +122,7 @@ func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralSourcePort(t *testin
 	IP1 := []byte{10, 10, 10, 10}
 	IP2 := []byte{10, 10, 10, 11}
 	logger := logmock.New(t)
-	store := NewEndpointPairPortRollupStore(3, false, 0, logger)
+	store := NewEndpointPairPortRollupStore(3, false, false, 0, logger)
 
 	store.Add(IP1, IP2, 80, 2001)
 	store.Add(IP1, IP2, 80, 2002)
@@ -136,7 +136,7 @@ func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralDestPort(t *testing.
 	IP1 := []byte{10, 10, 10, 10}
 	IP2 := []byte{10, 10, 10, 11}
 	logger := logmock.New(t)
-	store := NewEndpointPairPortRollupStore(3, false, 0, logger)
+	store := NewEndpointPairPortRollupStore(3, false, false, 0, logger)
 
 	store.Add(IP1, IP2, 3001, 53)
 	store.Add(IP1, IP2, 3002, 53)
