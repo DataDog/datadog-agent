@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -425,6 +426,19 @@ func (c *Check) configureIncludeMountPoint() error {
 	return nil
 }
 
+// tagsKey returns a canonical string representation of the sorted tags slice.
+// e.g. []string{"beta","alpha"} → "alpha,beta"
+func tagsKey(tags []string) string {
+	sorted := append([]string{}, tags...)
+	sort.Strings(sorted)
+	return strings.Join(sorted, ",")
+}
+
+type usageAndTags struct {
+	Total, Used, Free uint64
+	Tags              []string
+}
+
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	ctx := context.Background()
 	if c.instanceConfig.ProcMountInfoPath != "" {
@@ -443,7 +457,8 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			rootDevices = map[string]string{}
 		}
 	}
-	log.Debugf("rootDevices '%s'", rootDevices)
+	log.Debugf("rootDevices: '%+v'", rootDevices)
+	allPartitionMetrics := make(map[string]usageAndTags)
 	for _, partition := range partitions {
 		if rootDev, ok := rootDevices[partition.Device]; ok {
 			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
@@ -455,9 +470,19 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			continue
 		}
 		if usage := c.getPartitionUsage(partition); usage != nil {
-			tags := c.getPartitionTags(partition)
-			c.sendPartitionMetrics(sender, usage, tags)
-
+			log.Debugf("usage: '%s'", usage)
+			partitionTags := c.getPartitionTags(partition)
+			log.Debugf("partitionTags: '%s'", partitionTags)
+			key := tagsKey(partitionTags)
+			if existing, ok := allPartitionMetrics[key]; ok {
+				existing.Total += usage.Total
+				existing.Used += usage.Used
+				existing.Free += usage.Free
+				allPartitionMetrics[key] = existing
+			} else {
+				allPartitionMetrics[key] = usageAndTags{Total: usage.Total, Used: usage.Used, Free: usage.Free, Tags: partitionTags}
+			}
+			c.sendInodesMetrics(sender, usage, partitionTags)
 			if c.instanceConfig.ServiceCheckRw {
 				checkStatus := servicecheck.ServiceCheckUnknown
 				for _, opt := range partition.Opts {
@@ -469,9 +494,24 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 						break
 					}
 				}
-				sender.ServiceCheck("disk.read_write", checkStatus, "", tags, "")
+				sender.ServiceCheck("disk.read_write", checkStatus, "", partitionTags, "")
 			}
 		}
+	}
+	log.Debugf("allPartitionMetrics: '%+v'", allPartitionMetrics)
+	for _, m := range allPartitionMetrics {
+		sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(m.Total)/1024, "", m.Tags)
+		sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(m.Used)/1024, "", m.Tags)
+		sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(m.Free)/1024, "", m.Tags)
+		var usedPercent float64
+		if (m.Used + m.Free) == 0 {
+			usedPercent = 0
+		} else {
+			usedPercent = (float64(m.Used) / float64(m.Used+m.Free)) * 100.0
+		}
+		sender.Gauge(fmt.Sprintf(diskMetric, "utilized"), usedPercent, "", m.Tags)
+		// FIXME(8.x): use percent, a lot more logical than in_use
+		sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usedPercent/100, "", m.Tags)
 	}
 	return nil
 }
@@ -489,19 +529,6 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 	}
 
 	return nil
-}
-
-func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {
-	// Disk metrics
-	// For legacy reasons,  the standard unit it kB
-	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "utilized"), usage.UsedPercent, "", tags)
-	// FIXME(8.x): use percent, a lot more logical than in_use
-	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usage.UsedPercent/100, "", tags)
-
-	c.sendInodesMetrics(sender, usage, tags)
 }
 
 func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IOCountersStat, tags []string) {
