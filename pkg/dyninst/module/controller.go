@@ -10,6 +10,7 @@ package module
 import (
 	"context"
 	"math/rand"
+	"net/url"
 	"sync"
 	"time"
 
@@ -47,7 +48,7 @@ func NewController[AT ActuatorTenant, LU LogsUploader](
 	a Actuator[AT],
 	logUploader LogsUploaderFactory[LU],
 	diagUploader DiagnosticsUploader,
-	symdbUploader SymDBUploader,
+	symdbUploaderURL *url.URL,
 	rcScraper Scraper,
 	decoderFactory DecoderFactory,
 	irGenerator actuator.IRGenerator,
@@ -59,7 +60,7 @@ func NewController[AT ActuatorTenant, LU LogsUploader](
 		rcScraper:      rcScraper,
 		store:          store,
 		diagnostics:    newDiagnosticsManager(diagUploader),
-		symdb:          newSymdbManager(symdbUploader, store),
+		symdb:          newSymdbManager(symdbUploaderURL, store),
 		decoderFactory: decoderFactory,
 	}
 	c.actuator = a.NewTenant(
