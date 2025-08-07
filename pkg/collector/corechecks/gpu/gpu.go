@@ -51,11 +51,12 @@ type Check struct {
 }
 
 type checkTelemetry struct {
-	metricsSent                telemetry.Counter
-	duplicateMetrics           telemetry.Counter
-	collectorErrors            telemetry.Counter
-	activeMetrics              telemetry.Gauge
-	missingContainerGpuMapping telemetry.Counter
+	metricsSent                  telemetry.Counter
+	duplicateMetrics             telemetry.Counter
+	collectorErrors              telemetry.Counter
+	activeMetrics                telemetry.Gauge
+	missingContainerGpuMapping   telemetry.Counter
+	multipleContainersGpuMapping telemetry.Counter
 }
 
 // Factory creates a new check factory
@@ -77,11 +78,12 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
-		metricsSent:                tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
-		collectorErrors:            tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
-		activeMetrics:              tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
-		duplicateMetrics:           tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
-		missingContainerGpuMapping: tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"device"}, "Number of containers with no matching GPU device"),
+		metricsSent:                  tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
+		collectorErrors:              tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		activeMetrics:                tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		duplicateMetrics:             tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
+		missingContainerGpuMapping:   tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
+		multipleContainersGpuMapping: tm.NewCounter(CheckName, "multiple_containers_gpu_mapping", []string{"device"}, "Number of devices assigned to multiple containers"),
 	}
 }
 
@@ -184,18 +186,25 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
-	devices := c.deviceCache.AllPhysicalDevices()
-	gpuToContainers := make(map[string]*workloadmeta.Container, len(devices))
+	gpuToContainers := make(map[string]*workloadmeta.Container, c.deviceCache.Count())
 
-	wmetaContainers := c.wmeta.ListContainersWithFilter(containers.HasGPUs)
+	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
+		containerDevices, err := containers.MatchContainerDevices(container, c.deviceCache.AllPhysicalDevices())
+		if err != nil {
+			c.telemetry.missingContainerGpuMapping.Inc(container.Name)
+		}
 
-	// Iterate over devices and find matching containers
-	for _, device := range devices {
-		deviceUUID := device.GetDeviceInfo().UUID
-		if container := containers.GetByDevice(wmetaContainers, device); container != nil {
-			gpuToContainers[deviceUUID] = container
-		} else {
-			c.telemetry.missingContainerGpuMapping.Add(1, deviceUUID)
+		// despite an error, we still might have some devices assigned to the container
+		// we also assume that each device can be assigned to only one container, in any case we will hold only the last matching container
+		for _, device := range containerDevices {
+			deviceID := device.GetDeviceInfo().UUID
+			// the device was assigned to multiple containers concurrently, we don't support this case, but we update internal telemetry
+			if _, exists := gpuToContainers[deviceID]; exists {
+				c.telemetry.multipleContainersGpuMapping.Inc(deviceID)
+			} else {
+				gpuToContainers[deviceID] = container
+			}
+
 		}
 	}
 
