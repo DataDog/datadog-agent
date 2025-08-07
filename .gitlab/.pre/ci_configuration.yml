@@ -1,6 +1,6 @@
 test_and_lint_gitlab_configuration:
   stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: [compute_gitlab_ci_config]
   rules:
@@ -13,7 +13,7 @@ test_and_lint_gitlab_configuration:
 
 test_gitlab_compare_to:
   stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   rules:
     - !reference [.except_mergequeue]
@@ -30,7 +30,7 @@ test_gitlab_compare_to:
 
 # Computes and uploads the GitLab CI configuration diff as an artifact
 compute_gitlab_ci_config:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: .pre
   needs: []
   tags: ["arch:arm64"]
@@ -51,7 +51,7 @@ compute_gitlab_ci_config:
 
 lint_github_actions_shellcheck:
   stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   needs: []
   rules:
