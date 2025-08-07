@@ -16,12 +16,13 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.lib.experimental_gates_lib import (
+from tasks.static_quality_gates.lib.gates_lib import (
+    GateMetricHandler,
     StaticQualityGate,
+    byte_to_string,
     get_metric_handler,
     get_quality_gates_list,
 )
-from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
 
 BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
