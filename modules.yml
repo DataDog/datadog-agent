@@ -40,7 +40,15 @@ modules:
   comp/core/log/impl-trace: default
   comp/core/log/mock:
     used_by_otel: true
-  comp/core/secrets:
+  comp/core/secrets/def:
+    used_by_otel: true
+  comp/core/secrets/fx:
+    used_by_otel: true
+  comp/core/secrets/impl:
+    used_by_otel: true
+  comp/core/secrets/mock:
+    used_by_otel: true
+  comp/core/secrets/utils:
     used_by_otel: true
   comp/core/status:
     used_by_otel: true
