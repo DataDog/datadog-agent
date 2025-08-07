@@ -288,7 +288,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallScript() {
 	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(oldLibraryPath, version.Version())
 
-	output, err := s.Env().RemoteHost.Execute(`C:\Program Files\Datadog\Datadog Agent\bin\scripts\iis-instrumentation.bat --uninstall`)
+	output, err := s.Env().RemoteHost.Execute(`&"C:\Program Files\Datadog\Datadog Agent\bin\scripts\iis-instrumentation.bat" --uninstall`)
 	s.Require().NoErrorf(err, "failed to run uninstall script: %s", output)
 
 	s.stopIISApp()
