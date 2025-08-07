@@ -10,7 +10,7 @@ package decode
 import "github.com/go-json-experiment/json/jsontext"
 
 var (
-	tokenNotCapturedReason = jsontext.String("tokenNotCapturedReason")
+	tokenNotCapturedReason = jsontext.String("notCapturedReason")
 
 	tokenNotCapturedReasonLength         = jsontext.String("length")
 	tokenNotCapturedReasonDepth          = jsontext.String("depth")
