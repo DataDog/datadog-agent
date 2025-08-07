@@ -712,6 +712,34 @@ func (prs *EndpointPairPortRollupStore) GetNewStoreSizeIPv4() int {
 	return len(prs.newStoreIPv4)
 }
 
+// GetSingleStoreSize get number of tracked port counters in single store
+func (prs *EndpointPairPortRollupStore) GetSingleStoreSize() int {
+	if prs.useFixedSizeKey {
+		return prs.GetSingleStoreSizeIPv4()
+	}
+	return prs.GetSingleStoreSizeString()
+}
+
+// GetSingleStoreSizeString get number of tracked port counters in single store for string keys
+func (prs *EndpointPairPortRollupStore) GetSingleStoreSizeString() int {
+	prs.storeMu.RLock()
+	defer prs.storeMu.RUnlock()
+	if prs.useSingleStore {
+		return len(prs.singleStore)
+	}
+	return 0 // not using single store
+}
+
+// GetSingleStoreSizeIPv4 get number of tracked port counters in single store for IPv4
+func (prs *EndpointPairPortRollupStore) GetSingleStoreSizeIPv4() int {
+	prs.storeMu.RLock()
+	defer prs.storeMu.RUnlock()
+	if prs.useSingleStore {
+		return len(prs.singleStoreIPv4)
+	}
+	return 0 // not using single store
+}
+
 // UseNewStoreAsCurrentStore sets newStore to curStore and clean up newStore
 func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStore() {
 	if prs.useFixedSizeKey {

@@ -313,6 +313,10 @@ func (agg *FlowAggregator) flush() int {
 	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_size", float64(agg.flowAcc.portRollup.GetCurrentStoreSize()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.portRollup.GetNewStoreSize()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.single_store_size", float64(agg.flowAcc.portRollup.GetSingleStoreSize()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_ipv4_size", float64(agg.flowAcc.portRollup.GetCurrentStoreSizeIPv4()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_ipv4_size", float64(agg.flowAcc.portRollup.GetNewStoreSizeIPv4()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.single_store_ipv4_size", float64(agg.flowAcc.portRollup.GetSingleStoreSizeIPv4()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(cap(agg.flowIn)), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.length", float64(len(agg.flowIn)), "", nil)
 
