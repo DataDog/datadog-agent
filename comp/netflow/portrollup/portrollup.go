@@ -97,24 +97,17 @@ func NewEndpointPairPortRollupStore(portRollupThreshold int, useFixedSizeKey boo
 		logger:              logger,
 	}
 
-	if useSingleStore {
-		if useFixedSizeKey {
-			store.singleStoreIPv4 = make(map[[11]byte]*portsAndActiveFlag)
-		} else {
-			store.singleStore = make(map[string]*portsAndActiveFlag)
-		}
-	} else {
-		if useFixedSizeKey {
-			store.curStoreIPv4 = make(map[[11]byte][]uint16)
-			store.newStoreIPv4 = make(map[[11]byte][]uint16)
-		} else {
-			// curStore and newStore map key is composed of `<SOURCE_IP>|<DESTINATION_IP>`
-			// SOURCE_IP and SOURCE_IP are converted from []byte to string.
-			// string is used as map key since we can't use []byte as map key.
-			store.curStore = make(map[string][]uint16)
-			store.newStore = make(map[string][]uint16)
-		}
-	}
+	// curStore and newStore map key is composed of `<SOURCE_IP>|<DESTINATION_IP>`
+	// SOURCE_IP and SOURCE_IP are converted from []byte to string.
+	// string is used as map key since we can't use []byte as map key.
+	store.curStore = make(map[string][]uint16)
+	store.newStore = make(map[string][]uint16)
+
+	store.curStoreIPv4 = make(map[[11]byte][]uint16)
+	store.newStoreIPv4 = make(map[[11]byte][]uint16)
+
+	store.singleStore = make(map[string]*portsAndActiveFlag)
+	store.singleStoreIPv4 = make(map[[11]byte]*portsAndActiveFlag)
 
 	return store
 }
@@ -658,37 +651,15 @@ func (prs *EndpointPairPortRollupStore) IsEphemeralIPv4(sourceAddr []byte, destA
 
 // GetCurrentStoreSize get number of tracked port counters in current store
 func (prs *EndpointPairPortRollupStore) GetCurrentStoreSize() int {
-	if prs.useFixedSizeKey {
-		return prs.GetCurrentStoreSizeIPv4()
-	}
-	return prs.GetCurrentStoreSizeString()
+	prs.storeMu.RLock()
+	defer prs.storeMu.RUnlock()
+	return len(prs.curStore)
 }
 
 // GetNewStoreSize get number of tracked port counters in new store
 func (prs *EndpointPairPortRollupStore) GetNewStoreSize() int {
-	if prs.useFixedSizeKey {
-		return prs.GetNewStoreSizeIPv4()
-	}
-	return prs.GetNewStoreSizeString()
-}
-
-// GetCurrentStoreSizeString get number of tracked port counters in current store for string keys
-func (prs *EndpointPairPortRollupStore) GetCurrentStoreSizeString() int {
 	prs.storeMu.RLock()
 	defer prs.storeMu.RUnlock()
-	if prs.useSingleStore {
-		return len(prs.singleStore)
-	}
-	return len(prs.curStore)
-}
-
-// GetNewStoreSizeString get number of tracked port counters in new store for string keys
-func (prs *EndpointPairPortRollupStore) GetNewStoreSizeString() int {
-	prs.storeMu.RLock()
-	defer prs.storeMu.RUnlock()
-	if prs.useSingleStore {
-		return 0 // single store doesn't have a separate new store
-	}
 	return len(prs.newStore)
 }
 
@@ -696,9 +667,6 @@ func (prs *EndpointPairPortRollupStore) GetNewStoreSizeString() int {
 func (prs *EndpointPairPortRollupStore) GetCurrentStoreSizeIPv4() int {
 	prs.storeMu.RLock()
 	defer prs.storeMu.RUnlock()
-	if prs.useSingleStore {
-		return len(prs.singleStoreIPv4)
-	}
 	return len(prs.curStoreIPv4)
 }
 
@@ -706,38 +674,21 @@ func (prs *EndpointPairPortRollupStore) GetCurrentStoreSizeIPv4() int {
 func (prs *EndpointPairPortRollupStore) GetNewStoreSizeIPv4() int {
 	prs.storeMu.RLock()
 	defer prs.storeMu.RUnlock()
-	if prs.useSingleStore {
-		return 0 // single store doesn't have a separate new store
-	}
 	return len(prs.newStoreIPv4)
 }
 
 // GetSingleStoreSize get number of tracked port counters in single store
 func (prs *EndpointPairPortRollupStore) GetSingleStoreSize() int {
-	if prs.useFixedSizeKey {
-		return prs.GetSingleStoreSizeIPv4()
-	}
-	return prs.GetSingleStoreSizeString()
-}
-
-// GetSingleStoreSizeString get number of tracked port counters in single store for string keys
-func (prs *EndpointPairPortRollupStore) GetSingleStoreSizeString() int {
 	prs.storeMu.RLock()
 	defer prs.storeMu.RUnlock()
-	if prs.useSingleStore {
-		return len(prs.singleStore)
-	}
-	return 0 // not using single store
+	return len(prs.singleStore)
 }
 
 // GetSingleStoreSizeIPv4 get number of tracked port counters in single store for IPv4
 func (prs *EndpointPairPortRollupStore) GetSingleStoreSizeIPv4() int {
 	prs.storeMu.RLock()
 	defer prs.storeMu.RUnlock()
-	if prs.useSingleStore {
-		return len(prs.singleStoreIPv4)
-	}
-	return 0 // not using single store
+	return len(prs.singleStoreIPv4)
 }
 
 // UseNewStoreAsCurrentStore sets newStore to curStore and clean up newStore

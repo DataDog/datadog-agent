@@ -32,7 +32,7 @@ type flowAccStats struct {
 	portRollupAddDurationSec float64 // duration of port rollup add() calls in seconds
 
 	flowSizeCount int64  // Number of flow sizes sampled
-	flowSizeBytes uint64 // Size of the flow added (using Sizeof)
+	flowSizeBytes uint64 // Size of the flows sampled (using Sizeof)
 }
 
 // flowContext contains flow information and additional flush related data
@@ -222,8 +222,8 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	}
 	aggHash := f.getAggregationHash(flowToAdd)
 	if f.getCodeTimings {
-		f.flowAccStats.getAggregationHashDurationSecNanoNow = float64(nanoSince(startNanoNow)) / 1e9              // convert to seconds
-		f.flowAccStats.getAggregationHashDurationSecUnixNano = float64(time.Now().UnixNano()-startUnixNano) / 1e9 // convert to seconds
+		f.flowAccStats.getAggregationHashDurationSecNanoNow += float64(nanoSince(startNanoNow)) / 1e9              // convert to seconds
+		f.flowAccStats.getAggregationHashDurationSecUnixNano += float64(time.Now().UnixNano()-startUnixNano) / 1e9 // convert to seconds
 		f.flowAccStats.getAggregationHashCount++
 	}
 
@@ -235,7 +235,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		if f.shouldSampleMemoryStats() {
 			// Calculate the size of the flow being added (sampled 1/100 calls)
 			f.flowAccStats.flowSizeCount++
-			f.flowAccStats.flowSizeBytes = common.Sizeof(f.flows[aggHash])
+			f.flowAccStats.flowSizeBytes += common.Sizeof(f.flows[aggHash])
 		}
 		return
 	}
