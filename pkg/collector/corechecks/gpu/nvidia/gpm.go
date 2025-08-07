@@ -23,7 +23,7 @@ const sampleBufferSize = 2
 
 type gpmCollector struct {
 	lib                 ddnvml.SafeNVML
-	device              ddnvml.SafeDevice
+	device              ddnvml.Device
 	samples             [sampleBufferSize]nvml.GpmSample
 	metricsToCollect    map[nvml.GpmMetricId]gpmMetric
 	nextSampleToCollect int
@@ -69,7 +69,7 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 	},
 }
 
-func newGPMCollector(device ddnvml.SafeDevice) (c Collector, err error) {
+func newGPMCollector(device ddnvml.Device) (c Collector, err error) {
 	support, err := device.GpmQueryDeviceSupport()
 	if err != nil {
 		return nil, fmt.Errorf("failed to query for GPM support: %w", err)
@@ -194,8 +194,7 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 }
 
 func (c *gpmCollector) DeviceUUID() string {
-	uuid, _ := c.device.GetUUID()
-	return uuid
+	return c.device.GetDeviceInfo().UUID
 }
 
 func (c *gpmCollector) Name() CollectorName {
