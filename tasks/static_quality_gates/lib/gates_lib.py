@@ -498,16 +498,7 @@ class StaticQualityGateDocker(StaticQualityGate):
         if "jmx" in self.gate_name:
             jmx = "-jmx"
 
-        windows_suffix = ""
-        if "windows" in self.gate_name:
-            if "1809" in self.gate_name:
-                windows_suffix += "-win1809"
-            elif "2022" in self.gate_name:
-                windows_suffix += "-winltsc2022"
-            if "core" in self.gate_name:
-                windows_suffix += "-servercore"
-
-        image_suffix = ("-7" if flavor == "agent" else "") + jmx + windows_suffix
+        image_suffix = ("-7" if flavor == "agent" else "") + jmx
 
         if os.environ["BUCKET_BRANCH"] == "nightly":
             flavor += "-nightly"

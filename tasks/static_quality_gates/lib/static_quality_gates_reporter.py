@@ -124,24 +124,28 @@ class QualityGateOutputFormatter:
             artifact_on_disk_size: Current uncompressed size in bytes
             max_on_disk_size: Maximum allowed uncompressed size in bytes
         """
-        # Calculate utilization percentages
-        wire_utilization = (artifact_on_wire_size / max_on_wire_size) * 100
-        disk_utilization = (artifact_on_disk_size / max_on_disk_size) * 100
+        # Calculate remaining space
+        wire_remaining = max_on_wire_size - artifact_on_wire_size
+        disk_remaining = max_on_disk_size - artifact_on_disk_size
 
         # Format sizes for readability
         wire_current = f"{artifact_on_wire_size / 1024 / 1024:.1f} MB"
         wire_limit = f"{max_on_wire_size / 1024 / 1024:.1f} MB"
+        wire_remaining_formatted = f"{wire_remaining / 1024 / 1024:.1f} MB"
         disk_current = f"{artifact_on_disk_size / 1024 / 1024:.1f} MB"
         disk_limit = f"{max_on_disk_size / 1024 / 1024:.1f} MB"
+        disk_remaining_formatted = f"{disk_remaining / 1024 / 1024:.1f} MB"
 
         print(
             color_message(
-                f"📦 Compressed Size:   {wire_current:>10} / {wire_limit:>10} ({wire_utilization:5.1f}% used)", "green"
+                f"📦 Compressed Size:   {wire_current:>10} / {wire_limit:>10} ({wire_remaining_formatted:>10} remaining)",
+                "green",
             )
         )
         print(
             color_message(
-                f"💾 Uncompressed Size: {disk_current:>10} / {disk_limit:>10} ({disk_utilization:5.1f}% used)", "green"
+                f"💾 Uncompressed Size: {disk_current:>10} / {disk_limit:>10} ({disk_remaining_formatted:>10} remaining)",
+                "green",
             )
         )
 
@@ -188,7 +192,7 @@ class QualityGateOutputFormatter:
         state_lookup = {state["name"]: state for state in gate_states}
 
         # Table header
-        header = f"{'Gate Name':<40} {'Status':<8} {'Compressed':<20} {'Uncompressed':<20} {'Comp Util':<10} {'Uncomp Util':<12}"
+        header = f"{'Gate Name':<40} {'Status':<8} {'Compressed':<20} {'Uncompressed':<20} {'Comp Remain':<12} {'Uncomp Remain':<14}"
         print(color_message(header, "cyan"))
         print(color_message("-" * 132, "cyan"))
 
@@ -215,15 +219,15 @@ class QualityGateOutputFormatter:
                 status = color_message("FAIL", "red")
                 failed_count += 1
 
-            # Sizes and utilization
+            # Sizes and remaining space
             if hasattr(gate, 'artifact_on_wire_size') and hasattr(gate, 'artifact_on_disk_size'):
                 wire_current = gate.artifact_on_wire_size / (1024 * 1024)
                 wire_limit = gate.max_on_wire_size / (1024 * 1024)
                 disk_current = gate.artifact_on_disk_size / (1024 * 1024)
                 disk_limit = gate.max_on_disk_size / (1024 * 1024)
 
-                wire_util = (wire_current / wire_limit) * 100
-                disk_util = (disk_current / disk_limit) * 100
+                wire_remaining = wire_limit - wire_current
+                disk_remaining = disk_limit - disk_current
 
                 # Accumulate totals
                 total_compressed += wire_current
@@ -231,32 +235,33 @@ class QualityGateOutputFormatter:
                 total_compressed_limit += wire_limit
                 total_uncompressed_limit += disk_limit
 
-                # Format utilization with color based on usage for each type
-                def get_util_color(util_percent):
-                    if util_percent > 95:
+                # Format remaining space with color based on how much is left
+                def get_remaining_color(remaining_mb, limit_mb):
+                    remaining_percent = (remaining_mb / limit_mb) * 100
+                    if remaining_percent < 5:  # Less than 5% remaining
                         return "red"
-                    elif util_percent > 85:
+                    elif remaining_percent < 15:  # Less than 15% remaining
                         return "orange"
-                    elif util_percent > 75:
+                    elif remaining_percent < 25:  # Less than 25% remaining
                         return "yellow"
                     else:
                         return "green"
 
-                wire_util_color = get_util_color(wire_util)
-                disk_util_color = get_util_color(disk_util)
+                wire_remaining_color = get_remaining_color(wire_remaining, wire_limit)
+                disk_remaining_color = get_remaining_color(disk_remaining, disk_limit)
 
                 compressed_info = f"{wire_current:6.1f}/{wire_limit:6.1f} MB"
                 uncompressed_info = f"{disk_current:6.1f}/{disk_limit:6.1f} MB"
-                compressed_util_info = color_message(f"{wire_util:6.1f}%", wire_util_color)
-                uncompressed_util_info = color_message(f"{disk_util:6.1f}%", disk_util_color)
+                compressed_remaining_info = color_message(f"{wire_remaining:6.1f} MB", wire_remaining_color)
+                uncompressed_remaining_info = color_message(f"{disk_remaining:6.1f} MB", disk_remaining_color)
             else:
                 compressed_info = "N/A"
                 uncompressed_info = "N/A"
-                compressed_util_info = "N/A"
-                uncompressed_util_info = "N/A"
+                compressed_remaining_info = "N/A"
+                uncompressed_remaining_info = "N/A"
 
             print(
-                f"{display_name:<40} {status:<8} {compressed_info:<20} {uncompressed_info:<20} {compressed_util_info:<10} {uncompressed_util_info:<12}"
+                f"{display_name:<40} {status:<8} {compressed_info:<20} {uncompressed_info:<20} {compressed_remaining_info:<12} {uncompressed_remaining_info:<14}"
             )
 
         # Summary footer
@@ -264,21 +269,21 @@ class QualityGateOutputFormatter:
 
         # Overall statistics
         total_gates = len(gate_list)
-        overall_compressed_util = (total_compressed / total_compressed_limit) * 100 if total_compressed_limit > 0 else 0
-        overall_uncompressed_util = (
-            (total_uncompressed / total_uncompressed_limit) * 100 if total_uncompressed_limit > 0 else 0
+        overall_compressed_remaining = total_compressed_limit - total_compressed if total_compressed_limit > 0 else 0
+        overall_uncompressed_remaining = (
+            total_uncompressed_limit - total_uncompressed if total_uncompressed_limit > 0 else 0
         )
 
         print(color_message(f"📊 SUMMARY: {passed_count}/{total_gates} gates passed", "cyan"))
         print(
             color_message(
-                f"📦 Total Compressed:   {total_compressed:7.1f} MB / {total_compressed_limit:7.1f} MB ({overall_compressed_util:5.1f}% avg)",
+                f"📦 Total Compressed:   {total_compressed:7.1f} MB / {total_compressed_limit:7.1f} MB ({overall_compressed_remaining:7.1f} MB remaining)",
                 "cyan",
             )
         )
         print(
             color_message(
-                f"💾 Total Uncompressed: {total_uncompressed:7.1f} MB / {total_uncompressed_limit:7.1f} MB ({overall_uncompressed_util:5.1f}% avg)",
+                f"💾 Total Uncompressed: {total_uncompressed:7.1f} MB / {total_uncompressed_limit:7.1f} MB ({overall_uncompressed_remaining:7.1f} MB remaining)",
                 "cyan",
             )
         )

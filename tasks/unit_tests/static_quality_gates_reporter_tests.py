@@ -168,9 +168,9 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
         self.assertIn("700.0 MB", output_text)  # Current uncompressed size
         self.assertIn("705.0 MB", output_text)  # Max uncompressed size
 
-        # Should contain utilization percentages (allowing for rounding differences)
-        self.assertIn("99.6%", output_text)  # Wire utilization
-        self.assertIn("99.3%", output_text)  # Disk utilization
+        # Should contain remaining space (allowing for rounding differences)
+        self.assertIn("0.8 MB", output_text)  # Wire remaining space (~178.5 - 177.7)
+        self.assertIn("5.0 MB", output_text)  # Disk remaining space (~705.0 - 700.0)
 
         # Should contain emoji indicators
         self.assertIn("📦", output_text)  # Compressed indicator
@@ -284,8 +284,8 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
         self.assertIn("Status", output_text)
         self.assertIn("Compressed", output_text)
         self.assertIn("Uncompressed", output_text)
-        self.assertIn("Comp Util", output_text)
-        self.assertIn("Uncomp Util", output_text)
+        self.assertIn("Comp Remain", output_text)
+        self.assertIn("Uncomp Remain", output_text)
 
         # Should contain gate display names
         self.assertIn("Agent DEB (AMD64)", output_text)
