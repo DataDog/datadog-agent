@@ -59,8 +59,8 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 	b.Run("ParseGoSymbolTable", func(b *testing.B) {
 		for b.Loop() {
 			_, err := ParseGoSymbolTable(
-				goDebugSections.PcLnTab.Data,
-				goDebugSections.GoFunc.Data,
+				goDebugSections.PcLnTab.Data(),
+				goDebugSections.GoFunc.Data(),
 				moduledata.Text,
 				moduledata.EText,
 				moduledata.MinPC,
@@ -74,8 +74,8 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 	})
 
 	symtab, err := ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,
