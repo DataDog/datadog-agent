@@ -3,17 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 package setup
 
 import (
-	"path/filepath"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func platformCWSConfig(cfg pkgconfigmodel.Config) {
-	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
-	cfg.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
+func setupPreaggregation(config pkgconfigmodel.Setup) {
+	config.BindEnvAndSetDefault("preaggregation.enabled", false)
+	config.BindEnv("preaggregation.dd_url")
+	config.BindEnv("preaggregation.api_key")
 }

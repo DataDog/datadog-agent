@@ -51,25 +51,22 @@ func New(configPath string, fleetPoliciesDirPath string) (*types.Config, error) 
 }
 
 func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.Config, error) {
-	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
-
-	cfg.SetConfigName("system-probe")
+	pkgconfigsetup.SystemProbe().SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
 		// if the configuration file path was supplied on the command line,
 		// add that first, so it's first in line
-		cfg.AddConfigPath(configPath)
+		pkgconfigsetup.SystemProbe().AddConfigPath(configPath)
 		// If they set a config file directly, let's try to honor that
 		if strings.HasSuffix(configPath, ".yaml") {
-			cfg.SetConfigFile(configPath)
+			pkgconfigsetup.SystemProbe().SetConfigFile(configPath)
 		}
 	} else {
 		// only add default if a custom configPath was not supplied
-		cfg.AddConfigPath(defaultConfigDir)
+		pkgconfigsetup.SystemProbe().AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	ddcfg := pkgconfigsetup.Datadog()
-	err := pkgconfigsetup.LoadCustom(cfg, ddcfg.GetEnvVars())
+	err := pkgconfigsetup.LoadCustom(pkgconfigsetup.SystemProbe(), pkgconfigsetup.Datadog().GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -87,10 +84,10 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 
 	// if fleetPoliciesDirPath was provided in the command line, copy it to the config
 	if fleetPoliciesDirPath != "" {
-		cfg.Set("fleet_policies_dir", fleetPoliciesDirPath, pkgconfigmodel.SourceAgentRuntime)
+		pkgconfigsetup.SystemProbe().Set("fleet_policies_dir", fleetPoliciesDirPath, pkgconfigmodel.SourceAgentRuntime)
 	}
 	// apply remote fleet policy to the config
-	err = applyFleetPolicy(cfg)
+	err = applyFleetPolicy(pkgconfigsetup.SystemProbe())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fleet policy: %w", err)
 	}
@@ -99,8 +96,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 }
 
 func load() (*types.Config, error) {
-	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
-
+	cfg := pkgconfigsetup.SystemProbe()
 	Adjust(cfg)
 
 	c := &types.Config{
@@ -195,14 +191,12 @@ func load() (*types.Config, error) {
 
 // SetupOptionalDatadogConfigWithDir loads the datadog.yaml config file from a given config directory but will not fail on a missing file
 func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
-	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
-
-	cfg.AddConfigPath(configDir)
+	pkgconfigsetup.Datadog().AddConfigPath(configDir)
 	if configFile != "" {
-		cfg.SetConfigFile(configFile)
+		pkgconfigsetup.Datadog().SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := pkgconfigsetup.LoadDatadogCustom(cfg, "datadog.yaml", option.None[secrets.Component](), pkgconfigsetup.SystemProbe().GetEnvVars())
+	_, err := pkgconfigsetup.LoadDatadogCustom(pkgconfigsetup.Datadog(), "datadog.yaml", option.None[secrets.Component](), pkgconfigsetup.SystemProbe().GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e pkgconfigmodel.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {
