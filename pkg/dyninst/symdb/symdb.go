@@ -31,6 +31,96 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// PackagesIterator returns an iterator over the packages in the binary.
+//
+// PackagesIterator can only be used if the packagesIterator was configured with
+// ExtractOptions.IncludeInlinedFunctions=false (i.e. if we're ignoring inlined
+// functions), since inlined functions can appear in different compile units
+// than their package.
+func PackagesIterator(binaryPath string, opt ExtractOptions) (iter.Seq2[Package, error], error) {
+	if opt.IncludeInlinedFunctions {
+		return nil, fmt.Errorf("cannot overate over packages when IncludeInlinedFunctions is set")
+	}
+
+	bin, err := openBinary(binaryPath, opt)
+	if err != nil {
+		return nil, err
+	}
+
+	b := newPackagesIterator(bin, opt)
+	return b.iterator(), nil
+}
+
+// ExtractSymbols walks the DWARF data and accumulates the symbols to send to
+// SymDB.
+func ExtractSymbols(binaryPath string, opt ExtractOptions) (Symbols, error) {
+	bin, err := openBinary(binaryPath, opt)
+	if err != nil {
+		return Symbols{}, err
+	}
+	b := newPackagesIterator(bin, opt)
+
+	packages := make(map[string]*Package)
+	for pkg, err := range b.iterator() {
+		if err != nil {
+			return Symbols{}, err
+		}
+		if existingPkg, ok := packages[pkg.Name]; ok {
+			existingPkg.Functions = append(existingPkg.Functions, pkg.Functions...)
+			existingPkg.Types = append(existingPkg.Types, pkg.Types...)
+		} else {
+			packages[pkg.Name] = &pkg
+		}
+	}
+
+	res := Symbols{
+		MainModule: b.mainModule,
+		Packages:   nil,
+	}
+	if b.options.IncludeInlinedFunctions {
+		err := b.addAbstractFunctions(packages)
+		if err != nil {
+			return Symbols{}, err
+		}
+	}
+
+	for pkgName, types := range b.types.packages {
+		anyNonEmpty := slices.ContainsFunc(types, func(t *Type) bool {
+			return len(t.Fields) > 0 || len(t.Methods) > 0
+		})
+		if !anyNonEmpty {
+			continue
+		}
+
+		pkg, ok := packages[pkgName]
+		if !ok {
+			pkg = &Package{
+				Name:      pkgName,
+				Functions: nil,
+				Types:     nil,
+			}
+			packages[pkgName] = pkg
+		}
+		for _, t := range types {
+			// Don't add empty types to the output.
+			if len(t.Fields) == 0 && len(t.Methods) == 0 {
+				continue
+			}
+			pkg.Types = append(pkg.Types, *t)
+		}
+	}
+	for _, pkg := range packages {
+		if len(pkg.Types) > 0 || len(pkg.Functions) > 0 {
+			res.Packages = append(res.Packages, *pkg)
+		}
+	}
+	// Sort packages so that output is stable.
+	sort.Slice(res.Packages, func(i, j int) bool {
+		return res.Packages[i].Name < res.Packages[j].Name
+	})
+	return res, nil
+}
+
 // Symbols models the symbols from a binary that get exported to SymDB.
 type Symbols struct {
 	// MainModule is the path of the module containing the "main" function.
@@ -298,10 +388,10 @@ type LineRange [2]int
 
 const mainPackageName = "main"
 
-// SymDBBuilder walks the DWARF data for a binary, extracting symbols in the
+// packagesIterator walks the DWARF data for a binary, extracting symbols in the
 // SymDB format.
 // nolint:revive  // ignore stutter rule
-type SymDBBuilder struct {
+type packagesIterator struct {
 	// The DWARF data to extract symbols from.
 	dwarfData *dwarf.Data
 	// The Go symbol table for the binary, used to resolve PC addresses to
@@ -383,7 +473,7 @@ type typesCollection struct {
 	packages map[string][]*Type
 }
 
-func (b *SymDBBuilder) resolveType(offset dwarf.Offset) (typeInfo, error) {
+func (b *packagesIterator) resolveType(offset dwarf.Offset) (typeInfo, error) {
 	typ, err := b.typesCache.FindTypeByOffset(offset)
 	if err != nil {
 		return typeInfo{}, err
@@ -596,34 +686,69 @@ const (
 	ExtractScopeModulesFromSameOrg
 )
 
-// NewSymDBBuilder creates a new SymDBBuilder for the given ELF file. The
-// SymDBBuilder takes ownership of the ELF file.
-// Close() needs to be called .
-func NewSymDBBuilder(binaryPath string, opt ExtractOptions) (*SymDBBuilder, error) {
+// newPackagesIterator creates a new packagesIterator for the given binary. The
+// packagesIterator takes ownership of the ELF file.
+//
+// iterator() must be called to get an iterator and the iterator itself must
+// then be called so that it eventually releases resources.
+func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
+	b := &packagesIterator{
+		dwarfData:           bin.obj.DwarfData(),
+		sym:                 bin.symTable,
+		loclistReader:       bin.obj.LoclistReader(),
+		pointerSize:         int(bin.obj.PointerSize()),
+		options:             opt,
+		mainModule:          bin.mainModule,
+		firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
+		filesFilter:         bin.filesFilter,
+		abstractFunctions:   make(map[dwarf.Offset]*abstractFunction),
+		typesCache:          dwarfutils.NewTypeFinder(bin.obj.DwarfData()),
+		types: typesCollection{
+			scopeFilter:         opt.Scope,
+			mainModule:          bin.mainModule,
+			firstPartyPkgPrefix: bin.firstPartyPkgPrefix,
+			types:               make(map[string]*Type),
+			packages:            make(map[string][]*Type),
+		},
+		cleanupFuncs: []func(){func() { _ = bin.goDebugSections.Close() }, func() { _ = bin.obj.Close() }},
+	}
+	return b
+}
+
+type binaryInfo struct {
+	obj                 *object.ElfFile
+	mainModule          string
+	goDebugSections     *object.GoDebugSections
+	symTable            *gosym.GoSymbolTable
+	firstPartyPkgPrefix string
+	filesFilter         []string
+}
+
+func openBinary(binaryPath string, opt ExtractOptions) (binaryInfo, error) {
 	obj, err := object.OpenElfFile(binaryPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
+		return binaryInfo{}, fmt.Errorf("failed to open file: %w", err)
 	}
 	// Parse the binary's build info to figure out the URL of the main module.
 	// Note that we'll get an empty URL for binaries built with Bazel.
 	binfo, err := buildinfo.ReadFile(binaryPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read build info: %w", err)
+		return binaryInfo{}, fmt.Errorf("failed to read build info: %w", err)
 	}
 	mainModule := binfo.Main.Path
 
 	moduledata, err := object.ParseModuleData(obj.Underlying)
 	if err != nil {
-		return nil, err
+		return binaryInfo{}, err
 	}
 	goVersion, err := object.ReadGoVersion(obj.Underlying)
 	if err != nil {
-		return nil, err
+		return binaryInfo{}, err
 	}
 
 	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
 	if err != nil {
-		return nil, err
+		return binaryInfo{}, err
 	}
 
 	// goDebugSections cannot be Close()'ed while symTable is in use. Ownership of
@@ -639,7 +764,7 @@ func NewSymDBBuilder(binaryPath string, opt ExtractOptions) (*SymDBBuilder, erro
 		goVersion,
 	)
 	if err != nil {
-		return nil, err
+		return binaryInfo{}, err
 	}
 
 	// Figure out the package path prefix that corresponds to "1st party code"
@@ -664,119 +789,30 @@ func NewSymDBBuilder(binaryPath string, opt ExtractOptions) (*SymDBBuilder, erro
 	} else if opt.Scope == ExtractScopeMainModuleOnly || opt.Scope == ExtractScopeModulesFromSameOrg {
 		filesFilter = []string{"external/", "GOROOT/"}
 	}
-
-	b := &SymDBBuilder{
-		dwarfData:           obj.DwarfData(),
-		sym:                 symTable,
-		loclistReader:       obj.LoclistReader(),
-		pointerSize:         int(obj.PointerSize()),
-		options:             opt,
+	return binaryInfo{
+		obj:                 obj,
 		mainModule:          mainModule,
+		goDebugSections:     goDebugSections,
+		symTable:            symTable,
 		firstPartyPkgPrefix: firstPartyPkgPrefix,
 		filesFilter:         filesFilter,
-		abstractFunctions:   make(map[dwarf.Offset]*abstractFunction),
-		typesCache:          dwarfutils.NewTypeFinder(obj.DwarfData()),
-		types: typesCollection{
-			scopeFilter:         opt.Scope,
-			mainModule:          mainModule,
-			firstPartyPkgPrefix: firstPartyPkgPrefix,
-			types:               make(map[string]*Type),
-			packages:            make(map[string][]*Type),
-		},
-		cleanupFuncs: []func(){func() { _ = goDebugSections.Close() }, func() { _ = obj.Close() }},
-	}
-	return b, nil
+	}, nil
 }
 
-// Close frees resources associated with the builder.
-func (b *SymDBBuilder) Close() {
+// close frees resources associated with the iterator.
+func (b *packagesIterator) close() {
 	for _, f := range b.cleanupFuncs {
 		f()
 	}
 }
 
-// ExtractSymbols walks the DWARF data and accumulates the symbols to send to
-// SymDB.
-func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
-	packages := make(map[string]*Package)
-	for pkg, err := range b.packagesIteratorInner() {
-		if err != nil {
-			return Symbols{}, err
-		}
-		if existingPkg, ok := packages[pkg.Name]; ok {
-			existingPkg.Functions = append(existingPkg.Functions, pkg.Functions...)
-			existingPkg.Types = append(existingPkg.Types, pkg.Types...)
-		} else {
-			packages[pkg.Name] = &pkg
-		}
-	}
-
-	res := Symbols{
-		MainModule: b.mainModule,
-		Packages:   nil,
-	}
-	if b.options.IncludeInlinedFunctions {
-		err := b.addAbstractFunctions(packages)
-		if err != nil {
-			return Symbols{}, err
-		}
-	}
-
-	for pkgName, types := range b.types.packages {
-		anyNonEmpty := slices.ContainsFunc(types, func(t *Type) bool {
-			return len(t.Fields) > 0 || len(t.Methods) > 0
-		})
-		if !anyNonEmpty {
-			continue
-		}
-
-		pkg, ok := packages[pkgName]
-		if !ok {
-			pkg = &Package{
-				Name:      pkgName,
-				Functions: nil,
-				Types:     nil,
-			}
-			packages[pkgName] = pkg
-		}
-		for _, t := range types {
-			// Don't add empty types to the output.
-			if len(t.Fields) == 0 && len(t.Methods) == 0 {
-				continue
-			}
-			pkg.Types = append(pkg.Types, *t)
-		}
-	}
-	for _, pkg := range packages {
-		if len(pkg.Types) > 0 || len(pkg.Functions) > 0 {
-			res.Packages = append(res.Packages, *pkg)
-		}
-	}
-	// Sort packages so that output is stable.
-	sort.Slice(res.Packages, func(i, j int) bool {
-		return res.Packages[i].Name < res.Packages[j].Name
-	})
-	return res, nil
-}
-
-// PackagesIterator returns an iterator over the packages in the binary.
-//
-// PackagesIterator can only be used if the SymDBBuilder was configured with
-// ExtractOptions.IncludeInlinedFunctions=false (i.e. if we're ignoring inlined
-// functions), since inlined functions can appear in different compile units
-// than their package.
-func (b *SymDBBuilder) PackagesIterator() iter.Seq2[Package, error] {
-	if b.options.IncludeInlinedFunctions {
-		return func(yield func(Package, error) bool) {
-			yield(Package{}, fmt.Errorf("cannot overate over packages when IncludeInlinedFunctions is set"))
-		}
-	}
-	return b.packagesIteratorInner()
-}
-
-func (b *SymDBBuilder) packagesIteratorInner() iter.Seq2[Package, error] {
+// iterator returns a Go iterator that yields packages one by one. The returned
+// iterator takes ownership of the Elf file, so it must be called (or used in a
+// range loop) in order to eventually release resources.
+func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 	var err error
 	return func(yield func(pkg Package, err error) bool) {
+		defer b.close()
 		entryReader := b.dwarfData.Reader()
 
 		// Recognize compile units, which are the top-level entries in the DWARF
@@ -876,7 +912,7 @@ func interestingPackage(pkgName string, mainModule string, firstPartyPkgPrefix s
 
 // addAbstractFunctions takes the aggregated data about inlined functions and
 // adds the functions to the corresponding packages and types.
-func (b *SymDBBuilder) addAbstractFunctions(packages map[string]*Package) error {
+func (b *packagesIterator) addAbstractFunctions(packages map[string]*Package) error {
 	// Sort abstract functions so that output is stable.
 	abstractFunctions := make([]*abstractFunction, 0, len(b.abstractFunctions))
 	for _, af := range b.abstractFunctions {
@@ -930,15 +966,15 @@ func (b *SymDBBuilder) addAbstractFunctions(packages map[string]*Package) error 
 	return nil
 }
 
-func (b *SymDBBuilder) currentBlock() codeBlock {
+func (b *packagesIterator) currentBlock() codeBlock {
 	return b.blockStack[len(b.blockStack)-1]
 }
 
-func (b *SymDBBuilder) pushBlock(block codeBlock) {
+func (b *packagesIterator) pushBlock(block codeBlock) {
 	b.blockStack = append(b.blockStack, block)
 }
 
-func (b *SymDBBuilder) popBlock() {
+func (b *packagesIterator) popBlock() {
 	if len(b.blockStack) == 0 {
 		panic("popBlock called on empty block stack")
 	}
@@ -965,7 +1001,7 @@ type ExtractOptions struct {
 // TagCompileUnit).
 //
 // Returns a zero value if the compile unit is not a Go package.
-func (b *SymDBBuilder) exploreCompileUnit(
+func (b *packagesIterator) exploreCompileUnit(
 	entry *dwarf.Entry, reader *dwarf.Reader,
 ) (Package, error) {
 	if entry.Tag != dwarf.TagCompileUnit {
@@ -1078,7 +1114,7 @@ func (b *SymDBBuilder) exploreCompileUnit(
 // If no error is returned, the reader is positioned after the subprogram's
 // children. If an error is returned, the reader is left at an undefined
 // position inside the program.
-func (b *SymDBBuilder) exploreSubprogram(
+func (b *packagesIterator) exploreSubprogram(
 	entry *dwarf.Entry, reader *dwarf.Reader,
 ) (Function, error) {
 	// When returning early, we need to consume all the children of the subprogram
@@ -1232,7 +1268,7 @@ func (b *SymDBBuilder) exploreSubprogram(
 }
 
 // Explores inlined instances of an abstract function (both InlinedSubroutines and out-of-line Subprogram instances).
-func (b *SymDBBuilder) exploreInlinedInstance(
+func (b *packagesIterator) exploreInlinedInstance(
 	entry *dwarf.Entry,
 	reader *dwarf.Reader,
 	lines map[string]gosym.FunctionLines,
@@ -1288,7 +1324,7 @@ func (b *SymDBBuilder) exploreInlinedInstance(
 	return b.exploreInlinedCode(entry, reader, lines, af)
 }
 
-func (b *SymDBBuilder) exploreInlinedCode(
+func (b *packagesIterator) exploreInlinedCode(
 	entry *dwarf.Entry,
 	reader *dwarf.Reader,
 	lines map[string]gosym.FunctionLines,
@@ -1352,7 +1388,7 @@ func (b *SymDBBuilder) exploreInlinedCode(
 // any variables, it returns one Scope with those variables and any sub-blocks.
 // If the block does not contain any variables, it returns any sub-blocks that
 // do contain variables (if any).
-func (b *SymDBBuilder) exploreLexicalBlock(
+func (b *packagesIterator) exploreLexicalBlock(
 	blockEntry *dwarf.Entry,
 	reader *dwarf.Reader,
 	functionName string,
@@ -1424,7 +1460,7 @@ func pcRangeToLines(r dwarfutil.PCRange, lines []gosym.LineRange) (LineRange, bo
 }
 
 // exploreVariable processes a variable or formal parameter entry.
-func (b *SymDBBuilder) exploreVariable(entry *dwarf.Entry, lines []gosym.LineRange) (Variable, error) {
+func (b *packagesIterator) exploreVariable(entry *dwarf.Entry, lines []gosym.LineRange) (Variable, error) {
 	v, typ, err := b.parseAbstractVariable(entry)
 	if err != nil {
 		return Variable{}, err
@@ -1444,7 +1480,7 @@ func (b *SymDBBuilder) exploreVariable(entry *dwarf.Entry, lines []gosym.LineRan
 	return v, nil
 }
 
-func (b *SymDBBuilder) parseFunctionName(entry *dwarf.Entry) (
+func (b *packagesIterator) parseFunctionName(entry *dwarf.Entry) (
 	qualifiedName string,
 	parsedName funcName,
 	recognized bool,
@@ -1473,7 +1509,7 @@ func (b *SymDBBuilder) parseFunctionName(entry *dwarf.Entry) (
 	return
 }
 
-func (b *SymDBBuilder) parseAbstractFunction(reader *dwarf.Reader, offset dwarf.Offset) (*abstractFunction, error) {
+func (b *packagesIterator) parseAbstractFunction(reader *dwarf.Reader, offset dwarf.Offset) (*abstractFunction, error) {
 	reader.Seek(offset)
 	entry, err := reader.Next()
 	if err != nil {
@@ -1535,7 +1571,7 @@ func (b *SymDBBuilder) parseAbstractFunction(reader *dwarf.Reader, offset dwarf.
 	}, nil
 }
 
-func (b *SymDBBuilder) parseAbstractVariable(entry *dwarf.Entry) (Variable, typeInfo, error) {
+func (b *packagesIterator) parseAbstractVariable(entry *dwarf.Entry) (Variable, typeInfo, error) {
 	name, ok := entry.Val(dwarf.AttrName).(string)
 	if !ok {
 		debug.PrintStack()
@@ -1577,7 +1613,7 @@ func (b *SymDBBuilder) parseAbstractVariable(entry *dwarf.Entry) (Variable, type
 }
 
 // The parsed locations are appended to the out slice, that is then returned.
-func (b *SymDBBuilder) parseVariableLocations(
+func (b *packagesIterator) parseVariableLocations(
 	unit *dwarf.Entry,
 	block codeBlock,
 	entry *dwarf.Entry,
@@ -1634,7 +1670,7 @@ func coalesceLineRanges(ranges []LineRange) []LineRange {
 // variable is only partially available are ignored.
 //
 // totalSize is the size of the type that this location list is describing.
-func (b *SymDBBuilder) processLocations(
+func (b *packagesIterator) processLocations(
 	unit *dwarf.Entry,
 	block codeBlock,
 	locField *dwarf.Field,
@@ -1670,7 +1706,7 @@ type exploreCodeResult struct {
 // inlined subprograms.
 //
 // pcIt is a PC iterator for the function containing this code.
-func (b *SymDBBuilder) exploreCode(
+func (b *packagesIterator) exploreCode(
 	reader *dwarf.Reader,
 	functionName string,
 	lines map[string]gosym.FunctionLines,
