@@ -45,6 +45,7 @@ type NetflowConfig struct {
 	GetMemoryStats             bool `mapstructure:"get_memory_stats"`
 	GetCodeTimings             bool `mapstructure:"get_code_timings"`
 	LogMapSizesEveryN          int  `mapstructure:"log_map_sizes_every_n"`
+	PortRollupUseSingleStore   bool `mapstructure:"portrollup_use_single_store"`
 }
 
 // ListenerConfig contains configuration for a single flow listener

@@ -40,6 +40,11 @@ const (
 	isDestinationEndpoint = endpointType(1)
 )
 
+type portsAndActiveFlag struct {
+	ports  []uint16
+	active bool // indicates whether the ports are active (seen in the last portRollupThreshold seconds)
+}
+
 // EndpointPairPortRollupStore contains port rollup states.
 // It tracks ports that have been seen so far and help decide whether a port should be rolled up or not.
 // We use two stores (curStore, newStore) to be able to clean old tracked ports when they are not seen anymore.
@@ -55,12 +60,14 @@ type EndpointPairPortRollupStore struct {
 	// - Empty map is about 128 bytes
 	// - Empty list is about 24 bytes
 	// - It's more costly to search in a list, but the number of expected entry is at most equal to `portRollupThreshold`.
-	curStore map[string][]uint16
-	newStore map[string][]uint16
+	curStore    map[string][]uint16
+	newStore    map[string][]uint16
+	singleStore map[string]*portsAndActiveFlag // Used when useSingleStore is true
 
 	// Fixed-size key stores for IPv4 (11 bytes: 4+4+1+2)
-	curStoreIPv4 map[[11]byte][]uint16
-	newStoreIPv4 map[[11]byte][]uint16
+	curStoreIPv4    map[[11]byte][]uint16
+	newStoreIPv4    map[[11]byte][]uint16
+	singleStoreIPv4 map[[11]byte]*portsAndActiveFlag // Used when useSingleStore is true
 
 	// mutex used to protect access to stores
 	storeMu sync.RWMutex
@@ -462,6 +469,21 @@ func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStoreString() {
 	prs.storeMu.Lock()
 	defer prs.storeMu.Unlock()
 
+	if prs.useSingleStore {
+		// iterate through all curStore entries
+		for key, portsAndActive := range prs.singleStore {
+			// delete entry for any that are not active and for any that are active mark as inactive for the next cycle
+			if portsAndActive.active {
+				// mark as inactive for the next cycle
+				portsAndActive.active = false
+			} else {
+				// not seen in the last portRollupThreshold seconds, delete it
+				delete(prs.singleStore, key)
+			}
+		}
+		return
+	}
+
 	prs.curStore = prs.newStore
 	prs.newStore = make(map[string][]uint16)
 }
@@ -470,6 +492,21 @@ func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStoreString() {
 func (prs *EndpointPairPortRollupStore) UseNewStoreAsCurrentStoreIPv4() {
 	prs.storeMu.Lock()
 	defer prs.storeMu.Unlock()
+
+	if prs.useSingleStore {
+		// iterate through all curStoreIPv4 entries
+		for key, portsAndActive := range prs.singleStoreIPv4 {
+			// delete entry for any that are not active and for any that are active mark as inactive for the next cycle
+			if portsAndActive.active {
+				// mark as inactive for the next cycle
+				portsAndActive.active = false
+			} else {
+				// not seen in the last portRollupThreshold seconds, delete it
+				delete(prs.singleStoreIPv4, key)
+			}
+		}
+		return
+	}
 
 	prs.curStoreIPv4 = prs.newStoreIPv4
 	prs.newStoreIPv4 = make(map[[11]byte][]uint16)
