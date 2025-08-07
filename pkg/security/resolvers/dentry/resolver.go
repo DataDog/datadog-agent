@@ -566,7 +566,7 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 	if cache {
 		path, err = dr.ResolveFromCache(pathKey)
 	}
-	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+	if (err != nil) && dr.config.ERPCDentryResolutionEnabled {
 		path, err = dr.ResolveFromERPC(pathKey, cache)
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {

@@ -11,12 +11,13 @@ package tests
 import (
 	"errors"
 	"fmt"
-	"github.com/moby/sys/mountinfo"
 	"os"
 	"os/exec"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/moby/sys/mountinfo"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -30,10 +31,10 @@ func openTreeIsSupported() bool {
 	return !errors.Is(errno, syscall.ENOSYS)
 }
 
-func TmpMountAt(dir string) error {
+func TmpMountAt(dir string) (int, error) {
 	openfd, err := unix.Fsopen("tmpfs", unix.FSOPEN_CLOEXEC)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
@@ -41,15 +42,39 @@ func TmpMountAt(dir string) error {
 	_ = fsconfig(openfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
 	mountfd, err := unix.Fsmount(openfd, unix.FSMOUNT_CLOEXEC, 0)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	err = unix.MoveMount(mountfd, "", unix.AT_FDCWD, dir, unix.MOVE_MOUNT_F_EMPTY_PATH)
+	if dir != "" {
+		err = unix.MoveMount(mountfd, "", unix.AT_FDCWD, dir, unix.MOVE_MOUNT_F_EMPTY_PATH)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return mountfd, nil
+}
+
+func TmpMountFdAt(fd int, at string) (int, error) {
+	openfd, err := unix.Fsopen("tmpfs", unix.FSOPEN_CLOEXEC)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
+	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
+	_ = fsconfig(openfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
+	mountfd, err := unix.Fsmount(openfd, unix.FSMOUNT_CLOEXEC, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	err = unix.MoveMount(mountfd, "", fd, at, unix.MOVE_MOUNT_F_EMPTY_PATH)
+	if err != nil {
+		return 0, err
+	}
+
+	return mountfd, nil
 }
 
 func getMountID(path string) (uint32, error) {
@@ -77,7 +102,7 @@ func TestOpenTree(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	if !openTreeIsSupported() {
-		t.Skip("OpenTree is not supported on this platform")
+		t.Skip("open_tree syscall is not supported on this platform")
 	}
 
 	execRules := []*rules.RuleDefinition{
@@ -103,9 +128,9 @@ func TestOpenTree(t *testing.T) {
 	}
 
 	// Mount the following directory struct in /tmp:
-	// + /tmp/<somedir>/001        (tmpfs, 1MB)
-	// |-- /tmp/<somedir>/001/tmp1 (tmpfs, 1MB)
-	// |-- /tmp/<somedir>/001/tmp2 (tmpfs, 1MB)
+	// + /tmp/<tmpdir>        (tmpfs, 1MB)
+	// |-- /tmp/<tmpdir>/tmp1 (tmpfs, 1MB)
+	// |-- /tmp/<tmpdir>/tmp2 (tmpfs, 1MB)
 	// In which `tmp1` and `tmp2` are have 001 as the parent mount
 	// This is using the new mount api, but could have been accomplished with the mount() syscall too
 	// because this isn't the part that we're testing
@@ -115,7 +140,7 @@ func TestOpenTree(t *testing.T) {
 	dir := t.TempDir()
 	tounmount = append(tounmount, dir)
 
-	err = TmpMountAt(dir)
+	_, err = TmpMountAt(dir)
 	if err != nil {
 		// Syscall not available in this kernel
 		t.Skip(err)
@@ -136,7 +161,7 @@ func TestOpenTree(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = TmpMountAt(fullpath)
+		_, err = TmpMountAt(fullpath)
 		if err != nil {
 			t.Fatal(err)
 		}

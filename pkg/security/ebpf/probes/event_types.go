@@ -215,6 +215,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				hookFunc("hook_security_sb_umount"),
 				hookFunc("hook_clone_mnt"),
 				hookFunc("rethook_clone_mnt"),
+				hookFunc("hook_mnt_change_mountpoint"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("rethook_alloc_vfsmnt"),
@@ -222,6 +223,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mount", fentry, EntryAndExit, true)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fsmount", fentry, EntryAndExit, false)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open_tree", fentry, EntryAndExit, false)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "move_mount", fentry, EntryAndExit, false)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "umount", fentry, Exit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
