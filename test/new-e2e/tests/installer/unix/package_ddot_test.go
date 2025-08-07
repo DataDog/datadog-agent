@@ -28,7 +28,7 @@ func testDDOT(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethod
 
 func (s *packageDDOTSuite) TestInstallDDOTWithAgent() {
 	// Install agent and DDOT together via environment variable
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_OTEL_COLLECTOR_ENABLED=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_OTELCOLLECTOR_ENABLED=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 
 	// Verify both packages are installed

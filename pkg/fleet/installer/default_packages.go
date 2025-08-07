@@ -169,5 +169,5 @@ func agentVersion(_ Package, e *env.Env) string {
 // ddotEnabled returns true if DDOT should be installed
 // DDOT is installed when otel-collector is enabled or when explicitly requested
 func ddotEnabled(_ Package, e *env.Env) bool {
-	return e.OtelCollectorEnabled
+	return e.OTelCollectorEnabled
 }

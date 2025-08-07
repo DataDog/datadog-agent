@@ -84,7 +84,7 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	}()
 
 	// Write otel-config.yaml with API key substitution
-	if err = writeOtelConfig(); err != nil {
+	if err = writeOTelConfig(); err != nil {
 		return fmt.Errorf("could not write otel-config.yaml file: %s", err)
 	}
 
@@ -244,8 +244,8 @@ func disableOtelCollectorConfig() error {
 	return nil
 }
 
-// writeOtelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml
-func writeOtelConfig() error {
+// writeOTelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml
+func writeOTelConfig() error {
 	// Read existing datadog.yaml to extract API key and site
 	var existingConfig map[string]interface{}
 	data, err := os.ReadFile(datadogYamlPath)

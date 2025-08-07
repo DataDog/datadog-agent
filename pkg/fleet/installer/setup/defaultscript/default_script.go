@@ -174,7 +174,7 @@ func installAgentPackage(s *common.Setup) {
 // installDDOTPackage installs the DDOT package if enabled
 func installDDOTPackage(s *common.Setup) {
 	// DDOT install - check if otel-collector is enabled
-	if otelEnabled, ok := os.LookupEnv("DD_OTEL_COLLECTOR_ENABLED"); ok && strings.ToLower(otelEnabled) == "true" {
+	if otelEnabled, ok := os.LookupEnv("DD_OTELCOLLECTOR_ENABLED"); ok && strings.ToLower(otelEnabled) == "true" {
 		s.Packages.Install(common.DatadogAgentDDOTPackage, agentVersion())
 	}
 }

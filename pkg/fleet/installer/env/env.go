@@ -25,7 +25,7 @@ const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
-	envOtelCollectorEnabled  = "DD_OTEL_COLLECTOR_ENABLED"
+	envOTelCollectorEnabled  = "DD_OTELCOLLECTOR_ENABLED"
 	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
@@ -77,7 +77,7 @@ var defaultEnv = Env{
 	APIKey:               "",
 	Site:                 "datadoghq.com",
 	RemoteUpdates:        false,
-	OtelCollectorEnabled: false,
+	OTelCollectorEnabled: false,
 	Mirror:               "",
 
 	RegistryOverride:            "",
@@ -153,7 +153,7 @@ type Env struct {
 	APIKey               string
 	Site                 string
 	RemoteUpdates        bool
-	OtelCollectorEnabled bool
+	OTelCollectorEnabled bool
 
 	Mirror                      string
 	RegistryOverride            string
@@ -225,7 +225,7 @@ func FromEnv() *Env {
 		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
 		Site:                 getEnvOrDefault(envSite, defaultEnv.Site),
 		RemoteUpdates:        strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
-		OtelCollectorEnabled: strings.ToLower(os.Getenv(envOtelCollectorEnabled)) == "true",
+		OTelCollectorEnabled: strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -326,8 +326,8 @@ func (e *Env) ToEnv() []string {
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
 	}
-	if e.OtelCollectorEnabled {
-		env = append(env, envOtelCollectorEnabled+"=true")
+	if e.OTelCollectorEnabled {
+		env = append(env, envOTelCollectorEnabled+"=true")
 	}
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
