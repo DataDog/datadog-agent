@@ -626,8 +626,8 @@ func NewSymDBBuilder(binaryPath string, opt ExtractScope) (*SymDBBuilder, error)
 	// goDebugSections is transferred to the SymDBBuilder.
 
 	symTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,

@@ -180,3 +180,26 @@ func findDeviceByIndex(devices []ddnvml.Device, index string) (ddnvml.Device, er
 
 	return nil, fmt.Errorf("%w with index %s", ErrCannotMatchDevice, index)
 }
+
+// GetByDevice finds the container that uses a specific device from a list of containers
+// This is the reverse of MatchContainerDevices - it returns the container that uses the device,
+// or nil if no container uses the device
+func GetByDevice(containers []*workloadmeta.Container, device ddnvml.Device) *workloadmeta.Container {
+	for _, container := range containers {
+		for _, resource := range container.ResolvedAllocatedResources {
+			// Only consider NVIDIA GPUs
+			if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
+				continue
+			}
+
+			// Reuse existing logic by trying to find the device for this resource
+			// If we find it and it matches our target device, return the container
+			matchingDevice, err := findDeviceForResourceName([]ddnvml.Device{device}, resource.ID)
+			if err == nil && matchingDevice != nil {
+				return container
+			}
+		}
+	}
+
+	return nil
+}
