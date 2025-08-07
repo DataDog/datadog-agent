@@ -144,6 +144,7 @@ func (s *scraperSink) HandleEvent(ev output.Event) error {
 		if err != nil {
 			return err
 		}
+		symdbEnabled = true // TODO debugging purposes, won't be merged
 		s.scraper.mu.Lock()
 		defer s.scraper.mu.Unlock()
 		s.scraper.mu.debouncer.addSymdbEnabled(

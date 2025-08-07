@@ -36,11 +36,13 @@ type ProcessesUpdate struct {
 
 // ProcessUpdate is an update to a process's instrumentation configuration.
 type ProcessUpdate struct {
-	ProcessID  ProcessID
-	Executable Executable
-	Service    string
-	GitInfo    GitInfo
-	Container  ContainerInfo
+	ProcessID   ProcessID
+	Executable  Executable
+	Service     string
+	Version     string
+	Environment string
+	GitInfo     GitInfo
+	Container   ContainerInfo
 }
 
 // ContainerInfo is information about the container the process is running in.

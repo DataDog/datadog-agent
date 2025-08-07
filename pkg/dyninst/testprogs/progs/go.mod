@@ -6,7 +6,7 @@ toolchain go1.24.4
 
 require (
 	github.com/DataDog/dd-trace-go/contrib/net/http/v2 v2.0.1
-	github.com/DataDog/dd-trace-go/v2 v2.3.0-dev
+	github.com/DataDog/dd-trace-go/v2 v2.3.0-dev.1
 
 	// This is the last version of dd-trace-go that isn't just a wrapper around
 	// the v2 package.
