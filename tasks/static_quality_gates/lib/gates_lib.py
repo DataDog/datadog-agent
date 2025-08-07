@@ -35,7 +35,14 @@ PACKAGE_OS_MAPPING = {
 }
 
 
-def byte_to_string(size, unit_power=None, with_unit=True):
+def byte_to_string(size: int, unit_power: int = None, with_unit: bool = True) -> str:
+    """
+    Convert a byte size to a string with unit suffix.
+    param: size: the size along with the unit suffix
+    param: unit_power: the power of the unit to use
+    param: with_unit: whether to include the unit suffix in the returned string
+    return: size as a string
+    """
     if not size:
         return f"0{' B' if with_unit else ''}"
     sign = ""
@@ -54,12 +61,22 @@ def byte_to_string(size, unit_power=None, with_unit=True):
     return f"{sign}{s}{' ' + size_name[unit_power] if with_unit else ''}"
 
 
-def string_to_latex_color(text):
+def string_to_latex_color(text: str) -> str:
+    """
+    Convert a string to a latex color.
+    param: text: the text to convert
+    return: the text as a latex color
+    """
     # Github latex colors are currently broken, we are disabling this function's color temporarily for now
     return r"$${" + text + "}$$"
 
 
-def string_to_byte(size: str):
+def string_to_byte(size: str) -> int:
+    """
+    Convert a string to a byte size.
+    param: size: the size as a string
+    return: the size in bytes
+    """
     if not size:
         return 0
     size_name = ("KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
@@ -78,7 +95,12 @@ def string_to_byte(size: str):
         return int(size)
 
 
-def read_byte_input(byte_input):
+def read_byte_input(byte_input: str | int) -> int:
+    """
+    Read a byte input and return the size in bytes.
+    param: byte_input: the byte input
+    return: the size in bytes
+    """
     if isinstance(byte_input, str):
         return string_to_byte(byte_input)
     else:
