@@ -16,7 +16,8 @@ runs:
   - name: Set version
     id: set-version
     run: |-
-      buildimages_commit="$(python -c "from pathlib import Path;import yaml;print(yaml.safe_load(Path('.gitlab-ci.yml').read_text().replace('!reference', 'reference'))['variables']['CI_IMAGE_LINUX'].split('-')[1])")"
+      buildimages_version="$(yq '.variables.CI_IMAGE_LINUX' .gitlab-ci.yml)"
+      buildimages_commit="${buildimages_version#*-}"
       version="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${buildimages_commit}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
       echo "version=${version}" >> $GITHUB_OUTPUT
     shell: bash
