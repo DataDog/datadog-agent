@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-func platformCWSConfig(cfg pkgconfigmodel.Setup) {
+func platformCWSConfig(cfg pkgconfigmodel.Config) {
 	programdata, err := winutil.GetProgramDataDir()
 	if err == nil {
 		cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", filepath.Join(programdata, "runtime-security.d"))
