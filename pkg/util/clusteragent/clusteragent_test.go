@@ -7,6 +7,7 @@ package clusteragent
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,7 +26,9 @@ import (
 	"github.com/stretchr/testify/suite"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -264,6 +267,13 @@ func (d *dummyClusterAgent) StartTLS() (*httptest.Server, int, error) {
 	return d.parsePort(ts)
 }
 
+func (d *dummyClusterAgent) StartTLSWithConfig(config *tls.Config) (*httptest.Server, int, error) {
+	ts := httptest.NewUnstartedServer(d)
+	ts.TLS = config
+	ts.StartTLS()
+	return d.parsePort(ts)
+}
+
 func (d *dummyClusterAgent) PopRequest() *http.Request {
 	select {
 	case r := <-d.requests:
@@ -359,6 +369,9 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeLabels() {
 
 	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
+	// IPC component is responsible for initializing TLS configurations globally
+	ipcmock.New(suite.T())
+
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
@@ -412,6 +425,9 @@ func (suite *clusterAgentSuite) TestGetKubernetesNodeAnnotations() {
 
 	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
+	// IPC component is responsible for initializing TLS configurations globally
+	ipcmock.New(suite.T())
+
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
@@ -456,6 +472,9 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 	defer ts.Close()
 
 	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+	// IPC component is responsible for initializing TLS configurations globally
+	ipcmock.New(suite.T())
 
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -526,6 +545,9 @@ func (suite *clusterAgentSuite) TestGetCFAppsMetadataForNode() {
 	defer ts.Close()
 
 	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+	// IPC component is responsible for initializing TLS configurations globally
+	ipcmock.New(suite.T())
 
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
@@ -641,6 +663,9 @@ func (suite *clusterAgentSuite) TestGetKubernetesClusterID() {
 
 	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
+	// IPC component is responsible for initializing TLS configurations globally
+	ipcmock.New(suite.T())
+
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
@@ -718,6 +743,91 @@ func TestBuildFilterQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			actual, _ := buildQueryList(tt.base, tt.key, tt.list)
 			require.Equal(t, tt.expected, actual)
+		})
+	}
+}
+
+func (suite *clusterAgentSuite) TestDCAClientCertificateVerification() {
+	// Reset the global ClusterAgentClient/CrossNodeClientTLSConfig to ensure a clean state for next tests
+	defer resetGlobalClusterAgentClient()
+	defer pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+
+	ipccomp := ipcmock.New(suite.T())
+
+	tests := []struct {
+		name              string
+		clientCheckTLS    bool // Whether the client should check the TLS certificate
+		serverUsesIPCCert bool
+		shouldFail        bool
+	}{
+		{
+			name:              "Test with known CA",
+			clientCheckTLS:    true,
+			serverUsesIPCCert: true,
+			shouldFail:        false,
+		},
+		{
+			name:              "Test with unknown CA",
+			clientCheckTLS:    true,
+			serverUsesIPCCert: false,
+			shouldFail:        true,
+		},
+		{
+			name:              "Test with unknown CA with cluster_agent.client_check_tls set to false",
+			clientCheckTLS:    false,
+			serverUsesIPCCert: false,
+			shouldFail:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		suite.T().Run(tt.name, func(t *testing.T) {
+			// Reset every global state before each test
+			resetGlobalClusterAgentClient()
+			pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+
+			// Configure the cluster agent server
+
+			// First, create a dummy cluster agent
+			dca, err := newDummyClusterAgent(suite.config)
+			require.Nil(t, err, fmt.Sprintf("%v", err))
+
+			startFunc := dca.StartTLS
+
+			if tt.serverUsesIPCCert {
+				startFunc = func() (*httptest.Server, int, error) {
+					// Start a TLS server with self-signed certificate
+					return dca.StartTLSWithConfig(ipccomp.GetTLSServerConfig())
+				}
+			}
+			// Start a TLS server with self-signed certificate
+			ts, p, err := startFunc()
+			require.Nil(t, err, fmt.Sprintf("%v", err))
+			defer ts.Close()
+
+			// Configure the cluster agent client
+
+			if tt.clientCheckTLS {
+				// Set the TLS configuration for cross-node communication
+				pkgapiutil.SetCrossNodeClientTLSConfig(ipccomp.GetTLSClientConfig())
+			} else {
+				// Set the TLS configuration for cross-node communication to nil
+				pkgapiutil.SetCrossNodeClientTLSConfig(&tls.Config{
+					InsecureSkipVerify: true, // Skip TLS verification
+				})
+			}
+
+			// Configure the cluster agent URL
+			suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+			// Try to connect to the cluster agent - should fail due to certificate verification
+			ca, err := GetClusterAgentClient()
+			if tt.shouldFail {
+				assert.NotNil(t, err, "Expected an error due to certificate verification")
+			} else {
+				require.Nil(t, err, "Connection should succeed")
+				require.NotNil(t, ca, "Client should not be nil")
+			}
 		})
 	}
 }

@@ -148,17 +148,17 @@ func parseModuleData(mef *MMappingElfFile) (*ModuleData, error) {
 		return nil, fmt.Errorf("no text section")
 	}
 
-	noptrdataData, err := mef.MMap(noptrdataSection, 0, noptrdataSection.Size)
+	noptrdataSectionData, err := mef.MMap(noptrdataSection, 0, noptrdataSection.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load noptrdata: %w", err)
 	}
-	defer noptrdataData.Close()
+	defer noptrdataSectionData.Close()
 
-	rodataData, err := mef.MMap(rodataSection, 0, rodataSection.Size)
+	rodataSectionData, err := mef.MMap(rodataSection, 0, rodataSection.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load rodata: %w", err)
 	}
-	defer rodataData.Close()
+	defer rodataSectionData.Close()
 
 	textRange := [2]uint64{textSection.Addr, textSection.Addr + textSection.Size}
 	rodataRange := [2]uint64{rodataSection.Addr, rodataSection.Addr + rodataSection.Size}
@@ -167,11 +167,15 @@ func parseModuleData(mef *MMappingElfFile) (*ModuleData, error) {
 	addrBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(addrBytes, pclntabSection.Addr)
 
-	offsets := findAll(noptrdataData.Data, addrBytes)
+	noptrdataData := noptrdataSectionData.Data()
+	rodataData := rodataSectionData.Data()
+	offsets := findAll(noptrdataData, addrBytes)
 	for _, offset := range offsets {
 		// Try to parse moduledata at this offset
-		moduleData, err := tryParseModuleDataAt(noptrdataData.Data, rodataData.Data, offset,
-			textRange, rodataRange, noptrdataSection, rodataSection, textSection)
+		moduleData, err := tryParseModuleDataAt(
+			noptrdataData, rodataData, offset, textRange, rodataRange,
+			noptrdataSection, rodataSection, textSection,
+		)
 		if err == nil {
 			return moduleData, nil
 		}
@@ -180,8 +184,12 @@ func parseModuleData(mef *MMappingElfFile) (*ModuleData, error) {
 	return nil, fmt.Errorf("no valid moduledata found")
 }
 
-func tryParseModuleDataAt(noptrdataData, rodataData []byte, offset int,
-	textRange, rodataRange [2]uint64, noptrdataSection, rodataSection, textSection *safeelf.Section) (*ModuleData, error) {
+func tryParseModuleDataAt(
+	noptrdataData, rodataData []byte,
+	offset int,
+	textRange, rodataRange [2]uint64,
+	noptrdataSection, rodataSection, textSection *safeelf.Section,
+) (*ModuleData, error) {
 
 	// Parse types range
 	typesStart := offset + ModuledataTypesOffset

@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 )
 
 var dummyEndpointsConfigs = `{
@@ -36,6 +38,9 @@ func (suite *clusterAgentSuite) TestEndpointsChecksNominal() {
 	require.NoError(suite.T(), err)
 	defer ts.Close()
 	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+	// IPC component is responsible for initializing TLS configurations globally
+	ipcmock.New(suite.T())
 
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)
