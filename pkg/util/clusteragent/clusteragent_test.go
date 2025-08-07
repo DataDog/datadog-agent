@@ -683,9 +683,8 @@ func TestClusterAgentSuite(t *testing.T) {
 	require.Nil(t, err, fmt.Errorf("%v", err))
 	defer os.Remove(f.Name())
 
-	cfg := configmock.New(t)
-	cfg.SetConfigFile(f.Name())
-	s := &clusterAgentSuite{config: cfg}
+	s := &clusterAgentSuite{config: configmock.New(t)}
+	s.config.SetConfigFile(f.Name())
 	s.authTokenPath = filepath.Join(fakeDir, clusterAgentAuthTokenFilename)
 	_, err = os.Stat(s.authTokenPath)
 	require.NotNil(t, err, fmt.Sprintf("%v", err))

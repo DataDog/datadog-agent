@@ -22,19 +22,3 @@ func SystemProbe() pkgconfigmodel.Config {
 	defer systemProbeMutex.RUnlock()
 	return systemProbe
 }
-
-// GlobalConfigBuilder returns a builder appropriate for initializing
-// the config. It should not be used in most places, except for code
-// that builds the config from scratch.
-func GlobalConfigBuilder() pkgconfigmodel.BuildableConfig {
-	datadogMutex.RLock()
-	defer datadogMutex.RUnlock()
-	return datadog
-}
-
-// GlobalSystemProbeConfigBuilder returns a builder for the system probe config
-func GlobalSystemProbeConfigBuilder() pkgconfigmodel.BuildableConfig {
-	systemProbeMutex.RLock()
-	defer systemProbeMutex.RUnlock()
-	return systemProbe
-}
