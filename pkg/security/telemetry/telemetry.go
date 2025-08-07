@@ -62,7 +62,7 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 			podAnnotations = pod.Annotations
 		}
 
-		log.Errorf("dbg: container_name=%s image_name=%s pod_namespace=%s pod_annotations=%v", container.Name, container.Image.Name, podNamespace, podAnnotations)
+		log.Errorf("dbg: container_name=%s image_name=%s pod_namespace=%s pod_annotations=%v err=%v", container.Name, container.Image.Name, podNamespace, podAnnotations, err)
 
 		if (value == "yes" || value == "true") ||
 			c.containerFilter.IsExcluded(podAnnotations, container.Name, container.Image.Name, podNamespace) {
