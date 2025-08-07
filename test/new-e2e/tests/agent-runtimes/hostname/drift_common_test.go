@@ -29,8 +29,8 @@ func (v *baseHostnameDriftSuite) getSuiteOptions(osInstance osVM.Descriptor) []e
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(`hostname_drift_initial_delay: 30s
-hostname_drift_recurring_interval: 60s`),
+				agentparams.WithAgentConfig(`hostname_drift_initial_delay: 10s
+hostname_drift_recurring_interval: 15s`),
 			),
 			awshost.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
 		),
@@ -47,7 +47,7 @@ func (v *baseHostnameDriftSuite) TestHostnameDriftMetricsEmission() {
 	}, 2*time.Minute, 10*time.Second, "Agent should be ready")
 
 	// Wait for the initial drift check to complete (initial delay + some buffer)
-	time.Sleep(5 * time.Second)
+	time.Sleep(20 * time.Second)
 
 	// Verify that hostname drift metrics are emitted using agent telemetry
 	v.EventuallyWithT(func(c *assert.CollectT) {
