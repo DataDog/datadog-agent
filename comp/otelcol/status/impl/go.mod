@@ -30,6 +30,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.63.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect

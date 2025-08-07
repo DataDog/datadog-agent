@@ -168,11 +168,9 @@ func (e *Event) Zero() {
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	Releasable
-	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFlags   containerutils.CGroupFlags `field:"-"`
-	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`[Experimental] Lifecycle manager of the cgroup`
-	CGroupFile    PathKey                    `field:"file"`
-	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
+	CGroupID      containerutils.CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFile    PathKey                 `field:"file"`
+	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 }
 
 // Merge two cgroup context
@@ -180,20 +178,12 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	if cg.CGroupID == "" {
 		cg.CGroupID = cg2.CGroupID
 	}
-	if cg.CGroupFlags == 0 {
-		cg.CGroupFlags = cg2.CGroupFlags
-	}
 	if cg.CGroupFile.Inode == 0 {
 		cg.CGroupFile.Inode = cg2.CGroupFile.Inode
 	}
 	if cg.CGroupFile.MountID == 0 {
 		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
 	}
-}
-
-// IsContainer returns whether a cgroup maps to a container
-func (cg *CGroupContext) IsContainer() bool {
-	return cg.CGroupFlags.IsContainer()
 }
 
 // Hash returns a unique key for the entity
@@ -760,9 +750,8 @@ type CgroupTracingEvent struct {
 
 // CgroupWriteEvent is used to signal that a new cgroup was created
 type CgroupWriteEvent struct {
-	File        FileEvent `field:"file"` // File pointing to the cgroup
-	Pid         uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
-	CGroupFlags uint32    `field:"-"`    // CGroup flags
+	File FileEvent `field:"file"` // File pointing to the cgroup
+	Pid  uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
@@ -774,7 +763,6 @@ type ActivityDumpLoadConfig struct {
 	EndTimestampRaw      uint64
 	Rate                 uint16 // max number of events per sec
 	Paused               uint32
-	CGroupFlags          containerutils.CGroupFlags
 }
 
 // NetworkDeviceContext represents the network device context of a network event
