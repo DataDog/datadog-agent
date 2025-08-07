@@ -78,6 +78,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 		actuator,
 		uploader.NewLogsUploaderFactory(uploader.WithURL(logsURL)),
 		uploader.NewDiagnosticsUploader(uploader.WithURL(diagURL)),
+		nil,
 		scraper,
 		&failOnceDecoderFactory{
 			underlying: module.DefaultDecoderFactory{},

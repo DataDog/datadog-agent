@@ -179,12 +179,6 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		makeTargetStatus(uploader.StatusInstalled, expectedProbeIDs...),
 	)
 
-	// If we added symdb, make sure we detect that it's enabled.
-	if cfg.addSymdb {
-		updates := ts.takeProcessesUpdates()
-		require.True(t, updates[len(updates)-1].Processes[0].ShouldUploadSymDB)
-	}
-
 	const numRequests = 3
 	sendTestRequests(t, serverPort, numRequests)
 	waitForLogMessages(
@@ -206,10 +200,6 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 		// Assert that we've removed the probes regardless of whether we're
 		// adding the symdb.
 		assert.Empty(c, updates[len(updates)-1].Processes[0].Probes)
-		// If we added symdb, make sure we detect that it's gone.
-		if cfg.addSymdb {
-			assert.False(c, updates[len(updates)-1].Processes[0].ShouldUploadSymDB)
-		}
 	}, 10*time.Second, 100*time.Millisecond, "probes should be removed")
 }
 
