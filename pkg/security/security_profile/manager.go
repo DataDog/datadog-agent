@@ -60,6 +60,22 @@ var (
 	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.IMDSEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
 )
 
+// WorkloadEventType represents the type of workload event
+type WorkloadEventType int
+
+const (
+	// WorkloadEventResolved indicates a workload selector was resolved
+	WorkloadEventResolved WorkloadEventType = iota
+	// WorkloadEventDeleted indicates a workload was deleted
+	WorkloadEventDeleted
+)
+
+// WorkloadEvent represents an ordered workload event
+type WorkloadEvent struct {
+	Type     WorkloadEventType
+	Workload *tags.Workload
+}
+
 // Manager is the manager for activity dumps and security profiles
 type Manager struct {
 	m sync.Mutex
@@ -131,8 +147,8 @@ type Manager struct {
 	// chan used to move an ActivityDump profile to a SecurityProfile profile
 	newProfiles chan *profile.Profile
 
-	workloadSelectorResolved chan *tags.Workload
-	workloadDeleted          chan *tags.Workload
+	// Single ordered channel for workload events to ensure proper ordering
+	workloadEvents chan *WorkloadEvent
 }
 
 // NewManager returns a new instance of the security profile manager
@@ -313,8 +329,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 
 		newProfiles: make(chan *profile.Profile, 100),
 
-		workloadSelectorResolved: make(chan *tags.Workload, 100),
-		workloadDeleted:          make(chan *tags.Workload, 100),
+		workloadEvents: make(chan *WorkloadEvent, 100),
 	}
 
 	m.initMetricsMap()
@@ -326,16 +341,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	return m, nil
-}
-
-// queueWorkloadEvent attempts to queue a workload event to the specified channel
-func (m *Manager) queueWorkloadEvent(ch chan<- *tags.Workload, workload *tags.Workload, eventType string) {
-	select {
-	case ch <- workload:
-		// Successfully queued
-	default:
-		seclog.Warnf("Failed to queue %s event for %v", eventType, workload.Selector.String())
-	}
 }
 
 func (m *Manager) initMetricsMap() {
@@ -387,10 +392,16 @@ func (m *Manager) Start(ctx context.Context) {
 
 	if m.config.RuntimeSecurity.SecurityProfileEnabled {
 		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorResolved, func(workload *tags.Workload) {
-			m.queueWorkloadEvent(m.workloadSelectorResolved, workload, "workload selector resolved")
+			m.workloadEvents <- &WorkloadEvent{
+				Type:     WorkloadEventResolved,
+				Workload: workload,
+			}
 		})
 		_ = m.resolvers.TagsResolver.RegisterListener(tags.WorkloadSelectorDeleted, func(workload *tags.Workload) {
-			m.queueWorkloadEvent(m.workloadDeleted, workload, "workload deleted")
+			m.workloadEvents <- &WorkloadEvent{
+				Type:     WorkloadEventDeleted,
+				Workload: workload,
+			}
 		})
 	}
 
@@ -417,10 +428,8 @@ func (m *Manager) Start(ctx context.Context) {
 			m.handleSilentWorkloads()
 		case newProfile := <-m.newProfiles:
 			m.onNewProfile(newProfile)
-		case workload := <-m.workloadSelectorResolved:
-			m.onWorkloadSelectorResolvedEvent(workload)
-		case workload := <-m.workloadDeleted:
-			m.onWorkloadDeletedEvent(workload)
+		case workloadEvent := <-m.workloadEvents:
+			m.onWorkloadEvent(workloadEvent)
 		}
 	}
 }
