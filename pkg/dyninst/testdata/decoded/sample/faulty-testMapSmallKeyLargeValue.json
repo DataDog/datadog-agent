@@ -21,11 +21,105 @@
             "method": "main.testMapSmallKeyLargeValue"
           }
         },
-        "captures": {}
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[uint8][4]int",
+                "size": "3",
+                "entries": [
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "0"
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        },
+                        {
+                          "type": "int",
+                          "value": "0"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "1"
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "1"
+                        },
+                        {
+                          "type": "int",
+                          "value": "2"
+                        },
+                        {
+                          "type": "int",
+                          "value": "3"
+                        },
+                        {
+                          "type": "int",
+                          "value": "4"
+                        }
+                      ]
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "2"
+                    },
+                    {
+                      "type": "[4]int",
+                      "size": "4",
+                      "elements": [
+                        {
+                          "type": "int",
+                          "value": "2"
+                        },
+                        {
+                          "type": "int",
+                          "value": "4"
+                        },
+                        {
+                          "type": "int",
+                          "value": "6"
+                        },
+                        {
+                          "type": "int",
+                          "value": "8"
+                        }
+                      ]
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
       },
       "evaluationErrors": [
-        "error symbolicating stack: error symbolicating stack error symbolicating stack",
-        "no type for header type"
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
       ]
     },
     "timestamp": "[ts]"

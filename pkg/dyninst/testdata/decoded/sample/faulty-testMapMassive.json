@@ -21,11 +21,21 @@
             "method": "main.testMapMassive"
           }
         },
-        "captures": {}
+        "captures": {
+          "entry": {
+            "arguments": {
+              "redactMyEntries": {
+                "type": "map[string][]main.structWithMap",
+                "size": "150",
+                "entries": "[redacted-entries]",
+                "notCapturedReason": "pruned"
+              }
+            }
+          }
+        }
       },
       "evaluationErrors": [
-        "error symbolicating stack: error symbolicating stack error symbolicating stack",
-        "no type for header type"
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
       ]
     },
     "timestamp": "[ts]"

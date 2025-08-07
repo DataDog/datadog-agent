@@ -21,11 +21,31 @@
             "method": "main.mapArg"
           }
         },
-        "captures": {}
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[string]int",
+                "size": "1",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "a"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
       },
       "evaluationErrors": [
-        "error symbolicating stack: error symbolicating stack error symbolicating stack",
-        "no type for header type"
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
       ]
     },
     "timestamp": "[ts]"

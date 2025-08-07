@@ -21,11 +21,36 @@
             "method": "main.testStructWithMap"
           }
         },
-        "captures": {}
+        "captures": {
+          "entry": {
+            "arguments": {
+              "s": {
+                "type": "main.structWithMap",
+                "fields": {
+                  "m": {
+                    "type": "map[int]int",
+                    "size": "1",
+                    "entries": [
+                      [
+                        {
+                          "type": "int",
+                          "value": "1"
+                        },
+                        {
+                          "type": "int",
+                          "value": "1"
+                        }
+                      ]
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "evaluationErrors": [
-        "error symbolicating stack: error symbolicating stack error symbolicating stack",
-        "no type for header type"
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
       ]
     },
     "timestamp": "[ts]"

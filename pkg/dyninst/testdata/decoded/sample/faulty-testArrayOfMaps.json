@@ -21,11 +21,73 @@
             "method": "main.testArrayOfMaps"
           }
         },
-        "captures": {}
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "[2]map[string]int",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "map[string]int",
+                    "size": "2",
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "bar"
+                        },
+                        {
+                          "type": "int",
+                          "value": "2"
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "foo"
+                        },
+                        {
+                          "type": "int",
+                          "value": "1"
+                        }
+                      ]
+                    ]
+                  },
+                  {
+                    "type": "map[string]int",
+                    "size": "2",
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "bar"
+                        },
+                        {
+                          "type": "int",
+                          "value": "2"
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "foo"
+                        },
+                        {
+                          "type": "int",
+                          "value": "1"
+                        }
+                      ]
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
       },
       "evaluationErrors": [
-        "error symbolicating stack: error symbolicating stack error symbolicating stack",
-        "no type for header type"
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
       ]
     },
     "timestamp": "[ts]"

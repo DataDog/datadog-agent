@@ -21,11 +21,121 @@
             "method": "main.testMapSmallKeySmallValue"
           }
         },
-        "captures": {}
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[uint8]uint8",
+                "size": "10",
+                "entries": [
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "0"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "0"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "1"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "2"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "2"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "4"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "3"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "6"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "4"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "8"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "5"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "10"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "6"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "12"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "7"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "14"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "8"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "16"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "uint8",
+                      "value": "9"
+                    },
+                    {
+                      "type": "uint8",
+                      "value": "18"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
       },
       "evaluationErrors": [
-        "error symbolicating stack: error symbolicating stack error symbolicating stack",
-        "no type for header type"
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
       ]
     },
     "timestamp": "[ts]"

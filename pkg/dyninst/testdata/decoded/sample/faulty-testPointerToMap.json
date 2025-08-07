@@ -21,11 +21,42 @@
             "method": "main.testPointerToMap"
           }
         },
-        "captures": {}
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "*map[string]int",
+                "address": "[addr]",
+                "size": "2",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "bar"
+                    },
+                    {
+                      "type": "int",
+                      "value": "2"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "foo"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
       },
       "evaluationErrors": [
-        "error symbolicating stack: error symbolicating stack error symbolicating stack",
-        "could not encode referenced value: no type for header type"
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
       ]
     },
     "timestamp": "[ts]"
