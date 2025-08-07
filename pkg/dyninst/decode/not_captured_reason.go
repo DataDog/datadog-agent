@@ -10,7 +10,7 @@ package decode
 import "github.com/go-json-experiment/json/jsontext"
 
 var (
-	tokenNotCapturedReason = jsontext.String("tokenNotCapturedReason")
+	tokenNotCapturedReason = jsontext.String("notCapturedReason")
 
 	tokenNotCapturedReasonLength         = jsontext.String("length")
 	tokenNotCapturedReasonDepth          = jsontext.String("depth")
@@ -19,7 +19,7 @@ var (
 	tokenNotCapturedReasonUnavailable    = jsontext.String("unavailable")
 	tokenNotCapturedReasonUnimplemented  = jsontext.String("unimplemented")
 	tokenNotCapturedReasonCycle          = jsontext.String("circular reference")
-	// tokenNotCapturedReasonFieldCount     = jsontext.String("fieldCount")
+	// tokenNotCapturedReasonFieldCount      = jsontext.String("fieldCount")
 
 	tokenTruncated = jsontext.String("truncated")
 )
