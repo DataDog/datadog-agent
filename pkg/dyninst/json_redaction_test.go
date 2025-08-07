@@ -233,18 +233,32 @@ func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactor
 	}
 	for {
 		kind, idx := d.StackIndex(d.StackDepth())
+		if kind == 0 {
+			if copyToken() {
+				break
+			}
+			continue
+		}
 		// If we're in an object and this is a key, copy it across.
-		if kind == '{' && idx%2 == 0 || d.PeekKind() == ']' {
+		switch d.PeekKind() {
+		case ']', '}':
+			require.False(t, copyToken(), "unexpected EOF")
+			continue
+		}
+		if kind == '{' && idx%2 == 0 {
 			require.False(t, copyToken(), "unexpected EOF")
 		}
+
 		ptr := stackPtr()
 		var redacted []byte
 		for _, redactor := range redactors {
 			if redactor.matcher.matches(ptr) {
-				v, err := d.ReadValue()
-				require.NoError(t, err)
-				redacted = redactor.replacer.replace(v)
-				break
+				if redacted == nil {
+					v, err := d.ReadValue()
+					require.NoError(t, err)
+					redacted = v
+				}
+				redacted = redactor.replacer.replace(redacted)
 			}
 		}
 
