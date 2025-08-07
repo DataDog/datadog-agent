@@ -624,11 +624,6 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         if stack_regex.match(stack_id):
             to_delete_stacks.add(f"organization/e2eci/{stack_id}")
 
-    print('Stacks were found:', to_delete_stacks)
-
-    # TODO A
-    to_delete_stacks = {"organization/e2eci/ci-init-72844735-4670-e2e-iaekstestsuite-68e83930ca520340"}
-
     if len(to_delete_stacks) == 0:
         print("No stacks to delete")
         return
