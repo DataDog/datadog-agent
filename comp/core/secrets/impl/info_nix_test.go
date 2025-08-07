@@ -17,9 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var (
@@ -31,7 +29,7 @@ instances:
 )
 
 func TestGetExecutablePermissionsError(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
@@ -59,7 +57,7 @@ func setupSecretCommand(t *testing.T, resolver *secretResolver) (string, string)
 }
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
@@ -73,7 +71,7 @@ func TestGetExecutablePermissionsSuccess(t *testing.T) {
 }
 
 func TestDebugInfo(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
@@ -90,7 +88,7 @@ func TestDebugInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	var buffer bytes.Buffer
-	resolver.GetDebugInfo(&buffer)
+	resolver.getDebugInfo(&buffer)
 
 	expectedResult := `=== Checking executable permissions ===
 Executable path: ` + resolver.backendCommand + `
@@ -120,7 +118,7 @@ Secrets handle resolved:
 }
 
 func TestDebugInfoError(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
@@ -137,7 +135,7 @@ func TestDebugInfoError(t *testing.T) {
 	require.NoError(t, err)
 
 	var buffer bytes.Buffer
-	resolver.GetDebugInfo(&buffer)
+	resolver.getDebugInfo(&buffer)
 
 	expectedResult := `=== Checking executable permissions ===
 Executable path: some_command
