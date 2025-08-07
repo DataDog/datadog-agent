@@ -494,7 +494,7 @@ func (l *SNMPListener) createService(
 	config.ContextEngineID = authentication.ContextEngineID
 	config.ContextName = authentication.ContextName
 
-	l.services[entityID] = &SNMPService{
+	svc := SNMPService{
 		adIdentifier: subnet.adIdentifier,
 		entityID:     entityID,
 		deviceIP:     deviceIP,
@@ -502,6 +502,7 @@ func (l *SNMPListener) createService(
 		subnet:       subnet,
 		pending:      true,
 	}
+	l.services[entityID] = &svc
 
 	pendingDevice := devicededuper.PendingDevice{
 		Config:     config,
