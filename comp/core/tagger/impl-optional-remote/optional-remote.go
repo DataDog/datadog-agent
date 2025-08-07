@@ -9,11 +9,6 @@
 package optionalimpl
 
 import (
-	"encoding/json"
-	"net/http"
-
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -43,25 +38,13 @@ type Provides struct {
 // NewComponent returns either a remote tagger or a noop tagger based on the configuration
 func NewComponent(req Requires) (Provides, error) {
 	if req.OptionalRemoteParams.Disable() {
-		noopTaggerComponent := noop.NewComponent()
-
-		noopListEndpoint := api.NewAgentEndpointProvider(
-			func(w http.ResponseWriter, _ *http.Request) {
-				response := noopTaggerComponent.List()
-				jsonTags, _ := json.Marshal(response)
-				w.Write(jsonTags)
-			},
-			"/tagger-list",
-			"GET",
-		)
-
 		return Provides{
 			remote.Provides{
-				Comp:     noopTaggerComponent,
-				Endpoint: noopListEndpoint,
+				Comp: noop.NewComponent(),
 			},
 		}, nil
 	}
+
 	remoteRequires := remote.Requires{
 		Lc:        req.Lc,
 		Params:    req.RemoteParams,
