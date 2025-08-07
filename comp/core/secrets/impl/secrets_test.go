@@ -19,41 +19,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var (
-	testYamlHash = []byte(`
-slice:
-  - "1"
-  - [test1, test2]
-  - 123
-hash:
-  a: test3
-  b: "2"
-  c: 456
-  slice:
-    - test4
-    - test5
-`)
-
-	testYamlHashUpdated = []byte(`hash:
-  a: test3_verified
-  b: 2_verified
-  c: 456
-  slice:
-  - test4_verified
-  - test5_verified
-slice:
-- 1_verified
-- - test1_verified
-  - test2_verified
-- 123
-`)
-
 	testSimpleConf = []byte(`secret_backend_arguments:
 - ENC[pass1]
 `)
@@ -250,36 +220,8 @@ some:
 	}
 )
 
-func TestIsEnc(t *testing.T) {
-	enc, secret := isEnc("")
-	assert.False(t, enc)
-	assert.Equal(t, "", secret)
-
-	enc, secret = isEnc("ENC[]")
-	assert.True(t, enc)
-	assert.Equal(t, "", secret)
-
-	enc, _ = isEnc("test")
-	assert.False(t, enc)
-
-	enc, _ = isEnc("ENC[")
-	assert.False(t, enc)
-
-	enc, secret = isEnc("ENC[test]")
-	assert.True(t, enc)
-	assert.Equal(t, "test", secret)
-
-	enc, secret = isEnc("ENC[]]]]")
-	assert.True(t, enc)
-	assert.Equal(t, "]]]", secret)
-
-	enc, secret = isEnc("  ENC[test]	")
-	assert.True(t, enc)
-	assert.Equal(t, "test", secret)
-}
-
 func TestResolveNoCommand(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
@@ -292,7 +234,7 @@ func TestResolveNoCommand(t *testing.T) {
 }
 
 func TestResolveSecretError(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
@@ -305,7 +247,7 @@ func TestResolveSecretError(t *testing.T) {
 }
 
 func TestResolveDoestSendDuplicates(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
@@ -498,7 +440,7 @@ func TestResolve(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			currentTest = t
 
-			tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+			tel := nooptelemetry.GetCompatComponent()
 
 			resolver := newEnabledSecretResolver(tel)
 			resolver.backendCommand = "some_command"
@@ -520,7 +462,7 @@ func TestResolve(t *testing.T) {
 }
 
 func TestResolveNestedWithSubscribe(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"pass3": "password3"}
@@ -561,7 +503,7 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 }
 
 func TestResolveCached(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"pass1": "password1"}
@@ -594,7 +536,7 @@ func TestResolveThenRefresh(t *testing.T) {
 		setAllowlistEnabled(originalValue)
 	}()
 
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{}
@@ -670,7 +612,7 @@ func TestResolveThenRefresh(t *testing.T) {
 
 // test that the allowlist only lets setting paths that match it get Refreshed
 func TestRefreshAllowlist(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"handle": "value"}
@@ -716,7 +658,7 @@ func TestRefreshAllowlist(t *testing.T) {
 // test that only setting paths that match the allowlist will get notifications
 // about changed secret values from a Refresh
 func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
@@ -764,7 +706,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	allowlistPaths = []string{"setting"}
 	defer func() { allowlistPaths = originalAllowlistPaths }()
 
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"handle": "value"}
@@ -833,7 +775,7 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 			t.Cleanup(func() {
 				newClock = clock.New
 			})
-			tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+			tel := nooptelemetry.GetCompatComponent()
 
 			resolver := newEnabledSecretResolver(tel)
 			mockClock := resolver.clk.(*clock.Mock)
@@ -935,7 +877,7 @@ func (s *alwaysZeroSource) Int63() int64 {
 func (s *alwaysZeroSource) Seed(int64) {}
 
 func TestScatterWithSmallRandomValue(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	originalValue := isAllowlistEnabled()
 	setAllowlistEnabled(false)
@@ -1041,7 +983,7 @@ func TestIsLikelyAPIOrAppKey(t *testing.T) {
 }
 
 func TestBackendTypeWithValidVaultConfig(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := nooptelemetry.GetCompatComponent()
 	r := newEnabledSecretResolver(tel)
 
 	r.enabled = true
