@@ -224,7 +224,7 @@ func handleProcessesUpdated(
 	var before, after []probeKey
 	anythingChanged := func(
 		p *process,
-		probesAfterUpdate []ir.ProbeDefinition,
+		pu ProcessUpdate,
 	) bool {
 		before = before[:0]
 		for k := range p.probes {
@@ -233,7 +233,7 @@ func handleProcessesUpdated(
 		slices.SortFunc(before, probeKey.cmp)
 
 		after = after[:0]
-		for _, probe := range probesAfterUpdate {
+		for _, probe := range pu.Probes {
 			after = append(after, probeKey{
 				id:      probe.GetID(),
 				version: probe.GetVersion(),
@@ -241,7 +241,7 @@ func handleProcessesUpdated(
 		}
 		slices.SortFunc(after, probeKey.cmp)
 
-		// Check if anything has changed.
+		// Check if probes changed
 		if len(after) != len(before) {
 			return true
 		}
@@ -271,7 +271,7 @@ func handleProcessesUpdated(
 			}
 			sm.processes[key] = p
 		}
-		if !anythingChanged(p, pu.Probes) {
+		if !anythingChanged(p, pu) {
 			return nil
 		}
 

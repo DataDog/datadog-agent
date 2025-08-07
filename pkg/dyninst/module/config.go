@@ -30,6 +30,7 @@ type Config struct {
 	DynamicInstrumentationEnabled bool
 	LogUploaderURL                string
 	DiagsUploaderURL              string
+	SymDBUploaderURL              string
 
 	// DiskCacheEnabled enables the disk cache for debug info.  If this is
 	// false, no disk cache will be used and the debug info will be stored in
@@ -84,7 +85,7 @@ func (a actuatorConstructor[A, T]) apply(c *Config) {
 // WithActuatorConstructor is an option that allows the user to provide a
 // custom actuator constructor.
 func WithActuatorConstructor[
-	A Actuator[T], T ActuatorTenant,
+A Actuator[T], T ActuatorTenant,
 ](
 	f actuatorConstructor[A, T],
 ) Option {
@@ -113,6 +114,7 @@ func NewConfig(spConfig *sysconfigtypes.Config, opts ...Option) (*Config, error)
 		DynamicInstrumentationEnabled: diEnabled,
 		LogUploaderURL:                withPath(traceAgentURL, logUploaderPath),
 		DiagsUploaderURL:              withPath(traceAgentURL, diagsUploaderPath),
+		SymDBUploaderURL:              withPath(traceAgentURL, symdbUploaderPath),
 		DiskCacheEnabled:              cacheEnabled,
 		DiskCacheConfig:               cacheConfig,
 		actuatorConstructor:           defaultActuatorConstructor,
@@ -175,6 +177,7 @@ const (
 
 	logUploaderPath   = "/debugger/v1/input"
 	diagsUploaderPath = "/debugger/v1/diagnostics"
+	symdbUploaderPath = "/symdb/v1/input"
 )
 
 var errSchemeRequired = fmt.Errorf("scheme is required")

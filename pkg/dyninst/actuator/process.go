@@ -35,10 +35,6 @@ type ProcessUpdate struct {
 	// If a previous update contained a different set of probes, they
 	// will be wholly replaced by the new set.
 	Probes []ir.ProbeDefinition
-
-	// ShouldUploadSymDB is whether the process should upload its symbol
-	// database.
-	ShouldUploadSymDB bool
 }
 
 // Executable forwards the definition from procmon.

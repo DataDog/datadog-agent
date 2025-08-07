@@ -131,7 +131,7 @@ func analyzeProcess(
 			"failed to analyze environ", err,
 		)
 	}
-	if ddEnv.serviceName == "" || !ddEnv.diEnabled {
+	if ddEnv.serviceName == "" || ddEnv.serviceVersion == "" || ddEnv.environmentName == "" || !ddEnv.diEnabled {
 		log.Tracef(
 			"process %d is not interesting: service name is %q, %s=%t",
 			pid, ddEnv.serviceName, ddDynInstEnabledEnvVar, ddEnv.diEnabled,
@@ -150,6 +150,8 @@ func analyzeProcess(
 
 	return processAnalysis{
 		service:     ddEnv.serviceName,
+		version:     ddEnv.serviceVersion,
+		environment: ddEnv.environmentName,
 		exe:         Executable{Path: exePath, Key: fileKey},
 		interesting: true,
 		gitInfo: GitInfo{
@@ -162,12 +164,16 @@ func analyzeProcess(
 
 type ddEnvVars struct {
 	serviceName      string
+	serviceVersion   string
+	environmentName  string
 	diEnabled        bool
 	gitCommitSha     string
 	gitRepositoryURL string
 }
 
 const ddServiceEnvVar = "DD_SERVICE"
+const ddVersionEnvVar = "DD_VERSION"
+const ddEnvironmentEnvVar = "DD_ENV"
 const ddDynInstEnabledEnvVar = "DD_DYNAMIC_INSTRUMENTATION_ENABLED"
 const ddGitCommitShaEnvVar = "DD_GIT_COMMIT_SHA"
 const ddGitRepositoryURLEnvVar = "DD_GIT_REPOSITORY_URL"
@@ -204,6 +210,10 @@ func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 		switch unsafe.String(unsafe.SliceData(envVar), len(envVar)) {
 		case ddServiceEnvVar:
 			ddEnv.serviceName = string(val)
+		case ddVersionEnvVar:
+			ddEnv.serviceVersion = string(val)
+		case ddEnvironmentEnvVar:
+			ddEnv.environmentName = string(val)
 		case ddDynInstEnabledEnvVar:
 			ddEnv.diEnabled, _ = strconv.ParseBool(string(val))
 		case ddGitCommitShaEnvVar:
