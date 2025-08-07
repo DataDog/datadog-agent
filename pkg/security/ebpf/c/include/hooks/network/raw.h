@@ -36,21 +36,14 @@ TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
         fill_span_context(&evt->span);
     }
 
-    struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
-    if (entry == NULL) {
-        evt->container.container_id[0] = 0;
-    } else {
-        copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
-    }
-
     fill_network_device_context_from_pkt(&evt->device, skb, pkt);
 
-    u32 len = evt->len;
-    if (len > sizeof(evt->data)) {
-        len = sizeof(evt->data);
+    u64 len = evt->len + offsetof(struct raw_packet_event_t, data);
+    if (len > sizeof(*evt)) {
+        len = sizeof(*evt);
     }
 
-    send_event_with_size_ptr(skb, EVENT_RAW_PACKET, evt, offsetof(struct raw_packet_event_t, data) + len);
+    send_event_with_size_ptr(skb, EVENT_RAW_PACKET, evt, len);
 
     return TC_ACT_UNSPEC;
 }

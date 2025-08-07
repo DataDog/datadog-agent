@@ -12,7 +12,7 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
@@ -23,7 +23,7 @@ type irGenerator struct{}
 
 func (irGenerator) GenerateIR(
 	programID ir.ProgramID,
-	executable *object.ElfFile,
+	binaryPath string,
 	probes []ir.ProbeDefinition,
 ) (*ir.Program, error) {
 	var v1Def, v2Def, symdbDef ir.ProbeDefinition
@@ -43,12 +43,17 @@ func (irGenerator) GenerateIR(
 	if v1Def == nil || v2Def == nil {
 		return nil, fmt.Errorf("missing probe definitions: %v", probes)
 	}
+	elfFile, err := safeelf.Open(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open binary: %w", err)
+	}
+	defer elfFile.Close()
 
 	program := &ir.Program{
 		ID: programID,
 	}
 	// TODO: We could use less memory if we had a better symbol table parser.
-	symbols, err := executable.Underlying.Elf.Symbols()
+	symbols, err := elfFile.Symbols()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get symbols: %w", err)
 	}
@@ -98,14 +103,21 @@ func (irGenerator) GenerateIR(
 	}
 	program.Types = makeBaseTypesMap()
 	program.MaxTypeID = ir.TypeID(len(program.Types))
+
 	var regs abiRegs
-	switch arch := executable.Architecture(); arch {
-	case "amd64":
-		regs = amd64AbiRegs
-	case "arm64":
-		regs = arm64AbiRegs
-	default:
-		return program, fmt.Errorf("unsupported architecture: %s", arch)
+	{
+		arch, err := bininspect.GetArchitecture(elfFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get architecture: %w", err)
+		}
+		switch arch {
+		case "amd64":
+			regs = amd64AbiRegs
+		case "arm64":
+			regs = arm64AbiRegs
+		default:
+			return program, fmt.Errorf("unsupported architecture: %s", arch)
+		}
 	}
 	if v1 != nil {
 		addRcProbe(regs, program, v1Def, v1)
