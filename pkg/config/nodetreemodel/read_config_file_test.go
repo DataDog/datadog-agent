@@ -34,7 +34,7 @@ network_devices:
     bind_host: ko
 `
 
-func setupDefault(_ *testing.T, cfg model.BuildableConfig) *ntmConfig {
+func setupDefault(_ *testing.T, cfg model.Config) *ntmConfig {
 	cfg.SetDefault("network_devices.snmp_traps.enabled", false)
 	cfg.SetDefault("network_devices.snmp_traps.port", 0)
 	cfg.SetDefault("network_devices.snmp_traps.bind_host", "")
