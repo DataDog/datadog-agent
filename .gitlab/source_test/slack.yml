@@ -2,7 +2,7 @@
 # Check that each team in CODEOWNERS has its slack notification channel filled in the GITHUB_SLACK_MAP
 slack_teams_channels_check:
   stage: source_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: []
   rules:
