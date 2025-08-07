@@ -8,6 +8,8 @@
 package module
 
 import (
+	"net/url"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
@@ -16,18 +18,18 @@ import (
 
 // SymDBUploader interface for uploading SymDB data
 type SymDBUploader interface {
-	Enqueue(eventMetadata *uploader.EventMetadata, symdbRoot *uploader.SymDBRoot) error
+	Enqueue(pkg symdb.Package) error
 }
 
 type symdbManager struct {
-	uploader SymDBUploader
-	store    *processStore
+	uploadURL *url.URL
+	store     *processStore
 }
 
-func newSymdbManager(uploader SymDBUploader, store *processStore) *symdbManager {
+func newSymdbManager(uploadURL *url.URL, store *processStore) *symdbManager {
 	return &symdbManager{
-		uploader: uploader,
-		store:    store,
+		uploadURL: uploadURL,
+		store:     store,
 	}
 }
 
@@ -40,29 +42,33 @@ func (m *symdbManager) requestUpload(runtimeID procRuntimeID, executable actuato
 }
 
 func (m *symdbManager) performUpload(runtimeID procRuntimeID, executable actuator.Executable) {
-	builder, err := symdb.NewSymDBBuilder(executable.Path, symdb.ExtractScopeMainModuleOnly)
+	it, err := symdb.PackagesIterator(executable.Path,
+		symdb.ExtractOptions{
+			Scope:                   symdb.ExtractScopeModulesFromSameOrg,
+			IncludeInlinedFunctions: false,
+		})
 	if err != nil {
-		log.Errorf("SymDB: Failed to create builder for process %v (executable: %s): %v",
-			runtimeID.ProcessID, executable.Path, err)
-		return
-	}
-	defer builder.Close()
-
-	symbols, err := builder.ExtractSymbols()
-	if err != nil {
-		log.Errorf("SymDB: Failed to extract symbols for process %v (executable: %s): %v",
+		log.Errorf("SymDB: failed to read symbols for process %v (executable: %s): %v",
 			runtimeID.ProcessID, executable.Path, err)
 		return
 	}
 
-	eventMetadata := uploader.NewEventMetadata(runtimeID.service, runtimeID.runtimeID)
-	symdbRoot := uploader.NewSymDBRoot(runtimeID.service, runtimeID.environment, runtimeID.version, symbols)
-	if err := m.uploader.Enqueue(eventMetadata, symdbRoot); err != nil {
-		log.Errorf("SymDB: Failed to enqueue symbols for process %v (executable: %s): %v",
-			runtimeID.ProcessID, executable.Path, err)
-		return
+	up := uploader.NewSymDBUploader(
+		runtimeID.service, runtimeID.environment, runtimeID.version, runtimeID.runtimeID,
+		uploader.WithURL(m.uploadURL))
+	for pkg, err := range it {
+		if err != nil {
+			log.Errorf("SymDB: Failed to iterate packages for process %v (executable: %s): %v",
+				runtimeID.ProcessID, executable.Path, err)
+			return
+		}
+		if err := up.Enqueue(pkg); err != nil {
+			log.Errorf("SymDB: Failed to enqueue symbols for process %v (executable: %s): %v",
+				runtimeID.ProcessID, executable.Path, err)
+			return
+		}
 	}
 
-	log.Tracef("SymDB: Successfully enqueued symbols for process %v (executable: %s), main module: %s, packages: %d",
-		runtimeID.ProcessID, executable.Path, symbols.MainModule, len(symbols.Packages))
+	log.Tracef("SymDB: Successfully enqueued symbols for process %v (executable: %s)",
+		runtimeID.ProcessID, executable.Path)
 }
