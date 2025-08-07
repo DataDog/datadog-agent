@@ -180,17 +180,17 @@ class QualityGateOutputFormatter:
             gate_list: List of StaticQualityGate objects
             gate_states: List of gate state dictionaries with execution results
         """
-        print(color_message("\n" + "=" * 120, "magenta"))
+        print(color_message("\n" + "=" * 132, "magenta"))
         print(color_message("🛡️  STATIC QUALITY GATES SUMMARY", "magenta"))
-        print(color_message("=" * 120, "magenta"))
+        print(color_message("=" * 132, "magenta"))
 
         # Create a lookup for gate states
         state_lookup = {state["name"]: state for state in gate_states}
 
         # Table header
-        header = f"{'Gate Name':<40} {'Status':<8} {'Compressed':<20} {'Uncompressed':<20} {'Utilization':<12}"
+        header = f"{'Gate Name':<40} {'Status':<8} {'Compressed':<20} {'Uncompressed':<20} {'Comp Util':<10} {'Uncomp Util':<12}"
         print(color_message(header, "cyan"))
-        print(color_message("-" * 120, "cyan"))
+        print(color_message("-" * 132, "cyan"))
 
         total_compressed = 0
         total_uncompressed = 0
@@ -224,7 +224,6 @@ class QualityGateOutputFormatter:
 
                 wire_util = (wire_current / wire_limit) * 100
                 disk_util = (disk_current / disk_limit) * 100
-                max_util = max(wire_util, disk_util)
 
                 # Accumulate totals
                 total_compressed += wire_current
@@ -232,30 +231,36 @@ class QualityGateOutputFormatter:
                 total_compressed_limit += wire_limit
                 total_uncompressed_limit += disk_limit
 
-                # Format utilization with color based on usage
-                if max_util > 95:
-                    util_color = "red"
-                elif max_util > 85:
-                    util_color = "orange"
-                elif max_util > 75:
-                    util_color = "yellow"
-                else:
-                    util_color = "green"
+                # Format utilization with color based on usage for each type
+                def get_util_color(util_percent):
+                    if util_percent > 95:
+                        return "red"
+                    elif util_percent > 85:
+                        return "orange"
+                    elif util_percent > 75:
+                        return "yellow"
+                    else:
+                        return "green"
+
+                wire_util_color = get_util_color(wire_util)
+                disk_util_color = get_util_color(disk_util)
 
                 compressed_info = f"{wire_current:6.1f}/{wire_limit:6.1f} MB"
                 uncompressed_info = f"{disk_current:6.1f}/{disk_limit:6.1f} MB"
-                utilization_info = color_message(f"{max_util:6.1f}%", util_color)
+                compressed_util_info = color_message(f"{wire_util:6.1f}%", wire_util_color)
+                uncompressed_util_info = color_message(f"{disk_util:6.1f}%", disk_util_color)
             else:
                 compressed_info = "N/A"
                 uncompressed_info = "N/A"
-                utilization_info = "N/A"
+                compressed_util_info = "N/A"
+                uncompressed_util_info = "N/A"
 
             print(
-                f"{display_name:<40} {status:<8} {compressed_info:<20} {uncompressed_info:<20} {utilization_info:<12}"
+                f"{display_name:<40} {status:<8} {compressed_info:<20} {uncompressed_info:<20} {compressed_util_info:<10} {uncompressed_util_info:<12}"
             )
 
         # Summary footer
-        print(color_message("-" * 120, "cyan"))
+        print(color_message("-" * 132, "cyan"))
 
         # Overall statistics
         total_gates = len(gate_list)
@@ -283,7 +288,7 @@ class QualityGateOutputFormatter:
         else:
             print(color_message("✅ All gates passed successfully!", "green"))
 
-        print(color_message("=" * 120, "magenta"))
+        print(color_message("=" * 132, "magenta"))
 
     @staticmethod
     def print_startup_message(gates_count: int, config_path: str) -> None:

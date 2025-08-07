@@ -17,6 +17,23 @@ from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.package.size import InfraError, directory_size, extract_package, file_size
 
+# arch definitions are different
+# depending on OS, that is why
+# we have to map those
+ARCH_MAPPING = {
+    "amd64": "x86_64",
+    "arm64": "aarch64",
+    "armhf": "armv7hl",
+}
+
+PACKAGE_OS_MAPPING = {
+    "deb": "debian",
+    "rpm": "centos",
+    "suse": "suse",
+    "heroku": "debian",
+    "msi": "windows",
+}
+
 
 def byte_to_string(size, unit_power=None, with_unit=True):
     if not size:
@@ -236,39 +253,6 @@ class GateMetricHandler:
             )
 
 
-# We are using the same metric handler for all gates
-# to send data to Datadog
-GATE_METRIC_HANDLER = None
-
-ARCH_MAPPING = {
-    "amd64": "x86_64",
-    "arm64": "aarch64",
-    "armhf": "armv7hl",
-}
-
-PACKAGE_OS_MAPPING = {
-    "deb": "debian",
-    "rpm": "centos",
-    "suse": "suse",
-    "heroku": "debian",
-    "msi": "windows",
-}
-
-
-def get_metric_handler() -> GateMetricHandler:
-    """
-    Get the metric handler for the static quality gates.
-    This is a lazy singleton implementation to avoid creating a new metric handler for each gate
-    as we use exactly the same handler with different tags for each gate.
-    """
-    global GATE_METRIC_HANDLER
-    if GATE_METRIC_HANDLER is None:
-        GATE_METRIC_HANDLER = GateMetricHandler(
-            git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
-        )
-    return GATE_METRIC_HANDLER
-
-
 class StaticQualityGateFailed(Exception):
     """
     Exception raised when a static quality gate fails
@@ -288,7 +272,6 @@ class StaticQualityGate:
     gate_name: str
     arch: str
     os: str
-    metric_handler: GateMetricHandler
     max_on_wire_size: int
     max_on_disk_size: int
     artifact_on_disk_size: int
@@ -315,16 +298,6 @@ class StaticQualityGate:
             self.arch = "amd64"
         else:
             raise ValueError(f"Unknown arch for gate: {self.gate_name}")
-
-    def _register_gate_metrics(self):
-        """
-        Register the gate tags and metrics to the metric handler
-        to send data to Datadog
-        """
-        self.metric_handler = get_metric_handler()
-        self.metric_handler.register_gate_tags(self.gate_name, gate_name=self.gate_name, arch=self.arch, os=self.os)
-        self.metric_handler.register_metric(self.gate_name, "max_on_wire_size", self.max_on_wire_size)
-        self.metric_handler.register_metric(self.gate_name, "max_on_disk_size", self.max_on_disk_size)
 
     def print_results(self) -> None:
         """
@@ -405,7 +378,6 @@ class StaticQualityGatePackage(StaticQualityGate):
     def __init__(self, gate_name: str, gate_max_size_values: dict, ctx: Context):
         super().__init__(gate_name, gate_max_size_values, ctx)
         self._set_os()
-        self._register_gate_metrics()
 
     def _find_package_path(self, extension: str = None) -> None:
         """
@@ -478,8 +450,6 @@ class StaticQualityGatePackage(StaticQualityGate):
                 package_on_wire_size = file_size(path=self.artifact_path)
                 package_on_disk_size = directory_size(path=extract_dir)
 
-        self.metric_handler.register_metric(self.gate_name, "current_on_wire_size", package_on_wire_size)
-        self.metric_handler.register_metric(self.gate_name, "current_on_disk_size", package_on_disk_size)
         self.artifact_on_wire_size = package_on_wire_size
         self.artifact_on_disk_size = package_on_disk_size
 
@@ -502,7 +472,6 @@ class StaticQualityGateDocker(StaticQualityGate):
     def __init__(self, gate_name: str, gate_max_size_values: dict, ctx: Context):
         super().__init__(gate_name, gate_max_size_values, ctx)
         self._set_os()
-        self._register_gate_metrics()
 
     def _get_image_url(self) -> str:
         """
@@ -593,7 +562,6 @@ class StaticQualityGateDocker(StaticQualityGate):
             print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
 
         print(f"Current image on disk size for {self.artifact_path}: {on_disk_size / 1024 / 1024} MB")
-        self.metric_handler.register_metric(self.gate_name, "current_on_disk_size", on_disk_size)
         self.artifact_on_disk_size = on_disk_size
 
     def _calculate_image_on_wire_size(self) -> None:
@@ -612,7 +580,6 @@ class StaticQualityGateDocker(StaticQualityGate):
 
         on_wire_size = int(manifest_output.stdout)
         print(f"Current image on wire size for {self.artifact_path}: {on_wire_size / 1024 / 1024} MB")
-        self.metric_handler.register_metric(self.gate_name, "current_on_wire_size", on_wire_size)
         self.artifact_on_wire_size = on_wire_size
 
     def _measure_on_disk_and_on_wire_size(self):

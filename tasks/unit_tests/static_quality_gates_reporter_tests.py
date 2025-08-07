@@ -284,7 +284,8 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
         self.assertIn("Status", output_text)
         self.assertIn("Compressed", output_text)
         self.assertIn("Uncompressed", output_text)
-        self.assertIn("Utilization", output_text)
+        self.assertIn("Comp Util", output_text)
+        self.assertIn("Uncomp Util", output_text)
 
         # Should contain gate display names
         self.assertIn("Agent DEB (AMD64)", output_text)

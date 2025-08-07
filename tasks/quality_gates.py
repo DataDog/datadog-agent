@@ -20,9 +20,9 @@ from tasks.static_quality_gates.lib.gates_lib import (
     GateMetricHandler,
     StaticQualityGate,
     byte_to_string,
-    get_metric_handler,
     get_quality_gates_list,
 )
+from tasks.static_quality_gates.lib.static_quality_gates_reporter import QualityGateOutputFormatter
 
 BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
@@ -167,6 +167,9 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     """
     final_state = "success"
     gate_states = []
+    metric_handler = GateMetricHandler(
+        git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
+    )
     gate_list = get_quality_gates_list(config_path, ctx)
 
     nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
@@ -175,10 +178,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     for gate in gate_list:
         try:
             gate.execute_gate()
-            print(f"Gate {gate.gate_name} succeeded !")
             gate_states.append({"name": gate.gate_name, "state": True, "error_type": None, "message": None})
         except AssertionError as e:
-            print(f"Gate {gate.gate_name} failed ! (AssertionError)")
             final_state = "failure"
             gate_states.append(
                 {"name": gate.gate_name, "state": False, "error_type": "AssertionError", "message": str(e)}
@@ -189,24 +190,37 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
             ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
             raise Exit(code=42) from e
         except Exception:
-            print(f"Gate {gate.gate_name} failed ! (StackTrace)")
             final_state = "failure"
             gate_states.append(
                 {"name": gate.gate_name, "state": False, "error_type": "StackTrace", "message": traceback.format_exc()}
             )
+        finally:
+            metric_handler.register_gate_tags(
+                gate.gate_name,
+                gate_name=gate.gate_name,
+                arch=gate.arch,
+                os=gate.os,
+                pipeline_id=os.environ["CI_PIPELINE_ID"],
+                ci_commit_ref_slug=os.environ["CI_COMMIT_REF_SLUG"],
+                ci_commit_sha=os.environ["CI_COMMIT_SHA"],
+            )
+            metric_handler.register_metric(gate.gate_name, "max_on_wire_size", gate.max_on_wire_size)
+            metric_handler.register_metric(gate.gate_name, "max_on_disk_size", gate.max_on_disk_size)
+            metric_handler.register_metric(gate.gate_name, "current_on_wire_size", gate.artifact_on_wire_size)
+            metric_handler.register_metric(gate.gate_name, "current_on_disk_size", gate.artifact_on_disk_size)
+
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
-    # Print comprehensive summary first
-    from tasks.static_quality_gates.lib.static_quality_gates_reporter import QualityGateOutputFormatter
-
+    # Reporting part
+    # Send metrics to Datadog
+    # and then print the summary table
+    # in the job's log
+    metric_handler.send_metrics_to_datadog()
     QualityGateOutputFormatter.print_summary_table(gate_list, gate_states)
 
     # Then print the traditional report for any failures
     if final_state != "success":
         _print_quality_gates_report(gate_states)
-
-    metric_handler = get_metric_handler()
-    metric_handler.send_metrics_to_datadog()
 
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
