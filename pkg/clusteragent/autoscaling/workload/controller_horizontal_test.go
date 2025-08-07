@@ -79,15 +79,6 @@ func (f *horizontalControllerFixture) runSync(fakePai *model.FakePodAutoscalerIn
 	return autoscalerInternal, res, err
 }
 
-func newHorizontalAction(time time.Time, fromReplicas, toReplicas, recommendedReplicas int32) datadoghqcommon.DatadogPodAutoscalerHorizontalAction {
-	return datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
-		Time:                metav1.NewTime(time),
-		FromReplicas:        fromReplicas,
-		ToReplicas:          toReplicas,
-		RecommendedReplicas: pointer.Ptr[int32](recommendedReplicas),
-	}
-}
-
 type horizontalScalingTestArgs struct {
 	fakePai          *model.FakePodAutoscalerInternal
 	dataSource       datadoghqcommon.DatadogPodAutoscalerValueSource
