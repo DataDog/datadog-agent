@@ -79,27 +79,21 @@ func TestAddHorizontalAction(t *testing.T) {
 	}, horizontalLastActions)
 }
 
-func TestGetHorizontalEventsRetention(t *testing.T) {
+func TestGetHorizontalRetentionValues(t *testing.T) {
 	tests := []struct {
-		name                   string
-		policy                 *datadoghq.DatadogPodAutoscalerApplyPolicy
-		longestLookbackAllowed time.Duration
-		expectedRetention      time.Duration
+		name                            string
+		policy                          *datadoghq.DatadogPodAutoscalerApplyPolicy
+		expectedEventsRetention         time.Duration
+		expectedRecommendationRetention time.Duration
 	}{
 		{
-			name:                   "No policy, no retention",
-			policy:                 nil,
-			longestLookbackAllowed: 0,
-			expectedRetention:      0,
+			name:                            "No policy, no retention",
+			policy:                          nil,
+			expectedEventsRetention:         0,
+			expectedRecommendationRetention: 0,
 		},
 		{
-			name:                   "No policy, 15 minutes retention",
-			policy:                 nil,
-			longestLookbackAllowed: 15 * time.Minute,
-			expectedRetention:      0,
-		},
-		{
-			name: "Scale up policy with rules, 30 minutes retention",
+			name: "Scale up policy with rules",
 			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
@@ -111,11 +105,11 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					},
 				},
 			},
-			longestLookbackAllowed: 30 * time.Minute,
-			expectedRetention:      15 * time.Minute,
+			expectedEventsRetention:         15 * time.Minute,
+			expectedRecommendationRetention: 0,
 		},
 		{
-			name: "Scale up policy with rules, 10 minutes max retention",
+			name: "Scale up policy with rules",
 			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
@@ -127,36 +121,11 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					},
 				},
 			},
-			longestLookbackAllowed: 10 * time.Minute,
-			expectedRetention:      10 * time.Minute,
+			expectedEventsRetention:         15 * time.Minute,
+			expectedRecommendationRetention: 0,
 		},
 		{
-			name: "Scale up and scale down policy with rules, 30 minutes retention",
-			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
-						{
-							Type:          "Pods",
-							PeriodSeconds: 900,
-							Value:         2,
-						},
-					},
-				},
-				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
-						{
-							Type:          "Pods",
-							PeriodSeconds: 960,
-							Value:         2,
-						},
-					},
-				},
-			},
-			longestLookbackAllowed: 30 * time.Minute,
-			expectedRetention:      16 * time.Minute,
-		},
-		{
-			name: "Scale up and scale down policy with rules, 10 minutes max retention",
+			name: "Scale up and scale down policy with rules",
 			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
@@ -177,11 +146,36 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					},
 				},
 			},
-			longestLookbackAllowed: 10 * time.Minute,
-			expectedRetention:      10 * time.Minute,
+			expectedEventsRetention:         16 * time.Minute,
+			expectedRecommendationRetention: 0,
 		},
 		{
-			name: "Scale up stabilization window 5 minutes",
+			name: "Scale up and scale down policy with rules longer than allowed",
+			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
+						{
+							Type:          "Pods",
+							PeriodSeconds: 90000,
+							Value:         2,
+						},
+					},
+				},
+				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
+						{
+							Type:          "Pods",
+							PeriodSeconds: 960000,
+							Value:         2,
+						},
+					},
+				},
+			},
+			expectedEventsRetention:         longestScalingRulePeriodAllowed,
+			expectedRecommendationRetention: 0,
+		},
+		{
+			name: "Scale up stabilization window",
 			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
@@ -203,8 +197,8 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					},
 				},
 			},
-			longestLookbackAllowed: 30 * time.Minute,
-			expectedRetention:      5 * time.Minute,
+			expectedEventsRetention:         3 * time.Minute,
+			expectedRecommendationRetention: 5 * time.Minute,
 		},
 		{
 			name: "Scale down stabilization window 5 minutes",
@@ -229,8 +223,8 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					StabilizationWindowSeconds: 300,
 				},
 			},
-			longestLookbackAllowed: 30 * time.Minute,
-			expectedRetention:      5 * time.Minute,
+			expectedEventsRetention:         3 * time.Minute,
+			expectedRecommendationRetention: 5 * time.Minute,
 		},
 		{
 			name: "Stabilization, rules, max retention",
@@ -243,7 +237,7 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 							Value:         2,
 						},
 					},
-					StabilizationWindowSeconds: 300,
+					StabilizationWindowSeconds: 3600,
 				},
 				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
@@ -256,15 +250,16 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					StabilizationWindowSeconds: 180,
 				},
 			},
-			longestLookbackAllowed: 30 * time.Minute,
-			expectedRetention:      7 * time.Minute,
+			expectedEventsRetention:         7 * time.Minute,
+			expectedRecommendationRetention: 1 * time.Hour,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			horizontalEventsRetention := getHorizontalEventsRetention(tt.policy, tt.longestLookbackAllowed)
-			assert.Equal(t, tt.expectedRetention, horizontalEventsRetention)
+			eventsRetention, recommendationRetention := getHorizontalRetentionValues(tt.policy)
+			assert.Equal(t, tt.expectedEventsRetention, eventsRetention)
+			assert.Equal(t, tt.expectedRecommendationRetention, recommendationRetention)
 		})
 	}
 }
