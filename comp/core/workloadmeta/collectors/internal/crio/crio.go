@@ -126,12 +126,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 		// Update seenImages for next run
 		c.seenImages = newSeenImages
-		if len(imageEvents) > 0 {
-			log.Debugf("About to notify workloadmeta store with %d new/updated image events", len(imageEvents))
-			c.store.Notify(imageEvents)
-		} else {
-			log.Debugf("No new image events to notify (all images already exist in store)")
-		}
+		c.store.Notify(imageEvents)
 	}
 
 	// Handle unset events for containers
