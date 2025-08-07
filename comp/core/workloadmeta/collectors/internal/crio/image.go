@@ -293,15 +293,6 @@ func parseLayerInfo(rootPath string, imgID string) ([]layerInfo, error) {
 	return manifest.Layers, nil
 }
 
-// getMapKeys returns the keys of a string map for logging
-func getMapKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 // layerInfo holds the size and mediaType of each layer
 type layerInfo struct {
 	Size      int    `json:"size"`
