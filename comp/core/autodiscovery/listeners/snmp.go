@@ -458,13 +458,13 @@ func (l *SNMPListener) createService(
 		device, exists := subnet.devices[entityID]
 		if !exists {
 			// This case should happen only when device is a pending device (service created but not registered yet)
+			writeCache = false
 			found := l.deviceDeduper.SetPendingDeviceFailures(deviceIP, deviceFailures)
 			if !found {
 				return
 			}
-
-			writeCache = false
 		} else {
+			writeCache = writeCache && (device.Failures != deviceFailures)
 			device.Failures = deviceFailures
 			subnet.devices[entityID] = device
 		}
