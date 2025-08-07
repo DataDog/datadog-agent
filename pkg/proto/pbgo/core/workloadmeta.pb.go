@@ -981,6 +981,7 @@ type Container struct {
 	CgroupPath                 string                        `protobuf:"bytes,12,opt,name=cgroupPath,proto3" json:"cgroupPath,omitempty"`
 	ResolvedAllocatedResources []*ContainerAllocatedResource `protobuf:"bytes,13,rep,name=resolvedAllocatedResources,proto3" json:"resolvedAllocatedResources,omitempty"`
 	Resources                  *ContainerResources           `protobuf:"bytes,14,opt,name=resources,proto3" json:"resources,omitempty"`
+	Owner                      *WorkloadmetaEntityId         `protobuf:"bytes,15,opt,name=owner,proto3" json:"owner,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -1109,6 +1110,13 @@ func (x *Container) GetResolvedAllocatedResources() []*ContainerAllocatedResourc
 func (x *Container) GetResources() *ContainerResources {
 	if x != nil {
 		return x.Resources
+	}
+	return nil
+}
+
+func (x *Container) GetOwner() *WorkloadmetaEntityId {
+	if x != nil {
+		return x.Owner
 	}
 	return nil
 }
@@ -1694,7 +1702,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\v_cpuRequestB\v\n" +
 	"\t_cpuLimitB\x10\n" +
 	"\x0e_memoryRequestB\x0e\n" +
-	"\f_memoryLimit\"\xc3\a\n" +
+	"\f_memoryLimit\"\x85\b\n" +
 	"\tContainer\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -1716,7 +1724,8 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"cgroupPath\x18\f \x01(\tR\n" +
 	"cgroupPath\x12p\n" +
 	"\x1aresolvedAllocatedResources\x18\r \x03(\v20.datadog.workloadmeta.ContainerAllocatedResourceR\x1aresolvedAllocatedResources\x12F\n" +
-	"\tresources\x18\x0e \x01(\v2(.datadog.workloadmeta.ContainerResourcesR\tresources\x1a:\n" +
+	"\tresources\x18\x0e \x01(\v2(.datadog.workloadmeta.ContainerResourcesR\tresources\x12@\n" +
+	"\x05owner\x18\x0f \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\x05owner\x1a:\n" +
 	"\fEnvVarsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +
@@ -1894,30 +1903,31 @@ var file_datadog_workloadmeta_workloadmeta_proto_depIdxs = []int32{
 	13, // 16: datadog.workloadmeta.Container.state:type_name -> datadog.workloadmeta.ContainerState
 	14, // 17: datadog.workloadmeta.Container.resolvedAllocatedResources:type_name -> datadog.workloadmeta.ContainerAllocatedResource
 	15, // 18: datadog.workloadmeta.Container.resources:type_name -> datadog.workloadmeta.ContainerResources
-	11, // 19: datadog.workloadmeta.OrchestratorContainer.image:type_name -> datadog.workloadmeta.ContainerImage
-	9,  // 20: datadog.workloadmeta.KubernetesPod.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	10, // 21: datadog.workloadmeta.KubernetesPod.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
-	17, // 22: datadog.workloadmeta.KubernetesPod.owners:type_name -> datadog.workloadmeta.KubernetesPodOwner
-	18, // 23: datadog.workloadmeta.KubernetesPod.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	27, // 24: datadog.workloadmeta.KubernetesPod.namespaceLabels:type_name -> datadog.workloadmeta.KubernetesPod.NamespaceLabelsEntry
-	18, // 25: datadog.workloadmeta.KubernetesPod.InitContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	18, // 26: datadog.workloadmeta.KubernetesPod.ephemeralContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	9,  // 27: datadog.workloadmeta.ECSTask.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	10, // 28: datadog.workloadmeta.ECSTask.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
-	28, // 29: datadog.workloadmeta.ECSTask.tags:type_name -> datadog.workloadmeta.ECSTask.TagsEntry
-	29, // 30: datadog.workloadmeta.ECSTask.containerInstanceTags:type_name -> datadog.workloadmeta.ECSTask.ContainerInstanceTagsEntry
-	6,  // 31: datadog.workloadmeta.ECSTask.launchType:type_name -> datadog.workloadmeta.ECSLaunchType
-	18, // 32: datadog.workloadmeta.ECSTask.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	2,  // 33: datadog.workloadmeta.WorkloadmetaEvent.type:type_name -> datadog.workloadmeta.WorkloadmetaEventType
-	16, // 34: datadog.workloadmeta.WorkloadmetaEvent.container:type_name -> datadog.workloadmeta.Container
-	19, // 35: datadog.workloadmeta.WorkloadmetaEvent.kubernetesPod:type_name -> datadog.workloadmeta.KubernetesPod
-	20, // 36: datadog.workloadmeta.WorkloadmetaEvent.ecsTask:type_name -> datadog.workloadmeta.ECSTask
-	21, // 37: datadog.workloadmeta.WorkloadmetaStreamResponse.events:type_name -> datadog.workloadmeta.WorkloadmetaEvent
-	38, // [38:38] is the sub-list for method output_type
-	38, // [38:38] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	9,  // 19: datadog.workloadmeta.Container.owner:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	11, // 20: datadog.workloadmeta.OrchestratorContainer.image:type_name -> datadog.workloadmeta.ContainerImage
+	9,  // 21: datadog.workloadmeta.KubernetesPod.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	10, // 22: datadog.workloadmeta.KubernetesPod.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
+	17, // 23: datadog.workloadmeta.KubernetesPod.owners:type_name -> datadog.workloadmeta.KubernetesPodOwner
+	18, // 24: datadog.workloadmeta.KubernetesPod.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	27, // 25: datadog.workloadmeta.KubernetesPod.namespaceLabels:type_name -> datadog.workloadmeta.KubernetesPod.NamespaceLabelsEntry
+	18, // 26: datadog.workloadmeta.KubernetesPod.InitContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	18, // 27: datadog.workloadmeta.KubernetesPod.ephemeralContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	9,  // 28: datadog.workloadmeta.ECSTask.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	10, // 29: datadog.workloadmeta.ECSTask.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
+	28, // 30: datadog.workloadmeta.ECSTask.tags:type_name -> datadog.workloadmeta.ECSTask.TagsEntry
+	29, // 31: datadog.workloadmeta.ECSTask.containerInstanceTags:type_name -> datadog.workloadmeta.ECSTask.ContainerInstanceTagsEntry
+	6,  // 32: datadog.workloadmeta.ECSTask.launchType:type_name -> datadog.workloadmeta.ECSLaunchType
+	18, // 33: datadog.workloadmeta.ECSTask.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	2,  // 34: datadog.workloadmeta.WorkloadmetaEvent.type:type_name -> datadog.workloadmeta.WorkloadmetaEventType
+	16, // 35: datadog.workloadmeta.WorkloadmetaEvent.container:type_name -> datadog.workloadmeta.Container
+	19, // 36: datadog.workloadmeta.WorkloadmetaEvent.kubernetesPod:type_name -> datadog.workloadmeta.KubernetesPod
+	20, // 37: datadog.workloadmeta.WorkloadmetaEvent.ecsTask:type_name -> datadog.workloadmeta.ECSTask
+	21, // 38: datadog.workloadmeta.WorkloadmetaStreamResponse.events:type_name -> datadog.workloadmeta.WorkloadmetaEvent
+	39, // [39:39] is the sub-list for method output_type
+	39, // [39:39] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_datadog_workloadmeta_workloadmeta_proto_init() }
