@@ -289,7 +289,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
-	config.BindEnvAndSetDefault("collect_ccrid", false)
+	config.BindEnvAndSetDefault("collect_ccrid", true)
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
