@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix the ``cronjob.on_schedule_check``` service check of the ``kubernetes_state`` check for CronJobs that have a specific time zone.
+    Fix the ``cronjob.on_schedule_check`` service check of the ``kubernetes_state`` check for CronJobs that have a specific time zone.
