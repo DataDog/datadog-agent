@@ -168,8 +168,6 @@ func (f *extendedDeploymentFactory) findNewestReplicaSetCreationTime(d *appsv1.D
 		}
 	}
 
-	_ = newestRS
-
 	return newestTime
 }
 
