@@ -59,7 +59,7 @@ public:
     bool getAttrBool(RtLoaderPyObject *obj, const char *attributeName, bool &value) const;
     bool getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                   const char *check_id_str, const char *check_name, const char *agent_config_str,
-                  RtLoaderPyObject *&check);
+                  const char *source, RtLoaderPyObject *&check);
 
     char *runCheck(RtLoaderPyObject *check);
     void cancelCheck(RtLoaderPyObject *check);

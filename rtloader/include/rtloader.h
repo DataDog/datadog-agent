@@ -105,12 +105,13 @@ public:
       \param check_id_str A C-string containing the identifier for the check instance.
       \param check_name A C-string containing the check name.
       \param agent_config_str A C-string containing the full agent configuration.
+      \param source A C-string containing the configuration source for the check instance.
       \param check The output python object pointer to the instantiated check, if we succeed.
       \return A boolean indicating the success or not of the operation.
     */
     virtual bool getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                           const char *check_id_str, const char *check_name, const char *agent_config_str,
-                          RtLoaderPyObject *&check)
+                          const char *source, RtLoaderPyObject *&check)
         = 0;
 
     //! Pure virtual runCheck member.

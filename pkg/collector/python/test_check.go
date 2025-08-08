@@ -118,7 +118,7 @@ const char *get_check_check_name = NULL;
 rtloader_pyobject_t *get_check_check = NULL;
 
 int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
-const char *check_id, const char *check_name, rtloader_pyobject_t **check) {
+const char *check_id, const char *check_name, const char *source, rtloader_pyobject_t **check) {
 
 	get_check_py_class = py_class;
 	get_check_init_config = strdup(init_config);
@@ -144,7 +144,7 @@ const char *get_check_deprecated_agent_config = NULL;
 rtloader_pyobject_t *get_check_deprecated_check = NULL;
 
 int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
-const char *instance, const char *agent_config, const char *check_id, const char *check_name,
+const char *instance, const char *agent_config, const char *check_id, const char *check_name, const char *source,
 rtloader_pyobject_t **check) {
 
 	get_check_deprecated_py_class = py_class;
