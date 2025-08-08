@@ -1,6 +1,6 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/)
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
@@ -59,19 +59,17 @@ func (f *extendedStatefulSetFactory) MetricFamilyGenerators() []generator.Family
 			basemetrics.ALPHA,
 			"",
 			wrapStatefulSetFunc(func(s *appsv1.StatefulSet) *metric.Family {
-				
-				
+
 				ms := []*metric.Metric{}
-				
+
 				// Check if rollout is ongoing and get ControllerRevision creation time
 				rolloutStartTime := f.getRolloutStartTime(s)
-				
+
 				if !rolloutStartTime.IsZero() {
 					// Pass the ControllerRevision creation timestamp to the transformer for duration calculation
 					ms = append(ms, &metric.Metric{
 						Value: float64(rolloutStartTime.Unix()), // Pass timestamp, transformer will calculate duration
 					})
-				} else {
 				}
 
 				return &metric.Family{
@@ -130,24 +128,22 @@ func (f *extendedStatefulSetFactory) getRolloutStartTime(s *appsv1.StatefulSet) 
 		// Generations match, check if all replicas are ready and updated
 		desiredReplicas := getDesiredStatefulSetReplicas(s)
 		if s.Status.ReadyReplicas == desiredReplicas && s.Status.UpdatedReplicas == desiredReplicas {
-				return time.Time{} // Rollout complete
+			return time.Time{} // Rollout complete
 		}
 	}
-	
+
 	// Additional safety check: if no replicas are progressing for a very long time, the rollout might be stuck
 	// This helps catch cases where the statefulset is genuinely stuck vs missed completion events
-	if s.Status.UpdatedReplicas == 0 && s.Status.ReadyReplicas == 0 {
-		// All replicas are failing to start - this could be a stuck rollout
-	}
-	
-	
-	
+	// Additional check: if no replicas are progressing, the rollout might be stuck
+	// (This helps catch cases where all replicas are failing to start)
+	_ = s.Status.UpdatedReplicas == 0 && s.Status.ReadyReplicas == 0
+
 	// Find the newest ControllerRevision for this statefulset
 	newestCRCreationTime := f.findNewestControllerRevisionCreationTime(s)
 	if newestCRCreationTime.IsZero() {
 		return time.Time{}
 	}
-	
+
 	return newestCRCreationTime
 }
 
@@ -160,29 +156,26 @@ func (f *extendedStatefulSetFactory) findNewestControllerRevisionCreationTime(s 
 	if err != nil {
 		return time.Time{}
 	}
-	
-	
+
 	var newestTime time.Time
 	var newestCR *appsv1.ControllerRevision
-	
+
 	for i := range controllerRevisions.Items {
 		cr := &controllerRevisions.Items[i]
-		
+
 		// Check if this ControllerRevision is owned by our statefulset
 		if !f.isOwnedByStatefulSet(cr, s) {
 			continue
 		}
-		
-		
+
 		if cr.CreationTimestamp.Time.After(newestTime) {
 			newestTime = cr.CreationTimestamp.Time
 			newestCR = cr
 		}
 	}
-	
-	if newestCR != nil {
-	}
-	
+
+	_ = newestCR
+
 	return newestTime
 }
 
@@ -195,7 +188,6 @@ func (f *extendedStatefulSetFactory) isOwnedByStatefulSet(cr *appsv1.ControllerR
 	}
 	return false
 }
-
 
 // getDesiredStatefulSetReplicas safely gets the desired replica count from a statefulset
 func getDesiredStatefulSetReplicas(s *appsv1.StatefulSet) int32 {

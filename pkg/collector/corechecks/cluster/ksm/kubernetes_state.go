@@ -221,7 +221,6 @@ type KSMConfig struct {
 	// PodCollectionMode defines how pods are collected.
 	// Accepted values are: "default", "node_kubelet", and "cluster_unassigned".
 	PodCollectionMode podCollectionMode `yaml:"pod_collection_mode"`
-
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
@@ -383,7 +382,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 			// Enable the KSM default namespaces if the config namespaces list is empty.
 			if len(namespaces) == 0 {
 				namespaces = options.DefaultNamespaces
-			} else {
 			}
 
 			builder.WithNamespaces(namespaces)
@@ -608,7 +606,6 @@ func (k *KSMCheck) Run() error {
 		if err := k.initRetry.TriggerRetry(); err != nil {
 			return err.LastTryError
 		}
-	} else {
 	}
 
 	// this check uses a "raw" sender, for better performance.  That requires
@@ -701,7 +698,6 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
 				// So, let's continue the processing.
 			}
-
 
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)

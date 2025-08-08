@@ -68,12 +68,9 @@ func (f *extendedJobFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 						end = j.Status.CompletionTime.Unix()
 					}
 
-					duration := float64(end - start)
-
 					ms = append(ms, &metric.Metric{
-						Value: duration,
+						Value: float64(end - start),
 					})
-				} else {
 				}
 
 				return &metric.Family{
@@ -115,8 +112,7 @@ func (f *extendedJobFactory) ListWatch(customResourceClient interface{}, ns stri
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			result, err := client.BatchV1().Jobs(ns).List(ctx, opts)
-			return result, err
+			return client.BatchV1().Jobs(ns).List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector

@@ -60,7 +60,6 @@ func (f *extendedDeploymentFactory) MetricFamilyGenerators() []generator.FamilyG
 			"",
 			wrapDeploymentFunc(func(d *appsv1.Deployment) *metric.Family {
 
-
 				ms := []*metric.Metric{}
 
 				// Check if rollout is ongoing and get ReplicaSet creation time
@@ -71,7 +70,6 @@ func (f *extendedDeploymentFactory) MetricFamilyGenerators() []generator.FamilyG
 					ms = append(ms, &metric.Metric{
 						Value: float64(rolloutStartTime.Unix()), // Pass timestamp, transformer will calculate duration
 					})
-				} else {
 				}
 
 				return &metric.Family{
@@ -130,17 +128,15 @@ func (f *extendedDeploymentFactory) getRolloutStartTime(d *appsv1.Deployment) ti
 		// Generations match, check if all replicas are ready
 		desiredReplicas := getDesiredReplicas(d)
 		if d.Status.ReadyReplicas == desiredReplicas {
-				return time.Time{} // Rollout complete
+			return time.Time{} // Rollout complete
 		}
 	}
 
 	// Additional safety check: if no replicas are progressing for a very long time, the rollout might be stuck
 	// This helps catch cases where the deployment is genuinely stuck vs missed completion events
-	if d.Status.UpdatedReplicas == 0 && d.Status.ReadyReplicas == 0 {
-		// All replicas are failing to start - this could be a stuck rollout
-	}
-
-
+	// Additional check: if no replicas are progressing, the rollout might be stuck
+	// (This helps catch cases where all replicas are failing to start)
+	_ = d.Status.UpdatedReplicas == 0 && d.Status.ReadyReplicas == 0
 
 	// Find the newest ReplicaSet for this deployment
 	newestRSCreationTime := f.findNewestReplicaSetCreationTime(d)
@@ -161,7 +157,6 @@ func (f *extendedDeploymentFactory) findNewestReplicaSetCreationTime(d *appsv1.D
 		return time.Time{}
 	}
 
-
 	var newestTime time.Time
 	var newestRS *appsv1.ReplicaSet
 
@@ -173,15 +168,13 @@ func (f *extendedDeploymentFactory) findNewestReplicaSetCreationTime(d *appsv1.D
 			continue
 		}
 
-
 		if rs.CreationTimestamp.Time.After(newestTime) {
 			newestTime = rs.CreationTimestamp.Time
 			newestRS = rs
 		}
 	}
 
-	if newestRS != nil {
-	}
+	_ = newestRS
 
 	return newestTime
 }
@@ -195,7 +188,6 @@ func (f *extendedDeploymentFactory) isOwnedByDeployment(rs *appsv1.ReplicaSet, d
 	}
 	return false
 }
-
 
 // getDesiredReplicas safely gets the desired replica count from a deployment
 func getDesiredReplicas(d *appsv1.Deployment) int32 {
