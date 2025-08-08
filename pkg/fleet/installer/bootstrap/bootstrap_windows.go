@@ -71,7 +71,7 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if _, err := os.Stat(installerBinPath); err != nil {
 		// Fallback to the old method if the file/layer doesn't exist
 		// this is expected for versions earlier than 7.70
-		return downloadInstallerOld(ctx, env, url, tmpDir) 
+		return downloadInstallerOld(ctx, env, url, tmpDir)
 	}
 	return iexec.NewInstallerExec(env, installerBinPath), nil
 }
