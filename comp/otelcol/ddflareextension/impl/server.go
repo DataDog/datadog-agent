@@ -36,29 +36,29 @@ func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[i
 		Handler: r,
 	}
 
-	if ipcComp, ok := optIpcComp.Get(); ok {
-		// Use the TLS configuration from the IPC component if available
-		s.TLSConfig = ipcComp.GetTLSServerConfig()
-		r.Use(ipcComp.HTTPMiddleware)
-	} else {
-		// Use generated self-signed certificate if running outside of the Agent
-		tlsConfig, err := generateSelfSignedCert()
-		if err != nil {
-			return nil, err
-		}
-		s.TLSConfig = &tlsConfig
-	}
+	// if ipcComp, ok := optIpcComp.Get(); ok {
+	// 	// Use the TLS configuration from the IPC component if available
+	// 	s.TLSConfig = ipcComp.GetTLSServerConfig()
+	// 	r.Use(ipcComp.HTTPMiddleware)
+	// } else {
+	// 	// Use generated self-signed certificate if running outside of the Agent
+	// 	tlsConfig, err := generateSelfSignedCert()
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	s.TLSConfig = &tlsConfig
+	// }
 
 	listener, err := net.Listen("tcp", endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	tlsListener := tls.NewListener(listener, s.TLSConfig)
+	// tlsListener := tls.NewListener(listener, s.TLSConfig)
 
 	return &server{
 		srv:      s,
-		listener: tlsListener,
+		listener: listener,
 	}, nil
 
 }
