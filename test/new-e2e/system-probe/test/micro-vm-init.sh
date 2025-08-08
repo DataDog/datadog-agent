@@ -1,6 +1,7 @@
 #!/bin/bash
 set -eEuo pipefail
 
+export DD_TEST_INSTALL_PATH_OVERRIDE="/opt/datadog-agent"
 docker_dir=/kmt-dockers
 
 # Add provisioning steps here !
