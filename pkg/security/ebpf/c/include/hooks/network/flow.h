@@ -79,11 +79,11 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
             // This is an AF_INET flow
             bpf_probe_read(&key.addr, sizeof(u32), (void *)fl + get_flowi4_saddr_offset());
             bpf_probe_read(&key.l4_protocol, 1, (void *)fl + get_flowi4_proto_offset());
-            int debug_dump = 0;
+            unsigned long debug_dump = 0;
             bpf_probe_read(&debug_dump, sizeof(debug_dump), (void *)fl + 14);
             
             {
-                char msg1[] = "flow-ifskport!=key.port: l4_protocol: %u\n";
+                char msg1[] = "flow-ifskport!=key.port: l4_protocol: %u\n"; 
                 bpf_trace_printk(msg1, sizeof(msg1), key.l4_protocol);
             }
             {
@@ -91,7 +91,7 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
                 bpf_trace_printk(msg2, sizeof(msg2), get_flowi4_proto_offset());
             }
             {
-                char msg3[] = "flow-ifskport!=key.port: debug_dump: %d\n";
+                char msg3[] = "flow-ifskport!=key.port: debug_dump: %ld\n";
                 bpf_trace_printk(msg3, sizeof(msg3), debug_dump);
             }
 
