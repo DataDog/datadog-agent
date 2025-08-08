@@ -14,7 +14,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -5772,55 +5774,105 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		portForReceive := uint16(9004)
 
 		// Retrieve the PIDs from the channels
-		var udpClientPidV int
+		var tempUDPPid int
 		select {
-		case udpClientPidV = <-udpClientPid:
+		case tempUDPPid = <-udpClientPid:
 		case <-time.After(30 * time.Second):
 			t.Fatalf("UDP client did not send PID in time")
 		}
-		var tcpClientPidV int
+		var tempTCPPid int
 		select {
-		case tcpClientPidV = <-tcpClientPid:
+		case tempTCPPid = <-tcpClientPid:
 		case <-time.After(30 * time.Second):
 			t.Fatalf("TCP client did not send PID in time")
 		}
-		udpClientPidValue := uint32(udpClientPidV)
-		tcpClientPidValue := uint32(tcpClientPidV)
+		// Get values from map to check
+		tcpKey := FlowPid{
+			Netns:    netns,
+			Port:     htons(portToSend),
+			Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+			Protocol: syscall.IPPROTO_TCP,
+		}
+		udpKey := FlowPid{
+			Netns:    netns,
+			Port:     htons(portToSend),
+			Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+			Protocol: syscall.IPPROTO_UDP,
+		}
+		var tcpVal = FlowPidEntry{}
+		var udpVal = FlowPidEntry{}
+		if err := m.Lookup(&tcpKey, &tcpVal); err != nil {
+			dumpMap(t, m)
+			t.Errorf("TCP entry not found for key: %+v, error: %v", tcpKey, err)
+		}
+
+		if err := m.Lookup(&udpKey, &udpVal); err != nil {
+			dumpMap(t, m)
+			t.Errorf("UDP entry not found for key: %+v, error: %v", udpKey, err)
+		}
+
+		// Check PIDs to make tests work for both docker and non docker tests
+		var tcpPid, udpPid uint32
+		if uint32(tempTCPPid) == tcpVal.Pid {
+			// We are in non docker tests
+			tcpPid = uint32(tempTCPPid)
+			udpPid = uint32(tempUDPPid)
+		} else {
+			// We might be in docker tests
+			// Discover syscall_tester processes from /host/proc
+			var discoveredPIDs []uint32
+			procDir := "/host/proc"
+			entries, err := os.ReadDir(procDir)
+			fmt.Printf("Entries are %v\n", entries)
+			if err != nil {
+				t.Logf("failed to read %s: %v", procDir, err)
+			} else {
+				for _, entry := range entries {
+					if !entry.IsDir() {
+						continue
+					}
+					pidInt, err := strconv.Atoi(entry.Name())
+					if err != nil {
+						continue
+					}
+					commPath := filepath.Join(procDir, entry.Name(), "comm")
+					data, err := os.ReadFile(commPath)
+					if err != nil {
+						continue
+					}
+					if strings.Contains(string(data), "syscall_tester") {
+						discoveredPIDs = append(discoveredPIDs, uint32(pidInt))
+					}
+				}
+			}
+
+			if len(discoveredPIDs) != 2 {
+				t.Logf("expected 2 syscall_tester processes, found %d: %v", len(discoveredPIDs), discoveredPIDs)
+			} else {
+				if discoveredPIDs[0] == tcpVal.Pid && discoveredPIDs[1] == udpVal.Pid {
+					// First try: associate discoveredPIDs[0] with TCP and discoveredPIDs[1] with UDP.
+					tcpPid = discoveredPIDs[0]
+					udpPid = discoveredPIDs[1]
+				} else if discoveredPIDs[0] == udpVal.Pid && discoveredPIDs[1] == tcpVal.Pid {
+					// Second try (swap): assume discoveredPIDs[1] is for TCP and discoveredPIDs[0] for UDP.
+					tcpPid = discoveredPIDs[1]
+					udpPid = discoveredPIDs[0]
+				} else {
+					t.Errorf("unexpected PIDs found: %v, tcpVal.Pid: %d, udpVal.Pid: %d", discoveredPIDs, tcpVal.Pid, udpVal.Pid)
+				}
+			}
+
+		}
+
 		serverPidValue := uint32(utils.Getpid())
-		// check client udp flow_pid entry
-		assertFlowPidEntry(
-			t,
-			m,
-			// client entry key
-			FlowPid{
-				Netns:    netns,
-				Port:     htons(portToSend),
-				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-				Protocol: syscall.IPPROTO_UDP,
-			},
-			// client expected entry
-			FlowPidEntry{
-				Pid:       udpClientPidValue,
-				EntryType: uint16(2), /* FLOW_CLASSIFICATION_ENTRY */
-			},
-		)
-		// check client tcp flow_pid entry
-		assertFlowPidEntry(
-			t,
-			m,
-			// client entry key
-			FlowPid{
-				Netns:    netns,
-				Port:     htons(portToSend),
-				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-				Protocol: syscall.IPPROTO_TCP,
-			},
-			// client expected entry
-			FlowPidEntry{
-				Pid:       tcpClientPidValue,
-				EntryType: uint16(2), /* FLOW_CLASSIFICATION_ENTRY */
-			},
-		)
+		assert.NotEqual(t, tcpVal.Pid, udpVal.Pid, "TCP and UDP should be from different PIDs")
+		// Check client UDP flow Entry
+		assert.Equal(t, udpPid, udpVal.Pid, "UDP PID mismatch")
+		assert.Equal(t, uint16(2), udpVal.EntryType, "UDP entry type mismatch")
+		// Check client TCP flow entry
+		assert.Equal(t, tcpPid, tcpVal.Pid, "TCP PID mismatch")
+		assert.Equal(t, uint16(2), tcpVal.EntryType, "TCP entry type mismatch")
+
 		// check server flow_pid entry
 		assertFlowPidEntry(
 			t,
@@ -5832,7 +5884,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
 				Protocol: syscall.IPPROTO_TCP,
 			},
-			// server expected entry
+			// server expected value
 			FlowPidEntry{
 				Pid:       serverPidValue,
 				EntryType: uint16(0), /* BIND_ENTRY */
