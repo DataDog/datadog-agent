@@ -10,6 +10,7 @@ package tests
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -875,14 +876,15 @@ func TestMultipleProtocols(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "bind-udp-and-tcp-on-same-port", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	t.Run("bind-udp-and-tcp-on-same-port", func(t *testing.T) {
 		//  --- TCP BIND ---
 		var tempTCPPid int
 
 		test.WaitSignal(t, func() error {
 			go func() {
-				args := []string{"bind-and-listen", "2663", "tcp"}
-				cmd := cmdFunc(syscallTester, args, nil)
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				cmd := exec.CommandContext(timeoutCtx, syscallTester, "bind-and-listen", "2663", "tcp")
 
 				stdout, err := cmd.StdoutPipe()
 				if err != nil {
@@ -942,8 +944,9 @@ func TestMultipleProtocols(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			go func() {
-				args := []string{"bind-and-listen", "2663", "udp"}
-				cmd := cmdFunc(syscallTester, args, nil)
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				cmd := exec.CommandContext(timeoutCtx, syscallTester, "bind-and-listen", "2663", "udp")
 
 				stdout, err := cmd.StdoutPipe()
 				if err != nil {
