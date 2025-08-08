@@ -217,9 +217,10 @@ single-machine-performance-regression_detector:
     # be seen as a quality gates failure.
     - datadog-ci tag --level job --tags smp_quality_gates:"failed"
     - |
-      python3 <<'EOF'
+      CI_COMMIT_BRANCH="${CI_COMMIT_BRANCH}" python3 <<EOF
       import json
       import sys
+      import os
 
       try:
           with open('outputs/report.json') as f:
@@ -266,6 +267,11 @@ single-machine-performance-regression_detector:
           else:
               f.write('✅ **Passed.** All Quality Gates passed.\n\n')
               f.write('\n'.join(decision_record))
+
+          # This is a link to the SMP report UI
+          ci_commit_branch = os.environ.get('CI_COMMIT_BRANCH', 'unknown')
+          f.write("\n")
+          f.write(f'<sub>[Report UI | Preview](https://dd.datad0g.com/smp/report?team_name=agent&ci_commit_branch={ci_commit_branch})</sub>')
 
       if failed:
           print("Quality gate failed, see decision record")
