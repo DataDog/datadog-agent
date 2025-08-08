@@ -169,10 +169,14 @@ func redactStackFrame(v jsontext.Value) jsontext.Value {
 	if err != nil {
 		return v
 	}
-	if !strings.HasPrefix(f.FileName, "runtime/asm_") {
+	isAsm := strings.HasPrefix(f.FileName, "runtime/asm_")
+	isRuntime := strings.HasPrefix(f.FileName, "runtime/")
+	if !isAsm && !isRuntime {
 		return v
 	}
-	f.FileName = "runtime/asm_[arch].s"
+	if isAsm {
+		f.FileName = "runtime/asm_[arch].s"
+	}
 	f.LineNumber = "[lineNumber]"
 	buf, err := json.Marshal(f)
 	if err != nil {
@@ -210,6 +214,23 @@ var defaultRedactors = []jsonRedactor{
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/entries"},
 		entriesSorter{},
 	),
+	redactor(
+		(*reMatcher)(regexp.MustCompile(`^/debugger/snapshot/captures/entry/arguments/.*`)),
+		replacerFunc(redactMutex),
+	),
+}
+
+func redactMutex(v jsontext.Value) jsontext.Value {
+	var t = struct {
+		Type string `json:"type"`
+	}{}
+	if err := json.Unmarshal(v, &t); err != nil {
+		return v
+	}
+	if t.Type != "sync.Mutex" {
+		return v
+	}
+	return jsontext.Value(`"[sync.Mutex (different in different versions)]"`)
 }
 
 func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactors []jsonRedactor) []byte {
@@ -233,18 +254,32 @@ func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactor
 	}
 	for {
 		kind, idx := d.StackIndex(d.StackDepth())
+		if kind == 0 {
+			if copyToken() {
+				break
+			}
+			continue
+		}
 		// If we're in an object and this is a key, copy it across.
-		if kind == '{' && idx%2 == 0 || d.PeekKind() == ']' {
+		switch d.PeekKind() {
+		case ']', '}':
+			require.False(t, copyToken(), "unexpected EOF")
+			continue
+		}
+		if kind == '{' && idx%2 == 0 {
 			require.False(t, copyToken(), "unexpected EOF")
 		}
+
 		ptr := stackPtr()
 		var redacted []byte
 		for _, redactor := range redactors {
 			if redactor.matcher.matches(ptr) {
-				v, err := d.ReadValue()
-				require.NoError(t, err)
-				redacted = redactor.replacer.replace(v)
-				break
+				if redacted == nil {
+					v, err := d.ReadValue()
+					require.NoError(t, err)
+					redacted = v
+				}
+				redacted = redactor.replacer.replace(redacted)
 			}
 		}
 
