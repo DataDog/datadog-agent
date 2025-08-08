@@ -311,10 +311,12 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghqcommon.Datadog
 
 			// TODO: Store the recommendations history as well, the last actions miss data
 			for _, recommendation := range status.Horizontal.LastActions {
-				p.horizontalLastRecommendations = addRecommendationToHistory(recommendation.Time.Time, p.horizontalRecommendationsRetention, p.horizontalLastRecommendations, HorizontalScalingValues{
-					Timestamp: recommendation.Time.Time,
-					Replicas:  recommendation.ToReplicas,
-				})
+				if recommendation.RecommendedReplicas != nil {
+					p.horizontalLastRecommendations = addRecommendationToHistory(recommendation.Time.Time, p.horizontalRecommendationsRetention, p.horizontalLastRecommendations, HorizontalScalingValues{
+						Timestamp: recommendation.Time.Time,
+						Replicas:  *recommendation.RecommendedReplicas,
+					})
+				}
 			}
 		}
 	}
