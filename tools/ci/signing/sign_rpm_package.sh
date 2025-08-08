@@ -22,7 +22,6 @@ tmpfile="${tmpdir}"/$(basename "${package}")
 
 cp "${package}" "${tmpfile}"
 
-
 macros_path="/root/.rpmmacros"
 cat <<MACRO | tee "${macros_path}"
 %_signature gpg
@@ -30,7 +29,7 @@ cat <<MACRO | tee "${macros_path}"
 %__gpg /usr/bin/gpg
 
 %__gpg_sign_cmd %{__gpg} \
-  gpg --no-armor --digest-algo sha256 -u "%{_gpg_name}" -b -o %{__signature_filename} \
+  --no-armor --digest-algo sha256 -u "%{_gpg_name}" -b -o %{__signature_filename} \
   %{__plaintext_filename}
 
 # These are SHA256 - we use them to build packages installable in FIPS mode
@@ -40,7 +39,7 @@ MACRO
 
 if ! rpm --addsign "${tmpfile}"; then
   log "Failed to sign RPM file ${tmpfile}" ERROR
-  return 1
+  exit 1
 else
   log "Successfully signed RPM file ${tmpfile}"
 fi

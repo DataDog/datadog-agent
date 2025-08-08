@@ -22,21 +22,22 @@ tmpfile="${tmpdir}"/$(basename "${package}")
 
 cp "${package}" "${tmpfile}"
 
-ar x "${tmpfile}"
+# The image we run in has ar 2.30, which always extracts to the current directory.
+pushd "${tmpdir}" && ar x "${tmpfile}" && popd
 
-cat "${tmpdir}/debian-binary" "${tmpdir}/control.tar.*" "${tmpdir}/data.tar.*" > "${tmpdir}/complete"
+cat "${tmpdir}"/debian-binary "${tmpdir}"/control.tar.* "${tmpdir}"/data.tar.* > "${tmpdir}"/complete
 
 if ! (fakeroot gpg --armor --detach-sign --local-user "${keyid}" \
-    -o "${tmpdir}/_gpgorigin" "${tmpdir}/complete"); then
+    -o "${tmpdir}"/_gpgorigin "${tmpdir}"/complete); then
     log "Failed to sign DEB file ${tmpfile}" ERROR
-    return 1
+    exit 1
 else
     log "Successfully signed DEB file ${tmpfile}"
 fi
 
 if ! fakeroot ar rc "${tmpfile}" "${tmpdir}/_gpgorigin"; then
     log "Failed to add signature to DEB file ${tmpfile}" ERROR
-    return 1
+    exit 1
 fi
 
 mkdir -p "${outdir}"
