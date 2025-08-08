@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package dyninst
+package dyninst_test
 
 import (
 	"os"
