@@ -797,6 +797,12 @@ func encodePointer(
 		); err != nil {
 			return fmt.Errorf("could not encode referenced value: %w", err)
 		}
+	} else {
+		// If we're already encoding this value, we've hit a cycle and want to write a not captured reason
+		return writeTokens(enc,
+			notCapturedReason,
+			notCapturedReasonCycle,
+		)
 	}
 	return nil
 }
