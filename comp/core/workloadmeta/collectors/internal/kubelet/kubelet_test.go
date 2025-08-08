@@ -9,6 +9,7 @@ package kubelet
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -22,6 +23,8 @@ import (
 )
 
 func TestPodParser(t *testing.T) {
+	creationTimestamp := time.Date(2025, time.January, 1, 12, 0, 0, 0, time.UTC)
+	startTime := creationTimestamp.Add(time.Minute)
 
 	referencePod := []*kubelet.Pod{
 		{
@@ -42,15 +45,33 @@ func TestPodParser(t *testing.T) {
 				Labels: map[string]string{
 					"labelKey": "labelValue",
 				},
+				CreationTimestamp: creationTimestamp,
 			},
 			Spec: kubelet.Spec{
+				NodeName:          "test-node",
+				HostNetwork:       true,
 				PriorityClassName: "priorityClass",
 				Volumes: []kubelet.VolumeSpec{
 					{
 						Name: "pvcVol",
 						PersistentVolumeClaim: &kubelet.PersistentVolumeClaimSpec{
 							ClaimName: "pvcName",
+							ReadOnly:  false,
 						},
+					},
+				},
+				Tolerations: []kubelet.Toleration{
+					{
+						Key:               "node.kubernetes.io/not-ready",
+						Operator:          "Exists",
+						Effect:            "NoExecute",
+						TolerationSeconds: pointer.Ptr(int64(300)),
+					},
+				},
+				InitContainers: []kubelet.ContainerSpec{
+					{
+						Name:  "init-container-name",
+						Image: "busybox:latest",
 					},
 				},
 				Containers: []kubelet.ContainerSpec{
@@ -90,7 +111,10 @@ func TestPodParser(t *testing.T) {
 				},
 			},
 			Status: kubelet.Status{
-				Phase: string(corev1.PodRunning),
+				Phase:     string(corev1.PodRunning),
+				StartTime: startTime,
+				HostIP:    "192.168.1.10",
+				Reason:    "SomeReason",
 				Conditions: []kubelet.Conditions{
 					{
 						Type:   string(corev1.PodReady),
@@ -99,13 +123,23 @@ func TestPodParser(t *testing.T) {
 				},
 				PodIP:    "127.0.0.1",
 				QOSClass: string(corev1.PodQOSGuaranteed),
+				InitContainers: []kubelet.ContainerStatus{
+					{
+						Name:         "init-container-name",
+						ImageID:      "sha256:abcd1234",
+						Image:        "busybox:latest",
+						ID:           "docker://init-containerID",
+						RestartCount: 0,
+					},
+				},
 				Containers: []kubelet.ContainerStatus{
 					{
-						Name:    "nginx-container",
-						ImageID: "5dbe7e1b6b9c",
-						Image:   "nginx:1.25.2",
-						ID:      "docker://containerID",
-						Ready:   true,
+						Name:         "nginx-container",
+						ImageID:      "5dbe7e1b6b9c",
+						Image:        "nginx:1.25.2",
+						ID:           "docker://containerID",
+						Ready:        true,
+						RestartCount: 1,
 					},
 				},
 				EphemeralContainers: []kubelet.ContainerStatus{
@@ -193,6 +227,36 @@ func TestPodParser(t *testing.T) {
 		},
 	}
 
+	expectedInitContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "init-containerID",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "init-container-name",
+			Labels: map[string]string{
+				kubernetes.CriContainerNamespaceLabel: "namespace",
+			},
+		},
+		Image: workloadmeta.ContainerImage{
+			ID:        "sha256:abcd1234",
+			Name:      "busybox",
+			ShortName: "busybox",
+			Tag:       "latest",
+			RawName:   "busybox:latest",
+		},
+		Runtime: "docker",
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "uniqueIdentifier",
+		},
+		Ports:   []workloadmeta.ContainerPort{},
+		EnvVars: map[string]string{},
+		State: workloadmeta.ContainerState{
+			Health: "unhealthy",
+		},
+	}
+
 	expectedPod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -242,16 +306,82 @@ func TestPodParser(t *testing.T) {
 				},
 			},
 		},
-		InitContainers:             []workloadmeta.OrchestratorContainer{},
+		InitContainers: []workloadmeta.OrchestratorContainer{
+			{
+				Name: "init-container-name",
+				ID:   "init-containerID",
+				Image: workloadmeta.ContainerImage{
+					ID:        "sha256:abcd1234",
+					Name:      "busybox",
+					ShortName: "busybox",
+					Tag:       "latest",
+					RawName:   "busybox:latest",
+				},
+			},
+		},
 		PersistentVolumeClaimNames: []string{"pvcName"},
 		Ready:                      true,
 		IP:                         "127.0.0.1",
 		PriorityClass:              "priorityClass",
 		GPUVendorList:              []string{"nvidia"},
 		QOSClass:                   "Guaranteed",
+		CreationTimestamp:          creationTimestamp,
+		StartTime:                  &startTime,
+		NodeName:                   "test-node",
+		HostIP:                     "192.168.1.10",
+		HostNetwork:                true,
+		InitContainerStatuses: []workloadmeta.KubernetesContainerStatus{
+			{
+				ContainerID:  "docker://init-containerID",
+				Name:         "init-container-name",
+				Image:        "busybox:latest",
+				ImageID:      "sha256:abcd1234",
+				Ready:        false,
+				RestartCount: 0,
+			},
+		},
+		ContainerStatuses: []workloadmeta.KubernetesContainerStatus{
+			{
+				ContainerID:  "docker://containerID",
+				Name:         "nginx-container",
+				Image:        "nginx:1.25.2",
+				ImageID:      "5dbe7e1b6b9c",
+				Ready:        true,
+				RestartCount: 1,
+			},
+		},
+		Conditions: []workloadmeta.KubernetesPodCondition{
+			{
+				Type:   "Ready",
+				Status: "True",
+			},
+		},
+		Volumes: []workloadmeta.KubernetesPodVolume{
+			{
+				Name: "pvcVol",
+				PersistentVolumeClaim: &workloadmeta.KubernetesPersistentVolumeClaim{
+					ClaimName: "pvcName",
+					ReadOnly:  false,
+				},
+			},
+		},
+		Tolerations: []workloadmeta.KubernetesPodToleration{
+			{
+				Key:               "node.kubernetes.io/not-ready",
+				Operator:          "Exists",
+				Effect:            "NoExecute",
+				TolerationSeconds: pointer.Ptr(int64(300)),
+			},
+		},
+		Reason: "SomeReason",
 	}
 
-	expectedEntities := []workloadmeta.Entity{expectedContainer, expectedEphemeralContainer, expectedPod}
+	expectedEntities := []workloadmeta.Entity{
+		expectedInitContainer,
+		expectedContainer,
+		expectedEphemeralContainer,
+		expectedPod,
+	}
 
 	assert.ElementsMatch(t, expectedEntities, parsedEntities)
 }

@@ -10,6 +10,7 @@ package ksm
 
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -20,6 +21,6 @@ const (
 )
 
 // Factory creates a new check factory
-func Factory(_ tagger.Component) option.Option[func() check.Check] {
+func Factory(_ tagger.Component, _ workloadmeta.Component) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }

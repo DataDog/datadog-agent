@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -245,6 +246,7 @@ type KSMCheck struct {
 	metricTransformers   map[string]metricTransformerFunc
 	metadataMetricsRegex *regexp.Regexp
 	initRetry            retry.Retrier
+	workloadmetaStore    workloadmeta.Component
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -975,7 +977,7 @@ func (k *KSMCheck) configurePodCollection(builder *kubestatemetrics.Builder, col
 			// there are more collectors enabled, we need leader election and
 			// pods would only be collected from one of the agents.
 			if len(collectors) == 1 && collectors[0] == "pods" {
-				builder.WithPodCollectionFromKubelet()
+				builder.WithPodCollectionFromWorkloadmeta(k.workloadmetaStore)
 			} else {
 				log.Warnf("pod collection from the Kubelet is enabled but it's only supported when the only collector enabled is pods, " +
 					"so the check will collect pods from the API server instead of the Kubelet")
@@ -1043,13 +1045,13 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component) option.Option[func() check.Check] {
+func Factory(tagger tagger.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(tagger)
+		return newCheck(tagger, wmeta)
 	})
 }
 
-func newCheck(tagger tagger.Component) check.Check {
+func newCheck(tagger tagger.Component, wmeta workloadmeta.Component) check.Check {
 	return newKSMCheck(
 		core.NewCheckBase(CheckName),
 		&KSMConfig{
@@ -1058,6 +1060,7 @@ func newCheck(tagger tagger.Component) check.Check {
 			Namespaces:   []string{},
 		},
 		tagger,
+		wmeta,
 	)
 }
 
@@ -1071,12 +1074,13 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 			Namespaces:   []string{},
 		},
 		tagger,
+		nil,
 	)
 	check.allStores = allStores
 	return check
 }
 
-func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component) *KSMCheck {
+func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component, wmeta workloadmeta.Component) *KSMCheck {
 	return &KSMCheck{
 		CheckBase:            base,
 		instance:             instance,
@@ -1087,6 +1091,7 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		metricNamesMapper:    defaultMetricNamesMapper(),
 		metricAggregators:    defaultMetricAggregators(),
 		metricTransformers:   defaultMetricTransformers(),
+		workloadmetaStore:    wmeta,
 
 		// metadata metrics are useful for label joins
 		// but shouldn't be submitted to Datadog
