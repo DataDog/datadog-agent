@@ -351,7 +351,9 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 		v.T().Skip("skipping test as system does not support the system-probe component")
 	}
 
-	flake.Mark(v.T())
+	// Docker access to GPUs is flaky sometimes. We haven't been able to reproduce why this happens, but it
+	// seems it's always the same error code.
+	flake.MarkOnLog(v.T(), "error code no CUDA-capable device is detected")
 	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
