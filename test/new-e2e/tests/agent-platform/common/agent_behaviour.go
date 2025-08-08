@@ -15,10 +15,11 @@ import (
 
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 
-	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 )
 
 // CheckAgentBehaviour runs test to check the agent is behaving as expected
@@ -242,7 +243,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 			if err != nil && client.Host.OSFamily == componentos.LinuxFamily {
 				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-agent\\|datadog-agent-trace"))
 			}
-			t.Fatalf(err.Error())
+			t.Fatal(err.Error())
 		}
 
 		require.EqualValues(t, "127.0.0.1", boundPort.LocalAddress(), "trace-agent should only be listening locally")

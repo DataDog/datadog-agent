@@ -102,7 +102,15 @@ class TestModules(unittest.TestCase):
                 required = self.get_agent_required(module)
                 replaced = self.get_agent_replaced(module)
                 required_not_replaced = required - replaced
-                self.assertEqual(required_not_replaced, set(), f"in module {module_path}")
+                # On agent 6 branch the pkg/util/option package does not exists, but since it is imported by test-infra this test expect it to be replaced.
+                # Ignore that replace
+                if "github.com/DataDog/datadog-agent/pkg/util/option" in required_not_replaced:
+                    required_not_replaced.remove("github.com/DataDog/datadog-agent/pkg/util/option")
+                self.assertEqual(
+                    required_not_replaced,
+                    set(),
+                    f"in module {module_path}",
+                )
 
 
 class TestGoModuleCondition(unittest.TestCase):
