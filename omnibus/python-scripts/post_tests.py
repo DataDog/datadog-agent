@@ -1,7 +1,9 @@
 import unittest
 import os
 import tempfile
+from unittest.mock import patch, MagicMock
 from post import post
+import packages
 
 class TestPost(unittest.TestCase):
     def test_post(self):
@@ -65,5 +67,105 @@ class TestPost(unittest.TestCase):
         os.remove(skip_flag_file)
 
         # running rmdir verifies that the directory is empty
+        os.rmdir(install_directory)
+        os.rmdir(storage_location)
+
+    @patch('packages.install_datadog_package')
+    @patch('packages.install_dependency_package')
+    @patch('packages.load_requirements')
+    def test_datadog_integration_vs_python_package_installation(self, mock_load_requirements, mock_instalL_dependency, mock_install_datadog):
+        """Test that packages are installed with correct methods based on datadog prefix and exclusion list"""
+        install_directory = tempfile.mkdtemp()
+        storage_location = tempfile.mkdtemp()
+
+        # Mock the diff file contents - mix of datadog integrations and python packages
+        diff_requirements = {
+            'datadog-custom-integration': ('datadog-custom-integration==1.0.0', '1.0.0'),
+            'datadog-api-client': ('datadog-api-client==2.0.0', '2.0.0'),
+            'requests': ('requests==2.25.1', '2.25.1')
+        }
+
+        # Mock the requirements file (empty exclusions)
+        exclude_requirements = {}
+
+        # Setup mock return values
+        mock_load_requirements.side_effect = [diff_requirements, exclude_requirements]
+
+        # Create necessary files
+        diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
+        with open(diff_file, 'w', encoding='utf-8') as f:
+            f.write('')  # Content doesn't matter as we're mocking load_requirements
+
+        req_file = os.path.join(install_directory, 'requirements-agent-release.txt')
+        with open(req_file, 'w', encoding='utf-8') as f:
+            f.write('')
+
+        result = post(install_directory, storage_location)
+
+        # Verify the result
+        self.assertEqual(result, 0)
+
+        mock_install_datadog.assert_called_once_with('datadog-custom-integration==1.0.0', install_directory)
+        pip = [os.path.join(install_directory, "embedded", "bin", "pip")]
+        mock_instalL_dependency.assert_called_once_with(pip,'requiests==2.25.1')
+
+        # Verify datadog-api-client (in DEPS_STARTING_WITH_DATADOG) and requests use install_dependency_package
+        self.assertEqual(mock_instalL_dependency.call_count, 2)
+
+        # Cleanup
+        os.remove(diff_file)
+        os.remove(req_file)
+        post_file = os.path.join(storage_location, ".post_python_installed_packages.txt")
+        if os.path.exists(post_file):
+            os.remove(post_file)
+        os.rmdir(install_directory)
+        os.rmdir(storage_location)
+
+    @patch('packages.install_datadog_package')
+    @patch('packages.install_dependency_package')
+    @patch('packages.load_requirements')
+    def test_excluded_packages_are_skipped(self, mock_load_requirements, mock_instalL_dependency, mock_install_datadog):
+        """Test that packages in exclude file are skipped"""
+        install_directory = tempfile.mkdtemp()
+        storage_location = tempfile.mkdtemp()
+
+        # Mock diff file with packages to install
+        diff_requirements = {
+            'requests': ('requests==2.25.1', '2.25.1'),
+            'datadog-custom': ('datadog-custom==1.0.0', '1.0.0')
+        }
+
+        # Mock exclude file with one package to exclude
+        exclude_requirements = {
+            'requests': ('requests==2.25.0', '2.25.0')
+        }
+
+        # Setup mock return values
+        mock_load_requirements.side_effect = [diff_requirements, exclude_requirements]
+
+        # Create necessary files
+        diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
+        with open(diff_file, 'w', encoding='utf-8') as f:
+            f.write('')
+
+        req_file = os.path.join(install_directory, 'requirements-agent-release.txt')
+        with open(req_file, 'w', encoding='utf-8') as f:
+            f.write('')
+
+        result = post(install_directory, storage_location)
+
+        # Verify the result
+        self.assertEqual(result, 0)
+
+        # Verify only datadog-custom was installed (requests was excluded)
+        mock_install_datadog.assert_called_once_with('datadog-custom==1.0.0', install_directory)
+        mock_instalL_dependency.assert_not_called()
+
+        # Cleanup
+        os.remove(diff_file)
+        os.remove(req_file)
+        post_file = os.path.join(storage_location, ".post_python_installed_packages.txt")
+        if os.path.exists(post_file):
+            os.remove(post_file)
         os.rmdir(install_directory)
         os.rmdir(storage_location)
