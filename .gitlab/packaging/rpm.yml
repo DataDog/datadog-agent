@@ -42,7 +42,7 @@
   extends: .package_rpm_common
   script:
     - !reference [.package_rpm_common, script]
-    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && mv $OMNIBUS_PACKAGE_DIR/*.rpm $OMNIBUS_PACKAGE_DIR_SUSE/
+    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && mv $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE/
   artifacts:
     expire_in: 2 weeks
     paths:
