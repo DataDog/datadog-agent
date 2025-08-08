@@ -232,8 +232,8 @@ var ccridFetcher = cachedfetch.Fetcher{
 	},
 }
 
-// GetCCRID return the CCRID for the current instance
-func GetCCRID(ctx context.Context) (string, error) {
+// GetHostCCRID return the CCRID for the current instance
+func GetHostCCRID(ctx context.Context) (string, error) {
 	return ccridFetcher.FetchString(ctx)
 }
 
