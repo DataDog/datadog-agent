@@ -269,11 +269,11 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 	}
 
 	ethtoolObjectPtr, err := ethtool.NewEthtool()
-	defer ethtoolObjectPtr.Close()
 	if err != nil {
 		log.Errorf("Failed to create ethtool object: %s", err)
 		return err
 	}
+	defer ethtoolObjectPtr.Close()
 	ethtoolObject = *ethtoolObjectPtr
 
 	// Preparing the interface name and copy it into the request
