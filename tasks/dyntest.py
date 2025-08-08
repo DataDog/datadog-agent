@@ -2,29 +2,34 @@
 Invoke task to handle dynamic tests.
 """
 
-import os
-
 from invoke import Context, task
 
-from tasks.libs.dynamic_test.uploader import CoverageDynTestUploader, consolidate_index
+from tasks.libs.common.git import get_commit_sha
+from tasks.libs.dynamic_test.backend import S3Backend
+from tasks.libs.dynamic_test.executor import E2EDynTestExecutor
+from tasks.libs.dynamic_test.indexers.e2e import CoverageDynTestIndexer
 
 
 @task
-def compute_and_upload_index(ctx: Context):
-    if "E2E_COVERAGE_OUT_DIR" not in os.environ:
-        print("E2E_COVERAGE_OUT_DIR is not set")
-        return
-    if "S3_PERMANENT_ARTIFACTS_URI" not in os.environ:
-        print("S3_PERMANENT_ARTIFACTS_URI is not set")
-        return
+def compute_and_upload_job_index(ctx: Context, bucket_uri: str, coverage_folder: str, commit_sha: str, job_id: str):
+    indexer = CoverageDynTestIndexer(coverage_folder)
+    index = indexer.compute_index(ctx)
 
-    coverage_folder = os.environ["E2E_COVERAGE_OUT_DIR"]
-    s3_path = os.environ["S3_PERMANENT_ARTIFACTS_URI"]
-    uploader = CoverageDynTestUploader(s3_path, coverage_folder)
-    index_file, metadata_file = uploader.compute_index(ctx)
-    uploader.upload_index(ctx, index_file, metadata_file)
+    uploader = S3Backend(bucket_uri)
+    uploader.upload_job_index(index, "e2e", commit_sha, job_id)
 
 
 @task
-def consolidate_index_in_s3(ctx: Context, commit_sha: str, s3_uri: str):
-    consolidate_index(ctx, commit_sha, s3_uri)
+def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
+    uploader = S3Backend(bucket_uri)
+    index = uploader.consolidate_index(commit_sha)
+
+    uploader.upload_full_index(index, commit_sha)
+
+
+@task
+def test(ctx: Context):
+    backend = S3Backend("s3://mytestbucketttt-kevinf")
+
+    executor = E2EDynTestExecutor(ctx, backend, get_commit_sha(ctx))
+    executor.tests_to_run_per_job()

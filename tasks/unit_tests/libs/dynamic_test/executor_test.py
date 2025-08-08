@@ -1,44 +1,93 @@
 """
-Unit tests for E2EDynTestExecutor
+Unit tests for dynamic test executor
 """
 
-import json
-import os
-import tempfile
 import unittest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
 
 from tasks.libs.dynamic_test.executor import E2EDynTestExecutor
 
 
 class TestE2EDynTestExecutor(unittest.TestCase):
-    """Test cases for E2EDynTestExecutor class"""
-    def setUp(self):
-        self.executor = E2EDynTestExecutor("unknown_s3")
-        self.executor.index = json.load(open("tasks/unit_tests/libs/dynamic_test/fixtures/index.json"))
-        self.ctx = Mock()
-
-
-    @patch('tasks.libs.dynamic_test.executor.get_modified_packages')
-    def test_get_tests_to_run(self, mock_get_modified_packages):
-        """Test the get_tests_to_run method"""
+    @patch("tasks.libs.dynamic_test.executor.get_modified_packages")
+    def test_get_tests_to_run_with_matching_packages(self, mock_get_modified_packages):
+        # Arrange: mock modified packages per module
         mock_get_modified_packages.return_value = {
-            "./.": ["pkg/collector/python"],
-            "pkg/util/log": ["./."]
+            "./.": ["pkg/collector/python/aggregator.go"],
+            "pkg/util/log": ["./."],
         }
 
+        ctx = MagicMock()
+        executor = E2EDynTestExecutor(ctx, "s3://unknown-bucket/path")
 
-        tests_to_run = self.executor.get_tests_to_run(self.ctx, "test_job")
-        self.assertEqual(tests_to_run, ["TestLog"])
-
-    @patch('tasks.libs.dynamic_test.executor.get_modified_packages')
-    def test_get_modified_packages(self, mock_get_modified_packages):
-        """Test the get_modified_packages method"""
-        mock_get_modified_packages.return_value = {
-            "./.": ["pkg/collector/python"],
-            "pkg/util/log": ["./."]
+        # The executor expects an index mapping job_name -> package -> [tests]
+        executor.index = {
+            "test_job": {
+                "pkg/collector/python/aggregator.go": ["test_test"],
+            }
         }
 
-        modified_packages = self.executor._get_modified_packages(self.ctx)
-        self.assertEqual(modified_packages, ["pkg/collector/python", "pkg/util/log"])
+        # Act
+        tests_to_run = executor.get_tests_to_run("test_job")
+
+        # Assert
+        self.assertEqual(tests_to_run, ["test_test"])
+        mock_get_modified_packages.assert_called_once_with(ctx)
+
+    @patch("tasks.libs.dynamic_test.executor.get_modified_packages")
+    def test_get_tests_to_run_with_no_matching_packages(self, mock_get_modified_packages):
+        # Arrange: modified packages that don't exist in the index
+        mock_get_modified_packages.return_value = {
+            "./.": ["pkg/does/not/match.go"],
+        }
+
+        ctx = MagicMock()
+        executor = E2EDynTestExecutor(ctx, "s3://unknown-bucket/path")
+        executor.index = {
+            "test_job": {
+                "pkg/collector/python": ["test_test"],
+            }
+        }
+
+        # Act
+        tests_to_run = executor.get_tests_to_run("test_job")
+
+        # Assert
+        self.assertEqual(tests_to_run, [])
+        mock_get_modified_packages.assert_called_once_with(ctx)
+
+    @patch("tasks.libs.dynamic_test.executor.get_modified_packages")
+    def test_get_tests_to_run_per_job(self, mock_get_modified_packages):
+        # Arrange
+        mock_get_modified_packages.return_value = {
+            "./.": ["pkg/collector/python"],
+            "pkg/util/log": ["./."],
+        }
+
+        ctx = MagicMock()
+        executor = E2EDynTestExecutor(ctx, "s3://unknown-bucket/path")
+        executor.index = {
+            "test_job": {
+                "pkg/collector/python": ["test_test"],
+            },
+            "other_job": {
+                "pkg/util/log": ["test_other"],
+            },
+        }
+
+        # Act
+        result = executor.get_tests_to_run_per_job(ctx)
+
+        # Assert
+        self.assertEqual(
+            result,
+            {
+                "test_job": ["test_test"],
+                "other_job": ["test_other"],
+            },
+        )
+        mock_get_modified_packages.assert_called_once_with(ctx)
+
+
+if __name__ == "__main__":
+    unittest.main()

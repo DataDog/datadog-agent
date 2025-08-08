@@ -93,15 +93,18 @@ def download_folder_from_s3(s3_path: str, local_path: str) -> bool:
                 return True
 
             for obj in page['Contents']:
-                s3_key = obj['Key']
+                s3_key = obj['Key'].rstrip('/')
 
                 # Skip if it's the prefix itself (directory marker)
                 if s3_key == s3_prefix:
                     continue
 
                 # Calculate local file path
+                print("S3 KEY", s3_key)
+                print("S3 PREFIX", s3_prefix)
                 relative_path = s3_key[len(s3_prefix) :].lstrip('/')
                 local_file_path = os.path.join(local_path, relative_path)
+                print("LOCAL FILE PATH", local_file_path)
 
                 # Ensure local directory exists for this file
                 local_dir = os.path.dirname(local_file_path)
@@ -168,13 +171,14 @@ def list_sorted_keys_in_s3(s3_path: str, filename: str) -> list[str]:
 
         # Group by folder and find latest date per folder
         keys_date = {}
+        print(response)
         for obj in response.get('Contents', []):
             if obj['Key'].endswith(filename):
                 if obj['Key'] not in keys_date or obj['LastModified'] > keys_date[obj['Key']]:
                     keys_date[obj['Key']] = obj['LastModified']
 
         sorted_keys = sorted(keys_date.items(), key=lambda x: x[1], reverse=True)
-        return [key for key, _ in sorted_keys]
+        return [key.removeprefix(s3_prefix) for key, _ in sorted_keys]
 
     except ClientError as e:
         error_code = e.response['Error']['Code']
