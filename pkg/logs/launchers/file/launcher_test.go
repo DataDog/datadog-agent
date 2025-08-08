@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type LauncherTestSuite struct {
@@ -152,7 +153,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_RotationOccurs() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_lines", 1)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.to_skip", 0)
@@ -186,15 +187,15 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	maxLines := 1
 	maxBytes := 256 // Match the mock config value
 	toSkip := 0
-	fingerprintConfig := &config.FingerprintConfig{
-		Count:       maxLines,
-		MaxBytes:    maxBytes,
-		CountToSkip: toSkip,
+	fingerprintConfig := &types.FingerprintConfig{
+		Count:               maxLines,
+		MaxBytes:            maxBytes,
+		CountToSkip:         toSkip,
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
 	}
 	filePath := tailer.Identifier()[5:]
-	fingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
+	fingerprint := s.fingerprinter.ComputeFingerprintFromConfig(filePath, fingerprintConfig)
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
-	s.registry.(*auditorMock.Registry).SetFingerprintConfig(fingerprintConfig)
 
 	// Rotate file
 	os.Rename(suite.testPath, suite.testRotatedPath)
@@ -212,9 +213,9 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
 	filePath = newTailer.Identifier()[5:]
-	newFingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
+	newFingerprint := s.fingerprinter.ComputeFingerprintFromConfig(filePath, fingerprintConfig)
 	registryFingerprint := s.registry.GetFingerprint(newTailer.Identifier())
-	suite.NotEqual(registryFingerprint, newFingerprint, "The fingerprint of the new file should be different")
+	suite.NotEqual(registryFingerprint.Value, newFingerprint.Value, "The fingerprint of the new file should be different")
 
 	msg = <-suite.outputChan
 	suite.Equal("hello again", string(msg.GetContent()))
@@ -223,7 +224,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRotationOccurs() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
 
 	sleepDuration := 20 * time.Millisecond
@@ -259,7 +260,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	suite.Nil(suite.testFile.Sync())
 
 	// Verify rotation is NOT detected
-	didRotate, err := tailer.DidRotateViaFingerprint()
+	didRotate, err := tailer.DidRotateViaFingerprint(s.fingerprinter.(*filetailer.Fingerprinter))
 	suite.Nil(err)
 	suite.False(didRotate, "Should not detect rotation when writing to the same file")
 
@@ -397,7 +398,7 @@ func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
 	mockConfig := configmock.New(t)
 
 	// Temporarily set the global config for this test
-	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	testDir := t.TempDir()
@@ -438,7 +439,7 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
-	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: config.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0}})
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: &config.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: config.FingerprintStrategyLineChecksum}})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
 	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
@@ -461,7 +462,7 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 
 func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
 	// Temporarily set the global config for this test
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -475,7 +476,7 @@ func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
-	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: config.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: "line_checksum"}})
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: &config.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: config.FingerprintStrategyLineChecksum}})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
 	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
@@ -988,7 +989,7 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUndersizedFile() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
@@ -1023,7 +1024,7 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUnder
 	suite.Nil(suite.testFile.Sync())
 
 	// Verify rotation is detected
-	didRotate, err := tailer.DidRotateViaFingerprint()
+	didRotate, err := tailer.DidRotateViaFingerprint(s.fingerprinter.(*filetailer.Fingerprinter))
 	suite.Nil(err)
 	suite.True(didRotate, "Should detect rotation when file becomes empty (fingerprint = 0)")
 
@@ -1039,7 +1040,7 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUnder
 func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersizedFile() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
@@ -1078,7 +1079,7 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersi
 	newFile.Close()
 
 	// Verify rotation is detected
-	didRotate, err := tailer.DidRotateViaFingerprint()
+	didRotate, err := tailer.DidRotateViaFingerprint(s.fingerprinter.(*filetailer.Fingerprinter))
 	suite.Nil(err)
 	suite.True(didRotate, "Should detect rotation when original file is moved and new file is created")
 

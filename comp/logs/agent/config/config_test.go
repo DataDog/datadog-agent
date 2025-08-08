@@ -172,7 +172,7 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 }
 
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
-	suite.config.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
 		"fingerprint_strategy": "line_checksum",
 		"count":                10,
@@ -183,20 +183,20 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithV
 	config, err := GlobalFingerprintConfig(suite.config)
 	suite.Nil(err)
 	suite.NotNil(config)
-	suite.Equal("line_checksum", config.FingerprintStrategy)
+	suite.Equal(FingerprintStrategyLineChecksum, config.FingerprintStrategy)
 	suite.Equal(10, config.Count)
 	suite.Equal(5, config.CountToSkip)
 	suite.Equal(1024, config.MaxBytes)
 }
 
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidJSONString() {
-	suite.config.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.rotation_detection_strategy", true)
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"fingerprint_strategy": "byte_checksum", "count": 5, "count_to_skip": 2, "max_bytes": 512}`)
 
 	config, err := GlobalFingerprintConfig(suite.config)
 	suite.Nil(err)
 	suite.NotNil(config)
-	suite.Equal("byte_checksum", config.FingerprintStrategy)
+	suite.Equal(FingerprintStrategyByteChecksum, config.FingerprintStrategy)
 	suite.Equal(5, config.Count)
 	suite.Equal(2, config.CountToSkip)
 	suite.Equal(512, config.MaxBytes)

@@ -7,8 +7,8 @@
 package noneimpl
 
 import (
-	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // NullAuditor is an auditor that does nothing but empties the channel it
@@ -38,13 +38,13 @@ func (a *NullAuditor) GetTailingMode(_ string) string {
 	return ""
 }
 
-// GetFingerprint returns 0 (no fingerprint)
-func (a *NullAuditor) GetFingerprint(_ string) uint64 {
-	return 0
+// GetFingerprint returns nil (no fingerprint)
+func (a *NullAuditor) GetFingerprint(_ string) *types.Fingerprint {
+	return nil
 }
 
 // GetFingerprintConfig returns nil (no fingerprint config)
-func (a *NullAuditor) GetFingerprintConfig(_ string) *logsconfig.FingerprintConfig {
+func (a *NullAuditor) GetFingerprintConfig(_ string) *types.FingerprintConfig {
 	return nil
 }
 

@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	logstypes "github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -119,7 +120,7 @@ type Tailer struct {
 	info            *status.InfoRegistry
 	bytesRead       *status.CountInfo
 	movingSum       *util.MovingSum
-	fingerprint     *Fingerprint
+	fingerprint     *logstypes.Fingerprint
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
 }
@@ -133,7 +134,7 @@ type TailerOptions struct {
 	Info            *status.InfoRegistry     // Required
 	Rotated         bool                     // Optional
 	TagAdder        tag.EntityTagAdder       // Required
-	Fingerprint     *Fingerprint             //Optional
+	Fingerprint     *logstypes.Fingerprint   //Optional
 	Registry        auditor.Registry         //Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
 }
@@ -215,7 +216,7 @@ func (t *Tailer) NewRotatedTailer(
 	decoder *decoder.Decoder,
 	info *status.InfoRegistry,
 	tagAdder tag.EntityTagAdder,
-	fingerprint *Fingerprint,
+	fingerprint *logstypes.Fingerprint,
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{

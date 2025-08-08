@@ -19,6 +19,7 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -38,6 +39,8 @@ type RegistryEntry struct {
 	Offset             string
 	TailingMode        string
 	IngestionTimestamp int64
+	Fingerprint        uint64
+	FingerprintConfig  *types.FingerprintConfig
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -155,14 +158,17 @@ func (a *registryAuditor) closeChannels() {
 	a.inputChan = nil
 }
 
-// GetFingerprintConfig returns the fingerprint configuration for a given identifier,
+// GetFingerprint returns the fingerprint for a given identifier,
 // returns nil if it doesn't exist.
-func (a *registryAuditor) GetFingerprintConfig(identifier string) *logsconfig.FingerprintConfig {
+func (a *registryAuditor) GetFingerprint(identifier string) *types.Fingerprint {
 	entry, exists := a.readOnlyRegistryEntryCopy(identifier)
 	if !exists {
 		return nil
 	}
-	return entry.FingerprintConfig
+	return &types.Fingerprint{
+		Value:  entry.Fingerprint,
+		Config: entry.FingerprintConfig,
+	}
 }
 
 // Channel returns the channel to use to communicate with the auditor or nil
@@ -221,6 +227,23 @@ func (a *registryAuditor) SetTailed(identifier string, isTailed bool) {
 	}
 }
 
+// SetOffset allows direct setting of an offset for an identifier, marking it as tailed
+func (a *registryAuditor) SetOffset(identifier string, offset string) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if entry, exists := a.registry[identifier]; exists {
+		entry.Offset = offset
+		entry.LastUpdated = time.Now().UTC()
+	} else {
+		// Create a new entry if it doesn't exist
+		a.registry[identifier] = &RegistryEntry{
+			LastUpdated: time.Now().UTC(),
+			Offset:      offset,
+			TailingMode: "", // Default to empty, can be set later
+		}
+	}
+}
+
 // run keeps up to date the registry on different events
 func (a *registryAuditor) run() {
 	cleanUpTicker := time.NewTicker(defaultCleanupPeriod)
@@ -244,7 +267,17 @@ func (a *registryAuditor) run() {
 			}
 			// update the registry with the new entry
 			for _, msg := range payload.MessageMetas {
-				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, msg.Origin.Fingerprint, &msg.Origin.LogSource.Config.FingerprintConfig)
+				var fingerprintConfig *types.FingerprintConfig
+				if msg.Origin.LogSource.Config.FingerprintConfig != nil {
+					// Convert from config.FingerprintConfig to types.FingerprintConfig
+					fingerprintConfig = &types.FingerprintConfig{
+						FingerprintStrategy: types.FingerprintStrategy(msg.Origin.LogSource.Config.FingerprintConfig.FingerprintStrategy),
+						Count:               msg.Origin.LogSource.Config.FingerprintConfig.Count,
+						CountToSkip:         msg.Origin.LogSource.Config.FingerprintConfig.CountToSkip,
+						MaxBytes:            msg.Origin.LogSource.Config.FingerprintConfig.MaxBytes,
+					}
+				}
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, msg.Origin.Fingerprint, fingerprintConfig)
 			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from the registry
@@ -302,8 +335,8 @@ func (a *registryAuditor) cleanupRegistry() {
 	}
 }
 
-// updateRegistry updates the registry entry matching identifier with the new offset and timestamp
-func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, fingerprint uint64, config *logsconfig.FingerprintConfig) {
+// updateRegistry updates the registry with a new entry
+func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, fingerprint uint64, config *types.FingerprintConfig) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {

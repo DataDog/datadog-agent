@@ -11,11 +11,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter types.Fingerprinter) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
@@ -30,10 +30,11 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	fingerprintsAlign := true
 
 	if fingerprinter.IsFingerprintingEnabled() {
-		prevFingerprintConfig := registry.GetFingerprintConfig(identifier)
-		prevFingerprintValue := registry.GetFingerprint(identifier)
-		newFingerprint := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprintConfig)
-		fingerprintsAlign = prevFingerprintValue == newFingerprint.Value
+		prevFingerprint := registry.GetFingerprint(identifier)
+		if prevFingerprint != nil {
+			newFingerprint := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
+			fingerprintsAlign = prevFingerprint.Value == newFingerprint.Value
+		}
 	}
 
 	switch {

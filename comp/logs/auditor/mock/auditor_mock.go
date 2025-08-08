@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2025-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 //go:build test
 
@@ -13,9 +13,8 @@ import (
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 // ProvidesMock is the mock component output
@@ -87,7 +86,7 @@ type Registry struct {
 	sync.Mutex
 	tailingMode       string
 	fingerprint       uint64
-	fingerprintConfig *logsconfig.FingerprintConfig
+	fingerprintConfig *types.FingerprintConfig
 	StoredOffsets     map[string]string
 	KeepAlives        map[string]bool
 	TailedSources     map[string]bool
@@ -133,24 +132,26 @@ func (r *Registry) SetTailingMode(tailingMode string) {
 	r.tailingMode = tailingMode
 }
 
-// GetFingerprint sets the checksum fingerprint
-func (r *Registry) GetFingerprint(_ string) uint64 {
-	return r.fingerprint
+// GetFingerprint returns the fingerprint for a given identifier
+func (r *Registry) GetFingerprint(_ string) *types.Fingerprint {
+	if r.fingerprint == 0 && r.fingerprintConfig == nil {
+		return nil
+	}
+	return &types.Fingerprint{
+		Value:  r.fingerprint,
+		Config: r.fingerprintConfig,
+	}
 }
 
-// SetFingerprint sets the checksum fingerprint
-func (r *Registry) SetFingerprint(fingerprint uint64) {
-	r.fingerprint = fingerprint
-}
-
-// GetFingerprintConfig returns the checksum fingerprint configuration
-func (r *Registry) GetFingerprintConfig(_ string) *logsconfig.FingerprintConfig {
-	return r.fingerprintConfig
-}
-
-// SetFingerprintConfig sets the fingerprint configuration
-func (r *Registry) SetFingerprintConfig(fingerprintConfig *logsconfig.FingerprintConfig) {
-	r.fingerprintConfig = fingerprintConfig
+// SetFingerprint sets the fingerprint
+func (r *Registry) SetFingerprint(fingerprint *types.Fingerprint) {
+	if fingerprint == nil {
+		r.fingerprint = 0
+		r.fingerprintConfig = nil
+	} else {
+		r.fingerprint = fingerprint.Value
+		r.fingerprintConfig = fingerprint.Config
+	}
 }
 
 // SetTailed stores the tailed status of the identifier.

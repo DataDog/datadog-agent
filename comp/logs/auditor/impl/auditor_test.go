@@ -161,39 +161,11 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForFingerprint() {
 	}
 
 	fingerprint := suite.a.GetFingerprint(suite.source.Config.Path)
-	suite.Equal(uint64(12345), fingerprint)
+	suite.Equal(uint64(12345), fingerprint.Value)
 
 	othersource := sources.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
 	fingerprint = suite.a.GetFingerprint(othersource.Config.Path)
-	suite.Equal(uint64(0), fingerprint)
-}
-
-func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForFingerprintConfig() {
-	suite.a.registry = make(map[string]*RegistryEntry)
-
-	maxBytes := 1024
-	maxLines := 10
-	linesToSkip := 5
-	fingerprintStrategy := "line_checksum"
-	expectedConfig := &config.FingerprintConfig{
-		MaxBytes:            maxBytes,
-		Count:               maxLines,
-		CountToSkip:         linesToSkip,
-		FingerprintStrategy: fingerprintStrategy,
-	}
-
-	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
-		Offset:            "42",
-		Fingerprint:       uint64(12345),
-		FingerprintConfig: expectedConfig,
-	}
-
-	fingerprintConfig := suite.a.GetFingerprintConfig(suite.source.Config.Path)
-	suite.Equal(expectedConfig, fingerprintConfig)
-
-	othersource := sources.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
-	fingerprintConfig = suite.a.GetFingerprintConfig(othersource.Config.Path)
-	suite.Nil(fingerprintConfig)
+	suite.Nil(fingerprint)
 }
 
 func (suite *AuditorTestSuite) TestAuditorCleansupRegistry() {
