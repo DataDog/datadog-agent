@@ -6,7 +6,11 @@
 // Package env provides serverless environment detection utilities
 package env
 
-import "os"
+import (
+	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 const (
 	// AzureAppServicesEnvVar is set to "1" when running in Datadog Azure App
@@ -18,5 +22,11 @@ const (
 // Services extension context
 func IsAzureAppServicesExtension() bool {
 	value, exists := os.LookupEnv(AzureAppServicesEnvVar)
-	return exists && value == "1"
+	result := exists && value == "1"
+
+	if result {
+		log.Debug("Running in an Azure App Services Extension")
+	}
+
+	return result
 }
