@@ -10,9 +10,10 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING, cast, overload
 
 import gitlab
+import gitlab.exceptions
 from gitlab.v4.objects import Project, ProjectJob, ProjectPipelineJob
 
 from tasks.kernel_matrix_testing.tool import info
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
 class KMTJob:
     """Abstract class representing a Kernel Matrix Testing job, with common properties and methods for all job types"""
 
-    def __init__(self, job: ProjectPipelineJob, gitlab: Project | None = None):
+    def __init__(self, job: ProjectPipelineJob | ProjectJob, gitlab: Project | None = None):
         self.gitlab = gitlab or get_gitlab_repo()
         self.job = job
         self.is_retried = False  # set to True if this job has been later retried
@@ -132,7 +133,7 @@ class KMTSetupEnvJob(KMTJob):
     the job name and output artifacts
     """
 
-    def __init__(self, job: ProjectJob, gitlab: Project | None = None):
+    def __init__(self, job: ProjectJob | ProjectPipelineJob, gitlab: Project | None = None):
         super().__init__(job, gitlab)
         self.associated_test_jobs: list[KMTTestRunJob] = []
         self.cleanup_job: KMTCleanupJob | None = None
@@ -216,7 +217,7 @@ class KMTTestRunJob(KMTJob):
     the job name and output artifacts
     """
 
-    def __init__(self, job: ProjectJob, gitlab: Project | None = None):
+    def __init__(self, job: ProjectJob | ProjectPipelineJob, gitlab: Project | None = None):
         super().__init__(job, gitlab)
         self.setup_job: KMTSetupEnvJob | None = None
         self.cleanup_job: KMTCleanupJob | None = None
@@ -325,7 +326,7 @@ class KMTPipeline:
         # keep track of jobs by name, to be able to link retried jobs
         name_to_job: dict[str, list[KMTJob]] = defaultdict(list)
 
-        for job in jobs:
+        for job in cast(list[ProjectPipelineJob], jobs):
             name = job.name
 
             if name.startswith("kmt_setup_env"):

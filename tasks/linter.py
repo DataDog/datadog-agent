@@ -177,7 +177,7 @@ def python(ctx):
         ctx.run("ruff check --fix .")
 
     ctx.run("vulture")
-    ctx.run("mypy")
+    ctx.run("mypy --warn-unused-configs")
 
 
 # === GITHUB === #

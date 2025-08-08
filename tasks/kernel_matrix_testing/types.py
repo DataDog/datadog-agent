@@ -6,13 +6,20 @@ extra packages that might not be available in runtime.
 from __future__ import annotations
 
 import os
-from typing import Literal, Protocol, TypedDict, TypeVar
+from typing import Literal, Protocol, Required, TypedDict, TypeVar, cast, get_args
 
 from tasks.libs.types.arch import KMTArchName
 
 KMTArchNameOrLocal = KMTArchName | Literal['local']
 PathOrStr = os.PathLike | str
 Component = Literal['system-probe', 'security-agent']
+
+
+def component_from_str(component: str) -> Component:
+    possible_values = get_args(Component)
+    if component not in possible_values:
+        raise ValueError(f"Invalid component {component}, possible values are: {possible_values}")
+    return cast(Component, component)
 
 
 class DependenciesLayout(TypedDict):  # noqa: F841
@@ -24,10 +31,10 @@ class DependenciesLayout(TypedDict):  # noqa: F841
 class PlatformInfo(TypedDict, total=False):
     os_name: str  # Official OS name  # noqa: F841
     os_version: str  # Version  # noqa: F841
-    image_version: str  # Image version  # noqa: F841
+    image_version: Required[str]  # Image version  # noqa: F841
     kernel: str  # Kernel version
     os_id: str  # Short ID for the OS (e.g., "centos" for CentOS)  # noqa: F841
-    image: str  # Name of the image file
+    image: Required[str]  # Name of the image file
     alt_version_names: list[str]  # Alternative version names (e.g., "jammy" for Ubuntu 22)  # noqa: F841
 
 
@@ -105,7 +112,8 @@ class KMTConfig(TypedDict, total=False):
 
 
 StackOutputMicroVM = TypedDict(
-    'StackOutputMicroVM', {'id': str, 'ip': 'str', 'ssh-key-path': str, 'tag': str, 'vmset-tags': list[str]}
+    'StackOutputMicroVM',
+    {'id': str, 'ip': 'str', 'ssh-key-path': str, 'tag': str, 'vmset-tags': list[str], 'gdb-port': int},
 )
 
 
