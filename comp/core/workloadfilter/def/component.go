@@ -19,6 +19,7 @@ type Component interface {
 	IsServiceExcluded(service *Service, serviceFilters [][]ServiceFilter) bool
 	IsEndpointExcluded(endpoint *Endpoint, endpointFilters [][]EndpointFilter) bool
 	IsImageExcluded(image *Image, imageFilters [][]ImageFilter) bool
+	IsProcessExcluded(process *Process, processFilters [][]ProcessFilter) bool
 
 	GetContainerFilterInitializationErrors(filters []ContainerFilter) []error
 }

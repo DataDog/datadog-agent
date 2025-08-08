@@ -110,6 +110,9 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.ImagePaused), catalog.ImagePausedProgram(config, logger))
 	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.ImageSBOM), catalog.ImageSBOMProgram(config, logger))
 
+	// Process Filters
+	filter.registerProgram(workloadfilter.ProcessType, int(workloadfilter.LegacyProcessBlacklist), catalog.LegacyProcessBlacklistProgram(config, logger))
+
 	// WIP: Pod Filters
 
 	return filter, nil
@@ -135,6 +138,10 @@ func (f *filter) IsEndpointExcluded(endpoint *workloadfilter.Endpoint, endpointF
 
 func (f *filter) IsImageExcluded(image *workloadfilter.Image, imageFilters [][]workloadfilter.ImageFilter) bool {
 	return evaluateResource(f, image, imageFilters) == workloadfilter.Excluded
+}
+
+func (f *filter) IsProcessExcluded(process *workloadfilter.Process, processFilters [][]workloadfilter.ProcessFilter) bool {
+	return evaluateResource(f, process, processFilters) == workloadfilter.Excluded
 }
 
 // evaluateResource checks if a resource is excluded based on the provided filters.

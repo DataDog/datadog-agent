@@ -42,3 +42,11 @@ message FilterKubeEndpoint {
 message FilterImage {
   string name = 1;
 }
+
+message FilterProcess {
+  string comm = 1;
+  repeated string cmdline = 2;
+  oneof owner {
+    FilterContainer container = 3;
+  }
+}
