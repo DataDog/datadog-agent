@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
+func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
 	conf := newTestConf(t)
 	conf.SetConfigType("yaml")
 	err := conf.ReadConfig(strings.NewReader(yamlConfig))
@@ -1479,7 +1479,7 @@ use_proxy_for_cloud_metadata: true
 func TestServerlessConfigNumComponents(t *testing.T) {
 	// Enforce the number of config "components" reachable by the serverless agent
 	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, serverlessConfigComponents, 24)
+	require.Len(t, serverlessConfigComponents, 25)
 }
 
 func TestServerlessConfigInit(t *testing.T) {

@@ -157,6 +157,7 @@ type cloudProviderCCRIDDetector func(context.Context) (string, error)
 
 var hostCCRIDDetectors = map[string]cloudProviderCCRIDDetector{
 	azure.CloudProviderName: azure.GetHostCCRID,
+	ec2.CloudProviderName:   ec2.GetHostCCRID,
 }
 
 // GetHostCCRID returns the host CCRID from the first provider that works

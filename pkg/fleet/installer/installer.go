@@ -671,6 +671,11 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	if err != nil {
 		log.Warnf("could not delete packages dir: %v", err)
 	}
+
+	err = purgeTmpDirectory(paths.RootTmpDir)
+	if err != nil {
+		log.Warnf("could not delete tmp directory: %v", err)
+	}
 }
 
 // Remove uninstalls a package.
@@ -703,6 +708,10 @@ func (i *installerImpl) GarbageCollect(ctx context.Context) error {
 	err = i.configs.Cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup configs: %w", err)
+	}
+	err = cleanupTmpDirectory(paths.RootTmpDir)
+	if err != nil {
+		return fmt.Errorf("could not cleanup tmp directory: %w", err)
 	}
 	return nil
 }
@@ -1014,5 +1023,63 @@ func ensureRepositoriesExist() error {
 		return fmt.Errorf("error creating tmp directory: %w", err)
 	}
 
+	return nil
+}
+
+// cleanupTmpDirectory removes files and directories in RootTmpDir that are older than 24 hours
+func cleanupTmpDirectory(rootTmpDir string) error {
+	// Check if RootTmpDir exists
+	if _, err := os.Stat(rootTmpDir); os.IsNotExist(err) {
+		// Directory doesn't exist, nothing to clean up
+		return nil
+	}
+
+	// Calculate the cutoff time (24 hours ago)
+	cutoffTime := time.Now().Add(-24 * time.Hour)
+
+	// Read the directory contents
+	entries, err := os.ReadDir(rootTmpDir)
+	if err != nil {
+		return fmt.Errorf("could not read tmp directory: %w", err)
+	}
+
+	var cleanupErrors []string
+	for _, entry := range entries {
+		entryPath := filepath.Join(rootTmpDir, entry.Name())
+
+		// Get file info to check modification time
+		info, err := entry.Info()
+		if err != nil {
+			log.Warnf("Could not get info for %s: %v", entryPath, err)
+			continue
+		}
+
+		// Check if the file/directory is older than 24 hours
+		if info.ModTime().Before(cutoffTime) {
+			log.Debugf("Removing old tmp file/directory: %s (modified: %v)", entryPath, info.ModTime())
+
+			err := os.RemoveAll(entryPath)
+			if err != nil {
+				cleanupErrors = append(cleanupErrors, fmt.Sprintf("failed to remove %s: %v", entryPath, err))
+				log.Warnf("Could not remove old tmp file/directory %s: %v", entryPath, err)
+			} else {
+				log.Debugf("Successfully removed old tmp file/directory: %s", entryPath)
+			}
+		}
+	}
+
+	if len(cleanupErrors) > 0 {
+		return fmt.Errorf("tmp directory cleanup completed with errors: %s", strings.Join(cleanupErrors, "; "))
+	}
+
+	return nil
+}
+
+// purgeTmpDirectory removes the tmp directory
+var purgeTmpDirectory = func(rootTmpDir string) error {
+	err := os.RemoveAll(rootTmpDir)
+	if err != nil {
+		return err
+	}
 	return nil
 }
