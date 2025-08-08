@@ -118,7 +118,7 @@ func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libP
 
 // Run a shared library check
 func (c *SharedLibraryCheck) Run() error {
-	var err *C.char
+	var cErr *C.char
 
 	// the ID is used for sending the metrics, we need to know which check is running
 	// to retrieve the correct sender
@@ -126,11 +126,17 @@ func (c *SharedLibraryCheck) Run() error {
 	defer C.free(unsafe.Pointer(cID))
 
 	// execute the check with the symbol retrieved earlier
-	C.run_shared_library(cID, c.libRunPtr, &err)
-	if err != nil {
-		defer C.free(unsafe.Pointer(err))
-		return fmt.Errorf("failed to run shared library check %s: %s", c.libName, C.GoString(err))
+	C.run_shared_library(cID, c.libRunPtr, &cErr)
+	if cErr != nil {
+		defer C.free(unsafe.Pointer(cErr))
+		return fmt.Errorf("failed to run shared library check %s: %s", c.libName, C.GoString(cErr))
 	}
+
+	s, err := c.senderManager.GetSender(c.ID())
+	if err != nil {
+		return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+	}
+	s.Commit()
 
 	return nil
 }
@@ -179,7 +185,6 @@ func (c *SharedLibraryCheck) GetSenderStats() (stats.SenderStats, error) {
 
 // ID returns the ID of the check
 func (c *SharedLibraryCheck) ID() checkid.ID {
-	// c.id is not the same as c.libName (it has an id after the name so the sender found by SubmitMetricRtLoader is a different one and metrics aren't submitted)
 	return checkid.ID(c.libName)
 }
 
