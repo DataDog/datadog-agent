@@ -171,6 +171,56 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 	suite.Equal(5*time.Second, taggerWarmupDuration)
 }
 
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
+		"max_lines": 10,
+		"max_bytes": 1024,
+		"to_skip":   5,
+	})
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.NotNil(config)
+	suite.Equal(10, config.MaxLines)
+	suite.Equal(1024, config.MaxBytes)
+	suite.Equal(5, config.ToSkip)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidJSONString() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"max_lines": 5, "max_bytes": 512, "to_skip": 2}`)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.NotNil(config)
+	suite.Equal(5, config.MaxLines)
+	suite.Equal(512, config.MaxBytes)
+	suite.Equal(2, config.ToSkip)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidJSON() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"max_lines": 5, "max_bytes": 512, "to_skip": 2`)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.NotNil(err)
+	suite.Nil(config)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
+		"max_lines": -1, // Invalid: negative value
+		"max_bytes": 1024,
+		"to_skip":   5,
+	})
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.NotNil(err)
+	suite.Nil(config)
+}
+
 func TestConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))
 }
