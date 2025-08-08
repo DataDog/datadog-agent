@@ -14,7 +14,7 @@ build_serverless-deb_x64:
   extends: .build_serverless_common
   variables:
     BINARY_NAME: datadog-agent-x64
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: ["go_deps"]
   artifacts:
@@ -26,6 +26,6 @@ build_serverless-deb_arm64:
   extends: .build_serverless_common
   variables:
     BINARY_NAME: datadog-agent-arm64
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   needs: ["go_deps"]
