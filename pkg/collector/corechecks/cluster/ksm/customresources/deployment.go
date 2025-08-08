@@ -60,7 +60,6 @@ func (f *extendedDeploymentFactory) MetricFamilyGenerators() []generator.FamilyG
 			"",
 			wrapDeploymentFunc(func(d *appsv1.Deployment) *metric.Family {
 
-
 				ms := []*metric.Metric{}
 
 				// Check if rollout is ongoing and get ReplicaSet creation time
@@ -130,7 +129,7 @@ func (f *extendedDeploymentFactory) getRolloutStartTime(d *appsv1.Deployment) ti
 		// Generations match, check if all replicas are ready
 		desiredReplicas := getDesiredReplicas(d)
 		if d.Status.ReadyReplicas == desiredReplicas {
-				return time.Time{} // Rollout complete
+			return time.Time{} // Rollout complete
 		}
 	}
 
@@ -139,8 +138,6 @@ func (f *extendedDeploymentFactory) getRolloutStartTime(d *appsv1.Deployment) ti
 	if d.Status.UpdatedReplicas == 0 && d.Status.ReadyReplicas == 0 {
 		// All replicas are failing to start - this could be a stuck rollout
 	}
-
-
 
 	// Find the newest ReplicaSet for this deployment
 	newestRSCreationTime := f.findNewestReplicaSetCreationTime(d)
@@ -161,7 +158,6 @@ func (f *extendedDeploymentFactory) findNewestReplicaSetCreationTime(d *appsv1.D
 		return time.Time{}
 	}
 
-
 	var newestTime time.Time
 	var newestRS *appsv1.ReplicaSet
 
@@ -172,7 +168,6 @@ func (f *extendedDeploymentFactory) findNewestReplicaSetCreationTime(d *appsv1.D
 		if !f.isOwnedByDeployment(rs, d) {
 			continue
 		}
-
 
 		if rs.CreationTimestamp.Time.After(newestTime) {
 			newestTime = rs.CreationTimestamp.Time
@@ -195,7 +190,6 @@ func (f *extendedDeploymentFactory) isOwnedByDeployment(rs *appsv1.ReplicaSet, d
 	}
 	return false
 }
-
 
 // getDesiredReplicas safely gets the desired replica count from a deployment
 func getDesiredReplicas(d *appsv1.Deployment) int32 {
