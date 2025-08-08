@@ -10,18 +10,18 @@ package containerd
 import (
 	"fmt"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
-func getProcessorFilter(legacyFilter *containers.Filter, store workloadmeta.Component) generic.ContainerFilter {
+func getProcessorFilter(filterStore workloadfilter.Component, store workloadmeta.Component) generic.ContainerFilter {
 	// Reject all containers that are not run by Containerd
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.RuntimeContainerFilter{Runtime: workloadmeta.ContainerRuntimeContainerd},
-			generic.LegacyContainerFilter{OldFilter: legacyFilter, Store: store},
+			generic.LegacyContainerFilter{FilterStore: filterStore, Store: store},
 		},
 	}
 }
