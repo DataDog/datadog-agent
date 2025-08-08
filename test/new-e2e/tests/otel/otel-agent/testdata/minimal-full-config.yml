@@ -129,7 +129,7 @@ processors:
       metric: []
     traces:
       span: []
- filter/drop-prometheus-internal-metrics/dd-autoconfigured:
+  filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     error_mode: propagate
     logs:
       exclude: null
