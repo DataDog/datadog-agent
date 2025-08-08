@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from tasks.static_quality_gates.lib.static_quality_gates_reporter import QualityGateOutputFormatter
+from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
 
 
 class TestQualityGateOutputFormatter(unittest.TestCase):

@@ -127,8 +127,7 @@ class StaticQualityGateFailed(Exception):
 @dataclass(frozen=True)
 class ArtifactMeasurement:
     """
-    Immutable data class containing artifact measurement results.
-    All attributes are guaranteed to be defined and validated.
+    Data class containing artifact measurement results.
     """
 
     artifact_path: str
@@ -148,8 +147,9 @@ class ArtifactMeasurement:
 @dataclass(frozen=True)
 class QualityGateConfig:
     """
-    Immutable configuration for a quality gate.
-    All required attributes are defined and validated at creation.
+    Configuration for a quality gate.
+    The name and max values are read from the yaml file.
+    The arch and os are inferred from the gate name.
     """
 
     gate_name: str
@@ -194,8 +194,8 @@ class SizeViolation:
 @dataclass(frozen=True)
 class GateResult:
     """
-    Immutable result of executing a quality gate.
-    Contains all information needed for reporting without state dependencies.
+    Result of executing a quality gate.
+    Contains all information needed for reporting.
     """
 
     config: QualityGateConfig
@@ -241,9 +241,6 @@ class ArtifactMeasurer(Protocol):
 class PackageArtifactMeasurer:
     """
     Measures package artifacts (DEB, RPM, MSI, etc.).
-
-    This class contains the logic for measuring package sizes
-    without inheritance or state mutation.
     """
 
     def measure(self, ctx: Context, config: QualityGateConfig) -> ArtifactMeasurement:
@@ -354,9 +351,6 @@ class PackageArtifactMeasurer:
 class DockerArtifactMeasurer:
     """
     Measures Docker image artifacts.
-
-    This class contains the logic for measuring Docker image sizes
-    without inheritance or state mutation.
     """
 
     def measure(self, ctx: Context, config: QualityGateConfig) -> ArtifactMeasurement:
@@ -452,10 +446,11 @@ class DockerArtifactMeasurer:
 
 class StaticQualityGate:
     """
-    Quality gate implementation using composition instead of inheritance.
-
-    This class eliminates state mutation and guarantees all attributes are defined.
-    No subclassing is required - different artifact types are handled via injected measurers.
+    Static Quality Gate comprises of a configuration that is read
+    from yaml file and a measurer based on the gate type.
+    Right now, we support two types of measurers:
+    - PackageArtifactMeasurer: for package artifacts (DEB, RPM, MSI, etc.)
+    - DockerArtifactMeasurer: for Docker images
     """
 
     def __init__(self, config: QualityGateConfig, measurer: ArtifactMeasurer):
@@ -463,7 +458,7 @@ class StaticQualityGate:
         Initialize quality gate with configuration and measurement strategy.
 
         Args:
-            config: Immutable gate configuration
+            config: Gate configuration
             measurer: Strategy for measuring artifacts
         """
         self.config = config
@@ -471,30 +466,26 @@ class StaticQualityGate:
 
     def execute_gate(self, ctx: Context) -> GateResult:
         """
-        Execute the quality gate without state mutation.
+        Execute the quality gate.
 
         Args:
             ctx: Invoke context
 
         Returns:
-            Immutable GateResult with all execution information
+            GateResult with all execution information
 
         Raises:
             StaticQualityGateFailed: If measurement fails or limits are exceeded
             InfraError: If there's an infrastructure issue (retryable)
         """
-        # Measure artifact (no state mutation)
         measurement = self.measurer.measure(ctx, self.config)
 
-        # Check for violations (no state mutation)
         violations = self._check_size_limits(measurement)
 
-        # Create immutable result
         result = GateResult(
             config=self.config, measurement=measurement, violations=violations, success=len(violations) == 0
         )
 
-        # If there are violations, raise an exception with detailed information
         if violations:
             violation_messages = []
             for violation in violations:
@@ -548,8 +539,7 @@ class QualityGateFactory:
     """
     Factory for creating quality gates with appropriate measurement strategies.
 
-    This factory eliminates the need for inheritance by selecting the correct
-    measurement strategy based on gate configuration.
+    This factory selects the correct measurement strategy based on gate configuration.
     """
 
     @staticmethod
@@ -627,7 +617,7 @@ class QualityGateFactory:
 
 def create_quality_gate_config(gate_name: str, gate_max_size_values: dict) -> QualityGateConfig:
     """
-    Create immutable quality gate configuration from gate definition.
+    Create quality gate configuration from gate definition.
 
     Args:
         gate_name: Technical gate name
@@ -673,23 +663,20 @@ def _extract_os_from_gate_name(gate_name: str) -> str:
     raise ValueError(f"Unknown OS for gate: {gate_name}")
 
 
-def get_quality_gates_list(config_path: str, ctx: Context) -> list[StaticQualityGate]:
+def get_quality_gates_list(config_path: str) -> list[StaticQualityGate]:
     """
-    Parse quality gates from configuration using composition pattern.
-
-    This function replaces the inheritance-based gate creation.
+    Parse quality gates from configuration.
 
     Args:
         config_path: Path to configuration file
-        ctx: Invoke context (for compatibility, not used in composition approach)
 
     Returns:
-        List of quality gates using composition pattern
+        List of quality gates
     """
     gates = QualityGateFactory.create_gates_from_config(config_path)
 
     # Print startup message using existing reporter
-    from .static_quality_gates_reporter import QualityGateOutputFormatter
+    from .gates_reporter import QualityGateOutputFormatter
 
     QualityGateOutputFormatter.print_startup_message(len(gates), config_path)
 

@@ -25,7 +25,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.package.size import InfraError
 from tasks.quality_gates import display_pr_comment, generate_new_quality_gate_config, parse_and_trigger_gates
-from tasks.static_quality_gates.lib.gates import (
+from tasks.static_quality_gates.gates import (
     # Data classes
     ArtifactMeasurement,
     DockerArtifactMeasurer,
@@ -259,7 +259,7 @@ class TestPackageArtifactMeasurer(unittest.TestCase):
         self.assertEqual(self.measurer._extract_package_flavor("agent_heroku_amd64"), "datadog-heroku-agent")
 
     @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg'})
-    @patch('tasks.static_quality_gates.lib.gates.glob.glob')
+    @patch('tasks.static_quality_gates.gates.glob.glob')
     def test_find_package_by_pattern_success(self, mock_glob):
         """Test successful package finding"""
         mock_glob.return_value = ['/test/pkg/datadog-agent_7.0.0-1_amd64.deb']
@@ -271,7 +271,7 @@ class TestPackageArtifactMeasurer(unittest.TestCase):
         mock_glob.assert_called_once_with('/test/pkg/datadog-agent_7*amd64.deb')
 
     @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg'})
-    @patch('tasks.static_quality_gates.lib.gates.glob.glob')
+    @patch('tasks.static_quality_gates.gates.glob.glob')
     def test_find_package_by_pattern_multiple_files(self, mock_glob):
         """Test handling multiple matching files"""
         mock_glob.return_value = [
@@ -287,7 +287,7 @@ class TestPackageArtifactMeasurer(unittest.TestCase):
         self.assertIn("Too many DEB files", str(cm.exception))
 
     @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg'})
-    @patch('tasks.static_quality_gates.lib.gates.glob.glob')
+    @patch('tasks.static_quality_gates.gates.glob.glob')
     def test_find_package_by_pattern_no_files(self, mock_glob):
         """Test handling no matching files"""
         mock_glob.return_value = []
@@ -317,7 +317,7 @@ class TestPackageArtifactMeasurer(unittest.TestCase):
                 )
 
                 mock_glob = MagicMock(return_value=["/test/pkg/some_package.ext"])
-                with patch('tasks.static_quality_gates.lib.gates.glob.glob', mock_glob):
+                with patch('tasks.static_quality_gates.gates.glob.glob', mock_glob):
                     with patch.object(self.measurer, '_calculate_package_sizes', return_value=(100, 350)):
                         self.measurer.measure(self.mock_ctx, config)
 
@@ -325,7 +325,7 @@ class TestPackageArtifactMeasurer(unittest.TestCase):
                 self.assertEqual(actual_pattern, expected_pattern)
 
     @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/test/pkg', 'CI_PIPELINE_ID': '123'})
-    @patch('tasks.static_quality_gates.lib.gates.glob.glob')
+    @patch('tasks.static_quality_gates.gates.glob.glob')
     def test_find_package_path_msi_dual_file(self, mock_glob):
         """Test MSI package path finding with dual-file discovery"""
         # First call returns ZIP file, second call returns MSI file
@@ -672,7 +672,7 @@ class TestGateListGeneration(unittest.TestCase):
         with patch("builtins.open", mock_open()):
             with patch("yaml.safe_load", return_value=test_config):
                 with patch("builtins.print"):  # Mock print statements
-                    gates = get_quality_gates_list("fake_config.yml", MagicMock())
+                    gates = get_quality_gates_list("fake_config.yml")
 
                 self.assertEqual(len(gates), 2)
 
@@ -776,13 +776,13 @@ class TestQualityGatesIntegration(unittest.TestCase):
             'CI_PIPELINE_ID': '71580015',
         },
     )
-    @patch("tasks.static_quality_gates.lib.gates.PackageArtifactMeasurer._find_package_paths", new=MagicMock())
-    @patch("tasks.static_quality_gates.lib.gates.PackageArtifactMeasurer._calculate_package_sizes", new=MagicMock())
-    @patch("tasks.static_quality_gates.lib.gates.DockerArtifactMeasurer._calculate_image_wire_size", new=MagicMock())
-    @patch("tasks.static_quality_gates.lib.gates.DockerArtifactMeasurer._calculate_image_disk_size", new=MagicMock())
-    @patch("tasks.static_quality_gates.lib.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
+    @patch("tasks.static_quality_gates.gates.PackageArtifactMeasurer._find_package_paths", new=MagicMock())
+    @patch("tasks.static_quality_gates.gates.PackageArtifactMeasurer._calculate_package_sizes", new=MagicMock())
+    @patch("tasks.static_quality_gates.gates.DockerArtifactMeasurer._calculate_image_wire_size", new=MagicMock())
+    @patch("tasks.static_quality_gates.gates.DockerArtifactMeasurer._calculate_image_disk_size", new=MagicMock())
+    @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
     @patch(
-        "tasks.static_quality_gates.lib.static_quality_gates_reporter.QualityGateOutputFormatter.print_summary_table",
+        "tasks.static_quality_gates.gates_reporter.QualityGateOutputFormatter.print_summary_table",
         new=MagicMock(),
     )
     def test_parse_and_trigger_gates_infra_error(self):
@@ -922,7 +922,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         },
     )
     @patch(
-        "tasks.static_quality_gates.lib.gates.GateMetricHandler.get_formatted_metric",
+        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
     )
     @patch(
@@ -961,7 +961,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         },
     )
     @patch(
-        "tasks.static_quality_gates.lib.gates.GateMetricHandler.get_formatted_metric",
+        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
     )
     @patch(
@@ -997,7 +997,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         },
     )
     @patch(
-        "tasks.static_quality_gates.lib.gates.GateMetricHandler.get_formatted_metric",
+        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
     )
     @patch(
@@ -1036,7 +1036,7 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         },
     )
     @patch(
-        "tasks.static_quality_gates.lib.gates.GateMetricHandler.get_formatted_metric",
+        "tasks.static_quality_gates.gates.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB", side_effect=KeyError),
     )
     @patch(

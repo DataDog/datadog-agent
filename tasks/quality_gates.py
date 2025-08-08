@@ -16,14 +16,14 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.lib.gates import (
+from tasks.static_quality_gates.gates import (
     GateMetricHandler,
     StaticQualityGate,
     StaticQualityGateFailed,
     byte_to_string,
     get_quality_gates_list,
 )
-from tasks.static_quality_gates.lib.static_quality_gates_reporter import QualityGateOutputFormatter
+from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
 
 BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
@@ -171,15 +171,14 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     metric_handler = GateMetricHandler(
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
-    gate_list = get_quality_gates_list(config_path, ctx)
+    gate_list = get_quality_gates_list(config_path)
 
     nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
     branch = os.environ["CI_COMMIT_BRANCH"]
 
     for gate in gate_list:
-        result = None  # Initialize result for each gate
+        result = None
         try:
-            # Execute gate using composition pattern - returns immutable result
             result = gate.execute_gate(ctx)
             gate_states.append({"name": result.config.gate_name, "state": True, "error_type": None, "message": None})
         except StaticQualityGateFailed as e:
@@ -208,7 +207,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 }
             )
         finally:
-            # Register metrics using composition data (no state mutation)
             metric_handler.register_gate_tags(
                 gate.config.gate_name,
                 gate_name=gate.config.gate_name,
