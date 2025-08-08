@@ -21,49 +21,57 @@ func TestPosition(t *testing.T) {
 	var err error
 	var offset int64
 	var whence int
-
-	offset, whence, err = Position(registry, "", config.End)
+	maxLines := 1
+	maxBytes := 2048
+	toSkip := 0
+	fingerprintConfig := &config.FingerprintConfig{
+		MaxBytes:    maxBytes,
+		Count:       maxLines,
+		CountToSkip: toSkip,
+	}
+	registry.SetFingerprintConfig(fingerprintConfig)
+	offset, whence, err = Position(registry, "", config.End, "default")
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 
-	offset, whence, err = Position(registry, "", config.Beginning)
+	offset, whence, err = Position(registry, "", config.Beginning, "default")
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("test", "123456789")
-	offset, whence, err = Position(registry, "test", config.End)
+	offset, whence, err = Position(registry, "test", config.End, "default")
 	assert.Nil(t, err)
 	assert.Equal(t, int64(123456789), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("test", "987654321")
-	offset, whence, err = Position(registry, "test", config.Beginning)
+	offset, whence, err = Position(registry, "test", config.Beginning, "default")
 	assert.Nil(t, err)
 	assert.Equal(t, int64(987654321), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("test", "foo")
-	offset, whence, err = Position(registry, "test", config.End)
+	offset, whence, err = Position(registry, "test", config.End, "default")
 	assert.NotNil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 
 	registry.SetOffset("test", "bar")
-	offset, whence, err = Position(registry, "test", config.Beginning)
+	offset, whence, err = Position(registry, "test", config.Beginning, "default")
 	assert.NotNil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("test", "123456789")
-	offset, whence, err = Position(registry, "test", config.ForceBeginning)
+	offset, whence, err = Position(registry, "test", config.ForceBeginning, "default")
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("test", "987654321")
-	offset, whence, err = Position(registry, "test", config.ForceEnd)
+	offset, whence, err = Position(registry, "test", config.ForceEnd, "default")
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)

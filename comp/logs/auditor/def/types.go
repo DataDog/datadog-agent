@@ -5,15 +5,19 @@
 
 package auditor
 
+import (
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+)
+
 // Registry holds a list of offsets.
 type Registry interface {
 	GetOffset(identifier string) string
 	GetTailingMode(identifier string) string
-
+	GetFingerprint(identifier string) uint64
+	GetFingerprintConfig(identifier string) *logsconfig.FingerprintConfig
 	// KeepAlive is used to signal that the identifier still exists and should not be removed from the registry.
 	// Used for identifiers that are not guaranteed to have a tailer assigned to them.
 	KeepAlive(identifier string)
-
 	// SetTailed is used to signal that the identifier is still being tailed and should not be removed from the registry.
 	SetTailed(identifier string, isTailed bool)
 
