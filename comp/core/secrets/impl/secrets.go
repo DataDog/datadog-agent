@@ -225,7 +225,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
 		if runtime.GOOS == "windows" {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "secret-generic-connector.exe")
+			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
 		} else {
 			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
 		}
