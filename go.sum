@@ -219,8 +219,8 @@ github.com/Intevation/gval v1.3.0 h1:+Ze5sft5MmGbZrHj06NVUbcxCb67l9RaPTLMNr37mjw
 github.com/Intevation/gval v1.3.0/go.mod h1:xmGyGpP5be12EL0P12h+dqiYG8qn2j3PJxIgkoOHO5o=
 github.com/Intevation/jsonpath v0.2.1 h1:rINNQJ0Pts5XTFEG+zamtdL7l9uuE1z0FBA+r55Sw+A=
 github.com/Intevation/jsonpath v0.2.1/go.mod h1:WnZ8weMmwAx/fAO3SutjYFU+v7DFreNYnibV7CiaYIw=
-github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241119155242-07761b9fe9a0 h1:xrmnY+qafvx1mB2uKBDPBzL4VWea0nC7gTaELFHNjg0=
-github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241119155242-07761b9fe9a0/go.mod h1:sGt/NFkZkA4hqb4cVd/xG2G17dzZ72TQXqSpHn8rF/U=
+github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20250808193648-ead8278ad9fb h1:pSjcYEPRbKevUMCm98BPtbGlnkJFyXercsC+mQGxEb0=
+github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20250808193648-ead8278ad9fb/go.mod h1:sGt/NFkZkA4hqb4cVd/xG2G17dzZ72TQXqSpHn8rF/U=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/semver v1.4.2/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
