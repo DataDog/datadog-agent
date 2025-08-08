@@ -345,12 +345,12 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
             shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
 
-    if sys.platform == 'darwin':
-        shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
-        shutil.copy(
-            "./cmd/agent/dist/conf.d/process_agent.yaml.default",
-            os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
-        )
+    # if sys.platform == 'darwin':
+    #     shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
+    #     shutil.copy(
+    #         "./cmd/agent/dist/conf.d/process_agent.yaml.default",
+    #         os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
+    #     )
 
     shutil.copytree("./comp/core/gui/guiimpl/views/private", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
     if development:
