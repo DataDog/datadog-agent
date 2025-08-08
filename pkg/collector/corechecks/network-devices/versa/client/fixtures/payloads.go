@@ -474,6 +474,70 @@ const GetLinkStatusMetrics = `
     ]
 }`
 
+// GetSLAMetricsPage1 - First page of SLA metrics for pagination testing
+const GetSLAMetricsPage1 = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 4,
+    "iTotalRecords": 4,
+    "aaData": [
+        [
+            "test-branch-1,test-branch-2,INET,INET,best-effort",
+            "test-branch-1",
+            "test-branch-2",
+            "INET",
+            "INET",
+            "best-effort",
+            120.5,
+            1.2,
+            1.1,
+            0.001,
+            0.002,
+            0.0015
+        ],
+        [
+            "test-branch-1,test-branch-3,MPLS,MPLS,real-time",
+            "test-branch-1",
+            "test-branch-3",
+            "MPLS",
+            "MPLS",
+            "real-time",
+            95.3,
+            0.8,
+            0.9,
+            0.0005,
+            0.0008,
+            0.00065
+        ]
+    ]
+}`
+
+// GetSLAMetricsPage2 - Second page of SLA metrics for pagination testing
+const GetSLAMetricsPage2 = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 4,
+    "iTotalRecords": 4,
+    "aaData": [
+        [
+            "test-branch-2,test-branch-4,INET,MPLS,best-effort",
+            "test-branch-2",
+            "test-branch-4",
+            "INET",
+            "MPLS",
+            "best-effort",
+            110.7,
+            1.5,
+            1.3,
+            0.002,
+            0.003,
+            0.0025
+        ]
+    ]
+}`
+
 // GetApplicationsByApplianceMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
 const GetApplicationsByApplianceMetrics = `
 {

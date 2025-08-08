@@ -124,6 +124,10 @@ variables:
   BUCKET_BRANCH: dev # path inside the staging s3 buckets to release to: 'dev', 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
+  # note the name is TEST_KEYS_URL, not TESTING_KEYS_URL;
+  # this is because TESTING_KEYS_URL is a variable used by the install script,
+  # and we don't want to modify its behavior inadvertently
+  TEST_KEYS_URL: apttesting.datad0g.com/test-keys-vault
   INSTALLER_TESTING_S3_BUCKET: installtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
@@ -157,31 +161,29 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v72007680-abe4fb3f
+  CI_IMAGE_BTF_GEN: v72987997-23c57b1f
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v72007680-abe4fb3f
+  CI_IMAGE_DEB_X64: v72987997-23c57b1f
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v72007680-abe4fb3f
+  CI_IMAGE_DEB_ARM64: v72987997-23c57b1f
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v72007680-abe4fb3f
+  CI_IMAGE_DEB_ARMHF: v72987997-23c57b1f
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v72007680-abe4fb3f
+  CI_IMAGE_DOCKER_X64: v72987997-23c57b1f
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v72007680-abe4fb3f
+  CI_IMAGE_DOCKER_ARM64: v72987997-23c57b1f
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v72007680-abe4fb3f
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v72987997-23c57b1f
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v72007680-abe4fb3f
-  CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v72007680-abe4fb3f
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v72007680-abe4fb3f
+  CI_IMAGE_LINUX: v72987997-23c57b1f
+  CI_IMAGE_LINUX_SUFFIX: ""
+  CI_IMAGE_RPM_X64: v72987997-23c57b1f
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v72007680-abe4fb3f
+  CI_IMAGE_RPM_ARM64: v72987997-23c57b1f
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v72007680-abe4fb3f
+  CI_IMAGE_RPM_ARMHF: v72987997-23c57b1f
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v72007680-abe4fb3f
+  CI_IMAGE_WIN_LTSC2022_X64: v72987997-23c57b1f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -189,6 +191,10 @@ variables:
   DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
   RPM_GPG_KEY_ID: b01082d3
   RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
+  # note the unusual ID for a GPG key:
+  # it's the path of a Vault key to be used with gpg-vault
+  # (https://github.com/DataDog/dd-source/tree/main/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault)
+  GPG_TEST_KEY_ID: crypto/k8s/keys/k8s_gitlab-runner_datadog-agent_testing-signing-key
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   CLANG_LLVM_VER: 12.0.1
@@ -1080,8 +1086,7 @@ workflow:
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
-        - comp/core/autodiscovery/providers/gpu.go
-        - pkg/config/autodiscovery/autodiscovery.go
+        - comp/core/autodiscovery/listeners/staticconfig.go
       compare_to: $COMPARE_TO_BRANCH
 
 .on_installer_systemd_changes:

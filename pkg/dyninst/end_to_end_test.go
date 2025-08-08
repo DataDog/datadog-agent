@@ -88,6 +88,9 @@ var expectations embed.FS
 
 func TestEndToEnd(t *testing.T) {
 	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping end-to-end test in short mode")
+	}
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	idx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
@@ -692,6 +695,10 @@ func waitForLogMessages(
 	var content []byte
 	{
 		redactors := append(make([]jsonRedactor, 0, len(defaultRedactors)), defaultRedactors...)
+		redactors = append(redactors, redactor(
+			prefixMatcher("/debugger/snapshot/stack"),
+			replacement(`"[stack]"`),
+		))
 		redactors = append(redactors, redactor(
 			prefixSuffixMatcher{
 				"/debugger/snapshot/captures/",

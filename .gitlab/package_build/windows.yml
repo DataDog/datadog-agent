@@ -39,6 +39,7 @@
       -e OMNIBUS_RUBY_VERSION="${OMNIBUS_RUBY_VERSION}"
       -e PYTHONUTF8=1
       -e E2E_COVERAGE_PIPELINE=${E2E_COVERAGE_PIPELINE}
+      -e CI_JOB_TOKEN=${CI_JOB_TOKEN}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
