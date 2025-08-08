@@ -489,7 +489,8 @@ func (s *Sender) SendInterfaceStatus(interfaces []client.Interface, deviceNameTo
 		interfaceTags := []string{
 			"interface:" + iface.Name,
 			"tenant:" + iface.TenantName,
-			"device_name:" + iface.DeviceName,
+			"admin_status:" + iface.IfAdminStatus,
+			"oper_status:" + iface.IfOperStatus,
 		}
 
 		tags := append(deviceTags, interfaceTags...)

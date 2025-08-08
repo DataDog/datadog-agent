@@ -80,6 +80,7 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 
 	var bytes []byte
 	var statusCode int
+	var lastErr error
 
 	for attempts := 0; attempts < client.maxAttempts; attempts++ {
 		// TODO: uncomment when OAuth is implemented
@@ -97,10 +98,11 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 			// Got a valid response, stop retrying
 			return bytes, nil
 		}
+		lastErr = err
 	}
 
-	log.Tracef("%d error code hitting endpoint %q response: %s", statusCode, endpoint, string(bytes))
-	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
+	log.Tracef("%d error code hitting endpoint %q with error %+v and response: %s", statusCode, endpoint, lastErr, string(bytes))
+	return nil, fmt.Errorf("%s http responded with %d code and error %v", endpoint, statusCode, lastErr)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
