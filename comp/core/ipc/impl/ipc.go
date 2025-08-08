@@ -11,8 +11,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
@@ -159,16 +164,9 @@ func buildIPCComponent(reqs Requires, token string, ipccert, ipckey []byte) (Pro
 
 	httpClient := ipchttp.NewClient(token, tlsClientConfig, reqs.Conf)
 
-	// Enable cross-node TLS verification if configured
-	var crossNodeClientTLSConfig *tls.Config
-	if reqs.Conf.GetBool("cluster_agent.enable_tls_verification") {
-		crossNodeClientTLSConfig = tlsClientConfig
-	} else {
-		crossNodeClientTLSConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
+	if err := setupClusterTLSConfig(reqs, tlsServerConfig); err != nil {
+		return Provides{}, fmt.Errorf("error while setting up cluster TLS config: %w", err)
 	}
-	pkgapiutil.SetCrossNodeClientTLSConfig(crossNodeClientTLSConfig)
 
 	return Provides{
 		Comp: &ipcComp{
@@ -181,6 +179,104 @@ func buildIPCComponent(reqs Requires, token string, ipccert, ipckey []byte) (Pro
 		},
 		HTTPClient: httpClient,
 	}, nil
+}
+
+// setupClusterTLSConfig sets up TLS configurations for cluster communication.
+//
+// This function performs the following operations when cluster CA configuration is present:
+// 1. Generates a service certificate signed by the cluster CA for server authentication
+// 2. Adds the generated certificate to the server TLS config
+// 3. Configures the client TLS config to trust the cluster CA
+//
+// Security consideration: The cluster CA is kept separate from the global IPC client
+// TLS configuration to maintain isolation. This design ensures that a compromise of
+// the cluster CA does not affect the security of other IPC communications.
+func setupClusterTLSConfig(reqs Requires, tlsServerConfig *tls.Config) error {
+	clusterClientTLSConfig := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	clusterCAPath := reqs.Conf.GetString("cluster_agent.cluster_ca_file_path")
+	enableTLSVerification := reqs.Conf.GetBool("cluster_agent.enable_tls_verification")
+
+	// Validate configuration early
+	if enableTLSVerification && clusterCAPath == "" {
+		return fmt.Errorf("cluster_agent.enable_tls_verification cannot be true if cluster_agent.cluster_ca_file_path is not set")
+	}
+
+	// If no cluster CA is configured, we can skip the rest of the function
+	if clusterCAPath == "" {
+		pkgapiutil.SetCrossNodeClientTLSConfig(clusterClientTLSConfig)
+		return nil
+	}
+
+	caCertPath := filepath.Join(clusterCAPath, "cert.pem")
+	caKeyPath := filepath.Join(clusterCAPath, "key.pem")
+
+	// Read the cluster CA cert and key
+	caCertPEM, err := os.ReadFile(caCertPath)
+	if err != nil {
+		return fmt.Errorf("unable to read cluster CA cert file: %w", err)
+	}
+	caKeyPEM, err := os.ReadFile(caKeyPath)
+	if err != nil {
+		return fmt.Errorf("unable to read cluster CA key file: %w", err)
+	}
+
+	// Parse the cluster CA cert
+	block, _ := pem.Decode(caCertPEM)
+	if block == nil {
+		return fmt.Errorf("unable to decode cluster CA cert PEM")
+	}
+	caCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("unable to parse cluster CA cert file: %w", err)
+	}
+
+	// Parse the cluster CA key
+	block, _ = pem.Decode(caKeyPEM)
+	if block == nil {
+		return fmt.Errorf("unable to decode cluster CA key PEM")
+	}
+	if block.Type != "EC PRIVATE KEY" {
+		return fmt.Errorf("unsupported cluster CA key type: %s", block.Type)
+	}
+
+	caKey, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("unable to parse cluster CA key file: %w", err)
+	}
+
+	// Generate a service certificate signed by the cluster CA
+
+	// TODO IPC: add pod IP to the certificate
+	serviceCertPEM, serviceKeyPEM, err := cert.GenerateCertFromCA(caCert, caKey, []net.IP{})
+	if err != nil {
+		return fmt.Errorf("unable to generate service certificate: %w", err)
+	}
+
+	// Generate a TLS certificate from the service certificate and key
+	tlsCert, err := tls.X509KeyPair(serviceCertPEM, serviceKeyPEM)
+	if err != nil {
+		return fmt.Errorf("unable to generate x509 cert from service cert and key: %w", err)
+	}
+
+	// Adding the cluster certificate to the server TLS config
+	tlsServerConfig.Certificates = append(tlsServerConfig.Certificates, tlsCert)
+
+	// Enable cross-node TLS verification if configured
+	if enableTLSVerification {
+		certPool := x509.NewCertPool()
+		if ok := certPool.AppendCertsFromPEM(caCertPEM); !ok {
+			return fmt.Errorf("unable to generate certPool from cluster CA cert")
+		}
+		clusterClientTLSConfig = &tls.Config{
+			RootCAs: certPool,
+		}
+	}
+
+	pkgapiutil.SetCrossNodeClientTLSConfig(clusterClientTLSConfig)
+	return nil
 }
 
 // printAuthSignature computes and logs the authentication signature for the given token and IPC certificate/key.
