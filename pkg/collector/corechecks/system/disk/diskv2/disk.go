@@ -92,6 +92,7 @@ type diskInstanceConfig struct {
 	Timeout              uint16            `yaml:"timeout"`
 	ProcMountInfoPath    string            `yaml:"proc_mountinfo_path"`
 	ResolveRootDevice    bool              `yaml:"resolve_root_device"`
+	TagByPhysicalDisk    bool              `yaml:"tag_by_physical_disk"`
 }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
@@ -430,12 +431,8 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	if c.instanceConfig.ProcMountInfoPath != "" {
 		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
 	}
-	partitions, err := c.diskPartitionsWithContext(ctx, c.instanceConfig.IncludeAllDevices)
-	if err != nil {
-		log.Warnf("Unable to get disk partitions: %s", err)
-		return err
-	}
 	rootDevices := make(map[string]string)
+	var err error
 	if runtime.GOOS == "linux" && !c.instanceConfig.ResolveRootDevice {
 		rootDevices, err = c.loadRootDevices()
 		if err != nil {
@@ -444,6 +441,36 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		}
 	}
 	log.Debugf("rootDevices '%s'", rootDevices)
+
+	physicalPartitions, err := c.diskPartitionsWithContext(ctx, false)
+	if err != nil {
+		log.Warnf("Unable to get disk partitions: %s", err)
+		return err
+	}
+	var nonPhysicalPartitions []gopsutil_disk.PartitionStat
+	if c.instanceConfig.IncludeAllDevices {
+		allPartitions, err := c.diskPartitionsWithContext(ctx, true)
+		if err != nil {
+			log.Warnf("Unable to get disk partitions: %s", err)
+			return err
+		}
+		// Build a set of physical device names
+		physicalSet := make(map[string]struct{}, len(physicalPartitions))
+		for _, p := range physicalPartitions {
+			physicalSet[p.Device] = struct{}{}
+		}
+		for _, p := range allPartitions {
+			if _, ok := physicalSet[p.Device]; !ok {
+				nonPhysicalPartitions = append(nonPhysicalPartitions, p)
+			}
+		}
+	}
+	c.processPartitions(sender, physicalPartitions, rootDevices, true)
+	c.processPartitions(sender, nonPhysicalPartitions, rootDevices, false)
+	return nil
+}
+
+func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_disk.PartitionStat, rootDevices map[string]string, isPhysicalDisk bool) {
 	for _, partition := range partitions {
 		if rootDev, ok := rootDevices[partition.Device]; ok {
 			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
@@ -456,6 +483,9 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		}
 		if usage := c.getPartitionUsage(partition); usage != nil {
 			tags := c.getPartitionTags(partition)
+			if c.instanceConfig.TagByPhysicalDisk {
+				tags = append(tags, fmt.Sprintf("is_physical_disk:%t", isPhysicalDisk))
+			}
 			c.sendPartitionMetrics(sender, usage, tags)
 
 			if c.instanceConfig.ServiceCheckRw {
@@ -473,7 +503,6 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			}
 		}
 	}
-	return nil
 }
 
 func (c *Check) collectDiskMetrics(sender sender.Sender) error {
@@ -752,6 +781,7 @@ func newCheck() check.Check {
 			ProcMountInfoPath: "/proc/self/mounts",
 			// Match psutil reporting '/dev/root' from /proc/self/mounts by default
 			ResolveRootDevice: false,
+			TagByPhysicalDisk: false,
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},
