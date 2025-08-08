@@ -4,7 +4,7 @@
 golang_deps_diff:
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   rules:
     - !reference [.on_dev_branches]
     - when: on_success
@@ -25,7 +25,7 @@ golang_deps_diff:
 golang_deps_commenter:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   rules:
     - !reference [.on_dev_branches]
     - when: on_success
@@ -55,7 +55,7 @@ golang_deps_commenter:
 golang_deps_send_count_metrics:
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: ["go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
