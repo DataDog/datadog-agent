@@ -25,6 +25,7 @@ const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
+	envOTelCollectorEnabled  = "DD_OTELCOLLECTOR_ENABLED"
 	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
@@ -73,10 +74,11 @@ const (
 )
 
 var defaultEnv = Env{
-	APIKey:        "",
-	Site:          "datadoghq.com",
-	RemoteUpdates: false,
-	Mirror:        "",
+	APIKey:               "",
+	Site:                 "datadoghq.com",
+	RemoteUpdates:        false,
+	OTelCollectorEnabled: false,
+	Mirror:               "",
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
@@ -148,9 +150,10 @@ type InstallScriptEnv struct {
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey        string
-	Site          string
-	RemoteUpdates bool
+	APIKey               string
+	Site                 string
+	RemoteUpdates        bool
+	OTelCollectorEnabled bool
 
 	Mirror                      string
 	RegistryOverride            string
@@ -219,9 +222,10 @@ func FromEnv() *Env {
 	}
 
 	return &Env{
-		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates: strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:                 getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates:        strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		OTelCollectorEnabled: strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -321,6 +325,9 @@ func (e *Env) ToEnv() []string {
 	env = appendStringEnv(env, envSite, e.Site, "")
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
+	}
+	if e.OTelCollectorEnabled {
+		env = append(env, envOTelCollectorEnabled+"=true")
 	}
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")

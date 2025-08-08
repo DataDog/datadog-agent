@@ -15,7 +15,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/sort"
+	utilsort "github.com/DataDog/datadog-agent/pkg/util/sort"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 
@@ -118,9 +118,10 @@ var hostAliasesDetectors = []cloudProviderAliasesDetector{
 	{name: kubernetes.CloudProviderName, callback: kubernetes.GetHostAliases},
 }
 
-// GetHostAliases returns the hostname aliases from different provider
-func GetHostAliases(ctx context.Context) []string {
+// GetHostAliases returns the hostname aliases and the name of the possible cloud providers
+func GetHostAliases(ctx context.Context) ([]string, string) {
 	aliases := []string{}
+	cloudprovider := ""
 
 	// cloud providers endpoints can take a few seconds to answer. We're using a WaitGroup to call all of them
 	// concurrently since GetHostAliases is called during the agent startup and is blocking.
@@ -138,13 +139,39 @@ func GetHostAliases(ctx context.Context) []string {
 			} else if len(cloudAliases) > 0 {
 				m.Lock()
 				aliases = append(aliases, cloudAliases...)
+				if cloudprovider == "" {
+					cloudprovider = cloudAliasesDetector.name
+				} else {
+					log.Warnf("Ambiguous cloud provider: %s or %s", cloudprovider, cloudAliasesDetector.name)
+				}
 				m.Unlock()
 			}
 		}(cloudAliasesDetector)
 	}
 	wg.Wait()
 
-	return sort.UniqInPlace(aliases)
+	return utilsort.UniqInPlace(aliases), cloudprovider
+}
+
+type cloudProviderCCRIDDetector func(context.Context) (string, error)
+
+var hostCCRIDDetectors = map[string]cloudProviderCCRIDDetector{
+	azure.CloudProviderName: azure.GetHostCCRID,
+	ec2.CloudProviderName:   ec2.GetHostCCRID,
+}
+
+// GetHostCCRID returns the host CCRID from the first provider that works
+func GetHostCCRID(ctx context.Context, cloudname string) string {
+	if callback, found := hostCCRIDDetectors[cloudname]; found {
+		hostCCRID, err := callback(ctx)
+		if err != nil {
+			log.Debugf("Could not fetch %s Host CCRID: %s", cloudname, err)
+			return ""
+		}
+		return hostCCRID
+	}
+	log.Infof("No Host CCRID found")
+	return ""
 }
 
 // GetPublicIPv4 returns the public IPv4 from different providers

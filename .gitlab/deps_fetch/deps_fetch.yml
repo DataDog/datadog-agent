@@ -113,7 +113,7 @@ fetch_openjdk:
   rules:
     - !reference [.manual]
   stage: deps_fetch
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
     JDK_FILENAME: OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip
     JDK_URL: https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9
