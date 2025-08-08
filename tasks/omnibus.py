@@ -556,9 +556,14 @@ def _replace_dylib_id_paths_with_rpath(ctx, otool_output, install_path, file):
         ctx.run(f"install_name_tool -id {new_dylib_path} {file}")
 
 
-def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file):
+def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file, force_rpath=True):
+    rpath = ':'.join(f"{r}/embedded/lib" for r in new_rpath.split(':'))
     if platform == "linux":
-        ctx.run(f"patchelf --force-rpath --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
+        force_rpath_arg = ""
+        if force_rpath:
+            force_rpath_arg = "--force-rpath"
+
+        ctx.run(f"patchelf {force_rpath_arg} --set-rpath {rpath} {file}")
     else:
         # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
         # but just in case we're replacing them all.
@@ -566,7 +571,7 @@ def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, fi
         number_of_rpaths = binary_rpath.count('\n') // 3
         for _ in range(number_of_rpaths):
             exit_code = ctx.run(
-                f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}",
+                f"install_name_tool -rpath {install_path}/embedded/lib {rpath} {file}",
                 warn=True,
                 hide=True,
             ).exited
@@ -575,7 +580,7 @@ def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, fi
 
 
 @task
-def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
+def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux", force_rpath=True):
     # Collect mime types for all files inside the Agent installation
     files = ctx.run(rf"find {install_path} -type f -exec file --mime-type \{{\}} \+", hide=True).stdout
     for line in files.splitlines():
@@ -610,5 +615,6 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
 
         # if a binary has an rpath that use our installation path we are patching it
         if install_path in binary_rpath:
-            new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
-            _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
+            _patch_binary_rpath(
+                ctx, target_rpath_dd_folder, install_path, binary_rpath, platform, file, force_rpath=force_rpath
+            )

@@ -42,7 +42,6 @@ def _run_calls_to_string(mock_calls):
         'S3_OMNIBUS_GIT_CACHE_BUCKET': 'omnibus-cache',
         'API_KEY_ORG2': 'api-key',
         'AGENT_API_KEY_ORG2': 'agent-api-key',
-        'POD_NAMESPACE': os.environ.get('POD_NAMESPACE', 'gitlab-runner'),
     },
     clear=True,
 )
@@ -267,13 +266,13 @@ class TestRpathEdit(unittest.TestCase):
             'run', 'objdump -x some/file | grep "RPATH"', Result("some/path/result/binary/path")
         )
         self.mock_ctx.set_result_for(
-            'run', 'patchelf --force-rpath --set-rpath \\$ORIGIN/other/path/embedded/lib some/file', Result()
+            'run', 'patchelf --force-rpath --set-rpath /other/path/embedded/lib some/file', Result()
         )
-        omnibus.rpath_edit(self.mock_ctx, "some/path", "some/other/path")
+        omnibus.rpath_edit(self.mock_ctx, "some/path", "/other/path")
         call_list = self.mock_ctx.run.mock_calls
         assert mock.call('find some/path -type f -exec file --mime-type \\{\\} \\+', hide=True) in call_list
         assert mock.call('objdump -x some/file | grep "RPATH"', warn=True, hide=True) in call_list
-        assert mock.call('patchelf --force-rpath --set-rpath \\$ORIGIN/other/path/embedded/lib some/file') in call_list
+        assert mock.call('patchelf --force-rpath --set-rpath /other/path/embedded/lib some/file') in call_list
 
     def test_rpath_edit_macos(self):
         self.mock_ctx.set_result_for(
@@ -287,14 +286,14 @@ class TestRpathEdit(unittest.TestCase):
         self.mock_ctx.set_result_for('run', regex_match_lcid, Result(self.otool_lc_loads))
         self.mock_ctx.set_result_for(
             'run',
-            'install_name_tool -rpath some/path/embedded/lib @loader_path/other/path/embedded/lib some/file',
+            'install_name_tool -rpath some/path/embedded/lib /other/path/embedded/lib some/file',
             Result(),
         )
         self.mock_ctx.set_result_for('run', 'install_name_tool -id some/path/somelib.dylib some/file', Result())
         self.mock_ctx.set_result_for(
             'run', 'install_name_tool -change some/path/somelib.dylib some/path/somelib.dylib some/file', Result()
         )
-        omnibus.rpath_edit(self.mock_ctx, "some/path", "some/other/path", "macos")
+        omnibus.rpath_edit(self.mock_ctx, "some/path", "/other/path", "macos")
         call_list = self.mock_ctx.run.mock_calls
         assert mock.call('find some/path -type f -exec file --mime-type \\{\\} \\+', hide=True) in call_list
         assert mock.call('install_name_tool -id some/path/somelib.dylib some/file') in call_list
@@ -304,7 +303,7 @@ class TestRpathEdit(unittest.TestCase):
         )
         assert (
             mock.call(
-                'install_name_tool -rpath some/path/embedded/lib @loader_path/other/path/embedded/lib some/file',
+                'install_name_tool -rpath some/path/embedded/lib /other/path/embedded/lib some/file',
                 warn=True,
                 hide=True,
             )

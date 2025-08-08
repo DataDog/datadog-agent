@@ -21,6 +21,9 @@ PIDFile={{.InstallDir}}/run/security-agent.pid
 Restart=on-failure
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+{{- if not .Stable}}
+Environment="LD_LIBRARY_PATH={{.InstallDir}}/embedded/lib"
+{{- end}}
 ExecStart={{.InstallDir}}/embedded/bin/security-agent start -c {{.EtcDir}}/datadog.yaml -c {{.EtcDir}}/security-agent.yaml --sysprobe-config {{.EtcDir}}/system-probe.yaml --pidfile {{.InstallDir}}/run/security-agent.pid
 StartLimitInterval=10
 StartLimitBurst=5

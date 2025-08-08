@@ -18,6 +18,9 @@ User=dd-agent
 Restart=on-failure
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+{{- if not .Stable}}
+Environment="LD_LIBRARY_PATH={{.InstallDir}}/embedded/lib"
+{{- end}}
 ExecStart={{.InstallDir}}/embedded/bin/trace-agent --config {{.EtcDir}}/datadog.yaml --pidfile {{.InstallDir}}/run/trace-agent.pid
 StartLimitInterval=10
 StartLimitBurst=5
