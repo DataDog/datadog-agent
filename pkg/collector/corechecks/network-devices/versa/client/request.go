@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -125,4 +126,48 @@ func get[T Content](client *Client, endpoint string, params map[string]string, u
 
 func isValidStatusCode(code int) bool {
 	return code >= 200 && code < 400
+}
+
+// getPaginatedAnalytics handles the common pagination pattern for all analytics endpoints
+func getPaginatedAnalytics[T any](
+	client *Client,
+	tenant string,
+	feature string,
+	lookback string,
+	query string,
+	metrics []string,
+	parser func([][]interface{}) ([]T, error),
+) ([]T, error) {
+	// TODO: store client.maxCount as both string and int?
+	maxCount, err := strconv.Atoi(client.maxCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
+	}
+
+	var allMetrics []T
+
+	// Paginate through the results
+	for page := 0; page < client.maxPages; page++ {
+		fromCount := page * maxCount
+		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", metrics, maxCount, fromCount)
+
+		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get analytics metrics page %d: %v", page+1, err)
+		}
+
+		metrics, err := parser(resp.AaData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse analytics metrics page %d: %v", page+1, err)
+		}
+
+		allMetrics = append(allMetrics, metrics...)
+
+		// If we got fewer results than maxCount, we've reached the end
+		if len(metrics) < maxCount {
+			break
+		}
+	}
+
+	return allMetrics, nil
 }
