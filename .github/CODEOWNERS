@@ -58,11 +58,9 @@
 /.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes
 /.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent
 
-/.github/chainguard/self.serverless*                 @DataDog/serverless @Datadog/serverless-aws
-/.github/chainguard/self.cws-btfhub-sync*               @DataDog/agent-security
-/.github/chainguard/self.go-update-commenter.*           @DataDog/agent-runtimes
 /.github/chainguard/self.buildimages-update.*            @DataDog/agent-build @DataDog/agent-runtimes
 /.github/chainguard/self.collector-generate-and-update.* @DataDog/opentelemetry-agent
+/.github/chainguard/self.cws-btfhub-sync*               @DataDog/agent-security
 /.github/chainguard/*                             @DataDog/agent-devx @DataDog/agent-build
 
 /.run                                                @DataDog/agent-devx
