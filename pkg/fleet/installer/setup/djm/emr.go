@@ -190,14 +190,14 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	return clusterName
 }
 
-func enableEmrLogs(s *common.Setup, driverOnly bool) {
+func enableEmrLogs(s *common.Setup, collectFromDriver bool) {
 	s.Config.DatadogYAML.LogsEnabled = true
 	loadLogProcessingRules(s)
 	s.Span.SetTag("host_tag_set.logs_enabled", "true")
 	// Load the existing integration config and add logs section to it
 	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
 	var emrLogs []config.IntegrationConfigLogs
-	if driverOnly {
+	if collectFromDriver {
 		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
 		emrLogs = []config.IntegrationConfigLogs{
 			{
