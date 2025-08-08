@@ -441,6 +441,19 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		}
 	})
 
+	suite.Run("cluster-agent config", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "config"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `datadog-cluster-agent config` should be empty")
+		//advanced dispatching and rebalance with utilization are enabled by default
+		suite.Contains(stdout, "advanced_dispatching_enabled: true", "Advanced dispatching should be enabled in config")
+		suite.Contains(stdout, "rebalance_with_utilization: true", "Rebalance with utilization should be enabled in config")
+		//TODO: add tests for other config options
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
 	suite.Run("cluster-agent clusterchecks", func() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
 		suite.Require().NoError(err)
@@ -451,6 +464,18 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Contains(stdout, "=== kubernetes_state_core check ===")
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("cluster-agent clusterchecks force rebalance", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks", "rebalance", "--force"})
+		suite.Require().NoError(err)
+		suite.NotContains(stdout+stderr, "advanced dispatching is not enabled", "Advanced dispatching must be enabled for force rebalance")
+		matched := regexp.MustCompile(`\d+\s+cluster checks rebalanced successfully`).MatchString(stdout)
+		suite.True(matched, "Expected 'X cluster checks rebalanced successfully' in output")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+			suite.T().Log(stderr)
 		}
 	})
 }
