@@ -132,12 +132,6 @@ func (f *extendedDeploymentFactory) getRolloutStartTime(d *appsv1.Deployment) ti
 		}
 	}
 
-	// Additional safety check: if no replicas are progressing for a very long time, the rollout might be stuck
-	// This helps catch cases where the deployment is genuinely stuck vs missed completion events
-	// Additional check: if no replicas are progressing, the rollout might be stuck
-	// (This helps catch cases where all replicas are failing to start)
-	_ = d.Status.UpdatedReplicas == 0 && d.Status.ReadyReplicas == 0
-
 	// Find the newest ReplicaSet for this deployment
 	newestRSCreationTime := f.findNewestReplicaSetCreationTime(d)
 	if newestRSCreationTime.IsZero() {
