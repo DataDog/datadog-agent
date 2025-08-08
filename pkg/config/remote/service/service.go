@@ -44,7 +44,7 @@ import (
 )
 
 const (
-	defaultRefreshInterval  = 1 * time.Minute
+	defaultRefreshInterval  = 50 * time.Second
 	minimalRefreshInterval  = 5 * time.Second
 	defaultClientsTTL       = 30 * time.Second
 	maxClientsTTL           = 60 * time.Second
