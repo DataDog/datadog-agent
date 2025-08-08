@@ -8,11 +8,15 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -79,27 +83,21 @@ func TestAddHorizontalAction(t *testing.T) {
 	}, horizontalLastActions)
 }
 
-func TestGetHorizontalEventsRetention(t *testing.T) {
+func TestGetHorizontalRetentionValues(t *testing.T) {
 	tests := []struct {
-		name                   string
-		policy                 *datadoghq.DatadogPodAutoscalerApplyPolicy
-		longestLookbackAllowed time.Duration
-		expectedRetention      time.Duration
+		name                            string
+		policy                          *datadoghq.DatadogPodAutoscalerApplyPolicy
+		expectedEventsRetention         time.Duration
+		expectedRecommendationRetention time.Duration
 	}{
 		{
-			name:                   "No policy, no retention",
-			policy:                 nil,
-			longestLookbackAllowed: 0,
-			expectedRetention:      0,
+			name:                            "No policy, no retention",
+			policy:                          nil,
+			expectedEventsRetention:         0,
+			expectedRecommendationRetention: 0,
 		},
 		{
-			name:                   "No policy, 15 minutes retention",
-			policy:                 nil,
-			longestLookbackAllowed: 15 * time.Minute,
-			expectedRetention:      0,
-		},
-		{
-			name: "Scale up policy with rules, 30 minutes retention",
+			name: "Scale up policy with rules",
 			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
@@ -111,11 +109,11 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					},
 				},
 			},
-			longestLookbackAllowed: 30 * time.Minute,
-			expectedRetention:      15 * time.Minute,
+			expectedEventsRetention:         15 * time.Minute,
+			expectedRecommendationRetention: 0,
 		},
 		{
-			name: "Scale up policy with rules, 10 minutes max retention",
+			name: "Scale up policy with rules",
 			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
@@ -127,36 +125,11 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					},
 				},
 			},
-			longestLookbackAllowed: 10 * time.Minute,
-			expectedRetention:      10 * time.Minute,
+			expectedEventsRetention:         15 * time.Minute,
+			expectedRecommendationRetention: 0,
 		},
 		{
-			name: "Scale up and scale down policy with rules, 30 minutes retention",
-			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
-				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
-						{
-							Type:          "Pods",
-							PeriodSeconds: 900,
-							Value:         2,
-						},
-					},
-				},
-				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
-					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
-						{
-							Type:          "Pods",
-							PeriodSeconds: 960,
-							Value:         2,
-						},
-					},
-				},
-			},
-			longestLookbackAllowed: 30 * time.Minute,
-			expectedRetention:      16 * time.Minute,
-		},
-		{
-			name: "Scale up and scale down policy with rules, 10 minutes max retention",
+			name: "Scale up and scale down policy with rules",
 			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
@@ -177,11 +150,36 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					},
 				},
 			},
-			longestLookbackAllowed: 10 * time.Minute,
-			expectedRetention:      10 * time.Minute,
+			expectedEventsRetention:         16 * time.Minute,
+			expectedRecommendationRetention: 0,
 		},
 		{
-			name: "Scale up stabilization window 5 minutes",
+			name: "Scale up and scale down policy with rules longer than allowed",
+			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
+						{
+							Type:          "Pods",
+							PeriodSeconds: 90000,
+							Value:         2,
+						},
+					},
+				},
+				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
+						{
+							Type:          "Pods",
+							PeriodSeconds: 960000,
+							Value:         2,
+						},
+					},
+				},
+			},
+			expectedEventsRetention:         longestScalingRulePeriodAllowed,
+			expectedRecommendationRetention: 0,
+		},
+		{
+			name: "Scale up stabilization window",
 			policy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 				ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
@@ -203,8 +201,8 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					},
 				},
 			},
-			longestLookbackAllowed: 30 * time.Minute,
-			expectedRetention:      5 * time.Minute,
+			expectedEventsRetention:         3 * time.Minute,
+			expectedRecommendationRetention: 5 * time.Minute,
 		},
 		{
 			name: "Scale down stabilization window 5 minutes",
@@ -229,8 +227,8 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					StabilizationWindowSeconds: 300,
 				},
 			},
-			longestLookbackAllowed: 30 * time.Minute,
-			expectedRetention:      5 * time.Minute,
+			expectedEventsRetention:         3 * time.Minute,
+			expectedRecommendationRetention: 5 * time.Minute,
 		},
 		{
 			name: "Stabilization, rules, max retention",
@@ -243,7 +241,7 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 							Value:         2,
 						},
 					},
-					StabilizationWindowSeconds: 300,
+					StabilizationWindowSeconds: 3600,
 				},
 				ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 					Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
@@ -256,15 +254,16 @@ func TestGetHorizontalEventsRetention(t *testing.T) {
 					StabilizationWindowSeconds: 180,
 				},
 			},
-			longestLookbackAllowed: 30 * time.Minute,
-			expectedRetention:      7 * time.Minute,
+			expectedEventsRetention:         7 * time.Minute,
+			expectedRecommendationRetention: 1 * time.Hour,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			horizontalEventsRetention := getHorizontalEventsRetention(tt.policy, tt.longestLookbackAllowed)
-			assert.Equal(t, tt.expectedRetention, horizontalEventsRetention)
+			eventsRetention, recommendationRetention := getHorizontalRetentionValues(tt.policy)
+			assert.Equal(t, tt.expectedEventsRetention, eventsRetention)
+			assert.Equal(t, tt.expectedRecommendationRetention, recommendationRetention)
 		})
 	}
 }
@@ -330,4 +329,97 @@ func TestParseCustomConfigurationAnnotation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateFromStatus(t *testing.T) {
+	now := time.Now()
+	earlierActionTime := now.Add(-10 * time.Minute)
+	midActionTime := now.Add(-7 * time.Minute)
+	lastRecommendedTime := now.Add(-5 * time.Minute)
+
+	earlierRecommended := int32(4)
+	lastRecommended := int32(6)
+	limitReason := "some limited reason"
+	currentReplicas := int32(7)
+
+	status := &datadoghqcommon.DatadogPodAutoscalerStatus{
+		Horizontal: &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
+			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalTargetStatus{
+				Source:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				GeneratedAt: metav1.NewTime(now),
+				Replicas:    5,
+			},
+			LastActions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
+				{Time: metav1.NewTime(earlierActionTime), FromReplicas: 2, ToReplicas: 3, RecommendedReplicas: &earlierRecommended},
+				{Time: metav1.NewTime(midActionTime), FromReplicas: 3, ToReplicas: 4},
+				{Time: metav1.NewTime(lastRecommendedTime), FromReplicas: 4, ToReplicas: 5, RecommendedReplicas: &lastRecommended, LimitedReason: &limitReason},
+			},
+		},
+		Vertical: &datadoghqcommon.DatadogPodAutoscalerVerticalStatus{
+			Target: &datadoghqcommon.DatadogPodAutoscalerVerticalTargetStatus{
+				Source:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				GeneratedAt: metav1.NewTime(now),
+				Version:     "somehash",
+				DesiredResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{
+						Name: "api",
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+					},
+				},
+			},
+			LastAction: &datadoghqcommon.DatadogPodAutoscalerVerticalAction{Time: metav1.NewTime(now), Version: "somehash", Type: datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType},
+		},
+		CurrentReplicas: &currentReplicas,
+		Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
+			{Type: datadoghqcommon.DatadogPodAutoscalerErrorCondition, Status: corev1.ConditionTrue, Reason: "globalErr"},
+			{Type: datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, Status: corev1.ConditionFalse, Reason: "hRecErr"},
+			{Type: datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, Status: corev1.ConditionFalse, Reason: "hScaleErr"},
+			{Type: datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, Status: corev1.ConditionTrue, Reason: limitReason},
+			{Type: datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, Status: corev1.ConditionFalse, Reason: "vRecErr"},
+			{Type: datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, Status: corev1.ConditionFalse, Reason: "vApplyErr"},
+		},
+	}
+
+	var actual PodAutoscalerInternal
+	actual.UpdateFromStatus(status)
+
+	expected := FakePodAutoscalerInternal{
+		ScalingValues: ScalingValues{
+			Horizontal: &HorizontalScalingValues{
+				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				Timestamp: now,
+				Replicas:  5,
+			},
+			Vertical: &VerticalScalingValues{
+				Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				Timestamp:     now,
+				ResourcesHash: "somehash",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{
+						Name: "api", Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+					},
+				},
+			},
+			HorizontalError: errors.New("hRecErr"),
+			VerticalError:   errors.New("vRecErr"),
+		},
+		HorizontalLastActions: status.Horizontal.LastActions,
+		HorizontalLastRecommendations: []HorizontalScalingValues{
+			{Timestamp: lastRecommendedTime, Replicas: lastRecommended},
+		},
+		HorizontalLastLimitReason: limitReason,
+		HorizontalLastActionError: errors.New("hScaleErr"),
+		VerticalLastAction:        status.Vertical.LastAction,
+		VerticalLastActionError:   errors.New("vApplyErr"),
+		CurrentReplicas:           &currentReplicas,
+		Error:                     errors.New("globalErr"),
+	}
+
+	AssertPodAutoscalersEqual(t, expected, actual)
 }

@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,12 +26,12 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -147,14 +146,14 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	suite.tagger = fakeTagger
 
+	mockConfig.SetWithoutSource("container_exclude", "name:agent-excluded")
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
+
 	suite.provider = &Provider{
-		config: config,
-		filter: &containers.Filter{
-			Enabled:         true,
-			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
-		},
-		podUtils: common.NewPodUtils(fakeTagger),
-		tagger:   fakeTagger,
+		config:      config,
+		filterStore: mockFilterStore,
+		podUtils:    common.NewPodUtils(fakeTagger),
+		tagger:      fakeTagger,
 	}
 }
 
