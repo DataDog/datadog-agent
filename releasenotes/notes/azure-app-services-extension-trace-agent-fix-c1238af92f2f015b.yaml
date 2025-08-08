@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Restores the ability to run the trace-agent in the Azure App Services
+    Extension by removing the remote tagger requirement. The remote tagger is
+    disabled when running in AAS Extension.
