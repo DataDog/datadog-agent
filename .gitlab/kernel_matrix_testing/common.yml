@@ -5,7 +5,6 @@
     KITCHEN_EC2_SUBNET: subnet-05d7c6b1b5cfea811
     KITCHEN_EC2_SG_IDS: sg-019917348cb0eb7e7
 
-
 # --- Common scripts
 .shared_filters_and_queries:
   - FILTER_TEAM="Name=tag:team,Values=ebpf-platform"
@@ -108,7 +107,7 @@
 
 .package_dependencies:
   stage: kernel_matrix_testing_prepare
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   before_script:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
@@ -281,7 +280,7 @@
     - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'CI=true /root/fetch_dependencies.sh ${ARCH} && COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY} /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}" -send-env-vars CI_COMMIT_SHA,DD_API_KEY # Allow DD_API_KEY to be passed to the metal instance, so we can use it to send metrics from the connector.
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml -codeowners /opt/testing-tools/CODEOWNERS -test-root /opt/${TEST_COMPONENT}-tests'"
-    - '[ ! -f $CI_PROJECT_DIR/daemon-${ARCH}.log ] && scp metal_instance:/home/ubuntu/daemon.log $CI_PROJECT_DIR/vm-metrics-daemon-${ARCH}.log'
+    - "[ ! -f $CI_PROJECT_DIR/daemon-${ARCH}.log ] && scp metal_instance:/home/ubuntu/daemon.log $CI_PROJECT_DIR/vm-metrics-daemon-${ARCH}.log"
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -306,7 +305,7 @@
 
 .notify_ebpf_complexity_changes:
   extends: .notify-job
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   timeout: 15m
   needs:
@@ -360,9 +359,9 @@ test_ebpf_complexity_changes:
     # Execute this job whenever there are changes to the KMT python files that are used to generate the complexity data
     - changes:
         paths:
-        - "tasks/kmt.py"
-        - "tasks/ebpf.py"
-        - "tasks/kernel_matrix_testing/ci.py"
+          - "tasks/kmt.py"
+          - "tasks/ebpf.py"
+          - "tasks/kernel_matrix_testing/ci.py"
         compare_to: $COMPARE_TO_BRANCH
       when: always
     - !reference [.except_main_release_or_mq]

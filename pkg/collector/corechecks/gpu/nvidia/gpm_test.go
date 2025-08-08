@@ -24,6 +24,7 @@ func TestGPMCollectorSupportDetection(t *testing.T) {
 	mockLib := &mockGpmNvml{}
 	mockDevice := &mockGpmDevice{
 		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 0},
+		uuid:       "test-uuid-1",
 	}
 
 	mocklib := testutil.GetBasicNvmlMock()
@@ -42,6 +43,7 @@ func TestGPMCollectorSampleAllocFailure(t *testing.T) {
 	}
 	mockDevice := &mockGpmDevice{
 		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
+		uuid:       "test-uuid-2",
 	}
 
 	safenvml.WithMockNVML(t, mockLib)
@@ -73,6 +75,7 @@ func TestGPMCollectorAllMetricsUnsupported(t *testing.T) {
 	}
 	mockDevice := &mockGpmDevice{
 		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
+		uuid:       "test-uuid-3",
 	}
 
 	safenvml.WithMockNVML(t, mockLib)
@@ -104,6 +107,7 @@ func TestGPMCollectorSomeMetricsUnsupported(t *testing.T) {
 	}
 	mockDevice := &mockGpmDevice{
 		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
+		uuid:       "test-uuid-4",
 	}
 
 	safenvml.WithMockNVML(t, mockLib)
@@ -180,6 +184,7 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	mockDevice := &mockGpmDevice{
 		gpmSupport:       nvml.GpmSupport{IsSupportedDevice: 1},
 		GpmSampleGetFunc: func(_ nvml.GpmSample) error { return nil },
+		uuid:             "test-uuid-5",
 	}
 
 	safenvml.WithMockNVML(t, mockLib)
@@ -255,6 +260,12 @@ type mockGpmDevice struct {
 
 	gpmSupport       nvml.GpmSupport
 	GpmSampleGetFunc func(sample nvml.GpmSample) error
+	uuid             string
+}
+
+// GetDeviceInfo implements safenvml.Device interface
+func (m *mockGpmDevice) GetDeviceInfo() *safenvml.DeviceInfo {
+	return &safenvml.DeviceInfo{UUID: m.uuid}
 }
 
 func (m *mockGpmDevice) GpmQueryDeviceSupport() (nvml.GpmSupport, error) {

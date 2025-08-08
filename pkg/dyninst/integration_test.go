@@ -51,13 +51,6 @@ import (
 //go:embed testdata/decoded
 var testdataFS embed.FS
 
-type semaphore chan struct{}
-
-func (s semaphore) acquire() (release func()) {
-	s <- struct{}{}
-	return func() { <-s }
-}
-
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
@@ -67,8 +60,7 @@ func TestDyninst(t *testing.T) {
 		"sample": {},
 	}
 
-	concurrency := max(1, runtime.GOMAXPROCS(0))
-	sem := make(semaphore, concurrency)
+	sem := dyninsttest.MakeSemaphore()
 
 	// The debug variants of the tests spew logs to the trace_pipe, so we need
 	// to clear it after the tests to avoid interfering with other tests.
@@ -114,9 +106,9 @@ func testDyninst(
 	rewriteEnabled bool,
 	expOut map[string][]json.RawMessage,
 	debug bool,
-	sem semaphore,
+	sem dyninsttest.Semaphore,
 ) map[string][]json.RawMessage {
-	defer sem.acquire()()
+	defer sem.Acquire()()
 	start := time.Now()
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
 	defer cleanup()
@@ -258,8 +250,8 @@ func testDyninst(
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
 	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,
@@ -325,7 +317,7 @@ func runIntegrationTestSuite(
 	service string,
 	cfg testprogs.Config,
 	rewrite bool,
-	sem semaphore,
+	sem dyninsttest.Semaphore,
 ) {
 	if cfg.GOARCH != runtime.GOARCH {
 		t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
@@ -367,11 +359,17 @@ func runIntegrationTestSuite(
 			outputs.byTest[t.Name()] = actual
 		}
 		t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
+			if debug && testing.Short() {
+				t.Skip("skipping debug with short")
+			}
 			t.Parallel()
 			t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
 			for i := range probes {
 				probeID := probes[i].GetID()
 				t.Run(probeID, func(t *testing.T) {
+					if testing.Short() {
+						t.Skip("skipping individual probe with short")
+					}
 					runTest(t, probes[i:i+1])
 				})
 			}
@@ -415,7 +413,7 @@ func validateAndSaveOutputs(
 				t,
 				string(prev),
 				string(marshaled),
-				"inconsistent output for probe %s in test %s and %s: %s != %s",
+				"inconsistent output for probe %s in test %s and %s",
 				id, testName, strings.Join(otherTestNames, ", "),
 			)
 		}

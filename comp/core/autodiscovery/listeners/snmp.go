@@ -86,6 +86,7 @@ type snmpSubnet struct {
 	devices               map[string]device
 	deviceFailures        map[string]int
 	devicesScannedCounter atomic.Uint32
+	index                 int
 }
 
 type device struct {
@@ -206,18 +207,16 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 		}
 
 		deviceInfo := l.checkDeviceInfo(authentication, job.subnet.config.Port, deviceIP)
+		l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, true)
 
-		if deviceFound {
-			l.createService(entityID, job.subnet, deviceIP, deviceInfo, authIndex, true)
-			break
-		}
+		break
 	}
 	if !deviceFound {
 		l.deleteService(entityID, job.subnet)
 	}
 
 	autodiscoveryStatus := AutodiscoveryStatus{DevicesFoundList: l.getDevicesFoundInSubnet(*job.subnet), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
-	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &autodiscoveryStatus)
+	autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(job.subnet.config.Network, job.subnet.index), &autodiscoveryStatus)
 }
 
 func (l *SNMPListener) checkDeviceReachable(authentication snmp.Authentication, port uint16, deviceIP string) bool {
@@ -321,7 +320,7 @@ func (l *SNMPListener) getDevicesFoundInSubnet(subnet snmpSubnet) []string {
 
 func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 	subnets := []snmpSubnet{}
-	for _, config := range l.config.Configs {
+	for index, config := range l.config.Configs {
 		ipAddr, ipNet, err := net.ParseCIDR(config.Network)
 		if err != nil {
 			log.Errorf("Couldn't parse SNMP network: %s", err)
@@ -330,8 +329,8 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 
 		startingIP := ipAddr.Mask(ipNet.Mask)
 
-		configHash := config.Digest(config.Network)
-		cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
+		cacheKey := migrateCache(config)
+
 		adIdentifier := config.ADIdentifier
 		if adIdentifier == "" {
 			adIdentifier = "snmp"
@@ -345,6 +344,7 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 			cacheKey:       cacheKey,
 			devices:        map[string]device{},
 			deviceFailures: map[string]int{},
+			index:          index,
 		}
 		subnets = append(subnets, subnet)
 
@@ -352,6 +352,30 @@ func (l *SNMPListener) initializeSubnets() []snmpSubnet {
 	}
 
 	return subnets
+}
+
+func migrateCache(config snmp.Config) string {
+	configHash := config.Digest(config.Network)
+	cacheKey := buildCacheKey(configHash)
+	if persistentcache.Exists(cacheKey) {
+		return cacheKey
+	}
+
+	legacyConfigHash := config.LegacyDigest(config.Network)
+	legacyCacheKey := buildCacheKey(legacyConfigHash)
+	if !persistentcache.Exists(legacyCacheKey) {
+		return cacheKey
+	}
+
+	err := persistentcache.Rename(legacyCacheKey, cacheKey)
+	if err != nil {
+		log.Errorf("Failed to rename cache '%s' to '%s': %v", legacyConfigHash, configHash, err)
+
+		// Use legacy cache hash when we fail to rename
+		return legacyCacheKey
+	}
+
+	return cacheKey
 }
 
 func (l *SNMPListener) checkDevices() {
@@ -378,7 +402,7 @@ func (l *SNMPListener) checkDevices() {
 	defer discoveryTicker.Stop()
 	for {
 		for _, subnet := range subnets {
-			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.cacheKey), &expvar.String{})
+			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.index), &expvar.String{})
 		}
 
 		var subnet *snmpSubnet
@@ -675,9 +699,13 @@ func convertToCommaSepTags(tags []string) string {
 	return strings.Join(normalizedTags, tagSeparator)
 }
 
+func buildCacheKey(configHash string) string {
+	return fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
+}
+
 // GetSubnetVarKey returns a key for a subnet in the expvar map
-func GetSubnetVarKey(network string, cacheKey string) string {
-	return fmt.Sprintf("%s|%s", network, strings.Trim(cacheKey, fmt.Sprintf("%s:", cacheKeyPrefix)))
+func GetSubnetVarKey(network string, subnetIndex int) string {
+	return fmt.Sprintf("%s|%d", network, subnetIndex)
 }
 
 func extractSNMPValue[T any](value interface{}) (T, bool) {

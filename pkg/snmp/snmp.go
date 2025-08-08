@@ -233,23 +233,61 @@ func NewListenerConfig() (ListenerConfig, error) {
 	return snmpConfig, nil
 }
 
+// LegacyDigest returns an hash value representing the data stored in this configuration, minus the network address and authentications
+// TODO: Remove support for legacy format when Agent reaches version 7.76+: see https://github.com/DataDog/datadog-agent/pull/39459
+func (c *Config) LegacyDigest(address string) string {
+	h := fnv.New64()
+	// Hash write never returns an error
+	h.Write([]byte(address))                   //nolint:errcheck
+	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
+
+	h.Write([]byte(c.Version))         //nolint:errcheck
+	h.Write([]byte(c.Community))       //nolint:errcheck
+	h.Write([]byte(c.User))            //nolint:errcheck
+	h.Write([]byte(c.AuthKey))         //nolint:errcheck
+	h.Write([]byte(c.AuthProtocol))    //nolint:errcheck
+	h.Write([]byte(c.PrivKey))         //nolint:errcheck
+	h.Write([]byte(c.PrivProtocol))    //nolint:errcheck
+	h.Write([]byte(c.ContextEngineID)) //nolint:errcheck
+	h.Write([]byte(c.ContextName))     //nolint:errcheck
+
+	h.Write([]byte(c.Loader))    //nolint:errcheck
+	h.Write([]byte(c.Namespace)) //nolint:errcheck
+
+	// Sort the addresses to get a stable digest
+	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
+	for ip := range c.IgnoredIPAddresses {
+		addresses = append(addresses, ip)
+	}
+	sort.Strings(addresses)
+	for _, ip := range addresses {
+		h.Write([]byte(ip)) //nolint:errcheck
+	}
+
+	return strconv.FormatUint(h.Sum64(), 16)
+}
+
 // Digest returns an hash value representing the data stored in this configuration, minus the network address
 func (c *Config) Digest(address string) string {
 	h := fnv.New64()
 	// Hash write never returns an error
 	h.Write([]byte(address))                   //nolint:errcheck
 	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
-	h.Write([]byte(c.Version))                 //nolint:errcheck
-	h.Write([]byte(c.Community))               //nolint:errcheck
-	h.Write([]byte(c.User))                    //nolint:errcheck
-	h.Write([]byte(c.AuthKey))                 //nolint:errcheck
-	h.Write([]byte(c.AuthProtocol))            //nolint:errcheck
-	h.Write([]byte(c.PrivKey))                 //nolint:errcheck
-	h.Write([]byte(c.PrivProtocol))            //nolint:errcheck
-	h.Write([]byte(c.ContextEngineID))         //nolint:errcheck
-	h.Write([]byte(c.ContextName))             //nolint:errcheck
-	h.Write([]byte(c.Loader))                  //nolint:errcheck
-	h.Write([]byte(c.Namespace))               //nolint:errcheck
+
+	for _, authentication := range c.Authentications {
+		h.Write([]byte(authentication.Version))         //nolint:errcheck
+		h.Write([]byte(authentication.Community))       //nolint:errcheck
+		h.Write([]byte(authentication.User))            //nolint:errcheck
+		h.Write([]byte(authentication.AuthKey))         //nolint:errcheck
+		h.Write([]byte(authentication.AuthProtocol))    //nolint:errcheck
+		h.Write([]byte(authentication.PrivKey))         //nolint:errcheck
+		h.Write([]byte(authentication.PrivProtocol))    //nolint:errcheck
+		h.Write([]byte(authentication.ContextEngineID)) //nolint:errcheck
+		h.Write([]byte(authentication.ContextName))     //nolint:errcheck
+	}
+
+	h.Write([]byte(c.Loader))    //nolint:errcheck
+	h.Write([]byte(c.Namespace)) //nolint:errcheck
 
 	// Sort the addresses to get a stable digest
 	addresses := make([]string, 0, len(c.IgnoredIPAddresses))

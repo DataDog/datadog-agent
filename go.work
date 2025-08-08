@@ -22,7 +22,11 @@ use (
 	comp/core/log/impl
 	comp/core/log/impl-trace
 	comp/core/log/mock
-	comp/core/secrets
+	comp/core/secrets/def
+	comp/core/secrets/fx
+	comp/core/secrets/impl
+	comp/core/secrets/mock
+	comp/core/secrets/utils
 	comp/core/status
 	comp/core/status/statusimpl
 	comp/core/tagger/def

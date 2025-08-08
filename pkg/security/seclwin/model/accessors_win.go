@@ -129,17 +129,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "container.runtime":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "container.tags":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -2163,7 +2152,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"change_permission.username",
 		"container.created_at",
 		"container.id",
-		"container.runtime",
 		"container.tags",
 		"create.file.device_path",
 		"create.file.device_path.length",
@@ -2336,8 +2324,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "container.created_at":
 		return "", reflect.Int, "int", nil
 	case "container.id":
-		return "", reflect.String, "string", nil
-	case "container.runtime":
 		return "", reflect.String, "string", nil
 	case "container.tags":
 		return "", reflect.String, "string", nil
@@ -2680,11 +2666,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
-	case "container.runtime":
-		if ev.BaseEvent.ContainerContext == nil {
-			ev.BaseEvent.ContainerContext = &ContainerContext{}
-		}
-		return ev.setStringFieldValue("container.runtime", &ev.BaseEvent.ContainerContext.Runtime, value)
 	case "container.tags":
 		if ev.BaseEvent.ContainerContext == nil {
 			ev.BaseEvent.ContainerContext = &ContainerContext{}

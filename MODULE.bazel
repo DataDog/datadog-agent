@@ -1,0 +1,8 @@
+bazel_dep(name = "platforms", version = "1.0.0")
+
+#########################
+## Native dependencies ##
+#########################
+
+# Make our 3rd parties depencency repositories known
+include("//deps:repos.MODULE.bazel")

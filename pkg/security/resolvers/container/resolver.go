@@ -35,8 +35,7 @@ func (cr *Resolver) GetContainerContext(pid uint32) (containerutils.ContainerID,
 	}
 
 	return id, model.CGroupContext{
-		CGroupID:    ctx.CGroupID,
-		CGroupFlags: ctx.CGroupFlags,
+		CGroupID: ctx.CGroupID,
 		CGroupFile: model.PathKey{
 			Inode:   ctx.CGroupFileInode,
 			MountID: ctx.CGroupFileMountID,

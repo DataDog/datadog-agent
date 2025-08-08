@@ -22,7 +22,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 )
 
@@ -40,30 +39,15 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8+16 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
-
-	n, err := e.CGroupFile.UnmarshalBinary(data[8:])
+	n, err := e.CGroupFile.UnmarshalBinary(data)
 	if err != nil {
 		return 0, err
 	}
-
-	return 8 + n, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
-	id, err := UnmarshalString(data, ContainerIDLen)
-	if err != nil {
-		return 0, err
-	}
-
-	e.ContainerID = containerutils.ContainerID(id)
-
-	return ContainerIDLen, nil
+	return n, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -985,17 +969,11 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.ContainerContext)
+	read, err := UnmarshalBinary(data, &e.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
 	cursor := read
-
-	read, err = UnmarshalBinary(data[cursor:], &e.CGroupContext)
-	if err != nil {
-		return 0, err
-	}
-	cursor += read
 
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {
@@ -1026,15 +1004,12 @@ func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Pid = binary.NativeEndian.Uint32(data[read : read+4])
 	read += 4
 
-	e.CGroupFlags = binary.NativeEndian.Uint32(data[read : read+4])
-	read += 4
-
 	return read, nil
 }
 
 // EventUnmarshalBinary unmarshals a binary representation of itself
 func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 56 {
+	if len(data) < 48 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1051,9 +1026,7 @@ func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, erro
 	adlc.Rate = binary.NativeEndian.Uint16(data[40:42])
 	// 2 bytes of padding
 	adlc.Paused = binary.NativeEndian.Uint32(data[44:48])
-	adlc.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint32(data[48:52]))
-	// +4 bytes of padding
-	return 56, nil
+	return 48, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

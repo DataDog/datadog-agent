@@ -19,6 +19,7 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -700,7 +701,8 @@ func TestProcessMetrics(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config)
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger)
 		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
@@ -896,7 +898,8 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config)
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger)
 		kubeStateMetricsSCheck.processTelemetry(test.metrics)
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.expected.getTotal(), kubeStateMetricsSCheck.telemetry.getTotal())
@@ -954,7 +957,8 @@ func TestSendTelemetry(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config)
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger)
 		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
@@ -1265,7 +1269,8 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), tt.config)
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), tt.config, fakeTagger)
 			kubeStateMetricsSCheck.clusterNameRFC1123 = tt.args.clusterName
 			labelJoiner := newLabelJoiner(tt.config.labelJoins)
 			for _, metricFam := range tt.args.metricsToGet {
@@ -1533,7 +1538,8 @@ var metadataMetrics = []string{
 }
 
 func TestMetadataMetricsRegex(t *testing.T) {
-	check := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{})
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	check := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger)
 	for _, m := range metadataMetrics {
 		assert.True(t, check.metadataMetricsRegex.MatchString(m))
 	}

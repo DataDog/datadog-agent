@@ -73,8 +73,8 @@ func runTest(
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
 	symtab, err := ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,
@@ -90,9 +90,9 @@ func runTest(
 		for _, pcr := range sp.OutOfLinePCRanges {
 			pcs = append(pcs, pcr[0], (pcr[0]+pcr[1])/2)
 		}
-		for _, inlinedInstance := range sp.InlinePCRanges {
+		for _, inlined := range sp.InlinePCRanges {
 			inlinedSp = sp
-			for _, pcr := range inlinedInstance {
+			for _, pcr := range inlined.Ranges {
 				pcs = append(pcs, pcr[0], (pcr[0]+pcr[1])/2)
 			}
 		}
@@ -106,7 +106,7 @@ func runTest(
 		}
 	}
 	require.NotNil(t, inlinedSp)
-	pc := inlinedSp.InlinePCRanges[0][0][0]
+	pc := inlinedSp.InlinePCRanges[0].Ranges[0][0]
 	fmt.Fprintf(&out, "FunctionLines: 0x%x\n", pc)
 	lines, err := symtab.FunctionLines(pc)
 	require.NoError(t, err)

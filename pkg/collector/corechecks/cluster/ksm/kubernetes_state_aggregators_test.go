@@ -10,6 +10,7 @@ package ksm
 import (
 	"testing"
 
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
@@ -171,7 +172,8 @@ func Test_counterAggregator(t *testing.T) {
 		},
 	}
 
-	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{})
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger)
 
 	for _, tt := range tests {
 		s := mocksender.NewMockSender("ksm")
@@ -276,7 +278,8 @@ func Test_lastCronJobAggregator(t *testing.T) {
 		},
 	}
 
-	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{})
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	ksmCheck := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger)
 
 	for _, tt := range tests {
 		s := mocksender.NewMockSender("ksm")

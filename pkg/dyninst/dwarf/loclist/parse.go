@@ -226,11 +226,11 @@ func readSLEB128(reader *bytes.Buffer) (int64, error) {
 		val |= int64(b&0x7f) << shift
 		shift += 7
 		if b&0x80 == 0 {
+			if b&0x40 != 0 {
+				val -= 1 << shift
+			}
 			break
 		}
-	}
-	if val&0x40 != 0 {
-		val -= 1 << shift
 	}
 	return val, nil
 }

@@ -8,14 +8,13 @@ package autodiscoveryimpl
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -36,8 +35,6 @@ var _ secrets.Component = (*MockSecretResolver)(nil)
 
 func (m *MockSecretResolver) Configure(_ secrets.ConfigParams) {}
 
-func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
-
 func (m *MockSecretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	if m.scenarios == nil {
 		return data, nil
@@ -52,8 +49,7 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string) ([]byte, error)
 	return nil, fmt.Errorf("Resolve called with unexpected arguments: data=%s, origin=%s", string(data), origin)
 }
 
-func (m *MockSecretResolver) SubscribeToChanges(_ secrets.SecretChangeCallback) {
-}
+func (m *MockSecretResolver) SubscribeToChanges(_ secrets.SecretChangeCallback) {}
 
 func (m *MockSecretResolver) Refresh() (string, error) {
 	return "", nil

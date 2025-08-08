@@ -3,6 +3,7 @@
 
 #include "constants/syscall_macro.h"
 #include "helpers/syscalls.h"
+#include "helpers/process.h"
 #include <uapi/linux/filter.h>
 long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_fd, int level, int optname) {
     if (is_discarded_by_pid()) {
@@ -50,7 +51,7 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     event->filter_len = syscall->setsockopt.filter_len;
     event->truncated = syscall->setsockopt.truncated;
     struct proc_cache_t *entry = fill_process_context(&event->process);
-    fill_container_context(entry, &event->container);
+    fill_cgroup_context(entry, &event->cgroup);
     fill_span_context(&event->span);
     int size_to_sent = (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE )
         ? MAX_BPF_FILTER_SIZE
@@ -58,7 +59,6 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     event->sent_size = size_to_sent;
     send_event_with_size_ptr(ctx, EVENT_SETSOCKOPT, event, (offsetof(struct setsockopt_event_t, bpf_filters_buffer) + size_to_sent));
     
-
     return 0;
 }
 

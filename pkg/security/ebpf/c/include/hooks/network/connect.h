@@ -58,7 +58,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
     } else {
         entry = fill_process_context(&event.process);
     }
-    fill_container_context(entry, &event.container);
+    fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
     // Check if we should sample this event for activity dumps

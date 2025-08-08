@@ -17,8 +17,10 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -154,7 +156,7 @@ func (p *PodUtils) IsHostNetworkedPod(podUID string) bool {
 // GetContainerID returns the container ID from the workloadmeta.Component for a given set of metric labels.
 // It should only be called on a container-scoped metric. It returns an empty string if the container could not be
 // found, or if the container should be filtered out.
-func GetContainerID(store workloadmeta.Component, metric model.Metric, filter *containers.Filter) (string, error) {
+func GetContainerID(store workloadmeta.Component, metric model.Metric, filterStore workloadfilter.Component) (string, error) {
 	namespace := string(metric["namespace"])
 	podUID := string(metric["pod_uid"])
 	// k8s >= 1.16
@@ -190,9 +192,55 @@ func GetContainerID(store workloadmeta.Component, metric model.Metric, filter *c
 		return "", ErrContainerNotFound
 	}
 
-	if filter.IsExcluded(pod.EntityMeta.Annotations, container.Name, container.Image.RawName, pod.Namespace) {
+	filterableContainer := workloadmetafilter.CreateContainerFromOrch(container, workloadmetafilter.CreatePod(pod))
+	selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+	if filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
 		return "", ErrContainerExcluded
 	}
 
 	return container.ID, nil
+}
+
+// CreateFilterableContainerFromStatus creates a Filterable Container object from a kubelet.ContainerStatus and an owner.
+func CreateFilterableContainerFromStatus(cStatus kubelet.ContainerStatus, owner workloadfilter.Filterable) *workloadfilter.Container {
+	c := &typedef.FilterContainer{
+		Id:    cStatus.ID,
+		Name:  cStatus.Name,
+		Image: cStatus.Image,
+	}
+
+	switch o := owner.(type) {
+	case *workloadfilter.Pod:
+		if o != nil && o.FilterPod != nil {
+			c.Owner = &typedef.FilterContainer_Pod{
+				Pod: o.FilterPod,
+			}
+		}
+	}
+
+	return &workloadfilter.Container{
+		FilterContainer: c,
+		Owner:           owner,
+	}
+}
+
+// CreateFilterablePodFromKubelet creates a Filterable Pod object from a kubelet.Pod.
+func CreateFilterablePodFromKubelet(pod *kubelet.Pod) *workloadfilter.Pod {
+	if pod == nil {
+		return nil
+	}
+
+	p := &typedef.FilterPod{
+		Id:        pod.Metadata.UID,
+		Name:      pod.Metadata.Name,
+		Namespace: pod.Metadata.Namespace,
+	}
+
+	if pod.Metadata.Annotations != nil {
+		p.Annotations = pod.Metadata.Annotations
+	}
+
+	return &workloadfilter.Pod{
+		FilterPod: p,
+	}
 }

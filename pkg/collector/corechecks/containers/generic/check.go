@@ -13,11 +13,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -41,20 +41,22 @@ func (c *ContainerConfig) Parse(data []byte) error {
 // ContainerCheck generates metrics for all containers
 type ContainerCheck struct {
 	core.CheckBase
-	instance  *ContainerConfig
-	processor Processor
-	store     workloadmeta.Component
-	tagger    tagger.Component
+	instance    *ContainerConfig
+	processor   Processor
+	store       workloadmeta.Component
+	filterStore workloadfilter.Component
+	tagger      tagger.Component
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
+func Factory(wmeta workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return &ContainerCheck{
-			CheckBase: core.NewCheckBase(CheckName),
-			instance:  &ContainerConfig{},
-			store:     store,
-			tagger:    tagger,
+			CheckBase:   core.NewCheckBase(CheckName),
+			instance:    &ContainerConfig{},
+			store:       wmeta,
+			filterStore: filterStore,
+			tagger:      tagger,
 		}
 	})
 }
@@ -66,21 +68,8 @@ func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64,
 		return err
 	}
 
-	filter, err := containers.GetSharedMetricFilter()
-	if err != nil {
-		return err
-	}
-
-	if err = c.instance.Parse(config); err != nil {
-		return err
-	}
-
-	c.processor = NewProcessor(metrics.GetProvider(option.New(c.store)),
-		NewMetadataContainerAccessor(c.store),
-		GenericMetricsAdapter{},
-		LegacyContainerFilter{OldFilter: filter, Store: c.store}, c.tagger, c.instance.ExtendedMemoryMetrics)
-
-	return nil
+	c.processor = NewProcessor(metrics.GetProvider(option.New(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{FilterStore: c.filterStore, Store: c.store}, c.tagger, c.instance.ExtendedMemoryMetrics)
+	return c.instance.Parse(config)
 }
 
 // Run executes the check

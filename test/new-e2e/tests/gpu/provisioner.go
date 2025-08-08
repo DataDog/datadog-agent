@@ -6,6 +6,7 @@
 package gpu
 
 import (
+	_ "embed"
 	"fmt"
 	"strconv"
 	"strings"
@@ -31,6 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
+
+//go:embed testdata/config/agent_config.yaml
+var agentConfigStr string
+
+//go:embed testdata/config/system_probe_config.yaml
+var systemProbeConfigStr string
 
 type systemData struct {
 	ami string
@@ -76,14 +83,6 @@ const nvidiaSMIValidationCmd = "nvidia-smi -L | grep GPU"
 // and can be used to identify the validation commands.
 const validationCommandMarker = "echo 'gpu-validation-command'"
 
-const defaultSysprobeConfig = `
-gpu_monitoring:
-  enabled: true
-
-system_probe_config:
-  log_level: debug
-`
-
 const helmValuesTemplate = `
 datadog:
   kubelet:
@@ -108,7 +107,9 @@ agents:
           value: "/host/root/proc"
     agent:
       env:
-        - name: DD_ENABLE_NVML_DETECTION
+        - name: DD_GPU_ENABLED
+          value: "true"
+        - name: DD_GPU_USE_SP_PROCESS_METRICS
           value: "true"
 `
 
@@ -125,8 +126,8 @@ type provisionerParams struct {
 func getDefaultProvisionerParams() *provisionerParams {
 	return &provisionerParams{
 		agentOptions: []agentparams.Option{
-			agentparams.WithSystemProbeConfig(defaultSysprobeConfig),
-			agentparams.WithAgentConfig("enable_nvml_detection: true"),
+			agentparams.WithSystemProbeConfig(systemProbeConfigStr),
+			agentparams.WithAgentConfig(agentConfigStr),
 		},
 		kubernetesAgentOptions: nil,
 		instanceType:           gpuInstanceType,

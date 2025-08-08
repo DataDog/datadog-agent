@@ -21,9 +21,9 @@ type RemoteParams struct {
 	// If it returns an error we stop the application
 	RemoteTarget func(config.Component) (string, error)
 
-	// OverrideTLSConfig allows to override the TLS configuration used by the remote tagger
+	// OverrideTLSConfigGetter allows to override the TLS configuration used by the remote tagger
 	// This should be used only for Cluster Agent x CLC communication
-	OverrideTLSConfig *tls.Config
+	OverrideTLSConfigGetter func() (*tls.Config, error)
 
 	// OverrideAuthTokenGetter allows to override the auth token used by the remote tagger
 	// This should be used only for Cluster Agent x CLC communication

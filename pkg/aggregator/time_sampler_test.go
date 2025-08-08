@@ -534,7 +534,7 @@ func testFlushMissingContext(t *testing.T, store *tags.Store) {
 func TestFlushMissingContext(t *testing.T) {
 	testWithTagsStore(t, testFlushMissingContext)
 }
-func testFlushBlocklist(t *testing.T, store *tags.Store) {
+func testFlushFilterList(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.gauge",
@@ -554,12 +554,12 @@ func testFlushBlocklist(t *testing.T, store *tags.Store) {
 		Mtype:      metrics.DistributionType,
 		SampleRate: 1,
 	}, 1000)
-	bl := utilstrings.NewBlocklist([]string{
+	bl := utilstrings.NewMatcher([]string{
 		"test.histogram.avg",
 		"test.histogram.count",
 	}, false)
 
-	metrics, sketches := flushSerieWithBlocklist(sampler, 1100, &bl, false)
+	metrics, sketches := flushSerieWithFilterList(sampler, 1100, &bl, false)
 
 	assert.Len(t, metrics, 4)
 	assert.Len(t, sketches, 1)
@@ -580,8 +580,8 @@ func testFlushBlocklist(t *testing.T, store *tags.Store) {
 	})
 }
 
-func TestFlushBlocklist(t *testing.T) {
-	testWithTagsStore(t, testFlushBlocklist)
+func TestFlushFilterList(t *testing.T) {
+	testWithTagsStore(t, testFlushFilterList)
 }
 
 func TestForcedFlush(t *testing.T) {
@@ -687,10 +687,10 @@ func flushSerie(sampler *TimeSampler, timestamp float64, forceFlushAll bool) (me
 	return series, sketches
 }
 
-func flushSerieWithBlocklist(sampler *TimeSampler, timestamp float64, bl *utilstrings.Blocklist, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
+func flushSerieWithFilterList(sampler *TimeSampler, timestamp float64, filter *utilstrings.Matcher, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 
-	sampler.flush(timestamp, &series, &sketches, bl, forceFlushAll)
+	sampler.flush(timestamp, &series, &sketches, filter, forceFlushAll)
 	return series, sketches
 }

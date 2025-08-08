@@ -24,7 +24,10 @@ import (
 
 const (
 	kafkaConsumerIntegrationName = "kafka_consumer"
-	logsConfig                   = "[{\"type\":\"integration\",\"service\":\"kafka_consumer\",\"source\":\"kafka_consumer\"}]"
+	logsConfig                   = `logs:
+  - type: integration
+    service: kafka_consumer
+    source: kafka_consumer`
 )
 
 type kafkaConfig struct {

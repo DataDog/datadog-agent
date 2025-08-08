@@ -116,7 +116,7 @@ receivers:
         read_buffer_size: 524288
         transport: tcp
       http:
-        cors: {}
+        cors: null
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
         logs_url_path: /v1/logs
@@ -131,6 +131,8 @@ receivers:
     config:
       global:
         evaluation_interval: 1m
+        metric_name_escaping_scheme: allow-utf-8
+        metric_name_validation_scheme: utf8
         scrape_interval: 1m
         scrape_protocols:
         - OpenMetricsText1.0.0
@@ -138,10 +140,13 @@ receivers:
         - PrometheusText1.0.0
         - PrometheusText0.0.4
         scrape_timeout: 10s
+      otlp:
+        translation_strategy: UnderscoreEscapingWithSuffixes
       runtime:
         gogc: 75
       scrape_configs:
-      - enable_compression: true
+      - always_scrape_classic_histograms: false
+        enable_compression: true
         convert_classic_histograms_to_nhcb: false
         enable_http2: true
         fallback_scrape_protocol: PrometheusText0.0.4

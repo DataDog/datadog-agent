@@ -20,14 +20,14 @@
     - !reference [.cache_omnibus_ruby_deps, cache]
 
 .package_deb_x86:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   variables:
     DD_PKG_ARCH: x86_64
     PACKAGE_ARCH: amd64
 
 .package_deb_arm64:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   variables:
     PACKAGE_ARCH: arm64

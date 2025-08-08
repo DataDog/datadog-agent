@@ -15,6 +15,7 @@ import (
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 )
 
 // CallbackRecorder is meant to assist with *testing* the `FileRegistry` code
@@ -111,4 +112,17 @@ func CountMapEntries(t *testing.T, m *ebpf.Map) int {
 		t.Logf("Error iterating map %s: %v", m.String(), err)
 	}
 	return count
+}
+
+// SkipIfTLSUnsupported skips the current test with a detailed reason
+// when TLS monitoring prerequisites are not met on the host.
+// 1. TLSSupported(cfg) must be true (kernel / arch / runtime-compiler).
+// 2. UretprobeSupported() must be true (no seccomp uretprobe bug).
+func SkipIfTLSUnsupported(t *testing.T, cfg *config.Config) {
+	if !usmconfig.TLSSupported(cfg) {
+		t.Skip("TLS disabled: unsupported kernel or build configuration")
+	}
+	if !usmconfig.UretprobeSupported() {
+		t.Skip("TLS disabled: kernel uretprobe-seccomp bug present")
+	}
 }

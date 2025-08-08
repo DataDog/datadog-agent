@@ -198,6 +198,91 @@ func TestIgnoreConfigIfLogsExcluded(t *testing.T) {
 	require.Equal(t, 0, len(spy.Events)) // no events
 }
 
+func TestProcessLogPriorityOverManualConfig(t *testing.T) {
+	scheduler, spy := setup()
+
+	// First, add a manually configured log file using YAML format
+	manualConfig := integration.Config{
+		LogsConfig: []byte(`logs:
+  - type: file
+    path: /var/log/app.log
+    service: manual-service`),
+		Provider: names.File,
+		Name:     "manual-config",
+	}
+
+	// Add the manual config first
+	scheduler.Schedule([]integration.Config{manualConfig})
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+
+	// Add the source to the mock's Sources slice so GetSources() returns it
+	spy.Sources = append(spy.Sources, spy.Events[0].Source)
+
+	// Now try to add a process_log config for the same file
+	processLogConfig := integration.Config{
+		LogsConfig: []byte(`[{"type":"file","path":"/var/log/app.log","service":"process-service"}]`),
+		Provider:   names.ProcessLog,
+		Name:       "process-config",
+		ServiceID:  fmt.Sprintf("%s:///var/log/app.log", names.ProcessLog),
+	}
+
+	// Clear events for the next test
+	spy.Events = nil
+
+	// Schedule the process_log config
+	scheduler.Schedule([]integration.Config{processLogConfig})
+
+	// The process_log config should be filtered out due to existing manual config
+	require.Equal(t, 0, len(spy.Events), "process_log config should be filtered out when manual config exists")
+}
+
+func TestProcessLogConfigAllowedWhenNoConflict(t *testing.T) {
+	scheduler, spy := setup()
+
+	// Add a process_log config for a file that doesn't have a manual config
+	processLogConfig := integration.Config{
+		LogsConfig: []byte(`[{"type":"file","path":"/var/log/process.log","service":"process-service"}]`),
+		Provider:   names.ProcessLog,
+		Name:       "process-config",
+		ServiceID:  fmt.Sprintf("%s:///var/log/process.log", names.ProcessLog),
+	}
+
+	// Schedule the process_log config
+	scheduler.Schedule([]integration.Config{processLogConfig})
+
+	// The process_log config should be added since there's no conflict
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+	logSource := spy.Events[0].Source
+	assert.Equal(t, "process-config", logSource.Name)
+	assert.Equal(t, "process-service", logSource.Config.Service)
+	assert.Equal(t, "/var/log/process.log", logSource.Config.Path)
+}
+
+func TestNonFileTypeProcessLogConfigAllowed(t *testing.T) {
+	scheduler, spy := setup()
+
+	// Add a process_log config for a non-file type (should not be filtered)
+	processLogConfig := integration.Config{
+		LogsConfig: []byte(`[{"type":"tcp","service":"process-service"}]`),
+		Provider:   names.ProcessLog,
+		Name:       "process-config",
+		ServiceID:  fmt.Sprintf("%s://test-service", names.ProcessLog),
+	}
+
+	// Schedule the process_log config
+	scheduler.Schedule([]integration.Config{processLogConfig})
+
+	// The process_log config should be added since it's not a file type
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+	logSource := spy.Events[0].Source
+	assert.Equal(t, "process-config", logSource.Name)
+	assert.Equal(t, "process-service", logSource.Config.Service)
+	assert.Equal(t, "tcp", logSource.Config.Type)
+}
+
 func TestIgnoreRemoteConfigIfDisabled(t *testing.T) {
 	mockConfig := configmock.New(t)
 	for _, rcLogCfgSchedEnabled := range []bool{true, false} {

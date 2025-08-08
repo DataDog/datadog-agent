@@ -156,8 +156,12 @@ func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 
 	// Override the default TLS config and auth token if provided
 	// This is useful for communicate with the cluster agent from cluster check runners
-	if params.OverrideTLSConfig != nil {
-		remotetagger.tlsConfig = params.OverrideTLSConfig
+	if params.OverrideTLSConfigGetter != nil {
+		tlsConfig, err := params.OverrideTLSConfigGetter()
+		if err != nil {
+			return nil, err
+		}
+		remotetagger.tlsConfig = tlsConfig
 	}
 	if params.OverrideAuthTokenGetter != nil {
 		// Retry 10 times to get the auth token

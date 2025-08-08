@@ -29,6 +29,9 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 	if params.PipelineID != "" && params.MajorVersion != "5" {
 		testEnvVars := []string{}
 		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_APT_URL=s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%v-a%v", params.PipelineID, params.MajorVersion))
+		if params.TestingKeysURL != "" {
+			testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_KEYS_URL=%s", params.TestingKeysURL))
+		}
 		// apt testing repo
 		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-ay y"
 		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="stable-%v %v"`, params.Arch, params.MajorVersion))

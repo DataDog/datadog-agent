@@ -269,13 +269,12 @@ func (s *goSwissMapHeaderType) encodeSwissMapGroup(
 ) (valuesEncoded int, err error) {
 	slotsData := groupData[s.slotsOffset : s.slotsOffset+s.slotsSize]
 	controlWord := binary.LittleEndian.Uint64(groupData[s.ctrlOffset : s.ctrlOffset+uint32(s.ctrlSize)])
-	entrySize := (s.valueFieldOffset - s.keyFieldOffset) + s.valueTypeSize
 	for i := range 8 {
 		if controlWord&(1<<(7+(8*i))) != 0 {
 			// slot is empty or deleted
 			continue
 		}
-		entryData := slotsData[uint32(i)*entrySize : uint32(i+1)*entrySize]
+		entryData := slotsData[uint32(i)*s.slotsArrayEntrySize : uint32(i+1)*s.slotsArrayEntrySize]
 		keyData := entryData[s.keyFieldOffset : s.keyFieldOffset+s.keyTypeSize]
 		valueData := entryData[s.valueFieldOffset : s.valueFieldOffset+s.valueTypeSize]
 

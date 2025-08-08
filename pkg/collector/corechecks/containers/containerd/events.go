@@ -19,16 +19,16 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // computeEvents converts Containerd events into Datadog events
-func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.Sender, fil *containers.Filter) {
+func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.Sender) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
@@ -37,7 +37,9 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			continue
 		}
 
-		if split[1] == "images" && fil.IsExcluded(nil, "", e.ID, "") {
+		filterableContainerImage := workloadfilter.CreateContainerImage(e.ID)
+		selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+		if split[1] == "images" && c.filterStore.IsContainerExcluded(filterableContainerImage, selectedFilters) {
 			continue
 		}
 

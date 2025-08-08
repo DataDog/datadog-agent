@@ -223,16 +223,12 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	needed := false
 	offsetShift := uint32(0)
 	var ops []Op
-	switch t := t.(type) {
-	case *ir.BaseType:
-		// Nothing to process.
-
-	case *ir.StructureType:
+	structureTypeHandler := func(t *ir.StructureType) error {
 		ops = make([]Op, 0, 2*len(t.RawFields))
 		for field := range t.Fields() {
 			elemFunc, elemNeeded, err := g.addTypeHandler(field.Type)
 			if err != nil {
-				return nil, false, err
+				return err
 			}
 			if !elemNeeded {
 				continue
@@ -245,9 +241,22 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			offsetShift = field.Offset + g.typeFuncMetadata[field.Type.GetID()].offsetShift
 		}
 		ops = append(ops, ReturnOp{})
+		return nil
+	}
+	switch t := t.(type) {
+	case *ir.BaseType:
+		// Nothing to process.
+
+	case *ir.GoHMapBucketType:
+		if err := structureTypeHandler(t.StructureType); err != nil {
+			return fid, needed, err
+		}
+	case *ir.StructureType:
+		if err := structureTypeHandler(t); err != nil {
+			return fid, needed, err
+		}
 
 	// Sequential containers
-
 	case *ir.ArrayType:
 		elemFunc, elemNeeded, err := g.addTypeHandler(t.Element)
 		if err != nil {
@@ -347,24 +356,52 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 
 	// Map containers
 	case *ir.GoHMapHeaderType:
-	case *ir.GoHMapBucketType:
-	case *ir.GoSwissMapGroupsType:
-		dataOffset, err := offsetOf(t.RawFields, "data")
+		needed = true
+		flagsOffset, err := offsetOfUint8(t.RawFields, "flags")
 		if err != nil {
 			return nil, false, err
 		}
-		lengthMaskOffset, err := offsetOf(t.RawFields, "lengthMask")
+		bOffset, err := offsetOfUint8(t.RawFields, "B")
+		if err != nil {
+			return nil, false, err
+		}
+		bucketsOffset, err := offsetOfUint8(t.RawFields, "buckets")
+		if err != nil {
+			return nil, false, err
+		}
+		oldBucketsOffset, err := offsetOfUint8(t.RawFields, "oldbuckets")
+		if err != nil {
+			return nil, false, err
+		}
+		ops = []Op{
+			ProcessGoHmapOp{
+				BucketsType:      t.BucketsType,
+				BucketType:       t.BucketType,
+				FlagsOffset:      flagsOffset,
+				BOffset:          bOffset,
+				BucketsOffset:    bucketsOffset,
+				OldBucketsOffset: oldBucketsOffset,
+			},
+			ReturnOp{},
+		}
+		g.typeQueue = append(
+			g.typeQueue,
+			t.BucketsType,
+			t.BucketType,
+			t.BucketType.KeyType,
+			t.BucketType.ValueType,
+		)
+	case *ir.GoSwissMapGroupsType:
+		dataOffset, err := offsetOfUint8(t.RawFields, "data")
+		if err != nil {
+			return nil, false, err
+		}
+		lengthMaskOffset, err := offsetOfUint8(t.RawFields, "lengthMask")
 		if err != nil {
 			return nil, false, err
 		}
 		needed = true
 		offsetShift = 0
-		if dataOffset > math.MaxUint8 {
-			return nil, false, errors.New("dataOffset is too large")
-		}
-		if lengthMaskOffset > math.MaxUint8 {
-			return nil, false, errors.New("lengthMaskOffset is too large")
-		}
 		ops = []Op{
 			ProcessGoSwissMapGroupsOp{
 				DataOffset:       uint8(dataOffset),
@@ -376,22 +413,16 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		}
 		g.typeQueue = append(g.typeQueue, t.GroupSliceType, t.GroupType)
 	case *ir.GoSwissMapHeaderType:
-		directoryPtrOffset, err := offsetOf(t.RawFields, "dirPtr")
+		directoryPtrOffset, err := offsetOfUint8(t.RawFields, "dirPtr")
 		if err != nil {
 			return nil, false, err
 		}
-		directoryLenOffset, err := offsetOf(t.RawFields, "dirLen")
+		directoryLenOffset, err := offsetOfUint8(t.RawFields, "dirLen")
 		if err != nil {
 			return nil, false, err
 		}
 		needed = true
 		offsetShift = 0
-		if directoryPtrOffset > math.MaxUint8 {
-			return nil, false, errors.New("directoryPtrOffset is too large")
-		}
-		if directoryLenOffset > math.MaxUint8 {
-			return nil, false, errors.New("directoryLenOffset is too large")
-		}
 		ops = []Op{
 			ProcessGoSwissMapOp{
 				TablePtrSlice: t.TablePtrSliceType,
@@ -506,6 +537,17 @@ func offsetOf(fields []ir.Field, name string) (uint32, error) {
 		}
 	}
 	return 0, errors.Errorf("internal: field `%s` not found", name)
+}
+
+func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
+	offset, err := offsetOf(fields, name)
+	if err != nil {
+		return 0, err
+	}
+	if offset > math.MaxUint8 {
+		return 0, errors.Errorf("offset of %s overflows uint8: %d", name, offset)
+	}
+	return uint8(offset), nil
 }
 
 // `ops` is used as an output buffer for the encoded instructions.

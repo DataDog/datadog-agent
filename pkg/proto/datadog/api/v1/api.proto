@@ -71,4 +71,8 @@ service RemoteAgent {
 
   // Gets the telemetry data of a remote agent.
   rpc GetTelemetry(datadog.remoteagent.GetTelemetryRequest) returns (datadog.remoteagent.GetTelemetryResponse);
+
+  // Streams config events to the remote agent.
+  rpc StreamConfigEvents(stream datadog.remoteagent.ConfigEvent) returns (google.protobuf.Empty);
+
 }

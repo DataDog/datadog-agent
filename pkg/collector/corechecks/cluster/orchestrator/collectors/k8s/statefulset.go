@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type StatefulSetCollector struct {
 // NewStatefulSetCollector creates a new collector for the Kubernetes
 // StatefulSet resource.
 func NewStatefulSetCollector(metadataAsTags utils.MetadataAsTags) *StatefulSetCollector {
-	resourceType := getResourceType(statefulSetName, statefulSetVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.StatefulSetName, utilTypes.StatefulSetVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewStatefulSetCollector(metadataAsTags utils.MetadataAsTags) *StatefulSetCo
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 statefulSetName,
+			Name:                                 utilTypes.StatefulSetName,
 			Kind:                                 kubernetes.StatefulSetKind,
 			NodeType:                             orchestrator.K8sStatefulSet,
-			Version:                              statefulSetVersion,
+			Version:                              utilTypes.StatefulSetVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

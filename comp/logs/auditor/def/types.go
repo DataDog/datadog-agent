@@ -16,4 +16,8 @@ type Registry interface {
 
 	// SetTailed is used to signal that the identifier is still being tailed and should not be removed from the registry.
 	SetTailed(identifier string, isTailed bool)
+
+	// SetOffset allows direct setting of an offset for an identifier, marking it as tailed.
+	// This enables tailers to persist bookmarks without sending messages through the pipeline.
+	SetOffset(identifier string, offset string)
 }

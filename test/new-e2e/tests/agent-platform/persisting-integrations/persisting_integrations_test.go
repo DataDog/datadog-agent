@@ -40,8 +40,9 @@ var (
 
 type persistingIntegrationsSuite struct {
 	e2e.BaseSuite[environments.Host]
-	srcVersion string
-	platform   string
+	srcVersion     string
+	platform       string
+	testingKeysURL string
 }
 
 func (is *persistingIntegrationsSuite) AfterTest(suiteName, testName string) {
@@ -97,7 +98,9 @@ func TestPersistingIntegrations(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
 			e2e.Run(tt,
-				&persistingIntegrationsSuite{srcVersion: *srcAgentVersion, platform: *platform},
+				// testingKeysURL will be set as TESTING_KEYS_URL in the install script
+				// then used in places like https://github.com/DataDog/agent-linux-install-script/blob/8f5c0b4f5b60847ee7989aa2c35052382f282d5d/install_script.sh.template#L1229
+				&persistingIntegrationsSuite{srcVersion: *srcAgentVersion, platform: *platform, testingKeysURL: "apttesting.datad0g.com/test-keys-vault"},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
@@ -178,7 +181,16 @@ func (is *persistingIntegrationsSuite) UpgradeAgentVersion(VMclient *common.Test
 	defer VMclient.Host.MustExecute("sudo chmod +t /tmp")
 	VMclient.Host.MustExecute("sudo chmod -t /tmp")
 
-	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithUpgrade(true))
+	installOptions := []installparams.Option{
+		installparams.WithArch(*architecture),
+		installparams.WithFlavor(*flavorName),
+		installparams.WithUpgrade(true),
+	}
+
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	install.Unix(is.T(), VMclient, installOptions...)
 
 	common.CheckInstallation(is.T(), VMclient)
 

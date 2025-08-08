@@ -760,10 +760,11 @@ int test_bind(int argc, char** argv) {
 
 int test_connect_af_inet(int argc, char** argv) {
 
-    if (argc != 3) {
+    if (argc != 4) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        fprintf(stderr, "Arg3: the port number to connect to\n");
         return EXIT_FAILURE;
     }
 
@@ -799,7 +800,7 @@ int test_connect_af_inet(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    addr.sin_port = htons(4242);
+    addr.sin_port = htons(atoi(argv[3]));
 
     if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         close(s);
@@ -813,10 +814,11 @@ int test_connect_af_inet(int argc, char** argv) {
 
 int test_connect_af_inet6(int argc, char** argv) {
 
-    if (argc != 3) {
+    if (argc != 4) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        fprintf(stderr, "Arg3: the port number to connect to\n");
         return EXIT_FAILURE;
     }
 
@@ -847,7 +849,7 @@ int test_connect_af_inet6(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    addr.sin6_port = htons(4242);
+    addr.sin6_port = htons(atoi(argv[3]));
     if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         close(s);
         perror("Failed to connect to port");
@@ -859,10 +861,11 @@ int test_connect_af_inet6(int argc, char** argv) {
 }
 
 int test_connect_af_unix(int argc, char** argv) {
-    if (argc != 3) {
+    if (argc != 4) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: the path of the UNIX socket to connect to\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        fprintf(stderr, "Note: the UNIX socket must be created before running this command so the port does not matter\n");
         return EXIT_FAILURE;
     }
 

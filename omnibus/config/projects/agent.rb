@@ -296,6 +296,9 @@ resources_path "#{Omnibus::Config.project_root}/resources/agent"
 exclude '\.git*'
 exclude 'bundler\/git'
 
+# Exclude headers that are not needed in the final package
+exclude "embedded/include/systemd"
+
 if windows_target?
   FORBIDDEN_SYMBOLS = [
     "github.com/golang/glog"

@@ -497,7 +497,7 @@ func startAgents() *Daemon {
 		SketchesBucketOffset: time.Second * 10,
 		Tagger:               nooptagger.NewComponent(),
 	}
-	ma.Start(FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	ma.Start(FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, false)
 	d.SetStatsdServer(ma)
 
 	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{

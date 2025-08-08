@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
@@ -53,6 +54,10 @@ func (f *fakeActuatorTenant) HandleUpdate(update actuator.ProcessesUpdate) {
 type fakeActuator struct {
 	t      *testing.T
 	tenant *fakeActuatorTenant
+}
+
+func (f *fakeActuator) Shutdown() error {
+	return nil
 }
 
 func (f *fakeActuator) NewTenant(name string, reporter actuator.Reporter, irGenerator actuator.IRGenerator) *fakeActuatorTenant {
@@ -192,6 +197,7 @@ func TestController_HappyPathEndToEnd(t *testing.T) {
 
 	controller := module.NewController(
 		a, logUploaderFactory, diagUploader, scraper, decoderFactory,
+		irgen.NewGenerator(),
 	)
 	require.NotNil(t, controller)
 
@@ -238,6 +244,7 @@ func TestController_ProgramLifecycleFlow(t *testing.T) {
 
 	controller := module.NewController(
 		a, logUploaderFactory, diagUploader, scraper, decoderFactory,
+		irgen.NewGenerator(),
 	)
 	require.NotNil(t, controller)
 	require.NotNil(t, a.tenant)
@@ -284,8 +291,9 @@ func TestController_IRGenerationFailure(t *testing.T) {
 
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
+	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, scraper, decoderFactory,
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory, irGenerator,
 	)
 	require.NotNil(t, controller)
 	require.NotNil(t, a.tenant)
@@ -324,8 +332,9 @@ func TestController_AttachmentFailure(t *testing.T) {
 
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
+	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, scraper, decoderFactory,
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -367,7 +376,10 @@ func TestController_LoadingFailure(t *testing.T) {
 
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
-	controller := module.NewController(a, logUploaderFactory, diagUploader, scraper, decoderFactory)
+	irGenerator := irgen.NewGenerator()
+	controller := module.NewController(
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory, irGenerator,
+	)
 
 	controller.CheckForUpdates()
 
@@ -407,7 +419,10 @@ func TestController_DecoderCreationFailure(t *testing.T) {
 
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
-	controller := module.NewController(a, logUploaderFactory, diagUploader, scraper, decoderFactory)
+	irGenerator := irgen.NewGenerator()
+	controller := module.NewController(
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory, irGenerator,
+	)
 	controller.CheckForUpdates()
 
 	sink, err := a.tenant.reporter.ReportLoaded(procID, processUpdate.Executable, program)
@@ -433,7 +448,10 @@ func TestController_EventDecodingSuccess(t *testing.T) {
 
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
-	controller := module.NewController(a, logUploaderFactory, diagUploader, scraper, decoderFactory)
+	irGenerator := irgen.NewGenerator()
+	controller := module.NewController(
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory, irGenerator,
+	)
 
 	controller.CheckForUpdates()
 
@@ -484,7 +502,10 @@ func TestController_EventDecodingFailure(t *testing.T) {
 
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
-	controller := module.NewController(a, logUploaderFactory, diagUploader, scraper, decoderFactory)
+	irGenerator := irgen.NewGenerator()
+	controller := module.NewController(
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory, irGenerator,
+	)
 
 	controller.CheckForUpdates()
 
@@ -521,7 +542,10 @@ func TestController_ProcessRemoval(t *testing.T) {
 
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
-	controller := module.NewController(a, logUploaderFactory, diagUploader, scraper, decoderFactory)
+	irGenerator := irgen.NewGenerator()
+	controller := module.NewController(
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory, irGenerator,
+	)
 	at := a.tenant
 
 	controller.CheckForUpdates()
@@ -566,7 +590,10 @@ func TestController_MultipleProcesses(t *testing.T) {
 
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate1, processUpdate2}
 
-	controller := module.NewController(actuator, logUploaderFactory, diagUploader, scraper, decoderFactory)
+	irGenerator := irgen.NewGenerator()
+	controller := module.NewController(
+		actuator, logUploaderFactory, diagUploader, scraper, decoderFactory, irGenerator,
+	)
 
 	controller.CheckForUpdates()
 
@@ -612,8 +639,9 @@ func TestController_ProbeIssueReporting(t *testing.T) {
 
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
+	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, scraper, decoderFactory,
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()
@@ -657,8 +685,9 @@ func TestController_NoSuccessfulProbesError(t *testing.T) {
 	procID := processUpdate.ProcessID
 	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
 
+	irGenerator := irgen.NewGenerator()
 	controller := module.NewController(
-		a, logUploaderFactory, diagUploader, scraper, decoderFactory,
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory, irGenerator,
 	)
 
 	controller.CheckForUpdates()

@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -40,9 +39,7 @@ func testArch(t *testing.T, arch string) {
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 
-	if !usmconfig.TLSSupported(cfg) {
-		t.Skip("shared library tracing not supported for this platform")
-	}
+	utils.SkipIfTLSUnsupported(t, cfg)
 
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
@@ -81,9 +78,7 @@ func TestSSLMapsCleaner(t *testing.T) {
 	// test cleanup is faster without event stream, this test does not require event stream
 	cfg.EnableUSMEventStream = false
 
-	if !usmconfig.TLSSupported(cfg) {
-		t.Skip("SSL maps cleaner not supported for this platform")
-	}
+	utils.SkipIfTLSUnsupported(t, cfg)
 	// use the monitor and its eBPF manager to check and access SSL related maps
 	monitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
 	require.NotNil(t, monitor)
@@ -209,9 +204,7 @@ func cleanDeadPidsInSslMaps(t *testing.T, manager *manager.Manager) {
 // correctly removes entries from the ssl_sock_by_ctx and ssl_ctx_by_tuple maps
 // when the TCP connection associated with a TLS session is closed.
 func TestSSLMapsCleanup(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
-		t.Skip("TLS not supported for this setup")
-	}
+	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
 
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true

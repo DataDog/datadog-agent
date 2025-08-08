@@ -243,7 +243,9 @@ func (a *effects) loadProgram(
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		ir, err := generateIR(tenant.irGenerator, programID, executable, probes)
+		ir, err := generateIR(
+			tenant.irGenerator, programID, executable, probes,
+		)
 		if err == nil && len(ir.Probes) == 0 {
 			err = &NoSuccessfulProbesError{Issues: ir.Issues}
 		}
@@ -335,15 +337,7 @@ func generateIR(
 	executable Executable,
 	probes []ir.ProbeDefinition,
 ) (*ir.Program, error) {
-	elfFile, err := object.OpenElfFile(executable.Path)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to read object file for %s: %w", executable.Path, err,
-		)
-	}
-	defer elfFile.Close()
-
-	ir, err := irGenerator.GenerateIR(programID, elfFile, probes)
+	ir, err := irGenerator.GenerateIR(programID, executable.Path, probes)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to generate IR for %s: %w", executable.Path, err,

@@ -277,6 +277,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 	// Verify the short lived connection is accounting for both TCP_ESTABLISHED and TCP_CLOSED events
 	assert.Equal(t, uint16(1), m.TCPEstablished)
 	assert.Equal(t, uint16(1), m.TCPClosed)
+	assert.Empty(t, conn.TCPFailures, "connection should have no failures")
 
 	connections, cleanup := getConnections(t, tr)
 	defer cleanup()
@@ -439,6 +440,9 @@ func (s *TracerSuite) TestTCPConnsReported() {
 		require.Equal(collect, uint16(1), forward.Monotonic.TCPClosed)
 		require.Equal(collect, uint16(1), reverse.Monotonic.TCPEstablished)
 		require.Equal(collect, uint16(1), reverse.Monotonic.TCPClosed)
+
+		require.Empty(t, forward.TCPFailures, "forward should have no failures")
+		require.Empty(t, reverse.TCPFailures, "reverse should have no failures")
 	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 
 }
@@ -1176,6 +1180,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	require.True(t, ok)
 	assert.Equal(t, uint16(0), conn.Last.TCPEstablished)
 	assert.Equal(t, uint16(1), conn.Last.TCPClosed)
+	assert.Empty(t, conn.TCPFailures, "connection should have no failures")
 }
 
 func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
@@ -1213,6 +1218,7 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	m := conn.Monotonic
 	assert.Equal(t, uint16(0), m.TCPEstablished)
 	assert.Equal(t, uint16(1), m.TCPClosed)
+	assert.Empty(t, conn.TCPFailures, "connection should have no failures")
 }
 
 func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {

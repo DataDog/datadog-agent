@@ -21,6 +21,7 @@ import (
 	"github.com/containerd/cgroups/v3/cgroup1"
 	"github.com/containerd/cgroups/v3/cgroup2"
 
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/cilium/ebpf"
@@ -276,16 +277,128 @@ func TestGetAbsoluteCgroupForProcess(t *testing.T) {
 		t.Skip("Test requires root privileges")
 	}
 
-	currentCgroup, err := getAbsoluteCgroupForProcess("", uint32(os.Getpid()))
+	currentCgroup, err := getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()), containerdcgroups.Mode())
 	require.NoError(t, err)
 	require.NotEmpty(t, currentCgroup) // Cgroup could be anything, but it should not be empty
 
 	testCgroupName := fmt.Sprintf("test-get-cgroup-for-process-%s", utils.RandString(10))
 	moveSelfToCgroup(t, testCgroupName)
 
-	currentCgroup, err = getAbsoluteCgroupForProcess("", uint32(os.Getpid()))
+	currentCgroup, err = getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()), containerdcgroups.Mode())
 	require.NoError(t, err)
 	require.Equal(t, "/"+testCgroupName, currentCgroup)
+}
+
+func TestGetAbsoluteCgroupV1ForProcess(t *testing.T) {
+	mainPid := 10
+	siblingPid := 20
+
+	// cgroupsv1 does not have relative cgroup paths, so we don't need to test inside of a container
+	rootCgroup := testutil.FakeCgroup{
+		Name:       "",
+		IsHostRoot: true,
+		PIDs:       []int{},
+	}
+
+	mainCgroup := testutil.FakeCgroup{
+		Name:   fmt.Sprintf("test-parent-cgroup-%s", utils.RandString(10)),
+		PIDs:   []int{mainPid},
+		Parent: &rootCgroup,
+	}
+
+	siblingCgroup := testutil.FakeCgroup{
+		Name:   fmt.Sprintf("test-sibling-cgroup-%s", utils.RandString(10)),
+		PIDs:   []int{siblingPid},
+		Parent: &rootCgroup,
+	}
+
+	cgroups := []testutil.FakeCgroup{
+		rootCgroup,
+		mainCgroup,
+		siblingCgroup,
+	}
+
+	fs := testutil.CreateFakeCgroupFilesystem(t, cgroups)
+	fs.SetupTestEnvvars(t)
+
+	t.Run("SameProcess", func(t *testing.T) {
+		cgroupPath, err := getAbsoluteCgroupForProcess(fs.Root, fs.HostRootMountpoint, uint32(mainPid), uint32(mainPid), containerdcgroups.Legacy)
+		require.NoError(t, err)
+		require.Equal(t, mainCgroup.FullName(), cgroupPath)
+	})
+
+	t.Run("SiblingProcess", func(t *testing.T) {
+		cgroupPath, err := getAbsoluteCgroupForProcess(fs.Root, fs.HostRootMountpoint, uint32(mainPid), uint32(siblingPid), containerdcgroups.Legacy)
+		require.NoError(t, err)
+		require.Equal(t, siblingCgroup.FullName(), cgroupPath)
+	})
+}
+
+func TestGetAbsoluteCgroupV2ForProcessInsideContainer(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("Test requires root privileges for the bind mount")
+	}
+
+	// For this test, instead of setting up the container completely as we do in the other tests,
+	// we will just mock the cgroup hierarchy
+	pid := 10
+	siblingProc := 20
+
+	rootCgroup := testutil.FakeCgroup{
+		Name:       "",
+		IsHostRoot: true,
+		PIDs:       []int{},
+	}
+
+	parentCgroup := testutil.FakeCgroup{
+		Name: fmt.Sprintf("test-parent-cgroup-%s", utils.RandString(10)),
+		PIDs: []int{},
+	}
+
+	childCgroup := testutil.FakeCgroup{
+		Name:                        fmt.Sprintf("test-child-cgroup-%s", utils.RandString(10)),
+		Parent:                      &parentCgroup,
+		PIDs:                        []int{pid},
+		IsContainerRoot:             true,
+		VisibleInContainerNamespace: true,
+	}
+
+	siblingCgroup := testutil.FakeCgroup{
+		Name:                        fmt.Sprintf("test-sibling-cgroup-%s", utils.RandString(10)),
+		Parent:                      &parentCgroup,
+		PIDs:                        []int{siblingProc},
+		VisibleInContainerNamespace: true,
+	}
+
+	cgroups := []testutil.FakeCgroup{
+		rootCgroup,
+		parentCgroup,
+		childCgroup,
+		siblingCgroup,
+	}
+
+	// Add some sample cgroups to the hierarchy
+	for i := 0; i < 10; i++ {
+		cgroups = append(cgroups, testutil.FakeCgroup{
+			Name: fmt.Sprintf("test-cgroup-%d", i),
+			PIDs: []int{1000 + i},
+		})
+	}
+
+	fs := testutil.CreateFakeCgroupFilesystem(t, cgroups)
+	fs.SetupTestEnvvars(t)
+
+	t.Run("SameProcess", func(t *testing.T) {
+		cgroupPath, err := getAbsoluteCgroupForProcess(fs.Root, fs.HostRootMountpoint, uint32(pid), uint32(pid), containerdcgroups.Unified)
+		require.NoError(t, err)
+		require.Equal(t, childCgroup.FullName(), cgroupPath)
+	})
+
+	t.Run("SiblingProcess", func(t *testing.T) {
+		cgroupPath, err := getAbsoluteCgroupForProcess(fs.Root, fs.HostRootMountpoint, uint32(pid), uint32(siblingProc), containerdcgroups.Unified)
+		require.NoError(t, err)
+		require.Equal(t, siblingCgroup.FullName(), cgroupPath)
+	})
 }
 
 func moveSelfToCgroup(t *testing.T, cgroupName string) {
@@ -336,39 +449,37 @@ func moveSelfToCgroup(t *testing.T, cgroupName string) {
 	}
 }
 
-// createDeepDirStructure creates a directory structure with a lot of subdirectories
+// createDeepCgroupStructure creates a directory structure with a lot of subdirectories
 // and returns the number of directories created.
-func createDeepDirStructure(path string, depth int, numDirs int) int {
-	numDirsCreated := 0
+func createDeepCgroupStructure(depth int, numDirs int) []testutil.FakeCgroup {
+	cgroups := []testutil.FakeCgroup{}
 
 	for i := 0; i < numDirs; i++ {
-		dirPath := filepath.Join(path, fmt.Sprintf("test-%d", i))
-		os.MkdirAll(dirPath, 0755) //nolint:gosec
-		numDirsCreated++
+		cgroups = append(cgroups, testutil.FakeCgroup{
+			Name: fmt.Sprintf("test-cgroup-%d-%d", depth, i),
+			PIDs: []int{},
+		})
 
 		if depth > 0 {
-			numDirsCreated += createDeepDirStructure(dirPath, depth-1, numDirs)
+			cgroups = append(cgroups, createDeepCgroupStructure(depth-1, numDirs)...)
 		}
 	}
-	return numDirsCreated
+
+	return cgroups
 }
 
 func BenchmarkGetAbsoluteCgroupForProcess(b *testing.B) {
-	// Create a directory structure with a lot of subdirectories
-	tempdir := b.TempDir()
-	cgroupDir := filepath.Join(tempdir, "sys/fs/cgroup")
-	os.MkdirAll(cgroupDir, 0755)
-
-	// Create a lot of subdirectories recursively
-	numDirs := createDeepDirStructure(cgroupDir, 4, 10)
-	b.Logf("Created %d directories", numDirs)
+	// Create a cgroup hierarchy with a lot of subdirectories
+	cgroups := createDeepCgroupStructure(4, 10)
+	fs := testutil.CreateFakeCgroupFilesystem(b, cgroups)
+	b.Logf("Created %d directories", len(cgroups))
 
 	// Doesn't matter that the cgroup here is not found, we in fact
 	// want the code to iterate though all the directories in the
 	// cgroup directory.
 	for b.Loop() {
-		getAbsoluteCgroupForProcess(cgroupDir, uint32(os.Getpid()))
+		getAbsoluteCgroupForProcess(fs.Root, fs.HostRootMountpoint, uint32(os.Getpid()), uint32(os.Getpid()), containerdcgroups.Mode())
 	}
 
-	b.ReportMetric(float64(numDirs), "dirs/op")
+	b.ReportMetric(float64(len(cgroups)), "dirs/op")
 }

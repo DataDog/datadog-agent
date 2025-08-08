@@ -174,6 +174,30 @@ func getHostnameWithConfig(ctx context.Context, config model.Config) (string, er
 	return name, nil
 }
 
+var hostCCRIDFetcher = cachedfetch.Fetcher{
+	Name: "Azure Host CCRID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		rg, err := getResponse(ctx,
+			metadataURL+"/metadata/instance/compute/resourceId?api-version=2021-02-01&format=text")
+		if err != nil {
+			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
+		}
+		return rg, nil
+	},
+}
+
+// GetHostCCRID returns the Canonical Cloud Resource ID for the Azure host
+func GetHostCCRID(ctx context.Context) (string, error) {
+	caseInsensitiveCCRID, err := hostCCRIDFetcher.FetchString(ctx)
+	if err != nil {
+		return "", err
+	}
+	// Azure APIs are inconsistent with handling case, so it is recommended to
+	// lower-case returned strings that represent stable IDs
+	// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-resource-group-and-subscription?tabs=azure-cli
+	return strings.ToLower(caseInsensitiveCCRID), nil
+}
+
 var publicIPv4Fetcher = cachedfetch.Fetcher{
 	Name: "Azure Public IP",
 	Attempt: func(ctx context.Context) (interface{}, error) {

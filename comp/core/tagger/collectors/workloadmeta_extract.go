@@ -457,7 +457,9 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.TaskVersion, task.Version)
 	taskTags.AddLow(tags.AwsAccount, task.AWSAccountID)
 	taskTags.AddLow(tags.Region, task.Region)
+	taskTags.AddLow(tags.EcsServiceARN, task.ServiceARN)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
+	taskTags.AddOrchestrator(tags.TaskDefinitionARN, task.TaskDefinitionARN)
 
 	clusterTags := taglist.NewTagList()
 	if task.ClusterName != "" {
@@ -466,6 +468,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			taskTags.AddLow(tags.ClusterName, task.ClusterName)
 		}
 		clusterTags.AddLow(tags.EcsClusterName, task.ClusterName)
+		clusterTags.AddLow(tags.EcsClusterARN, task.ClusterARN)
 	}
 	clusterLow, clusterOrch, clusterHigh, clusterStandard := clusterTags.Compute()
 

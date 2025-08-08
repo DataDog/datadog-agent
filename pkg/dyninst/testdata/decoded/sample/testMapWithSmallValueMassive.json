@@ -1,0 +1,66 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapWithSmallValueMassive",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testMapWithSmallValueMassive",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 70
+          },
+          {
+            "function": "main.executeMapFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 169
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 45
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": 283
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testMapWithSmallValueMassive",
+          "location": {
+            "method": "main.testMapWithSmallValueMassive"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "redactMyEntries": {
+                "type": "map[int]uint8",
+                "size": "10000",
+                "entries": "[redacted-entries]",
+                "notCapturedReason": "pruned"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

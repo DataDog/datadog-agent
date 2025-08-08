@@ -731,7 +731,7 @@ func TestKubeServiceFiltering(t *testing.T) {
 					},
 				},
 			},
-			expectedMetricsExcl: false,
+			expectedMetricsExcl: true,
 			expectedGlobalExcl:  true,
 		},
 	}

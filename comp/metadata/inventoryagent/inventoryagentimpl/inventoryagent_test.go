@@ -177,6 +177,7 @@ func TestInitData(t *testing.T) {
 		"sbom.enabled":                                true,
 		"sbom.container_image.enabled":                true,
 		"sbom.host.enabled":                           true,
+		"infrastructure_mode":                         "basic",
 	}
 	ia := getTestInventoryPayload(t, overrides, sysprobeOverrides)
 	ia.refreshMetadata()
@@ -244,6 +245,7 @@ func TestInitData(t *testing.T) {
 		"system_probe_gateway_lookup_enabled":          true,
 		"system_probe_root_namespace_enabled":          true,
 		"system_probe_max_connections_per_message":     10,
+		"infrastructure_mode":                          "basic",
 	}
 
 	if !kernel.IsIPv6Enabled() {
@@ -743,7 +745,17 @@ func TestGetProvidedConfigurationOnly(t *testing.T) {
 	}
 
 	sort.Strings(keys)
-	expected := []string{"provided_configuration", "full_configuration", "file_configuration", "environment_variable_configuration", "agent_runtime_configuration", "fleet_policies_configuration", "remote_configuration", "cli_configuration", "source_local_configuration"}
+	expected := []string{
+		"provided_configuration",
+		"full_configuration",
+		"file_configuration",
+		"environment_variable_configuration",
+		"agent_runtime_configuration",
+		"fleet_policies_configuration",
+		"remote_configuration",
+		"cli_configuration",
+		"source_local_configuration",
+	}
 	sort.Strings(expected)
 
 	assert.Equal(t, expected, keys)

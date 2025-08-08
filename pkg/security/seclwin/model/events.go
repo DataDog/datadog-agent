@@ -5,6 +5,12 @@
 
 package model
 
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+)
+
 // EventType describes the type of an event sent from the kernel
 type EventType uint32
 
@@ -290,4 +296,16 @@ func (t EventType) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+// ParseEvalEventType convert a eval.EventType (string) to its uint64 representation
+// the current algorithm is not efficient but allows us to reduce the number of conversion functions
+func ParseEvalEventType(eventType eval.EventType) (EventType, error) {
+	for i := uint64(0); i != uint64(MaxAllEventType); i++ {
+		if EventType(i).String() == eventType {
+			return EventType(i), nil
+		}
+	}
+
+	return UnknownEventType, fmt.Errorf("unknown event type '%s'", eventType)
 }

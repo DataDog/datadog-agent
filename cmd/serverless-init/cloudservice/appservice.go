@@ -81,6 +81,11 @@ func (a *AppService) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.shutdown", appServicePrefix)
 }
 
+// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
+func (a *AppService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return false
+}
+
 func isAppService() bool {
 	_, exists := os.LookupEnv(WebsiteStack)
 	return exists

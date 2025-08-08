@@ -501,11 +501,11 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-// SetTimeSamplersBlocklist triggers a reconfiguration of the blocklist
+// SetTimeSamplersFilterList triggers a reconfiguration of the filter list
 // applied in the time samplers.
-func (d *AgentDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
+func (d *AgentDemultiplexer) SetTimeSamplersFilterList(filterList *utilstrings.Matcher) {
 	for _, worker := range d.statsd.workers {
-		worker.blocklistChan <- blocklist
+		worker.filterListChan <- filterList
 	}
 }
 

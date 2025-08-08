@@ -332,7 +332,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 	for _, rule := range policyRules {
 		for _, actionDef := range rule.Def.Actions {
-			if err := actionDef.Check(opts); err != nil {
+			if err := actionDef.PreCheck(opts); err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("skipping invalid action in rule %s: %w", rule.Def.ID, err))
 				continue
 			}
@@ -508,13 +508,6 @@ func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map
 	rs.opts.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
 }
 
-func (rs *RuleSet) isActionAvailable(eventType eval.EventType, action *Action) bool {
-	if action.Def.Name() == HashAction && eventType != model.FileOpenEventType.String() && eventType != model.ExecEventType.String() {
-		return false
-	}
-	return true
-}
-
 // AddRule creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (model.EventCategory, error) {
 	if pRule.Def.Disabled {
@@ -588,18 +581,16 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 	}
 
 	for _, action := range rule.PolicyRule.Actions {
-		if !rs.isActionAvailable(eventType, action) {
-			return "", &ErrRuleLoad{Rule: pRule, Err: &ErrActionNotAvailable{ActionName: action.Def.Name(), EventType: eventType}}
-		}
-
-		// compile action filter
 		if action.Def.Filter != nil {
+			// compile action filter
 			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
 				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 
-		if action.Def.Set != nil {
+		switch {
+
+		case action.Def.Set != nil:
 			// compile scope field
 			if len(action.Def.Set.ScopeField) > 0 {
 				if err := action.CompileScopeField(rs.model); err != nil {
@@ -626,6 +617,11 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return "", fmt.Errorf("failed to compile action expression: %w", err)
 				}
 				rs.fieldEvaluators[expression] = evaluator.(eval.Evaluator)
+			}
+
+		case action.Def.Hash != nil:
+			if err := action.Def.Hash.PostCheck(evalRule); err != nil {
+				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 	}

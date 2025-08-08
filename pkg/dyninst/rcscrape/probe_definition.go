@@ -21,9 +21,6 @@ import (
 //
 // See https://github.com/DataDog/dd-trace-go/blob/4f1af406/ddtrace/tracer/remote_config.go#L238-L242
 
-var remoteConfigProbeDefinitionV1 = probeDefinitionV1{}
-var remoteConfigProbeDefinitionV2 = probeDefinitionV2{}
-
 type probeDefinitionV1 struct{ probeDefinition }
 
 func (r probeDefinitionV1) GetID() string      { return rcProbeIDV1 }
@@ -33,6 +30,11 @@ type probeDefinitionV2 struct{ probeDefinition }
 
 func (r probeDefinitionV2) GetID() string      { return rcProbeIDV2 }
 func (r probeDefinitionV2) GetWhere() ir.Where { return probeWhereV2{} }
+
+type symdbProbeDefinition struct{ probeDefinition }
+
+func (r symdbProbeDefinition) GetID() string      { return rcProbeIDSymdb }
+func (r symdbProbeDefinition) GetWhere() ir.Where { return probeWhereSymdb{} }
 
 type probeDefinition struct{}
 
@@ -54,6 +56,7 @@ func (r probeCaptureConfig) GetMaxReferenceDepth() uint32 { return 3 }
 
 const rcProbeIDV1 = "remote-config-v1"
 const rcProbeIDV2 = "remote-config-v2"
+const rcProbeIDSymdb = "remote-config-v2-symdb"
 
 // probeThrottleConfig is the throttle configuration for the remote
 // config probe. It is set to a very high value to ensure that we do not miss
@@ -83,4 +86,15 @@ const v2PassProbeConfiguration = "github.com/DataDog/dd-trace-go/v2/ddtrace/trac
 func (p probeWhereV2) Where() {}
 func (p probeWhereV2) Location() string {
 	return v2PassProbeConfiguration
+}
+
+const symdbPassProbeConfiguration = "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.passSymDBState"
+
+type probeWhereSymdb struct{}
+
+var _ ir.FunctionWhere = probeWhereSymdb{}
+
+func (p probeWhereSymdb) Where() {}
+func (p probeWhereSymdb) Location() string {
+	return symdbPassProbeConfiguration
 }

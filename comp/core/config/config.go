@@ -8,12 +8,11 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
 
 	"go.uber.org/fx"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -67,10 +66,7 @@ func NewServerlessConfig(path string) (Component, error) {
 	options := []func(*Params){WithConfigName("serverless")}
 
 	_, err := os.Stat(path)
-	if os.IsNotExist(err) &&
-		(strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml")) {
-		options = append(options, WithConfigMissingOK(true))
-	} else if !os.IsNotExist(err) {
+	if !os.IsNotExist(err) {
 		options = append(options, WithConfFilePath(path))
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type ServiceAccountCollector struct {
 // NewServiceAccountCollector creates a new collector for the Kubernetes
 // ServiceAccount resource.
 func NewServiceAccountCollector(metadataAsTags utils.MetadataAsTags) *ServiceAccountCollector {
-	resourceType := getResourceType(serviceAccountName, serviceAccountVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.ServiceAccountName, utilTypes.ServiceAccountVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewServiceAccountCollector(metadataAsTags utils.MetadataAsTags) *ServiceAcc
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 serviceAccountName,
+			Name:                                 utilTypes.ServiceAccountName,
 			Kind:                                 kubernetes.ServiceAccountKind,
 			NodeType:                             orchestrator.K8sServiceAccount,
-			Version:                              serviceAccountVersion,
+			Version:                              utilTypes.ServiceAccountVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

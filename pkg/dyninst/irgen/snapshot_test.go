@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -30,28 +31,27 @@ var rewrite = flag.Bool("rewrite", rewriteFromEnv, "rewrite the test files")
 
 const snapshotDir = "testdata/snapshot"
 
-var cases = []string{"simple"}
-
 func TestSnapshotTesting(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
-	for _, caseName := range cases {
-		t.Run(caseName, func(t *testing.T) {
+	progs := testprogs.MustGetPrograms(t)
+	sem := dyninsttest.MakeSemaphore()
+	for _, prog := range progs {
+		t.Run(prog, func(t *testing.T) {
+			t.Parallel()
 			for _, cfg := range cfgs {
 				t.Run(cfg.String(), func(t *testing.T) {
-					runTest(t, cfg, caseName)
+					t.Parallel()
+					defer sem.Acquire()()
+					runTest(t, cfg, prog)
 				})
 			}
 		})
 	}
 }
 
-func runTest(
-	t *testing.T,
-	cfg testprogs.Config,
-	caseName string,
-) {
-	binPath := testprogs.MustGetBinary(t, caseName, cfg)
-	probesCfgs := testprogs.MustGetProbeDefinitions(t, caseName)
+func runTest(t *testing.T, cfg testprogs.Config, prog string) {
+	binPath := testprogs.MustGetBinary(t, prog, cfg)
+	probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
 	obj, err := object.OpenElfFile(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
@@ -62,7 +62,7 @@ func runTest(
 	marshaled, err := irprinter.PrintYAML(ir)
 	require.NoError(t, err)
 
-	outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".yaml")
+	outputFile := path.Join(snapshotDir, prog+"."+cfg.String()+".yaml")
 	if *rewrite {
 		tmpFile, err := os.CreateTemp(snapshotDir, "ir.yaml")
 		require.NoError(t, err)

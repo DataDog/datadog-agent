@@ -1,0 +1,175 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testInlinedSumArray",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testInlinedSumArray",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
+            "lineNumber": 71
+          },
+          {
+            "function": "main.executeInlined",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
+            "lineNumber": 100
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 34
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": 283
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testInlinedSumArray",
+          "location": {
+            "method": "main.testInlinedSumArray"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "[5]int",
+                "size": "5",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  {
+                    "type": "int",
+                    "value": "3"
+                  },
+                  {
+                    "type": "int",
+                    "value": "4"
+                  },
+                  {
+                    "type": "int",
+                    "value": "5"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testInlinedSumArray",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.testInlinedSumArray",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
+            "lineNumber": 71
+          },
+          {
+            "function": "main.testFramelessArray",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
+            "lineNumber": 93
+          },
+          {
+            "function": "main.executeInlined",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
+            "lineNumber": 105
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 34
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": 283
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "testInlinedSumArray",
+          "location": {
+            "method": "main.testInlinedSumArray"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "[5]int",
+                "size": "5",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  {
+                    "type": "int",
+                    "value": "2"
+                  },
+                  {
+                    "type": "int",
+                    "value": "3"
+                  },
+                  {
+                    "type": "int",
+                    "value": "4"
+                  },
+                  {
+                    "type": "int",
+                    "value": "5"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

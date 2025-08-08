@@ -23,6 +23,8 @@ import (
 const (
 	agentUnit      = "datadog-agent.service"
 	agentUnitXP    = "datadog-agent-exp.service"
+	ddotUnit       = "datadog-agent-ddot.service"
+	ddotUnitXP     = "datadog-agent-ddot-exp.service"
 	traceUnit      = "datadog-agent-trace.service"
 	traceUnitXP    = "datadog-agent-trace-exp.service"
 	processUnit    = "datadog-agent-process.service"
@@ -208,7 +210,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		SetStopWithSigkill("trace-agent")
 
 	defer func() { s.host.Run("sudo rm -rf /etc/systemd/system/datadog*.d/override.conf") }()
-
 	for _, unit := range []string{traceUnitXP, agentUnitXP} {
 		s.T().Logf("Testing timeoutStop of unit %s", unit)
 		s.host.Run(fmt.Sprintf("sudo rm -rf /etc/systemd/system/%s.d/override.conf", unit))

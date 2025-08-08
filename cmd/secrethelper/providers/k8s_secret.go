@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 )
 
 // KubeSecretGetter is a function that fetches a secret from k8s

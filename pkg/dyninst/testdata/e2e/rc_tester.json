@@ -14,7 +14,7 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": "[stack]",
         "probe": {
           "id": "http_handler",
           "location": {
@@ -245,7 +245,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadogagent]pkg/dyninst/testprogs/progs/[binary]/main.go:[line]"
                       }
                     }
                   },
@@ -281,7 +281,7 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": "[stack]",
         "probe": {
           "id": "look_at_the_request",
           "location": {
@@ -317,7 +317,7 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": "[stack]",
         "probe": {
           "id": "http_handler",
           "location": {
@@ -548,7 +548,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadogagent]pkg/dyninst/testprogs/progs/[binary]/main.go:[line]"
                       }
                     }
                   },
@@ -584,7 +584,7 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": "[stack]",
         "probe": {
           "id": "look_at_the_request",
           "location": {
@@ -620,7 +620,7 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": "[stack]",
         "probe": {
           "id": "http_handler",
           "location": {
@@ -851,7 +851,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadogagent]pkg/dyninst/testprogs/progs/[binary]/main.go:[line]"
                       }
                     }
                   },
@@ -887,7 +887,7 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": "[stack]",
         "probe": {
           "id": "look_at_the_request",
           "location": {

@@ -905,8 +905,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 		if len(ps.CGroup.CGroupID) > 0 {
 			psSerializer.CGroup = &CGroupContextSerializer{
-				ID:      string(ps.CGroup.CGroupID),
-				Manager: ps.CGroup.CGroupManager,
+				ID: string(ps.CGroup.CGroupID),
 			}
 		}
 
@@ -1420,10 +1419,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	}
 
 	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
-		manager := event.FieldHandlers.ResolveCGroupManager(event, event.CGroupContext)
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.CGroupContext.CGroupID),
-			Manager:   manager,
 			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}
