@@ -62,6 +62,34 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return getLocalInstaller(env)
 	}
 
+	// Download just datadog-installer.exe from its own layer
+	installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
+	err = downloadedPackage.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract layers: %w", err)
+	}
+	if _, err := os.Stat(installerBinPath); err != nil {
+		// Fallback to the old method if the file/layer doesn't exist
+		// this is expected for versions earlier than 7.70
+		return downloadInstallerOld(ctx, env, url, tmpDir)
+	}
+	return iexec.NewInstallerExec(env, installerBinPath), nil
+}
+
+// downloadInstallerOld downloads the installer package from the registry and returns the path to the executable.
+//
+// Should only be called for versions earlier than 7.70. This downloads the layer containing the MSI and then
+// uses MSI admin install to extract `datadog-installer.exe` from the MSI.
+func downloadInstallerOld(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
+	downloader := oci.NewDownloader(env, env.HTTPClient())
+	downloadedPackage, err := downloader.Download(ctx, url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download installer package: %w", err)
+	}
+	if downloadedPackage.Name != AgentPackage {
+		return getLocalInstaller(env)
+	}
+
 	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "layout")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary directory: %w", err)
