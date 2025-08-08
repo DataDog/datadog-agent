@@ -179,10 +179,10 @@ func (rc rcClient) start() {
 //
 // If a setting is not set via any config, it will fallback if the source was RC.
 func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	var enableLogs, enableMetrics, enableAPM *bool
-	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth string
+	var enableLogs, enableMetrics, enableAPM, enableProfiling *bool
+	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth, enableProfilingCfgPth string
 	for cfgPath, update := range updates {
-		if (enableLogs != nil && *enableLogs) && (enableMetrics != nil && *enableMetrics) && (enableAPM != nil && *enableAPM) {
+		if (enableLogs != nil && *enableLogs) && (enableMetrics != nil && *enableMetrics) && (enableAPM != nil && *enableAPM) && (enableProfiling != nil && *enableProfiling) {
 			break
 		}
 
@@ -196,7 +196,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 			continue
 		}
 
-		if mrfUpdate == nil || (mrfUpdate.FailoverMetrics == nil && mrfUpdate.FailoverLogs == nil && mrfUpdate.FailoverAPM == nil) {
+		if mrfUpdate == nil || (mrfUpdate.FailoverMetrics == nil && mrfUpdate.FailoverLogs == nil && mrfUpdate.FailoverAPM == nil && mrfUpdate.FailoverProfiling == nil) {
 			continue
 		}
 
@@ -213,6 +213,11 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 		if !(enableAPM != nil && *enableAPM) && mrfUpdate.FailoverAPM != nil {
 			enableAPM = mrfUpdate.FailoverAPM
 			enableAPMCfgPth = cfgPath
+		}
+
+		if !(enableProfiling != nil && *enableProfiling) && mrfUpdate.FailoverProfiling != nil {
+			enableProfiling = mrfUpdate.FailoverProfiling
+			enableProfilingCfgPth = cfgPath
 		}
 	}
 
@@ -285,6 +290,30 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_apm", model.SourceRC)
 		if mrfFailoverAPMSource == model.SourceRC {
 			pkglog.Infof("Falling back to `multi_region_failover.failover_apm: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_apm"))
+		}
+	}
+
+	if enableProfiling != nil {
+		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_profiling", *enableProfiling, enableProfilingCfgPth, applyStateCallback)
+		if err != nil {
+			pkglog.Errorf("Multi-Region Failover failed to apply new profiling settings : %s", err)
+			applyStateCallback(enableProfilingCfgPth, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			return
+		}
+		change := "disabled"
+		if *enableProfiling {
+			change = "enabled"
+		}
+		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for profiling", change)
+		applyStateCallback(enableProfilingCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	} else {
+		mrfFailoverProfilingSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_profiling")
+		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_profiling", model.SourceRC)
+		if mrfFailoverProfilingSource == model.SourceRC {
+			pkglog.Infof("Falling back to `multi_region_failover.failover_profiling: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_profiling"))
 		}
 	}
 }
