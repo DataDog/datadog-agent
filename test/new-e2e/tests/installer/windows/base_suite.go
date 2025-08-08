@@ -259,6 +259,18 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
 	s.installScriptImpl = NewDatadogInstallScript(s.Env())
 
+	host := s.Env().RemoteHost
+	// Clear agent logs
+	s.T().Logf("Clearing agent logs")
+	logsFolder, err := host.GetLogsFolder()
+	s.Require().NoError(err, "should get logs folder")
+	entries, err := host.ReadDir(logsFolder)
+	if s.Assert().NoError(err, "should read log folder") {
+		for _, entry := range entries {
+			err = host.Remove(filepath.Join(logsFolder, entry.Name()))
+			s.Assert().NoError(err, "should remove %s", entry.Name())
+		}
+	}
 	// clear the event logs before each test
 	for _, logName := range []string{"System", "Application"} {
 		s.T().Logf("Clearing %s event log", logName)
