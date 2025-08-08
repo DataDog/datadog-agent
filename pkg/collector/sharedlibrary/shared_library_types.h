@@ -1,6 +1,8 @@
 #ifndef SHARED_LIBRARY_TYPES_H
 #define SHARED_LIBRARY_TYPES_H
 
+#include <stdbool.h>
+
 typedef enum {
     GAUGE = 0,
     RATE,
