@@ -124,8 +124,8 @@ deploy_rpm_testing-a7_x64:
     ]
   script:
     - *setup_signing
-    - tools/ci/signing/sign_rpm_package.sh $OMNIBUS_PACKAGE_DIR/datadog-*_7*x86_64.rpm $GPG_TEST_KEY_ID out/
-    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $GPG_TEST_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm
+    - tools/ci/signing/sign_rpm_package.sh $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm $GPG_TEST_KEY_ID out/
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $GPG_TEST_KEY_ID out/datadog-*-7.*x86_64.rpm
 
 deploy_rpm_testing-a7_arm64:
   rules:
@@ -137,8 +137,8 @@ deploy_rpm_testing-a7_arm64:
   needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "agent_rpm-arm64-a7-fips", "lint_linux-arm64", "ddot_rpm-arm64"]
   script:
     - *setup_signing
-    - tools/ci/signing/sign_rpm_package.sh $OMNIBUS_PACKAGE_DIR/datadog-*_7*aarch64.rpm $GPG_TEST_KEY_ID out/
-    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $GPG_TEST_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*aarch64.rpm
+    - tools/ci/signing/sign_rpm_package.sh $OMNIBUS_PACKAGE_DIR/datadog-*-7.*aarch64.rpm $GPG_TEST_KEY_ID out/
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $GPG_TEST_KEY_ID out/datadog-*-7.*aarch64.rpm
 
 deploy_suse_rpm_testing_x64-a7:
   rules:
@@ -164,8 +164,8 @@ deploy_suse_rpm_testing_x64-a7:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
     - *setup_signing
-    - tools/ci/signing/sign_rpm_package.sh $OMNIBUS_PACKAGE_DIR/datadog-*_7*x86_64.rpm $GPG_TEST_KEY_ID out/
-    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $GPG_TEST_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm
+    - tools/ci/signing/sign_rpm_package.sh $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm $GPG_TEST_KEY_ID out/
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $GPG_TEST_KEY_ID --repodata-store-public-key out/datadog-*-7.*x86_64.rpm
 
 deploy_suse_rpm_testing_arm64-a7:
   rules:
@@ -182,8 +182,8 @@ deploy_suse_rpm_testing_arm64-a7:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
     - *setup_signing
-    - tools/ci/signing/sign_rpm_package.sh $OMNIBUS_PACKAGE_DIR/datadog-*_7*aarch64.rpm $GPG_TEST_KEY_ID out/
-    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $GPG_TEST_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*aarch64.rpm
+    - tools/ci/signing/sign_rpm_package.sh $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*aarch64.rpm $GPG_TEST_KEY_ID out/
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $GPG_TEST_KEY_ID --repodata-store-public-key out/datadog-*-7.*aarch64.rpm
 
 deploy_windows_testing-a7:
   rules:
