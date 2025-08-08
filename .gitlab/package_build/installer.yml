@@ -40,7 +40,7 @@ datadog-agent-oci-x64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs:
     [
@@ -51,9 +51,9 @@ datadog-agent-oci-x64-a7:
     ]
   variables:
     PACKAGE_ARCH: amd64
-    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
-    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
-    DD_CMAKE_TOOLCHAIN: '/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake'
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CMAKE_TOOLCHAIN: "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake"
 
 datadog-agent-oci-arm64-a7:
   extends: .common_build_oci
@@ -61,7 +61,7 @@ datadog-agent-oci-arm64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   needs:
     [
@@ -72,9 +72,9 @@ datadog-agent-oci-arm64-a7:
     ]
   variables:
     PACKAGE_ARCH: arm64
-    DD_CC: 'aarch64-unknown-linux-gnu-gcc'
-    DD_CXX: 'aarch64-unknown-linux-gnu-g++'
-    DD_CMAKE_TOOLCHAIN: '/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake'
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CMAKE_TOOLCHAIN: "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake"
 
 #
 # The installer install scripts (install-djm.sh, ...)
@@ -84,9 +84,15 @@ installer-install-scripts:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "go_deps", "installer-amd64-oci", "installer-arm64-oci"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "go_deps",
+      "installer-amd64-oci",
+      "installer-arm64-oci",
+    ]
   variables:
     KUBERNETES_CPU_REQUEST: 8
     KUBERNETES_MEMORY_REQUEST: "16Gi"
@@ -165,14 +171,14 @@ installer-amd64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
     DESTINATION_FILE: "datadog-installer_7-amd64.tar.xz"
-    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
-    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
 
 installer-arm64:
   extends: .installer_build_common
@@ -180,14 +186,14 @@ installer-arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
-    DD_CC: 'aarch64-unknown-linux-gnu-gcc'
-    DD_CXX: 'aarch64-unknown-linux-gnu-g++'
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
 
 installer-amd64-oci:
   extends: installer-amd64
