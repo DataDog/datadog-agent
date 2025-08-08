@@ -49,10 +49,12 @@ needs-rules:
     - trigger_distribution_on_failure
     - installer_trigger_auto_staging_release
     - installer_trigger_manual_prod_release
+    - index-consolidation
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
   allowed-jobs:
+    - index-consolidation
     - benchmark
     - build_dogstatsd-binary_arm64
     - build_dogstatsd-binary_x64

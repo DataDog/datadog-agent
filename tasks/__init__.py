@@ -25,6 +25,7 @@ from tasks import (
     diff,
     docker_tasks,
     dogstatsd,
+    dyntest,
     ebpf,
     emacs,
     epforwarder,
@@ -184,6 +185,7 @@ ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)
 ns.add_collection(macos)
+ns.add_collection(dyntest)
 ns.add_collection(epforwarder)
 ns.add_collection(fips)
 ns.add_collection(go)
