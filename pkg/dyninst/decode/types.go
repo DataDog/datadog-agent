@@ -945,7 +945,7 @@ func (s *goSliceHeaderType) encodeValueFields(
 			elementData,
 			s.Data.Element.GetName(),
 		); err != nil {
-			notCapturedReason = notCapturedReasonPruned
+			notCaptured = true
 			break
 		}
 	}

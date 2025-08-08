@@ -14,37 +14,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
-	"syscall"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
@@ -93,6 +77,7 @@ func TestDyninst(t *testing.T) {
 		for _, cfg := range cfgs {
 			t.Run(fmt.Sprintf("%s-%s", svc, cfg), func(t *testing.T) {
 				runIntegrationTestSuite(t, svc, cfg, rewrite, sem)
+				runIntegrationTestSuiteWithFaultInjection(t, svc, cfg, rewrite, sem)
 			})
 		}
 	}
@@ -110,204 +95,42 @@ func testDyninst(
 ) map[string][]json.RawMessage {
 	defer sem.Acquire()()
 	start := time.Now()
-	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
-	defer cleanup()
+	env := prepareTestEnvironment(t, "dyninst-integration-test")
+	defer env.Cleanup()
 
-	irDump, err := os.Create(filepath.Join(tempDir, "probe.ir.yaml"))
-	require.NoError(t, err)
-	defer func() { assert.NoError(t, irDump.Close()) }()
-
-	codeDump, err := os.Create(filepath.Join(tempDir, "probe.sm.txt"))
-	require.NoError(t, err)
-	defer func() { assert.NoError(t, codeDump.Close()) }()
-
-	objectFile, err := os.Create(filepath.Join(tempDir, "probe.bpf.o"))
-	require.NoError(t, err)
-	defer func() { assert.NoError(t, objectFile.Close()) }()
-
-	loaderOpts := []loader.Option{
-		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
-			Out: codeDump,
-		}),
-	}
-	if debug {
-		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
-	}
-	reporter := makeTestReporter(t, irDump)
-	loader, err := loader.NewLoader(loaderOpts...)
-	require.NoError(t, err)
-	a := actuator.NewActuator(loader)
-	require.NoError(t, err)
-	at := a.NewTenant("integration-test", reporter, irgen.NewGenerator())
-
-	// Launch the sample service.
-	t.Logf("launching %s", service)
+	a, at, reporter := createActuatorWithTenant(t, env, actuatorConfig{Debug: debug})
 	ctx := context.Background()
-	sampleProc, sampleStdin := dyninsttest.StartProcess(
-		ctx, t, tempDir, servicePath,
-	)
+	processInfo := launchTestProcess(ctx, t, env, service, servicePath)
 	defer func() {
-		_ = sampleProc.Process.Kill()
-		_ = sampleProc.Wait()
+		_ = processInfo.Process.Kill()
+		_, _ = processInfo.Process.Wait()
 	}()
 
-	stat, err := os.Stat(servicePath)
-	require.NoError(t, err)
-	fileInfo := stat.Sys().(*syscall.Stat_t)
-	exe := actuator.Executable{
-		Path: servicePath,
-		Key: procmon.FileKey{
-			FileHandle: procmon.FileHandle{
-				Dev: uint64(fileInfo.Dev),
-				Ino: fileInfo.Ino,
-			},
-		},
+	instrumentProcess(at, processInfo, probes)
+	expectedEventCounts := make(map[string]int)
+	if !rewriteEnabled {
+		for _, p := range probes {
+			expectedEventCounts[p.GetID()] = len(expOut[p.GetID()])
+		}
 	}
-
-	// Send update to actuator to instrument the process.
-	at.HandleUpdate(actuator.ProcessesUpdate{
-		Processes: []actuator.ProcessUpdate{
-			{
-				ProcessID: actuator.ProcessID{
-					PID: int32(sampleProc.Process.Pid),
-				},
-				Executable: exe,
-				Probes:     probes,
-			},
-		},
-		Removals: []actuator.ProcessID{},
+	events, sink := waitForAttachmentAndCollectEvents(t, reporter, processInfo, eventCollectionConfig{
+		RewriteEnabled:      rewriteEnabled,
+		ExpectedEventCounts: expectedEventCounts,
+		StartTime:           start,
 	})
-
-	// Wait for the process to be attached.
-	t.Log("Waiting for attachment")
-	sink, ok := <-reporter.attached
-	require.True(t, ok)
 	if t.Failed() {
 		return nil
 	}
-
-	// Trigger the function calls, receive the events, and wait for the process
-	// to exit.
-	t.Logf("Triggering function calls")
-	sampleStdin.Write([]byte("\n"))
-
-	var totalExpectedEvents int
-	if rewriteEnabled {
-		totalExpectedEvents = math.MaxInt
-	} else {
-		for _, p := range probes {
-			totalExpectedEvents += len(expOut[p.GetID()])
-		}
-	}
-
-	timeout := time.Second
-	if !rewriteEnabled {
-		// In CI the machines seem to get very overloaded and this takes a
-		// shocking amount of time. Given we don't wait for this timeout in
-		// the happy path, it's fine to let this be quite long.
-		timeout = 5*time.Second + 5*time.Since(start)
-	}
-	timeoutCh := time.After(timeout)
-	var read []output.Event
-	var timedOut bool
-	for !timedOut && len(read) < totalExpectedEvents {
-		select {
-		case m := <-sink.ch:
-			read = append(read, m)
-		case <-timeoutCh:
-			timedOut = true
-		}
-	}
-	if !rewriteEnabled && timedOut {
-		t.Errorf(
-			"timed out after %v waiting for %d events, got %d",
-			timeout, totalExpectedEvents, len(read),
-		)
-	}
-	require.NoError(t, sampleProc.Wait())
-
-	at.HandleUpdate(actuator.ProcessesUpdate{
-		Removals: []actuator.ProcessID{
-			{PID: int32(sampleProc.Process.Pid)},
-		},
+	_, err := processInfo.Process.Wait()
+	require.NoError(t, err)
+	cleanupProcess(t, processInfo, at, a)
+	symbolicatorWrapper := createGoSymbolicator(t, servicePath)
+	defer func() { require.NoError(t, symbolicatorWrapper.close()) }()
+	return processAndDecodeEvents(t, events, sink, symbolicatorWrapper.Symbolicator, EventProcessingConfig{
+		Service:        service,
+		RewriteEnabled: rewriteEnabled,
+		ExpectedOutput: expOut,
 	})
-	require.NoError(t, a.Shutdown())
-
-	t.Logf("processing output")
-	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	obj, err := object.OpenElfFile(servicePath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, obj.Close()) }()
-
-	moduledata, err := object.ParseModuleData(obj.Underlying)
-	require.NoError(t, err)
-
-	goVersion, err := object.ReadGoVersion(obj.Underlying)
-	require.NoError(t, err)
-
-	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, goDebugSections.Close()) }()
-
-	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data(),
-		goDebugSections.GoFunc.Data(),
-		moduledata.Text,
-		moduledata.EText,
-		moduledata.MinPC,
-		moduledata.MaxPC,
-		goVersion,
-	)
-	require.NoError(t, err)
-	symbolicator := symbol.NewGoSymbolicator(symbolTable)
-	require.NotNil(t, symbolicator)
-
-	cachingSymbolicator, err := symbol.NewCachingSymbolicator(symbolicator, 10000)
-	require.NotNil(t, symbolicator)
-	require.NoError(t, err)
-
-	decoder, err := decode.NewDecoder(sink.irp)
-	require.NoError(t, err)
-
-	retMap := make(map[string][]json.RawMessage)
-	for _, ev := range read {
-		// Validate that the header has the correct program ID.
-		{
-			header, err := ev.Header()
-			require.NoError(t, err)
-			require.Equal(t, ir.ProgramID(header.Prog_id), sink.irp.ID)
-		}
-
-		event := decode.Event{
-			Event:       ev,
-			ServiceName: service,
-		}
-		var decodeOut bytes.Buffer
-		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
-		require.NoError(t, err)
-		if os.Getenv("DEBUG") != "" {
-			t.Logf("Output: %s", decodeOut.String())
-		}
-		redacted := redactJSON(t, "", decodeOut.Bytes(), defaultRedactors)
-		if os.Getenv("DEBUG") != "" {
-			t.Logf("Sorted and redacted: %s", redacted)
-		}
-		probeID := probe.GetID()
-		probeRet := retMap[probeID]
-		expIdx := len(probeRet)
-		retMap[probeID] = append(retMap[probeID], json.RawMessage(redacted))
-		if !rewriteEnabled {
-			expOut, ok := expOut[probeID]
-			assert.True(t, ok, "expected output for probe %s not found", probeID)
-			assert.Less(
-				t, expIdx, len(expOut),
-				"expected at least %d events for probe %s, got %d",
-				expIdx+1, probeID, len(expOut),
-			)
-			assert.Equal(t, string(expOut[expIdx]), string(redacted))
-		}
-	}
-	return retMap
 }
 
 type probeOutputs map[string][]json.RawMessage
@@ -319,62 +142,13 @@ func runIntegrationTestSuite(
 	rewrite bool,
 	sem dyninsttest.Semaphore,
 ) {
-	if cfg.GOARCH != runtime.GOARCH {
-		t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
-		return
-	}
-	var outputs = struct {
-		sync.Mutex
-		byTest map[string]probeOutputs // testName -> probeID -> [redacted JSON]
-	}{
-		byTest: make(map[string]probeOutputs),
-	}
-	if rewrite {
-		t.Cleanup(func() {
-			if t.Failed() {
-				return
-			}
-			validateAndSaveOutputs(t, service, outputs.byTest)
-		})
-	}
-	probes := testprogs.MustGetProbeDefinitions(t, service)
-	var expectedOutput map[string][]json.RawMessage
-	if !rewrite {
-		var err error
-		expectedOutput, err = getExpectedDecodedOutputOfProbes(service)
-		require.NoError(t, err)
-	}
-	bin := testprogs.MustGetBinary(t, service, cfg)
-	for _, debug := range []bool{false, true} {
-		runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
-			t.Parallel()
-			actual := testDyninst(
-				t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
-			)
-			if t.Failed() {
-				return
-			}
-			outputs.Lock()
-			defer outputs.Unlock()
-			outputs.byTest[t.Name()] = actual
-		}
-		t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
-			if debug && testing.Short() {
-				t.Skip("skipping debug with short")
-			}
-			t.Parallel()
-			t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
-			for i := range probes {
-				probeID := probes[i].GetID()
-				t.Run(probeID, func(t *testing.T) {
-					if testing.Short() {
-						t.Skip("skipping individual probe with short")
-					}
-					runTest(t, probes[i:i+1])
-				})
-			}
-		})
-	}
+	RunIntegrationTestSuite(t, RunTestSuiteConfig{
+		Service:   service,
+		Config:    cfg,
+		Rewrite:   rewrite,
+		Semaphore: sem,
+		TestFunc:  testDyninst,
+	})
 }
 
 // validateAndSaveOutputs ensures that the outputs for the same probe are consistent
@@ -428,95 +202,7 @@ func validateAndSaveOutputs(
 	}
 }
 
-type testMessageSink struct {
-	irp *ir.Program
-	ch  chan output.Event
-}
-
-func (d *testMessageSink) HandleEvent(ev output.Event) error {
-	d.ch <- append(make(output.Event, 0, len(ev)), ev...)
-	return nil
-}
-
-func (d *testMessageSink) Close() {
-	close(d.ch)
-}
-
-type testReporter struct {
-	attached chan *testMessageSink
-	t        *testing.T
-	sink     testMessageSink
-	irDump   *os.File
-}
-
-// ReportLoaded implements actuator.Reporter.
-func (r *testReporter) ReportLoaded(_ actuator.ProcessID, _ actuator.Executable, p *ir.Program) (actuator.Sink, error) {
-	if yaml, err := irprinter.PrintYAML(p); err != nil {
-		r.t.Errorf("failed to print IR: %v", err)
-	} else if _, err := io.Copy(r.irDump, bytes.NewReader(yaml)); err != nil {
-		r.t.Errorf("failed to write IR to file: %v", err)
-	}
-	r.sink = testMessageSink{
-		irp: p,
-		ch:  make(chan output.Event, 100),
-	}
-	return &r.sink, nil
-}
-
-// ReportAttached implements actuator.Reporter.
-func (r *testReporter) ReportAttached(actuator.ProcessID, *ir.Program) {
-	select {
-	case r.attached <- &r.sink:
-	default:
-	}
-}
-
-// ReportDetached implements actuator.Reporter.
-func (r *testReporter) ReportDetached(actuator.ProcessID, *ir.Program) {}
-
-// ReportIRGenFailed implements actuator.Reporter.
-func (r *testReporter) ReportIRGenFailed(
-	processID actuator.ProcessID,
-	err error,
-	probes []ir.ProbeDefinition,
-) {
-	defer close(r.attached)
-	r.t.Fatalf(
-		"IR generation failed for process %v: %#+v (with probes: %v)",
-		processID, err, probes,
-	)
-}
-
-// ReportLoadingFailed implements actuator.Reporter.
-func (r *testReporter) ReportLoadingFailed(
-	processID actuator.ProcessID,
-	program *ir.Program,
-	err error,
-) {
-	defer close(r.attached)
-	r.t.Fatalf(
-		"loading failed for program %d for process %v: %v", program.ID, processID, err,
-	)
-}
-
-// ReportAttachingFailed implements actuator.Reporter.
-func (r *testReporter) ReportAttachingFailed(
-	processID actuator.ProcessID, program *ir.Program, err error,
-) {
-	defer close(r.attached)
-	r.t.Fatalf(
-		"attaching failed for program %d to process %v: %v",
-		program.ID, processID, err,
-	)
-}
-
-func makeTestReporter(t *testing.T, irDump *os.File) *testReporter {
-	return &testReporter{
-		t:        t,
-		attached: make(chan *testMessageSink, 1),
-		irDump:   irDump,
-	}
-}
+// testMessageSink, testReporter, and makeTestReporter have been moved to test_utilities_test.go
 
 func getProbeOutputFilename(service, probeID string) string {
 	return filepath.Join(
