@@ -45,11 +45,43 @@ func TestCloudProviderAliases(t *testing.T) {
 		},
 	}
 
-	aliases := GetHostAliases(context.TODO())
+	aliases, cloudprovider := GetHostAliases(context.TODO())
 	assert.True(t, detector1Called, "host alias callback for 'detector1' was not called")
 	assert.True(t, detector2Called, "host alias callback for 'detector2' was not called")
 	assert.True(t, detector3Called, "host alias callback for 'detector3' was not called")
 
 	assert.Equal(t, []string{"alias1", "alias2"}, aliases)
+	// Which detector wins depends upon timing, either one is fine
+	// In reality we expect only 1 possible cloudprovider to return host aliases
+	assert.Contains(t, []string{"detector1", "detector3"}, cloudprovider)
+}
 
+func TestCloudProviderHostCCRID(t *testing.T) {
+	origDetectors := hostCCRIDDetectors
+	defer func() { hostCCRIDDetectors = origDetectors }()
+
+	detector1Called := false
+	detector2Called := false
+
+	hostCCRIDDetectors = map[string]cloudProviderCCRIDDetector{
+		"detector1": func(_ context.Context) (string, error) {
+			detector1Called = true
+			return "ccrid1", nil
+		},
+		"detector2": func(_ context.Context) (string, error) {
+			detector2Called = true
+			return "ccrid2", nil
+		},
+	}
+
+	ccrid := GetHostCCRID(context.TODO(), "detector2")
+	assert.False(t, detector1Called, "host alias callback for 'detector1' should not be called")
+	assert.True(t, detector2Called, "host alias callback for 'detector2' was not called")
+	assert.Equal(t, "ccrid2", ccrid)
+	detector2Called = false
+
+	ccrid = GetHostCCRID(context.TODO(), "detector1")
+	assert.True(t, detector1Called, "host alias callback for 'detector1' was not called")
+	assert.False(t, detector2Called, "host alias callback for 'detector2' should not be called")
+	assert.Equal(t, "ccrid1", ccrid)
 }
