@@ -17,7 +17,7 @@ import (
 )
 
 func main() {
-	tracer.Start(tracer.WithService("sample-service"))
+	tracer.Start(tracer.WithService("matan_go_service"), tracer.WithEnv("staging"), tracer.WithServiceVersion("1"))
 
 	// Wait for input before executing functions to allow time for uprobe attachment
 	scanner := bufio.NewScanner(os.Stdin)
