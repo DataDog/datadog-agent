@@ -59,6 +59,10 @@
       curl -OL "binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}" || exit $?
       mv "authanywhere-linux-${AAA}" /bin/authanywhere || exit $?
       chmod +x /bin/authanywhere || exit $?
+    - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
+    - export DD_CIVISIBILITY_ENABLED=true
+    - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   variables:
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
@@ -124,6 +128,9 @@ go_e2e_test_binaries:
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
+    - pushd test/new-e2e
+    - go install github.com/DataDog/orchestrion@v1.4.0
+    - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - tar czf test-binaries.tar.gz test-binaries
   artifacts:
@@ -944,7 +951,7 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
 
 generate-flakes-finder-pipeline:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
@@ -994,7 +1001,7 @@ trigger-flakes-finder:
   allow_failure: true
 
 generate-fips-e2e-pipeline:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]

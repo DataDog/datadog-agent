@@ -393,10 +393,9 @@ func setupApiKey() bool {
 }
 
 func loadConfig() {
-	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
-	ddcfg.SetConfigFile(datadogConfigPath)
+	pkgconfigsetup.Datadog().SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
-	if _, err := pkgconfigsetup.LoadWithoutSecret(ddcfg, nil); err != nil {
+	if _, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
 }
