@@ -46,9 +46,6 @@ func (v *baseHostnameDriftSuite) TestHostnameDriftMetricsEmission() {
 		assert.True(c, v.Env().Agent.Client.IsReady(), "Agent should be ready")
 	}, 2*time.Minute, 10*time.Second, "Agent should be ready")
 
-	// Wait for the initial drift check to complete (initial delay + some buffer)
-	time.Sleep(20 * time.Second)
-
 	// Verify that hostname drift metrics are emitted using agent telemetry
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// Get telemetry metrics from agent
@@ -65,7 +62,7 @@ func (v *baseHostnameDriftSuite) TestHostnameDriftMetricsEmission() {
 		assert.Contains(c, output, "provider=\"aws\"", "Should have aws provider in metrics")
 
 		// Assert specific state values that should be present
-		assert.Contains(c, output, "state=\"no_drift\"", "Should have no_drift state in metrics but got: "+output)
+		assert.Contains(c, output, "state=\"no_drift\"", "Should have no_drift state in metrics")
 
 	}, 2*time.Minute, 10*time.Second, "Hostname drift metrics should be emitted in agent telemetry")
 }
