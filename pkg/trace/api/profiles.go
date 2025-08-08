@@ -253,7 +253,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		for attempt := 0; attempt < maxRetryAttempts; attempt++ {
 			if attempt > 0 {
 				delay := calculateRetryDelay(attempt - 1)
-				log.Debugf("Retrying profile upload to %s after %v (attempt %d/%d)", u.Host, delay, attempt+1, maxRetryAttempts)
+				log.Warnf("Retrying profile upload to %s after %v (attempt %d/%d, payload size: %d bytes)", u.Host, delay, attempt+1, maxRetryAttempts, len(bodyBytes))
 				time.Sleep(delay)
 			}
 
@@ -274,11 +274,14 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 					freshTransport := transport.Clone()
 					freshTransport.IdleConnTimeout = transport.IdleConnTimeout // retain existing timeout settings
 					roundTripper = freshTransport
-					log.Debugf("Using fresh transport for retry attempt %d to %s", attempt+1, u.Host)
+					log.Warnf("Using fresh transport for retry attempt %d to %s (payload size: %d bytes)", attempt+1, u.Host, len(bodyBytes))
 				}
 			}
 
+			// Measure how long this attempt takes
+			attemptStart := time.Now()
 			resp, lastErr = roundTripper.RoundTrip(attemptReq)
+			attemptDuration := time.Since(attemptStart)
 
 			// Check if this is the final attempt
 			isLastAttempt := attempt == maxRetryAttempts-1
@@ -289,13 +292,13 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 				// Connection-level error - check if retryable
 				shouldRetry = isRetryableError(lastErr) && !isLastAttempt
 				if !shouldRetry && !isLastAttempt {
-					log.Debugf("Non-retryable connection error for profile upload to %s: %v", u.Host, lastErr)
+					log.Debugf("Non-retryable connection error for profile upload to %s (payload size: %d bytes, duration: %v): %v", u.Host, len(bodyBytes), attemptDuration, lastErr)
 				}
 			} else if resp != nil {
 				// Got a response - check if status code indicates retryable condition
 				shouldRetry = isRetryableStatusCode(resp.StatusCode) && !isLastAttempt
 				if shouldRetry {
-					log.Debugf("Retryable HTTP status %d for profile upload to %s", resp.StatusCode, u.Host)
+					log.Warnf("Retryable HTTP status %d for profile upload to %s (payload size: %d bytes, duration: %v)", resp.StatusCode, u.Host, len(bodyBytes), attemptDuration)
 				}
 			}
 
@@ -310,7 +313,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 			}
 
 			if lastErr != nil {
-				log.Debugf("Retryable connection error for profile upload to %s: %v", u.Host, lastErr)
+				log.Warnf("Retryable connection error for profile upload to %s (payload size: %d bytes, duration: %v): %v", u.Host, len(bodyBytes), attemptDuration, lastErr)
 			}
 		}
 
