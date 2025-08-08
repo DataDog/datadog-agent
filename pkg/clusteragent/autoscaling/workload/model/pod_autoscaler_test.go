@@ -8,11 +8,15 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -325,4 +329,97 @@ func TestParseCustomConfigurationAnnotation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateFromStatus(t *testing.T) {
+	now := time.Now()
+	earlierActionTime := now.Add(-10 * time.Minute)
+	midActionTime := now.Add(-7 * time.Minute)
+	lastRecommendedTime := now.Add(-5 * time.Minute)
+
+	earlierRecommended := int32(4)
+	lastRecommended := int32(6)
+	limitReason := "some limited reason"
+	currentReplicas := int32(7)
+
+	status := &datadoghqcommon.DatadogPodAutoscalerStatus{
+		Horizontal: &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
+			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalTargetStatus{
+				Source:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				GeneratedAt: metav1.NewTime(now),
+				Replicas:    5,
+			},
+			LastActions: []datadoghqcommon.DatadogPodAutoscalerHorizontalAction{
+				{Time: metav1.NewTime(earlierActionTime), FromReplicas: 2, ToReplicas: 3, RecommendedReplicas: &earlierRecommended},
+				{Time: metav1.NewTime(midActionTime), FromReplicas: 3, ToReplicas: 4},
+				{Time: metav1.NewTime(lastRecommendedTime), FromReplicas: 4, ToReplicas: 5, RecommendedReplicas: &lastRecommended, LimitedReason: &limitReason},
+			},
+		},
+		Vertical: &datadoghqcommon.DatadogPodAutoscalerVerticalStatus{
+			Target: &datadoghqcommon.DatadogPodAutoscalerVerticalTargetStatus{
+				Source:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				GeneratedAt: metav1.NewTime(now),
+				Version:     "somehash",
+				DesiredResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{
+						Name: "api",
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+					},
+				},
+			},
+			LastAction: &datadoghqcommon.DatadogPodAutoscalerVerticalAction{Time: metav1.NewTime(now), Version: "somehash", Type: datadoghqcommon.DatadogPodAutoscalerRolloutTriggeredVerticalActionType},
+		},
+		CurrentReplicas: &currentReplicas,
+		Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
+			{Type: datadoghqcommon.DatadogPodAutoscalerErrorCondition, Status: corev1.ConditionTrue, Reason: "globalErr"},
+			{Type: datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, Status: corev1.ConditionFalse, Reason: "hRecErr"},
+			{Type: datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, Status: corev1.ConditionFalse, Reason: "hScaleErr"},
+			{Type: datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, Status: corev1.ConditionTrue, Reason: limitReason},
+			{Type: datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, Status: corev1.ConditionFalse, Reason: "vRecErr"},
+			{Type: datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, Status: corev1.ConditionFalse, Reason: "vApplyErr"},
+		},
+	}
+
+	var actual PodAutoscalerInternal
+	actual.UpdateFromStatus(status)
+
+	expected := FakePodAutoscalerInternal{
+		ScalingValues: ScalingValues{
+			Horizontal: &HorizontalScalingValues{
+				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				Timestamp: now,
+				Replicas:  5,
+			},
+			Vertical: &VerticalScalingValues{
+				Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				Timestamp:     now,
+				ResourcesHash: "somehash",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{
+						Name: "api", Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("100Mi"),
+						},
+					},
+				},
+			},
+			HorizontalError: errors.New("hRecErr"),
+			VerticalError:   errors.New("vRecErr"),
+		},
+		HorizontalLastActions: status.Horizontal.LastActions,
+		HorizontalLastRecommendations: []HorizontalScalingValues{
+			{Timestamp: lastRecommendedTime, Replicas: lastRecommended},
+		},
+		HorizontalLastLimitReason: limitReason,
+		HorizontalLastActionError: errors.New("hScaleErr"),
+		VerticalLastAction:        status.Vertical.LastAction,
+		VerticalLastActionError:   errors.New("vApplyErr"),
+		CurrentReplicas:           &currentReplicas,
+		Error:                     errors.New("globalErr"),
+	}
+
+	AssertPodAutoscalersEqual(t, expected, actual)
 }

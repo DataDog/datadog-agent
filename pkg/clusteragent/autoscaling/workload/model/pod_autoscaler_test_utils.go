@@ -8,6 +8,7 @@
 package model
 
 import (
+	"errors"
 	"reflect"
 	"slices"
 	"strings"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -99,10 +99,19 @@ func NewFakePodAutoscalerInternal(ns, name string, fake *FakePodAutoscalerIntern
 func ComparePodAutoscalers(expected any, actual any) string {
 	return cmp.Diff(
 		expected, actual,
-		cmpopts.EquateErrors(),
 		cmp.Exporter(func(t reflect.Type) bool {
 			return t == reflect.TypeOf(PodAutoscalerInternal{})
 		}),
+		cmp.FilterValues(func(x, y any) bool {
+			_, ok1 := x.(error)
+			_, ok2 := y.(error)
+			return ok1 && ok2
+		}, cmp.Comparer(func(x, y any) bool {
+			xe := x.(error)
+			ye := y.(error)
+
+			return errors.Is(xe, ye) || errors.Is(ye, xe) || xe.Error() == ye.Error()
+		})),
 		cmp.FilterValues(
 			func(x, y any) bool {
 				for _, v := range []any{x, y} {
