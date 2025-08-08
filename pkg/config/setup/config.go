@@ -763,7 +763,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
-	config.BindEnvAndSetDefault("clc_runner_remote_tagger_enabled", false)
+	config.BindEnvAndSetDefault("clc_runner_remote_tagger_enabled", true)
 
 	// Remote tagger
 	config.BindEnvAndSetDefault("remote_tagger.max_concurrent_sync", 3)
