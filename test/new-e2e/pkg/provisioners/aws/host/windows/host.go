@@ -8,6 +8,7 @@ package winawshost
 
 import (
 	"fmt"
+	sysos "os"
 
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/testsigning"
 )
 
 const (
@@ -45,6 +47,7 @@ type ProvisionerParams struct {
 	defenderoptions        []defender.Option
 	installerOptions       []installer.Option
 	fipsModeOptions        []fipsmode.Option
+	testsigningOptions     []testsigning.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -128,6 +131,14 @@ func WithDefenderOptions(opts ...defender.Option) ProvisionerOption {
 func WithFIPSModeOptions(opts ...fipsmode.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.fipsModeOptions = append(params.fipsModeOptions, opts...)
+		return nil
+	}
+}
+
+// WithTestSigningOptions configures TestSigning on an EC2 VM.
+func WithTestSigningOptions(opts ...testsigning.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.testsigningOptions = append(params.testsigningOptions, opts...)
 		return nil
 	}
 }
@@ -268,9 +279,16 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 		agentClientOptions: []agentclientparams.Option{},
 		fakeintakeOptions:  []fakeintake.Option{},
 		// Disable Windows Defender on VMs by default
-		defenderoptions: []defender.Option{defender.WithDefenderDisabled()},
-		fipsModeOptions: []fipsmode.Option{},
+		defenderoptions:    []defender.Option{defender.WithDefenderDisabled()},
+		fipsModeOptions:    []fipsmode.Option{},
+		testsigningOptions: []testsigning.Option{},
 	}
+
+	// check env and enable test signing if we have a test signed driver
+	if sysos.Getenv("WINDOWS_DDNPM_DRIVER") == "testsigned" || sysos.Getenv("WINDOWS_PROCMON_DRIVER") == "testsigned" {
+		params.testsigningOptions = []testsigning.Option{testsigning.WithTestSigningEnabled()}
+	}
+
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
