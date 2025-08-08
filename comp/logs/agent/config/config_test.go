@@ -171,6 +171,60 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 	suite.Equal(5*time.Second, taggerWarmupDuration)
 }
 
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
+	suite.config.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
+		"fingerprint_strategy": "line_checksum",
+		"count":                10,
+		"count_to_skip":        5,
+		"max_bytes":            1024,
+	})
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.NotNil(config)
+	suite.Equal("line_checksum", config.FingerprintStrategy)
+	suite.Equal(10, config.Count)
+	suite.Equal(5, config.CountToSkip)
+	suite.Equal(1024, config.MaxBytes)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidJSONString() {
+	suite.config.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"fingerprint_strategy": "byte_checksum", "count": 5, "count_to_skip": 2, "max_bytes": 512}`)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.NotNil(config)
+	suite.Equal("byte_checksum", config.FingerprintStrategy)
+	suite.Equal(5, config.Count)
+	suite.Equal(2, config.CountToSkip)
+	suite.Equal(512, config.MaxBytes)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidJSON() {
+	suite.config.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"fingerprint_strategy": "line_checksum", "count": 5, "count_to_skip": 2, "max_bytes": 512`)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.NotNil(err)
+	suite.Nil(config)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
+	suite.config.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
+		"fingerprint_strategy": "invalid_strategy", // Invalid: unknown strategy
+		"count":                -1,                 // Invalid: negative value
+		"count_to_skip":        5,
+		"max_bytes":            1024,
+	})
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.NotNil(err)
+	suite.Nil(config)
+}
+
 func TestConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))
 }

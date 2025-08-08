@@ -14,6 +14,8 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 // ProvidesMock is the mock component output
@@ -83,12 +85,12 @@ func (a *Auditor) run() {
 // Registry does nothing
 type Registry struct {
 	sync.Mutex
-
-	tailingMode string
-
-	StoredOffsets map[string]string
-	KeepAlives    map[string]bool
-	TailedSources map[string]bool
+	tailingMode       string
+	fingerprint       uint64
+	fingerprintConfig *logsconfig.FingerprintConfig
+	StoredOffsets     map[string]string
+	KeepAlives        map[string]bool
+	TailedSources     map[string]bool
 }
 
 // NewMockRegistry returns a new mock registry.
@@ -131,7 +133,27 @@ func (r *Registry) SetTailingMode(tailingMode string) {
 	r.tailingMode = tailingMode
 }
 
-// SetTailed stores the tailed status of the identifiers
+// GetFingerprint sets the checksum fingerprint
+func (r *Registry) GetFingerprint(_ string) uint64 {
+	return r.fingerprint
+}
+
+// SetFingerprint sets the checksum fingerprint
+func (r *Registry) SetFingerprint(fingerprint uint64) {
+	r.fingerprint = fingerprint
+}
+
+// GetFingerprintConfig returns the checksum fingerprint configuration
+func (r *Registry) GetFingerprintConfig(_ string) *logsconfig.FingerprintConfig {
+	return r.fingerprintConfig
+}
+
+// SetFingerprintConfig sets the fingerprint configuration
+func (r *Registry) SetFingerprintConfig(fingerprintConfig *logsconfig.FingerprintConfig) {
+	r.fingerprintConfig = fingerprintConfig
+}
+
+// SetTailed stores the tailed status of the identifier.
 func (r *Registry) SetTailed(identifier string, isTailed bool) {
 	r.Lock()
 	defer r.Unlock()

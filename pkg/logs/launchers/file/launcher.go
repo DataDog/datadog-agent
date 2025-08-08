@@ -55,6 +55,13 @@ type Launcher struct {
 	scanPeriod             time.Duration
 	flarecontroller        *flareController.FlareController
 	tagger                 tagger.Component
+	//Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
+	oldInfoMap map[string]*oldTailerInfo
+}
+
+type oldTailerInfo struct {
+	Pattern      *regexp.Regexp
+	InfoRegistry *status.InfoRegistry
 }
 
 // NewLauncher returns a new launcher.
@@ -83,6 +90,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		scanPeriod:             scanPeriod,
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
+		oldInfoMap:             make(map[string]*oldTailerInfo),
 	}
 }
 
@@ -170,22 +178,32 @@ func (s *Launcher) scan() {
 		// when a tailer for a dead container is still tailing the file, and another
 		// tailer is tailing the file for the new container).
 		scanKey := file.GetScanKey()
-		tailer, isTailed := s.tailers.Get(scanKey)
-		if isTailed && tailer.IsFinished() {
+		tailered, isTailed := s.tailers.Get(scanKey)
+		if isTailed && tailered.IsFinished() {
 			// skip this tailer as it must be stopped
 			continue
 		}
 
 		// If the file is currently being tailed, check for rotation and handle it appropriately.
 		if isTailed {
-			didRotate, err := tailer.DidRotate()
+			var didRotate bool
+			var err error
+			rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
+			if rotationDetectionStrategy == "checksum" {
+				didRotate, err = tailered.DidRotateViaFingerprint()
+				if err != nil {
+					didRotate = false
+				}
+			} else {
+				didRotate, err = tailered.DidRotate()
+			}
 			if err != nil {
 				log.Debugf("failed to detect log rotation: %v", err)
 				continue
 			}
 			if didRotate {
 				// restart tailer because of file-rotation on file
-				succeeded := s.restartTailerAfterFileRotation(tailer, file)
+				succeeded := s.restartTailerAfterFileRotation(tailered, file)
 				if !succeeded {
 					// the setup failed, let's try to tail this file in the next scan
 					continue
@@ -216,15 +234,40 @@ func (s *Launcher) scan() {
 		scanKey := file.GetScanKey()
 		isTailed := s.tailers.Contains(scanKey)
 		if !isTailed && tailersLen < s.tailingLimit {
-			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			succeeded := s.startNewTailer(file, config.Beginning)
-			if !succeeded {
-				// the setup failed, let's try to tail this file in the next scan
+			rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
+			if rotationDetectionStrategy == "checksum" {
+
+				if tailer.ComputeFingerprint(file.Path, &file.Source.Config().FingerprintConfig) == 0 {
+					continue
+				}
+
+				// Check if we have stored info from previous rotation and use it
+				var succeeded bool
+				if oldInfo, exists := s.oldInfoMap[file.Path]; exists {
+					succeeded = s.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo)
+					// Remove from map after use to prevent stale data
+					delete(s.oldInfoMap, file.Path)
+				} else {
+					succeeded = s.startNewTailer(file, config.Beginning)
+				}
+				if !succeeded {
+					// the setup failed, let's try to tail this file in the next scan
+					continue
+				}
+				tailersLen++
+				filesTailed[scanKey] = true
+				continue
+			} else {
+				// create a new tailer tailing from the beginning of the file if no offset has been recorded
+				succeeded := s.startNewTailer(file, config.Beginning)
+				if !succeeded {
+					// the setup failed, let's try to tail this file in the next scan
+					continue
+				}
+				tailersLen++
+				filesTailed[scanKey] = true
 				continue
 			}
-			tailersLen++
-			filesTailed[scanKey] = true
-			continue
 		}
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
@@ -317,12 +360,79 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 	var offset int64
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode)
+
+	// Resolve the rotation detection strategy for this file (source-specific -> global -> default)
+	rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
+
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, rotationDetectionStrategy)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
 
 	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
+	err = tailer.Start(offset, whence)
+	if err != nil {
+		log.Warn(err)
+		return false
+	}
+
+	s.tailers.Add(tailer)
+	return true
+}
+
+// startNewTailerWithStoredInfo creates a new tailer using stored info from previous rotation
+func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.TailingMode, oldInfo *oldTailerInfo) bool {
+	if file == nil {
+		log.Debug("startNewTailerWithStoredInfo called with a nil file")
+		return false
+	}
+
+	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+
+	// Use stored InfoRegistry if available, otherwise create new one
+	var tailerInfo *status.InfoRegistry
+	if oldInfo.InfoRegistry != nil {
+		tailerInfo = oldInfo.InfoRegistry
+	} else {
+		tailerInfo = status.NewInfoRegistry()
+	}
+
+	// Create decoder with stored pattern if available
+	var decoderInstance *decoder.Decoder
+	if oldInfo.Pattern != nil {
+		decoderInstance = decoder.NewDecoderFromSourceWithPattern(file.Source, oldInfo.Pattern, tailerInfo)
+	} else {
+		decoderInstance = decoder.NewDecoderFromSource(file.Source, tailerInfo)
+	}
+
+	tailerOptions := &tailer.TailerOptions{
+		OutputChan:        channel,
+		File:              file,
+		SleepDuration:     s.tailerSleepDuration,
+		Decoder:           decoderInstance,
+		Info:              tailerInfo,
+		TagAdder:          s.tagger,
+		CapacityMonitor:   monitor,
+		Registry:          s.registry,
+		FingerprintConfig: &file.Source.Config().FingerprintConfig,
+	}
+
+	tailer := tailer.NewTailer(tailerOptions)
+
+	var offset int64
+	var whence int
+	mode := s.handleTailingModeChange(tailer.Identifier(), m)
+
+	// Resolve the rotation detection strategy for this file (source-specific -> global -> default)
+	rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
+
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, rotationDetectionStrategy)
+	if err != nil {
+		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
+	}
+
+	log.Infof("Starting new tailer with stored info (pattern: %v) for: %s (offset: %d, whence: %d)",
+		oldInfo.Pattern != nil, file.Path, offset, whence)
 	err = tailer.Start(offset, whence)
 	if err != nil {
 		log.Warn(err)
@@ -367,7 +477,22 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
 
-	newTailer := s.createRotatedTailer(oldTailer, file, oldTailer.GetDetectedPattern())
+	oldRegexPattern := oldTailer.GetDetectedPattern()
+	oldInfoRegistry := oldTailer.GetInfo()
+
+	// Only store info if we're using checksum fingerprinting (where it will be retrieved)
+	rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
+	if rotationDetectionStrategy == "checksum" && (oldRegexPattern != nil || oldInfoRegistry != nil) {
+		regexAndRegistry := &oldTailerInfo{
+			InfoRegistry: oldInfoRegistry,
+			Pattern:      oldRegexPattern,
+		}
+		s.oldInfoMap[file.Path] = regexAndRegistry
+		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+		return false // Will return false regardless and we will let scan() handle it
+	}
+
+	newTailer := s.createRotatedTailer(oldTailer, file, oldRegexPattern)
 	// force reading file from beginning since it has been log-rotated
 	err := newTailer.StartFromBeginning()
 	if err != nil {
@@ -387,14 +512,15 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 	tailerInfo := status.NewInfoRegistry()
 
 	tailerOptions := &tailer.TailerOptions{
-		OutputChan:      outputChan,
-		File:            file,
-		SleepDuration:   s.tailerSleepDuration,
-		Decoder:         decoder.NewDecoderFromSource(file.Source, tailerInfo),
-		Info:            tailerInfo,
-		TagAdder:        s.tagger,
-		CapacityMonitor: capacityMonitor,
-		Registry:        s.registry,
+		OutputChan:        outputChan,
+		File:              file,
+		SleepDuration:     s.tailerSleepDuration,
+		Decoder:           decoder.NewDecoderFromSource(file.Source, tailerInfo),
+		Info:              tailerInfo,
+		TagAdder:          s.tagger,
+		CapacityMonitor:   capacityMonitor,
+		Registry:          s.registry,
+		FingerprintConfig: &file.Source.Config().FingerprintConfig,
 	}
 
 	return tailer.NewTailer(tailerOptions)
@@ -404,6 +530,12 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	tailerInfo := t.GetInfo()
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
 	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, s.registry)
+}
+
+// resolveRotationDetectionStrategy returns the rotation detection strategy for a given file source.
+// It checks the source-specific strategy first, then falls back to the global strategy.
+func (s *Launcher) resolveRotationDetectionStrategy(file *tailer.File) string {
+	return tailer.ResolveRotationDetectionStrategy(file)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

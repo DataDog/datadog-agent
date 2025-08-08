@@ -7,6 +7,7 @@
 package noneimpl
 
 import (
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -37,7 +38,17 @@ func (a *NullAuditor) GetTailingMode(_ string) string {
 	return ""
 }
 
-// KeepAlive does nothing in the null auditor
+// GetFingerprint returns 0 (no fingerprint)
+func (a *NullAuditor) GetFingerprint(_ string) uint64 {
+	return 0
+}
+
+// GetFingerprintConfig returns nil (no fingerprint config)
+func (a *NullAuditor) GetFingerprintConfig(_ string) *logsconfig.FingerprintConfig {
+	return nil
+}
+
+// KeepAlive is a no-op
 func (a *NullAuditor) KeepAlive(_ string) {
 	// No-op
 }
