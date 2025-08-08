@@ -113,7 +113,7 @@
 # This job runs early in the pipeline and creates artifacts that can be reused by test jobs
 go_e2e_test_binaries:
   stage: binary_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     - go_e2e_deps
