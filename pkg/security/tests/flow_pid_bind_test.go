@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -876,7 +877,7 @@ func TestMultipleProtocols(t *testing.T) {
 
 	test.Run(t, "bind-udp-and-tcp-on-same-port", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		//  --- TCP BIND ---
-		var tcpPid int
+		var tempTCPPid int
 
 		test.WaitSignal(t, func() error {
 			go func() {
@@ -937,7 +938,7 @@ func TestMultipleProtocols(t *testing.T) {
 		})
 
 		// --- UDP BIND ---
-		var udpPid int
+		var tempUDPPid int
 
 		test.WaitSignal(t, func() error {
 			go func() {
@@ -1000,13 +1001,13 @@ func TestMultipleProtocols(t *testing.T) {
 		//  --- TEST ---
 		// Wait for both TCP and UDP bind to be ready
 		select {
-		case tcpPid = <-tcpbindReady:
+		case tempTCPPid = <-tcpbindReady:
 		case <-time.After(30 * time.Second):
 			t.Fatal("Timeout waiting for TCP PID in MultipleProtocols test")
 		}
 
 		select {
-		case udpPid = <-udpbindReady:
+		case tempUDPPid = <-udpbindReady:
 		case <-time.After(30 * time.Second):
 			t.Fatal("Timeout waiting for UDP PID in MultipleProtocols test")
 		}
@@ -1021,8 +1022,9 @@ func TestMultipleProtocols(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get map flow_pid: %v", err)
 		}
+		// Get values in the map
 
-		netns, err := getCurrentNetns()
+		netns, err := getCurrentNetns() // the netns in the map will be different if syscall_tester is executed in a separated container
 		if err != nil {
 			t.Fatalf("failed to get current netns: %v", err)
 		}
@@ -1042,7 +1044,6 @@ func TestMultipleProtocols(t *testing.T) {
 		}
 		var tcpVal = FlowPidEntry{}
 		var udpVal = FlowPidEntry{}
-
 		if err := m.Lookup(&tcpKey, &tcpVal); err != nil {
 			dumpMap(t, m)
 			t.Errorf("TCP entry not found for key: %+v, error: %v", tcpKey, err)
@@ -1052,12 +1053,66 @@ func TestMultipleProtocols(t *testing.T) {
 			dumpMap(t, m)
 			t.Errorf("UDP entry not found for key: %+v, error: %v", udpKey, err)
 		}
+
+		// Check PIDs to make tests work for both docker and non docker tests
+		var tcpPid, udpPid uint32
+		if uint32(tempTCPPid) == tcpVal.Pid {
+			// We are in non docker tests
+			tcpPid = uint32(tempTCPPid)
+			udpPid = uint32(tempUDPPid)
+		} else {
+			// We might be in docker tests
+			// Discover syscall_tester processes from /host/proc
+			var discoveredPIDs []uint32
+			procDir := "/host/proc"
+			entries, err := os.ReadDir(procDir)
+			fmt.Printf("Entries are %v\n", entries)
+			if err != nil {
+				t.Logf("failed to read %s: %v", procDir, err)
+			} else {
+				for _, entry := range entries {
+					if !entry.IsDir() {
+						continue
+					}
+					pidInt, err := strconv.Atoi(entry.Name())
+					if err != nil {
+						continue
+					}
+					commPath := filepath.Join(procDir, entry.Name(), "comm")
+					data, err := os.ReadFile(commPath)
+					if err != nil {
+						continue
+					}
+					if strings.Contains(string(data), "syscall_tester") {
+						discoveredPIDs = append(discoveredPIDs, uint32(pidInt))
+					}
+				}
+			}
+
+			if len(discoveredPIDs) != 2 {
+				t.Logf("expected 2 syscall_tester processes, found %d: %v", len(discoveredPIDs), discoveredPIDs)
+			} else {
+				if discoveredPIDs[0] == tcpVal.Pid && discoveredPIDs[1] == udpVal.Pid {
+					// First try: associate discoveredPIDs[0] with TCP and discoveredPIDs[1] with UDP.
+					tcpPid = discoveredPIDs[0]
+					udpPid = discoveredPIDs[1]
+				} else if discoveredPIDs[0] == udpVal.Pid && discoveredPIDs[1] == tcpVal.Pid {
+					// Second try (swap): assume discoveredPIDs[1] is for TCP and discoveredPIDs[0] for UDP.
+					tcpPid = discoveredPIDs[1]
+					udpPid = discoveredPIDs[0]
+				} else {
+					t.Errorf("unexpected PIDs found: %v, tcpVal.Pid: %d, udpVal.Pid: %d", discoveredPIDs, tcpVal.Pid, udpVal.Pid)
+				}
+			}
+
+		}
+
 		fmt.Printf("FOR DEBUGGING:\n")
 		dumpMap(t, m)
 
 		assert.NotEqual(t, tcpVal.Pid, udpVal.Pid, "TCP and UDP should be from different PIDs")
-		assert.Equal(t, uint32(tcpPid), tcpVal.Pid, "TCP PID mismatch")
-		assert.Equal(t, uint32(udpPid), udpVal.Pid, "UDP PID mismatch")
+		assert.Equal(t, tcpPid, tcpVal.Pid, "TCP PID mismatch")
+		assert.Equal(t, udpPid, udpVal.Pid, "UDP PID mismatch")
 		assert.Equal(t, uint16(0), tcpVal.EntryType, "TCP entry type mismatch")
 		assert.Equal(t, uint16(0), udpVal.EntryType, "UDP entry type mismatch")
 		assert.Equal(t, uint8(unix.IPPROTO_TCP), tcpKey.Protocol, "TCP protocol mismatch")
