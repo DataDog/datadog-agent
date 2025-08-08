@@ -8,11 +8,7 @@ outdir=$3
 
 log() {
   local message=$1     # what to log, as a single string
-  local error_level=$2 # the log level that will prefix the message, defaults to INFO if empty
-
-  if [[ -z "$error_level" ]]; then
-    error_level=INFO
-  fi
+  local error_level=$2 # the log level that will prefix the message
 
   echo "${error_level} [$(date "+%Y.%m.%d-%H:%M:%S %Z")] ${message}" 1>&2
 }
@@ -32,7 +28,7 @@ if ! (fakeroot gpg --armor --detach-sign --local-user "${keyid}" \
     log "Failed to sign DEB file ${tmpfile}" ERROR
     exit 1
 else
-    log "Successfully signed DEB file ${tmpfile}"
+    log "Successfully signed DEB file ${tmpfile}" INFO
 fi
 
 if ! fakeroot ar rc "${tmpfile}" "${tmpdir}/_gpgorigin"; then

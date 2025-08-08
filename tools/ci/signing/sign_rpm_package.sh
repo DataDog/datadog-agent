@@ -8,11 +8,7 @@ outdir=$3
 
 log() {
   local message=$1     # what to log, as a single string
-  local error_level=$2 # the log level that will prefix the message, defaults to INFO if empty
-
-  if [[ -z "$error_level" ]]; then
-    error_level=INFO
-  fi
+  local error_level=$2 # the log level that will prefix the message
 
   echo "${error_level} [$(date "+%Y.%m.%d-%H:%M:%S %Z")] ${message}" 1>&2
 }
@@ -41,7 +37,7 @@ if ! rpm --addsign "${tmpfile}"; then
   log "Failed to sign RPM file ${tmpfile}" ERROR
   exit 1
 else
-  log "Successfully signed RPM file ${tmpfile}"
+  log "Successfully signed RPM file ${tmpfile}" INFO
 fi
 
 mkdir -p "${outdir}"
