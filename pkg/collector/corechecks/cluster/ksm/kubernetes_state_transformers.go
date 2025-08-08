@@ -594,7 +594,6 @@ func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksms
 	}
 }
 
-
 // statefulsetRolloutDurationTransformer processes statefulset rollout duration metrics from the factory
 func statefulsetRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 
@@ -610,4 +609,3 @@ func statefulsetRolloutDurationTransformer(s sender.Sender, _ string, metric ksm
 		}
 	}
 }
-

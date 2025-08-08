@@ -607,11 +607,8 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
 
-	// Only trigger retry if stores haven't been initialized yet
-	if k.allStores == nil {
-		if err := k.initRetry.TriggerRetry(); err != nil {
-			return err.LastTryError
-		}
+	if err := k.initRetry.TriggerRetry(); err != nil {
+		return err.LastTryError
 	}
 
 	// this check uses a "raw" sender, for better performance.  That requires
