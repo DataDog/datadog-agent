@@ -9,8 +9,6 @@ package customresources
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -80,7 +78,6 @@ func (f *extendedNodeFactory) MetricFamilyGenerators() []generator.FamilyGenerat
 }
 
 func (f *extendedNodeFactory) customResourceGenerator(resources v1.ResourceList) *metric.Family {
-	log.Infof("ROLLOUT-NODE: customResourceGen called at %s", time.Now().Format("15:04:05"))
 	ms := []*metric.Metric{}
 
 	for resourceName, val := range resources {
@@ -105,7 +102,6 @@ func (f *extendedNodeFactory) customResourceGenerator(resources v1.ResourceList)
 }
 
 func wrapNodeFunc(f func(*v1.Node) *metric.Family) func(interface{}) *metric.Family {
-	log.Info("ROLLOUT-NODE: wrapNodeFunc")
 	return func(obj interface{}) *metric.Family {
 		node := obj.(*v1.Node)
 
@@ -131,7 +127,6 @@ func (f *extendedNodeFactory) ExpectedType() interface{} {
 
 // ListWatch returns a ListerWatcher for v1.Node
 func (f *extendedNodeFactory) ListWatch(customResourceClient interface{}, _ string, fieldSelector string) cache.ListerWatcher {
-	log.Info("ROLLOUT-NODE: ListWatch")
 	client := customResourceClient.(clientset.Interface)
 	ctx := context.Background()
 	return &cache.ListWatch{

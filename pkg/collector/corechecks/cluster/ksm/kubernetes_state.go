@@ -290,7 +290,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	maps.Copy(k.metricNamesMapper, customresources.GetCustomMetricNamesMapper(k.instance.CustomResource.Spec.Resources))
-	log.Infof("ROLLOUT-STATE: Resources=%+v", k.instance.CustomResource.Spec.Resources)
 
 	// Retrieve cluster name
 	k.getClusterName()
@@ -365,12 +364,10 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				}
 
 				// Prepare the collectors for the resources specified in the configuration file.
-				log.Infof("ROLLOUT-STATE: unFiltered collectors=%v", k.instance.Collectors)
 				collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
 				if err != nil {
 					return err
 				}
-				log.Infof("ROLLOUT-STATE: Filtered collectors=%v", collectors)
 
 				// Enable the KSM default collectors if the config collectors list is empty.
 				if len(collectors) == 0 {
@@ -382,14 +379,11 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 			// Prepare watched namespaces
 			namespaces := k.instance.Namespaces
-			log.Infof("ROLLOUT-STATE: Configured namespaces: %v", namespaces)
 
 			// Enable the KSM default namespaces if the config namespaces list is empty.
 			if len(namespaces) == 0 {
 				namespaces = options.DefaultNamespaces
-				log.Infof("ROLLOUT-STATE: Using default namespaces: %v", namespaces)
 			} else {
-				log.Infof("ROLLOUT-STATE: Using configured namespaces: %v", namespaces)
 			}
 
 			builder.WithNamespaces(namespaces)
@@ -420,36 +414,11 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 			// configure custom resources required for extended features and
 			// compatibility across deprecated/removed versions of APIs
 			cr := k.discoverCustomResources(apiServerClient, collectors, resources)
-			log.Infof("ROLLOUT-STATE: Custom resources collectors=%v", cr.collectors)
-			log.Infof("ROLLOUT-STATE: Custom resources factories count=%d:", len(cr.factories))
-			if len(cr.factories) > 0 {
-				for i, factory := range cr.factories {
-					log.Infof("ROLLOUT-STATE: factory:")
-					log.Infof("ROLLOUT-STATE: Factory[%d]=%s", i, factory.Name())
-				}
-			} else {
-				log.Infof("ROLLOUT-STATE: No factories found!")
-			}
-			log.Infof("ROLLOUT-STATE: Custom resources clients count=%d:", len(cr.clients))
-			if len(cr.clients) > 0 {
-				for name := range cr.clients {
-					log.Infof("ROLLOUT-STATE: client:")
-					log.Infof("ROLLOUT-STATE: Client=%s", name)
-				}
-			} else {
-				log.Infof("ROLLOUT-STATE: No clients found!")
-			}
-			log.Infof("ROLLOUT-STATE: Setting GenerateCustomResourceStoresFunc")
 			builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
-			log.Infof("ROLLOUT-STATE: GenerateCustomResourceStoresFunc set successfully")
 
-			log.Infof("ROLLOUT-STATE: Setting CustomResourceStoreFactories with %d factories", len(cr.factories))
 			builder.WithCustomResourceStoreFactories(cr.factories...)
-			log.Infof("ROLLOUT-STATE: CustomResourceStoreFactories set successfully")
 
-			log.Infof("ROLLOUT-STATE: Setting CustomResourceClients with %d clients", len(cr.clients))
 			builder.WithCustomResourceClients(cr.clients)
-			log.Infof("ROLLOUT-STATE: CustomResourceClients set successfully")
 
 			// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
 			// Equivalent to configuring --metric-annotations-allowlist.
@@ -459,9 +428,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				allowedAnnotations[collector] = []string{"*"}
 			}
 
-			log.Infof("ROLLOUT-STATE: Setting AllowAnnotations for %d collectors", len(allowedAnnotations))
 			builder.WithAllowAnnotations(allowedAnnotations)
-			log.Infof("ROLLOUT-STATE: AllowAnnotations set successfully")
 
 			// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 			// Equivalent to configuring --metric-labels-allowlist.
@@ -471,24 +438,16 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 				allowedLabels[collector] = []string{"*"}
 			}
 
-			log.Infof("ROLLOUT-STATE: Setting AllowLabels for %d collectors", len(allowedLabels))
 			if err = builder.WithAllowLabels(allowedLabels); err != nil {
-				log.Errorf("ROLLOUT-STATE: WithAllowLabels failed: %v", err)
 				return err
 			}
-			log.Infof("ROLLOUT-STATE: AllowLabels set successfully")
 
-			log.Infof("ROLLOUT-STATE: Setting EnabledResources with %d collectors: %v", len(cr.collectors), cr.collectors)
 			if err := builder.WithEnabledResources(cr.collectors); err != nil {
-				log.Errorf("ROLLOUT-STATE: WithEnabledResources failed: %v", err)
 				return err
 			}
-			log.Infof("ROLLOUT-STATE: EnabledResources set successfully")
 
 			// Start the collection process
-			log.Infof("ROLLOUT-STATE: Building stores...")
 			k.allStores = builder.BuildStores()
-			log.Infof("ROLLOUT-STATE: BuildStores completed, created %d store groups", len(k.allStores))
 
 			return nil
 		},
@@ -581,7 +540,6 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)
-	log.Infof("ROLLOUT-STATE: factories %v", factories)
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
@@ -590,7 +548,6 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	}
 
 	customResourceFactories := customresources.GetCustomResourceFactories(k.instance.CustomResource, c)
-	log.Infof("ROLLOUT-STATE: Custom resourcesFactores %v", customResourceFactories)
 	customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(k.instance.CustomResource.Spec.Resources, c)
 
 	collectors = lo.Uniq(append(collectors, customResourceCollectors...))
@@ -645,16 +602,13 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
-	log.Infof("ROLLOUT-STATE: Run")
 
 	// Only trigger retry if stores haven't been initialized yet
 	if k.allStores == nil {
-		log.Infof("ROLLOUT-STATE: Stores not initialized, triggering configuration retry")
 		if err := k.initRetry.TriggerRetry(); err != nil {
 			return err.LastTryError
 		}
 	} else {
-		log.Debugf("ROLLOUT-STATE: Stores already initialized, skipping configuration")
 	}
 
 	// this check uses a "raw" sender, for better performance.  That requires
@@ -713,21 +667,10 @@ func (k *KSMCheck) Run() error {
 	}
 
 	currentTime := time.Now()
-	for storeGroupName, stores := range k.allStores {
-		log.Infof("ROLLOUT-STATE: Processing store group '%s' with %d stores", storeGroupName, len(stores))
-		for i, store := range stores {
+	for _, stores := range k.allStores {
+		for _, store := range stores {
 			metrics := store.(*ksmstore.MetricsStore).Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
-			log.Infof("ROLLOUT-STATE: Store[%d] returned %d metric families", i, len(metrics))
-			
-			// Log if we have any rollout metrics
-			for familyName, families := range metrics {
-				if strings.Contains(familyName, "rollout") || strings.Contains(familyName, "deployment") {
-					log.Infof("ROLLOUT-STATE: Found metric family '%s' with %d families", familyName, len(families))
-				}
-			}
-			
 			k.processMetrics(sender, metrics, labelJoiner, currentTime)
-			k.processTelemetry(metrics)
 		}
 	}
 
@@ -749,13 +692,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
 			// Log all metric families for rollout debugging
-			if strings.Contains(metricFamily.Name, "rollout") || strings.Contains(metricFamily.Name, "deployment") || strings.Contains(metricFamily.Name, "statefulset") {
-				log.Infof("ROLLOUT-PIPELINE: Processing metric family '%s' with %d metrics", metricFamily.Name, len(metricFamily.ListMetrics))
-				for _, m := range metricFamily.ListMetrics {
-					log.Infof("ROLLOUT-PIPELINE: Metric value=%.2f, labels=%+v", m.Val, m.Labels)
-				}
-			}
-			
+
 			// First check for aggregator, because the check use _labels metrics to aggregate values.
 			if aggregator, found := k.metricAggregators[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
@@ -764,17 +701,8 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
 				// So, let's continue the processing.
 			}
-			
-			// Check for transformer with detailed logging for rollout metrics
-			if strings.Contains(metricFamily.Name, "rollout") {
-				log.Infof("ROLLOUT-PIPELINE: Looking for transformer for metric '%s'", metricFamily.Name) 
-				_, hasTransformer := k.metricTransformers[metricFamily.Name]
-				log.Infof("ROLLOUT-PIPELINE: Transformer found for '%s': %v", metricFamily.Name, hasTransformer)
-				if hasTransformer {
-					log.Infof("ROLLOUT-PIPELINE: About to call transformer for '%s'", metricFamily.Name)
-				}
-			}
-			
+
+
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {

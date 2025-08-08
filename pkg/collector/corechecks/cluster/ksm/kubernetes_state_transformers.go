@@ -92,7 +92,6 @@ func resourceDDName(resource string, allowedResources map[string]struct{}) (ddna
 // These metrics require more than a name translation to generate Datadog metrics, as opposed to the metrics in defaultMetricNamesMapper
 // For reference see METRIC_TRANSFORMERS in KSM check V1
 func defaultMetricTransformers() map[string]metricTransformerFunc {
-	log.Infof("ROLLOUT-TRANSFORMER-SETUP: defaultMetricTransformers() called")
 	transformers := map[string]metricTransformerFunc{
 		"kube_pod_created":                              podCreationTransformer,
 		"kube_pod_start_time":                           podStartTimeTransformer,
@@ -126,14 +125,8 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_deployment_ongoing_rollout_duration":      deploymentRolloutDurationTransformer,
 		"kube_statefulset_ongoing_rollout_duration":     statefulsetRolloutDurationTransformer,
 	}
-	
-	log.Infof("ROLLOUT-TRANSFORMER-SETUP: Registered %d transformers including rollout transformers", len(transformers))
-	for name := range transformers {
-		if name == "kube_deployment_ongoing_rollout_duration" || name == "kube_statefulset_ongoing_rollout_duration" {
-			log.Infof("ROLLOUT-TRANSFORMER-SETUP: Confirmed registration of %s", name)
-		}
-	}
-	
+
+
 	return transformers
 }
 
@@ -588,29 +581,20 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 
 // deploymentRolloutDurationTransformer processes deployment rollout duration metrics from the factory
 func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
-	log.Infof("ROLLOUT-TRANSFORMER: Processing deployment rollout duration metric: %+v", metric)
 
 	// The factory passes the ReplicaSet creation timestamp, we calculate duration here
 	if metric.Val > 0 {
 		startTime := time.Unix(int64(metric.Val), 0)
 		duration := currentTime.Sub(startTime).Seconds()
 
-		log.Infof("ROLLOUT-TRANSFORMER: Rollout started at %s, current duration=%.2f seconds", startTime.Format(time.RFC3339), duration)
 
 		// Safety check: For long-running metrics (>5 minutes), verify if this might be a missed completion
-		if duration > 300 { // 5 minutes
-			log.Warnf("ROLLOUT-TRANSFORMER: Long-running rollout detected (%.0f seconds) for deployment %s. Factory may have missed completion event.",
-				duration, getDeploymentNameFromTags(tags))
-		}
 
 		if duration > 0 {
 			s.Gauge(ksmMetricPrefix+"deployment.ongoing_rollout.duration", duration, hostname, tags)
-			log.Infof("ROLLOUT-TRANSFORMER: Sent kubernetes_state.deployment.ongoing_rollout.duration=%.2f", duration)
 		} else {
-			log.Debugf("ROLLOUT-TRANSFORMER: Invalid duration (%.2f), skipping", duration)
 		}
 	} else {
-		log.Debugf("ROLLOUT-TRANSFORMER: No ongoing rollout (timestamp=%.0f)", metric.Val)
 	}
 }
 
@@ -626,29 +610,20 @@ func getDeploymentNameFromTags(tags []string) string {
 
 // statefulsetRolloutDurationTransformer processes statefulset rollout duration metrics from the factory
 func statefulsetRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
-	log.Infof("ROLLOUT-TRANSFORMER: Processing statefulset rollout duration metric: %+v", metric)
 
 	// The factory passes the ControllerRevision creation timestamp, we calculate duration here
 	if metric.Val > 0 {
 		startTime := time.Unix(int64(metric.Val), 0)
 		duration := currentTime.Sub(startTime).Seconds()
 
-		log.Infof("ROLLOUT-TRANSFORMER: StatefulSet rollout started at %s, current duration=%.2f seconds", startTime.Format(time.RFC3339), duration)
 
 		// Safety check: For long-running metrics (>5 minutes), verify if this might be a missed completion
-		if duration > 300 { // 5 minutes
-			log.Warnf("ROLLOUT-TRANSFORMER: Long-running statefulset rollout detected (%.0f seconds) for statefulset %s. Factory may have missed completion event.",
-				duration, getStatefulSetNameFromTags(tags))
-		}
 
 		if duration > 0 {
 			s.Gauge(ksmMetricPrefix+"statefulset.ongoing_rollout.duration", duration, hostname, tags)
-			log.Infof("ROLLOUT-TRANSFORMER: Sent kubernetes_state.statefulset.ongoing_rollout.duration=%.2f", duration)
 		} else {
-			log.Debugf("ROLLOUT-TRANSFORMER: Invalid statefulset duration (%.2f), skipping", duration)
 		}
 	} else {
-		log.Debugf("ROLLOUT-TRANSFORMER: No ongoing statefulset rollout (timestamp=%.0f)", metric.Val)
 	}
 }
 
