@@ -16,9 +16,10 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.lib.gates_lib import (
+from tasks.static_quality_gates.lib.gates import (
     GateMetricHandler,
     StaticQualityGate,
+    StaticQualityGateFailed,
     byte_to_string,
     get_quality_gates_list,
 )
@@ -160,10 +161,10 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
 @task
 def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[StaticQualityGate]:
     """
-    Parse and executes static quality gates
+    Parse and executes static quality gates using composition pattern
     :param ctx: Invoke context
     :param config_path: Static quality gates configuration file path
-    :return:
+    :return: List of quality gates
     """
     final_state = "success"
     gate_states = []
@@ -176,38 +177,58 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     branch = os.environ["CI_COMMIT_BRANCH"]
 
     for gate in gate_list:
+        result = None  # Initialize result for each gate
         try:
-            gate.execute_gate(ctx)
-            gate_states.append({"name": gate.gate_name, "state": True, "error_type": None, "message": None})
-        except AssertionError as e:
+            # Execute gate using composition pattern - returns immutable result
+            result = gate.execute_gate(ctx)
+            gate_states.append({"name": result.config.gate_name, "state": True, "error_type": None, "message": None})
+        except StaticQualityGateFailed as e:
             final_state = "failure"
             gate_states.append(
-                {"name": gate.gate_name, "state": False, "error_type": "AssertionError", "message": str(e)}
+                {
+                    "name": gate.config.gate_name,
+                    "state": False,
+                    "error_type": "StaticQualityGateFailed",
+                    "message": str(e),
+                }
             )
         except InfraError as e:
-            print(f"Gate {gate.gate_name} flaked ! (InfraError)\n Restarting the job...")
+            print(f"Gate {gate.config.gate_name} flaked ! (InfraError)\n Restarting the job...")
             traceback.print_exception(e)
             ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
             raise Exit(code=42) from e
         except Exception:
             final_state = "failure"
             gate_states.append(
-                {"name": gate.gate_name, "state": False, "error_type": "StackTrace", "message": traceback.format_exc()}
+                {
+                    "name": gate.config.gate_name,
+                    "state": False,
+                    "error_type": "StackTrace",
+                    "message": traceback.format_exc(),
+                }
             )
         finally:
+            # Register metrics using composition data (no state mutation)
             metric_handler.register_gate_tags(
-                gate.gate_name,
-                gate_name=gate.gate_name,
-                arch=gate.arch,
-                os=gate.os,
+                gate.config.gate_name,
+                gate_name=gate.config.gate_name,
+                arch=gate.config.arch,
+                os=gate.config.os,
                 pipeline_id=os.environ["CI_PIPELINE_ID"],
                 ci_commit_ref_slug=os.environ["CI_COMMIT_REF_SLUG"],
                 ci_commit_sha=os.environ["CI_COMMIT_SHA"],
             )
-            metric_handler.register_metric(gate.gate_name, "max_on_wire_size", gate.max_on_wire_size)
-            metric_handler.register_metric(gate.gate_name, "max_on_disk_size", gate.max_on_disk_size)
-            metric_handler.register_metric(gate.gate_name, "current_on_wire_size", gate.artifact_on_wire_size)
-            metric_handler.register_metric(gate.gate_name, "current_on_disk_size", gate.artifact_on_disk_size)
+            metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
+            metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
+
+            # Only register current sizes if gate executed successfully and we have a result
+            if result is not None:
+                metric_handler.register_metric(
+                    gate.config.gate_name, "current_on_wire_size", result.measurement.on_wire_size
+                )
+                metric_handler.register_metric(
+                    gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
+                )
 
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
@@ -216,7 +237,9 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # and then print the summary table
     # in the job's log
     metric_handler.send_metrics_to_datadog()
-    QualityGateOutputFormatter.print_summary_table(gate_list, gate_states)
+
+    # Print summary table directly with composition-based gates and metric handler
+    QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, metric_handler)
 
     # Then print the traditional report for any failures
     if final_state != "success":

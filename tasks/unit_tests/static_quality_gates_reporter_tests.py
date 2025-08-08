@@ -284,20 +284,16 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
     @patch('builtins.print')
     def test_print_summary_table_all_passed(self, mock_print):
         """Test print_summary_table with all gates passed"""
-        # Create mock gate objects
+        # Create mock gate objects with composition structure
         mock_gate1 = MagicMock()
-        mock_gate1.gate_name = "static_quality_gate_agent_deb_amd64"
-        mock_gate1.artifact_on_wire_size = 186_347_520  # ~177.7 MB
-        mock_gate1.max_on_wire_size = 187_172_864  # ~178.6 MB
-        mock_gate1.artifact_on_disk_size = 734_053_376  # ~700 MB
-        mock_gate1.max_on_disk_size = 739_246_080  # ~705 MB
+        mock_gate1.config.gate_name = "static_quality_gate_agent_deb_amd64"
+        mock_gate1.config.max_on_wire_size = 187_172_864  # ~178.6 MB
+        mock_gate1.config.max_on_disk_size = 739_246_080  # ~705 MB
 
         mock_gate2 = MagicMock()
-        mock_gate2.gate_name = "static_quality_gate_docker_agent_amd64"
-        mock_gate2.artifact_on_wire_size = 282_460_160  # ~269.3 MB
-        mock_gate2.max_on_wire_size = 285_212_672  # ~272.0 MB
-        mock_gate2.artifact_on_disk_size = 819_658_752  # ~781.6 MB
-        mock_gate2.max_on_disk_size = 827_064_320  # ~788.6 MB
+        mock_gate2.config.gate_name = "static_quality_gate_docker_agent_amd64"
+        mock_gate2.config.max_on_wire_size = 285_212_672  # ~272.0 MB
+        mock_gate2.config.max_on_disk_size = 827_064_320  # ~788.6 MB
 
         gate_list = [mock_gate1, mock_gate2]
 
@@ -307,7 +303,20 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
             {"name": "static_quality_gate_docker_agent_amd64", "error_type": None},
         ]
 
-        QualityGateOutputFormatter.print_summary_table(gate_list, gate_states)
+        # Mock metric handler with measurement data
+        mock_metric_handler = MagicMock()
+        mock_metric_handler.metrics = {
+            "static_quality_gate_agent_deb_amd64": {
+                "current_on_wire_size": 186_347_520,  # ~177.7 MB
+                "current_on_disk_size": 734_053_376,  # ~700 MB
+            },
+            "static_quality_gate_docker_agent_amd64": {
+                "current_on_wire_size": 282_460_160,  # ~269.3 MB
+                "current_on_disk_size": 819_658_752,  # ~781.6 MB
+            },
+        }
+
+        QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, mock_metric_handler)
 
         # Verify print was called multiple times for the table
         self.assertGreater(mock_print.call_count, 10)
@@ -343,20 +352,16 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
     @patch('builtins.print')
     def test_print_summary_table_with_failures(self, mock_print):
         """Test print_summary_table with some gates failed"""
-        # Create mock gate objects
+        # Create mock gate objects with composition structure
         mock_gate1 = MagicMock()
-        mock_gate1.gate_name = "static_quality_gate_agent_deb_amd64"
-        mock_gate1.artifact_on_wire_size = 186_347_520
-        mock_gate1.max_on_wire_size = 187_172_864
-        mock_gate1.artifact_on_disk_size = 734_053_376
-        mock_gate1.max_on_disk_size = 739_246_080
+        mock_gate1.config.gate_name = "static_quality_gate_agent_deb_amd64"
+        mock_gate1.config.max_on_wire_size = 187_172_864
+        mock_gate1.config.max_on_disk_size = 739_246_080
 
         mock_gate2 = MagicMock()
-        mock_gate2.gate_name = "static_quality_gate_docker_agent_amd64"
-        mock_gate2.artifact_on_wire_size = 300_000_000  # Over limit
-        mock_gate2.max_on_wire_size = 285_212_672
-        mock_gate2.artifact_on_disk_size = 819_658_752
-        mock_gate2.max_on_disk_size = 827_064_320
+        mock_gate2.config.gate_name = "static_quality_gate_docker_agent_amd64"
+        mock_gate2.config.max_on_wire_size = 285_212_672
+        mock_gate2.config.max_on_disk_size = 827_064_320
 
         gate_list = [mock_gate1, mock_gate2]
 
@@ -366,7 +371,20 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
             {"name": "static_quality_gate_docker_agent_amd64", "error_type": "AssertionError"},
         ]
 
-        QualityGateOutputFormatter.print_summary_table(gate_list, gate_states)
+        # Mock metric handler with measurement data (gate2 over limit)
+        mock_metric_handler = MagicMock()
+        mock_metric_handler.metrics = {
+            "static_quality_gate_agent_deb_amd64": {
+                "current_on_wire_size": 186_347_520,
+                "current_on_disk_size": 734_053_376,
+            },
+            "static_quality_gate_docker_agent_amd64": {
+                "current_on_wire_size": 300_000_000,  # Over limit
+                "current_on_disk_size": 819_658_752,
+            },
+        }
+
+        QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, mock_metric_handler)
 
         calls = [str(call) for call in mock_print.call_args_list]
         output_text = ' '.join(calls)
@@ -384,24 +402,24 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
 
     @patch('builtins.print')
     def test_print_summary_table_gates_without_sizes(self, mock_print):
-        """Test print_summary_table with gates that don't have size attributes"""
-        # Create mock gate without size attributes
+        """Test print_summary_table with gates that don't have measurement data"""
+        # Create mock gate with composition structure but no measurement data
         mock_gate = MagicMock()
-        mock_gate.gate_name = "static_quality_gate_test"
-        # Don't set artifact_on_wire_size or artifact_on_disk_size
-        del mock_gate.artifact_on_wire_size
-        del mock_gate.artifact_on_disk_size
+        mock_gate.config.gate_name = "static_quality_gate_test"
+        mock_gate.config.max_on_wire_size = 1000 * 1024 * 1024  # 1000MB
+        mock_gate.config.max_on_disk_size = 2000 * 1024 * 1024  # 2000MB
 
         gate_list = [mock_gate]
         gate_states = [{"name": "static_quality_gate_test", "error_type": None}]
 
-        QualityGateOutputFormatter.print_summary_table(gate_list, gate_states)
+        # No metric handler provided, so no measurement data
+        QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, None)
 
         calls = [str(call) for call in mock_print.call_args_list]
         output_text = ' '.join(calls)
 
-        # Should handle missing size attributes gracefully
-        self.assertIn("N/A", output_text)
+        # Should handle missing measurement data gracefully (shows 0.0 when no data)
+        self.assertIn("0.0", output_text)
 
 
 if __name__ == '__main__':

@@ -182,13 +182,14 @@ class QualityGateOutputFormatter:
         print(color_message(f"✅ {display_name} PASSED", "green"))
 
     @staticmethod
-    def print_summary_table(gate_list, gate_states: list[dict[str, typing.Any]]) -> None:
+    def print_summary_table(gate_list, gate_states: list[dict[str, typing.Any]], metric_handler=None) -> None:
         """
         Print a comprehensive summary table of all quality gates with their metrics
 
         Args:
-            gate_list: List of StaticQualityGate objects
+            gate_list: List of StaticQualityGate objects (composition-based)
             gate_states: List of gate state dictionaries with execution results
+            metric_handler: Optional GateMetricHandler for getting measurement data
         """
         print(color_message("\n" + "=" * 132, "magenta"))
         print(color_message("🛡️  STATIC QUALITY GATES SUMMARY", "magenta"))
@@ -209,11 +210,11 @@ class QualityGateOutputFormatter:
         passed_count = 0
         failed_count = 0
 
-        for gate in sorted(gate_list, key=lambda x: x.gate_name):
-            state = state_lookup.get(gate.gate_name, {})
+        for gate in sorted(gate_list, key=lambda x: x.config.gate_name):
+            state = state_lookup.get(gate.config.gate_name, {})
 
             # Get display name
-            display_name = QualityGateOutputFormatter.get_display_name(gate.gate_name)
+            display_name = QualityGateOutputFormatter.get_display_name(gate.config.gate_name)
             if len(display_name) > 38:
                 display_name = display_name[:35] + "..."
 
@@ -225,58 +226,61 @@ class QualityGateOutputFormatter:
                 status = color_message("FAIL", "red")
                 failed_count += 1
 
-            # Sizes and remaining space
-            if hasattr(gate, 'artifact_on_wire_size') and hasattr(gate, 'artifact_on_disk_size'):
-                wire_current = gate.artifact_on_wire_size / (1024 * 1024)
-                wire_limit = gate.max_on_wire_size / (1024 * 1024)
-                disk_current = gate.artifact_on_disk_size / (1024 * 1024)
-                disk_limit = gate.max_on_disk_size / (1024 * 1024)
+            # Get measurement data from metric handler if available
+            wire_current_bytes = 0
+            disk_current_bytes = 0
 
-                wire_remaining = wire_limit - wire_current
-                disk_remaining = disk_limit - disk_current
+            if metric_handler and gate.config.gate_name in metric_handler.metrics:
+                gate_metrics = metric_handler.metrics[gate.config.gate_name]
+                wire_current_bytes = gate_metrics.get('current_on_wire_size', 0)
+                disk_current_bytes = gate_metrics.get('current_on_disk_size', 0)
 
-                # Accumulate totals
-                total_compressed += wire_current
-                total_uncompressed += disk_current
-                total_compressed_limit += wire_limit
-                total_uncompressed_limit += disk_limit
+            # Convert to MB for display
+            wire_current = wire_current_bytes / (1024 * 1024)
+            wire_limit = gate.config.max_on_wire_size / (1024 * 1024)
+            disk_current = disk_current_bytes / (1024 * 1024)
+            disk_limit = gate.config.max_on_disk_size / (1024 * 1024)
 
-                # Format remaining space with color based on how much is left
-                def get_remaining_color(remaining_mb, limit_mb):
-                    remaining_percent = (remaining_mb / limit_mb) * 100
-                    if remaining_percent < 5:  # Less than 5% remaining
-                        return "red"
-                    elif remaining_percent < 15:  # Less than 15% remaining
-                        return "orange"
-                    elif remaining_percent < 25:  # Less than 25% remaining
-                        return "yellow"
-                    else:
-                        return "green"
+            wire_remaining = wire_limit - wire_current
+            disk_remaining = disk_limit - disk_current
 
-                wire_remaining_color = get_remaining_color(wire_remaining, wire_limit)
-                disk_remaining_color = get_remaining_color(disk_remaining, disk_limit)
+            # Accumulate totals
+            total_compressed += wire_current
+            total_uncompressed += disk_current
+            total_compressed_limit += wire_limit
+            total_uncompressed_limit += disk_limit
 
-                compressed_info = f"{wire_current:6.1f}/{wire_limit:6.1f} MB"
-                uncompressed_info = f"{disk_current:6.1f}/{disk_limit:6.1f} MB"
+            # Format remaining space with color based on how much is left
+            def get_remaining_color(remaining_mb, limit_mb):
+                if limit_mb == 0:
+                    return "gray"
+                remaining_percent = (remaining_mb / limit_mb) * 100
+                if remaining_percent < 5:  # Less than 5% remaining
+                    return "red"
+                elif remaining_percent < 15:  # Less than 15% remaining
+                    return "orange"
+                elif remaining_percent < 25:  # Less than 25% remaining
+                    return "yellow"
+                else:
+                    return "green"
 
-                # Format remaining space text without color first for proper alignment calculation
-                compressed_remaining_text = f"{wire_remaining:6.1f} MB"
-                uncompressed_remaining_text = f"{disk_remaining:6.1f} MB"
+            wire_remaining_color = get_remaining_color(wire_remaining, wire_limit)
+            disk_remaining_color = get_remaining_color(disk_remaining, disk_limit)
 
-                # Apply color and calculate proper padding to maintain alignment
-                compressed_remaining_info = color_message(compressed_remaining_text, wire_remaining_color)
-                uncompressed_remaining_info = color_message(uncompressed_remaining_text, disk_remaining_color)
+            compressed_info = f"{wire_current:6.1f}/{wire_limit:6.1f} MB"
+            uncompressed_info = f"{disk_current:6.1f}/{disk_limit:6.1f} MB"
 
-                # Calculate padding needed (color codes don't count toward visual width)
-                comp_remain_padding = 12 - len(compressed_remaining_text)
-                uncomp_remain_padding = 14 - len(uncompressed_remaining_text)
-            else:
-                compressed_info = "N/A"
-                uncompressed_info = "N/A"
-                compressed_remaining_info = "N/A"
-                uncompressed_remaining_info = "N/A"
-                comp_remain_padding = 12 - len("N/A")
-                uncomp_remain_padding = 14 - len("N/A")
+            # Format remaining space text without color first for proper alignment calculation
+            compressed_remaining_text = f"{wire_remaining:6.1f} MB"
+            uncompressed_remaining_text = f"{disk_remaining:6.1f} MB"
+
+            # Apply color and calculate proper padding to maintain alignment
+            compressed_remaining_info = color_message(compressed_remaining_text, wire_remaining_color)
+            uncompressed_remaining_info = color_message(uncompressed_remaining_text, disk_remaining_color)
+
+            # Calculate padding needed (color codes don't count toward visual width)
+            comp_remain_padding = 12 - len(compressed_remaining_text)
+            uncomp_remain_padding = 14 - len(uncompressed_remaining_text)
 
             print(
                 f"{display_name:<40} {status:<8} {compressed_info:<20} {uncompressed_info:<20} {compressed_remaining_info}{' ' * comp_remain_padding} {uncompressed_remaining_info}{' ' * uncomp_remain_padding}"
