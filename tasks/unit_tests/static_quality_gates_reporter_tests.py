@@ -97,6 +97,7 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
         result = QualityGateOutputFormatter.get_display_name("static_quality_gate_agent_suse_amd64")
         self.assertEqual(result, "Agent SUSE (AMD64)")
 
+    @patch.dict('os.environ', {}, clear=True)
     def test_format_artifact_path_filename_only(self):
         """Test format_artifact_path with file paths - should return only filename or truncated if too long"""
         long_path = "/go/src/github.com/DataDog/datadog-agent/omnibus/pkg/datadog-agent_7.70.0~devel.git.405.7e4b0c4.pipeline.72709673-1_amd64.deb"
@@ -109,6 +110,7 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
             expected = filename
         self.assertEqual(result, expected)
 
+    @patch.dict('os.environ', {}, clear=True)
     def test_format_artifact_path_very_long_filename(self):
         """Test format_artifact_path with very long filename - should truncate"""
         # Create a filename longer than 60 characters
@@ -123,8 +125,8 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
         """Test format_artifact_path with Docker registry paths"""
         docker_path = "registry.ddbuild.io/ci/datadog-agent/agent:v72709673-7e4b0c4b-7-amd64"
         result = QualityGateOutputFormatter.format_artifact_path(docker_path)
-        # Based on the implementation, it extracts the last part after the final "/"
-        expected = "agent:v72709673-7e4b0c4b-7-amd64"
+        # Should show full registry path with Docker: prefix
+        expected = "Docker: registry.ddbuild.io/ci/datadog-agent/agent:v72709673-7e4b0c4b-7-amd64"
         self.assertEqual(result, expected)
 
     def test_format_artifact_path_unknown(self):
@@ -139,6 +141,40 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
         """Test format_artifact_path with path containing no slashes"""
         result = QualityGateOutputFormatter.format_artifact_path("simple_filename.deb")
         self.assertEqual(result, "simple_filename.deb")
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/go/src/github.com/DataDog/datadog-agent/omnibus/pkg'})
+    def test_format_artifact_path_omnibus_package_dir_strip(self):
+        """Test format_artifact_path with OMNIBUS_PACKAGE_DIR - should strip the prefix"""
+        omnibus_path = "/go/src/github.com/DataDog/datadog-agent/omnibus/pkg/datadog-agent_7.70.0-1_amd64.deb"
+        result = QualityGateOutputFormatter.format_artifact_path(omnibus_path)
+        expected = "datadog-agent_7.70.0-1_amd64.deb"
+        self.assertEqual(result, expected)
+
+    @patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/build/pkg'})
+    def test_format_artifact_path_omnibus_package_dir_with_subdirs(self):
+        """Test format_artifact_path with OMNIBUS_PACKAGE_DIR containing subdirectories"""
+        omnibus_path = "/build/pkg/rpm/datadog-agent-7.70.0-1.x86_64.rpm"
+        result = QualityGateOutputFormatter.format_artifact_path(omnibus_path)
+        expected = "rpm/datadog-agent-7.70.0-1.x86_64.rpm"
+        self.assertEqual(result, expected)
+
+    @patch.dict('os.environ', {}, clear=True)
+    def test_format_artifact_path_no_omnibus_package_dir(self):
+        """Test format_artifact_path without OMNIBUS_PACKAGE_DIR env var"""
+        file_path = "/some/path/to/datadog-agent_7.70.0-1_amd64.deb"
+        result = QualityGateOutputFormatter.format_artifact_path(file_path)
+        # Should fall back to filename only since no OMNIBUS_PACKAGE_DIR is set
+        expected = "datadog-agent_7.70.0-1_amd64.deb"
+        self.assertEqual(result, expected)
+
+    def test_format_artifact_path_non_omnibus_path(self):
+        """Test format_artifact_path with path that doesn't start with OMNIBUS_PACKAGE_DIR"""
+        with patch.dict('os.environ', {'OMNIBUS_PACKAGE_DIR': '/build/pkg'}):
+            other_path = "/different/path/to/some-file.deb"
+            result = QualityGateOutputFormatter.format_artifact_path(other_path)
+            # Should fall back to filename only since path doesn't start with OMNIBUS_PACKAGE_DIR
+            expected = "some-file.deb"
+            self.assertEqual(result, expected)
 
     @patch('builtins.print')
     def test_print_enhanced_gate_result(self, mock_print):
@@ -176,6 +212,7 @@ class TestQualityGateOutputFormatter(unittest.TestCase):
         self.assertIn("📦", output_text)  # Compressed indicator
         self.assertIn("💾", output_text)  # Uncompressed indicator
 
+    @patch.dict('os.environ', {}, clear=True)
     @patch('builtins.print')
     def test_print_enhanced_gate_execution(self, mock_print):
         """Test print_enhanced_gate_execution output formatting"""

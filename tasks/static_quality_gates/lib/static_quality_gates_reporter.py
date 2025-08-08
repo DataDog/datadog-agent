@@ -3,6 +3,7 @@ Static Quality Gates Reporter.
 Provides clear, customer-friendly reporting and output formatting for external users.
 """
 
+import os
 import typing
 
 from tasks.libs.common.color import color_message
@@ -87,20 +88,25 @@ class QualityGateOutputFormatter:
         if not artifact_path:
             return "Unknown"
 
-        # For file paths, show just the filename
+        # For Docker images, show the full registry path
+        if "registry.ddbuild.io" in artifact_path:
+            return f"Docker: {artifact_path}"
+
+        # For package paths, strip OMNIBUS_PACKAGE_DIR but keep the rest
         if "/" in artifact_path:
+            # Check if this is a package path with OMNIBUS_PACKAGE_DIR
+            omnibus_package_dir = os.environ.get("OMNIBUS_PACKAGE_DIR", "")
+            if omnibus_package_dir and artifact_path.startswith(omnibus_package_dir):
+                # Strip the OMNIBUS_PACKAGE_DIR prefix and leading slash
+                relative_path = artifact_path[len(omnibus_package_dir) :].lstrip("/")
+                return relative_path
+
+            # For other file paths, show just the filename
             filename = artifact_path.split("/")[-1]
             if len(filename) > 60:
                 # Truncate very long filenames
                 return f"...{filename[-57:]}"
             return filename
-
-        # For Docker images, make them more readable
-        if "registry.ddbuild.io" in artifact_path:
-            parts = artifact_path.split("/")
-            if len(parts) >= 3:
-                image_name = "/".join(parts[-2:])
-                return f"Docker: {image_name}"
 
         return artifact_path
 
@@ -252,16 +258,28 @@ class QualityGateOutputFormatter:
 
                 compressed_info = f"{wire_current:6.1f}/{wire_limit:6.1f} MB"
                 uncompressed_info = f"{disk_current:6.1f}/{disk_limit:6.1f} MB"
-                compressed_remaining_info = color_message(f"{wire_remaining:6.1f} MB", wire_remaining_color)
-                uncompressed_remaining_info = color_message(f"{disk_remaining:6.1f} MB", disk_remaining_color)
+
+                # Format remaining space text without color first for proper alignment calculation
+                compressed_remaining_text = f"{wire_remaining:6.1f} MB"
+                uncompressed_remaining_text = f"{disk_remaining:6.1f} MB"
+
+                # Apply color and calculate proper padding to maintain alignment
+                compressed_remaining_info = color_message(compressed_remaining_text, wire_remaining_color)
+                uncompressed_remaining_info = color_message(uncompressed_remaining_text, disk_remaining_color)
+
+                # Calculate padding needed (color codes don't count toward visual width)
+                comp_remain_padding = 12 - len(compressed_remaining_text)
+                uncomp_remain_padding = 14 - len(uncompressed_remaining_text)
             else:
                 compressed_info = "N/A"
                 uncompressed_info = "N/A"
                 compressed_remaining_info = "N/A"
                 uncompressed_remaining_info = "N/A"
+                comp_remain_padding = 12 - len("N/A")
+                uncomp_remain_padding = 14 - len("N/A")
 
             print(
-                f"{display_name:<40} {status:<8} {compressed_info:<20} {uncompressed_info:<20} {compressed_remaining_info:<12} {uncompressed_remaining_info:<14}"
+                f"{display_name:<40} {status:<8} {compressed_info:<20} {uncompressed_info:<20} {compressed_remaining_info}{' ' * comp_remain_padding} {uncompressed_remaining_info}{' ' * uncomp_remain_padding}"
             )
 
         # Summary footer

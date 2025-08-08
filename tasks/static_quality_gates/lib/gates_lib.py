@@ -568,7 +568,6 @@ class StaticQualityGateDocker(StaticQualityGate):
         else:
             print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
 
-        print(f"Current image on disk size for {self.artifact_path}: {on_disk_size / 1024 / 1024} MB")
         self.artifact_on_disk_size = on_disk_size
 
     def _calculate_image_on_wire_size(self, ctx: Context) -> None:
@@ -586,7 +585,6 @@ class StaticQualityGateDocker(StaticQualityGate):
         )
 
         on_wire_size = int(manifest_output.stdout)
-        print(f"Current image on wire size for {self.artifact_path}: {on_wire_size / 1024 / 1024} MB")
         self.artifact_on_wire_size = on_wire_size
 
     def _measure_on_disk_and_on_wire_size(self, ctx: Context) -> None:
