@@ -1,0 +1,22 @@
+[package]
+name = "datadog-agent-httpcheck"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rustls = "0.23.29"
+webpki-roots = "1.0.1"
+x509-parser = "0.17.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+# optimizations to reduce lib size from 3.8MB to 2.1MB
+# more here: https://github.com/DoumanAsh/xxhash-rust/issues/10#issuecomment-1121860260
+# build time takes few seconds though
+[profile.release]
+opt-level = "z"     # Optimize for size.
+lto = true          # Enable Link Time Optimization
+codegen-units = 1   # Reduce number of codegen units to increase optimizations.
+panic = "abort"     # Abort on panic
+strip = true        # Automatically strip symbols from the binary.
