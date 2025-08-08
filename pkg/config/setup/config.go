@@ -763,6 +763,27 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
+
+	// Enabling remote tagger in cluster check runners by default allows
+	// enriching the cluster check runners with tags sourced from the
+	// cluster agent's cluster tagger.
+	//
+	// This was previously disabled because of the overhead this can
+	// cause on large clusters. This is no longer an issue because
+	// the tagger now supports filtering out unwanted tags and the
+	// cluster check runner remote tagger filters out pod tags, making
+	// the overhead relatively insignificant.
+	//
+	// For more details: https://github.com/DataDog/datadog-agent/blob/8af994a91cafecf647197e1638de9ddd98b06575/cmd/agent/common/tagger_params.go#L1-L39
+	//
+	// The benefit of activating this is allowing cluster checks and component
+	// running in the cluster check runner to gain better tagging coverage
+	// on emitted metrics:
+	//
+	//		* KSM check running in CLC runner needs the remote tagger to ensure
+	//		  namespace labels and annotations as tags are applied to emitted KSM
+	//		  metrics in case the check is partitioned to multiple instances, each
+	//		  emitting different resource metrics.
 	config.BindEnvAndSetDefault("clc_runner_remote_tagger_enabled", true)
 
 	// Remote tagger
