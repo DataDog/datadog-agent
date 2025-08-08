@@ -304,6 +304,7 @@ new-e2e-fips-compliance-test:
     matrix:
       - EXTRA_PARAMS: --run "TestFIPSCiphersLinuxSuite$"
       - EXTRA_PARAMS: --run "TestLinuxFIPSComplianceSuite$"
+      - EXTRA_PARAMS: --run "TestFIPSCiphersClusterAgentSuite$"
 
 new-e2e-windows-fips-compliance-test:
   extends: .new_e2e_template
@@ -710,6 +711,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallScript$"
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -949,7 +951,7 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
 
 generate-flakes-finder-pipeline:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
@@ -999,7 +1001,7 @@ trigger-flakes-finder:
   allow_failure: true
 
 generate-fips-e2e-pipeline:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]

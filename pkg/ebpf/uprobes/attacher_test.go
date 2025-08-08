@@ -242,7 +242,8 @@ func TestComputeRequestedSymbols(t *testing.T) {
 		rules := []*AttachRule{{ProbesSelector: selectorsOnlyAllOf}}
 		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}}, requested)
+		require.Contains(tt, requested, 0)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}}, requested[0])
 	})
 
 	selectorsBestEffortAndMandatory := []manager.ProbesSelector{
@@ -262,7 +263,8 @@ func TestComputeRequestedSymbols(t *testing.T) {
 		rules := []*AttachRule{{ProbesSelector: selectorsBestEffortAndMandatory}}
 		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested)
+		require.Contains(tt, requested, 0)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested[0])
 	})
 
 	selectorsBestEffort := []manager.ProbesSelector{
@@ -278,7 +280,8 @@ func TestComputeRequestedSymbols(t *testing.T) {
 		rules := []*AttachRule{{ProbesSelector: selectorsBestEffort}}
 		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", BestEffort: true}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested)
+		require.Contains(tt, requested, 0)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", BestEffort: true}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested[0])
 	})
 
 	selectorsWithReturnFunctions := []manager.ProbesSelector{
@@ -293,7 +296,18 @@ func TestComputeRequestedSymbols(t *testing.T) {
 		rules := []*AttachRule{{ProbesSelector: selectorsWithReturnFunctions}}
 		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", IncludeReturnLocations: true}}, requested)
+		require.Contains(tt, requested, 0)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", IncludeReturnLocations: true}}, requested[0])
+	})
+
+	t.Run("MultipleRules", func(tt *testing.T) {
+		rules := []*AttachRule{{ProbesSelector: selectorsWithReturnFunctions}, {ProbesSelector: selectorsOnlyAllOf}}
+		requested, err := ua.computeSymbolsToRequest(rules)
+		require.NoError(tt, err)
+		require.Contains(tt, requested, 0)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", IncludeReturnLocations: true}}, requested[0])
+		require.Contains(tt, requested, 1)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}}, requested[1])
 	})
 }
 
@@ -605,7 +619,12 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[int]*InspectionResult{
+		0: {
+			SymbolMap: map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach},
+			Error:     nil,
+		},
+	}, nil)
 	inspector.On("Cleanup", mock.Anything).Return(nil)
 
 	// Tell the manager to return no probe when finding an existing one
@@ -671,7 +690,12 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234, ReturnLocations: []uint64{0x0, 0x1}}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[int]*InspectionResult{
+		0: {
+			SymbolMap: map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach},
+			Error:     nil,
+		},
+	}, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -754,7 +778,12 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[int]*InspectionResult{
+		0: {
+			SymbolMap: map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach},
+			Error:     nil,
+		},
+	}, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -785,6 +814,99 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	require.NoError(t, cb(target))
 
 	inspector.AssertExpectations(t)
+	mockMan.AssertExpectations(t)
+}
+
+func TestMultipleRulesForBinaryOnlyOneMatchesFunctions(t *testing.T) {
+	proc := kernel.FakeProcFSEntry{
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Exe:     "/bin/bash",
+	}
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
+
+	config := AttacherConfig{
+		ProcRoot: procFS,
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{
+						ProbeIdentificationPair: manager.ProbeIdentificationPair{
+							EBPFFuncName: "uprobe__func1",
+						},
+					},
+				},
+			},
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{
+						ProbeIdentificationPair: manager.ProbeIdentificationPair{
+							EBPFFuncName: "uprobe__func2",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// The binary inspector will return a symbol for func1 and an error for func2 as it's not found
+	mockBinaryInspector := &MockBinaryInspector{}
+	symbolAddress := uint64(0x1234)
+	mockBinaryInspector.On("Inspect", mock.Anything, mock.Anything).Return(map[int]*InspectionResult{
+		0: {
+			SymbolMap: map[string]bininspect.FunctionMetadata{"func1": {EntryLocation: symbolAddress}},
+			Error:     nil,
+		},
+		1: {
+			SymbolMap: nil,
+			Error:     errors.New("func2 not found"),
+		},
+	}, nil)
+
+	mockMan := &MockManager{}
+
+	// Tell the manager to return no probe when finding an existing one
+	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
+	mockMan.On("GetProbe", mock.Anything).Return(nilProbe, false)
+
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, mockMan, nil, mockBinaryInspector, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	target := utils.FilePath{
+		HostPath: proc.Exe,
+		PID:      proc.Pid,
+	}
+
+	// Tell the manager to accept the probe
+	uid := "1hipfd0" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
+	expectedProbe := &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__func1", UID: uid},
+		BinaryPath:              target.HostPath,
+		UprobeOffset:            symbolAddress,
+		HookFuncName:            "func1",
+	}
+	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
+
+	err = ua.attachToBinary(target, config.Rules, NewProcInfo(procFS, proc.Pid))
+	require.NoError(t, err)
+	mockMan.AssertExpectations(t)
+	mockBinaryInspector.AssertExpectations(t)
+
+	// FileRegistry calls the detach callback without host path. Replicate that here.
+	detachPath := utils.FilePath{
+		ID: target.ID,
+	}
+
+	// Ensure the manager is called to detach the probe properly, and cleanup is performed correctly too
+	mockMan.On("DetachHook", expectedProbe.ProbeIdentificationPair).Return(nil)
+	mockBinaryInspector.On("Cleanup", mock.Anything).Return(nil)
+
+	err = ua.detachFromBinary(detachPath)
+	require.NoError(t, err)
+	mockBinaryInspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
 }
 

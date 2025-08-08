@@ -24,7 +24,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -233,6 +233,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	setupAPM,
 	OTLP,
 	setupMultiRegionFailover,
+	setupPreaggregation,
 	telemetry,
 	autoconfig,
 	remoteconfig,
@@ -289,6 +290,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
+	config.BindEnvAndSetDefault("collect_ccrid", true)
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
@@ -1185,7 +1187,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
-	config.BindEnvAndSetDefault("infrastructure_mode", "pro")
+	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

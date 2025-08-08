@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.24.0
+go 1.24.5
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -36,9 +36,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.67.0
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964
@@ -424,7 +424,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.67.0
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.67.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
@@ -554,23 +554,25 @@ require (
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.161
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.67.0
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.67.0
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.67.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.67.0
-	github.com/DataDog/datadog-agent/comp/core/status v0.67.0
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/secrets/fx v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/status v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.67.0
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.67.0
-	github.com/DataDog/datadog-agent/comp/def v0.67.0
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3
+	github.com/DataDog/datadog-agent/comp/def v0.68.3
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.67.0
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.67.0
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.67.0
@@ -628,7 +630,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.67.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.67.0
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.67.0
-	github.com/DataDog/datadog-agent/pkg/template v0.67.0
+	github.com/DataDog/datadog-agent/pkg/template v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/common v0.67.0
@@ -636,20 +638,20 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/http v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/json v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
-	github.com/DataDog/datadog-agent/pkg/util/option v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/system v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.67.0
-	github.com/DataDog/datadog-agent/pkg/version v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
+	github.com/DataDog/datadog-agent/pkg/version v0.68.3
 	github.com/DataDog/go-libddwaf/v4 v4.3.0
 	github.com/DataDog/go-sqllexer v0.1.6
 	github.com/Datadog/dublin-traceroute v0.0.2
@@ -718,6 +720,8 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.131.0 // indirect
@@ -1059,7 +1063,11 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ./comp/core/log/impl
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ./comp/core/log/impl-trace
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ./comp/core/log/mock
-	github.com/DataDog/datadog-agent/comp/core/secrets => ./comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/secrets/def => ./comp/core/secrets/def
+	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ./comp/core/secrets/fx
+	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ./comp/core/secrets/impl
+	github.com/DataDog/datadog-agent/comp/core/secrets/mock => ./comp/core/secrets/mock
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils => ./comp/core/secrets/utils
 	github.com/DataDog/datadog-agent/comp/core/status => ./comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl
 	github.com/DataDog/datadog-agent/comp/core/tagger/def => ./comp/core/tagger/def
