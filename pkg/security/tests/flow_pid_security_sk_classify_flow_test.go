@@ -10,6 +10,7 @@ package tests
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -5604,7 +5605,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "connect-udp-and-tcp-to-same-port", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	t.Run("connect-udp-and-tcp-to-same-port", func(t *testing.T) {
 		serverReady := make(chan struct{})
 		udpReceived := make(chan struct{})
 		tcpReceived := make(chan struct{})
@@ -5633,8 +5634,9 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		}
 		// Connect the TCP to the server
 		go func() {
-			args := []string{"connect-and-send", "9004", "tcp", "9005", "4321"}
-			cmd := cmdFunc(syscallTester, args, nil)
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(timeoutCtx, syscallTester, "connect-and-send", "9004", "tcp", "9005", "4321")
 			stdout, err := cmd.StdoutPipe()
 			if err != nil {
 				t.Errorf("TCP: failed to get stdout pipe: %v", err)
@@ -5692,8 +5694,9 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 		// Connect the UDP to the server
 		go func() {
 			// args are "connect-and-send", port_server_listens, protocol, port_where_c_prog_listens, port_client_sends
-			args := []string{"connect-and-send", "9004", "udp", "9005", "4321"}
-			cmd := cmdFunc(syscallTester, args, nil)
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(timeoutCtx, syscallTester, "connect-and-send", "9004", "udp", "9005", "4321")
 			stdout, err := cmd.StdoutPipe()
 			if err != nil {
 				t.Errorf("UDP: failed to get stdout pipe: %v", err)
