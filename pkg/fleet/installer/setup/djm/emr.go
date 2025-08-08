@@ -92,13 +92,13 @@ func SetupEmr(s *common.Setup) error {
 		s.Out.WriteString("Setting up Spark integration config on the Resource Manager\n")
 		setupResourceManager(s, clusterName)
 		if os.Getenv("DD_EMR_DRIVER_LOGS_ENABLED") == "true" {
-			s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true\n")
+			s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_DRIVER_LOGS_ENABLED=true\n")
 			enableEmrLogs(s, false)
 		}
 	}
 	// Add logs config to both Resource Manager and Workers
 	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
-		s.Out.WriteString("Enabling EMR logs collection on the driver only based on env variable DD_EMR_DRIVER_LOGS=true\n")
+		s.Out.WriteString("Enabling EMR logs collection on the driver only based on env variable DD_EMR_LOGS=true\n")
 		enableEmrLogs(s, true)
 	} else if os.Getenv("DD_EMR_DRIVER_LOGS_ENABLED") != "true" {
 		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true\n")
