@@ -76,6 +76,10 @@ RUN . venv/bin/activate && dda inv collector.generate
 # Build the OTel agent
 RUN . venv/bin/activate && dda inv otel-agent.build --byoc
 
+# Create a stage for extracting just the built artifact
+FROM scratch AS artifact
+ARG AGENT_BRANCH
+COPY --from=builder /workspace/datadog-agent-${AGENT_BRANCH}/bin/otel-agent/otel-agent /otel-agent
 
 # Use the final Datadog agent image
 FROM ${AGENT_REPO}:${AGENT_VERSION}
