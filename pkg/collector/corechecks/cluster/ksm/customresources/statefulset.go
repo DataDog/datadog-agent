@@ -70,7 +70,6 @@ func (f *extendedStatefulSetFactory) MetricFamilyGenerators() []generator.Family
 					ms = append(ms, &metric.Metric{
 						Value: float64(rolloutStartTime.Unix()), // Pass timestamp, transformer will calculate duration
 					})
-				} else {
 				}
 
 				return &metric.Family{
@@ -135,9 +134,9 @@ func (f *extendedStatefulSetFactory) getRolloutStartTime(s *appsv1.StatefulSet) 
 
 	// Additional safety check: if no replicas are progressing for a very long time, the rollout might be stuck
 	// This helps catch cases where the statefulset is genuinely stuck vs missed completion events
-	if s.Status.UpdatedReplicas == 0 && s.Status.ReadyReplicas == 0 {
-		// All replicas are failing to start - this could be a stuck rollout
-	}
+	// Additional check: if no replicas are progressing, the rollout might be stuck
+	// (This helps catch cases where all replicas are failing to start)
+	_ = s.Status.UpdatedReplicas == 0 && s.Status.ReadyReplicas == 0
 
 	// Find the newest ControllerRevision for this statefulset
 	newestCRCreationTime := f.findNewestControllerRevisionCreationTime(s)
@@ -175,8 +174,7 @@ func (f *extendedStatefulSetFactory) findNewestControllerRevisionCreationTime(s 
 		}
 	}
 
-	if newestCR != nil {
-	}
+	_ = newestCR
 
 	return newestTime
 }

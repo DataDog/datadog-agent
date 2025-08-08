@@ -126,7 +126,6 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_statefulset_ongoing_rollout_duration":     statefulsetRolloutDurationTransformer,
 	}
 
-
 	return transformers
 }
 
@@ -587,26 +586,14 @@ func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksms
 		startTime := time.Unix(int64(metric.Val), 0)
 		duration := currentTime.Sub(startTime).Seconds()
 
-
 		// Safety check: For long-running metrics (>5 minutes), verify if this might be a missed completion
 
 		if duration > 0 {
 			s.Gauge(ksmMetricPrefix+"deployment.ongoing_rollout.duration", duration, hostname, tags)
-		} else {
 		}
-	} else {
 	}
 }
 
-// getDeploymentNameFromTags extracts deployment name from metric tags for logging
-func getDeploymentNameFromTags(tags []string) string {
-	for _, tag := range tags {
-		if strings.HasPrefix(tag, "deployment:") {
-			return strings.TrimPrefix(tag, "deployment:")
-		}
-	}
-	return "unknown"
-}
 
 // statefulsetRolloutDurationTransformer processes statefulset rollout duration metrics from the factory
 func statefulsetRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
@@ -616,23 +603,11 @@ func statefulsetRolloutDurationTransformer(s sender.Sender, _ string, metric ksm
 		startTime := time.Unix(int64(metric.Val), 0)
 		duration := currentTime.Sub(startTime).Seconds()
 
-
 		// Safety check: For long-running metrics (>5 minutes), verify if this might be a missed completion
 
 		if duration > 0 {
 			s.Gauge(ksmMetricPrefix+"statefulset.ongoing_rollout.duration", duration, hostname, tags)
-		} else {
 		}
-	} else {
 	}
 }
 
-// getStatefulSetNameFromTags extracts statefulset name from metric tags for logging
-func getStatefulSetNameFromTags(tags []string) string {
-	for _, tag := range tags {
-		if strings.HasPrefix(tag, "statefulset:") {
-			return strings.TrimPrefix(tag, "statefulset:")
-		}
-	}
-	return "unknown"
-}

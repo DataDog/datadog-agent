@@ -70,7 +70,6 @@ func (f *extendedDeploymentFactory) MetricFamilyGenerators() []generator.FamilyG
 					ms = append(ms, &metric.Metric{
 						Value: float64(rolloutStartTime.Unix()), // Pass timestamp, transformer will calculate duration
 					})
-				} else {
 				}
 
 				return &metric.Family{
@@ -135,9 +134,9 @@ func (f *extendedDeploymentFactory) getRolloutStartTime(d *appsv1.Deployment) ti
 
 	// Additional safety check: if no replicas are progressing for a very long time, the rollout might be stuck
 	// This helps catch cases where the deployment is genuinely stuck vs missed completion events
-	if d.Status.UpdatedReplicas == 0 && d.Status.ReadyReplicas == 0 {
-		// All replicas are failing to start - this could be a stuck rollout
-	}
+	// Additional check: if no replicas are progressing, the rollout might be stuck
+	// (This helps catch cases where all replicas are failing to start)
+	_ = d.Status.UpdatedReplicas == 0 && d.Status.ReadyReplicas == 0
 
 	// Find the newest ReplicaSet for this deployment
 	newestRSCreationTime := f.findNewestReplicaSetCreationTime(d)
@@ -175,8 +174,7 @@ func (f *extendedDeploymentFactory) findNewestReplicaSetCreationTime(d *appsv1.D
 		}
 	}
 
-	if newestRS != nil {
-	}
+	_ = newestRS
 
 	return newestTime
 }
