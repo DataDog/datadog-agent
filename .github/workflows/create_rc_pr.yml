@@ -8,6 +8,7 @@ on:
     - cron: '0 9 * * 1' # Run Agent 6 workflow on Monday at 09:00 UTC
 
 env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   IS_AGENT6_RELEASE: ${{ github.event.schedule == '0 9 * * 1' }}
 permissions: {}
 
