@@ -44,7 +44,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -641,7 +641,7 @@ func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg con
 
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
-	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
+	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	if cfg.GetBool("use_diskv2_check") {
 		corecheckLoader.RegisterCheck(disk.CheckName, diskv2.Factory())

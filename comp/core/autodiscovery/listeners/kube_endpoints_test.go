@@ -702,6 +702,32 @@ func TestKubeEndpointsFiltering(t *testing.T) {
 			expectedMetricsExcl: true,
 			expectedGlobalExcl:  false,
 		},
+		{
+			name: "endpoint with AD annotations: metrics excluded",
+			endpoint: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "annotation-excluded",
+					Namespace: "default",
+					UID:       types.UID("annotation-excluded-uid"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names": "[\"http_check\"]",
+						"ad.datadoghq.com/exclude":             "true",
+					},
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.4"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "http", Port: 80},
+						},
+					},
+				},
+			},
+			expectedMetricsExcl: true,
+			expectedGlobalExcl:  true,
+		},
 	}
 
 	for _, tc := range testCases {
