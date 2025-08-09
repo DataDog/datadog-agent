@@ -269,7 +269,9 @@ func (agg *FlowAggregator) flushLoop() {
 				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
 			}
 			lastFlushTime = flushStartTime
+			_ = agg.sender.GaugeWithTimestamp("datadog.netflow.aggregator.flush_running", 1, "", nil, float64(flushStartTime.Unix()))
 			agg.flush()
+			_ = agg.sender.GaugeWithTimestamp("datadog.netflow.aggregator.flush_running", 0, "", nil, float64(time.Now().Unix()))
 			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
 			agg.sender.Commit()
 		// refresh rollup trackers
@@ -284,7 +286,9 @@ func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := agg.TimeNowFunction()
 
+	_ = agg.sender.GaugeWithTimestamp("datadog.netflow.aggregator.flowacc_flush_running", 1, "", nil, float64(time.Now().Unix()))
 	flowsToFlush, flowAccStats := agg.flowAcc.flush()
+	_ = agg.sender.GaugeWithTimestamp("datadog.netflow.aggregator.flowacc_flush_running", 0, "", nil, float64(time.Now().Unix()))
 	agg.sender.Gauge("datadog.netflow.aggregator.perf_flowacc_flush_duration", time.Since(flushTime).Seconds(), "", nil)
 
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
