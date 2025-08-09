@@ -173,11 +173,18 @@ func (c *NetworkCheck) Run() error {
 
 	submitInterfaceSysMetrics(sender)
 
+	ethtoolObject, err := getNewEthtool()
+	if err != nil {
+		log.Errorf("Failed to create ethtool object: %s", err)
+		return err
+	}
+	defer ethtoolObject.Close()
+
 	for _, interfaceIO := range ioByInterface {
 		if !c.isInterfaceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
 			if c.config.instance.CollectEthtoolStats {
-				err = handleEthtoolStats(sender, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
+				err = handleEthtoolStats(sender, ethtoolObject, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
 				if err != nil {
 					return err
 				}
@@ -272,19 +279,12 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
+func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
 	if interfaceIO.Name == "lo" || interfaceIO.Name == "lo0" {
 		// Skip loopback ifaces as they don't support SIOCETHTOOL
 		log.Debugf("Skipping loopbackinterface %s", interfaceIO.Name)
 		return nil
 	}
-
-	ethtoolObject, err := getNewEthtool()
-	if err != nil {
-		log.Errorf("Failed to create ethtool object: %s", err)
-		return err
-	}
-	defer ethtoolObject.Close()
 
 	// Preparing the interface name and copy it into the request
 	ifaceBytes := []byte(interfaceIO.Name)
