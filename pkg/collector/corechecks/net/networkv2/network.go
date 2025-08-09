@@ -287,13 +287,13 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 	}
 
 	// Preparing the interface name and copy it into the request
-	ifaceBytes := []byte(interfaceIO.Name)
-	if len(ifaceBytes) > 15 {
-		ifaceBytes = ifaceBytes[:15]
+	iface := interfaceIO.Name
+	if len(iface) > 15 {
+		iface = iface[:15]
 	}
 
 	// Fetch driver information (ETHTOOL_GDRVINFO)
-	drvInfo, err := ethtoolObject.DriverInfo(string(ifaceBytes))
+	drvInfo, err := ethtoolObject.DriverInfo(iface)
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
@@ -307,7 +307,7 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 	driverVersion := replacer.Replace(drvInfo.Version)
 
 	// Fetch ethtool stats values (ETHTOOL_GSTATS)
-	statsMap, err := ethtoolObject.Stats(string(ifaceBytes))
+	statsMap, err := ethtoolObject.Stats(iface)
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)
