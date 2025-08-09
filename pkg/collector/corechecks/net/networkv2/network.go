@@ -44,13 +44,24 @@ const (
 var (
 	filesystem = afero.NewOsFs()
 
-	ethtoolObject     = ethtool.Ethtool{}
-	getEthtoolDrvInfo = ethtoolObject.DriverInfo
-	getEthtoolStats   = ethtoolObject.Stats
+	getNewEthtool = newEthtool
 
 	runCommandFunction  = runCommand
 	ssAvailableFunction = checkSSExecutable
 )
+
+type ethtoolInterface interface {
+	DriverInfo(intf string) (ethtool.DrvInfo, error)
+	Stats(intf string) (map[string]uint64, error)
+	Close()
+}
+
+var _ ethtoolInterface = (*ethtool.Ethtool)(nil)
+
+func newEthtool() (ethtoolInterface, error) {
+	eth, err := ethtool.NewEthtool()
+	return eth, err
+}
 
 // NetworkCheck represent a network check
 type NetworkCheck struct {
@@ -268,13 +279,12 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 		return nil
 	}
 
-	ethtoolObjectPtr, err := ethtool.NewEthtool()
+	ethtoolObject, err := getNewEthtool()
 	if err != nil {
 		log.Errorf("Failed to create ethtool object: %s", err)
 		return err
 	}
-	defer ethtoolObjectPtr.Close()
-	ethtoolObject = *ethtoolObjectPtr
+	defer ethtoolObject.Close()
 
 	// Preparing the interface name and copy it into the request
 	ifaceBytes := []byte(interfaceIO.Name)
@@ -283,7 +293,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 	}
 
 	// Fetch driver information (ETHTOOL_GDRVINFO)
-	drvInfo, err := getEthtoolDrvInfo(string(ifaceBytes))
+	drvInfo, err := ethtoolObject.DriverInfo(string(ifaceBytes))
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
@@ -297,7 +307,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 	driverVersion := replacer.Replace(drvInfo.Version)
 
 	// Fetch ethtool stats values (ETHTOOL_GSTATS)
-	statsMap, err := getEthtoolStats(string(ifaceBytes))
+	statsMap, err := ethtoolObject.Stats(string(ifaceBytes))
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)
