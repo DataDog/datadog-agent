@@ -51,6 +51,7 @@ func TestAggregator(t *testing.T) {
 	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
@@ -227,6 +228,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
@@ -343,6 +345,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()

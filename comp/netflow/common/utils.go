@@ -7,6 +7,7 @@ package common
 
 import (
 	"cmp"
+	"reflect"
 )
 
 // Min returns the smaller of two items, for any ordered type.
@@ -23,4 +24,81 @@ func Max[T cmp.Ordered](a T, b T) T {
 		return a
 	}
 	return b
+}
+
+// Sizeof estimates the total memory size (in bytes) of any Go value.
+// It traverses structs, pointers, slices, maps, and interfaces recursively.
+func Sizeof(val any) uint64 {
+	seen := make(map[uintptr]bool) // Track visited pointers to avoid cycles
+	return estimate(reflect.ValueOf(val), seen)
+}
+
+func estimate(val reflect.Value, seen map[uintptr]bool) uint64 {
+	if !val.IsValid() {
+		return 0
+	}
+
+	// Handle pointers and avoid duplicate visits (cycle-safe)
+	if val.Kind() == reflect.Ptr {
+		if val.IsNil() {
+			return 0
+		}
+		ptr := val.Pointer()
+		if seen[ptr] {
+			return 0 // already visited
+		}
+		seen[ptr] = true
+		return uint64(val.Type().Size()) + estimate(val.Elem(), seen)
+	}
+
+	switch val.Kind() {
+	case reflect.Struct:
+		size := uint64(val.Type().Size()) // includes padding
+		for i := 0; i < val.NumField(); i++ {
+			if val.Type().Field(i).IsExported() {
+				size += estimate(val.Field(i), seen)
+			}
+		}
+		return size
+
+	case reflect.Slice:
+		if val.IsNil() {
+			return 0
+		}
+		size := uint64(val.Type().Size()) // slice header
+		for i := 0; i < val.Len(); i++ {
+			size += estimate(val.Index(i), seen)
+		}
+		return size
+
+	case reflect.Array:
+		size := uint64(0)
+		for i := 0; i < val.Len(); i++ {
+			size += estimate(val.Index(i), seen)
+		}
+		return size
+
+	case reflect.String:
+		return uint64(val.Type().Size()) + uint64(val.Len())
+
+	case reflect.Map:
+		if val.IsNil() {
+			return 0
+		}
+		size := uint64(val.Type().Size()) // map header
+		for _, key := range val.MapKeys() {
+			size += estimate(key, seen)
+			size += estimate(val.MapIndex(key), seen)
+		}
+		return size
+
+	case reflect.Interface:
+		if val.IsNil() {
+			return 0
+		}
+		return uint64(val.Type().Size()) + estimate(val.Elem(), seen)
+
+	default:
+		return uint64(val.Type().Size()) // basic value (int, bool, float, etc.)
+	}
 }
