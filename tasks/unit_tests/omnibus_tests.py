@@ -1,6 +1,8 @@
 import os
 import re
+import sys
 import unittest
+from contextlib import nullcontext
 from unittest import mock
 
 from invoke.context import MockContext
@@ -30,7 +32,6 @@ def _run_calls_to_string(mock_calls):
     return '\n'.join(commands_run)
 
 
-@mock.patch('sys.platform', 'linux')
 @mock.patch.dict(
     'os.environ',
     {
@@ -42,7 +43,6 @@ def _run_calls_to_string(mock_calls):
         'S3_OMNIBUS_GIT_CACHE_BUCKET': 'omnibus-cache',
         'API_KEY_ORG2': 'api-key',
         'AGENT_API_KEY_ORG2': 'agent-api-key',
-        'POD_NAMESPACE': os.environ.get('POD_NAMESPACE', 'gitlab-runner'),
     },
     clear=True,
 )
@@ -121,7 +121,10 @@ class TestOmnibusCache(unittest.TestCase):
             Result('foo-1234'),
         )
         self._set_up_default_command_mocks()
-        with mock.patch('requests.post') as post_mock:
+        with (
+            mock.patch('requests.post') as post_mock,
+            mock.patch.dict("os.environ", {"POD_NAMESPACE": "pod-ns"}) if sys.platform == "linux" else nullcontext(),
+        ):
             omnibus.build(self.mock_ctx)
 
         commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
@@ -183,7 +186,10 @@ class TestOmnibusCache(unittest.TestCase):
             [Result('foo-1'), Result('foo-2')],
         )
         self._set_up_default_command_mocks()
-        with mock.patch('requests.post') as post_mock:
+        with (
+            mock.patch('requests.post') as post_mock,
+            mock.patch.dict("os.environ", {"POD_NAMESPACE": "pod-ns"}) if sys.platform == "linux" else nullcontext(),
+        ):
             omnibus.build(self.mock_ctx)
 
         # Assert we sent a cache mutation event
