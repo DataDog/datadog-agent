@@ -9,6 +9,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from pprint import pformat
 from shutil import which
 from subprocess import check_call
 
@@ -226,6 +227,17 @@ def _upload_junitxmls(team_dirs: list[Path], executor: ThreadPoolExecutor):
         except Exception as e:
             exceptions.append(e)
     if exceptions:
+        print(f"env\n{pformat(dict(os.environ))}")
+        print(f"os.cwd(): {os.getcwd()}\n{pformat(sorted(os.listdir(os.getcwd())))}")
+        if os.path.exists("c:\\mnt"):
+            print(f"c:\\mnt\n{pformat(sorted(os.listdir('c:\\mnt')))}")
+        for k in "HOME", "USERPROFILE":
+            home = os.environ.get(k)
+            if home and os.path.exists(home):
+                print(f"{k}: {home}\n{pformat(sorted(os.listdir(home)))}")
+                gitconfig = os.path.join(home, ".gitconfig")
+                if os.path.exists(gitconfig):
+                    print(f"gitconfig: {gitconfig}\n{Path(gitconfig).read_text()}")
         raise ExceptionGroup(f"{len(exceptions)} junit uploads failed", exceptions)
 
 
@@ -252,7 +264,7 @@ def _execute_with_specific_temp_dir(args, env):
     known environment variables to determine where to write - which applies to `tempfile.TemporaryDirectory` used here.
     """
     with tempfile.TemporaryDirectory(prefix="junit-upload-") as tmp_dir:
-        return check_call(args, env=env | {"TEMP": tmp_dir, "TMP": tmp_dir, "TMPDIR": tmp_dir})
+        return check_call(args, env=env | {"HOME": tmp_dir, "TEMP": tmp_dir, "TMP": tmp_dir, "TMPDIR": tmp_dir})
 
 
 def group_per_tags(team_dir: Path, additional_tags: list):

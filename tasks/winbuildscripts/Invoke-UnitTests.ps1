@@ -172,6 +172,7 @@ Invoke-BuildScript `
         $localErr = $LASTEXITCODE
         if($localErr -ne 0){
             Write-Host -ForegroundColor Red "junit upload failed $localErr"
+            exit $localErr
         }
     }
 
