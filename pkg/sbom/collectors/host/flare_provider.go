@@ -41,5 +41,5 @@ func FlareProvider(fb flaretypes.FlareBuilder) error {
 		return err
 	}
 
-	return fb.AddFile("host-sbom.json", jsonContent)
+	return fb.AddFileWithoutScrubbing("host-sbom.json", jsonContent)
 }
