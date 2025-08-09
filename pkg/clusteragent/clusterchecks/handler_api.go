@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
@@ -95,6 +96,21 @@ func (h *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
 		LastChange: 0,
 	}
 	return response, err
+}
+
+// GetAllClusterCheckConfigs returns all cluster check configurations
+func (h *Handler) GetAllClusterCheckConfigs() ([]integration.Config, error) {
+	h.m.RLock()
+	defer h.m.RUnlock()
+
+	switch h.state {
+	case leader:
+		return h.dispatcher.getAllConfigs()
+	case follower:
+		return nil, fmt.Errorf("cluster checks only available on leader")
+	default:
+		return nil, errNotReady
+	}
 }
 
 // RebalanceClusterChecks triggers an attempt to rebalance cluster checks
