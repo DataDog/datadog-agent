@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - Consistently retrieve the socket protocol (sk_protocol) and include it in the key for the flow PID map.
+    This change ensures that the flow PID map uses a consistent key format that includes the socket protocol, improving the accuracy and reliability of flow tracking in network operations.
