@@ -31,6 +31,22 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// MsiexecError provides the processed log file content and the underlying error.
+type MsiexecError struct {
+	err error
+	// LogFileBytes contains the processed log file content with error-relevant information
+	// see openAndProcessLogFile for more details
+	ProcessedLog string
+}
+
+func (e *MsiexecError) Error() string {
+	return e.err.Error()
+}
+
+func (e *MsiexecError) Unwrap() error {
+	return e.err
+}
+
 // exitCodeError interface for errors that have an exit code
 //
 // Used in place of exec.ExitError to enable mocks for testing.
@@ -351,10 +367,10 @@ func containsRetryableError(b []byte) bool {
 }
 
 // Run runs msiexec synchronously with retry logic
-func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
+func (m *Msiexec) Run(ctx context.Context) error {
 	var attemptCount int
 
-	operation := func() (output []byte, err error) {
+	operation := func() (any, err error) {
 		span, _ := telemetry.StartSpanFromContext(ctx, "msiexec")
 		defer func() {
 			// Add telemetry metadata about the msiexec operation
@@ -370,7 +386,10 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 				// include the processed log data in the span, but only on error (msiexec failed)
 				// this way we get the error log on each attempt, in case it changes before the final error
 				// is reported by the caller.
-				span.SetTag("log", string(output))
+				var msiError *MsiexecError
+				if errors.As(err, &msiError) {
+					span.SetTag("log", msiError.ProcessedLog)
+				}
 			}
 			span.Finish(err)
 		}()
@@ -379,30 +398,33 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 
 		// Execute the command
 		err = m.cmdRunner.Run(m.execPath, m.cmdLine)
-
-		// Process log file
-		logFileBytes, logErr := m.openAndProcessLogFile()
-		if logErr != nil {
-			err = errors.Join(err, logErr)
-		}
 		if err != nil {
+			// Process log file to extract error messages
+			logFileBytes, logErr := m.openAndProcessLogFile()
+			if logErr != nil {
+				err = errors.Join(err, logErr)
+			}
+			err = &MsiexecError{
+				err:          err,
+				ProcessedLog: string(logFileBytes),
+			}
 			// An error occurred, check if it's retryable or permanent
 			if isRetryableExitCode(err) {
-				return logFileBytes, err
+				return nil, err
 			}
 			// Exit code is not retryable, check the processed log for retryable errors
 			if containsRetryableError(logFileBytes) {
-				return logFileBytes, err
+				return nil, err
 			}
 			// No retryable errors found
-			return logFileBytes, backoff.Permanent(err)
+			return nil, backoff.Permanent(err)
 		}
 
-		return logFileBytes, nil
+		return nil, nil
 	}
 
 	// Execute with retry
-	logFileBytes, err := backoff.Retry(ctx, operation,
+	_, err := backoff.Retry(ctx, operation,
 		backoff.WithBackOff(m.backoff),
 	)
 
@@ -411,7 +433,7 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 		p()
 	}
 
-	return logFileBytes, err
+	return err
 }
 
 // Cmd creates a new Msiexec wrapper around cmd.Exec that will call msiexec

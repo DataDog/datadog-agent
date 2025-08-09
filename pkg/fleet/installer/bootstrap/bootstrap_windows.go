@@ -10,6 +10,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -147,14 +148,20 @@ func getInstallerFromMSI(ctx context.Context, tmpDir string) (string, error) {
 		msi.WithMsi(msis[0]),
 		msi.WithAdditionalArgs([]string{fmt.Sprintf(`TARGETDIR="%s"`, strings.ReplaceAll(adminInstallDir, "/", `\`))}),
 	)
-	var output []byte
-	if err == nil {
-		output, err = cmd.Run(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to create MSI command: %w", err)
 	}
 
+	err = cmd.Run(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
+		err = fmt.Errorf("failed to extract Datadog Installer from the MSI: %w", err)
+		var msiErr *msi.MsiexecError
+		if errors.As(err, &msiErr) {
+			err = fmt.Errorf("%w\n%s", err, msiErr.ProcessedLog)
+		}
+		return "", err
 	}
+
 	return paths.GetAdminInstallerBinaryPath(adminInstallDir), nil
 
 }
