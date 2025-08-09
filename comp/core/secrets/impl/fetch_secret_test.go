@@ -134,6 +134,13 @@ func TestExecCommandError(t *testing.T) {
 	inputPayload := "{\"version\": \"1.0\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 	tel := nooptelemetry.GetCompatComponent()
 
+	os.Setenv("GOPRIVATE", "*")
+	os.Setenv("GOPROXY", "off")
+	defer func() {
+		os.Unsetenv("GOPRIVATE")
+		os.Unsetenv("GOPROXY")
+	}()
+
 	backendCommandBin, cleanup := getBackendCommandBinary(t)
 	defer cleanup()
 
