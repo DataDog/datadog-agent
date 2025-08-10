@@ -18,6 +18,7 @@ var (
 	notCapturedReasonPruned         jsontext.Token = jsontext.String("pruned")
 	notCapturedReasonUnavailable    jsontext.Token = jsontext.String("unavailable")
 	notCapturedReasonUnimplemented  jsontext.Token = jsontext.String("unimplemented")
+	notCapturedReasonCycle          jsontext.Token = jsontext.String("circular reference")
 	// notCapturedReasonFieldCount     jsontext.Token = jsontext.String("fieldCount")
 
 	truncated jsontext.Token = jsontext.String("truncated")
