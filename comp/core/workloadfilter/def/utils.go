@@ -93,7 +93,14 @@ func GetPodSharedMetricFilters() [][]PodFilter {
 
 // GetContainerSBOMFilters identifies the filter component's individual Container Filters for SBOM.
 func GetContainerSBOMFilters() [][]ContainerFilter {
-	return [][]ContainerFilter{{LegacyContainerSBOM}}
+	containerSBOMOnce.Do(func() {
+		if pkgconfigsetup.Datadog().GetBool("sbom.container_image.exclude_pause_container") {
+			containerSBOMFiltersCache = [][]ContainerFilter{{LegacyContainerSBOM, ContainerPaused}}
+		} else {
+			containerSBOMFiltersCache = [][]ContainerFilter{{LegacyContainerSBOM}}
+		}
+	})
+	return containerSBOMFiltersCache
 }
 
 // FlattenFilterSets flattens a slice of filter sets into a single slice.

@@ -130,24 +130,13 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 	programName := "LegacyContainerSBOMProgram"
 	var initErrors []error
 
-	if !config.GetBool("sbom.enabled") && !config.GetBool("sbom.container_image.enabled") && !config.GetBool("sbom.container.enabled") {
-		return program.CELProgram{
-			Name: programName,
-		}
-	}
-
-	excludeList := config.GetStringSlice("sbom.container_image.container_exclude")
-	if config.GetBool("sbom.container_image.exclude_pause_container") {
-		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)
-	}
-
 	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("sbom.container_image.container_include"), workloadfilter.ContainerType)
 	if includeErr != nil {
 		initErrors = append(initErrors, includeErr)
 		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
 	}
 
-	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.ContainerType)
+	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("sbom.container_image.container_exclude"), workloadfilter.ContainerType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
 		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
