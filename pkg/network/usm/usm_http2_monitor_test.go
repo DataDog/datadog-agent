@@ -68,8 +68,12 @@ const (
 )
 
 var (
-	authority    = net.JoinHostPort("127.0.0.1", strconv.Itoa(srvPort))
-	http2SrvAddr = "http://" + authority
+	authority       = net.JoinHostPort("127.0.0.1", strconv.Itoa(srvPort))
+	http2SrvAddr    = "http://" + authority
+	grpcStatusCodes = []string{
+		"0", "1", "2", "3", "4", "5", "6", "7", "8",
+		"9", "10", "11", "12", "13", "14", "15", "16",
+	}
 )
 
 type usmHTTP2Suite struct {
@@ -1360,35 +1364,23 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					{Name: "te", Value: "trailers"},
 					{Name: "content-type", Value: "application/grpc"},
 				}
-				empty := []byte{0, 0, 0, 0, 0}
-
-				grpcCodes := []string{
-					"0", "1", "2", "3", "4", "5", "6", "7", "8",
-					"9", "10", "11", "12", "13", "14", "15", "16",
-				}
-
 				var packets [][]byte
-				for i, code := range grpcCodes {
+				for i, code := range grpcStatusCodes {
 					sid := uint32(1 + 2*i)
-
-					fr := newFramer() // fresh framer per code
-					// client request
-					fr.
-						writeHeaders(t, sid, usmhttp2.HeadersFrameOptions{Headers: hdrs}).
-						writeData(t, sid, false, empty).
+					fr := newFramer()
+					fr.writeHeaders(t, sid, usmhttp2.HeadersFrameOptions{Headers: hdrs}).
+						writeData(t, sid, false, []byte{0, 0, 0, 0, 0}).
 						writeHeaders(t, sid, usmhttp2.HeadersFrameOptions{EndStream: endStream})
 
-					// trailer with both :status and grpc-status
-					fr.
-						writeHeaders(t, sid, usmhttp2.HeadersFrameOptions{
-							EndStream: endStream,
-							Headers: []hpack.HeaderField{
-								{Name: ":status", Value: "200"},
-								{Name: "grpc-status", Value: code},
-							},
-						})
+					fr.writeHeaders(t, sid, usmhttp2.HeadersFrameOptions{
+						EndStream: endStream,
+						Headers: []hpack.HeaderField{
+							{Name: ":status", Value: "200"},
+							{Name: "grpc-status", Value: code},
+						},
+					})
 
-					packets = append(packets, fr.bytes()) // one packet per stream
+					packets = append(packets, fr.bytes())
 				}
 				return packets
 			},
@@ -1396,7 +1388,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: usmhttp.MethodPost,
-				}: 17, // one per grpc code
+				}: len(grpcStatusCodes),
 			},
 		},
 	}
