@@ -57,7 +57,7 @@ func TestHostTagProviderExpectedTags(t *testing.T) {
 	mockConfig.SetWithoutSource("expected_tags_duration", "5s")
 	defer mockConfig.SetWithoutSource("expected_tags_duration", "0")
 
-	p := newHostTagProviderWithClock(mockClock)
+	p := newHostTagProviderWithClock(mockClock, pkgconfigsetup.Datadog().GetDuration("expected_tags_duration"))
 
 	tagList := p.GetHostTags()
 
