@@ -16,10 +16,13 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/benbjohnson/clock"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
@@ -46,13 +49,14 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component, tagger tagger.Component) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
 		sysprobeYamlConfig: sysprobeYamlConfig,
 		wmeta:              wmeta,
 		npCollector:        npCollector,
+		tagger:             tagger,
 	}
 }
 
@@ -79,6 +83,8 @@ type ConnectionsCheck struct {
 	sysprobeClient *http.Client
 
 	hostTagProvider *hosttags.HostTagProvider
+	tagger          tagger.Component
+	clock           clock.Clock
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -115,7 +121,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	if err != nil {
 		return err
 	}
-	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
+	c.clock = clock.New()
+	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, c.clock, maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
 
 	return nil
@@ -178,14 +185,63 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
 
+	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
 func (c *ConnectionsCheck) Cleanup() {
 	c.localresolver.Stop()
+}
+
+// getContainersForExplicitTagging returns all containers that are relevant for explicit tagging based on the current connections.
+// A container is relevant for explicit tagging if it appears as a local container in the given connections, and
+// it started less than `expected_tags_duration` ago, or the agent start time is within the `expected_tags_duration` window.
+func (c *ConnectionsCheck) getContainersForExplicitTagging(currentConnections []*model.Connection) map[string]types.EntityID {
+	// Get a list of all container IDs that are currently belong with the given connections.
+	ids := make(map[string]struct{})
+	for _, conn := range currentConnections {
+		if conn.Laddr.ContainerId != "" {
+			ids[conn.Laddr.ContainerId] = struct{}{}
+		}
+	}
+
+	currentTime := c.clock.Now()
+	duration := c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration")
+	withinAgentStartingPeriod := pkgconfigsetup.StartTime.Add(duration).After(currentTime)
+
+	res := make(map[string]types.EntityID, len(ids))
+	// Iterate through the workloadmeta containers, and for the containers whose IDs are in the `ids` map (a.k.a, relevant
+	// containers), check if the container started less than `duration` ago. If so, we consider it relevant for explicit
+	// tagging and map the container ID to its EntityID.
+	_ = c.wmeta.ListContainersWithFilter(func(container *workloadmeta.Container) bool {
+		_, ok := ids[container.ID]
+		if !ok {
+			return false
+		}
+
+		// Either the container started less than `duration` ago, or the agent start time is within the `duration` window.
+		if withinAgentStartingPeriod || container.State.StartedAt.Add(duration).After(currentTime) {
+			res[container.ID] = types.NewEntityID(types.ContainerID, container.ID)
+		}
+		// No need to actually return the container instance, as we already extracted the relevant information.
+		return false
+	})
+	return res
+}
+
+// getContainerTagsCallback returns a callback that returns the container tags for the given `id`, if the
+// container is relevant for explicit tagging.
+func (c *ConnectionsCheck) getContainerTagsCallback(relevantContainers map[string]types.EntityID) func(string) ([]string, error) {
+	return func(id string) ([]string, error) {
+		if entityID, ok := relevantContainers[id]; ok {
+			return c.tagger.Tag(entityID, types.HighCardinality)
+		}
+		// If the container is not relevant for explicit tagging, we return an empty slice.
+		return nil, nil
+	}
 }
 
 func (c *ConnectionsCheck) register() error {
@@ -317,6 +373,7 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 func batchConnections(
 	hostInfo *HostInfo,
 	hostTagProvider *hosttags.HostTagProvider,
+	containerTagProvider func(string) ([]string, error),
 	maxConnsPerMessage int,
 	groupID int32,
 	cxs []*model.Connection,
@@ -369,8 +426,16 @@ func batchConnections(
 				}
 			}
 
+			c.LocalContainerTagsIndex = -1
 			if c.Laddr.ContainerId != "" {
 				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+				if containerTagProvider != nil {
+					if entityTags, err := containerTagProvider(c.Laddr.ContainerId); err != nil {
+						log.Debugf("error getting tags for container %s: %v", c.Laddr.ContainerId, err)
+					} else if len(entityTags) > 0 {
+						c.LocalContainerTagsIndex = int32(tagsEncoder.Encode(entityTags))
+					}
+				}
 			}
 
 			// remap functions create a new map; the map is by string _index_ (not offset)
