@@ -38,17 +38,23 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
 static __always_inline void http_batch_enqueue_wrapper(conn_tuple_t *tuple, http_transaction_t *http) {
     bool is_hello = http->request_fragment[4] == '/' && http->request_fragment[5] == 'h' && http->request_fragment[6] == 'e' && http->request_fragment[7] == 'l' && http->request_fragment[8] == 'l' && http->request_fragment[9] == 'o';
     if (is_hello) {
-        log_debug("GUY GET /hello http_batch_enqueue_wrapper");
+        log_debug("GUY 7 - /hello entering http_batch_enqueue_wrapper");
     }
 
     u32 zero = 0;
     http_event_t *event = bpf_map_lookup_elem(&http_scratch_buffer, &zero);
     if (!event) {
+        if (is_hello) {
+            log_debug("GUY 8 - /hello http_scratch_buffer lookup failed, cannot enqueue");
+        }
         return;
     }
 
     bpf_memcpy(&event->tuple, tuple, sizeof(conn_tuple_t));
     bpf_memcpy(&event->http, http, sizeof(http_transaction_t));
+    if (is_hello) {
+        log_debug("GUY 9 - /hello successfully calling http_batch_enqueue");
+    }
     http_batch_enqueue(event);
 }
 
@@ -203,20 +209,34 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
 
     bool is_hello = packet_type == HTTP_REQUEST && method == HTTP_GET && buffer[4] == '/' && buffer[5] == 'h' && buffer[6] == 'e' && buffer[7] == 'l' && buffer[8] == 'l' && buffer[9] == 'o';
     if (is_hello) {
-        log_debug("GUY GET /hello http_process");
+        log_debug("GUY 0 - /hello http_process entry, packet_type=%d method=%d", packet_type, method);
     }
 
     http = http_fetch_state(tuple, http, packet_type);
-    if (!http || http_seen_before(http, skb_info, packet_type)) {
+    if (!http) {
         if (is_hello) {
-            log_debug("GUY GET /hello got empty http or already seen before, skipping");
+            log_debug("GUY 1 - /hello http_fetch_state returned NULL");
+        }
+        return;
+    }
+
+    if (http_seen_before(http, skb_info, packet_type)) {
+        if (is_hello) {
+            log_debug("GUY 2 - /hello http_seen_before returned true, already processed");
         }
         return;
     }
 
     if (http_should_flush_previous_state(http, packet_type)) {
+        if (is_hello) {
+            log_debug("GUY 3 - /hello flushing previous state before processing new packet");
+        }
         http_batch_enqueue_wrapper(tuple, http);
         bpf_memcpy(http, &event->http, sizeof(http_transaction_t));
+    } else {
+        if (is_hello) {
+            log_debug("GUY 4 - /hello not flushing previous state");
+        }
     }
 
     log_debug("http_process: type=%d method=%d", packet_type, method);
@@ -235,12 +255,19 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
     }
 
     if (http->tcp_seq == HTTP_TERMINATING) {
+        if (is_hello) {
+            log_debug("GUY 5 - /hello connection terminating, enqueuing final transaction");
+        }
         http_batch_enqueue_wrapper(tuple, http);
         // Check a second time to minimize the chance of accidentally deleting a
         // map entry if there is a race with a late response.
         // Please refer to comments in `http_seen_before` for more context.
         if (http->tcp_seq == HTTP_TERMINATING) {
             bpf_map_delete_elem(&http_in_flight, tuple);
+        }
+    } else {
+        if (is_hello) {
+            log_debug("GUY 6 - /hello packet processed but not terminating, no final enqueue");
         }
     }
 }
@@ -252,7 +279,7 @@ int socket__http_filter(struct __sk_buff* skb) {
     bpf_memset(&event, 0, sizeof(http_event_t));
 
     if (!fetch_dispatching_arguments(&event.tuple, &skb_info)) {
-        log_debug("http_filter failed to fetch arguments for tail call");
+        log_debug("GUY -1 http_filter failed to fetch arguments for tail call");
         return 0;
     }
 
