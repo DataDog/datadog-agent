@@ -352,6 +352,7 @@ func batchConnections(
 		namemap := make(map[string]int32)
 		namedb := make([]string, 0)
 
+		connectionsTagsEncoder := model.NewV2TagEncoder()
 		tagsEncoder := model.NewV2TagEncoder()
 
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
@@ -378,7 +379,7 @@ func batchConnections(
 
 			if len(tagsStr) > 0 {
 				c.Tags = nil
-				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
+				c.TagsIdx = int32(connectionsTagsEncoder.Encode(tagsStr))
 			} else {
 				c.TagsIdx = -1
 			}
@@ -442,7 +443,8 @@ func batchConnections(
 			EncodedDnsLookups:      mappedDNSLookups,
 			ContainerHostType:      hostInfo.ContainerHostType,
 			Routes:                 batchRoutes,
-			EncodedConnectionsTags: tagsEncoder.Buffer(),
+			EncodedConnectionsTags: connectionsTagsEncoder.Buffer(),
+			EncodedTags:            tagsEncoder.Buffer(),
 		}
 
 		// Add OS telemetry
