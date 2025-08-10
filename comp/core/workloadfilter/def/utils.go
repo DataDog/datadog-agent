@@ -6,6 +6,8 @@
 package workloadfilter
 
 import (
+	"sync"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -24,66 +26,87 @@ const (
 	LogsFilter    Scope = "LogsFilter"
 )
 
+var (
+	// Cache for autodiscovery filters by scope
+	autodiscoveryFiltersCache = make(map[Scope][][]ContainerFilter)
+	autodiscoveryOnce         sync.Once
+
+	// Cache for shared metric filters
+	containerSharedMetricFiltersCache [][]ContainerFilter
+	containerSharedMetricOnce         sync.Once
+
+	// Cache for sbom filters
+	containerSBOMFiltersCache [][]ContainerFilter
+	containerSBOMOnce         sync.Once
+)
+
 // GetAutodiscoveryFilters identifies the filtering component's individual Container Filters for autodiscovery.
 func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
+	autodiscoveryOnce.Do(func() {
+		// Generate all filter scopes at once
+		for _, scope := range []Scope{GlobalFilter, MetricsFilter, LogsFilter} {
+			flist := make([][]ContainerFilter, 2)
 
-	flist := make([][]ContainerFilter, 2)
+			high := []ContainerFilter{ContainerADAnnotations}
+			low := []ContainerFilter{LegacyContainerGlobal}
 
-	// TODO: Add config option for users to configure AD annotations to take lower priority
-	high := []ContainerFilter{ContainerADAnnotations}
-	low := []ContainerFilter{LegacyContainerGlobal}
+			switch scope {
+			case GlobalFilter:
+				if len(pkgconfigsetup.Datadog().GetStringSlice("container_include")) == 0 {
+					low = append(low, LegacyContainerACInclude)
+				}
+				if len(pkgconfigsetup.Datadog().GetStringSlice("container_exclude")) == 0 {
+					low = append(low, LegacyContainerACExclude)
+				}
+			case MetricsFilter:
+				low = append(low, LegacyContainerMetrics)
+				high = append(high, ContainerADAnnotationsMetrics)
+			case LogsFilter:
+				low = append(low, LegacyContainerLogs)
+				high = append(high, ContainerADAnnotationsLogs)
+			default:
+			}
 
-	switch filterScope {
-	case GlobalFilter:
-		if len(pkgconfigsetup.Datadog().GetStringSlice("container_include")) == 0 {
-			low = append(low, LegacyContainerACInclude)
+			flist[highPrecedence] = high
+			flist[lowPrecedence] = low
+
+			autodiscoveryFiltersCache[scope] = flist
 		}
-		if len(pkgconfigsetup.Datadog().GetStringSlice("container_exclude")) == 0 {
-			low = append(low, LegacyContainerACExclude)
-		}
-	case MetricsFilter:
-		low = append(low, LegacyContainerMetrics)
-		high = append(high, ContainerADAnnotationsMetrics)
-	case LogsFilter:
-		low = append(low, LegacyContainerLogs)
-		high = append(high, ContainerADAnnotationsLogs)
-	default:
-	}
+	})
 
-	flist[highPrecedence] = high
-	flist[lowPrecedence] = low
-
-	return flist
+	return autodiscoveryFiltersCache[filterScope]
 }
 
 // GetContainerSharedMetricFilters identifies the filtering component's individual Container Filters for container metrics.
 func GetContainerSharedMetricFilters() [][]ContainerFilter {
+	containerSharedMetricOnce.Do(func() {
+		flist := make([][]ContainerFilter, 2)
 
-	flist := make([][]ContainerFilter, 2)
+		high := []ContainerFilter{ContainerADAnnotations, ContainerADAnnotationsMetrics}
+		low := []ContainerFilter{LegacyContainerGlobal, LegacyContainerMetrics}
 
-	// TODO: Add config option for users to configure AD annotations to take lower priority
-	flist[highPrecedence] = []ContainerFilter{ContainerADAnnotations, ContainerADAnnotationsMetrics}
+		includeList := pkgconfigsetup.Datadog().GetStringSlice("container_include")
+		excludeList := pkgconfigsetup.Datadog().GetStringSlice("container_exclude")
+		includeList = append(includeList, pkgconfigsetup.Datadog().GetStringSlice("container_include_metrics")...)
+		excludeList = append(excludeList, pkgconfigsetup.Datadog().GetStringSlice("container_exclude_metrics")...)
 
-	low := []ContainerFilter{LegacyContainerGlobal, LegacyContainerMetrics}
+		if len(includeList) == 0 {
+			low = append(low, LegacyContainerACInclude)
+		}
+		if len(excludeList) == 0 {
+			low = append(low, LegacyContainerACExclude)
+		}
 
-	includeList := pkgconfigsetup.Datadog().GetStringSlice("container_include")
-	excludeList := pkgconfigsetup.Datadog().GetStringSlice("container_exclude")
-	includeList = append(includeList, pkgconfigsetup.Datadog().GetStringSlice("container_include_metrics")...)
-	excludeList = append(excludeList, pkgconfigsetup.Datadog().GetStringSlice("container_exclude_metrics")...)
+		if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
+			low = append(low, ContainerPaused)
+		}
 
-	if len(includeList) == 0 {
-		low = append(low, LegacyContainerACInclude)
-	}
-	if len(excludeList) == 0 {
-		low = append(low, LegacyContainerACExclude)
-	}
+		flist[highPrecedence] = high
+		flist[lowPrecedence] = low
+		containerSharedMetricFiltersCache = flist
+	})
 
-	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
-		low = append(low, ContainerPaused)
-	}
-
-	flist[lowPrecedence] = low
-	return flist
+	return containerSharedMetricFiltersCache
 }
 
 // GetPodSharedMetricFilters identifies the filtering component's individual Pod Filters for pod metrics.
