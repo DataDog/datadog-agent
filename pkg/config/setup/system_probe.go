@@ -312,6 +312,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
 	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
 
+	cfg.BindEnvAndSetDefault(join(spNS, "expected_tags_duration"), 10*time.Minute, "DD_SYSTEM_PROBE_EXPECTED_TAGS_DURATION")
+
 	// list of DNS query types to be recorded
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})
 	// (temporary) enable submitting DNS stats by query type.
