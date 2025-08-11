@@ -1,7 +1,7 @@
 package main
 
 var (
-	globalConfig BuildableConfig
+	globalConfig Config
 )
 
 func GetConfig() Config {
@@ -9,5 +9,5 @@ func GetConfig() Config {
 }
 
 func GetBuildableConfig() BuildableConfig {
-	return globalConfig
+	return globalConfig.(BuildableConfig)
 }
