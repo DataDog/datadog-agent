@@ -20,7 +20,8 @@
 # TODO(Agent DevX/SDLC Security - SINT-3845) maybe: add an empty "datadog-signing-keys" package to the pool,
 # this may be simpler and it should not break the tests
 # because this package is only used when updating the signing key using apt-get update
-.setup_signing_keys_package: &setup_signing_keys_package # Set up prod apt repo to get the datadog-signing-keys package
+.setup_signing_keys_package:
+  &setup_signing_keys_package # Set up prod apt repo to get the datadog-signing-keys package
   - echo 'deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] https://apt.datadoghq.com/ stable 7' > /etc/apt/sources.list.d/datadog.list
   - touch /usr/share/keyrings/datadog-archive-keyring.gpg
   - chmod a+r /usr/share/keyrings/datadog-archive-keyring.gpg
@@ -84,13 +85,21 @@ deploy_deb_testing-a7_arm64:
     - !reference [.manual]
   extends:
     - .deploy_deb_testing-a7
-  needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "agent_deb-arm64-a7-fips", "lint_linux-arm64", "ddot_deb-arm64"]
+  needs:
+    [
+      "installer_deb-arm64",
+      "agent_deb-arm64-a7",
+      "agent_deb-arm64-a7-fips",
+      "lint_linux-arm64",
+      "ddot_deb-arm64",
+    ]
   script:
     # setup_signing_keys_package must be done *before* setup_signing
     # because setup_signing replaces gpg with gpg-vault
     # and gpg-vault does not support the operations required by setup_signing_keys_package
     - *setup_signing_keys_package
     - *setup_signing
+    - if [ -n "${POD_NAMESPACE:-}" ]; then export GPG_TEST_KEY_ID="crypto/k8s/keys/k8s_${POD_NAMESPACE}_datadog-agent_testing-signing-key"; fi
     - deb-s3 upload -c "stable-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo sha512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
     - deb-s3 upload -c "stable-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo sha512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
@@ -131,7 +140,14 @@ deploy_rpm_testing-a7_arm64:
     - !reference [.manual]
   extends:
     - .deploy_rpm_testing-a7
-  needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "agent_rpm-arm64-a7-fips", "lint_linux-arm64", "ddot_rpm-arm64"]
+  needs:
+    [
+      "installer_rpm-arm64",
+      "agent_rpm-arm64-a7",
+      "agent_rpm-arm64-a7-fips",
+      "lint_linux-arm64",
+      "ddot_rpm-arm64",
+    ]
   script:
     - *setup_signing
     - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $GPG_TEST_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*aarch64.rpm
@@ -170,7 +186,14 @@ deploy_suse_rpm_testing_arm64-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64", "specific:true"]
-  needs: ["installer_suse_rpm-arm64", "agent_suse-arm64-a7", "agent_suse-arm64-a7-fips", "lint_linux-arm64", "ddot_suse_rpm-arm64"]
+  needs:
+    [
+      "installer_suse_rpm-arm64",
+      "agent_suse-arm64-a7",
+      "agent_suse-arm64-a7-fips",
+      "lint_linux-arm64",
+      "ddot_suse_rpm-arm64",
+    ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -189,7 +212,11 @@ deploy_windows_testing-a7:
   tags: ["arch:amd64", "specific:true"]
   retry: 2
   needs:
-    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
+    [
+      "lint_windows-x64",
+      "windows_msi_and_bosh_zip_x64-a7",
+      "windows-installer-amd64",
+    ]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
@@ -213,8 +240,7 @@ deploy_windows_testing-a7-fips:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64", "specific:true"]
   retry: 2
-  needs:
-    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7-fips"]
+  needs: ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7-fips"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
