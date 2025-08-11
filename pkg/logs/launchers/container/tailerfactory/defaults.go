@@ -10,6 +10,7 @@ package tailerfactory
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discovery"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
@@ -83,6 +84,17 @@ func defaultSourceAndServiceInner(
 
 	// determine the "short name" of the image, which is the final default for both values
 	shortName := container.Image.ShortName
+
+	// Check discovery registry for configured log source before falling back to short name
+	if sourceName == "" {
+		discoveryRegistry := discovery.GetRegistry()
+
+		// Try to get log source from discovery config using short name as identifier
+		if configuredSource, found := discoveryRegistry.GetLogSource(shortName); found {
+			sourceName = configuredSource
+			log.Debugf("Using discovery-configured log source '%s' for container %s (short name: %s)", sourceName, containerID, shortName)
+		}
+	}
 
 	// on kubernetes, if the short name is not available, default to
 	// "kubernetes"; otherwise the empty string is OK.

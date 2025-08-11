@@ -8,6 +8,7 @@ package providers
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
@@ -34,6 +35,12 @@ func (c *FileConfigProvider) Collect(_ context.Context) ([]integration.Config, e
 	configs, errors, err := ReadConfigFiles(WithoutAdvancedAD)
 	if err != nil {
 		return nil, err
+	}
+
+	// Register discovery information from configs
+	discoveryRegistry := discovery.GetRegistry()
+	for _, config := range configs {
+		discoveryRegistry.RegisterConfig(config)
 	}
 
 	c.Errors = errors
