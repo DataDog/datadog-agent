@@ -40,4 +40,5 @@ TEAMS = (
     'apm-onboarding',
     'fleet',
     'agent-logs-pipelines',
+    'data-streams-monitoring',
 )
