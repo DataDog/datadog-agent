@@ -11,15 +11,23 @@ package clusterchecksimpl
 import (
 	"net/http"
 
+	clustercheckhandler "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type noopImpl struct{}
 
 // Requires defines the dependencies for the clusterchecks metadata component (no-op)
 type Requires struct {
-	// No dependencies needed for no-op implementation
+	Log            log.Component
+	Conf           config.Component
+	Serializer     serializer.MetricSerializer
+	ClusterHandler option.Option[clustercheckhandler.Component]
 }
 
 // Provides defines the output of the clusterchecks metadata component (no-op)
@@ -36,9 +44,6 @@ func NewComponent(_ Requires) Provides {
 		Provider: runnerimpl.NewProvider(nil),
 	}
 }
-
-// SetClusterHandler is a no-op when cluster checks are not compiled
-func (n *noopImpl) SetClusterHandler(_ interface{}) {}
 
 // WritePayloadAsJSON is a no-op when cluster checks are not compiled
 func (n *noopImpl) WritePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
