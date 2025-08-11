@@ -16,11 +16,19 @@ const (
 	tagFunctionTags = "_dd.tags.function"
 )
 
-type tracerPayloadModifier struct {
+// TracerPayloadModifier modifies tracer payloads for serverless environments
+type TracerPayloadModifier struct {
 	functionTags string
 }
 
-func (t *tracerPayloadModifier) Modify(tp *pb.TracerPayload) {
+// NewTracerPayloadModifier creates a new TracerPayloadModifier with the given function tags
+func NewTracerPayloadModifier(functionTags string) *TracerPayloadModifier {
+	return &TracerPayloadModifier{
+		functionTags: functionTags,
+	}
+}
+
+func (t *TracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 	// NOTE: our backend stats computation expects to find these function tags,
 	// and more importantly the host group, i.e. primary tags, as attributes in
 	// the root span meta. These tags are already being injected into all of
@@ -34,7 +42,7 @@ func (t *tracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 // FunctionTags are applied to traces coming from serverless environments. They
 // are included in the trace payload under the `_dd.tags.function` tag and then
 // processed into trace tags for downstream systems as part of trace intake.
-func (t *tracerPayloadModifier) ensureFunctionTags(tp *pb.TracerPayload) {
+func (t *TracerPayloadModifier) ensureFunctionTags(tp *pb.TracerPayload) {
 	if t.functionTags == "" {
 		return
 	}
