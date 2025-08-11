@@ -365,7 +365,12 @@ func TestContainerSBOMFilter(t *testing.T) {
 
 			f := newFilterObject(t, mockConfig)
 
-			res := f.IsContainerExcluded(tt.container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}})
+			selectedFilters := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerSBOM}
+			if tt.pauseCtn {
+				selectedFilters = append(selectedFilters, workloadfilter.ContainerPaused)
+			}
+
+			res := f.IsContainerExcluded(tt.container, [][]workloadfilter.ContainerFilter{selectedFilters})
 			assert.Equal(t, tt.expected, res, "Container exclusion result mismatch")
 		})
 	}
