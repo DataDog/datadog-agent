@@ -61,38 +61,39 @@ type mount struct {
 
 // diskInstanceConfig represents an instance configuration.
 type diskInstanceConfig struct {
-	UseMount             bool              `yaml:"use_mount"`
-	IncludeAllDevices    bool              `yaml:"include_all_devices"`
-	AllPartitions        bool              `yaml:"all_partitions"`
-	MinDiskSize          uint64            `yaml:"min_disk_size"`
-	TagByFilesystem      bool              `yaml:"tag_by_filesystem"`
-	TagByLabel           bool              `yaml:"tag_by_label"`
-	UseLsblk             bool              `yaml:"use_lsblk"`
-	BlkidCacheFile       string            `yaml:"blkid_cache_file"`
-	ServiceCheckRw       bool              `yaml:"service_check_rw"`
-	CreateMounts         []mount           `yaml:"create_mounts"`
-	DeviceInclude        []string          `yaml:"device_include"`
-	DeviceWhitelist      []string          `yaml:"device_whitelist"`
-	DeviceExclude        []string          `yaml:"device_exclude"`
-	DeviceBlacklist      []string          `yaml:"device_blacklist"`
-	ExcludedDisks        []string          `yaml:"excluded_disks"`
-	ExcludedDiskRe       string            `yaml:"excluded_disk_re"`
-	FileSystemInclude    []string          `yaml:"file_system_include"`
-	FileSystemWhitelist  []string          `yaml:"file_system_whitelist"`
-	FileSystemExclude    []string          `yaml:"file_system_exclude"`
-	FileSystemBlacklist  []string          `yaml:"file_system_blacklist"`
-	ExcludedFileSystems  []string          `yaml:"excluded_filesystems"`
-	MountPointInclude    []string          `yaml:"mount_point_include"`
-	MountPointWhitelist  []string          `yaml:"mount_point_whitelist"`
-	MountPointExclude    []string          `yaml:"mount_point_exclude"`
-	MountPointBlacklist  []string          `yaml:"mount_point_blacklist"`
-	ExcludedMountPointRe string            `yaml:"excluded_mountpoint_re"`
-	DeviceTagRe          map[string]string `yaml:"device_tag_re"`
-	LowercaseDeviceTag   bool              `yaml:"lowercase_device_tag"`
-	Timeout              uint16            `yaml:"timeout"`
-	ProcMountInfoPath    string            `yaml:"proc_mountinfo_path"`
-	ResolveRootDevice    bool              `yaml:"resolve_root_device"`
-	TagByPhysicalDisk    bool              `yaml:"tag_by_physical_disk"`
+	UseMount               bool              `yaml:"use_mount"`
+	IncludeAllDevices      bool              `yaml:"include_all_devices"`
+	AllPartitions          bool              `yaml:"all_partitions"`
+	MinDiskSize            uint64            `yaml:"min_disk_size"`
+	TagByFilesystem        bool              `yaml:"tag_by_filesystem"`
+	TagByLabel             bool              `yaml:"tag_by_label"`
+	UseLsblk               bool              `yaml:"use_lsblk"`
+	BlkidCacheFile         string            `yaml:"blkid_cache_file"`
+	ServiceCheckRw         bool              `yaml:"service_check_rw"`
+	CreateMounts           []mount           `yaml:"create_mounts"`
+	DeviceInclude          []string          `yaml:"device_include"`
+	DeviceWhitelist        []string          `yaml:"device_whitelist"`
+	DeviceExclude          []string          `yaml:"device_exclude"`
+	DeviceBlacklist        []string          `yaml:"device_blacklist"`
+	ExcludedDisks          []string          `yaml:"excluded_disks"`
+	ExcludedDiskRe         string            `yaml:"excluded_disk_re"`
+	FileSystemInclude      []string          `yaml:"file_system_include"`
+	FileSystemWhitelist    []string          `yaml:"file_system_whitelist"`
+	FileSystemExclude      []string          `yaml:"file_system_exclude"`
+	FileSystemBlacklist    []string          `yaml:"file_system_blacklist"`
+	ExcludedFileSystems    []string          `yaml:"excluded_filesystems"`
+	MountPointInclude      []string          `yaml:"mount_point_include"`
+	MountPointWhitelist    []string          `yaml:"mount_point_whitelist"`
+	MountPointExclude      []string          `yaml:"mount_point_exclude"`
+	MountPointBlacklist    []string          `yaml:"mount_point_blacklist"`
+	ExcludedMountPointRe   string            `yaml:"excluded_mountpoint_re"`
+	DeviceTagRe            map[string]string `yaml:"device_tag_re"`
+	LowercaseDeviceTag     bool              `yaml:"lowercase_device_tag"`
+	Timeout                uint16            `yaml:"timeout"`
+	ProcMountInfoPath      string            `yaml:"proc_mountinfo_path"`
+	ResolveRootDevice      bool              `yaml:"resolve_root_device"`
+	TagByPhysicalDisk      bool              `yaml:"tag_by_physical_disk"`
+	CollectPhysicalMetrics bool              `yaml:"collect_physical_metrics"`
 }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
@@ -487,6 +488,9 @@ func (c *Check) processPartitions(sender sender.Sender, partitions []gopsutil_di
 				tags = append(tags, fmt.Sprintf("is_physical_disk:%t", isPhysicalDisk))
 			}
 			c.sendPartitionMetrics(sender, usage, tags)
+			if isPhysicalDisk && c.instanceConfig.CollectPhysicalMetrics {
+				c.sendPartitionPhysicalMetrics(sender, usage, tags)
+			}
 
 			if c.instanceConfig.ServiceCheckRw {
 				checkStatus := servicecheck.ServiceCheckUnknown
@@ -531,6 +535,16 @@ func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.
 	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usage.UsedPercent/100, "", tags)
 
 	c.sendInodesMetrics(sender, usage, tags)
+}
+
+func (c *Check) sendPartitionPhysicalMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {
+	// Disk metrics
+	// For legacy reasons,  the standard unit it kB
+	sender.Gauge(fmt.Sprintf(diskMetric, "physical_total"), float64(usage.Total)/1024, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "physical_used"), float64(usage.Used)/1024, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "physical_free"), float64(usage.Free)/1024, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "physical_utilized"), usage.UsedPercent, "", tags)
+	sender.Gauge(fmt.Sprintf(diskMetric, "physical_in_use"), usage.UsedPercent/100, "", tags)
 }
 
 func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IOCountersStat, tags []string) {
@@ -780,8 +794,9 @@ func newCheck() check.Check {
 			// Match psutil exactly setting default value (https://github.com/giampaolo/psutil/blob/3d21a43a47ab6f3c4a08d235d2a9a55d4adae9b1/psutil/_pslinux.py#L1277)
 			ProcMountInfoPath: "/proc/self/mounts",
 			// Match psutil reporting '/dev/root' from /proc/self/mounts by default
-			ResolveRootDevice: false,
-			TagByPhysicalDisk: false,
+			ResolveRootDevice:      false,
+			TagByPhysicalDisk:      false,
+			CollectPhysicalMetrics: false,
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},
