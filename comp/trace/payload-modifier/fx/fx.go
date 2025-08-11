@@ -9,27 +9,18 @@ package fx
 import (
 	"go.uber.org/fx"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	payloadmodifier "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/def"
 	payloadmodifierimpl "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/impl"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type dependencies struct {
-	fx.In
-
-	Config coreconfig.Component
-}
-
 // Module defines the fx options for the payload modifier component
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(func(deps dependencies) payloadmodifier.Component {
-			return payloadmodifierimpl.NewComponent(payloadmodifierimpl.Dependencies{
-				Config: deps.Config,
-			})
-		}),
+		fxutil.ProvideComponentConstructor(
+			payloadmodifierimpl.NewComponent,
+		),
 		fx.Provide(func(comp payloadmodifier.Component) pkgagent.TracerPayloadModifier {
 			return comp.GetModifier()
 		}),
