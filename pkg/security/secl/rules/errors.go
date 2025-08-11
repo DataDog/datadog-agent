@@ -155,11 +155,11 @@ type ErrActionFilter struct {
 	Err        error
 }
 
-func (e ErrActionFilter) Error() string {
+func (e *ErrActionFilter) Error() string {
 	return fmt.Sprintf("filter `%s` error: %s", e.Expression, e.Err)
 }
 
-func (e ErrActionFilter) Unwrap() error {
+func (e *ErrActionFilter) Unwrap() error {
 	return e.Err
 }
 
