@@ -136,10 +136,23 @@ func (cc *clusterChecksImpl) getAsJSON() ([]byte, error) {
 func (cc *clusterChecksImpl) WritePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	jsonPayload, err := cc.getAsJSON()
 	if err != nil {
+		// Check if it's because the feature is disabled
+		if err.Error() == "inventory metadata is disabled" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"error": "cluster checks metadata is disabled"}`))
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{"error": "Unable to marshal cluster checks metadata payload"}`))
 		return
 	}
+
+	// Check if payload is null (no data available)
+	if string(jsonPayload) == "null" || string(jsonPayload) == "null\n" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonPayload)
 }
@@ -225,8 +238,9 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 	}
 
 	// Add status information to payload
-	payload.ClusterCheckStatus["warmup"] = state.Warmup
+	// dangling_count: how many checks are not assigned to any node
 	payload.ClusterCheckStatus["dangling_count"] = len(state.Dangling)
+	//node_count: how many nodes are available for check distribution
 	payload.ClusterCheckStatus["node_count"] = len(state.Nodes)
 
 	// Process configs from all nodes
