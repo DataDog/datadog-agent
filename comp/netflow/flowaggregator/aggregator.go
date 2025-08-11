@@ -38,23 +38,24 @@ const metricPrefix = "datadog.netflow."
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
-	flowIn                       chan *common.Flow
-	FlushFlowsToSendInterval     time.Duration // interval for checking flows to flush and send them to EP Forwarder
-	rollupTrackerRefreshInterval time.Duration
-	flowAcc                      *flowAccumulator
-	sender                       sender.Sender
-	epForwarder                  eventplatform.Forwarder
-	stopChan                     chan struct{}
-	flushLoopDone                chan struct{}
-	runDone                      chan struct{}
-	ReceivedFlowCount            *atomic.Uint64
-	FlushedFlowCount             *atomic.Uint64
-	hostname                     string
-	goflowPrometheusGatherer     prometheus.Gatherer
-	TimeNowFunction              func() time.Time // Allows to mock time in tests
-	dropFlowsBeforeAggregator    bool             // config option to drop flows before aggregation for performance testing
-	dropFlowsBeforeEPForwarder   bool             // config option to drop flows before sending to EP forwarder for performance testing
-	getMemoryStats               bool             // config option to enable memory statistics collection and metrics
+	flowIn                         chan *common.Flow
+	FlushFlowsToSendInterval       time.Duration // interval for checking flows to flush and send them to EP Forwarder
+	rollupTrackerRefreshInterval   time.Duration
+	flowAcc                        *flowAccumulator
+	sender                         sender.Sender
+	epForwarder                    eventplatform.Forwarder
+	stopChan                       chan struct{}
+	flushLoopDone                  chan struct{}
+	runDone                        chan struct{}
+	ReceivedFlowCount              *atomic.Uint64
+	FlushedFlowCount               *atomic.Uint64
+	hostname                       string
+	goflowPrometheusGatherer       prometheus.Gatherer
+	TimeNowFunction                func() time.Time // Allows to mock time in tests
+	dropFlowsBeforeAggregator      bool             // config option to drop flows before aggregation for performance testing
+	dropFlowsBeforeBuildingPayload bool             // config option to drop flows before building payload for performance testing
+	dropFlowsBeforeEPForwarder     bool             // config option to drop flows before sending to EP forwarder for performance testing
+	getMemoryStats                 bool             // config option to enable memory statistics collection and metrics
 
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
@@ -88,25 +89,26 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
-		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, config.SkipHashCollisionDetection, config.AggregationHashUseSyncPool, config.PortRollupUseFixedSizeKey, config.PortRollupUseSingleStore, config.GetMemoryStats, config.GetCodeTimings, config.LogMapSizesEveryN, logger, rdnsQuerier),
-		FlushFlowsToSendInterval:     flushFlowsToSendInterval,
-		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
-		sender:                       sender,
-		epForwarder:                  epForwarder,
-		stopChan:                     make(chan struct{}),
-		runDone:                      make(chan struct{}),
-		flushLoopDone:                make(chan struct{}),
-		ReceivedFlowCount:            atomic.NewUint64(0),
-		FlushedFlowCount:             atomic.NewUint64(0),
-		hostname:                     hostname,
-		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
-		TimeNowFunction:              time.Now,
-		dropFlowsBeforeAggregator:    config.DropFlowsBeforeAggregator,
-		dropFlowsBeforeEPForwarder:   config.DropFlowsBeforeEPForwarder,
-		getMemoryStats:               config.GetMemoryStats,
-		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
-		logger:                       logger,
+		flowIn:                         make(chan *common.Flow, config.AggregatorBufferSize),
+		flowAcc:                        newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, config.SkipHashCollisionDetection, config.AggregationHashUseSyncPool, config.PortRollupUseFixedSizeKey, config.PortRollupUseSingleStore, config.GetMemoryStats, config.GetCodeTimings, config.LogMapSizesEveryN, logger, rdnsQuerier),
+		FlushFlowsToSendInterval:       flushFlowsToSendInterval,
+		rollupTrackerRefreshInterval:   rollupTrackerRefreshInterval,
+		sender:                         sender,
+		epForwarder:                    epForwarder,
+		stopChan:                       make(chan struct{}),
+		runDone:                        make(chan struct{}),
+		flushLoopDone:                  make(chan struct{}),
+		ReceivedFlowCount:              atomic.NewUint64(0),
+		FlushedFlowCount:               atomic.NewUint64(0),
+		hostname:                       hostname,
+		goflowPrometheusGatherer:       prometheus.DefaultGatherer,
+		TimeNowFunction:                time.Now,
+		dropFlowsBeforeAggregator:      config.DropFlowsBeforeAggregator,
+		dropFlowsBeforeBuildingPayload: config.DropFlowsBeforeBuildingPayload,
+		dropFlowsBeforeEPForwarder:     config.DropFlowsBeforeEPForwarder,
+		getMemoryStats:                 config.GetMemoryStats,
+		lastSequencePerExporter:        make(map[sequenceDeltaKey]uint32),
+		logger:                         logger,
 	}
 }
 
@@ -156,6 +158,11 @@ func (agg *FlowAggregator) run() {
 }
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
+	if agg.dropFlowsBeforeBuildingPayload {
+		agg.logger.Infof("Dropped %d flows before building payloads as configured for performance testing", len(flows))
+		return
+	}
+
 	for _, flow := range flows {
 		flowPayload := buildPayload(flow, agg.hostname, flushTime)
 
@@ -168,14 +175,17 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 		agg.logger.Tracef("flushed flow: %s", string(payloadBytes))
 
 		m := message.NewMessage(payloadBytes, nil, "", 0)
-		if !agg.dropFlowsBeforeEPForwarder {
-			// JMWPERF if this blocks due to channel being full, does it block processing of incoming flows?
-			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
-			if err != nil {
-				// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
-				agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
-				continue
-			}
+
+		if agg.dropFlowsBeforeEPForwarder {
+			continue
+		}
+
+		// JMWPERF if this blocks due to channel being full, does it block processing of incoming flows?
+		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
+		if err != nil {
+			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
+			agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
+			continue
 		}
 	}
 	if agg.dropFlowsBeforeEPForwarder {
@@ -184,6 +194,11 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 }
 
 func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime time.Time) {
+	if agg.dropFlowsBeforeBuildingPayload {
+		agg.logger.Infof("Dropped exporter metadata for %d flows before building payloads as configured for performance testing", len(flows))
+		return
+	}
+
 	// exporterMap structure: map[NAMESPACE]map[EXPORTER_ID]metadata.NetflowExporter
 	exporterMap := make(map[string]map[string]metadata.NetflowExporter)
 

@@ -37,15 +37,16 @@ type NetflowConfig struct {
 
 	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
 
-	DropFlowsBeforeAggregator  bool `mapstructure:"drop_flows_before_aggregator"`
-	DropFlowsBeforeEPForwarder bool `mapstructure:"drop_flows_before_ep_forwarder"`
-	SkipHashCollisionDetection bool `mapstructure:"skip_hash_collision_detection"`
-	AggregationHashUseSyncPool bool `mapstructure:"aggregation_hash_use_sync_pool"`
-	PortRollupUseFixedSizeKey  bool `mapstructure:"portrollup_use_fixed_size_key"`
-	GetMemoryStats             bool `mapstructure:"get_memory_stats"`
-	GetCodeTimings             bool `mapstructure:"get_code_timings"`
-	LogMapSizesEveryN          int  `mapstructure:"log_map_sizes_every_n"`
-	PortRollupUseSingleStore   bool `mapstructure:"portrollup_use_single_store"`
+	DropFlowsBeforeAggregator      bool `mapstructure:"drop_flows_before_aggregator"`
+	DropFlowsBeforeBuildingPayload bool `mapstructure:"drop_flows_before_building_payload"`
+	DropFlowsBeforeEPForwarder     bool `mapstructure:"drop_flows_before_ep_forwarder"`
+	SkipHashCollisionDetection     bool `mapstructure:"skip_hash_collision_detection"`
+	AggregationHashUseSyncPool     bool `mapstructure:"aggregation_hash_use_sync_pool"`
+	PortRollupUseFixedSizeKey      bool `mapstructure:"portrollup_use_fixed_size_key"`
+	GetMemoryStats                 bool `mapstructure:"get_memory_stats"`
+	GetCodeTimings                 bool `mapstructure:"get_code_timings"`
+	LogMapSizesEveryN              int  `mapstructure:"log_map_sizes_every_n"`
+	PortRollupUseSingleStore       bool `mapstructure:"portrollup_use_single_store"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
