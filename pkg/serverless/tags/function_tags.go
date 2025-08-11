@@ -20,4 +20,3 @@ func GetFunctionTags(cfg pkgconfigmodel.Reader) string {
 	configuredTags := configUtils.GetConfiguredTags(cfg, false)
 	return strings.Join(configuredTags, ",")
 }
-
