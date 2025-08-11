@@ -32,6 +32,8 @@ func build(t *testing.T, outTarget string) {
 	cmd := exec.Command("go", "build", "-v", "-mod=vendor", "-o", outTarget)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// Append to the command's env vars, which prevents them from affecting other tests
+	cmd.Env = append(cmd.Env, []string{"GOPROXY=off", "GOPRIVATE=*"}...)
 	err := cmd.Run()
 	if err != nil {
 		t.Fatalf("Could not compile secret backend binary: %s", err)
@@ -133,13 +135,6 @@ func TestMain(m *testing.M) {
 func TestExecCommandError(t *testing.T) {
 	inputPayload := "{\"version\": \"1.0\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 	tel := nooptelemetry.GetCompatComponent()
-
-	os.Setenv("GOPRIVATE", "*")
-	os.Setenv("GOPROXY", "off")
-	defer func() {
-		os.Unsetenv("GOPRIVATE")
-		os.Unsetenv("GOPROXY")
-	}()
 
 	backendCommandBin, cleanup := getBackendCommandBinary(t)
 	defer cleanup()
