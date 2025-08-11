@@ -241,6 +241,7 @@ windows-installer-amd64:
       -e SIGN_WINDOWS_DD_WCS=true
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
       -e API_KEY_ORG2=${API_KEY_ORG2}
+      -e CI_JOB_TOKEN=${CI_JOB_TOKEN}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-InstallerPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
   after_script:
