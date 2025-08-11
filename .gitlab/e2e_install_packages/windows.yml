@@ -14,8 +14,6 @@
   script:
     # LAST_STABLE_VERSION is used for upgrade test
     - export LAST_STABLE_VERSION=$(dda inv release.get-release-json-value "last_stable::7" --no-worktree)
-    - export WINDOWS_DDNPM_DRIVER=$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)
-    - export WINDOWS_DDPROCMON_DRIVER=$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)
     - !reference [.new_e2e_template, script]
 
 .new-e2e_windows_msi:
