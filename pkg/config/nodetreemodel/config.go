@@ -628,16 +628,6 @@ func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
-// ClearEnvTransformer tells the config to assume that no env transformer is registered for the given key
-func (c *ntmConfig) ClearEnvTransformer(key string) {
-	delete(c.envTransform, strings.ToLower(key))
-}
-
-// CompletelyClearEnvTransformers tells the config to assume that no env transformers are registered
-func (c *ntmConfig) CompletelyClearEnvTransformers() {
-	c.envTransform = make(map[string]func(string) interface{})
-}
-
 // IsSet checks if a key is set in the config
 func (c *ntmConfig) IsSet(key string) bool {
 	c.maybeRebuild()
@@ -756,6 +746,7 @@ func (c *ntmConfig) GetNode(key string) (Node, error) {
 func (c *ntmConfig) SetEnvPrefix(in string) {
 	c.Lock()
 	defer c.Unlock()
+	c.envTransform = make(map[string]func(string) interface{})
 	c.envPrefix = in
 }
 

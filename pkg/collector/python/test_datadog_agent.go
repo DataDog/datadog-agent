@@ -129,7 +129,7 @@ func testEmitAgentTelemetry(t *testing.T) {
 func testObfuscaterConfig(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
 	conf := pkgconfigmock.New(t)
-	conf.CompletelyClearEnvTransformers()
+	conf.SetEnvPrefix("")
 	pkgconfigsetup.InitConfig(conf)
 	o := lazyInitObfuscator()
 	o.Stop()

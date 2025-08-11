@@ -241,16 +241,6 @@ func (c *safeConfig) setEnvTransformer(key string, fn func(string) interface{}) 
 	c.Viper.SetEnvKeyTransformer(key, fn)
 }
 
-// ClearEnvTransformer tells the config to assume that no env transformer is registered for the given key
-func (c *safeConfig) ClearEnvTransformer(key string) {
-	delete(c.existingTransformers, key)
-}
-
-// CompletelyClearEnvTransformers tells the config to assume that no env transformers are registered
-func (c *safeConfig) CompletelyClearEnvTransformers() {
-	c.existingTransformers = make(map[string]bool)
-}
-
 // ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
 func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
@@ -510,6 +500,7 @@ func (c *safeConfig) GetSource(key string) model.Source {
 func (c *safeConfig) SetEnvPrefix(in string) {
 	c.Lock()
 	defer c.Unlock()
+	c.existingTransformers = make(map[string]bool)
 	c.configSources[model.SourceEnvVar].SetEnvPrefix(in)
 	c.Viper.SetEnvPrefix(in)
 	c.envPrefix = in

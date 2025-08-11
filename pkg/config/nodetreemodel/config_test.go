@@ -1163,23 +1163,13 @@ func TestMultipleTransformersRaisesError(t *testing.T) {
 			return strings.Split(in, ",")
 		})
 	}, "env transform for list_of_nums works if set once")
-	config.ClearEnvTransformer("list_of_nums")
 
-	assert.PanicsWithValue(t, "env transform for list_of_nums already exists", func() {
-		config.ParseEnvAsSlice("list_of_nums", func(in string) []interface{} {
-			vals := []interface{}{}
-			for _, str := range strings.Split(in, ",") {
-				f, err := strconv.ParseFloat(str, 64)
-				if err != nil {
-					continue
-				}
-				vals = append(vals, f)
-			}
-			return vals
+	assert.PanicsWithValue(t, "env transform for list_of_strings already exists", func() {
+		config.ParseEnvAsStringSlice("list_of_strings", func(in string) []string {
+			return []string{"a", "b"}
 		})
-		config.ParseEnvAsStringSlice("list_of_nums", func(in string) []string {
+		config.ParseEnvAsStringSlice("list_of_strings", func(in string) []string {
 			return strings.Split(in, ",")
 		})
 	})
-	config.ClearEnvTransformer("list_of_nums")
 }
