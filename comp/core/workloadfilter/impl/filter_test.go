@@ -14,18 +14,18 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // Create a new filter object for testing purposes
 func newFilterObject(t *testing.T, config config.Component) *filter {
 	reqs := Requires{
-		Lc:     compdef.NewTestLifecycle(t),
 		Log:    logmock.New(t),
 		Config: config,
 	}
@@ -528,16 +528,40 @@ func TestProgramErrorHandling(t *testing.T) {
 	}
 
 	t.Run("Include with error thrown", func(t *testing.T) {
-		// Inject a program that always errors for ContainerMetrics, but returns Included
-		f.prgs[workloadfilter.ContainerType][int(workloadfilter.LegacyContainerMetrics)] = &errorInclProgram{}
-		res := evaluateResource(f, container, precedenceFilters)
+		// Create a new filter with injected error factory
+		errorFilter := &filter{
+			config:              f.config,
+			log:                 f.log,
+			telemetry:           f.telemetry,
+			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
+		}
+
+		// Register the error program factory
+		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
+			func(_ config.Component, _ log.Component) program.FilterProgram {
+				return &errorInclProgram{}
+			})
+
+		res := evaluateResource(errorFilter, container, precedenceFilters)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
 	t.Run("Exclude with error thrown", func(t *testing.T) {
-		// Inject a program that always errors for ContainerMetrics, but returns Excluded
-		f.prgs[workloadfilter.ContainerType][int(workloadfilter.LegacyContainerMetrics)] = &errorExclProgram{}
-		res := evaluateResource(f, container, precedenceFilters)
+		// Create a new filter with injected error factory
+		errorFilter := &filter{
+			config:              f.config,
+			log:                 f.log,
+			telemetry:           f.telemetry,
+			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
+		}
+
+		// Register the error program factory
+		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
+			func(_ config.Component, _ log.Component) program.FilterProgram {
+				return &errorExclProgram{}
+			})
+
+		res := evaluateResource(errorFilter, container, precedenceFilters)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 }

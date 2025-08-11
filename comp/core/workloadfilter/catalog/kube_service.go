@@ -14,7 +14,7 @@ import (
 )
 
 // LegacyServiceMetricsProgram creates a program for filtering service metrics
-func LegacyServiceMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyServiceMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyServiceMetricsProgram"
 	var initErrors []error
 
@@ -39,7 +39,7 @@ func LegacyServiceMetricsProgram(config config.Component, logger log.Component) 
 }
 
 // LegacyServiceGlobalProgram creates a program for filtering services globally
-func LegacyServiceGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyServiceGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyServiceGlobalProgram"
 	var initErrors []error
 
