@@ -40,15 +40,12 @@ import (
 
 const (
 
-	// DefaultRotationDetectionStrategy refers how we will detect file rotation or truncation
-	// options:
-	// -"default" refers to the current practice of using os.getFile() to detect file recreation or file-size changes
-	// -"checksum" refers to using CRC-64 hashing function to generate a checksum based on the content of the file for comparison
-	DefaultRotationDetectionStrategy = false
+	// DefaultExperimentalFingerprintingEnabled is a flag to determine whether we want to detect file rotation or truncation using checksum fingerprinting
+	DefaultExperimentalFingerprintingEnabled = false
 
 	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
 	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
-	DefaultFingerprintingMaxBytes = 102400
+	DefaultFingerprintingMaxBytes = 100000
 
 	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
 	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
@@ -1597,7 +1594,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
 	// determines fingerprinting strategy to detect rotation and truncation
-	config.BindEnvAndSetDefault("logs_config.fingerprint_enabled_experimental", DefaultRotationDetectionStrategy)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_enabled_experimental", DefaultExperimentalFingerprintingEnabled)
 	// consolidated fingerprint configuration with defaults
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config", map[string]interface{}{
 		"count":                DefaultFingerprintingMaxLines,

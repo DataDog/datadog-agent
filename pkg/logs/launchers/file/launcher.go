@@ -35,6 +35,22 @@ import (
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
 const DefaultSleepDuration = 1 * time.Second
 
+// resolveFingerprintConfig resolves the global fingerprint configuration and converts it to the appropriate type
+func resolveFingerprintConfig() *types.FingerprintConfig {
+	fingerprintConfig, err := config.GlobalFingerprintConfig(pkgconfigsetup.Datadog())
+	if err != nil {
+		log.Warnf("Failed to get global fingerprint config: %v, using default", err)
+		return nil
+	}
+	// Convert from config.FingerprintConfig to types.FingerprintConfig
+	return &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategy(fingerprintConfig.FingerprintStrategy),
+		Count:               fingerprintConfig.Count,
+		CountToSkip:         fingerprintConfig.CountToSkip,
+		MaxBytes:            fingerprintConfig.MaxBytes,
+	}
+}
+
 // Launcher checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
 type Launcher struct {
@@ -94,7 +110,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
 		oldInfoMap:             make(map[string]*oldTailerInfo),
-		fingerprinter:          tailer.NewFingerprinter(pkgconfigsetup.Datadog().GetBool("logs_config.fingerprint_enabled_experimental"), &types.FingerprintConfig{}),
+		fingerprinter:          tailer.NewFingerprinter(pkgconfigsetup.Datadog().GetBool("logs_config.fingerprint_enabled_experimental"), resolveFingerprintConfig()),
 	}
 }
 
@@ -199,9 +215,19 @@ func (s *Launcher) scan() {
 			if s.fingerprinter.IsFingerprintingEnabled() {
 				// Use type assertion with error handling
 				if concreteFingerprinter, ok := s.fingerprinter.(*tailer.Fingerprinter); ok {
-					didRotate, err = tailered.DidRotateViaFingerprint(concreteFingerprinter)
-					if err != nil {
-						didRotate = false
+					// Check if this specific file should be fingerprinted
+					if concreteFingerprinter.ShouldFileFingerprint(file) {
+						didRotate, err = tailered.DidRotateViaFingerprint(concreteFingerprinter)
+						if err != nil {
+							didRotate = false
+						}
+					} else {
+						// File shouldn't be fingerprinted, fall back to regular rotation detection
+						didRotate, err = tailered.DidRotate()
+						if err != nil {
+							log.Debugf("failed to detect log rotation: %v", err)
+							continue
+						}
 					}
 				} else {
 					// Fallback to regular rotation detection if type assertion fails
@@ -268,10 +294,13 @@ func (s *Launcher) scan() {
 			// Use stored info for rotation detection
 			var fingerprint *types.Fingerprint
 			if s.fingerprinter.IsFingerprintingEnabled() {
-				fingerprint = s.fingerprinter.ComputeFingerprintFromConfig(file.Path, &types.FingerprintConfig{})
-				// Skip files with invalid fingerprints (Value == 0)
-				if fingerprint != nil && !fingerprint.ValidFingerprint() {
-					continue
+				// Check if this specific file should be fingerprinted
+				if concreteFingerprinter, ok := s.fingerprinter.(*tailer.Fingerprinter); ok && concreteFingerprinter.ShouldFileFingerprint(file) {
+					fingerprint = concreteFingerprinter.ComputeFingerprint(file)
+					// Skip files with invalid fingerprints (Value == 0)
+					if fingerprint != nil && !fingerprint.ValidFingerprint() {
+						continue
+					}
 				}
 			}
 			if s.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo, fingerprint) {
@@ -282,10 +311,13 @@ func (s *Launcher) scan() {
 			// Normal case - no stored info
 			var fingerprint *types.Fingerprint
 			if s.fingerprinter.IsFingerprintingEnabled() {
-				fingerprint = s.fingerprinter.ComputeFingerprintFromConfig(file.Path, &types.FingerprintConfig{})
-				// Skip files with invalid fingerprints (Value == 0)
-				if fingerprint != nil && !fingerprint.ValidFingerprint() {
-					continue
+				// Check if this specific file should be fingerprinted
+				if concreteFingerprinter, ok := s.fingerprinter.(*tailer.Fingerprinter); ok && concreteFingerprinter.ShouldFileFingerprint(file) {
+					fingerprint = concreteFingerprinter.ComputeFingerprint(file)
+					// Skip files with invalid fingerprints (Value == 0)
+					if fingerprint != nil && !fingerprint.ValidFingerprint() {
+						continue
+					}
 				}
 			}
 			if s.startNewTailer(file, config.Beginning, fingerprint) {
@@ -361,9 +393,12 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 
 		var fingerprint *types.Fingerprint
 		if s.fingerprinter.IsFingerprintingEnabled() {
-			fingerprint = s.fingerprinter.ComputeFingerprintFromConfig(file.Path, &types.FingerprintConfig{})
-			if !fingerprint.ValidFingerprint() {
-				continue
+			// Check if this specific file should be fingerprinted
+			if concreteFingerprinter, ok := s.fingerprinter.(*tailer.Fingerprinter); ok && concreteFingerprinter.ShouldFileFingerprint(file) {
+				fingerprint = concreteFingerprinter.ComputeFingerprint(file)
+				if !fingerprint.ValidFingerprint() {
+					continue
+				}
 			}
 		}
 
