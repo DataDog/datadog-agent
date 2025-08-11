@@ -28,6 +28,9 @@ func NewTracerPayloadModifier(functionTags string) *TracerPayloadModifier {
 	}
 }
 
+// Modify updates the tracer payload to include the `_dd.tags.function` tag in
+// its tags structure, containing the function tags that need to be applied to
+// the payload.
 func (t *TracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 	// NOTE: our backend stats computation expects to find these function tags,
 	// and more importantly the host group, i.e. primary tags, as attributes in
