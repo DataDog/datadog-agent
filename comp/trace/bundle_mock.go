@@ -16,8 +16,11 @@
 package trace
 
 import (
+	"go.uber.org/fx"
+
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -27,5 +30,7 @@ import (
 func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		config.MockModule(),
+		// Provide nil TracerPayloadModifier by default for tests - can be overridden
+		fx.Provide(func() pkgagent.TracerPayloadModifier { return nil }),
 		traceagentfx.MockModule())
 }
