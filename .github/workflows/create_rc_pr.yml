@@ -8,7 +8,6 @@ on:
     - cron: '0 9 * * 1' # Run Agent 6 workflow on Monday at 09:00 UTC
 
 env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   IS_AGENT6_RELEASE: ${{ github.event.schedule == '0 9 * * 1' }}
 permissions: {}
 
@@ -47,6 +46,8 @@ jobs:
 
       - name: Determine the release active branches
         id: branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
             echo "value=[\"6.53.x\"]" >> $GITHUB_OUTPUT
