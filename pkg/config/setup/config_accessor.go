@@ -26,7 +26,7 @@ func GlobalConfigBuilder() pkgconfigmodel.BuildableConfig {
 	return datadog
 }
 
-// GlobalConfigBuilder returns a builder for the system probe config
+// GlobalSystemProbeConfigBuilder returns a builder for the system probe config
 func GlobalSystemProbeConfigBuilder() pkgconfigmodel.BuildableConfig {
 	return systemProbe
 }
