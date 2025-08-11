@@ -72,29 +72,17 @@ class TestPost(unittest.TestCase):
 
     @patch('packages.install_datadog_package')
     @patch('packages.install_dependency_package')
-    @patch('packages.load_requirements')
-    def test_datadog_integration_vs_python_package_installation(self, mock_load_requirements, mock_instalL_dependency, mock_install_datadog):
+    def test_datadog_integration_vs_python_package_installation(self, mock_instalL_dependency, mock_install_datadog):
         """Test that packages are installed with correct methods based on datadog prefix and exclusion list"""
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
 
-        # Mock the diff file contents - mix of datadog integrations and python packages
-        diff_requirements = {
-            'datadog-custom-integration': ('datadog-custom-integration==1.0.0', '1.0.0'),
-            'datadog-api-client': ('datadog-api-client==2.0.0', '2.0.0'),
-            'requests': ('requests==2.25.1', '2.25.1')
-        }
-
-        # Mock the requirements file (empty exclusions)
-        exclude_requirements = {}
-
-        # Setup mock return values
-        mock_load_requirements.side_effect = [diff_requirements, exclude_requirements]
-
         # Create necessary files
         diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
         with open(diff_file, 'w', encoding='utf-8') as f:
-            f.write('')  # Content doesn't matter as we're mocking load_requirements
+            f.write("# DO NOT REMOVE/MODIFY - used internally by installation process\n")
+            f.write("datadog-nvml==1.0.0\n")
+            f.write("datadog-api-client==2.40.0\n")
 
         req_file = os.path.join(install_directory, 'requirements-agent-release.txt')
         with open(req_file, 'w', encoding='utf-8') as f:
@@ -105,12 +93,9 @@ class TestPost(unittest.TestCase):
         # Verify the result
         self.assertEqual(result, 0)
 
-        mock_install_datadog.assert_called_once_with('datadog-custom-integration==1.0.0', install_directory)
+        mock_install_datadog.assert_called_once_with('datadog-nvml==1.0.0', install_directory)
         pip = [os.path.join(install_directory, "embedded", "bin", "pip")]
-        mock_instalL_dependency.assert_called_once_with(pip,'requiests==2.25.1')
-
-        # Verify datadog-api-client (in DEPS_STARTING_WITH_DATADOG) and requests use install_dependency_package
-        self.assertEqual(mock_instalL_dependency.call_count, 2)
+        mock_instalL_dependency.assert_called_once_with(pip, 'datadog-api-client==2.40.0')
 
         # Cleanup
         os.remove(diff_file)
