@@ -368,6 +368,9 @@
 # trace-agent logging implementation should also notify agent-apm
 /comp/core/log/impl-trace @DataDog/agent-apm
 
+# agent healh platform changes also notify the agent-health squad
+/comp/core/health-platform/ @iglendd @louis-cqrl
+
 # pkg
 /pkg/                                   @DataDog/agent-runtimes
 /pkg/api/                               @DataDog/agent-runtimes

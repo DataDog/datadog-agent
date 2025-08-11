@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package datadog.healthplatform.v1;
+
+option go_package = "pkg/proto/pbgo/healthplatform";
+
+// Issue represents an individual issue to be reported
+message Issue {
+    // Unique identifier for the issue
+    string id = 1;
+    
+    // Human-readable name of the issue
+    string name = 2;
+    
+    // Optional extra field for complementary information
+    optional string extra = 3;
+}
+
+// HealthReport represents the full health report payload
+message HealthReport {
+    // Hostname of the agent
+    string hostname = 1;
+    
+    // Host ID from gopsutil
+    string host_id = 2;
+    
+    // Organization ID
+    uint64 org_id = 3;
+    
+    // List of issues to report
+    repeated Issue issues = 4;
+    
+    // Timestamp when the report was generated
+    int64 timestamp = 5;
+}
+
+// Request for submitting a health report
+message SubmitHealthReportRequest {
+    HealthReport report = 1;
+}
+
+// Response for submitting a health report
+message SubmitHealthReportResponse {
+    bool success = 1;
+    string message = 2;
+}
