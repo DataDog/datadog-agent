@@ -191,21 +191,6 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
 
-	// Increment call counter and log flows map size
-	f.callCounter++
-	if f.logMapSizesEveryN > 0 && f.callCounter%uint64(f.logMapSizesEveryN) == 0 {
-		flowsMapSize := common.Sizeof(f.flows)
-		flowsMapLen := len(f.flows)
-
-		var avgSize float64
-		if flowsMapLen > 0 {
-			avgSize = float64(flowsMapSize) / float64(flowsMapLen)
-		}
-
-		f.logger.Infof("After %d calls - flows map: %d elements (%d bytes, %.1f bytes/entry)",
-			f.callCounter, flowsMapLen, flowsMapSize, avgSize)
-	}
-
 	defer func() {
 		if f.getCodeTimings {
 			f.flowAccStats.flowAccAddDurationSec += time.Since(startFull).Seconds()
@@ -226,6 +211,30 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		f.flowAccStats.getAggregationHashCount++
 	}
 
+	// updateCallCounterAndLogMapSizes increments call counter and logs flows map size statistics
+	updateCallCounterAndLogMapSizes := func() {
+		// Increment call counter and log flows map size
+		f.callCounter++
+		if f.logMapSizesEveryN > 0 && f.callCounter%uint64(f.logMapSizesEveryN) == 0 {
+			// Log the flows map size and average size per entry
+			flowsMapSize := common.Sizeof(f.flows)
+			flowsMapLen := len(f.flows)
+
+			var avgSize float64
+			if flowsMapLen > 0 {
+				avgSize = float64(flowsMapSize) / float64(flowsMapLen)
+			}
+
+			f.logger.Infof("After %d calls - flows map: %d elements (%d bytes, %.1f bytes/entry)",
+				f.callCounter, flowsMapLen, flowsMapSize, avgSize)
+
+			// Log the flow that was added and its size
+			if f.logMapSizesEveryN > 0 && f.callCounter%uint64(f.logMapSizesEveryN) == 0 {
+				f.logger.Infof("Flow added: flowContext: %+v, flow: %+v, total size: %d bytes, flow size: %d bytes", f.flows[aggHash], f.flows[aggHash].flow, common.Sizeof(f.flows[aggHash]), common.Sizeof(f.flows[aggHash].flow))
+			}
+		}
+	}
+
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
 		f.flows[aggHash] = f.newFlowContext(flowToAdd)
@@ -236,6 +245,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 			f.flowAccStats.flowSizeCount++
 			f.flowAccStats.flowSizeBytes += common.Sizeof(f.flows[aggHash])
 		}
+		updateCallCounterAndLogMapSizes()
 		return
 	}
 	if aggFlow.flow == nil {
@@ -270,6 +280,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		}
 	}
 	f.flows[aggHash] = aggFlow
+	updateCallCounterAndLogMapSizes()
 }
 
 func (f *flowAccumulator) setSrcReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {

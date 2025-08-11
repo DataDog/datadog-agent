@@ -169,7 +169,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 
 		m := message.NewMessage(payloadBytes, nil, "", 0)
 		if !agg.dropFlowsBeforeEPForwarder {
-			// JMWPERF if tghis blocks due to channel being full, does it block processing of incoming flows?
+			// JMWPERF if this blocks due to channel being full, does it block processing of incoming flows?
 			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
 			if err != nil {
 				// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
