@@ -897,6 +897,74 @@ func (x *ContainerAllocatedResource) GetID() string {
 	return ""
 }
 
+type ContainerResources struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CpuRequest    *float64               `protobuf:"fixed64,1,opt,name=cpuRequest,proto3,oneof" json:"cpuRequest,omitempty"`
+	CpuLimit      *float64               `protobuf:"fixed64,2,opt,name=cpuLimit,proto3,oneof" json:"cpuLimit,omitempty"`
+	MemoryRequest *uint64                `protobuf:"varint,3,opt,name=memoryRequest,proto3,oneof" json:"memoryRequest,omitempty"`
+	MemoryLimit   *uint64                `protobuf:"varint,4,opt,name=memoryLimit,proto3,oneof" json:"memoryLimit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContainerResources) Reset() {
+	*x = ContainerResources{}
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContainerResources) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContainerResources) ProtoMessage() {}
+
+func (x *ContainerResources) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContainerResources.ProtoReflect.Descriptor instead.
+func (*ContainerResources) Descriptor() ([]byte, []int) {
+	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ContainerResources) GetCpuRequest() float64 {
+	if x != nil && x.CpuRequest != nil {
+		return *x.CpuRequest
+	}
+	return 0
+}
+
+func (x *ContainerResources) GetCpuLimit() float64 {
+	if x != nil && x.CpuLimit != nil {
+		return *x.CpuLimit
+	}
+	return 0
+}
+
+func (x *ContainerResources) GetMemoryRequest() uint64 {
+	if x != nil && x.MemoryRequest != nil {
+		return *x.MemoryRequest
+	}
+	return 0
+}
+
+func (x *ContainerResources) GetMemoryLimit() uint64 {
+	if x != nil && x.MemoryLimit != nil {
+		return *x.MemoryLimit
+	}
+	return 0
+}
+
 type Container struct {
 	state                      protoimpl.MessageState        `protogen:"open.v1"`
 	EntityId                   *WorkloadmetaEntityId         `protobuf:"bytes,1,opt,name=entityId,proto3" json:"entityId,omitempty"`
@@ -912,13 +980,15 @@ type Container struct {
 	CollectorTags              []string                      `protobuf:"bytes,11,rep,name=collectorTags,proto3" json:"collectorTags,omitempty"`
 	CgroupPath                 string                        `protobuf:"bytes,12,opt,name=cgroupPath,proto3" json:"cgroupPath,omitempty"`
 	ResolvedAllocatedResources []*ContainerAllocatedResource `protobuf:"bytes,13,rep,name=resolvedAllocatedResources,proto3" json:"resolvedAllocatedResources,omitempty"`
+	Resources                  *ContainerResources           `protobuf:"bytes,14,opt,name=resources,proto3" json:"resources,omitempty"`
+	Owner                      *WorkloadmetaEntityId         `protobuf:"bytes,15,opt,name=owner,proto3" json:"owner,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *Container) Reset() {
 	*x = Container{}
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[8]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -930,7 +1000,7 @@ func (x *Container) String() string {
 func (*Container) ProtoMessage() {}
 
 func (x *Container) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[8]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -943,7 +1013,7 @@ func (x *Container) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Container.ProtoReflect.Descriptor instead.
 func (*Container) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{8}
+	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Container) GetEntityId() *WorkloadmetaEntityId {
@@ -1037,6 +1107,20 @@ func (x *Container) GetResolvedAllocatedResources() []*ContainerAllocatedResourc
 	return nil
 }
 
+func (x *Container) GetResources() *ContainerResources {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+func (x *Container) GetOwner() *WorkloadmetaEntityId {
+	if x != nil {
+		return x.Owner
+	}
+	return nil
+}
+
 type KubernetesPodOwner struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
@@ -1048,7 +1132,7 @@ type KubernetesPodOwner struct {
 
 func (x *KubernetesPodOwner) Reset() {
 	*x = KubernetesPodOwner{}
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[9]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1060,7 +1144,7 @@ func (x *KubernetesPodOwner) String() string {
 func (*KubernetesPodOwner) ProtoMessage() {}
 
 func (x *KubernetesPodOwner) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[9]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1073,7 +1157,7 @@ func (x *KubernetesPodOwner) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubernetesPodOwner.ProtoReflect.Descriptor instead.
 func (*KubernetesPodOwner) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{9}
+	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *KubernetesPodOwner) GetKind() string {
@@ -1108,7 +1192,7 @@ type OrchestratorContainer struct {
 
 func (x *OrchestratorContainer) Reset() {
 	*x = OrchestratorContainer{}
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[10]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1120,7 +1204,7 @@ func (x *OrchestratorContainer) String() string {
 func (*OrchestratorContainer) ProtoMessage() {}
 
 func (x *OrchestratorContainer) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[10]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1133,7 +1217,7 @@ func (x *OrchestratorContainer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OrchestratorContainer.ProtoReflect.Descriptor instead.
 func (*OrchestratorContainer) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{10}
+	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *OrchestratorContainer) GetId() string {
@@ -1173,13 +1257,14 @@ type KubernetesPod struct {
 	NamespaceLabels            map[string]string        `protobuf:"bytes,12,rep,name=namespaceLabels,proto3" json:"namespaceLabels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	InitContainers             []*OrchestratorContainer `protobuf:"bytes,13,rep,name=InitContainers,proto3" json:"InitContainers,omitempty"`
 	RuntimeClass               string                   `protobuf:"bytes,14,opt,name=runtimeClass,proto3" json:"runtimeClass,omitempty"`
+	EphemeralContainers        []*OrchestratorContainer `protobuf:"bytes,15,rep,name=ephemeralContainers,proto3" json:"ephemeralContainers,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *KubernetesPod) Reset() {
 	*x = KubernetesPod{}
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[11]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1191,7 +1276,7 @@ func (x *KubernetesPod) String() string {
 func (*KubernetesPod) ProtoMessage() {}
 
 func (x *KubernetesPod) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[11]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1204,7 +1289,7 @@ func (x *KubernetesPod) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KubernetesPod.ProtoReflect.Descriptor instead.
 func (*KubernetesPod) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{11}
+	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *KubernetesPod) GetEntityId() *WorkloadmetaEntityId {
@@ -1305,6 +1390,13 @@ func (x *KubernetesPod) GetRuntimeClass() string {
 	return ""
 }
 
+func (x *KubernetesPod) GetEphemeralContainers() []*OrchestratorContainer {
+	if x != nil {
+		return x.EphemeralContainers
+	}
+	return nil
+}
+
 type ECSTask struct {
 	state                 protoimpl.MessageState   `protogen:"open.v1"`
 	EntityId              *WorkloadmetaEntityId    `protobuf:"bytes,1,opt,name=entityId,proto3" json:"entityId,omitempty"`
@@ -1325,7 +1417,7 @@ type ECSTask struct {
 
 func (x *ECSTask) Reset() {
 	*x = ECSTask{}
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[12]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1337,7 +1429,7 @@ func (x *ECSTask) String() string {
 func (*ECSTask) ProtoMessage() {}
 
 func (x *ECSTask) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[12]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1350,7 +1442,7 @@ func (x *ECSTask) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ECSTask.ProtoReflect.Descriptor instead.
 func (*ECSTask) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{12}
+	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ECSTask) GetEntityId() *WorkloadmetaEntityId {
@@ -1449,7 +1541,7 @@ type WorkloadmetaEvent struct {
 
 func (x *WorkloadmetaEvent) Reset() {
 	*x = WorkloadmetaEvent{}
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[13]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1461,7 +1553,7 @@ func (x *WorkloadmetaEvent) String() string {
 func (*WorkloadmetaEvent) ProtoMessage() {}
 
 func (x *WorkloadmetaEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[13]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1474,7 +1566,7 @@ func (x *WorkloadmetaEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkloadmetaEvent.ProtoReflect.Descriptor instead.
 func (*WorkloadmetaEvent) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{13}
+	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *WorkloadmetaEvent) GetType() WorkloadmetaEventType {
@@ -1514,7 +1606,7 @@ type WorkloadmetaStreamResponse struct {
 
 func (x *WorkloadmetaStreamResponse) Reset() {
 	*x = WorkloadmetaStreamResponse{}
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[14]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1526,7 +1618,7 @@ func (x *WorkloadmetaStreamResponse) String() string {
 func (*WorkloadmetaStreamResponse) ProtoMessage() {}
 
 func (x *WorkloadmetaStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[14]
+	mi := &file_datadog_workloadmeta_workloadmeta_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1539,7 +1631,7 @@ func (x *WorkloadmetaStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkloadmetaStreamResponse.ProtoReflect.Descriptor instead.
 func (*WorkloadmetaStreamResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{14}
+	return file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *WorkloadmetaStreamResponse) GetEvents() []*WorkloadmetaEvent {
@@ -1599,7 +1691,18 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\bexitCode\x18\a \x01(\x03R\bexitCode\"@\n" +
 	"\x1aContainerAllocatedResource\x12\x12\n" +
 	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x0e\n" +
-	"\x02ID\x18\x02 \x01(\tR\x02ID\"\xfb\x06\n" +
+	"\x02ID\x18\x02 \x01(\tR\x02ID\"\xea\x01\n" +
+	"\x12ContainerResources\x12#\n" +
+	"\n" +
+	"cpuRequest\x18\x01 \x01(\x01H\x00R\n" +
+	"cpuRequest\x88\x01\x01\x12\x1f\n" +
+	"\bcpuLimit\x18\x02 \x01(\x01H\x01R\bcpuLimit\x88\x01\x01\x12)\n" +
+	"\rmemoryRequest\x18\x03 \x01(\x04H\x02R\rmemoryRequest\x88\x01\x01\x12%\n" +
+	"\vmemoryLimit\x18\x04 \x01(\x04H\x03R\vmemoryLimit\x88\x01\x01B\r\n" +
+	"\v_cpuRequestB\v\n" +
+	"\t_cpuLimitB\x10\n" +
+	"\x0e_memoryRequestB\x0e\n" +
+	"\f_memoryLimit\"\x85\b\n" +
 	"\tContainer\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -1620,7 +1723,9 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\n" +
 	"cgroupPath\x18\f \x01(\tR\n" +
 	"cgroupPath\x12p\n" +
-	"\x1aresolvedAllocatedResources\x18\r \x03(\v20.datadog.workloadmeta.ContainerAllocatedResourceR\x1aresolvedAllocatedResources\x1a:\n" +
+	"\x1aresolvedAllocatedResources\x18\r \x03(\v20.datadog.workloadmeta.ContainerAllocatedResourceR\x1aresolvedAllocatedResources\x12F\n" +
+	"\tresources\x18\x0e \x01(\v2(.datadog.workloadmeta.ContainerResourcesR\tresources\x12@\n" +
+	"\x05owner\x18\x0f \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\x05owner\x1a:\n" +
 	"\fEnvVarsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +
@@ -1634,7 +1739,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x15OrchestratorContainer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12:\n" +
-	"\x05image\x18\x03 \x01(\v2$.datadog.workloadmeta.ContainerImageR\x05image\"\xab\x06\n" +
+	"\x05image\x18\x03 \x01(\v2$.datadog.workloadmeta.ContainerImageR\x05image\"\x8a\a\n" +
 	"\rKubernetesPod\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -1654,7 +1759,8 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\fkubeServices\x18\v \x03(\tR\fkubeServices\x12b\n" +
 	"\x0fnamespaceLabels\x18\f \x03(\v28.datadog.workloadmeta.KubernetesPod.NamespaceLabelsEntryR\x0fnamespaceLabels\x12S\n" +
 	"\x0eInitContainers\x18\r \x03(\v2+.datadog.workloadmeta.OrchestratorContainerR\x0eInitContainers\x12\"\n" +
-	"\fruntimeClass\x18\x0e \x01(\tR\fruntimeClass\x1aB\n" +
+	"\fruntimeClass\x18\x0e \x01(\tR\fruntimeClass\x12]\n" +
+	"\x13ephemeralContainers\x18\x0f \x03(\v2+.datadog.workloadmeta.OrchestratorContainerR\x13ephemeralContainers\x1aB\n" +
 	"\x14NamespaceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x91\x06\n" +
@@ -1744,7 +1850,7 @@ func file_datadog_workloadmeta_workloadmeta_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_workloadmeta_workloadmeta_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_datadog_workloadmeta_workloadmeta_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_datadog_workloadmeta_workloadmeta_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_datadog_workloadmeta_workloadmeta_proto_goTypes = []any{
 	(WorkloadmetaKind)(0),              // 0: datadog.workloadmeta.WorkloadmetaKind
 	(WorkloadmetaSource)(0),            // 1: datadog.workloadmeta.WorkloadmetaSource
@@ -1761,20 +1867,21 @@ var file_datadog_workloadmeta_workloadmeta_proto_goTypes = []any{
 	(*ContainerPort)(nil),              // 12: datadog.workloadmeta.ContainerPort
 	(*ContainerState)(nil),             // 13: datadog.workloadmeta.ContainerState
 	(*ContainerAllocatedResource)(nil), // 14: datadog.workloadmeta.ContainerAllocatedResource
-	(*Container)(nil),                  // 15: datadog.workloadmeta.Container
-	(*KubernetesPodOwner)(nil),         // 16: datadog.workloadmeta.KubernetesPodOwner
-	(*OrchestratorContainer)(nil),      // 17: datadog.workloadmeta.OrchestratorContainer
-	(*KubernetesPod)(nil),              // 18: datadog.workloadmeta.KubernetesPod
-	(*ECSTask)(nil),                    // 19: datadog.workloadmeta.ECSTask
-	(*WorkloadmetaEvent)(nil),          // 20: datadog.workloadmeta.WorkloadmetaEvent
-	(*WorkloadmetaStreamResponse)(nil), // 21: datadog.workloadmeta.WorkloadmetaStreamResponse
-	nil,                                // 22: datadog.workloadmeta.EntityMeta.AnnotationsEntry
-	nil,                                // 23: datadog.workloadmeta.EntityMeta.LabelsEntry
-	nil,                                // 24: datadog.workloadmeta.Container.EnvVarsEntry
-	nil,                                // 25: datadog.workloadmeta.Container.NetworkIpsEntry
-	nil,                                // 26: datadog.workloadmeta.KubernetesPod.NamespaceLabelsEntry
-	nil,                                // 27: datadog.workloadmeta.ECSTask.TagsEntry
-	nil,                                // 28: datadog.workloadmeta.ECSTask.ContainerInstanceTagsEntry
+	(*ContainerResources)(nil),         // 15: datadog.workloadmeta.ContainerResources
+	(*Container)(nil),                  // 16: datadog.workloadmeta.Container
+	(*KubernetesPodOwner)(nil),         // 17: datadog.workloadmeta.KubernetesPodOwner
+	(*OrchestratorContainer)(nil),      // 18: datadog.workloadmeta.OrchestratorContainer
+	(*KubernetesPod)(nil),              // 19: datadog.workloadmeta.KubernetesPod
+	(*ECSTask)(nil),                    // 20: datadog.workloadmeta.ECSTask
+	(*WorkloadmetaEvent)(nil),          // 21: datadog.workloadmeta.WorkloadmetaEvent
+	(*WorkloadmetaStreamResponse)(nil), // 22: datadog.workloadmeta.WorkloadmetaStreamResponse
+	nil,                                // 23: datadog.workloadmeta.EntityMeta.AnnotationsEntry
+	nil,                                // 24: datadog.workloadmeta.EntityMeta.LabelsEntry
+	nil,                                // 25: datadog.workloadmeta.Container.EnvVarsEntry
+	nil,                                // 26: datadog.workloadmeta.Container.NetworkIpsEntry
+	nil,                                // 27: datadog.workloadmeta.KubernetesPod.NamespaceLabelsEntry
+	nil,                                // 28: datadog.workloadmeta.ECSTask.TagsEntry
+	nil,                                // 29: datadog.workloadmeta.ECSTask.ContainerInstanceTagsEntry
 }
 var file_datadog_workloadmeta_workloadmeta_proto_depIdxs = []int32{
 	0,  // 0: datadog.workloadmeta.WorkloadmetaFilter.kinds:type_name -> datadog.workloadmeta.WorkloadmetaKind
@@ -1782,42 +1889,45 @@ var file_datadog_workloadmeta_workloadmeta_proto_depIdxs = []int32{
 	2,  // 2: datadog.workloadmeta.WorkloadmetaFilter.eventType:type_name -> datadog.workloadmeta.WorkloadmetaEventType
 	7,  // 3: datadog.workloadmeta.WorkloadmetaStreamRequest.filter:type_name -> datadog.workloadmeta.WorkloadmetaFilter
 	0,  // 4: datadog.workloadmeta.WorkloadmetaEntityId.kind:type_name -> datadog.workloadmeta.WorkloadmetaKind
-	22, // 5: datadog.workloadmeta.EntityMeta.annotations:type_name -> datadog.workloadmeta.EntityMeta.AnnotationsEntry
-	23, // 6: datadog.workloadmeta.EntityMeta.labels:type_name -> datadog.workloadmeta.EntityMeta.LabelsEntry
+	23, // 5: datadog.workloadmeta.EntityMeta.annotations:type_name -> datadog.workloadmeta.EntityMeta.AnnotationsEntry
+	24, // 6: datadog.workloadmeta.EntityMeta.labels:type_name -> datadog.workloadmeta.EntityMeta.LabelsEntry
 	4,  // 7: datadog.workloadmeta.ContainerState.status:type_name -> datadog.workloadmeta.ContainerStatus
 	5,  // 8: datadog.workloadmeta.ContainerState.health:type_name -> datadog.workloadmeta.ContainerHealth
 	9,  // 9: datadog.workloadmeta.Container.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
 	10, // 10: datadog.workloadmeta.Container.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
-	24, // 11: datadog.workloadmeta.Container.envVars:type_name -> datadog.workloadmeta.Container.EnvVarsEntry
+	25, // 11: datadog.workloadmeta.Container.envVars:type_name -> datadog.workloadmeta.Container.EnvVarsEntry
 	11, // 12: datadog.workloadmeta.Container.image:type_name -> datadog.workloadmeta.ContainerImage
-	25, // 13: datadog.workloadmeta.Container.networkIps:type_name -> datadog.workloadmeta.Container.NetworkIpsEntry
+	26, // 13: datadog.workloadmeta.Container.networkIps:type_name -> datadog.workloadmeta.Container.NetworkIpsEntry
 	12, // 14: datadog.workloadmeta.Container.ports:type_name -> datadog.workloadmeta.ContainerPort
 	3,  // 15: datadog.workloadmeta.Container.runtime:type_name -> datadog.workloadmeta.Runtime
 	13, // 16: datadog.workloadmeta.Container.state:type_name -> datadog.workloadmeta.ContainerState
 	14, // 17: datadog.workloadmeta.Container.resolvedAllocatedResources:type_name -> datadog.workloadmeta.ContainerAllocatedResource
-	11, // 18: datadog.workloadmeta.OrchestratorContainer.image:type_name -> datadog.workloadmeta.ContainerImage
-	9,  // 19: datadog.workloadmeta.KubernetesPod.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	10, // 20: datadog.workloadmeta.KubernetesPod.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
-	16, // 21: datadog.workloadmeta.KubernetesPod.owners:type_name -> datadog.workloadmeta.KubernetesPodOwner
-	17, // 22: datadog.workloadmeta.KubernetesPod.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	26, // 23: datadog.workloadmeta.KubernetesPod.namespaceLabels:type_name -> datadog.workloadmeta.KubernetesPod.NamespaceLabelsEntry
-	17, // 24: datadog.workloadmeta.KubernetesPod.InitContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	9,  // 25: datadog.workloadmeta.ECSTask.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
-	10, // 26: datadog.workloadmeta.ECSTask.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
-	27, // 27: datadog.workloadmeta.ECSTask.tags:type_name -> datadog.workloadmeta.ECSTask.TagsEntry
-	28, // 28: datadog.workloadmeta.ECSTask.containerInstanceTags:type_name -> datadog.workloadmeta.ECSTask.ContainerInstanceTagsEntry
-	6,  // 29: datadog.workloadmeta.ECSTask.launchType:type_name -> datadog.workloadmeta.ECSLaunchType
-	17, // 30: datadog.workloadmeta.ECSTask.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
-	2,  // 31: datadog.workloadmeta.WorkloadmetaEvent.type:type_name -> datadog.workloadmeta.WorkloadmetaEventType
-	15, // 32: datadog.workloadmeta.WorkloadmetaEvent.container:type_name -> datadog.workloadmeta.Container
-	18, // 33: datadog.workloadmeta.WorkloadmetaEvent.kubernetesPod:type_name -> datadog.workloadmeta.KubernetesPod
-	19, // 34: datadog.workloadmeta.WorkloadmetaEvent.ecsTask:type_name -> datadog.workloadmeta.ECSTask
-	20, // 35: datadog.workloadmeta.WorkloadmetaStreamResponse.events:type_name -> datadog.workloadmeta.WorkloadmetaEvent
-	36, // [36:36] is the sub-list for method output_type
-	36, // [36:36] is the sub-list for method input_type
-	36, // [36:36] is the sub-list for extension type_name
-	36, // [36:36] is the sub-list for extension extendee
-	0,  // [0:36] is the sub-list for field type_name
+	15, // 18: datadog.workloadmeta.Container.resources:type_name -> datadog.workloadmeta.ContainerResources
+	9,  // 19: datadog.workloadmeta.Container.owner:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	11, // 20: datadog.workloadmeta.OrchestratorContainer.image:type_name -> datadog.workloadmeta.ContainerImage
+	9,  // 21: datadog.workloadmeta.KubernetesPod.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	10, // 22: datadog.workloadmeta.KubernetesPod.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
+	17, // 23: datadog.workloadmeta.KubernetesPod.owners:type_name -> datadog.workloadmeta.KubernetesPodOwner
+	18, // 24: datadog.workloadmeta.KubernetesPod.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	27, // 25: datadog.workloadmeta.KubernetesPod.namespaceLabels:type_name -> datadog.workloadmeta.KubernetesPod.NamespaceLabelsEntry
+	18, // 26: datadog.workloadmeta.KubernetesPod.InitContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	18, // 27: datadog.workloadmeta.KubernetesPod.ephemeralContainers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	9,  // 28: datadog.workloadmeta.ECSTask.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
+	10, // 29: datadog.workloadmeta.ECSTask.entityMeta:type_name -> datadog.workloadmeta.EntityMeta
+	28, // 30: datadog.workloadmeta.ECSTask.tags:type_name -> datadog.workloadmeta.ECSTask.TagsEntry
+	29, // 31: datadog.workloadmeta.ECSTask.containerInstanceTags:type_name -> datadog.workloadmeta.ECSTask.ContainerInstanceTagsEntry
+	6,  // 32: datadog.workloadmeta.ECSTask.launchType:type_name -> datadog.workloadmeta.ECSLaunchType
+	18, // 33: datadog.workloadmeta.ECSTask.containers:type_name -> datadog.workloadmeta.OrchestratorContainer
+	2,  // 34: datadog.workloadmeta.WorkloadmetaEvent.type:type_name -> datadog.workloadmeta.WorkloadmetaEventType
+	16, // 35: datadog.workloadmeta.WorkloadmetaEvent.container:type_name -> datadog.workloadmeta.Container
+	19, // 36: datadog.workloadmeta.WorkloadmetaEvent.kubernetesPod:type_name -> datadog.workloadmeta.KubernetesPod
+	20, // 37: datadog.workloadmeta.WorkloadmetaEvent.ecsTask:type_name -> datadog.workloadmeta.ECSTask
+	21, // 38: datadog.workloadmeta.WorkloadmetaStreamResponse.events:type_name -> datadog.workloadmeta.WorkloadmetaEvent
+	39, // [39:39] is the sub-list for method output_type
+	39, // [39:39] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_datadog_workloadmeta_workloadmeta_proto_init() }
@@ -1825,13 +1935,14 @@ func file_datadog_workloadmeta_workloadmeta_proto_init() {
 	if File_datadog_workloadmeta_workloadmeta_proto != nil {
 		return
 	}
+	file_datadog_workloadmeta_workloadmeta_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_workloadmeta_workloadmeta_proto_rawDesc), len(file_datadog_workloadmeta_workloadmeta_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   22,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

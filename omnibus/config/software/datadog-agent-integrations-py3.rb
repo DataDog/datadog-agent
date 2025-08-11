@@ -86,7 +86,7 @@ build do
     when linux_target?
       arm_target? ? "linux-aarch64" : "linux-x86_64"
     when osx_target?
-      "macos-x86_64"
+      arm_target? ? "macos-aarch64" : "macos-x86_64"
     when windows_target?
       "windows-x86_64"
   end + "_#{python_version}.txt"
@@ -235,12 +235,16 @@ build do
     'Cryptodome/SelfTest',
     'gssapi/tests',
     'keystoneauth1/tests',
+    'lazy_loader/tests',
     'openstack/tests',
     'os_service_types/tests',
     'pbr/tests',
     'pkg_resources/tests',
+    'pip/_vendor/colorama/tests',
     'psutil/tests',
+    'requests_unixsocket/tests',
     'securesystemslib/_vendor/ed25519/test_data',
+    'setuptools/_distutils/compilers/C/tests',
     'setuptools/_distutils/tests',
     'setuptools/tests',
     'simplejson/tests',

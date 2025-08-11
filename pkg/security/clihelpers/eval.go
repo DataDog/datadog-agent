@@ -10,13 +10,11 @@ package clihelpers
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"runtime"
 
-	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
@@ -105,7 +103,7 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	}
 
-	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+	if _, err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return report, err
 	}
 
@@ -172,10 +170,9 @@ func EvalRule(evalArgs EvalRuleParams) error {
 }
 
 func eventFromTestData(testData TestData) (eval.Event, error) {
-
-	kind := secconfig.ParseEvalEventType(testData.Type)
-	if kind == model.UnknownEventType {
-		return nil, errors.New("unknown event type")
+	kind, err := model.ParseEvalEventType(testData.Type)
+	if err != nil {
+		return nil, err
 	}
 
 	event := &model.Event{
@@ -431,7 +428,7 @@ func CheckPoliciesLocal(args CheckPoliciesLocalParams, writer io.Writer) error {
 		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 		ruleSet.SetFakeEventCtor(newFakeEvent)
 	}
-	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+	if _, err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 

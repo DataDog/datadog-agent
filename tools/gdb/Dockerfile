@@ -1,4 +1,4 @@
-ARG AGENT_VERSION
+ARG AGENT_VERSION=7
 FROM datadog/agent:${AGENT_VERSION}
 
 RUN apt-get update
@@ -6,7 +6,7 @@ RUN rm -vf /etc/ssl/openssl.cnf
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y gdb build-essential strace less vim
 
 # Install go
-RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.24.4.linux-amd64.tar.gz
+RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.24.5.linux-$(dpkg --print-architecture).tar.gz
 RUN tar xzvf golang.tgz
 RUN ln -s /go /goroot
 
@@ -15,7 +15,7 @@ RUN /go/bin/go install github.com/go-delve/delve/cmd/dlv@latest
 
 # Install datadog-agent-dbg at the right version
 RUN apt-get install -o Dpkg::Options::="--force-confold" --no-install-recommends -y gnupg dirmngr ca-certificates \
- && apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 33EE313BAD9589B7
+ && apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 E6266D4AC0962C7D
 ARG AGENT_VERSION
 ARG APT_REPO=apt.datadoghq.com
 ARG APT_DISTRIBUTION=stable

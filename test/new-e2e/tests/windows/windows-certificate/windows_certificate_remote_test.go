@@ -118,16 +118,21 @@ func (v *multiVMSuite) SetupSuite() {
 	v.Require().NoError(err)
 
 	// Start the LanmanServer to ensure that the Agent can connect to the IPC$ share
-	err = windowsCommon.StartService(certificateHost, "LanmanServer")
-	v.Require().NoError(err)
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		err = windowsCommon.StartService(certificateHost, "LanmanServer")
+		assert.NoError(c, err)
+	}, 10*time.Minute, 10*time.Second)
 
 	// Wait for the LanmanServer service to be running
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		output, err := windowsCommon.GetServiceStatus(certificateHost, "LanmanServer")
+		if err != nil {
+			v.T().Logf("Getting LanmanServer status failed %v", err)
+		}
 		assert.NoError(c, err)
 		assert.Contains(c, output, "Running")
 		v.T().Logf("LanmanServer status: %s", output)
-	}, 5*time.Minute, 10*time.Second)
+	}, 10*time.Minute, 10*time.Second)
 
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
 	v.Require().NoError(err)

@@ -27,7 +27,7 @@ func newConnectionManagerForAddr(addr net.Addr) *ConnectionManager {
 }
 
 func newConnectionManagerForHostPort(host string, port int) *ConnectionManager {
-	endpoint := config.NewEndpoint("", "", host, port, false)
+	endpoint := config.NewEndpoint("", "", host, port, config.EmptyPathPrefix, false)
 	return NewConnectionManager(endpoint, statusinterface.NewStatusProviderMock())
 }
 

@@ -220,7 +220,7 @@ func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfi
 		SketchesBucketOffset: time.Second * 10,
 		Tagger:               tagger,
 	}
-	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, false)
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, pkgconfigsetup.Datadog().GetBool("serverless.logs_enabled"), pkgconfigsetup.Datadog().GetBool("enhanced_metrics"), lambdaInitMetricChan)
 	return metricAgent
@@ -354,6 +354,8 @@ func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStart
 		LambdaSpanChan:  lambdaSpanChan,
 		ColdStartSpanID: coldStartSpanId,
 		RCService:       rcService,
+		// We have not yet wired up FunctionTags for the lambda go agent.
+		FunctionTags: "",
 	})
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }

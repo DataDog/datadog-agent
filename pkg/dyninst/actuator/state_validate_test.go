@@ -18,8 +18,8 @@ func validateState(s *state, reportError func(error)) {
 		reportError(fmt.Errorf(format, args...))
 	}
 	for procID, proc := range s.processes {
-		if procID != proc.id {
-			report("process %v has mismatched ID field %v", procID, proc.id)
+		if procID != proc.processKey {
+			report("process %v has mismatched ID field %v", procID, proc.processKey)
 		}
 		validateProcess(proc, s, report)
 	}
@@ -93,15 +93,10 @@ func validateState(s *state, reportError func(error)) {
 					"process %v currentProgram %v does not exist",
 					procID, proc.currentProgram,
 				)
-			} else if prog.processID == nil {
-				report(
-					"process %v currentProgram %v has nil processID",
-					procID, proc.currentProgram,
-				)
-			} else if *prog.processID != procID {
+			} else if prog.processKey != procID {
 				report(
 					"process %v currentProgram %v points to different process %v",
-					procID, proc.currentProgram, *prog.processID,
+					procID, proc.currentProgram, prog.processKey,
 				)
 			}
 		}
@@ -109,26 +104,26 @@ func validateState(s *state, reportError func(error)) {
 }
 
 func validateProcess(proc *process, s *state, report func(format string, args ...any)) {
-	procID := proc.id
+	procKey := proc.processKey
 
 	switch proc.state {
 	case processStateWaitingForProgram:
 		if proc.currentProgram == 0 {
 			report(
 				"process %v in WaitingForProgram state has no currentProgram",
-				procID,
+				procKey,
 			)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procID, proc.currentProgram,
+				procKey, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil {
 			report(
 				"process %v in WaitingForProgram state should not have attachedProgram",
-				procID,
+				procKey,
 			)
 		}
 
@@ -136,78 +131,78 @@ func validateProcess(proc *process, s *state, report func(format string, args ..
 		if proc.currentProgram == 0 {
 			report(
 				"process %v in Attaching state has no currentProgram",
-				procID,
+				procKey,
 			)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procID, proc.currentProgram,
+				procKey, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil {
 			report(
 				"process %v in Attaching state should not have attachedProgram yet",
-				procID,
+				procKey,
 			)
 		}
 
 	case processStateAttached:
 		if proc.currentProgram == 0 {
-			report("process %v in Attached state has no currentProgram", procID)
+			report("process %v in Attached state has no currentProgram", procKey)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procID, proc.currentProgram,
+				procKey, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram == nil {
 			report(
-				"process %v in Attached state has no attachedProgram", procID,
+				"process %v in Attached state has no attachedProgram", procKey,
 			)
 		}
 		if proc.attachedProgram != nil &&
 			proc.attachedProgram.ir.ID != proc.currentProgram {
 			report(
 				"process %v attachedProgram ID %v does not match currentProgram %v",
-				procID, proc.attachedProgram.ir.ID, proc.currentProgram,
+				procKey, proc.attachedProgram.ir.ID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil &&
-			proc.attachedProgram.procID != procID {
+			proc.attachedProgram.procID != procKey.ProcessID {
 			report(
 				"process %v attachedProgram has wrong processID %v",
-				procID, proc.attachedProgram.procID,
+				procKey, proc.attachedProgram.procID,
 			)
 		}
 
 	case processStateDetaching:
 		if proc.currentProgram == 0 {
-			report("process %v in Detaching state has no currentProgram", procID)
+			report("process %v in Detaching state has no currentProgram", procKey)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procID, proc.currentProgram,
+				procKey, proc.currentProgram,
 			)
 		}
 
 	case processStateLoadingFailed:
 		// currentProgram may be 0 after failure.
 		if proc.err == nil {
-			report("process %v in LoadingFailed state has no error", procID)
+			report("process %v in LoadingFailed state has no error", procKey)
 		}
 		if len(proc.probes) == 0 {
-			report("process %v has no probes in LoadingFailed state", procID)
+			report("process %v has no probes in LoadingFailed state", procKey)
 		}
 
 	case processStateInvalid:
 		// This state should not normally appear in a valid state.
-		report("process %v is in Invalid state", procID)
+		report("process %v is in Invalid state", procKey)
 
 	default:
-		report("process %v has unknown state %v", procID, proc.state)
+		report("process %v has unknown state %v", procKey, proc.state)
 	}
 }
 
@@ -217,28 +212,16 @@ func validateProgram(
 	progID := prog.id
 
 	// Check that processID references exist and are consistent.
-	if procID := prog.processID; procID != nil {
-		proc, exists := s.processes[*procID]
-		if !exists {
-			report(
-				"program %v references non-existent process %v", progID, *procID,
-			)
-		} else if proc.currentProgram != progID {
-			report(
-				"program %v is not the current program for process %v",
-				progID, *procID,
-			)
-		}
-	} else {
-		switch prog.state {
-		case programStateLoadingAborted, programStateDraining:
-			// Valid states for programs with no process.
-		default:
-			report(
-				"program %v has no process but is not in a cleanup state (%v)",
-				progID, prog.state,
-			)
-		}
+	proc, exists := s.processes[prog.processKey]
+	if !exists {
+		report(
+			"program %v references non-existent process %v", progID, prog.processKey,
+		)
+	} else if proc.currentProgram != progID {
+		report(
+			"program %v is not the current program for process %v",
+			progID, prog.ProcessID,
+		)
 	}
 
 	switch prog.state {
@@ -269,6 +252,7 @@ func validateProgram(
 		}
 
 	case programStateDraining,
+		programStateUnloading,
 		programStateLoadingAborted:
 		// Transitional state, can have various field combinations.
 

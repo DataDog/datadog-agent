@@ -14,16 +14,35 @@ import (
 )
 
 // LegacyServiceMetricsProgram creates a program for filtering service metrics
-func LegacyServiceMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyServiceMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
+	programName := "LegacyServiceMetricsProgram"
+	var initErrors []error
+
+	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.ServiceType)
+	if includeErr != nil {
+		initErrors = append(initErrors, includeErr)
+		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+	}
+
+	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.ServiceType)
+	if excludeErr != nil {
+		initErrors = append(initErrors, excludeErr)
+		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+	}
+
 	return program.CELProgram{
-		Name:    "LegacyServiceMetricsProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.ServiceType, logger),
-		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.ServiceType, logger),
+		Name:                 programName,
+		Include:              includeProgram,
+		Exclude:              excludeProgram,
+		InitializationErrors: initErrors,
 	}
 }
 
 // LegacyServiceGlobalProgram creates a program for filtering services globally
-func LegacyServiceGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyServiceGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
+	programName := "LegacyServiceGlobalProgram"
+	var initErrors []error
+
 	includeList := config.GetStringSlice("container_include")
 	excludeList := config.GetStringSlice("container_exclude")
 	if len(includeList) == 0 {
@@ -35,9 +54,22 @@ func LegacyServiceGlobalProgram(config config.Component, logger log.Component) p
 		excludeList = config.GetStringSlice("ac_exclude")
 	}
 
+	includeProgram, includeErr := createProgramFromOldFilters(includeList, workloadfilter.ServiceType)
+	if includeErr != nil {
+		initErrors = append(initErrors, includeErr)
+		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+	}
+
+	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.ServiceType)
+	if excludeErr != nil {
+		initErrors = append(initErrors, excludeErr)
+		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+	}
+
 	return program.CELProgram{
-		Name:    "LegacyServiceGlobalProgram",
-		Include: createProgramFromOldFilters(includeList, workloadfilter.ServiceType, logger),
-		Exclude: createProgramFromOldFilters(excludeList, workloadfilter.ServiceType, logger),
+		Name:                 programName,
+		Include:              includeProgram,
+		Exclude:              excludeProgram,
+		InitializationErrors: initErrors,
 	}
 }

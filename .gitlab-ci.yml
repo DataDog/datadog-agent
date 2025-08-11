@@ -37,21 +37,12 @@ include:
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
   - .gitlab/scan/windows.yml
+  - .gitlab/fuzz/infra.yaml
 
 default:
   retry:
-    max: 2
-    exit_codes:
-      - 42
-      - 101 # Failed to extract dependencies
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
-      - unknown_failure
-      - api_failure
-      - scheduler_failure
-      - stale_schedule
-      - data_integrity_failure
+    max: 1 # Retry everything once on failure
+    when: always
 
 stages:
   - .pre
@@ -100,6 +91,9 @@ stages:
   - notify
 
 variables:
+  # Special variable that allows us to set the pipeline to compute the code coverage of the e2e tests. It will impact several jobs so that
+  # the agent is build with a special flag that allow computing code coverage of the binary when it is running.
+  E2E_COVERAGE_PIPELINE: false
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
@@ -130,6 +124,10 @@ variables:
   BUCKET_BRANCH: dev # path inside the staging s3 buckets to release to: 'dev', 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
+  # note the name is TEST_KEYS_URL, not TESTING_KEYS_URL;
+  # this is because TESTING_KEYS_URL is a variable used by the install script,
+  # and we don't want to modify its behavior inadvertently
+  TEST_KEYS_URL: apttesting.datad0g.com/test-keys-vault
   INSTALLER_TESTING_S3_BUCKET: installtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
@@ -163,31 +161,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v69654555-575d560a
+  CI_IMAGE_BTF_GEN: v72987997-23c57b1f
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v69654555-575d560a
-  CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v69654555-575d560a
-  CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v69654555-575d560a
-  CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v69654555-575d560a
+  CI_IMAGE_DOCKER_X64: v72987997-23c57b1f
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v69654555-575d560a
+  CI_IMAGE_DOCKER_ARM64: v72987997-23c57b1f
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v69654555-575d560a
+  CI_IMAGE_DEB_ARMHF: v72987997-23c57b1f
+  CI_IMAGE_DEB_ARMHF_SUFFIX: ""
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v72987997-23c57b1f
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v69654555-575d560a
-  CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v69654555-575d560a
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v69654555-575d560a
+  CI_IMAGE_LINUX: v72987997-23c57b1f
+  CI_IMAGE_LINUX_SUFFIX: ""
+  CI_IMAGE_RPM_X64: v72987997-23c57b1f
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v69654555-575d560a
+  CI_IMAGE_RPM_ARM64: v72987997-23c57b1f
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v69654555-575d560a
+  CI_IMAGE_RPM_ARMHF: v72987997-23c57b1f
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v68287210-66c494d7
+  CI_IMAGE_WIN_LTSC2022_X64: v72987997-23c57b1f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -195,6 +187,10 @@ variables:
   DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
   RPM_GPG_KEY_ID: b01082d3
   RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
+  # note the unusual ID for a GPG key:
+  # it's the path of a Vault key to be used with gpg-vault
+  # (https://github.com/DataDog/dd-source/tree/main/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault)
+  GPG_TEST_KEY_ID: crypto/k8s/keys/k8s_gitlab-runner_datadog-agent_testing-signing-key
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   CLANG_LLVM_VER: 12.0.1
@@ -211,7 +207,7 @@ variables:
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
   API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2 # agent-devx
   CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha # agent-devx
-  CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-agent
+  CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-products
   CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
   DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID} # agent-delivery
   DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID} # agent-delivery
@@ -219,8 +215,8 @@ variables:
   DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd # container-integrations
   RPM_GPG_KEY: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID} # agent-delivery
   RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID} # agent-delivery
-  VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-agent
-  WINGET_PAT: ci.datadog-agent.winget_pat # windows-agent
+  VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-products
+  WINGET_PAT: ci.datadog-agent.winget_pat # windows-products
   # End aws ssm variables
 
   # Start vault variables
@@ -243,11 +239,14 @@ variables:
   MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
   SLACK_AGENT: slack-agent-ci # agent-devx
   SMP_ACCOUNT: smp # single-machine-performance
-  VIRUS_TOTAL: virus-total  # windows-agent
+  VIRUS_TOTAL: virus-total # windows-products
   # End vault variables
 
   DD_PKG_VERSION: "latest"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
+
+  # Job cloning strategy
+  GIT_STRATEGY: "s3"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
@@ -258,6 +257,8 @@ variables:
   FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
+  FF_USE_FASTZIP: true
+  CACHE_COMPRESSION_LEVEL: slowest
 
 #
 # Condition mixins for simplification of rules
@@ -353,6 +354,9 @@ variables:
     - .gitlab/binary_build/fakeintake.yml
     - .gitlab/container_build/fakeintake.yml
     - .gitlab/dev_container_deploy/fakeintake.yml
+
+.if_coverage_pipeline: &if_coverage_pipeline
+  if: $E2E_COVERAGE_PIPELINE == "true"
 
 #
 # Workflow rules
@@ -579,7 +583,6 @@ workflow:
   - pkg/network/**/*
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
-  - pkg/dynamicinstrumentation/**/*
   - pkg/dyninst/**/*
   - pkg/gpu/**/*
   - .gitlab/kernel_matrix_testing/system_probe.yml
@@ -1079,8 +1082,7 @@ workflow:
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
-        - comp/core/autodiscovery/providers/gpu.go
-        - pkg/config/autodiscovery/autodiscovery.go
+        - comp/core/autodiscovery/listeners/staticconfig.go
       compare_to: $COMPARE_TO_BRANCH
 
 .on_installer_systemd_changes:
@@ -1092,3 +1094,78 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
+
+.except_coverage_pipeline:
+  - <<: *if_coverage_pipeline
+    when: never
+
+# This is used to setup utils to report custom datadog-ci spans
+.setup-datadog-ci-sections:
+  - |
+    if [ -z "$DATADOG_API_KEY" ]; then
+      DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    fi
+  - |
+    # Start a custom datadog span
+    # datadog-ci-start-section <name>
+    datadog-ci-start-section()
+    {
+      export sectionname="$1"
+      if [ -z "$sectionname" ]; then
+        echo "datadog-ci-end-section: name is required as first argument" >& 2
+        return 1
+      fi
+      export datestart="$(date '+%s%N' | cut -b1-13)"
+    }
+    # Finish and send the span to Datadog
+    # datadog-ci-end-section [--end-time <timestamp>] [--category <category>] <name>
+    datadog-ci-end-section()
+    {
+      if [ "$1" = "--end-time" ]; then
+        shift
+        dateend="$1"
+        shift
+      else
+        dateend="$(date '+%s%N' | cut -b1-13)"
+      fi
+      if [ "$1" = "--category" ]; then
+        shift
+        category="--tags agent-category:$1"
+        shift
+      fi
+      name="$1"
+      if [ -z "$name" ]; then
+        echo "datadog-ci-end-section: name is required as first argument" >& 2
+        return 1
+      fi
+      if [ "$name" != "$sectionname" ]; then
+        echo "datadog-ci-end-section: name does not match the last section name (got $name but was $sectionname)" >& 2
+        return 1
+      fi
+      if [ -z "$datestart" ]; then
+        echo "datadog-ci-end-section: datadog-ci-start-section was not called" >& 2
+        return 1
+      fi
+      datadog-ci trace span --name "$name" --start-time "$datestart" --end-time "$dateend" --tags agent-custom-span:true $category
+      if [ "$?" -ne 0 ]; then
+        # Don't fail the job for that
+        echo "WARNING: datadog-ci trace span failed" >& 2
+      fi
+      export datestart=
+      export sectionname=
+    }
+
+.retry_only_infra_failure:
+  retry:
+    max: 2
+    exit_codes:
+      - 42
+      - 101 # Failed to extract dependencies
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+      - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure

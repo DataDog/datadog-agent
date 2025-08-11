@@ -14,16 +14,35 @@ import (
 )
 
 // LegacyEndpointsMetricsProgram creates a program for filtering endpoints metrics
-func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
+	programName := "LegacyEndpointsMetricsProgram"
+	var initErrors []error
+
+	includeProgram, includeErr := createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.EndpointType)
+	if includeErr != nil {
+		initErrors = append(initErrors, includeErr)
+		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+	}
+
+	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.EndpointType)
+	if excludeErr != nil {
+		initErrors = append(initErrors, excludeErr)
+		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+	}
+
 	return program.CELProgram{
-		Name:    "LegacyEndpointsMetricsProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.EndpointType, logger),
-		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.EndpointType, logger),
+		Name:                 programName,
+		Include:              includeProgram,
+		Exclude:              excludeProgram,
+		InitializationErrors: initErrors,
 	}
 }
 
 // LegacyEndpointsGlobalProgram creates a program for filtering endpoints globally
-func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
+	programName := "LegacyEndpointsGlobalProgram"
+	var initErrors []error
+
 	includeList := config.GetStringSlice("container_include")
 	excludeList := config.GetStringSlice("container_exclude")
 	if len(includeList) == 0 {
@@ -35,9 +54,22 @@ func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component)
 		excludeList = config.GetStringSlice("ac_exclude")
 	}
 
+	includeProgram, includeErr := createProgramFromOldFilters(includeList, workloadfilter.EndpointType)
+	if includeErr != nil {
+		initErrors = append(initErrors, includeErr)
+		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
+	}
+
+	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.EndpointType)
+	if excludeErr != nil {
+		initErrors = append(initErrors, excludeErr)
+		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
+	}
+
 	return program.CELProgram{
-		Name:    "LegacyEndpointsGlobalProgram",
-		Include: createProgramFromOldFilters(includeList, workloadfilter.EndpointType, logger),
-		Exclude: createProgramFromOldFilters(excludeList, workloadfilter.EndpointType, logger),
+		Name:                 programName,
+		Include:              includeProgram,
+		Exclude:              excludeProgram,
+		InitializationErrors: initErrors,
 	}
 }

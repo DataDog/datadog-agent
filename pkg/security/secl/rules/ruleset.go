@@ -332,7 +332,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 	for _, rule := range policyRules {
 		for _, actionDef := range rule.Def.Actions {
-			if err := actionDef.Check(opts); err != nil {
+			if err := actionDef.PreCheck(opts); err != nil {
 				errs = multierror.Append(errs, fmt.Errorf("skipping invalid action in rule %s: %w", rule.Def.ID, err))
 				continue
 			}
@@ -449,9 +449,15 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					variableProvider = rs.globalVariables
 				}
 
-				opts := eval.VariableOpts{TTL: actionDef.Set.TTL.GetDuration(), Size: actionDef.Set.Size, Private: actionDef.Set.Private, Inherited: actionDef.Set.Inherited}
+				opts := eval.VariableOpts{
+					TTL:       actionDef.Set.TTL.GetDuration(),
+					Size:      actionDef.Set.Size,
+					Private:   actionDef.Set.Private,
+					Inherited: actionDef.Set.Inherited,
+					Telemetry: rs.evalOpts.Telemetry,
+				}
 
-				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, opts)
+				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, string(actionDef.Set.Scope), opts)
 				if err != nil {
 					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s' (%+v): %w", reflect.TypeOf(variableValue), actionDef.Set.Name, actionDef.Set, err))
 					continue
@@ -500,13 +506,6 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 // WithExcludedRuleFromDiscarders set excluded rule from discarders
 func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool) {
 	rs.opts.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
-}
-
-func (rs *RuleSet) isActionAvailable(eventType eval.EventType, action *Action) bool {
-	if action.Def.Name() == HashAction && eventType != model.FileOpenEventType.String() && eventType != model.ExecEventType.String() {
-		return false
-	}
-	return true
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
@@ -582,18 +581,16 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 	}
 
 	for _, action := range rule.PolicyRule.Actions {
-		if !rs.isActionAvailable(eventType, action) {
-			return "", &ErrRuleLoad{Rule: pRule, Err: &ErrActionNotAvailable{ActionName: action.Def.Name(), EventType: eventType}}
-		}
-
-		// compile action filter
 		if action.Def.Filter != nil {
+			// compile action filter
 			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
 				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 
-		if action.Def.Set != nil {
+		switch {
+
+		case action.Def.Set != nil:
 			// compile scope field
 			if len(action.Def.Set.ScopeField) > 0 {
 				if err := action.CompileScopeField(rs.model); err != nil {
@@ -620,6 +617,11 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return "", fmt.Errorf("failed to compile action expression: %w", err)
 				}
 				rs.fieldEvaluators[expression] = evaluator.(eval.Evaluator)
+			}
+
+		case action.Def.Hash != nil:
+			if err := action.Def.Hash.PostCheck(evalRule); err != nil {
+				return "", &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
 	}
@@ -782,7 +784,7 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 
 			variable := rs.evalOpts.VariableStore.Get(name)
 			if variable == nil {
-				return fmt.Errorf("unknown variable: %s", name)
+				return fmt.Errorf("unknown variable `%s` in rule `%s`", name, rule.ID)
 			}
 
 			if mutable, ok := variable.(eval.MutableVariable); ok {
@@ -798,7 +800,7 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 				}
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
-						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
+						return fmt.Errorf("append is not supported for type `%s` with variable `%s` in rule `%s`: %w", reflect.TypeOf(value), name, rule.ID, err)
 					}
 				} else {
 					if err := mutable.Set(ctx, value); err != nil {
@@ -1029,13 +1031,14 @@ func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 }
 
 // LoadPolicies loads policies from the provided policy loader
-func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
+func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]*PolicyRule, *multierror.Error) {
 	var (
-		errs       *multierror.Error
-		allRules   []*PolicyRule
-		allMacros  []*PolicyMacro
-		macroIndex = make(map[string]*PolicyMacro)
-		rulesIndex = make(map[string]*PolicyRule)
+		errs          *multierror.Error
+		allRules      []*PolicyRule
+		filteredRules []*PolicyRule
+		allMacros     []*PolicyMacro
+		macroIndex    = make(map[string]*PolicyMacro)
+		rulesIndex    = make(map[string]*PolicyRule)
 	)
 
 	parsingContext := ast.NewParsingContext(false)
@@ -1048,7 +1051,12 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 
 	for _, policy := range policies {
 		if len(policy.macros) == 0 && len(policy.rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {
-			errs = multierror.Append(errs, &ErrPolicyLoad{Name: policy.Info.Name, Version: policy.Info.Version, Source: policy.Info.Source, Err: ErrPolicyIsEmpty})
+			errs = multierror.Append(errs, &ErrPolicyLoad{
+				Name:    policy.Info.Name,
+				Version: policy.Info.Version,
+				Source:  policy.Info.Source,
+				Err:     ErrPolicyIsEmpty,
+			})
 			continue
 		}
 
@@ -1068,10 +1076,18 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 				existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
 				existingRule.MergeWith(rule)
 			} else {
-				rule.UsedBy = append(rule.UsedBy, rule.Policy)
 				rulesIndex[rule.Def.ID] = rule
 				allRules = append(allRules, rule)
 			}
+		}
+
+		for _, rule := range policy.GetFilteredRules() {
+			if existingRule := rulesIndex[rule.Def.ID]; existingRule != nil {
+				// if the rule is already in the rules index, this means that a rule with the same ID was already accepted
+				// in this case let's only report the version of the rule that was accepted
+				continue
+			}
+			filteredRules = append(filteredRules, rule)
 		}
 	}
 
@@ -1087,7 +1103,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		errs = multierror.Append(errs, err)
 	}
 
-	return errs
+	return filteredRules, errs
 }
 
 // NewEvent returns a new event using the embedded constructor

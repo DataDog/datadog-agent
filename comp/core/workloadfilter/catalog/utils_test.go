@@ -11,71 +11,81 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 func TestConvertOldToNewFilter_Success(t *testing.T) {
 	tests := []struct {
 		name        string
-		objectType  filter.ResourceType
+		objectType  workloadfilter.ResourceType
 		legacyInput []string
 		expected    string
 	}{
 		{
-			"single name filter",
-			filter.ContainerType,
+			"container name filter",
+			workloadfilter.ContainerType,
 			[]string{"name:foo-.*"},
 			`container.name.matches("foo-.*")`,
 		},
 		{
-			"single image filter",
-			filter.ContainerType,
+			"container image filter",
+			workloadfilter.ContainerType,
 			[]string{"image:nginx.*"},
 			`container.image.matches("nginx.*")`,
 		},
 		{
+			"container namespace filter",
+			workloadfilter.ContainerType,
+			[]string{"kube_namespace:foo-.*"},
+			`container.pod.namespace.matches("foo-.*")`,
+		},
+		{
 			"multiple filters",
-			filter.ContainerType,
-			[]string{"name:foo-.*", "image:nginx.*"},
-			`container.name.matches("foo-.*") || container.image.matches("nginx.*")`,
+			workloadfilter.ContainerType,
+			[]string{"name:foo-.*", "image:nginx.*", "image:busybox:latest"},
+			`container.name.matches("foo-.*") || container.image.matches("nginx.*") || container.image.matches("busybox:latest")`,
 		},
 		{
 			"filter with single quote and backslash",
-			filter.ContainerType,
+			workloadfilter.ContainerType,
 			[]string{`name:foo'bar\zab`},
 			`container.name.matches("foo'bar\\zab")`,
 		},
 		{
 			"empty filter is skipped",
-			filter.ContainerType,
+			workloadfilter.ContainerType,
 			[]string{"", "name:foo"},
 			`container.name.matches("foo")`,
 		},
 		{
 			"nil filter is skipped",
-			filter.ContainerType,
+			workloadfilter.ContainerType,
 			nil,
 			"",
 		},
 		{
 			"exclude omitted image key in pod",
-			filter.PodType,
-			[]string{"name:foo-.*", "image:nginx.*"},
-			`pod.name.matches("foo-.*")`,
+			workloadfilter.PodType,
+			[]string{"kube_namespace:foo-.*", "image:nginx.*"},
+			`pod.namespace.matches("foo-.*")`,
 		},
 		{
 			"exclude omitted image key in service",
-			filter.ServiceType,
+			workloadfilter.ServiceType,
 			[]string{"name:foo-.*", "image:nginx.*"},
 			`service.name.matches("foo-.*")`,
 		},
 		{
 			"exclude omitted image key in endpoint",
-			filter.EndpointType,
+			workloadfilter.EndpointType,
 			[]string{"name:foo-.*", "image:nginx.*"},
 			`endpoint.name.matches("foo-.*")`,
+		},
+		{
+			"image filter on image type",
+			workloadfilter.ImageType,
+			[]string{"image:nginx.*", "kube_namespace:foo", "name:bar"},
+			`image.name.matches("nginx.*")`,
 		},
 	}
 	for _, tt := range tests {
@@ -103,19 +113,20 @@ func TestConvertOldToNewFilter_Errors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := convertOldToNewFilter(tt.input, filter.ContainerType)
+			_, err := convertOldToNewFilter(tt.input, workloadfilter.ContainerType)
 			assert.Error(t, err)
 		})
 	}
 
-	logger := logmock.New(t)
 	t.Run("valid filter key", func(t *testing.T) {
-		prog := createProgramFromOldFilters([]string{"name:foo-.*"}, filter.ContainerType, logger)
+		prog, err := createProgramFromOldFilters([]string{"name:foo-.*"}, workloadfilter.ContainerType)
+		assert.NoError(t, err, "should not return an error for valid filter key")
 		assert.NotNil(t, prog, "should return a valid program for valid filter key")
 	})
 
 	t.Run("invalid filter key", func(t *testing.T) {
-		prog := createProgramFromOldFilters([]string{"other_field:some_value"}, filter.ContainerType, logger)
+		prog, err := createProgramFromOldFilters([]string{"other_field:some_value"}, workloadfilter.ContainerType)
+		assert.Error(t, err, "should return an error for invalid filter key")
 		assert.Nil(t, prog, "should return a nil program for invalid filter key")
 	})
 }

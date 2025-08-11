@@ -501,7 +501,7 @@ network_devices:
 	/////////////////
 	// legacy configs
 	/////////////////
-	configmock.NewFromYAML(t, `
+	corecfg := configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     allowed_failures: 15
@@ -526,6 +526,8 @@ network_devices:
 	assert.Equal(t, "legacyCommunityString", legacyConfig.Community)
 	assert.Equal(t, "legacySnmpVersion", legacyConfig.Version)
 	assert.Equal(t, "127.2.0.0/30", legacyConfig.Network)
+	warnings := corecfg.Warnings()
+	assert.Equal(t, 0, warnings.Count())
 }
 
 func Test_NamespaceConfig(t *testing.T) {
@@ -731,7 +733,7 @@ network_devices:
 	}
 }
 
-func TestConfig_Digest(t *testing.T) {
+func TestConfig_LegacyDigest(t *testing.T) {
 	tests := []struct {
 		name         string
 		configA      Config
@@ -820,6 +822,138 @@ func TestConfig_Digest(t *testing.T) {
 			ipAddressB: "1.2.3.5",
 			configA:    Config{ContextName: "someContextName"},
 			configB:    Config{ContextName: "someContextName2"},
+		},
+		{
+			name:       "test Loader",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Loader: "core"},
+			configB:    Config{Loader: "python"},
+		},
+		{
+			name:       "test Namespace",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Namespace: "ns1"},
+			configB:    Config{Namespace: "ns2"},
+		},
+		{
+			name:       "test different IgnoredIPAddresses",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.3": true}},
+			configB:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
+		},
+		{
+			name:       "test empty IgnoredIPAddresses",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{IgnoredIPAddresses: map[string]bool{}},
+			configB:    Config{IgnoredIPAddresses: map[string]bool{"1.2.3.4": true}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			digestA := tt.configA.LegacyDigest(tt.ipAddressA)
+			digestB := tt.configB.LegacyDigest(tt.ipAddressB)
+			if tt.isSameDigest {
+				assert.Equal(t, digestA, digestB)
+			} else {
+				assert.NotEqual(t, digestA, digestB)
+			}
+		})
+	}
+}
+
+func TestConfig_Digest(t *testing.T) {
+	tests := []struct {
+		name         string
+		configA      Config
+		configB      Config
+		ipAddressA   string
+		ipAddressB   string
+		isSameDigest bool
+	}{
+		{
+			name:         "same ipaddress",
+			ipAddressA:   "1.2.3.4",
+			ipAddressB:   "1.2.3.4",
+			isSameDigest: true,
+		},
+		{
+			name:       "test different ipaddress",
+			ipAddressA: "1.2.3.4",
+			ipAddressB: "1.2.3.5",
+		},
+		{
+			name:       "test port",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Port: 123},
+			configB:    Config{Port: 124},
+		},
+		{
+			name:       "test version",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Authentications: []Authentication{{Version: "1"}}},
+			configB:    Config{Authentications: []Authentication{{Version: "2"}}},
+		},
+		{
+			name:       "test community",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Authentications: []Authentication{{Community: "something"}}},
+			configB:    Config{Authentications: []Authentication{{Community: "somethingElse"}}},
+		},
+		{
+			name:       "test user",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Authentications: []Authentication{{User: "myuser"}}},
+			configB:    Config{Authentications: []Authentication{{User: "myuser2"}}},
+		},
+		{
+			name:       "test AuthKey",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Authentications: []Authentication{{AuthKey: "my-AuthKey"}}},
+			configB:    Config{Authentications: []Authentication{{AuthKey: "my-AuthKey2"}}},
+		},
+		{
+			name:       "test AuthProtocol",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Authentications: []Authentication{{AuthProtocol: "sha"}}},
+			configB:    Config{Authentications: []Authentication{{AuthProtocol: "md5"}}},
+		},
+		{
+			name:       "test PrivKey",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Authentications: []Authentication{{PrivKey: "abc"}}},
+			configB:    Config{Authentications: []Authentication{{PrivKey: "123"}}},
+		},
+		{
+			name:       "test PrivProtocol",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Authentications: []Authentication{{PrivProtocol: "AES"}}},
+			configB:    Config{Authentications: []Authentication{{PrivProtocol: "DES"}}},
+		},
+		{
+			name:       "test ContextEngineID",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Authentications: []Authentication{{ContextEngineID: "engineID"}}},
+			configB:    Config{Authentications: []Authentication{{ContextEngineID: "engineID2"}}},
+		},
+		{
+			name:       "test ContextName",
+			ipAddressA: "1.2.3.5",
+			ipAddressB: "1.2.3.5",
+			configA:    Config{Authentications: []Authentication{{ContextName: "someContextName"}}},
+			configB:    Config{Authentications: []Authentication{{ContextName: "someContextName2"}}},
 		},
 		{
 			name:       "test Loader",

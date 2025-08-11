@@ -1,0 +1,73 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.stringArrayArgFrameless",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [
+          {
+            "function": "main.stringArrayArgFrameless",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 73
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 25
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": 283
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
+        "probe": {
+          "id": "intArrayArgFrameless",
+          "location": {
+            "method": "main.stringArrayArgFrameless"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "s": {
+                "type": "[3]string",
+                "size": "3",
+                "elements": [
+                  {
+                    "type": "string",
+                    "value": "foo"
+                  },
+                  {
+                    "type": "string",
+                    "value": "bar"
+                  },
+                  {
+                    "type": "string",
+                    "value": "baz"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

@@ -20,9 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	kubeletfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,19 +45,19 @@ const kubeNamespaceTag = tags.KubeNamespace
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
-	filter   *containers.Filter
-	config   *common.KubeletConfig
-	podUtils *common.PodUtils
-	tagger   tagger.Component
+	filterStore workloadfilter.Component
+	config      *common.KubeletConfig
+	podUtils    *common.PodUtils
+	tagger      tagger.Component
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils, tagger tagger.Component) *Provider {
+func NewProvider(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, tagger tagger.Component) *Provider {
 	return &Provider{
-		filter:   filter,
-		config:   config,
-		podUtils: podUtils,
-		tagger:   tagger,
+		filterStore: filterStore,
+		config:      config,
+		podUtils:    podUtils,
+		tagger:      tagger,
 	}
 }
 
@@ -80,10 +81,11 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 	for _, pod := range pods.Items {
 		p.podUtils.PopulateForPod(pod)
-		// Combine regular containers with init containers for easier iteration
-		allContainers := make([]kubelet.ContainerSpec, 0, len(pod.Spec.InitContainers)+len(pod.Spec.Containers))
+		// Combine regular containers with init and ephemeral containers for easier iteration
+		allContainers := make([]kubelet.ContainerSpec, 0, len(pod.Spec.InitContainers)+len(pod.Spec.Containers)+len(pod.Spec.EphemeralContainers))
 		allContainers = append(allContainers, pod.Spec.InitContainers...)
 		allContainers = append(allContainers, pod.Spec.Containers...)
+		allContainers = append(allContainers, pod.Spec.EphemeralContainers...)
 
 		for _, cStatus := range pod.Status.AllContainers {
 			if cStatus.ID == "" {
@@ -106,7 +108,9 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			runningAggregator.recordContainer(p, pod, &cStatus, cID)
 
 			// don't exclude filtered containers from aggregation, but filter them out from other reported metrics
-			if p.filter.IsExcluded(pod.Metadata.Annotations, cStatus.Name, cStatus.Image, pod.Metadata.Namespace) {
+			filterableContainer := kubeletfilter.CreateContainer(cStatus, kubeletfilter.CreatePod(pod))
+			selectedFilters := workloadfilter.GetContainerSharedMetricFilters()
+			if p.filterStore.IsContainerExcluded(filterableContainer, selectedFilters) {
 				continue
 			}
 
@@ -136,11 +140,14 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 	tagList = utils.ConcatenateTags(tagList, p.config.Tags)
 
-	for r, value := range container.Resources.Requests {
-		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tagList)
-	}
-	for r, value := range container.Resources.Limits {
-		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", value.AsApproximateFloat64(), "", tagList)
+	if container.Resources != nil { // Ephemeral containers do not have resources defined
+		for r, value := range container.Resources.Requests {
+			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tagList)
+		}
+
+		for r, value := range container.Resources.Limits {
+			sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", value.AsApproximateFloat64(), "", tagList)
+		}
 	}
 }
 

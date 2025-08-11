@@ -23,9 +23,9 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.40.0-1"
-	databricksJavaTracerVersion = "1.49.0-1"
-	databricksAgentVersion      = "7.66.0-1"
+	databricksInjectorVersion   = "0.43.1-1"
+	databricksJavaTracerVersion = "1.51.1-1"
+	databricksAgentVersion      = "7.68.2-1"
 	fetchTimeoutDuration        = 5 * time.Second
 	gpuIntegrationRestartDelay  = 60 * time.Second
 	restartLogFile              = "/var/log/datadog-gpu-restart"
@@ -241,7 +241,7 @@ func setupGPUIntegration(s *common.Setup) {
 	s.Out.WriteString("Setting up GPU monitoring based on env variable GPU_MONITORING_ENABLED=true\n")
 
 	s.Config.DatadogYAML.CollectGPUTags = true
-	s.Config.DatadogYAML.EnableNVMLDetection = true
+	s.Config.DatadogYAML.GPUCheck.Enabled = true
 
 	if s.Config.SystemProbeYAML == nil {
 		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
@@ -285,14 +285,25 @@ func setupDatabricksDriver(s *common.Setup) {
 
 func setupDatabricksWorker(s *common.Setup) {
 	setClearHostTag(s, "spark_node", "worker")
+	var sparkIntegration config.IntegrationConfig
 
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
-		var sparkIntegration config.IntegrationConfig
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
-		s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 	}
+	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {
+		sparkIntegration.Instances = []any{
+			config.IntegrationConfigInstanceSpark{
+				SparkURL:         "http://" + os.Getenv("DB_DRIVER_IP") + ":40001",
+				SparkClusterMode: "spark_driver_mode",
+				ClusterName:      os.Getenv("DB_CLUSTER_NAME"),
+				StreamingMetrics: true,
+			},
+		}
+		s.Span.SetTag("host_tag_set.worker_spark_enabled", "true")
+	}
+	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
 
 func addCustomHostTags(s *common.Setup) {

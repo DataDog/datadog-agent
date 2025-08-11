@@ -13,26 +13,24 @@ import (
 
 	"github.com/google/cel-go/cel"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	legacyFilter "github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // createProgramFromOldFilters handles the conversion of old filters to new filters and creates a CEL program.
-func createProgramFromOldFilters(oldFilters []string, objectType workloadfilter.ResourceType, logger log.Component) cel.Program {
+// Returns both the program and any errors encountered during creation.
+func createProgramFromOldFilters(oldFilters []string, objectType workloadfilter.ResourceType) (cel.Program, error) {
 	filterString, err := convertOldToNewFilter(oldFilters, objectType)
 	if err != nil {
-		logger.Warnf("Error converting filters: %v", err)
-		return nil
+		return nil, err
 	}
 
-	program, progErr := createCELProgram(filterString, objectType)
-	if progErr != nil {
-		logger.Warnf("Error creating CEL filtering program: %v", progErr)
-		return nil
+	program, err := createCELProgram(filterString, objectType)
+	if err != nil {
+		return nil, err
 	}
 
-	return program
+	return program, nil
 }
 
 func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel.Program, error) {
@@ -59,26 +57,23 @@ func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 
 // getFieldMapping creates a map to associate old filter prefixes with new filter fields
 func getFieldMapping(objectType workloadfilter.ResourceType) map[string]string {
+	if objectType == workloadfilter.ImageType {
+		// only support "image" which is the image name
+		return map[string]string{
+			"image": fmt.Sprintf("%s.name.matches", objectType),
+		}
+	}
 	return map[string]string{
-		"id":    fmt.Sprintf("%s.id.matches", objectType),
 		"name":  fmt.Sprintf("%s.name.matches", objectType),
 		"image": fmt.Sprintf("%s.image.matches", objectType),
 		"kube_namespace": func() string {
-			if objectType == workloadfilter.PodType {
-				return fmt.Sprintf("%s.namespace.matches", objectType)
+			if objectType == workloadfilter.ContainerType {
+				return fmt.Sprintf("%s.%s.namespace.matches", objectType, workloadfilter.PodType)
 			}
-			return fmt.Sprintf("%s.%s.namespace.matches", objectType, workloadfilter.PodType)
+			return fmt.Sprintf("%s.namespace.matches", objectType)
+
 		}(),
 	}
-}
-
-// getValidKeys returns a slice of valid keys for legacy container filters.
-func getValidKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-	return keys
 }
 
 // convertOldToNewFilter converts the legacy regex ad filter format to cel-go format.
@@ -105,8 +100,14 @@ func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.Resour
 			return "", fmt.Errorf("invalid filter format: %s", oldFilter)
 		}
 
-		// Check if the key is in the excluded
-		if objectType != workloadfilter.ContainerType && key == "image" {
+		// Check if the key applies for the particular workload type
+		if objectType != workloadfilter.ContainerType && objectType != workloadfilter.ImageType && key == "image" {
+			continue
+		}
+		if objectType == workloadfilter.ImageType && key != "image" {
+			continue
+		}
+		if objectType == workloadfilter.PodType && key != "kube_namespace" {
 			continue
 		}
 
@@ -118,7 +119,7 @@ func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.Resour
 		if newField, ok := legacyFieldMapping[key]; ok {
 			newFilters = append(newFilters, fmt.Sprintf(`%s(%s)`, newField, strconv.Quote(value)))
 		} else {
-			return "", fmt.Errorf("unsupported filter key '%s' must be in %v", key, getValidKeys(legacyFieldMapping))
+			return "", fmt.Errorf("container filter %s:%s is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'", key, value)
 		}
 	}
 	return strings.Join(newFilters, " || "), nil
@@ -135,6 +136,8 @@ func convertTypeToProtoType(key workloadfilter.ResourceType) string {
 		return "datadog.filter.FilterKubeService"
 	case workloadfilter.EndpointType:
 		return "datadog.filter.FilterKubeEndpoint"
+	case workloadfilter.ImageType:
+		return "datadog.filter.FilterImage"
 	default:
 		return ""
 	}

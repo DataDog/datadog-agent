@@ -44,9 +44,10 @@
       junit: "**/junit-out-*.xml"
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 .linux_x64:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
 
 tests_deb-x64-py3:
@@ -134,7 +135,7 @@ tests_deb-arm64-py3:
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$CI_IMAGE_DEB_ARM64_SUFFIX:$CI_IMAGE_DEB_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   variables:
     CONDA_ENV: ddpy3

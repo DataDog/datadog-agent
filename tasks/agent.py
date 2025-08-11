@@ -231,6 +231,7 @@ def build(
             gcflags=gcflags,
             ldflags=ldflags,
             build_tags=build_tags,
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
     if embedded_path is None:
@@ -449,6 +450,7 @@ def hacky_dev_image_build(
     target_image="agent",
     process_agent=False,
     trace_agent=False,
+    system_probe=False,
     push=False,
     race=False,
     signed_pull=False,
@@ -508,6 +510,12 @@ def hacky_dev_image_build(
 
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+
+    if system_probe:
+        from tasks.system_probe import build as system_probe_build
+
+        system_probe_build(ctx)
+        copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(

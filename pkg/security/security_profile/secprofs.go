@@ -313,8 +313,8 @@ func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
-	if err := m.securityProfileMap.Put(workload.GetWorkloadID(), profile.GetProfileCookie()); err != nil {
-		seclog.Errorf("couldn't link %s %s (selector: %s) with profile %s (check map size limit ?): %v", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name, err)
+	if err := m.securityProfileMap.Put(workload.CGroupFile, profile.GetProfileCookie()); err != nil {
+		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
 		return
 	}
 	seclog.Infof("%s %s (selector: %s) successfully linked to profile %s", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name)
@@ -349,12 +349,10 @@ func (m *Manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Work
 		return
 	}
 
-	if id := workload.GetWorkloadID(); id != nil {
-		if err := m.securityProfileMap.Delete(id); err != nil {
-			seclog.Errorf("couldn't unlink %s %s (selector: %s) with profile %s: %v", workload.Type(), id, workload.Selector.String(), profile.Metadata.Name, err)
-		}
-		seclog.Infof("%s %s (selector: %s) successfully unlinked from profile %s", workload.Type(), id, workload.Selector.String(), profile.Metadata.Name)
+	if err := m.securityProfileMap.Delete(workload.CGroupFile); err != nil {
+		seclog.Errorf("couldn't unlink %s %s (selector: %s) with profile %s: %v", workload.Type(), id, workload.Selector.String(), profile.Metadata.Name, err)
 	}
+	seclog.Infof("%s %s (selector: %s) successfully unlinked from profile %s", workload.Type(), id, workload.Selector.String(), profile.Metadata.Name)
 }
 
 // unlinkProfile removes the link between a workload and a profile
@@ -385,17 +383,8 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
-	defaultConfigs, err := m.getDefaultLoadConfigs()
-	if err != nil {
-		seclog.Errorf("couldn't get default load configs: %v", err)
-		return
-	}
-
-	// check whether we are configured to apply a profile for this type of workload/cgroup
-	// as this function is called by the tags resolver, which also resolves tags for systemd cgroups
-	_, found := defaultConfigs[workload.CGroupFlags.GetCGroupManager()]
-	if !found {
-		seclog.Debugf("no default load config found for manager %s, not applying profile for workload %s", workload.CGroupFlags.GetCGroupManager().String(), workload.Selector.String())
+	containerName, imageName, podNamespace := utils.GetContainerFilterTags(workload.Tags)
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(nil, containerName, imageName, podNamespace) {
 		return
 	}
 
@@ -477,6 +466,18 @@ func (m *Manager) onWorkloadDeletedEvent(workload *tags.Workload) {
 
 	// check if the profile should be deleted
 	m.shouldDeleteProfile(p)
+}
+
+// onWorkloadEvent handles workload events in order to ensure proper sequencing
+func (m *Manager) onWorkloadEvent(event *WorkloadEvent) {
+	switch event.Type {
+	case WorkloadEventResolved:
+		m.onWorkloadSelectorResolvedEvent(event.Workload)
+	case WorkloadEventDeleted:
+		m.onWorkloadDeletedEvent(event.Workload)
+	default:
+		seclog.Warnf("Unknown workload event type: %d", event.Type)
+	}
 }
 
 func (m *Manager) shouldDeleteProfile(p *profile.Profile) {

@@ -141,7 +141,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -203,7 +203,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -398,7 +398,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -528,7 +528,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -595,7 +595,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1319,6 +1319,36 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}: 1,
 			},
 		},
+		{
+			name: "headers frame with PRIORITY flag",
+			messageBuilder: func() [][]byte {
+				fr := newFramer()
+				hdrBlock, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})
+				require.NoError(t, err, "could not create headers block")
+
+				// Write a HEADERS frame that carries a PRIORITY section (flag 0x20).
+				require.NoError(t, fr.framer.WriteHeaders(http2.HeadersFrameParam{
+					StreamID:      1,
+					BlockFragment: hdrBlock,
+					EndHeaders:    endHeaders,
+					Priority: http2.PriorityParam{
+						StreamDep: 0,
+						Exclusive: false,
+						Weight:    10, // non-zero weight triggers PRIORITY flag
+					},
+				}), "could not write priority headers")
+
+				fr.writeData(t, 1, endStream, emptyBody)
+
+				return [][]byte{fr.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1357,7 +1387,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1438,7 +1468,7 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1512,7 +1542,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 

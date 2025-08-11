@@ -14,37 +14,6 @@ const (
 	lowPrecedence  = 1
 )
 
-// GetSharedMetricsFilters identifies the filtering component's individual Container Filters for container metrics.
-func GetSharedMetricsFilters() [][]ContainerFilter {
-
-	flist := make([][]ContainerFilter, 2)
-
-	// TODO: Add config option for users to configure AD annotations to take lower priority
-	flist[highPrecedence] = []ContainerFilter{ContainerADAnnotations}
-
-	low := []ContainerFilter{LegacyContainerGlobal, LegacyContainerMetrics}
-
-	includeList := pkgconfigsetup.Datadog().GetStringSlice("container_include")
-	excludeList := pkgconfigsetup.Datadog().GetStringSlice("container_exclude")
-	includeList = append(includeList, pkgconfigsetup.Datadog().GetStringSlice("container_include_metrics")...)
-	excludeList = append(excludeList, pkgconfigsetup.Datadog().GetStringSlice("container_exclude_metrics")...)
-
-	if len(includeList) == 0 {
-		low = append(low, LegacyContainerACInclude)
-	}
-	if len(excludeList) == 0 {
-		low = append(low, LegacyContainerACExclude)
-
-	}
-
-	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
-		low = append(low, ContainerPaused)
-	}
-
-	flist[lowPrecedence] = low
-	return flist
-}
-
 // Scope defines the scope of the filters.
 type Scope string
 
@@ -61,8 +30,7 @@ func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
 	flist := make([][]ContainerFilter, 2)
 
 	// TODO: Add config option for users to configure AD annotations to take lower priority
-	flist[highPrecedence] = []ContainerFilter{ContainerADAnnotations}
-
+	high := []ContainerFilter{ContainerADAnnotations}
 	low := []ContainerFilter{LegacyContainerGlobal}
 
 	switch filterScope {
@@ -74,12 +42,68 @@ func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
 			low = append(low, LegacyContainerACExclude)
 		}
 	case MetricsFilter:
-		low = append(low, LegacyContainerMetrics, ContainerADAnnotationsMetrics)
+		low = append(low, LegacyContainerMetrics)
+		high = append(high, ContainerADAnnotationsMetrics)
 	case LogsFilter:
-		low = append(low, LegacyContainerLogs, ContainerADAnnotationsLogs)
+		low = append(low, LegacyContainerLogs)
+		high = append(high, ContainerADAnnotationsLogs)
+	default:
 	}
 
+	flist[highPrecedence] = high
 	flist[lowPrecedence] = low
 
 	return flist
+}
+
+// GetContainerSharedMetricFilters identifies the filtering component's individual Container Filters for container metrics.
+func GetContainerSharedMetricFilters() [][]ContainerFilter {
+
+	flist := make([][]ContainerFilter, 2)
+
+	// TODO: Add config option for users to configure AD annotations to take lower priority
+	flist[highPrecedence] = []ContainerFilter{ContainerADAnnotations, ContainerADAnnotationsMetrics}
+
+	low := []ContainerFilter{LegacyContainerGlobal, LegacyContainerMetrics}
+
+	includeList := pkgconfigsetup.Datadog().GetStringSlice("container_include")
+	excludeList := pkgconfigsetup.Datadog().GetStringSlice("container_exclude")
+	includeList = append(includeList, pkgconfigsetup.Datadog().GetStringSlice("container_include_metrics")...)
+	excludeList = append(excludeList, pkgconfigsetup.Datadog().GetStringSlice("container_exclude_metrics")...)
+
+	if len(includeList) == 0 {
+		low = append(low, LegacyContainerACInclude)
+	}
+	if len(excludeList) == 0 {
+		low = append(low, LegacyContainerACExclude)
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
+		low = append(low, ContainerPaused)
+	}
+
+	flist[lowPrecedence] = low
+	return flist
+}
+
+// GetPodSharedMetricFilters identifies the filtering component's individual Pod Filters for pod metrics.
+func GetPodSharedMetricFilters() [][]PodFilter {
+	return [][]PodFilter{{PodADAnnotations, PodADAnnotationsMetrics}, {LegacyPod}}
+}
+
+// GetContainerSBOMFilters identifies the filter component's individual Container Filters for SBOM.
+func GetContainerSBOMFilters() [][]ContainerFilter {
+	return [][]ContainerFilter{{LegacyContainerSBOM}}
+}
+
+// FlattenFilterSets flattens a slice of filter sets into a single slice.
+func FlattenFilterSets[T ~int](
+	filterSets [][]T, // Generic filter types
+) []T {
+	// Flatten the filter sets into a single slice
+	flattened := make([]T, 0)
+	for _, set := range filterSets {
+		flattened = append(flattened, set...)
+	}
+	return flattened
 }

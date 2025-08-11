@@ -16,9 +16,10 @@ import (
 // CELProgram is a structure that holds two CEL programs:
 // one for inclusion (higher priority) and one for exclusion (lower priority).
 type CELProgram struct {
-	Name    string
-	Include cel.Program
-	Exclude cel.Program
+	Name                 string
+	Include              cel.Program
+	Exclude              cel.Program
+	InitializationErrors []error
 }
 
 var _ FilterProgram = &CELProgram{}
@@ -59,4 +60,9 @@ func (p CELProgram) Evaluate(entity filterdef.Filterable) (filterdef.Result, []e
 	}
 
 	return filterdef.Unknown, errs
+}
+
+// GetInitializationErrors returns any errors that occurred during the creation/initialization of the program
+func (p CELProgram) GetInitializationErrors() []error {
+	return p.InitializationErrors
 }

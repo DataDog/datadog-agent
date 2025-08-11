@@ -46,6 +46,7 @@ func NewFakeEvent() *Event {
 		BaseEvent: BaseEvent{
 			FieldHandlers:    &FakeFieldHandlers{},
 			ContainerContext: &ContainerContext{},
+			ProcessContext:   &ProcessContext{},
 			Os:               runtime.GOOS,
 		},
 		CGroupContext: &CGroupContext{},
@@ -152,7 +153,6 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
-	Fsmount          FsmountEvent          `field:"-"`
 }
 
 var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
@@ -168,11 +168,9 @@ func (e *Event) Zero() {
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	Releasable
-	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFlags   containerutils.CGroupFlags `field:"-"`
-	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`[Experimental] Lifecycle manager of the cgroup`
-	CGroupFile    PathKey                    `field:"file"`
-	CGroupVersion int                        `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
+	CGroupID      containerutils.CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFile    PathKey                 `field:"file"`
+	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 }
 
 // Merge two cgroup context
@@ -180,20 +178,12 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	if cg.CGroupID == "" {
 		cg.CGroupID = cg2.CGroupID
 	}
-	if cg.CGroupFlags == 0 {
-		cg.CGroupFlags = cg2.CGroupFlags
-	}
 	if cg.CGroupFile.Inode == 0 {
 		cg.CGroupFile.Inode = cg2.CGroupFile.Inode
 	}
 	if cg.CGroupFile.MountID == 0 {
 		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
 	}
-}
-
-// IsContainer returns whether a cgroup maps to a container
-func (cg *CGroupContext) IsContainer() bool {
-	return cg.CGroupFlags.IsContainer()
 }
 
 // Hash returns a unique key for the entity
@@ -443,10 +433,14 @@ type FileEvent struct {
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
+	Extension   string `field:"extension,handler:ResolveFileExtension"`                                            // SECLDoc[extension] Definition:`File's extension`
 
-	MountPath   string `field:"-"`
-	MountSource uint32 `field:"-"`
-	MountOrigin uint32 `field:"-"`
+	MountPath               string `field:"-"`
+	MountSource             uint32 `field:"-"`
+	MountOrigin             uint32 `field:"-"`
+	MountVisible            bool   `field:"mount_visible"`  // SECLDoc[mount_visible] Definition:`Indicates whether the file's mount is visible in the VFS`
+	MountDetached           bool   `field:"mount_detached"` // SECLDoc[mount_detached] Definition:`Indicates whether the file's mount is detached from the VFS`
+	MountVisibilityResolved bool   `field:"-"`
 
 	PathResolutionError error `field:"-"`
 
@@ -514,6 +508,8 @@ type Mount struct {
 	RootStr        string  `field:"-"`
 	Path           string  `field:"-"`
 	Origin         uint32  `field:"-"`
+	Detached       bool    `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
+	Visible        bool    `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
 }
 
 // MountEvent represents a mount event
@@ -532,19 +528,6 @@ type MountEvent struct {
 	SyscallSourcePath     string `field:"syscall.source.path,ref:mount.syscall.str1"`     // SECLDoc[syscall.source.path] Definition:`Source path argument of the syscall`
 	SyscallMountpointPath string `field:"syscall.mountpoint.path,ref:mount.syscall.str2"` // SECLDoc[syscall.mountpoint.path] Definition:`Mount point path argument of the syscall`
 	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
-}
-
-// FsmountEvent represents an fsmount event
-type FsmountEvent struct {
-	SyscallEvent
-
-	Fd         int32  `field:"-"`
-	Flags      uint32 `field:"-"`
-	MountAttrs uint32 `field:"-"`
-
-	MountID     uint32  `field:"-"`
-	Device      uint32  `field:"-"`
-	RootPathKey PathKey `field:"-"`
 }
 
 // UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
@@ -767,9 +750,8 @@ type CgroupTracingEvent struct {
 
 // CgroupWriteEvent is used to signal that a new cgroup was created
 type CgroupWriteEvent struct {
-	File        FileEvent `field:"file"` // File pointing to the cgroup
-	Pid         uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
-	CGroupFlags uint32    `field:"-"`    // CGroup flags
+	File FileEvent `field:"file"` // File pointing to the cgroup
+	Pid  uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
@@ -781,7 +763,6 @@ type ActivityDumpLoadConfig struct {
 	EndTimestampRaw      uint64
 	Rate                 uint16 // max number of events per sec
 	Paused               uint32
-	CGroupFlags          containerutils.CGroupFlags
 }
 
 // NetworkDeviceContext represents the network device context of a network event
@@ -1023,8 +1004,18 @@ type SetrlimitEvent struct {
 // SetSockOptEvent represents a set socket option event
 type SetSockOptEvent struct {
 	SyscallEvent
-	Level   uint32 `field:"level"`   // SECLDoc[level] Definition:`Socket level`
-	OptName uint32 `field:"optname"` // SECLDoc[optname] Definition:`Socket option name`
+	SocketType         uint16 `field:"socket_type"`                                                         // SECLDoc[socket_type] Definition:`Socket type`
+	SocketFamily       uint16 `field:"socket_family"`                                                       // SECLDoc[socket_family] Definition:`Socket family`
+	FilterLen          uint16 `field:"filter_len"`                                                          // SECLDoc[filter_len] Definition:`Length of the filter`
+	SocketProtocol     uint16 `field:"socket_protocol"`                                                     // SECLDoc[socket_protocol] Definition:`Socket protocol`
+	Level              uint32 `field:"level"`                                                               // SECLDoc[level] Definition:`Socket level`
+	OptName            uint32 `field:"optname"`                                                             // SECLDoc[optname] Definition:`Socket option name`
+	SizeToRead         uint32 `field:"-"`                                                                   // Internal field, not exposed to users
+	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                                 // SECLDoc[is_filter_truncated] Definition:`Indicates that the filter is truncated`
+	RawFilter          []byte `field:"-"`                                                                   // Internal field, not exposed to users
+	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Filter instructions`
+	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
+	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the filter`
 }
 
 // GetWorkloadID returns an ID that represents the workload

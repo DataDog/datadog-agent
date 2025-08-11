@@ -103,6 +103,16 @@ func (c *mockConcentrator) Reset() []stats.Input {
 	return ret
 }
 
+type mockTracerPayloadModifier struct {
+	modifyCalled bool
+	lastPayload  *pb.TracerPayload
+}
+
+func (m *mockTracerPayloadModifier) Modify(tp *pb.TracerPayload) {
+	m.modifyCalled = true
+	m.lastPayload = tp
+}
+
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
 // desired string
 func TestFormatTrace(t *testing.T) {
@@ -170,8 +180,9 @@ func TestStopWaits(t *testing.T) {
 	case <-ctx.Done():
 		// Context cancelled before we could send
 		t.Fatal("Context cancelled before payload could be sent")
-	case <-time.After(100 * time.Millisecond):
-		// Timeout - this shouldn't happen in normal operation
+	case <-time.After(500 * time.Millisecond):
+		// Timeout - this shouldn't happen in normal operation.
+		// 500ms is used to allow worker goroutines to start and be ready
 		t.Fatal("Timeout sending payload to agent")
 	}
 
@@ -226,6 +237,36 @@ func TestProcess(t *testing.T) {
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
 		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["sql.query"])
+	})
+
+	t.Run("TracerPayloadModifier", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		// Create a mock TracerPayloadModifier that tracks calls
+		mockModifier := &mockTracerPayloadModifier{}
+		agnt.TracerPayloadModifier = mockModifier
+
+		now := time.Now()
+		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "test-resource",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		})
+
+		assert := assert.New(t)
+		assert.True(mockModifier.modifyCalled, "TracerPayloadModifier.Modify should have been called")
+		assert.NotNil(mockModifier.lastPayload, "TracerPayloadModifier should have received a payload")
 	})
 
 	t.Run("ReplacerMetrics", func(t *testing.T) {
@@ -1633,6 +1674,41 @@ func TestSampling(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProbSamplerSetsChunkPriority(t *testing.T) {
+	now := time.Now()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	statsd := mockStatsd.NewMockClientInterface(ctrl)
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{}), ProbabilisticSamplerEnabled: true, ProbabilisticSamplerSamplingPercentage: 100}
+	root := &pb.Span{
+		Service:  "serv1",
+		Start:    now.UnixNano(),
+		Duration: (100 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{"_top_level": 1},
+		Meta:     map[string]string{},
+	}
+	chunk := testutil.TraceChunkWithSpan(root)
+	pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
+	pt.TraceChunk.Priority = int32(-128)
+
+	a := &Agent{
+		NoPrioritySampler:    sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:        sampler.NewErrorsSampler(cfg),
+		PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:          sampler.NewRareSampler(config.New()),
+		ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg),
+		EventProcessor:       newEventProcessor(cfg, statsd),
+		SamplerMetrics:       sampler.NewMetrics(statsd),
+		conf:                 cfg,
+	}
+
+	keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	assert.True(t, keep)
+	// In order to ensure intake keeps this chunk we must override whatever priority was previously set on this chunk
+	// This is especially an issue for incoming OTLP spans where the chunk priority may have the "unset" value of -128
+	assert.Equal(t, int32(1), pt.TraceChunk.Priority)
 }
 
 func TestSampleTrace(t *testing.T) {

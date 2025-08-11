@@ -72,19 +72,19 @@ Package checks implements the "checks" bundle, for all of the component based ag
 
 ### [comp/checks/agentcrashdetect](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 
 ### [comp/checks/windowseventlog](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/windowseventlog)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package windowseventlog defines the Windows Event Log check component
 
 ### [comp/checks/winregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/winregistry)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package winregistry implements the Windows Registry check
 
@@ -390,6 +390,15 @@ Package runner implements a component to generate metadata payload at the right 
 
 Package securityagent is the metadata provider for security-agent process
 
+### [comp/metadata/softwareinventory](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/softwareinventory)
+
+*Datadog Team*: windows-products
+
+Package softwareinventory defines the interface for the inventory software component.
+This component collects and reports software inventory information from the host system.
+It provides metadata about installed software applications, including their names,
+versions, installation dates, and other relevant details for inventory tracking.
+
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
 Package systemprobe is the metadata provider for system-probe process
@@ -609,7 +618,7 @@ component system.
 
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/systray) (Component Bundle)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package systray implements the Datadog Agent Manager System Tray
 
@@ -638,7 +647,7 @@ component temporarily wraps pkg/trace/config.
 
 ### [comp/trace/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/etwtracer)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package etwtracer provides ETW events to the .Net tracer
 
@@ -648,7 +657,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
-*Datadog Team*: fleet windows-agent
+*Datadog Team*: fleet windows-products
 
 Package updater implements the updater component.
 
@@ -687,9 +696,15 @@ Package updater is the updater component.
 
 Package datadogclient provides a client to query the datadog API
 
+### [comp/connectivitychecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/connectivitychecker)
+
+*Datadog Team*: fleet
+
+Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
-*Datadog Team*: windows-agent
+*Datadog Team*: windows-products
 
 Package etw provides an ETW tracing interface
 
@@ -710,6 +725,12 @@ Package haagent handles states for HA Agent feature.
 *Datadog Team*: container-platform
 
 Package client implements a component to send process metadata to the Cluster-Agent
+
+### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
+
+*Datadog Team*: network-device-monitoring
+
+Package networkdeviceconfig provides the component for retrieving network device configurations.
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 

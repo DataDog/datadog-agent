@@ -8,22 +8,24 @@ package workloadfilterimpl
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // Create a new filter object for testing purposes
 func newFilterObject(t *testing.T, config config.Component) *filter {
 	reqs := Requires{
-		Lc:     compdef.NewTestLifecycle(t),
 		Log:    logmock.New(t),
 		Config: config,
 	}
@@ -44,7 +46,7 @@ func TestBasicFilter(t *testing.T) {
 	})
 
 	t.Run("single include filter", func(t *testing.T) {
-		container := workloadfilter.CreateContainer(
+		container := workloadmetafilter.CreateContainer(
 			&workloadmeta.Container{
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "dd-agent",
@@ -58,7 +60,7 @@ func TestBasicFilter(t *testing.T) {
 	})
 
 	t.Run("single exclude filter", func(t *testing.T) {
-		container := workloadfilter.CreateContainer(
+		container := workloadmetafilter.CreateContainer(
 			&workloadmeta.Container{
 				Image: workloadmeta.ContainerImage{
 					RawName: "datadog/agent:latest",
@@ -72,7 +74,7 @@ func TestBasicFilter(t *testing.T) {
 	})
 
 	t.Run("include beats exclude", func(t *testing.T) {
-		container := workloadfilter.CreateContainer(
+		container := workloadmetafilter.CreateContainer(
 			&workloadmeta.Container{
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "dd-agent",
@@ -94,7 +96,7 @@ func TestADAnnotationFilter(t *testing.T) {
 	f := newFilterObject(t, mockConfig)
 
 	t.Run("improper exclude annotation", func(t *testing.T) {
-		pod := workloadfilter.CreatePod(
+		pod := workloadmetafilter.CreatePod(
 			&workloadmeta.KubernetesPod{
 				EntityMeta: workloadmeta.EntityMeta{
 					Annotations: map[string]string{
@@ -103,7 +105,7 @@ func TestADAnnotationFilter(t *testing.T) {
 				},
 			},
 		)
-		container := workloadfilter.CreateContainer(
+		container := workloadmetafilter.CreateContainer(
 			&workloadmeta.Container{
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "dd-agent",
@@ -117,7 +119,7 @@ func TestADAnnotationFilter(t *testing.T) {
 	})
 
 	t.Run("proper exclude annotation", func(t *testing.T) {
-		pod := workloadfilter.CreatePod(
+		pod := workloadmetafilter.CreatePod(
 			&workloadmeta.KubernetesPod{
 				EntityMeta: workloadmeta.EntityMeta{
 					Annotations: map[string]string{
@@ -126,7 +128,7 @@ func TestADAnnotationFilter(t *testing.T) {
 				},
 			},
 		)
-		container := workloadfilter.CreateContainer(
+		container := workloadmetafilter.CreateContainer(
 			&workloadmeta.Container{
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "dd-agent",
@@ -142,7 +144,7 @@ func TestADAnnotationFilter(t *testing.T) {
 	t.Run("blank container name", func(t *testing.T) {
 		// Edge case if the container name is missing
 
-		pod := workloadfilter.CreatePod(
+		pod := workloadmetafilter.CreatePod(
 			&workloadmeta.KubernetesPod{
 				EntityMeta: workloadmeta.EntityMeta{
 					Annotations: map[string]string{
@@ -152,7 +154,7 @@ func TestADAnnotationFilter(t *testing.T) {
 			},
 		)
 
-		container := workloadfilter.CreateContainer(
+		container := workloadmetafilter.CreateContainer(
 			&workloadmeta.Container{
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "some-container",
@@ -175,7 +177,7 @@ func TestCombinedFilter(t *testing.T) {
 
 	f := newFilterObject(t, mockConfig)
 
-	container := workloadfilter.CreateContainer(
+	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "dd-agent",
@@ -187,14 +189,14 @@ func TestCombinedFilter(t *testing.T) {
 	res := f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
 	assert.Equal(t, false, res)
 
-	pod := workloadfilter.CreatePod(
+	pod := workloadmetafilter.CreatePod(
 		&workloadmeta.KubernetesPod{
 			EntityMeta: workloadmeta.EntityMeta{
 				Namespace: "default",
 			},
 		},
 	)
-	container = workloadfilter.CreateContainer(
+	container = workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "dd-agent",
@@ -206,7 +208,7 @@ func TestCombinedFilter(t *testing.T) {
 	res = f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
 	assert.Equal(t, false, res)
 
-	container = workloadfilter.CreateContainer(
+	container = workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "nginx",
@@ -217,14 +219,14 @@ func TestCombinedFilter(t *testing.T) {
 	res = f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
 	assert.Equal(t, false, res)
 
-	pod = workloadfilter.CreatePod(
+	pod = workloadmetafilter.CreatePod(
 		&workloadmeta.KubernetesPod{
 			EntityMeta: workloadmeta.EntityMeta{
 				Namespace: "datadog-agent",
 			},
 		},
 	)
-	container = workloadfilter.CreateContainer(
+	container = workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "nginx",
@@ -251,7 +253,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"image:dd-agent"},
 			exclude:  []string{"image:nginx"},
 			pauseCtn: false,
-			container: workloadfilter.CreateContainer(
+			container: workloadmetafilter.CreateContainer(
 				&workloadmeta.Container{
 					Image: workloadmeta.ContainerImage{
 						RawName: "dd-agent",
@@ -266,7 +268,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"image:dd-agent"},
 			exclude:  []string{"image:nginx"},
 			pauseCtn: false,
-			container: workloadfilter.CreateContainer(
+			container: workloadmetafilter.CreateContainer(
 				&workloadmeta.Container{
 					Image: workloadmeta.ContainerImage{
 						RawName: "nginx-123",
@@ -281,13 +283,13 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"kube_namespace:default"},
 			exclude:  []string{"name:nginx"},
 			pauseCtn: false,
-			container: workloadfilter.CreateContainer(
+			container: workloadmetafilter.CreateContainer(
 				&workloadmeta.Container{
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "nginx",
 					},
 				},
-				workloadfilter.CreatePod(
+				workloadmetafilter.CreatePod(
 					&workloadmeta.KubernetesPod{
 						EntityMeta: workloadmeta.EntityMeta{
 							Namespace: "default",
@@ -302,13 +304,13 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"name:nginx"},
 			exclude:  []string{"kube_namespace:default"},
 			pauseCtn: false,
-			container: workloadfilter.CreateContainer(
+			container: workloadmetafilter.CreateContainer(
 				&workloadmeta.Container{
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "nginx",
 					},
 				},
-				workloadfilter.CreatePod(
+				workloadmetafilter.CreatePod(
 					&workloadmeta.KubernetesPod{
 						EntityMeta: workloadmeta.EntityMeta{
 							Namespace: "default",
@@ -323,7 +325,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{""},
 			exclude:  []string{""},
 			pauseCtn: true,
-			container: workloadfilter.CreateContainer(
+			container: workloadmetafilter.CreateContainer(
 				&workloadmeta.Container{
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: "nginx",
@@ -341,7 +343,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{""},
 			exclude:  []string{""},
 			pauseCtn: false,
-			container: workloadfilter.CreateContainer(
+			container: workloadmetafilter.CreateContainer(
 				&workloadmeta.Container{
 					Image: workloadmeta.ContainerImage{
 						RawName: "kubernetes/pause",
@@ -356,6 +358,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("sbom.container_image.enabled", true)
 			mockConfig.SetWithoutSource("sbom.container_image.container_include", tt.include)
 			mockConfig.SetWithoutSource("sbom.container_image.container_exclude", tt.exclude)
 			mockConfig.SetWithoutSource("sbom.container_image.exclude_pause_container", tt.pauseCtn)
@@ -375,7 +378,7 @@ func TestFilterPrecedence(t *testing.T) {
 
 	f := newFilterObject(t, mockConfig)
 
-	container := workloadfilter.CreateContainer(
+	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "dd-agent",
@@ -432,7 +435,7 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 	mockConfig := configmock.New(t)
 	f := newFilterObject(t, mockConfig)
 
-	container := workloadfilter.CreateContainer(
+	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "no-filter",
@@ -456,10 +459,46 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 	})
 }
 
+func TestContainerFilterInitializationError(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_include", []string{"name:dd-agent"})
+	mockConfig.SetWithoutSource("container_exclude", []string{"bad_name:nginx"})
+	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
+	mockConfig.SetWithoutSource("ac_include", []string{"other_bad_name:nginx"})
+	f := newFilterObject(t, mockConfig)
+
+	t.Run("Properly defined filter", func(t *testing.T) {
+		errs := f.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerMetrics})
+		assert.Empty(t, errs, "Expected no initialization errors for properly defined filter")
+	})
+
+	t.Run("Improperly defined filter", func(t *testing.T) {
+		errs := f.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal})
+		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter")
+		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
+	})
+
+	t.Run("Improperly defined filter with multiple filters", func(t *testing.T) {
+		errs := f.GetContainerFilterInitializationErrors(
+			append(
+				workloadfilter.FlattenFilterSets(workloadfilter.GetAutodiscoveryFilters(workloadfilter.GlobalFilter)),
+				workloadfilter.LegacyContainerACInclude,
+			),
+		)
+		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter with multiple filters")
+		assert.True(t, containsErrorWithMessage(errs, "other_bad_name"), "Expected error message to contain the improper key 'other_bad_name'")
+		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
+	})
+}
+
 type errorInclProgram struct{}
 
 func (p errorInclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
 	return workloadfilter.Included, []error{fmt.Errorf("include evaluation error on %s", o.Type())}
+}
+
+func (p errorInclProgram) GetInitializationErrors() []error {
+	return nil
 }
 
 type errorExclProgram struct{}
@@ -468,11 +507,15 @@ func (p errorExclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.
 	return workloadfilter.Excluded, []error{fmt.Errorf("exclude evaluation error on %s", o.Type())}
 }
 
+func (p errorExclProgram) GetInitializationErrors() []error {
+	return nil
+}
+
 func TestProgramErrorHandling(t *testing.T) {
 	mockConfig := configmock.New(t)
 	f := newFilterObject(t, mockConfig)
 
-	container := workloadfilter.CreateContainer(
+	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: "error-case",
@@ -485,16 +528,40 @@ func TestProgramErrorHandling(t *testing.T) {
 	}
 
 	t.Run("Include with error thrown", func(t *testing.T) {
-		// Inject a program that always errors for ContainerMetrics, but returns Included
-		f.prgs[workloadfilter.ContainerType][int(workloadfilter.LegacyContainerMetrics)] = &errorInclProgram{}
-		res := evaluateResource(f, container, precedenceFilters)
+		// Create a new filter with injected error factory
+		errorFilter := &filter{
+			config:              f.config,
+			log:                 f.log,
+			telemetry:           f.telemetry,
+			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
+		}
+
+		// Register the error program factory
+		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
+			func(_ config.Component, _ log.Component) program.FilterProgram {
+				return &errorInclProgram{}
+			})
+
+		res := evaluateResource(errorFilter, container, precedenceFilters)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
 	t.Run("Exclude with error thrown", func(t *testing.T) {
-		// Inject a program that always errors for ContainerMetrics, but returns Excluded
-		f.prgs[workloadfilter.ContainerType][int(workloadfilter.LegacyContainerMetrics)] = &errorExclProgram{}
-		res := evaluateResource(f, container, precedenceFilters)
+		// Create a new filter with injected error factory
+		errorFilter := &filter{
+			config:              f.config,
+			log:                 f.log,
+			telemetry:           f.telemetry,
+			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
+		}
+
+		// Register the error program factory
+		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
+			func(_ config.Component, _ log.Component) program.FilterProgram {
+				return &errorExclProgram{}
+			})
+
+		res := evaluateResource(errorFilter, container, precedenceFilters)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 }
@@ -504,7 +571,7 @@ func TestSpecialCharacters(t *testing.T) {
 	mockConfig.SetWithoutSource("container_include", []string{`name:g'oba\\r\d-0x[0-9a-fA-F]+\\n`})
 	f := newFilterObject(t, mockConfig)
 
-	container := workloadfilter.CreateContainer(
+	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
 			EntityMeta: workloadmeta.EntityMeta{
 				Name: `g'oba\r9-0xDEADBEEF\n`,
@@ -518,23 +585,283 @@ func TestSpecialCharacters(t *testing.T) {
 }
 
 func TestServiceFiltering(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_include", []string{`name:svc1`})
-	f := newFilterObject(t, mockConfig)
+	tests := []struct {
+		name        string
+		include     []string
+		exclude     []string
+		serviceName string
+		namespace   string
+		annotations map[string]string
+		filters     [][]workloadfilter.ServiceFilter
+		expected    workloadfilter.Result
+	}{
+		{
+			name:        "Exclude by name",
+			exclude:     []string{"name:svc1"},
+			serviceName: "svc1",
+			namespace:   "",
+			annotations: nil,
+			filters:     [][]workloadfilter.ServiceFilter{{workloadfilter.LegacyServiceGlobal}},
+			expected:    workloadfilter.Excluded,
+		},
+		{
+			name:        "Exclude by namespace",
+			exclude:     []string{"kube_namespace:test"},
+			serviceName: "my-service",
+			namespace:   "test",
+			annotations: nil,
+			filters:     [][]workloadfilter.ServiceFilter{{workloadfilter.LegacyServiceGlobal}},
+			expected:    workloadfilter.Excluded,
+		},
+		{
+			name:        "AD annotation exclude",
+			serviceName: "annotated-service",
+			namespace:   "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/exclude": "true",
+			},
+			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:        "AD annotation metrics exclude",
+			serviceName: "metrics-excluded-service",
+			namespace:   "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/metrics_exclude": "true",
+			},
+			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotationsMetrics}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:        "AD annotation exclude truthy values",
+			serviceName: "annotated-service",
+			namespace:   "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/exclude": "T",
+			},
+			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}},
+			expected: workloadfilter.Excluded,
+		},
+	}
 
-	service := workloadfilter.CreateService("svc1", "", nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			if len(tt.exclude) > 0 {
+				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+			}
+			f := newFilterObject(t, mockConfig)
 
-	res := evaluateResource(f, service, [][]workloadfilter.ServiceFilter{{workloadfilter.LegacyServiceGlobal}})
-	assert.Equal(t, workloadfilter.Included, res)
+			service := workloadfilter.CreateService(tt.serviceName, tt.namespace, tt.annotations)
+
+			res := evaluateResource(f, service, tt.filters)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
 }
 
 func TestEndpointFiltering(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_include", []string{`name:ep1`})
-	f := newFilterObject(t, mockConfig)
+	tests := []struct {
+		name         string
+		include      []string
+		exclude      []string
+		endpointName string
+		namespace    string
+		annotations  map[string]string
+		filters      [][]workloadfilter.EndpointFilter
+		expected     workloadfilter.Result
+	}{
+		{
+			name:         "Exclude by name",
+			exclude:      []string{"name:ep1"},
+			endpointName: "ep1",
+			namespace:    "",
+			annotations:  nil,
+			filters:      [][]workloadfilter.EndpointFilter{{workloadfilter.LegacyEndpointGlobal}},
+			expected:     workloadfilter.Excluded,
+		},
+		{
+			name:         "Exclude by namespace",
+			exclude:      []string{"kube_namespace:test"},
+			endpointName: "my-endpoint",
+			namespace:    "test",
+			annotations:  nil,
+			filters:      [][]workloadfilter.EndpointFilter{{workloadfilter.LegacyEndpointGlobal}},
+			expected:     workloadfilter.Excluded,
+		},
+		{
+			name:         "AD annotation exclude",
+			endpointName: "annotated-endpoint",
+			namespace:    "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/exclude": "true",
+			},
+			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotations}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:         "AD annotation metrics exclude",
+			endpointName: "metrics-excluded-endpoint",
+			namespace:    "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/metrics_exclude": "true",
+			},
+			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotationsMetrics}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:         "AD annotation exclude truthy values",
+			endpointName: "metrics-excluded-endpoint",
+			namespace:    "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/metrics_exclude": "1",
+			},
+			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotationsMetrics}},
+			expected: workloadfilter.Excluded,
+		},
+	}
 
-	endpoint := workloadfilter.CreateEndpoint("ep1", "", nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			if len(tt.exclude) > 0 {
+				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+			}
+			f := newFilterObject(t, mockConfig)
 
-	res := evaluateResource(f, endpoint, [][]workloadfilter.EndpointFilter{{workloadfilter.LegacyEndpointGlobal}})
-	assert.Equal(t, workloadfilter.Included, res)
+			endpoint := workloadfilter.CreateEndpoint(tt.endpointName, tt.namespace, tt.annotations)
+
+			res := evaluateResource(f, endpoint, tt.filters)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
+}
+
+func TestImageFiltering(t *testing.T) {
+	tests := []struct {
+		name      string
+		include   []string
+		exclude   []string
+		imageName string
+		expected  workloadfilter.Result
+	}{
+		{
+			name:      "Include by image",
+			include:   []string{"image:dd-agent"},
+			exclude:   []string{"image:nginx"},
+			imageName: "dd-agent",
+			expected:  workloadfilter.Included,
+		},
+		{
+			name:      "Exclude by image",
+			include:   []string{"image:dd-agent"},
+			exclude:   []string{"image:nginx"},
+			imageName: "nginx-123",
+			expected:  workloadfilter.Excluded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("container_include", tt.include)
+			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+
+			f := newFilterObject(t, mockConfig)
+
+			containerImage := workloadfilter.CreateContainerImage(tt.imageName)
+
+			res := evaluateResource(f, containerImage, workloadfilter.GetContainerSharedMetricFilters())
+			assert.Equal(t, tt.expected, res)
+		})
+	}
+}
+
+// containsErrorWithMessage checks if any error in the slice contains the specified message
+func containsErrorWithMessage(errs []error, message string) bool {
+	for _, err := range errs {
+		if strings.Contains(err.Error(), message) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestPodFiltering(t *testing.T) {
+	tests := []struct {
+		name     string
+		include  []string
+		exclude  []string
+		wmetaPod *workloadmeta.KubernetesPod
+		filters  [][]workloadfilter.PodFilter
+		expected workloadfilter.Result
+	}{
+		{
+			name:    "Exclude by namespace",
+			exclude: []string{"kube_namespace:default"},
+			wmetaPod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "pod1",
+					Namespace: "default",
+				},
+			},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPod}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:    "Include by namespace",
+			include: []string{"kube_namespace:test"},
+			wmetaPod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "my-pod",
+					Namespace: "test",
+				},
+			},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPod}},
+			expected: workloadfilter.Included,
+		},
+		{
+			name: "AD annotation exclude",
+			wmetaPod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "annotated-pod",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/exclude": "true",
+					},
+				},
+			},
+			// Testing PodADAnnotations filter
+			filters:  workloadfilter.GetPodSharedMetricFilters(),
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name: "AD annotation metrics exclude",
+			wmetaPod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "metrics-excluded-pod",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/metrics_exclude": "true",
+					},
+				},
+			},
+			// Testing PodADAnnotationsMetrics filter
+			filters:  workloadfilter.GetPodSharedMetricFilters(),
+			expected: workloadfilter.Excluded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("container_include", tt.include)
+			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+			f := newFilterObject(t, mockConfig)
+
+			pod := workloadmetafilter.CreatePod(tt.wmetaPod)
+
+			res := evaluateResource(f, pod, tt.filters)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
 }

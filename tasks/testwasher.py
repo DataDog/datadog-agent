@@ -78,13 +78,13 @@ class TestWasher:
             or (package in self.known_flaky_tests and test in self.known_flaky_tests[package])
         )
 
-    def get_failing_tests(self) -> dict:
+    def get_failing_tests(self) -> dict[str, set[str]]:
         """
         Read the test output json file and return the tests that are failing
         """
         return self.test_output_json.failing_tests  # type: ignore[assignment]
 
-    def get_flaky_failures(self) -> dict:
+    def get_flaky_failures(self) -> dict[str, set[str]]:
         """
         Return failures that are due to flakiness. A test is considered flaky if it failed because of a flake.
         In the following cases the test failure is considered a flaky failure:
@@ -241,9 +241,8 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
             and job_details['variables']['SHOULD_RUN_IN_FLAKES_FINDER'] == "true"
             and not job.startswith(".")
         ):
-            # Let's exclude job that are retried for now until we find a solution to tackle them
             if 'retry' in job_details:
-                continue
+                job_details['retry'] = {}
             kept_job[job] = job_details
 
     # Remove rules, extends and retry from the jobs, update needs to point to parent pipeline
@@ -266,6 +265,7 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
     new_jobs = {}
     new_jobs['variables'] = copy.deepcopy(config['variables'])
     new_jobs['default'] = copy.deepcopy(config['default'])
+    new_jobs['default']['retry'] = {}  # Do not retry job by default in flake finder
     new_jobs['variables']['PARENT_PIPELINE_ID'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHA'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHORT_SHA'] = 'undefined'

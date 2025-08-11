@@ -23,7 +23,7 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
 state:
   currently_loading: <nil> -> 1
   queued_programs: '[] -> [2]'

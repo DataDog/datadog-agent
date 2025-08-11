@@ -382,6 +382,9 @@ var (
 	// MetricRulesStatus is the name of the metric used to report the rule status
 	// Tags: -
 	MetricRulesStatus = newRuntimeMetric(".rules_status")
+	// MetricSECLTotalVariables tracks the total number of SECL variables
+	// Tags: type ('bool', 'integer', 'string', 'ip', 'strings', 'integers', 'ips'), scope ('global', 'process', 'cgroup', 'container')
+	MetricSECLTotalVariables = newITRuntimeMetric("rule_engine", "total_variables")
 
 	// Enforcement metrics
 
@@ -582,6 +585,12 @@ var (
 	// MetricRuntimeCgroupMemoryKmemLimitInBytes is the name of the metric used to report memory.kmem.limit_in_bytes
 	// Tags: -
 	MetricRuntimeCgroupMemoryKmemLimitInBytes = newRuntimeMetric(".runtime_monitor.cgroup.memory.kmem_limit_in_bytes")
+
+	//BPFFilter metrics
+
+	//MetricBPFFilterTruncated is the name of the metric used to report truncated BPF filter
+	// Tags: -
+	MetricBPFFilterTruncated = newRuntimeMetric(".bpf_filter.truncated")
 )
 
 var (

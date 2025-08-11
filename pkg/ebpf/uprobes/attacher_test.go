@@ -55,7 +55,7 @@ func TestInternalProcessesRegex(t *testing.T) {
 
 func TestAttachPidExcludesInternal(t *testing.T) {
 	exe := "datadog-agent/bin/system-probe"
-	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
 	config := AttacherConfig{
 		ExcludeTargets: ExcludeInternal,
 		ProcRoot:       procRoot,
@@ -78,7 +78,7 @@ func TestAttachPidExcludesContainerdTmp(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(exe), 0755))
 	require.NoError(t, os.WriteFile(exe, []byte{}, 0644))
 
-	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
 	config := AttacherConfig{
 		ExcludeTargets:        ExcludeContainerdTmp,
 		ProcRoot:              procRoot,
@@ -107,7 +107,7 @@ func TestAttachPidReadsSharedLibraries(t *testing.T) {
 	pid := uint32(1)
 	libname := "/target/libssl.so"
 	maps := fmt.Sprintf("08048000-08049000 r-xp 00000000 03:00 8312       %s", libname)
-	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe, Maps: maps}})
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe, Maps: maps}})
 	config := AttacherConfig{
 		ProcRoot: procRoot,
 		Rules: []*AttachRule{
@@ -167,7 +167,7 @@ func TestAttachToBinaryContainerdTmpReturnsErrEnvironment(t *testing.T) {
 
 func TestGetExecutablePath(t *testing.T) {
 	exe := "/bin/bash"
-	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: "", Command: exe, Exe: exe}})
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 1, Cmdline: "", Command: exe, Exe: exe}})
 	config := AttacherConfig{
 		ProcRoot: procRoot,
 	}
@@ -210,7 +210,7 @@ ffffe000-fffff000 r-xp 00000000 00:00 0          [vdso]
 
 func TestGetLibrariesFromMapsFile(t *testing.T) {
 	pid := 1
-	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: uint32(pid), Maps: mapsFileSample}})
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: uint32(pid), Maps: mapsFileSample}})
 	config := AttacherConfig{
 		ProcRoot: procRoot,
 	}
@@ -242,7 +242,8 @@ func TestComputeRequestedSymbols(t *testing.T) {
 		rules := []*AttachRule{{ProbesSelector: selectorsOnlyAllOf}}
 		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}}, requested)
+		require.Contains(tt, requested, 0)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}}, requested[0])
 	})
 
 	selectorsBestEffortAndMandatory := []manager.ProbesSelector{
@@ -262,7 +263,8 @@ func TestComputeRequestedSymbols(t *testing.T) {
 		rules := []*AttachRule{{ProbesSelector: selectorsBestEffortAndMandatory}}
 		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested)
+		require.Contains(tt, requested, 0)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested[0])
 	})
 
 	selectorsBestEffort := []manager.ProbesSelector{
@@ -278,7 +280,8 @@ func TestComputeRequestedSymbols(t *testing.T) {
 		rules := []*AttachRule{{ProbesSelector: selectorsBestEffort}}
 		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", BestEffort: true}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested)
+		require.Contains(tt, requested, 0)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", BestEffort: true}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested[0])
 	})
 
 	selectorsWithReturnFunctions := []manager.ProbesSelector{
@@ -293,7 +296,18 @@ func TestComputeRequestedSymbols(t *testing.T) {
 		rules := []*AttachRule{{ProbesSelector: selectorsWithReturnFunctions}}
 		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
-		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", IncludeReturnLocations: true}}, requested)
+		require.Contains(tt, requested, 0)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", IncludeReturnLocations: true}}, requested[0])
+	})
+
+	t.Run("MultipleRules", func(tt *testing.T) {
+		rules := []*AttachRule{{ProbesSelector: selectorsWithReturnFunctions}, {ProbesSelector: selectorsOnlyAllOf}}
+		requested, err := ua.computeSymbolsToRequest(rules)
+		require.NoError(tt, err)
+		require.Contains(tt, requested, 0)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", IncludeReturnLocations: true}}, requested[0])
+		require.Contains(tt, requested, 1)
+		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}}, requested[1])
 	})
 }
 
@@ -470,13 +484,13 @@ func TestSync(t *testing.T) {
 	}}
 
 	t.Run("DetectsExistingProcesses", func(tt *testing.T) {
-		procs := []FakeProcFSEntry{
+		procs := []kernel.FakeProcFSEntry{
 			{Pid: 1, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
 			{Pid: 2, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
 			{Pid: 3, Cmdline: "/bin/donttrack", Command: "/bin/donttrack", Exe: "/bin/donttrack"},
 			{Pid: uint32(selfPID), Cmdline: "datadog-agent/bin/system-probe", Command: "sysprobe", Exe: "sysprobe"},
 		}
-		procFS := CreateFakeProcFS(t, procs)
+		procFS := kernel.CreateFakeProcFS(t, procs)
 
 		config := AttacherConfig{
 			ProcRoot:                       procFS,
@@ -503,13 +517,13 @@ func TestSync(t *testing.T) {
 	})
 
 	t.Run("RemovesDeletedProcesses", func(tt *testing.T) {
-		procs := []FakeProcFSEntry{
+		procs := []kernel.FakeProcFSEntry{
 			{Pid: 1, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
 			{Pid: 2, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
 			{Pid: 3, Cmdline: "/bin/donttrack", Command: "/bin/donttrack", Exe: "/bin/donttrack"},
 			{Pid: uint32(selfPID), Cmdline: "datadog-agent/bin/system-probe", Command: "sysprobe", Exe: "sysprobe"},
 		}
-		procFS := CreateFakeProcFS(t, procs)
+		procFS := kernel.CreateFakeProcFS(t, procs)
 
 		config := AttacherConfig{
 			ProcRoot:                       procFS,
@@ -573,12 +587,12 @@ func TestParseSymbolFromEBPFProbeName(t *testing.T) {
 }
 
 func TestAttachToBinaryAndDetach(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Exe:     "/bin/bash",
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,
@@ -605,7 +619,12 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[int]*InspectionResult{
+		0: {
+			SymbolMap: map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach},
+			Error:     nil,
+		},
+	}, nil)
 	inspector.On("Cleanup", mock.Anything).Return(nil)
 
 	// Tell the manager to return no probe when finding an existing one
@@ -639,12 +658,12 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 }
 
 func TestAttachToBinaryAtReturnLocation(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Exe:     "/bin/bash",
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,
@@ -671,7 +690,12 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234, ReturnLocations: []uint64{0x0, 0x1}}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[int]*InspectionResult{
+		0: {
+			SymbolMap: map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach},
+			Error:     nil,
+		},
+	}, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -702,13 +726,13 @@ const mapsFileWithSSL = `
 `
 
 func TestAttachToLibrariesOfPid(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Exe:     "/bin/bash",
 		Maps:    mapsFileWithSSL,
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,
@@ -754,7 +778,12 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[int]*InspectionResult{
+		0: {
+			SymbolMap: map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach},
+			Error:     nil,
+		},
+	}, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -785,6 +814,99 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	require.NoError(t, cb(target))
 
 	inspector.AssertExpectations(t)
+	mockMan.AssertExpectations(t)
+}
+
+func TestMultipleRulesForBinaryOnlyOneMatchesFunctions(t *testing.T) {
+	proc := kernel.FakeProcFSEntry{
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Exe:     "/bin/bash",
+	}
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
+
+	config := AttacherConfig{
+		ProcRoot: procFS,
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{
+						ProbeIdentificationPair: manager.ProbeIdentificationPair{
+							EBPFFuncName: "uprobe__func1",
+						},
+					},
+				},
+			},
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{
+						ProbeIdentificationPair: manager.ProbeIdentificationPair{
+							EBPFFuncName: "uprobe__func2",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// The binary inspector will return a symbol for func1 and an error for func2 as it's not found
+	mockBinaryInspector := &MockBinaryInspector{}
+	symbolAddress := uint64(0x1234)
+	mockBinaryInspector.On("Inspect", mock.Anything, mock.Anything).Return(map[int]*InspectionResult{
+		0: {
+			SymbolMap: map[string]bininspect.FunctionMetadata{"func1": {EntryLocation: symbolAddress}},
+			Error:     nil,
+		},
+		1: {
+			SymbolMap: nil,
+			Error:     errors.New("func2 not found"),
+		},
+	}, nil)
+
+	mockMan := &MockManager{}
+
+	// Tell the manager to return no probe when finding an existing one
+	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
+	mockMan.On("GetProbe", mock.Anything).Return(nilProbe, false)
+
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, mockMan, nil, mockBinaryInspector, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	target := utils.FilePath{
+		HostPath: proc.Exe,
+		PID:      proc.Pid,
+	}
+
+	// Tell the manager to accept the probe
+	uid := "1hipfd0" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
+	expectedProbe := &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__func1", UID: uid},
+		BinaryPath:              target.HostPath,
+		UprobeOffset:            symbolAddress,
+		HookFuncName:            "func1",
+	}
+	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
+
+	err = ua.attachToBinary(target, config.Rules, NewProcInfo(procFS, proc.Pid))
+	require.NoError(t, err)
+	mockMan.AssertExpectations(t)
+	mockBinaryInspector.AssertExpectations(t)
+
+	// FileRegistry calls the detach callback without host path. Replicate that here.
+	detachPath := utils.FilePath{
+		ID: target.ID,
+	}
+
+	// Ensure the manager is called to detach the probe properly, and cleanup is performed correctly too
+	mockMan.On("DetachHook", expectedProbe.ProbeIdentificationPair).Return(nil)
+	mockBinaryInspector.On("Cleanup", mock.Anything).Return(nil)
+
+	err = ua.detachFromBinary(detachPath)
+	require.NoError(t, err)
+	mockBinaryInspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
 }
 
@@ -1052,6 +1174,7 @@ func (s *SharedLibrarySuite) TestMultipleLibsets() {
 	// Create test files for different libsets
 	cryptoLibPath, _ := createTempTestFile(t, "foo-libssl.so")
 	gpuLibPath, _ := createTempTestFile(t, "foo-libcudart.so")
+	libcLibPath, _ := createTempTestFile(t, "foo-libc.so")
 
 	attachCfg := AttacherConfig{
 		Rules: []*AttachRule{
@@ -1063,9 +1186,13 @@ func (s *SharedLibrarySuite) TestMultipleLibsets() {
 				LibraryNameRegex: regexp.MustCompile(`foo-libcudart\.so`),
 				Targets:          AttachToSharedLibraries,
 			},
+			{
+				LibraryNameRegex: regexp.MustCompile(`foo-libc\.so`),
+				Targets:          AttachToSharedLibraries,
+			},
 		},
 		EbpfConfig:                     ebpfCfg,
-		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto, sharedlibraries.LibsetGPU},
+		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto, sharedlibraries.LibsetGPU, sharedlibraries.LibsetLibc},
 		EnablePeriodicScanNewProcesses: false,
 	}
 
@@ -1094,6 +1221,7 @@ func (s *SharedLibrarySuite) TestMultipleLibsets() {
 	testCases := []testCase{
 		{cryptoLibPath, "foo-libssl.so", "crypto library"},
 		{gpuLibPath, "foo-libcudart.so", "GPU library"},
+		{libcLibPath, "foo-libc.so", "libc library"},
 	}
 
 	var commands []*exec.Cmd
@@ -1163,14 +1291,14 @@ func methodHasBeenCalledWithPredicate(registry *MockFileRegistry, methodName str
 }
 
 func TestSyncRetryAndReattach(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Command: "/bin/bash",
 		Exe:     "/bin/bash",
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
-	emptyProcFS := CreateFakeProcFS(t, []FakeProcFSEntry{})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
+	emptyProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,
@@ -1230,14 +1358,14 @@ func TestSyncRetryAndReattach(t *testing.T) {
 }
 
 func TestSyncNoAttach(t *testing.T) {
-	proc := FakeProcFSEntry{
+	proc := kernel.FakeProcFSEntry{
 		Pid:     1,
 		Cmdline: "/bin/bash",
 		Command: "/bin/bash",
 		Exe:     "/bin/bash",
 	}
-	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
-	emptyProcFS := CreateFakeProcFS(t, []FakeProcFSEntry{})
+	procFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{proc})
+	emptyProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
 
 	config := AttacherConfig{
 		ProcRoot: procFS,

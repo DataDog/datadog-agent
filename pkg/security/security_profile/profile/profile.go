@@ -363,7 +363,7 @@ func (p *Profile) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 
 	p.selector = selector
 	// Once per workload, when tags are resolved and the first time we successfully get the selector, tag all the existing nodes
-	p.ActivityTree.TagAllNodes(selector.Tag)
+	p.ActivityTree.TagAllNodes(selector.Tag, time.Now())
 
 	return &p.selector
 }
@@ -642,6 +642,9 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
+	p.InstancesLock.Lock()
+	defer p.InstancesLock.Unlock()
+
 	for _, workload := range p.Instances {
 		// Check if the workload IDs match
 		if entry.GetWorkloadID() != nil && workload.GetWorkloadID() != nil && entry.GetWorkloadID() == workload.GetWorkloadID() {
@@ -718,6 +721,8 @@ func (p *Profile) ListAllVersionStates() {
 			}
 		}
 		fmt.Printf("Instances:\n")
+		p.InstancesLock.Lock()
+		defer p.InstancesLock.Unlock()
 		for _, instance := range p.Instances {
 			fmt.Printf("  - %+v\n", instance.ContainerID)
 		}

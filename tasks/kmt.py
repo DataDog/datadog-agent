@@ -30,6 +30,7 @@ from tasks.kernel_matrix_testing.ci import KMTPipeline, KMTTestRunJob, get_test_
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import update_rootfs
+from tasks.kernel_matrix_testing.gdb import GDBPaths, setup_gdb_debugging
 from tasks.kernel_matrix_testing.infra import (
     SSH_OPTIONS,
     HostInstance,
@@ -45,7 +46,7 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_get_stack_or_exit, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
@@ -70,6 +71,7 @@ from tasks.system_probe import (
     TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
     check_for_ninja,
+    compute_go_parallelism,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
     get_sysprobe_test_buildtags,
@@ -136,7 +138,7 @@ def gen_config(
     init_stack=True,
     vcpu: str | None = None,
     memory: str | None = None,
-    new=False,
+    new=True,
     ci=False,
     arch: str = "",
     output_file: str = "vmconfig.json",
@@ -298,6 +300,49 @@ def gen_config_from_ci_pipeline(
 
 
 @task
+def attach_gdb(ctx: Context, vm: str, stack: str | None = None, dry=True):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+
+    if not os.path.exists(f"{Path.home()}/.gdbinit-gef.py"):
+        resp = ask(
+            "It is recommended to use gdb with the bata24 extension (https://github.com/bata24/gef) which greatly enhances the kernel debugging experience. You can install the extension with `inv -e kmt.install_bata24_gef`. Continue without installing? (y/N)"
+        )
+        if resp.lower().strip() != "y":
+            raise Exit("Aborted by user")
+
+    domains = get_target_domains(ctx, stack, None, None, vm, None)
+    assert len(domains) > 0, f"no running VM discovered for the provided vm {vm}"
+    assert len(domains) == 1, "GDB can only be attached to one VM at a time"
+
+    domain = domains[0]
+    if domain.gdb_port == 0:
+        raise Exit(
+            "VM was not launched with GDB debugging support. To use this feature specify the `--gdb` flag when invoke the `kmt.launch-stack` task"
+        )
+
+    platforms = get_platforms()
+    kmt_arch = Arch.from_str(domain.arch).kmt_arch
+    platinfo = platforms[kmt_arch][domain.tag]
+    gdb_paths = GDBPaths(domain.tag, platinfo['image_version'], stack, domain.arch)
+
+    cmd = f"gdb \
+-ex \"add-auto-load-safe-path {gdb_paths.kernel_source}\" \
+-ex \"file {gdb_paths.vmlinux}\" \
+-ex \"set arch i386:x86-64:intel\" -ex \"target remote localhost:{domain.gdb_port}\" \
+-ex \"source {gdb_paths.kernel_source}/vmlinux-gdb.py\" \
+-ex \"set disassembly-flavor intel\" \
+-ex \"set pagination off\" \
+"
+
+    if dry:
+        info(f"[+] Run the following command: {cmd}")
+    else:
+        ctx.run(cmd)
+
+
+@task
 def launch_stack(
     ctx: Context,
     stack: str | None = None,
@@ -306,14 +351,22 @@ def launch_stack(
     arm_ami: str = ARM_AMI_ID_SANDBOX,
     provision_microvms: bool = True,
     provision_script: str | None = None,
+    gdb: bool = False,
 ):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
-    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
+    if gdb and get_kmt_os().name != "linux":
+        # TODO: add kernel debugging support for MacOS
+        raise Exit("GDB attached to guest VM is only supported for linux systems")
+
+    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms, gdb)
+
     if provision_script is not None:
         provision_stack(ctx, provision_script, stack, ssh_key)
+
+    if gdb:
+        setup_gdb_debugging(ctx, stack)
+        info("[+] GDB setup complete")
 
 
 @task
@@ -323,9 +376,7 @@ def provision_stack(
     stack: str | None = None,
     ssh_key: str | None = None,
 ):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
@@ -584,11 +635,13 @@ def is_root():
     return os.getuid() == 0
 
 
-def ninja_define_rules(nw: NinjaWriter):
-    # go build does not seem to be designed to run concurrently on the same
-    # source files. To make go build work with ninja we create a pool to force
-    # only a single instance of go to be running.
-    nw.pool(name="gobuild", depth=1)
+def ninja_define_rules(
+    nw: NinjaWriter,
+    debug: bool = False,
+    ci: bool = False,
+):
+    go_parallelism = compute_go_parallelism(debug=debug, ci=ci)
+    nw.pool(name="gobuild", depth=go_parallelism)
 
     nw.rule(
         name="gotestsuite",
@@ -597,7 +650,7 @@ def ninja_define_rules(nw: NinjaWriter):
     nw.rule(name="copyextra", command="cp -r $in $out")
     nw.rule(
         name="gobin",
-        command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
+        command="$chdir && $env $go build -o $out $tags $extra_arguments $ldflags $in $tool",
     )
     nw.rule(name="copyfiles", command="mkdir -p $$(dirname $out) && install $in $out $mode")
 
@@ -753,7 +806,7 @@ def kmt_secagent_prepare(
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file)
 
-        ninja_define_rules(nw)
+        ninja_define_rules(nw, debug=verbose, ci=ci)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(
             nw,
@@ -1032,7 +1085,7 @@ def kmt_sysprobe_prepare(
             env_str += f"{key}='{new_val}' "
         env_str = env_str.rstrip()
 
-        ninja_define_rules(nw)
+        ninja_define_rules(nw, debug=True, ci=ci)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
         ninja_add_dyninst_test_programs(
@@ -1343,10 +1396,7 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
             stacks.create_stack(ctx, stack)
         return stack
 
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
     return stack
 
 
@@ -1429,10 +1479,7 @@ def build(
 
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
 
     ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
@@ -2025,10 +2072,7 @@ def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None)
 
 @task
 def show_last_test_results(ctx: Context, stack: str | None = None):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
@@ -2544,3 +2588,8 @@ def start_microvms(
             agent_version=agent_version,
         )
     )
+
+
+@task
+def install_bata24_gef(ctx):
+    ctx.run("tasks/kernel_matrix_testing/provision/bata24.sh")

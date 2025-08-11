@@ -8,12 +8,14 @@ Probes:
         maxReferenceDepth: 3
         maxFieldCount: 0
         maxCollectionSize: 0
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
         - ID: 11
           Type: 63 EventRootType Probe[main.PointerChainArg]
-          InjectionPoints: [{PC: "0x4a8006", Frameless: true}]
+          InjectionPoints: [{PC: "0x4a8006", Frameless: false}]
           Condition: null
     - id: PointerSmallChainArg
       version: 0
@@ -23,17 +25,21 @@ Probes:
         maxReferenceDepth: 5
         maxFieldCount: 0
         maxCollectionSize: 0
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 3}
       events:
         - ID: 12
           Type: 64 EventRootType Probe[main.PointerSmallChainArg]
-          InjectionPoints: [{PC: "0x4a8050", Frameless: true}]
+          InjectionPoints: [{PC: "0x4a8050", Frameless: false}]
           Condition: null
     - id: bigMapArg
       version: 0
       type: LOG_PROBE
       where: {methodName: main.bigMapArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 12}
       events:
@@ -46,6 +52,8 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.inlined}
       sampling: {snapshotsPerSecond: 2}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
@@ -55,12 +63,14 @@ Probes:
             - PC: "0x4a83ca"
               Frameless: false
             - PC: "0x4a7dce"
-              Frameless: true
+              Frameless: false
           Condition: null
     - id: intArg
       version: 0
       type: LOG_PROBE
       where: {methodName: main.intArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 4}
       events:
@@ -72,6 +82,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.intArrayArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 7}
       events:
@@ -83,6 +95,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringArrayArgFrameless}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 10}
       events:
@@ -94,6 +108,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.intSliceArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 6}
       events:
@@ -105,6 +121,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.mapArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 11}
       events:
@@ -116,6 +134,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 5}
       events:
@@ -127,6 +147,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringArrayArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 9}
       events:
@@ -138,6 +160,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringSliceArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 8}
       events:
@@ -255,7 +279,7 @@ Subprograms:
           Type: 15 GoMapType map[string]int
           Locations:
             - Range: 0x4a8480..0x4a84ad
-              Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 12
@@ -267,15 +291,17 @@ Subprograms:
           Type: 29 GoMapType map[string]main.bigStruct
           Locations:
             - Range: 0x4a84e0..0x4a8513
-              Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0x4a8513..0x4a859b
-              Pieces: [{Size: 0, Op: {CfaOffset: 0}}]
+              Pieces: [{Size: 8, Op: {CfaOffset: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 1
       Name: main.inlined
       OutOfLinePCRanges: [0x4a83c0..0x4a8422]
-      InlinePCRanges: [[0x4a7dce..0x4a7e1f]]
+      InlinePCRanges:
+        - Ranges: [0x4a7dce..0x4a7e1f]
+          RootRanges: [0x4a7c40..0x4a809d]
       Variables:
         - Name: x
           Type: 1 BaseType int
@@ -289,7 +315,9 @@ Subprograms:
     - ID: 2
       Name: main.PointerChainArg
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0x4a8006..0x4a8045]]
+      InlinePCRanges:
+        - Ranges: [0x4a8006..0x4a8045]
+          RootRanges: [0x4a7c40..0x4a809d]
       Variables:
         - Name: ptr
           Type: 2 PointerType *****int
@@ -301,7 +329,9 @@ Subprograms:
     - ID: 3
       Name: main.PointerSmallChainArg
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0x4a8050..0x4a808a]]
+      InlinePCRanges:
+        - Ranges: [0x4a8050..0x4a808a]
+          RootRanges: [0x4a7c40..0x4a809d]
       Variables:
         - Name: ptr
           Type: 5 PointerType **int
@@ -358,7 +388,7 @@ Types:
       ByteSize: 16
       GoRuntimeType: 41376
       GoKind: 24
-      Fields:
+      RawFields:
         - Name: str
           Offset: 0
           Type: 44 PointerType *string.str
@@ -385,7 +415,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 37696
       GoKind: 23
-      Fields:
+      RawFields:
         - Name: array
           Offset: 0
           Type: 6 PointerType *int
@@ -411,7 +441,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 37952
       GoKind: 23
-      Fields:
+      RawFields:
         - Name: array
           Offset: 0
           Type: 13 PointerType *string
@@ -441,6 +471,7 @@ Types:
     - __kind: GoMapType
       ID: 15
       Name: map[string]int
+      ByteSize: 8
       GoRuntimeType: 67264
       GoKind: 21
       HeaderType: 17 GoSwissMapHeaderType map<string,int>
@@ -454,7 +485,7 @@ Types:
       Name: map<string,int>
       ByteSize: 48
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 18 BaseType uint64
@@ -508,7 +539,7 @@ Types:
       Name: table<string,int>
       ByteSize: 32
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 23 BaseType uint16
@@ -538,7 +569,7 @@ Types:
       Name: groupReference<string,int>
       ByteSize: 16
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: data
           Offset: 0
           Type: 25 PointerType *noalg.map.group[string]int
@@ -558,7 +589,7 @@ Types:
       ByteSize: 200
       GoRuntimeType: 74656
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: ctrl
           Offset: 0
           Type: 18 BaseType uint64
@@ -580,7 +611,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 74528
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: key
           Offset: 0
           Type: 7 GoStringHeaderType string
@@ -590,6 +621,7 @@ Types:
     - __kind: GoMapType
       ID: 29
       Name: map[string]main.bigStruct
+      ByteSize: 8
       GoRuntimeType: 67392
       GoKind: 21
       HeaderType: 31 GoSwissMapHeaderType map<string,main.bigStruct>
@@ -603,7 +635,7 @@ Types:
       Name: map<string,main.bigStruct>
       ByteSize: 48
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 18 BaseType uint64
@@ -645,7 +677,7 @@ Types:
       Name: table<string,main.bigStruct>
       ByteSize: 32
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: used
           Offset: 0
           Type: 23 BaseType uint16
@@ -669,7 +701,7 @@ Types:
       Name: groupReference<string,main.bigStruct>
       ByteSize: 16
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: data
           Offset: 0
           Type: 36 PointerType *noalg.map.group[string]main.bigStruct
@@ -689,7 +721,7 @@ Types:
       ByteSize: 200
       GoRuntimeType: 74912
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: ctrl
           Offset: 0
           Type: 18 BaseType uint64
@@ -711,7 +743,7 @@ Types:
       ByteSize: 24
       GoRuntimeType: 74784
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: key
           Offset: 0
           Type: 7 GoStringHeaderType string
@@ -731,7 +763,7 @@ Types:
       ByteSize: 184
       GoRuntimeType: 119744
       GoKind: 25
-      Fields:
+      RawFields:
         - Name: Field1
           Offset: 0
           Type: 1 BaseType int
@@ -768,7 +800,7 @@ Types:
     - __kind: GoStringDataType
       ID: 43
       Name: string.str
-      ByteSize: 512
+      ByteSize: 2048
     - __kind: PointerType
       ID: 44
       Name: '*string.str'
@@ -777,7 +809,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 45
       Name: '[]int.array'
-      ByteSize: 512
+      ByteSize: 2048
       Element: 1 BaseType int
     - __kind: PointerType
       ID: 46
@@ -787,7 +819,7 @@ Types:
     - __kind: GoSliceDataType
       ID: 47
       Name: '[]string.array'
-      ByteSize: 512
+      ByteSize: 2048
       Element: 7 GoStringHeaderType string
     - __kind: PointerType
       ID: 48
@@ -797,28 +829,28 @@ Types:
     - __kind: GoSliceDataType
       ID: 49
       Name: '[]*table<string,int>.array'
-      ByteSize: 2048
+      ByteSize: 8192
       Element: 21 PointerType *table<string,int>
     - __kind: GoSliceDataType
       ID: 50
       Name: '[]noalg.map.group[string]int.array'
-      ByteSize: 512
+      ByteSize: 2048
       Element: 26 StructureType noalg.map.group[string]int
     - __kind: GoSliceDataType
       ID: 51
       Name: '[]*table<string,main.bigStruct>.array'
-      ByteSize: 2048
+      ByteSize: 8192
       Element: 33 PointerType *table<string,main.bigStruct>
     - __kind: GoSliceDataType
       ID: 52
       Name: '[]noalg.map.group[string]main.bigStruct.array'
-      ByteSize: 512
+      ByteSize: 2048
       Element: 37 StructureType noalg.map.group[string]main.bigStruct
     - __kind: EventRootType
       ID: 53
       Name: Probe[main.intArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -833,7 +865,7 @@ Types:
       ID: 54
       Name: Probe[main.stringArg]
       ByteSize: 17
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -848,7 +880,7 @@ Types:
       ID: 55
       Name: Probe[main.intSliceArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -863,7 +895,7 @@ Types:
       ID: 56
       Name: Probe[main.intArrayArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -878,7 +910,7 @@ Types:
       ID: 57
       Name: Probe[main.stringSliceArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -893,7 +925,7 @@ Types:
       ID: 58
       Name: Probe[main.stringArrayArg]
       ByteSize: 49
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -908,7 +940,7 @@ Types:
       ID: 59
       Name: Probe[main.stringArrayArgFrameless]
       ByteSize: 49
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -922,8 +954,8 @@ Types:
     - __kind: EventRootType
       ID: 60
       Name: Probe[main.mapArg]
-      ByteSize: 1
-      PresenseBitsetSize: 1
+      ByteSize: 9
+      PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -933,12 +965,12 @@ Types:
                 - __kind: LocationOp
                   Variable: {subprogram: 11, index: 0, name: m}
                   Offset: 0
-                  ByteSize: 0
+                  ByteSize: 8
     - __kind: EventRootType
       ID: 61
       Name: Probe[main.bigMapArg]
-      ByteSize: 1
-      PresenseBitsetSize: 1
+      ByteSize: 9
+      PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -948,12 +980,12 @@ Types:
                 - __kind: LocationOp
                   Variable: {subprogram: 12, index: 0, name: m}
                   Offset: 0
-                  ByteSize: 0
+                  ByteSize: 8
     - __kind: EventRootType
       ID: 62
       Name: Probe[main.inlined]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -968,7 +1000,7 @@ Types:
       ID: 63
       Name: Probe[main.PointerChainArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ptr
           Offset: 1
@@ -983,7 +1015,7 @@ Types:
       ID: 64
       Name: Probe[main.PointerSmallChainArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ptr
           Offset: 1

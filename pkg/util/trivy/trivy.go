@@ -94,6 +94,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 
 	option := artifact.Option{
 		Offline:           true,
+		OfflineJar:        true,
 		NoProgress:        true,
 		DisabledAnalyzers: DefaultDisabledCollectors(opts.Analyzers),
 		Parallel:          parallel,
@@ -123,11 +124,13 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",
 			"/var/lib/rpm/*",
+			"/usr/share/rpm/*",
 			"/aarch64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
 			"/aarch64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
 			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
 			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
 		}
+		option.WalkerOption.OnlyDirs = append(option.WalkerOption.OnlyDirs, opts.AdditionalDirs...)
 	} else if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
 		option.WalkerOption.SkipDirs = append(
 			option.WalkerOption.SkipDirs,
@@ -140,6 +143,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/run/**",
 			"/sbin/**",
 			"/sys/**",
+			"/sysroot/**",
 			"/tmp/**",
 			"/usr/bin/**",
 			"/usr/sbin/**",
@@ -147,6 +151,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/var/lib/containerd/**",
 			"/var/lib/containers/**",
 			"/var/lib/docker/**",
+			"/var/lib/kubelet/pods/**",
 			"/var/lib/libvirt/**",
 			"/var/lib/snapd/**",
 			"/var/log/**",

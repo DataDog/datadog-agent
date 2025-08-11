@@ -171,19 +171,9 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(_ *model.Event, _ *model.C
 	return 0
 }
 
-// ResolveCGroupManager resolves the manager of the cgroup
-func (fh *EBPFLessFieldHandlers) ResolveCGroupManager(_ *model.Event, _ *model.CGroupContext) string {
-	return ""
-}
-
 // ResolveContainerContext retrieve the ContainerContext of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	return ev.ContainerContext, ev.ContainerContext != nil
-}
-
-// ResolveContainerRuntime retrieves the container runtime managing the container
-func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *model.ContainerContext) string {
-	return ""
 }
 
 // ResolveContainerID resolves the container ID of the event
@@ -544,4 +534,22 @@ func (fh *EBPFLessFieldHandlers) ResolveConnectHostnames(_ *model.Event, e *mode
 // ResolveAcceptHostnames resolves the hostnames of an accept event
 func (fh *EBPFLessFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.AcceptEvent) []string {
 	return e.Hostnames
+}
+
+// ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, _ *model.SetSockOptEvent) string {
+	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
+	return ""
+}
+
+// ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, _ *model.SetSockOptEvent) string {
+	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
+	return ""
+}
+
+// ResolveSetSockOptUsedImmediates resolves the immediates in the bpf filter of a setsockopt event
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, _ *model.SetSockOptEvent) []int {
+	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
+	return nil
 }

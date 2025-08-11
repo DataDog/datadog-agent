@@ -230,6 +230,9 @@ end
 exclude '\.git*'
 exclude 'bundler\/git'
 
+# Exclude headers that are not needed in the final package
+exclude "embedded/include"
+
 if linux_target? or windows_target?
   strip_build windows_target? || !do_package
   debug_path ".debug"

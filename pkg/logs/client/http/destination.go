@@ -39,6 +39,12 @@ const (
 	ProtobufContentType = "application/x-protobuf"
 )
 
+// NoTimeoutOverride is a special value that tells the httpClientFactory to use the logs_config.http_timeout setting.
+// This should generally be used for all HTTP destinations barring special cases like the HTTP connectivity check.
+const (
+	NoTimeoutOverride = -1
+)
+
 // HTTP errors.
 var (
 	errClient  = errors.New("client error")
@@ -112,7 +118,7 @@ func NewDestination(endpoint config.Endpoint,
 	return newDestination(endpoint,
 		contentType,
 		destinationsContext,
-		time.Second*10,
+		NoTimeoutOverride,
 		shouldRetry,
 		destMeta,
 		cfg,
@@ -125,7 +131,7 @@ func NewDestination(endpoint config.Endpoint,
 func newDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
-	timeout time.Duration,
+	timeoutOverride time.Duration,
 	shouldRetry bool,
 	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader,
@@ -157,7 +163,7 @@ func newDestination(endpoint config.Endpoint,
 		url:                 buildURL(endpoint),
 		endpoint:            endpoint,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout, cfg)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg, timeoutOverride)),
 		destinationsContext: destinationsContext,
 		workerPool:          workerPool,
 		wg:                  sync.WaitGroup{},
@@ -419,10 +425,14 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 	}
 }
 
-func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
+func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) func() *http.Client {
 	var transport *http.Transport
 
 	transportConfig := cfg.Get("logs_config.http_protocol")
+	timeout := timeoutOverride
+	if timeout == NoTimeoutOverride {
+		timeout = time.Second * time.Duration(cfg.GetInt("logs_config.http_timeout"))
+	}
 
 	// Configure transport based on user setting
 	switch transportConfig {
@@ -469,9 +479,9 @@ func buildURL(endpoint config.Endpoint) string {
 		Host:   address,
 	}
 	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
-		url.Path = fmt.Sprintf("/api/v2/%s", endpoint.TrackType)
+		url.Path = fmt.Sprintf("%s/api/v2/%s", endpoint.PathPrefix, endpoint.TrackType)
 	} else {
-		url.Path = "/v1/input"
+		url.Path = fmt.Sprintf("%s/v1/input", endpoint.PathPrefix)
 	}
 	return url.String()
 }

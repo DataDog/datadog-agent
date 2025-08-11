@@ -219,10 +219,6 @@ func (m *Manager) resolveTags(ad *dump.ActivityDump) error {
 		ad.Profile.AddTags(tags)
 	}
 
-	ad.Profile.AddTags([]string{
-		"cgroup_manager:" + ad.Profile.Metadata.CGroupContext.CGroupFlags.GetCGroupManager().String(),
-	})
-
 	return nil
 }
 
@@ -473,15 +469,10 @@ workloadLoop:
 		}
 
 		// if we're still here, we can start tracing this workload
-		defaultConfigs, err := m.getDefaultLoadConfigs()
-		if err != nil {
-			seclog.Errorf("couldn't get default load configs: %v", err)
-			continue
-		}
+		defaultConfig := m.getDefaultLoadConfig()
 
-		defaultConfig, found := defaultConfigs[workloads[0].CGroupContext.CGroupFlags.GetCGroupManager()]
-		if !found {
-			seclog.Errorf("Failed to find default activity dump config for cgroup %s managed by %s", string(workloads[0].CGroupContext.CGroupID), workloads[0].CGroupContext.CGroupFlags.GetCGroupManager().String())
+		// if not a container, check we should trace it
+		if workloads[0].ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
 			continue
 		}
 
@@ -525,6 +516,22 @@ func (m *Manager) startDumpWithConfig(containerID containerutils.ContainerID, cg
 	return nil
 }
 
+func (m *Manager) evictTracedCgroup(cgroup *model.CGroupContext) {
+	// first, push the evicted cgroup to the discarded map
+	if err := m.tracedCgroupsDiscardedMap.Put(cgroup.CGroupFile, uint8(1)); err != nil {
+		if !errors.Is(err, ebpf.ErrKeyNotExist) {
+			seclog.Errorf("couldn't discard activity dump cgroup %s: %v", cgroup.CGroupID, err)
+		}
+	}
+	// then evict if from the traced one
+	if err := m.tracedCgroupsMap.Delete(cgroup.CGroupFile); err != nil {
+		if !errors.Is(err, ebpf.ErrKeyNotExist) {
+			seclog.Errorf("couldn't delete activity dump filter cgroup %s: %v", cgroup.CGroupID, err)
+		}
+	}
+
+}
+
 // HandleCGroupTracingEvent handles a cgroup tracing event
 func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
@@ -533,6 +540,12 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 
 	if len(event.CGroupContext.CGroupID) == 0 {
 		seclog.Warnf("received a cgroup tracing event with an empty cgroup ID")
+		m.evictTracedCgroup(&event.CGroupContext)
+		return
+	}
+
+	if event.ContainerContext.ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
+		m.evictTracedCgroup(&event.CGroupContext)
 		return
 	}
 
@@ -573,7 +586,7 @@ func (m *Manager) SnapshotTracedCgroups() {
 			continue
 		}
 
-		cgroupContext, _, err := m.resolvers.ResolveCGroupContext(cgroupFile, event.Config.CGroupFlags)
+		cgroupContext, _, err := m.resolvers.ResolveCGroupContext(cgroupFile)
 		if err != nil {
 			seclog.Warnf("couldn't resolve cgroup context for (%v): %v", cgroupFile, err)
 			continue

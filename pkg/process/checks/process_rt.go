@@ -62,7 +62,7 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		return CombinedRunResult{}, nil
 	}
 
-	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun)
+	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -96,6 +96,7 @@ func fmtProcessStats(
 	pidToCid map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
+	now time.Time,
 ) [][]*model.ProcessStat {
 	chunked := make([][]*model.ProcessStat, 0)
 	chunk := make([]*model.ProcessStat, 0, maxBatchSize)
@@ -116,7 +117,7 @@ func fmtProcessStats(
 				WriteBytesRate: float32(fp.IORateStat.WriteBytesRate),
 			}
 		} else {
-			ioStat = formatIO(fp, lastProcs[pid].IOStat, lastRun)
+			ioStat = formatIO(fp, lastProcs[pid].IOStat, now, lastRun)
 		}
 
 		stat := &model.ProcessStat{

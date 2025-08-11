@@ -60,6 +60,7 @@ import (
 	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	connectivitycheckerfx "github.com/DataDog/datadog-agent/comp/connectivitychecker/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -82,7 +83,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -92,6 +93,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -244,6 +246,7 @@ func run(log log.Component,
 	_ replay.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
+	filterStore workloadfilter.Component,
 	taggerComp tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
@@ -329,6 +332,7 @@ func run(log log.Component,
 		sysprobeconfig,
 		server,
 		wmeta,
+		filterStore,
 		taggerComp,
 		ac,
 		rcclient,
@@ -534,6 +538,7 @@ func getSharedFxOption() fx.Option {
 		ipcfx.ModuleReadWrite(),
 		ssistatusfx.Module(),
 		workloadfilterfx.Module(),
+		connectivitycheckerfx.Module(),
 	)
 }
 
@@ -545,6 +550,7 @@ func startAgent(
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	wmeta workloadmeta.Component,
+	filterStore workloadfilter.Component,
 	tagger tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
@@ -653,7 +659,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry, rcclient, flare)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
