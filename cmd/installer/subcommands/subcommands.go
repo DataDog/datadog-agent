@@ -7,18 +7,17 @@
 package subcommands
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
-	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/daemon"
 	"github.com/DataDog/datadog-agent/cmd/installer/user"
 	installer "github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
-	"github.com/spf13/cobra"
 )
 
 // InstallerSubcommands returns SubcommandFactories for the subcommands
 // supported with the current build flags.
 func InstallerSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
-		withDatadogAgent(daemon.Commands),
 		withRoot(installerCommands),
 		installerUnprivilegedCommands,
 	}
@@ -46,7 +45,8 @@ func withRoot(factory command.SubcommandFactory) command.SubcommandFactory {
 	})
 }
 
-func withDatadogAgent(factory command.SubcommandFactory) command.SubcommandFactory {
+// WithDatadogAgent wraps a command factory to downgrade the running user to dd-agent
+func WithDatadogAgent(factory command.SubcommandFactory) command.SubcommandFactory {
 	return withPersistentPreRunE(factory, func(global *command.GlobalParams) error {
 		if !user.IsRoot() && global.AllowNoRoot {
 			return nil
