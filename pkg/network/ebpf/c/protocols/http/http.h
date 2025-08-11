@@ -208,33 +208,46 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
     http_parse_data(buffer, &packet_type, &method);
 
     bool is_hello = packet_type == HTTP_REQUEST && method == HTTP_GET && buffer[4] == '/' && buffer[5] == 'h' && buffer[6] == 'e' && buffer[7] == 'l' && buffer[8] == 'l' && buffer[9] == 'o';
-    if (is_hello) {
+    // For responses, check if this transaction was for /hello by looking at the in-flight state
+    bool is_hello_response = false;
+    if (packet_type == HTTP_RESPONSE) {
+        http_transaction_t *existing = bpf_map_lookup_elem(&http_in_flight, tuple);
+        if (existing && existing->request_fragment[4] == '/' && existing->request_fragment[5] == 'h' && existing->request_fragment[6] == 'e' && existing->request_fragment[7] == 'l' && existing->request_fragment[8] == 'l' && existing->request_fragment[9] == 'o') {
+            is_hello_response = true;
+        }
+    }
+
+    if (is_hello || is_hello_response) {
         log_debug("GUY 0 - /hello http_process entry, packet_type=%d method=%d", packet_type, method);
     }
 
     http = http_fetch_state(tuple, http, packet_type);
     if (!http) {
-        if (is_hello) {
+        if (is_hello || is_hello_response) {
             log_debug("GUY 1 - /hello http_fetch_state returned NULL");
         }
         return;
     }
 
+    if (http_closed(skb_info)) {
+        log_debug("GUY 11 - connection closed, tcp_seq=%u, http.tcp_seq=%u", skb_info ? skb_info->tcp_seq : 0, http->tcp_seq);
+    }
+
     if (http_seen_before(http, skb_info, packet_type)) {
-        if (is_hello) {
+        if (is_hello || is_hello_response) {
             log_debug("GUY 2 - /hello http_seen_before returned true, already processed");
         }
         return;
     }
 
     if (http_should_flush_previous_state(http, packet_type)) {
-        if (is_hello) {
+        if (is_hello || is_hello_response) {
             log_debug("GUY 3 - /hello flushing previous state before processing new packet");
         }
         http_batch_enqueue_wrapper(tuple, http);
         bpf_memcpy(http, &event->http, sizeof(http_transaction_t));
     } else {
-        if (is_hello) {
+        if (is_hello || is_hello_response) {
             log_debug("GUY 4 - /hello not flushing previous state");
         }
     }
@@ -255,7 +268,7 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
     }
 
     if (http->tcp_seq == HTTP_TERMINATING) {
-        if (is_hello) {
+        if (is_hello || is_hello_response) {
             log_debug("GUY 5 - /hello connection terminating, enqueuing final transaction");
         }
         http_batch_enqueue_wrapper(tuple, http);
@@ -263,10 +276,11 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
         // map entry if there is a race with a late response.
         // Please refer to comments in `http_seen_before` for more context.
         if (http->tcp_seq == HTTP_TERMINATING) {
+            log_debug("GUY 10 - /hello deleting in-flight entry for terminating connection");
             bpf_map_delete_elem(&http_in_flight, tuple);
         }
     } else {
-        if (is_hello) {
+        if (is_hello || is_hello_response) {
             log_debug("GUY 6 - /hello packet processed but not terminating, no final enqueue");
         }
     }
