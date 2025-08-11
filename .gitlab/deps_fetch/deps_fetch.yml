@@ -17,7 +17,7 @@
 
 .cache:
   stage: deps_fetch
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: ["setup_agent_version"]
   variables:
@@ -43,7 +43,7 @@ go_deps:
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
     - dda inv -- -e deps --verbose
     - dda inv -- -e install-tools
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
@@ -74,7 +74,7 @@ go_tools_deps:
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
     - go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
@@ -93,7 +93,7 @@ go_e2e_deps:
   script:
     - if [ -f modcache_e2e.tar.xz  ]; then exit 0; fi
     - dda inv -- -e new-e2e-tests.deps
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz .
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
