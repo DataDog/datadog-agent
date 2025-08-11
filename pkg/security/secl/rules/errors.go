@@ -169,11 +169,11 @@ type ErrScopeField struct {
 	Err        error
 }
 
-func (e ErrScopeField) Error() string {
+func (e *ErrScopeField) Error() string {
 	return fmt.Sprintf("scope_field `%s` error: %s", e.Expression, e.Err)
 }
 
-func (e ErrScopeField) Unwrap() error {
+func (e *ErrScopeField) Unwrap() error {
 	return e.Err
 }
 
