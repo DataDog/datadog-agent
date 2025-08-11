@@ -22,10 +22,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -80,7 +80,7 @@ func (c *cmd) stop(err error) {
 
 type installerCmd struct {
 	*cmd
-	installertypes.Installer
+	installer.Installer
 }
 
 func newInstallerCmd(operation string) (_ *installerCmd, err error) {
@@ -90,7 +90,7 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 			cmd.stop(err)
 		}
 	}()
-	var i installertypes.Installer
+	var i installer.Installer
 	if MockInstaller != nil {
 		i = MockInstaller
 	} else {
@@ -116,6 +116,12 @@ func (i *installerCmd) stop(err error) {
 type telemetryConfigFields struct {
 	APIKey string `yaml:"api_key"`
 	Site   string `yaml:"site"`
+}
+
+// configAction represents a configuration action with action_type and files
+type configAction struct {
+	ActionType string        `json:"action_type"`
+	Files      []interface{} `json:"files"`
 }
 
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
@@ -166,6 +172,7 @@ func RootCommands() []*cobra.Command {
 		promoteConfigExperimentCommand(),
 		garbageCollectCommand(),
 		purgeCommand(),
+		isInstalledCommand(),
 		apmCommands(),
 		getStateCommand(),
 		statusCommand(),
@@ -173,6 +180,7 @@ func RootCommands() []*cobra.Command {
 		isPrermSupportedCommand(),
 		prermCommand(),
 		hooksCommand(),
+		packageCommand(),
 	}
 }
 
@@ -181,7 +189,6 @@ func UnprivilegedCommands() []*cobra.Command {
 	return []*cobra.Command{
 		versionCommand(),
 		defaultPackagesCommand(),
-		isInstalledCommand(),
 	}
 }
 
@@ -370,10 +377,10 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version> <config>",
+		Use:     "install-config-experiment <package> <version> <config1> <config2> ...",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.ExactArgs(3),
+		Args:    cobra.MinimumNArgs(3),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -382,7 +389,37 @@ func installConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], []byte(args[2]))
+
+			configs := make([][]byte, len(args)-2)
+			// Case for backward compatibility with the previous version of the config
+			// where the config was {"id":"config-1","files":[{"path": "path/to/config", "contents": "contents"}]}
+			if len(args) == 3 {
+				var configMap configAction
+				err := json.Unmarshal([]byte(args[2]), &configMap)
+				if err != nil {
+					return err
+				}
+				if configMap.ActionType == "" {
+					// Old configs
+					configMap = configAction{
+						ActionType: "write",
+						Files:      configMap.Files,
+					}
+					actionBytes, err := json.Marshal(configMap)
+					if err != nil {
+						return err
+					}
+					configs = [][]byte{actionBytes}
+				} else {
+					configs = [][]byte{[]byte(args[2])}
+				}
+			} else {
+				for i, config := range args[2:] {
+					configs[i] = []byte(config)
+				}
+			}
+
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs, []string{})
 		},
 	}
 	return cmd
@@ -517,5 +554,29 @@ func getStateCommand() *cobra.Command {
 			return nil
 		},
 	}
+	return cmd
+}
+
+// packageCommand runs a package-specific command
+func packageCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Hidden:  true,
+		GroupID: "installer",
+		Use:     "package-command <package> <command>",
+		Short:   "Run a package-specific command",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i := newCmd("package_command")
+			defer i.stop(err)
+
+			packageName := args[0]
+			command := args[1]
+			i.span.SetTag("params.package", packageName)
+			i.span.SetTag("params.command", command)
+
+			return packages.RunPackageCommand(i.ctx, packageName, command)
+		},
+	}
+
 	return cmd
 }

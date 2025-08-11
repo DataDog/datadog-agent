@@ -10,17 +10,20 @@ package processcheckimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 // TestProcessCheckEnablementOnCoreAgent Tests the process checks run on the core agent only
@@ -62,6 +65,7 @@ func TestProcessCheckEnablementOnCoreAgent(t *testing.T) {
 					return &statsd.NoOpClient{}
 				}),
 				Module(),
+				fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
 		})

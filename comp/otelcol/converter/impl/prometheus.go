@@ -8,6 +8,7 @@ package converterimpl
 
 import (
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
 )
@@ -23,6 +24,7 @@ var (
 					"fallback_scrape_protocol":      "PrometheusText0.0.4",
 					"job_name":                      "datadog-agent",
 					"metric_name_validation_scheme": "legacy",
+					"metric_name_escaping_scheme":   "underscores",
 					"scrape_interval":               "60s",
 					"scrape_protocols":              []any{"PrometheusText0.0.4"},
 					"static_configs": []any{
@@ -53,6 +55,11 @@ var (
 // different API keys, there is no way to know if these are from the same org, so there is a risk
 // of double shipping.
 func addPrometheusReceiver(conf *confmap.Conf, promServerAddr string) {
+	mLevel := conf.Get("service::telemetry::metrics::level")
+	if mLevel != nil && strings.ToLower(mLevel.(string)) == "none" {
+		return
+	}
+
 	datadogExportersMap := getDatadogExporters(conf)
 
 	stringMapConf := conf.ToStringMap()

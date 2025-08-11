@@ -104,3 +104,41 @@ func GetBTFFunctionArgCount(funcName string) (int, error) {
 
 	return len(proto.Params), nil
 }
+
+// AreFentryTailCallsBroken checks if fentry tail calls are broken
+func AreFentryTailCallsBroken() (bool, error) {
+	spec, err := pkgebpf.GetKernelSpec()
+	if err != nil {
+		return false, err
+	}
+
+	var bpfMap *btf.Struct
+	if err := spec.TypeByName("bpf_map", &bpfMap); err != nil {
+		return false, err
+	}
+
+	/*
+		we are checking for the presence of the bpf_map.owner.attach_func_proto field
+		if it exists, fentry tail calls are broken
+		https://github.com/torvalds/linux/commit/28ead3eaabc16ecc907cfb71876da028080f6356
+	*/
+
+	for _, member := range bpfMap.Members {
+		if member.Name != "owner" {
+			continue
+		}
+
+		ty, ok := member.Type.(*btf.Struct)
+		if !ok {
+			return false, fmt.Errorf("bpf_map.owner is not a struct")
+		}
+
+		for _, ownerMember := range ty.Members {
+			if ownerMember.Name == "attach_func_proto" {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}

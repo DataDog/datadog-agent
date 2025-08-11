@@ -18,9 +18,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -29,6 +32,7 @@ import (
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
 	GlobalParams
+	localstore bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -45,7 +49,7 @@ type GlobalParams struct {
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "autoscaler-list",
 		Short: "Print the autoscaling store content of a running agent",
 		Long:  ``,
@@ -63,15 +67,21 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					),
 					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
+	cmd.Flags().BoolVarP(&cliParams.localstore, "localstore", "l", false, "print autoscaling local fallback metrics store debug info")
+	return cmd
 }
 
-func autoscalerList(_ log.Component, config config.Component, _ *cliParams) error {
-	// Set session token
-	if err := util.SetAuthToken(config); err != nil {
-		return err
+func autoscalerList(_ log.Component, config config.Component, client ipc.HTTPClient, cliParams *cliParams) error {
+	if cliParams.localstore {
+		err := getLocalAutoscalingWorkloadCheck(color.Output, config, client)
+		if err != nil {
+			return fmt.Errorf("error getting localstore debug info: %v", err)
+		}
+		return nil
 	}
 
 	url, err := getAutoscalerURL(config)
@@ -79,7 +89,7 @@ func autoscalerList(_ log.Component, config config.Component, _ *cliParams) erro
 		return err
 	}
 
-	return getAutoscalerList(color.Output, url)
+	return getAutoscalerList(client, color.Output, url)
 }
 
 func getAutoscalerURL(config config.Component) (string, error) {
@@ -98,11 +108,9 @@ func getAutoscalerURL(config config.Component) (string, error) {
 	return urlstr, nil
 }
 
-func getAutoscalerList(w io.Writer, url string) error {
-	c := util.GetClient()
-
+func getAutoscalerList(client ipc.HTTPClient, w io.Writer, url string) error {
 	// get the autoscaler-list from server
-	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)
+	r, err := client.Get(url, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while getting autoscaler list: %s", string(r))
@@ -120,5 +128,35 @@ func getAutoscalerList(w io.Writer, url string) error {
 	}
 
 	autoscalerDump.Print(w)
+	return nil
+}
+
+func getLocalAutoscalingWorkloadCheck(w io.Writer, config config.Component, c ipc.HTTPClient) error {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/local-autoscaling-check", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
+
+	r, err := c.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
+	if err != nil {
+		if r != nil && string(r) != "" {
+			return fmt.Errorf("the agent ran into an error while getting local autoscaling workload entities: %s", string(r))
+		}
+
+		return fmt.Errorf("failed to query the agent (running?): %s", err)
+	}
+
+	var response localautoscalingworkload.LocalWorkloadMetricStoreInfo
+
+	err = json.Unmarshal(r, &response)
+	if err != nil {
+		return fmt.Errorf("error unmarshalling json: %s", err)
+	}
+	if w != color.Output {
+		color.NoColor = true
+	}
+	fmt.Fprintf(w, "\n=== Workload Failover Metric Entity List ===\n")
+	response.Dump(w)
 	return nil
 }

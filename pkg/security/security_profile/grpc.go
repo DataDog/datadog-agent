@@ -72,12 +72,6 @@ func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 		}
 	}
 
-	cgroupFlags := containerutils.CGroupFlags(0)
-	if params.GetCGroupID() != "" {
-		_, flags := containerutils.FindContainerID(containerutils.CGroupID(params.GetCGroupID()))
-		cgroupFlags = containerutils.CGroupFlags(flags)
-	}
-
 	m.m.Lock()
 	defer m.m.Unlock()
 
@@ -88,7 +82,6 @@ func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 		m.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout,
 		m.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		now,
-		cgroupFlags,
 	)
 
 	newDump := dump.NewActivityDump(m.pathsReducer, params.GetDifferentiateArgs(), 0, m.config.RuntimeSecurity.ActivityDumpTracedEventTypes, m.updateTracedPid, loadConfig, func(ad *dump.ActivityDump) {
@@ -150,7 +143,8 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 			if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 				if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-				} else if m.config.RuntimeSecurity.SecurityProfileEnabled { // drop the profile if we don't care about using it as a security profile
+				} else if m.config.RuntimeSecurity.SecurityProfileEnabled && ad.Profile.Metadata.ContainerID != "" {
+					// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
 					select {
 					case m.newProfiles <- ad.Profile:
 					default:
@@ -199,7 +193,7 @@ func (m *Manager) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 		0,
 		m.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
 		m.updateTracedPid,
-		m.defaultActivityDumpLoadConfig(time.Now(), containerutils.CGroupFlags(0)),
+		m.defaultActivityDumpLoadConfig(time.Now()),
 	)
 
 	// open and parse input file

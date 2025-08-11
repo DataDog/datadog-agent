@@ -115,6 +115,43 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
 
+	stats := map[string]interface{}{}
+	jmxStatus.PopulateStatus(stats)
+	if _, ok := stats["JMXStatus"]; ok {
+		if status, ok := stats["JMXStatus"].(jmxStatus.Status); ok {
+			for checkName, checksRaw := range status.ChecksStatus.InitializedChecks {
+				checks, ok := checksRaw.([]interface{})
+				if !ok {
+					continue
+				}
+				for _, checkRaw := range checks {
+					check, ok := checkRaw.(map[string]interface{})
+					// The default check status is OK, so if there is no status, it means the check is OK
+					if !ok {
+						continue
+					}
+					checkStatus, ok := check["status"].(string)
+					if !ok {
+						checkStatus = "OK"
+					}
+					checkID, ok := check["instance_name"].(string)
+					if !ok {
+						checkID = checkName
+					} else {
+						checkID = fmt.Sprintf("%s:%s", checkName, checkID)
+					}
+					checkError, ok := check["message"].(string)
+					if !ok {
+						checkError = ""
+					}
+					status := []interface{}{
+						checkName, checkName, checkID, checkStatus, checkError,
+					}
+					payload.AgentChecks = append(payload.AgentChecks, status)
+				}
+			}
+		}
+	}
 	return payload
 }
 

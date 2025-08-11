@@ -8,18 +8,17 @@ package configsyncimpl
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 	"strconv"
 	"time"
 
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func (cs *configSync) updater() error {
 	cs.Log.Debugf("Pulling new configuration from agent-core at '%s'", cs.url.String())
-	authToken := cs.IPC.GetAuthToken()
-	cfg, err := fetchConfig(cs.ctx, cs.client, authToken, cs.url.String())
+	cfg, err := fetchConfig(cs.ctx, cs.client, cs.url.String(), cs.timeout)
 	if err != nil {
 		if cs.connected {
 			cs.Log.Warnf("Loosed connectivity to core-agent to fetch config: %v", err)
@@ -86,13 +85,8 @@ func (cs *configSync) runWithChan(ch <-chan time.Time) {
 }
 
 // fetchConfig contacts the url in configSync and parses the returned data
-func fetchConfig(ctx context.Context, client *http.Client, authtoken, url string) (map[string]interface{}, error) {
-	options := apiutil.ReqOptions{
-		Ctx:       ctx,
-		Conn:      apiutil.LeaveConnectionOpen,
-		Authtoken: authtoken,
-	}
-	data, err := apiutil.DoGetWithOptions(client, url, &options)
+func fetchConfig(ctx context.Context, client ipc.HTTPClient, url string, timeout time.Duration) (map[string]interface{}, error) {
+	data, err := client.Get(url, ipchttp.WithContext(ctx), ipchttp.WithTimeout(timeout), ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}

@@ -23,6 +23,8 @@ import (
 const (
 	agentUnit      = "datadog-agent.service"
 	agentUnitXP    = "datadog-agent-exp.service"
+	ddotUnit       = "datadog-agent-ddot.service"
+	ddotUnitXP     = "datadog-agent-ddot-exp.service"
 	traceUnit      = "datadog-agent-trace.service"
 	traceUnitXP    = "datadog-agent-trace-exp.service"
 	processUnit    = "datadog-agent-process.service"
@@ -44,7 +46,7 @@ func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMetho
 }
 
 func (s *packageAgentSuite) TestInstall() {
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
@@ -62,7 +64,6 @@ func (s *packageAgentSuite) TestInstall() {
 
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
-	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/java"), 0755, "root", "root")
 	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
 
@@ -115,7 +116,7 @@ func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
 	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
 
 	// install OCI agent
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 
 	state = s.host.State()
 	s.assertUnits(state, false)
@@ -126,7 +127,7 @@ func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
 // TestUpgrade_Agent_OCI_then_DebRpm agent deb/rpm install while OCI one is installed
 func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 	// install OCI agent
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 
 	state := s.host.State()
@@ -149,7 +150,7 @@ func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -199,7 +200,7 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 }
 
 func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -209,7 +210,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		SetStopWithSigkill("trace-agent")
 
 	defer func() { s.host.Run("sudo rm -rf /etc/systemd/system/datadog*.d/override.conf") }()
-
 	for _, unit := range []string{traceUnitXP, agentUnitXP} {
 		s.T().Logf("Testing timeoutStop of unit %s", unit)
 		s.host.Run(fmt.Sprintf("sudo rm -rf /etc/systemd/system/%s.d/override.conf", unit))
@@ -265,7 +265,7 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 }
 
 func (s *packageAgentSuite) TestExperimentExits() {
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -318,7 +318,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 }
 
 func (s *packageAgentSuite) TestExperimentStopped() {
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -361,7 +361,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 }
 
 func (s *packageAgentSuite) TestRunPath() {
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -396,7 +396,7 @@ func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
 	s.host.Run("sudo systemctl disable datadog-agent")
 
 	// install OCI agent
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 
 	state = s.host.State()
 	s.assertUnits(state, false)
@@ -412,7 +412,7 @@ func (s *packageAgentSuite) TestInstallWithLeftoverDebDir() {
 	defer func() { s.host.Run("sudo rm -rf /opt/datadog-agent") }()
 
 	// install OCI agent
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 
 	state := s.host.State()
 	s.assertUnits(state, false)
@@ -424,11 +424,23 @@ func (s *packageAgentSuite) TestInstallWithGroupPreviouslyCreated() {
 	s.host.Run("sudo groupdel dd-agent || true")
 	s.host.Run("sudo groupadd --system datadog")
 
-	s.RunInstallScript(envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 
 	assert.True(s.T(), s.host.UserExists("dd-agent"), "dd-agent user should exist")
 	assert.True(s.T(), s.host.GroupExists("dd-agent"), "dd-agent group should exist")
+}
+
+func (s *packageAgentSuite) TestInstallWithFapolicyd() {
+	if s.os != e2eos.RedHat9 {
+		s.T().Skip("fapolicyd is only supported on RedHat 9")
+	}
+	defer func() {
+		s.host.Run("sudo yum remove -y fapolicyd")
+	}()
+	s.host.Run("sudo yum install -y fapolicyd")
+
+	s.TestInstall()
 }
 
 func (s *packageAgentSuite) purgeAgentDebInstall() {

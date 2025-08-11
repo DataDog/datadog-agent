@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -26,16 +25,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -55,13 +56,14 @@ var listenerCandidateIntl = 30 * time.Second
 // dependencies is the set of dependencies for the AutoConfig component.
 type dependencies struct {
 	fx.In
-	Lc         fx.Lifecycle
-	Config     configComponent.Component
-	Log        logComp.Component
-	TaggerComp tagger.Component
-	Secrets    secrets.Component
-	WMeta      option.Option[workloadmeta.Component]
-	Telemetry  telemetry.Component
+	Lc          fx.Lifecycle
+	Config      configComponent.Component
+	Log         logComp.Component
+	TaggerComp  tagger.Component
+	Secrets     secrets.Component
+	WMeta       option.Option[workloadmeta.Component]
+	FilterStore workloadfilter.Component
+	Telemetry   telemetry.Component
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -81,18 +83,16 @@ type AutoConfig struct {
 	store                    *store
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
-	providerCatalog          map[string]providers.ConfigProviderFactory
+	providerCatalog          map[string]providerTypes.ConfigProviderFactory
 	wmeta                    option.Option[workloadmeta.Component]
 	taggerComp               tagger.Component
 	logs                     logComp.Component
+	filterStore              workloadfilter.Component
 	telemetryStore           *acTelemetry.Store
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
 	m sync.RWMutex
-
-	// ranOnce is set to 1 once the AutoConfig has been executed
-	ranOnce *atomic.Bool
 }
 
 const (
@@ -125,7 +125,7 @@ func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
 	return provides{
 		Comp:           c,
-		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
+		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c, deps.FilterStore)),
 
 		Endpoint:      api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
 		FlareProvider: flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
@@ -174,7 +174,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -189,7 +189,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -202,12 +202,12 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
-		ranOnce:                  atomic.NewBool(false),
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
-		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
+		providerCatalog:          make(map[string]providerTypes.ConfigProviderFactory),
 		wmeta:                    wmeta,
 		taggerComp:               taggerComp,
 		logs:                     logs,
+		filterStore:              filterStore,
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 	}
 	return ac
@@ -413,7 +413,7 @@ func (ac *AutoConfig) stop() {
 // expects to be polled and at which interval or it's fine for it to be invoked only once in the
 // Agent lifetime.
 // If the config provider is polled, the routine is scheduled right away
-func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
+func (ac *AutoConfig) AddConfigProvider(provider providerTypes.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
 	if shouldPoll && pollInterval <= 0 {
 		log.Warnf("Polling interval <= 0 for AD provider: %s, deactivating polling", provider.String())
 		shouldPoll = false
@@ -447,22 +447,6 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 			}
 		}
 	}
-
-	ac.ranOnce.Store(true)
-}
-
-// ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
-// components that depend on this value.
-func (ac *AutoConfig) ForceRanOnceFlag() {
-	ac.ranOnce.Store(true)
-}
-
-// HasRunOnce returns true if the AutoConfig has ran once.
-func (ac *AutoConfig) HasRunOnce() bool {
-	if ac == nil {
-		return false
-	}
-	return ac.ranOnce.Load()
 }
 
 // GetAllConfigs returns all resolved and non-template configs known to
@@ -537,6 +521,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 		factoryOptions := listeners.ServiceListernerDeps{
 			Config:    &c,
 			Telemetry: ac.telemetryStore,
+			Filter:    ac.filterStore,
 			Tagger:    ac.taggerComp,
 			Wmeta:     ac.wmeta,
 		}
@@ -630,7 +615,7 @@ func (ac *AutoConfig) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) check
 }
 
 // GetProviderCatalog returns all registered ConfigProviderFactory.
-func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFactory {
+func (ac *AutoConfig) GetProviderCatalog() map[string]providerTypes.ConfigProviderFactory {
 	return ac.providerCatalog
 }
 
@@ -651,8 +636,8 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 // resulting data structure maps provider name to resource name to a set of
 // unique error messages.  The resource names do not match other identifiers
 // and are only intended for display in diagnostic tools like `agent status`.
-func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
-	errors := map[string]map[string]providers.ErrorMsgSet{}
+func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providerTypes.ErrorMsgSet {
+	errors := map[string]map[string]providerTypes.ErrorMsgSet{}
 	for _, cp := range ac.getConfigPollers() {
 		configErrors := cp.provider.GetConfigErrors()
 		if len(configErrors) > 0 {

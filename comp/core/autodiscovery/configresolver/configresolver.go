@@ -23,9 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	yaml "gopkg.in/yaml.v2"
@@ -84,8 +85,8 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 		ServiceID:       svc.GetServiceID(),
 		NodeName:        tpl.NodeName,
 		Source:          tpl.Source,
-		MetricsExcluded: svc.HasFilter(containers.MetricsFilter),
-		LogsExcluded:    svc.HasFilter(containers.LogsFilter),
+		MetricsExcluded: svc.HasFilter(filter.MetricsFilter),
+		LogsExcluded:    svc.HasFilter(filter.LogsFilter),
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)

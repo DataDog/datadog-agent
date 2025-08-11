@@ -96,6 +96,11 @@ type Component interface {
 	// to all entities with kind KindProcess.
 	ListProcesses() []*Process
 
+	// GetContainerForProcess returns the container associated with a process if it exists.
+	// It fetches the entity with kind KindProcess and the given pid and then the entity
+	// with kind KindContainer with the cid from the process entity.
+	GetContainerForProcess(processID string) (*Container, error)
+
 	// GetGPU returns metadata about a GPU device. It fetches the entity
 	// with kind KindGPU and the given ID.
 	GetGPU(id string) (*GPU, error)

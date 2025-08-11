@@ -3,7 +3,7 @@
 .new-e2e_with_version:
   variables:
     WINDOWS_AGENT_ARCH: "x86_64"
-    TEAM: windows-agent
+    TEAM: windows-products
   extends:
     - .new_e2e_template
   before_script:
@@ -37,6 +37,7 @@
       - E2E_MSI_TEST: TestUpgrade
       - E2E_MSI_TEST: TestUpgradeFromLatest
       - E2E_MSI_TEST: TestPersistingIntegrations
+      - E2E_MSI_TEST: TestPersistingIntegrationsDuringUninstall
       - E2E_MSI_TEST: TestDisablePersistingIntegrations
       - E2E_MSI_TEST: TestIntegrationFolderPermissions
       - E2E_MSI_TEST: TestIntegrationRollback
@@ -70,7 +71,7 @@ new-e2e_windows_powershell_module_test:
     !reference [ .on_powershell_module_or_e2e_changes_or_manual ]
   variables:
     TARGETS: ./tests/windows/powershell-module-test
-    TEAM: windows-agent
+    TEAM: windows-products
   needs:
     - !reference [.needs_new_e2e_template]
 

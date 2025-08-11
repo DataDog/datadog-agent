@@ -18,9 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -54,6 +56,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -66,24 +69,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams) error {
+func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string
-	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
-	// Set session token
-	e = util.SetAuthToken(config)
-	if e != nil {
-		return e
-	}
-
-	r, e := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
+	r, e := client.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

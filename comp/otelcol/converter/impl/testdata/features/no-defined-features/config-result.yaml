@@ -1,0 +1,71 @@
+exporters:
+  datadog:
+    api:
+      key: "ggggg77777"
+      site: "datadoghq.eu"
+
+extensions:
+  ddflare/dd-autoconfigured: 
+  health_check/dd-autoconfigured: 
+  pprof/dd-autoconfigured: 
+  zpages/dd-autoconfigured:
+    endpoint: "localhost:55679"
+
+processors:
+  batch:
+    timeout: "10s"
+  infraattributes/dd-autoconfigured: 
+
+receivers:
+  prometheus/dd-autoconfigured:
+    config:
+      scrape_configs:
+        - fallback_scrape_protocol: "PrometheusText0.0.4"
+          job_name: "datadog-agent"
+          metric_name_escaping_scheme: "underscores"
+          metric_name_validation_scheme: "legacy"
+          scrape_interval: "60s"
+          scrape_protocols:
+            - "PrometheusText0.0.4"
+          static_configs:
+            - targets:
+                - "0.0.0.0:8888"
+
+service:
+  extensions:
+    - pprof/dd-autoconfigured
+    - zpages/dd-autoconfigured
+    - health_check/dd-autoconfigured
+    - ddflare/dd-autoconfigured
+  pipelines:
+    logs:
+      receivers:
+        - "otlp"
+      processors:
+        - "batch"
+        - "infraattributes/dd-autoconfigured"
+      exporters:
+        - "datadog"
+    metrics:
+      receivers:
+        - "otlp"
+        - "datadog/connector"
+      processors:
+        - "batch"
+        - "infraattributes/dd-autoconfigured"
+      exporters:
+        - "datadog"
+    metrics/dd-autoconfigured/datadog:
+      receivers:
+        - "prometheus/dd-autoconfigured"
+      exporters:
+        - "datadog"
+    traces:
+      receivers:
+        - "otlp"
+      processors:
+        - "batch"
+        - "infraattributes/dd-autoconfigured"
+      exporters:
+        - "datadog/connector"
+        - "datadog"

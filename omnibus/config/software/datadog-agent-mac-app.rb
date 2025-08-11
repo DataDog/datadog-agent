@@ -6,6 +6,8 @@ dependency "datadog-agent"
 
 source path: "#{project.files_path}/#{name}"
 
+always_build true
+
 # This needs to be done in a separate software because we need to know the Agent Version to build the app
 # manifest, and `project.build_version` is populated only once the software that the project
 # takes its version from (i.e. `datadog-agent`) has finished building

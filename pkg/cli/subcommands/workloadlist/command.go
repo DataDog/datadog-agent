@@ -14,9 +14,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -68,6 +70,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					),
 					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -77,21 +80,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return workloadListCommand
 }
 
-func workloadList(_ log.Component, config config.Component, cliParams *cliParams) error {
-	c := util.GetClient()
-
-	// Set session token
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
+func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
 	url, err := workloadURL(cliParams.verboseList)
 	if err != nil {
 		return err
 	}
 
-	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)
+	r, err := client.Get(url, ipchttp.WithCloseConnection)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while getting the workload store information: %s\n", string(r))

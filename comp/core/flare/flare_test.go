@@ -24,15 +24,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -58,9 +60,9 @@ func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Opti
 			fx.Replace(config.MockParams{
 				Overrides: overrides,
 			}),
-			secretsimpl.MockModule(),
 			nooptelemetry.Module(),
 			hostnameimpl.MockModule(),
+			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 			demultiplexerimpl.MockModule(),
 			fx.Provide(func() Params { return Params{} }),
 			collector.NoneModule(),
@@ -71,6 +73,8 @@ func getFlare(t *testing.T, overrides map[string]interface{}, fillers ...fx.Opti
 			fx.Provide(func() taggermock.Mock { return fakeTagger }),
 			fx.Provide(func() tagger.Component { return fakeTagger }),
 			fillerModule,
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		),
 	).Comp.(*flare)
 }

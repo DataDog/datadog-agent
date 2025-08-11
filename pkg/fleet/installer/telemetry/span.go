@@ -128,7 +128,7 @@ func (s *Span) SetTag(key string, value interface{}) {
 	case float64:
 		s.span.Metrics[key] = v
 	default:
-		s.span.Meta[key] = fmt.Sprintf("not_supported_type %T", v)
+		s.span.Meta[key] = fmt.Sprint(v)
 	}
 }
 

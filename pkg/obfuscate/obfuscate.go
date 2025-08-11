@@ -14,9 +14,11 @@ package obfuscate
 
 import (
 	"bytes"
+	"encoding/json"
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -28,6 +30,7 @@ const Version = 1
 // concurrent use.
 type Obfuscator struct {
 	opts                 *Config
+	sqlOptsStr           string          // string representation of the options, used for caching
 	es                   *jsonObfuscator // nil if disabled
 	openSearch           *jsonObfuscator // nil if disabled
 	mongo                *jsonObfuscator // nil if disabled
@@ -304,8 +307,17 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	if cfg.Logger == nil {
 		cfg.Logger = noopLogger{}
 	}
+	optsStr := ""
+	optsBytes, err := json.Marshal(cfg.SQL)
+	if err == nil {
+		optsStr = string(optsBytes)
+	} else {
+		log.Errorf("failed to marshal obfuscation config: %v", err)
+	}
+
 	o := Obfuscator{
 		opts:              &cfg,
+		sqlOptsStr:        optsStr,
 		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,

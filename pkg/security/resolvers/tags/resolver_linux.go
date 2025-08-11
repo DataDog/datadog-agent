@@ -9,6 +9,7 @@ package tags
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -17,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+const systemdSystemDir = "/usr/lib/systemd/system"
 
 // Workload represents a workload along with its tags
 type Workload struct {
@@ -32,6 +35,7 @@ type LinuxResolver struct {
 	*utils.Notifier[Event, *Workload]
 	workloadsWithoutTags chan *Workload
 	cgroupResolver       *cgroup.Resolver
+	versionResolver      func(servicePath string) string
 	workloads            map[containerutils.CGroupID]*Workload
 }
 
@@ -89,7 +93,8 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 }
 
 func needsTagsResolution(workload *Workload) bool {
-	return len(workload.ContainerID) != 0 && !workload.Selector.IsReady()
+	// Container or cgroup workloads need tags resolution if they don't have a ready selector
+	return (len(workload.ContainerID) != 0 || len(workload.CGroupID) != 0) && !workload.Selector.IsReady()
 }
 
 // checkTags checks if the tags of a workload were properly set
@@ -105,10 +110,12 @@ func (t *LinuxResolver) checkTags(pendingWorkload *Workload) {
 				select {
 				case t.workloadsWithoutTags <- pendingWorkload:
 				default:
-					seclog.Warnf("Failed to requeue workload %s for tags retrieval", workload.ContainerID)
+					workloadID := t.getWorkloadID(workload)
+					seclog.Warnf("Failed to requeue workload %v for tags retrieval", workloadID)
 				}
 			} else {
-				seclog.Debugf("Failed to resolve tags for workload %s", workload.ContainerID)
+				workloadID := t.getWorkloadID(workload)
+				seclog.Debugf("Failed to resolve tags for workload %v", workloadID)
 			}
 			return
 		}
@@ -117,30 +124,107 @@ func (t *LinuxResolver) checkTags(pendingWorkload *Workload) {
 	}
 }
 
+// getWorkloadID returns the workload ID for a workload
+func (t *LinuxResolver) getWorkloadID(workload *Workload) interface{} {
+	if len(workload.ContainerID) != 0 {
+		return workload.ContainerID
+	}
+	return workload.CGroupID
+}
+
 // fetchTags fetches tags for the provided workload
 func (t *LinuxResolver) fetchTags(workload *Workload) error {
-	newTags, err := t.ResolveWithErr(workload.ContainerID)
+	workloadID := t.getWorkloadID(workload)
+	newTags, err := t.ResolveWithErr(workloadID)
 	if err != nil {
-		return fmt.Errorf("failed to resolve %s: %w", workload.ContainerID, err)
+		return fmt.Errorf("failed to resolve %v: %w", workloadID, err)
 	}
 
-	workload.Selector.Image = utils.GetTagValue("image_name", newTags)
-	workload.Selector.Tag = utils.GetTagValue("image_tag", newTags)
-	if len(workload.Selector.Image) != 0 && len(workload.Selector.Tag) == 0 {
-		workload.Selector.Tag = "latest"
+	workload.Tags = newTags
+
+	// For container workloads, try to extract image information
+	if len(workload.ContainerID) != 0 {
+		workload.Selector.Image = utils.GetTagValue("image_name", newTags)
+		workload.Selector.Tag = utils.GetTagValue("image_tag", newTags)
+		if len(workload.Selector.Image) != 0 && len(workload.Selector.Tag) == 0 {
+			workload.Selector.Tag = "latest"
+		}
+	} else {
+		// For cgroup workloads, set service information as the selector
+		serviceName := utils.GetTagValue("service", newTags)
+		if len(serviceName) != 0 {
+			workload.Selector.Image = serviceName
+			workload.Selector.Tag = utils.GetTagValue("version", newTags)
+		}
 	}
 
 	return nil
 }
 
 // NewResolver returns a new tags resolver
-func NewResolver(tagger Tagger, cgroupsResolver *cgroup.Resolver) *LinuxResolver {
+func NewResolver(tagger Tagger, cgroupsResolver *cgroup.Resolver, versionResolver func(servicePath string) string) *LinuxResolver {
 	resolver := &LinuxResolver{
 		Notifier:             utils.NewNotifier[Event, *Workload](),
 		DefaultResolver:      NewDefaultResolver(tagger),
 		workloadsWithoutTags: make(chan *Workload, 100),
 		cgroupResolver:       cgroupsResolver,
+		versionResolver:      versionResolver,
 		workloads:            make(map[containerutils.CGroupID]*Workload),
 	}
 	return resolver
+}
+
+// ResolveWithErr overrides the default implementation to use Linux-specific workload resolution
+func (t *LinuxResolver) ResolveWithErr(id interface{}) ([]string, error) {
+	return t.resolveWorkloadTags(id)
+}
+
+// resolveWorkloadTags overrides the default implementation to handle CGroup resolution on Linux
+func (t *LinuxResolver) resolveWorkloadTags(id interface{}) ([]string, error) {
+	if id == nil {
+		return nil, fmt.Errorf("nil workload id")
+	}
+
+	switch v := id.(type) {
+	case containerutils.ContainerID:
+		if len(v) == 0 {
+			return nil, fmt.Errorf("empty container id")
+		}
+		// Resolve as a container ID
+		return GetTagsOfContainer(t.tagger, v)
+	case containerutils.CGroupID:
+		if len(v) == 0 {
+			return nil, fmt.Errorf("empty cgroup id")
+		}
+		// Generate systemd service tags for cgroup workloads
+		tags := t.getCGroupTags(v)
+		return tags, nil
+	default:
+		return nil, fmt.Errorf("unknown workload id type: %T", id)
+	}
+}
+
+// getCGroupTags generates tags for cgroup workloads (systemd services) with version resolution
+func (t *LinuxResolver) getCGroupTags(cgroupID containerutils.CGroupID) []string {
+	if len(cgroupID) == 0 {
+		return nil
+	}
+
+	systemdService := filepath.Base(string(cgroupID))
+	serviceVersion := ""
+	servicePath := filepath.Join(systemdSystemDir, systemdService)
+
+	// Try to resolve version using version resolver
+	if t.versionResolver != nil {
+		serviceVersion = t.versionResolver(servicePath)
+	}
+
+	tags := []string{
+		"service:" + systemdService,
+	}
+	if len(serviceVersion) != 0 {
+		tags = append(tags, "version:"+serviceVersion)
+	}
+
+	return tags
 }

@@ -22,8 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
@@ -91,6 +91,7 @@ type JMXFetch struct {
 	shutdown           chan struct{}
 	stopped            chan struct{}
 	logger             jmxlogger.Component
+	ipcComp            ipc.Component
 }
 
 // JMXReporter supports different way of reporting the data it has fetched.
@@ -121,9 +122,10 @@ type checkInitCfg struct {
 	JavaOptions    string   `yaml:"java_options,omitempty"`
 }
 
-func NewJMXFetch(logger jmxlogger.Component) *JMXFetch {
+func NewJMXFetch(logger jmxlogger.Component, ipc ipc.Component) *JMXFetch {
 	return &JMXFetch{
-		logger: logger,
+		logger:  logger,
+		ipcComp: ipc,
 	}
 }
 
@@ -362,8 +364,14 @@ func (j *JMXFetch) Start(manage bool) error {
 	// set environment + token
 	j.cmd.Env = append(
 		os.Environ(),
-		fmt.Sprintf("SESSION_TOKEN=%s", api.GetAuthToken()),
+		fmt.Sprintf("SESSION_TOKEN=%s", j.ipcComp.GetAuthToken()),
 	)
+
+	// append JAVA_TOOL_OPTIONS to cmd Env
+	javaToolOptions := pkgconfigsetup.Datadog().GetString("jmx_java_tool_options")
+	if len(javaToolOptions) > 0 {
+		j.cmd.Env = append(j.cmd.Env, fmt.Sprintf("JAVA_TOOL_OPTIONS=%s", javaToolOptions))
+	}
 
 	// forward the standard output to the Agent logger
 	stdout, err := j.cmd.StdoutPipe()

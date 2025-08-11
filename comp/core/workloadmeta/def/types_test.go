@@ -9,7 +9,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -110,6 +113,110 @@ Ephemeral Storage Metrics: map[cpu:200 memory:100]
 Limits: map[]
 `
 	compareTestOutput(t, expected, task.String(true))
+}
+
+func TestProcessString(t *testing.T) {
+	creationTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		process  Process
+		expected string
+	}{
+		{
+			name: "basic process with minimal fields",
+			process: Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "12345",
+				},
+				Pid:          12345,
+				NsPid:        12345,
+				Ppid:         1,
+				Name:         "test-process",
+				Cwd:          "/tmp",
+				Exe:          "/usr/bin/test-process",
+				Comm:         "test-process",
+				Cmdline:      []string{"/usr/bin/test-process", "--flag"},
+				Uids:         []int32{1000, 1001},
+				Gids:         []int32{1000, 1001},
+				ContainerID:  "container-123",
+				CreationTime: creationTime,
+			},
+			expected: `----------- Entity ID -----------
+PID: 12345
+Namespace PID: 12345
+Container ID: container-123
+Creation time: 2023-01-01 12:00:00 +0000 UTC
+`,
+		},
+		{
+			name: "process with language and service",
+			process: Process{
+				EntityID: EntityID{
+					Kind: KindProcess,
+					ID:   "12345",
+				},
+				Pid:          12345,
+				NsPid:        12345,
+				Ppid:         1,
+				Name:         "java-app",
+				Cwd:          "/app",
+				Exe:          "/usr/bin/java",
+				Comm:         "java",
+				Cmdline:      []string{"/usr/bin/java", "-jar", "app.jar"},
+				Uids:         []int32{1000},
+				Gids:         []int32{1000},
+				ContainerID:  "container-999",
+				CreationTime: creationTime,
+				Language: &languagemodels.Language{
+					Name:    languagemodels.Java,
+					Version: "11.0.0",
+				},
+				Service: &Service{
+					GeneratedName:            "java-app",
+					GeneratedNameSource:      "binary_name",
+					AdditionalGeneratedNames: []string{"java", "app"},
+					TracerMetadata:           []tracermetadata.TracerMetadata{},
+					DDService:                "java-app",
+					DDServiceInjected:        true,
+					Ports:                    []uint16{8080},
+					APMInstrumentation:       "enabled",
+					Type:                     "web_service",
+					LogFiles: []string{
+						"/var/log/app_access.log",
+						"/var/log/app_error.log",
+					},
+				},
+			},
+			expected: `----------- Entity ID -----------
+PID: 12345
+Namespace PID: 12345
+Container ID: container-999
+Creation time: 2023-01-01 12:00:00 +0000 UTC
+Language: java
+Service Generated Name: java-app
+Service Generated Name Source: binary_name
+Service Additional Generated Names: [java app]
+Service Tracer Metadata: []
+Service DD Service: java-app
+Service DD Service Injected: true
+Service Ports: [8080]
+Service APM Instrumentation: enabled
+Service Type: web_service
+----------- Log Files -----------
+/var/log/app_access.log
+/var/log/app_error.log
+`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := test.process.String(true)
+			compareTestOutput(t, test.expected, actual)
+		})
+	}
 }
 
 func compareTestOutput(t *testing.T, expected, actual string) {

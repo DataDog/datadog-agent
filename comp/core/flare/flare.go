@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -45,6 +46,7 @@ type dependencies struct {
 	Params    Params
 	Providers []*types.FlareFiller `group:"flare"`
 	WMeta     option.Option[workloadmeta.Component]
+	IPC       ipc.Component
 }
 
 type provides struct {
@@ -76,7 +78,7 @@ func newFlare(deps dependencies) provides {
 	// use the flare provider system: https://datadoghq.dev/datadog-agent/components/shared_features/flares/
 	f.providers = append(
 		f.providers,
-		pkgFlare.ExtraFlareProviders(deps.WMeta)...,
+		pkgFlare.ExtraFlareProviders(deps.WMeta, deps.IPC)...,
 	)
 	f.providers = append(
 		f.providers,

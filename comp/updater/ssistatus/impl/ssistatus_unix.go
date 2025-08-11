@@ -8,16 +8,23 @@
 package ssistatusimpl
 
 import (
-	"context"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 )
 
 // autoInstrumentationStatus checks if the APM auto-instrumentation is enabled on the host. This will return false on Kubernetes
-func (c *ssiStatusComponent) autoInstrumentationStatus(ctx context.Context) (bool, []string, error) {
-	injectorInstalled, err := c.iexec.IsInstalled(ctx, "datadog-apm-inject")
-	if err != nil {
+func (c *ssiStatusComponent) autoInstrumentationStatus() (bool, []string, error) {
+	// Ideally we would call the installer package to check if the injector is installed (using the status), but doing so
+	// significantly increases the memory footprint of the agent, so we check the filesystem directly.
+
+	// TODO: fix this
+	_, err := os.Stat("/opt/datadog-packages/datadog-apm-inject")
+	injectorInstalled := false
+	if err == nil {
+		injectorInstalled = true
+	} else if !os.IsNotExist(err) {
 		return false, nil, fmt.Errorf("could not check if injector package is installed: %w", err)
 	}
 

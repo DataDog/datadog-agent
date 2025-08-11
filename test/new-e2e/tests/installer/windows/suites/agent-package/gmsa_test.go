@@ -114,7 +114,8 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) TestUpgradeAgentPackage() {
 	// Act
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	s.Installer().PromoteExperiment(consts.AgentPackage)
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert

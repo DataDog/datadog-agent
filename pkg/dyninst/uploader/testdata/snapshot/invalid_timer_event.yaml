@@ -1,0 +1,50 @@
+
+config:
+  max_items: 10
+  max_size_bytes: 50
+  max_buffer_ms: 200
+events:
+  - !enqueue {value: "y"}
+  - !timer-fired {advance: 200ms2ns} 
+  - !batch-outcome {id: 0, success: true}
+  - !timer-fired {advance: 100ms}
+error: "timer fired event received but timer is not set"
+---
+now: 0s
+next_flush: 200ms
+event: !enqueue {value: "y"}
+effects:
+  - !reset-timer {ts: 200ms (+200ms)}
+state:
+  batch_len: 1
+  current_size: 3
+  timer_set: true
+---
+now: 200.000002ms
+event: !timer-fired {advance: 200ms2ns}
+effects:
+  - !send-batch {id: 0, items: 1, bytes: 3}
+  - !reset-timer {}
+state:
+  batch_len: 0
+  current_size: 0
+  inflight: [0]
+  timer_set: false
+---
+now: 200.000002ms
+event: !batch-outcome {id: 0, success: true}
+state:
+  batch_len: 0
+  current_size: 0
+  timer_set: false
+metrics:
+  batches_sent: 1 (+1)
+  bytes_sent: 3 (+3)
+  items_sent: 1 (+1)
+---
+now: 300.000002ms
+event: !timer-fired {advance: 100ms}
+state:
+  batch_len: 0
+  current_size: 0
+  timer_set: false

@@ -228,6 +228,15 @@ func (d *safeDeviceImpl) GetPowerUsage() (uint32, error) {
 	return usage, NewNvmlAPIErrorOrNil("GetPowerUsage", ret)
 }
 
+// GetProcessUtilization returns process utilization samples since the given timestamp
+func (d *safeDeviceImpl) GetProcessUtilization(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, error) {
+	if err := d.lib.lookup(toNativeName("GetProcessUtilization")); err != nil {
+		return nil, err
+	}
+	samples, ret := d.nvmlDevice.GetProcessUtilization(lastSeenTimestamp)
+	return samples, NewNvmlAPIErrorOrNil("GetProcessUtilization", ret)
+}
+
 func (d *safeDeviceImpl) GetRemappedRows() (int, int, bool, bool, error) {
 	if err := d.lib.lookup(toNativeName("GetRemappedRows")); err != nil {
 		return 0, 0, false, false, err
@@ -282,4 +291,20 @@ func (d *safeDeviceImpl) IsMigDeviceHandle() (bool, error) {
 	}
 	isMig, ret := d.nvmlDevice.IsMigDeviceHandle()
 	return isMig, NewNvmlAPIErrorOrNil("IsMigDeviceHandle", ret)
+}
+
+func (d *safeDeviceImpl) GpmQueryDeviceSupport() (nvml.GpmSupport, error) {
+	if err := d.lib.lookup("nvmlGpmQueryDeviceSupport"); err != nil {
+		return nvml.GpmSupport{}, err
+	}
+	support, ret := d.nvmlDevice.GpmQueryDeviceSupport()
+	return support, NewNvmlAPIErrorOrNil("GpmQueryDeviceSupport", ret)
+}
+
+func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
+	if err := d.lib.lookup("nvmlGpmSampleGet"); err != nil {
+		return err
+	}
+	ret := d.nvmlDevice.GpmSampleGet(sample)
+	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
 }

@@ -32,12 +32,25 @@
                 },
                 "version": {
                     "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "loaded",
+                        "partially_loaded",
+                        "fully_rejected",
+                        "error"
+                    ]
+                },
+                "message": {
+                    "type": "string"
                 }
             },
             "required": [
                 "source",
                 "name",
-                "version"
+                "version",
+                "status"
             ]
         }
     }

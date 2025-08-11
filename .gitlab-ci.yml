@@ -11,9 +11,6 @@ include:
   - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
   - .gitlab/container_scan/container_scan.yml
-  - .gitlab/deploy_containers/deploy_containers.yml
-  - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
-  - .gitlab/deploy_dca/deploy_dca.yml
   - .gitlab/deploy_packages/include.yml
   - .gitlab/deps_build/deps_build.yml
   - .gitlab/deps_fetch/deps_fetch.yml
@@ -35,25 +32,17 @@ include:
   - .gitlab/package_deps_build/package_deps_build.yml
   - .gitlab/pkg_metrics/pkg_metrics.yml
   - .gitlab/post_rc_build/post_rc_tasks.yml
+  - .gitlab/trigger_distribution/trigger_distribution.yml
+  - .gitlab/trigger_distribution/conditions.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
-  - .gitlab/trigger_release/agent.yml
-  - .gitlab/trigger_release/installer.yml
+  - .gitlab/scan/windows.yml
+  - .gitlab/fuzz/infra.yaml
 
 default:
   retry:
-    max: 2
-    exit_codes:
-      - 42
-      - 101 # Failed to extract dependencies
-    when:
-      - runner_system_failure
-      - stuck_or_timeout_failure
-      - unknown_failure
-      - api_failure
-      - scheduler_failure
-      - stale_schedule
-      - data_integrity_failure
+    max: 1 # Retry everything once on failure
+    when: always
 
 stages:
   - .pre
@@ -78,14 +67,11 @@ stages:
   - pkg_metrics
   - container_build
   - container_scan
+  - scan
   - check_deploy
   - dev_container_deploy
-  - deploy_containers
   - deploy_packages
-  - deploy_cws_instrumentation
-  - deploy_dca
   - choco_build
-  - trigger_release
   - install_script_deploy
   - internal_image_deploy
   - e2e_deploy
@@ -97,6 +83,7 @@ stages:
   - e2e_k8s
   - e2e_install_packages
   - functional_test
+  - trigger_distribution
   - junit_upload
   - internal_kubernetes_deploy
   - post_rc_build
@@ -104,6 +91,9 @@ stages:
   - notify
 
 variables:
+  # Special variable that allows us to set the pipeline to compute the code coverage of the e2e tests. It will impact several jobs so that
+  # the agent is build with a special flag that allow computing code coverage of the binary when it is running.
+  E2E_COVERAGE_PIPELINE: false
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
@@ -134,6 +124,10 @@ variables:
   BUCKET_BRANCH: dev # path inside the staging s3 buckets to release to: 'dev', 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
+  # note the name is TEST_KEYS_URL, not TESTING_KEYS_URL;
+  # this is because TESTING_KEYS_URL is a variable used by the install script,
+  # and we don't want to modify its behavior inadvertently
+  TEST_KEYS_URL: apttesting.datad0g.com/test-keys-vault
   INSTALLER_TESTING_S3_BUCKET: installtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
@@ -167,31 +161,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v66293343-2eef00c4
+  CI_IMAGE_BTF_GEN: v72987997-23c57b1f
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v66293343-2eef00c4
-  CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v66293343-2eef00c4
-  CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v66293343-2eef00c4
-  CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v66293343-2eef00c4
+  CI_IMAGE_DOCKER_X64: v72987997-23c57b1f
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v66293343-2eef00c4
+  CI_IMAGE_DOCKER_ARM64: v72987997-23c57b1f
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v66293343-2eef00c4
+  CI_IMAGE_DEB_ARMHF: v72987997-23c57b1f
+  CI_IMAGE_DEB_ARMHF_SUFFIX: ""
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v72987997-23c57b1f
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v66293343-2eef00c4
-  CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v66293343-2eef00c4
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v66293343-2eef00c4
+  CI_IMAGE_LINUX: v72987997-23c57b1f
+  CI_IMAGE_LINUX_SUFFIX: ""
+  CI_IMAGE_RPM_X64: v72987997-23c57b1f
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v66293343-2eef00c4
+  CI_IMAGE_RPM_ARM64: v72987997-23c57b1f
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v66293343-2eef00c4
+  CI_IMAGE_RPM_ARMHF: v72987997-23c57b1f
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v66293343-2eef00c4
+  CI_IMAGE_WIN_LTSC2022_X64: v72987997-23c57b1f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -199,6 +187,10 @@ variables:
   DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
   RPM_GPG_KEY_ID: b01082d3
   RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
+  # note the unusual ID for a GPG key:
+  # it's the path of a Vault key to be used with gpg-vault
+  # (https://github.com/DataDog/dd-source/tree/main/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault)
+  GPG_TEST_KEY_ID: crypto/k8s/keys/k8s_gitlab-runner_datadog-agent_testing-signing-key
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   CLANG_LLVM_VER: 12.0.1
@@ -213,44 +205,48 @@ variables:
 
   # Start aws ssm variables
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
-  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx
-  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx
-  CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  CODECOV_TOKEN: ci.datadog-agent.codecov_token  # agent-devx
-  DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-delivery
-  DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-delivery
-  DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login  # container-integrations
-  DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd  # container-integrations
-  RPM_GPG_KEY: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}  # agent-delivery
-  RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}  # agent-delivery
-  VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
-  WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
+  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2 # agent-devx
+  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha # agent-devx
+  CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-products
+  CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
+  DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID} # agent-delivery
+  DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID} # agent-delivery
+  DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login # container-integrations
+  DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd # container-integrations
+  RPM_GPG_KEY: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID} # agent-delivery
+  RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID} # agent-delivery
+  VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-products
+  WINGET_PAT: ci.datadog-agent.winget_pat # windows-products
   # End aws ssm variables
 
   # Start vault variables
-  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx
-  AGENT_APP_KEY_ORG2: agent-app-key-org-2  # agent-devx
-  AGENT_GITHUB_APP: agent-github-app  # agent-devx
-  AGENT_QA_E2E: agent-qa-e2e  # agent-devx
-  ATLASSIAN_WRITE: atlassian-write  # agent-devx
-  CODECOV: codecov  # agent-devx
-  DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
-  E2E_AZURE: e2e-azure  # agent-devx
-  E2E_GCP: e2e-gcp  # agent-devx
-  GITLAB_TOKEN: gitlab-token  # agent-devx
-  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx
-  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx
-  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx
-  MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing  # agent-delivery
-  MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account  # agent-delivery
-  MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing  # agent-delivery
-  MACOS_KEYCHAIN_PWD: ci-keychain  # agent-delivery
-  SLACK_AGENT: slack-agent-ci  # agent-devx
-  SMP_ACCOUNT: smp  # single-machine-performance
+  AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
+  AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
+  AGENT_GITHUB_APP: agent-github-app # agent-devx
+  AGENT_QA_E2E: agent-qa-e2e # agent-devx
+  ATLASSIAN_WRITE: atlassian-write # agent-devx
+  CODECOV: codecov # agent-devx
+  DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
+  E2E_AZURE: e2e-azure # agent-devx
+  E2E_GCP: e2e-gcp # agent-devx
+  GITLAB_TOKEN: gitlab-token # agent-devx
+  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
+  MACOS_GITHUB_APP_1: macos-github-app-one # agent-devx
+  MACOS_GITHUB_APP_2: macos-github-app-two # agent-devx
+  MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing # agent-delivery
+  MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account # agent-delivery
+  MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing # agent-delivery
+  MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
+  SLACK_AGENT: slack-agent-ci # agent-devx
+  SMP_ACCOUNT: smp # single-machine-performance
+  VIRUS_TOTAL: virus-total # windows-products
   # End vault variables
 
   DD_PKG_VERSION: "latest"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
+
+  # Job cloning strategy
+  GIT_STRATEGY: "s3"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
@@ -261,6 +257,8 @@ variables:
   FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
+  FF_USE_FASTZIP: true
+  CACHE_COMPRESSION_LEVEL: slowest
 
 #
 # Condition mixins for simplification of rules
@@ -280,29 +278,17 @@ variables:
 .if_deploy_stable: &if_deploy_stable
   if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
 
-.if_not_deploy: &if_not_deploy
-  if: $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null
-
-.if_deploy_installer: &if_deploy_installer
-  if: $DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null
-
 .if_deploy_installer_stable: &if_deploy_installer_stable
   if: ($DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "stable"
-
-.if_not_deploy_installer: &if_not_deploy_installer
-  if: $DEPLOY_INSTALLER != "true" && $DDR_WORKFLOW_ID == null
 
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
 
-.if_not_nightly_or_dev_repo_branch: &if_not_nightly_or_dev_repo_branch
-  if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly" && $BUCKET_BRANCH != "dev"
-
 .if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
   if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
 
-.if_not_stable_repo_branch: &if_not_stable_repo_branch
-  if: $BUCKET_BRANCH != "stable"
+.if_not_nightly_or_dev_repo_branch: &if_not_nightly_or_dev_repo_branch
+  if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly" && $BUCKET_BRANCH != "dev"
 
 # CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
 # See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
@@ -354,17 +340,6 @@ variables:
 .if_run_all_unit_tests: &if_run_all_unit_tests
   if: $RUN_UNIT_TESTS == "on"
 
-.if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
-  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta"
-
-# Rule to trigger jobs only when a tag matches a given pattern (for RCs)
-# on the beta branch.
-# Note: due to workflow rules, rc tag => deploy pipeline, so there's technically no
-# need to check again if the pipeline is a deploy pipeline, but it doesn't hurt
-# to explicitly add it.
-.if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
-  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-
 # Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification
 .if_scheduled_main: &if_scheduled_main
   if: $DDR_WORKFLOW_ID != null && $CI_COMMIT_BRANCH == "main"
@@ -380,6 +355,9 @@ variables:
     - .gitlab/container_build/fakeintake.yml
     - .gitlab/dev_container_deploy/fakeintake.yml
 
+.if_coverage_pipeline: &if_coverage_pipeline
+  if: $E2E_COVERAGE_PIPELINE == "true"
+
 #
 # Workflow rules
 # Rules used to define whether a pipeline should run, and with which variables
@@ -392,7 +370,7 @@ workflow:
         GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
     - <<: *if_deploy
-    - <<: *if_deploy_installer
+    - !reference [.if_deploy_installer]
     - if: $CI_COMMIT_TAG == null
 
 #
@@ -428,26 +406,18 @@ workflow:
 .on_deploy:
   - <<: *if_deploy
 
-.on_deploy_installer:
-  - <<: *if_deploy_installer
+.on_deploy_manual:
+  - <<: *if_deploy
+    when: manual
+    allow_failure: true
+
+.on_deploy_success:
+  - <<: *if_deploy
+    when: on_success
 
 .on_deploy_failure:
   - <<: *if_deploy
     when: on_failure
-
-.on_deploy_installer_failure:
-  - <<: *if_deploy_installer
-    when: on_failure
-
-.on_deploy_rc:
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
 
 # rule to trigger job for internal image deployment if deploy is set or
 # manually if not
@@ -461,88 +431,6 @@ workflow:
     variables:
       RELEASE_PROD: "false"
 
-# Same as on_deploy_manual, except the job would not run on pipelines
-# using beta branch, it would only run for the final release.
-.on_deploy_manual_final:
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_deploy_on_beta_repo_branch
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-# This rule is a variation of on_deploy_manual where
-# the job is usually run manually, except when the pipeline
-# builds an RC: in this case, the job is run automatically.
-# This is done to reduce the number of manual steps that have
-# to be done when creating RCs.
-.on_deploy_manual_auto_on_rc:
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
-  - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-# This is used for image vulnerability scanning. Because agent 6
-# uses python 2, which has many vulnerabilities that will not get
-# patched, we do not wish to scan this image. For this reason, only
-# agent 7 versions should be published internally using these
-# configurations.
-.on_deploy_internal_rc:
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: ci/datadog-agent/agent-release
-      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
-      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
-      IMG_REGISTRIES: internal-aws-ddbuild
-
-# Same as on_deploy_manual_final, except the job is used to publish images
-# to our internal registries.
-.on_deploy_internal_manual_final:
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_deploy_on_beta_repo_branch
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: ci/datadog-agent/agent-release
-      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
-      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
-      IMG_REGISTRIES: internal-aws-ddbuild
-
 .on_deploy_nightly_repo_branch:
   - <<: *if_not_nightly_or_dev_repo_branch
     when: never
@@ -555,44 +443,11 @@ workflow:
     allow_failure: true
   - <<: *if_deploy
 
-.on_deploy_stable_or_beta_repo_branch_manual:
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
-
-# This rule will add the job as manual when running on beta deploy branch
-# and will add it as a regular automatically running job when running
-# on stable deploy branch.
-.on_deploy_stable_or_beta_manual_auto_on_stable:
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_repo_branch
-    when: manual
-    allow_failure: true
-  - when: on_success
-
 # Alternative of the above to have an agent-release-management trigger
 # for stable branches in case of failure in any previous job
 .on_deploy_stable_on_failure:
   - <<: *if_deploy_stable
     when: on_failure
-
-# This rule will add the job as manual when running on beta deploy branch
-# and will add it as a regular automatically running job when running
-# on stable deploy branch.
-.on_deploy_installer_stable_or_beta_manual_auto_on_stable:
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_not_deploy_installer
-    when: never
-  - <<: *if_not_stable_repo_branch
-    when: manual
-    allow_failure: true
-  - when: on_success
 
 # Alternative of the above to have an agent-release-management trigger
 # for stable branches in case of failure in any previous job
@@ -702,19 +557,19 @@ workflow:
 
 .if_windows_installer_changes: &if_windows_installer_changes
   changes:
-      paths:
-        - tools/windows/DatadogAgentInstaller/**/*
-        - .gitlab/e2e_install_packages/windows.yml
-        - test/new-e2e/tests/windows/install-test/**/*
-        - test/new-e2e/tests/windows/domain-test/**/*
-        - tasks/msi.py
-        - omnibus/python-scripts/**/*
-        - omnibus/lib/**/*
-        - omnibus/config/projects/agent.rb
-        - omnibus/config/software/**/*
-        - omnibus/config/templates/**/*
-        - release.json
-      compare_to: $COMPARE_TO_BRANCH
+    paths:
+      - tools/windows/DatadogAgentInstaller/**/*
+      - .gitlab/e2e_install_packages/windows.yml
+      - test/new-e2e/tests/windows/install-test/**/*
+      - test/new-e2e/tests/windows/domain-test/**/*
+      - tasks/msi.py
+      - omnibus/python-scripts/**/*
+      - omnibus/lib/**/*
+      - omnibus/config/projects/agent.rb
+      - omnibus/config/software/**/*
+      - omnibus/config/templates/**/*
+      - release.json
+    compare_to: $COMPARE_TO_BRANCH
 
 .except_windows_installer_changes:
   - <<: *if_windows_installer_changes
@@ -728,7 +583,7 @@ workflow:
   - pkg/network/**/*
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
-  - pkg/dynamicinstrumentation/**/*
+  - pkg/dyninst/**/*
   - pkg/gpu/**/*
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
@@ -749,6 +604,8 @@ workflow:
   - changes:
       paths: *system_probe_change_paths
       compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
 
 # New E2E related rules
 
@@ -866,8 +723,13 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for language detection
         - test/new-e2e/tests/language-detection/**/*
+        - cmd/process-agent/**/*
+        - comp/process/**/*
+        - pkg/process/**/*
+        - comp/core/workloadmeta/collectors/internal/process/**/*
+        - comp/core/workloadmeta/collectors/internal/processlanguage/**/*
+        - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_npm_or_e2e_changes:
@@ -1049,6 +911,15 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_windows_certificate_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/windows/windows-certificate/**/*
+        - pkg/collector/corechecks/system/windowscertificate/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_trace_agent_changes_or_manual:
   - !reference [.except_mergequeue]
   - changes:
@@ -1211,8 +1082,7 @@ workflow:
         - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
-        - comp/core/autodiscovery/providers/gpu.go
-        - pkg/config/autodiscovery/autodiscovery.go
+        - comp/core/autodiscovery/listeners/staticconfig.go
       compare_to: $COMPARE_TO_BRANCH
 
 .on_installer_systemd_changes:
@@ -1225,29 +1095,77 @@ workflow:
   - when: manual
     allow_failure: true
 
-# windows_docker_2022 configures the job to use the Windows Server 2022 runners.
-# Use in jobs that need to run on Windows Server 2022 runners.
-.windows_docker_2022:
-  tags: ["runner:windows-docker", "windowsversion:2022"]
-  variables:
-    # Full image name for Agent windows build image, for use in docker run command
-    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
+.except_coverage_pipeline:
+  - <<: *if_coverage_pipeline
+    when: never
 
-# The windows-v2 runner is currently only used in container_build jobs needed to do authenticated push. It should not replace the basic windows runner, unless agreeded first with #ci-infra team
-.windows_docker_v2_2022:
-  tags: ["windows-v2:2022"]
-  variables:
-    # Full image name for Agent windows build image, for use in docker run command
-    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
+# This is used to setup utils to report custom datadog-ci spans
+.setup-datadog-ci-sections:
+  - |
+    if [ -z "$DATADOG_API_KEY" ]; then
+      DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    fi
+  - |
+    # Start a custom datadog span
+    # datadog-ci-start-section <name>
+    datadog-ci-start-section()
+    {
+      export sectionname="$1"
+      if [ -z "$sectionname" ]; then
+        echo "datadog-ci-end-section: name is required as first argument" >& 2
+        return 1
+      fi
+      export datestart="$(date '+%s%N' | cut -b1-13)"
+    }
+    # Finish and send the span to Datadog
+    # datadog-ci-end-section [--end-time <timestamp>] [--category <category>] <name>
+    datadog-ci-end-section()
+    {
+      if [ "$1" = "--end-time" ]; then
+        shift
+        dateend="$1"
+        shift
+      else
+        dateend="$(date '+%s%N' | cut -b1-13)"
+      fi
+      if [ "$1" = "--category" ]; then
+        shift
+        category="--tags agent-category:$1"
+        shift
+      fi
+      name="$1"
+      if [ -z "$name" ]; then
+        echo "datadog-ci-end-section: name is required as first argument" >& 2
+        return 1
+      fi
+      if [ "$name" != "$sectionname" ]; then
+        echo "datadog-ci-end-section: name does not match the last section name (got $name but was $sectionname)" >& 2
+        return 1
+      fi
+      if [ -z "$datestart" ]; then
+        echo "datadog-ci-end-section: datadog-ci-start-section was not called" >& 2
+        return 1
+      fi
+      datadog-ci trace span --name "$name" --start-time "$datestart" --end-time "$dateend" --tags agent-custom-span:true $category
+      if [ "$?" -ne 0 ]; then
+        # Don't fail the job for that
+        echo "WARNING: datadog-ci trace span failed" >& 2
+      fi
+      export datestart=
+      export sectionname=
+    }
 
-# windows_docker_2019 configures the job to use the Windows Server 2019 runners.
-# Use in jobs that need to run on Windows Server 2019 runners.
-.windows_docker_2019:
-  tags: ["windows-v2:2019"]
-
-# windows_docker_default configures the job to use the default Windows Server runners
-# Use in jobs that may need to have their version updated in the future.
-#
-# Current default: Windows Server 2022
-.windows_docker_default:
-  extends: .windows_docker_v2_2022
+.retry_only_infra_failure:
+  retry:
+    max: 2
+    exit_codes:
+      - 42
+      - 101 # Failed to extract dependencies
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+      - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure

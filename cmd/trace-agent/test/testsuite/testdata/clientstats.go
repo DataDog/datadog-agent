@@ -38,6 +38,7 @@ var ClientStatsTests = []struct {
 			Env:          "testing",
 			Version:      "0.1-alpha",
 			ImageTag:     "image-tag",
+			Lang:         "go",
 			GitCommitSha: "sha-1",
 			Stats: []*pb.ClientStatsBucket{
 				{
@@ -71,6 +72,7 @@ var ClientStatsTests = []struct {
 				Env:          "testing",
 				Version:      "0.1-alpha",
 				ImageTag:     "image-tag",
+				Lang:         "go",
 				GitCommitSha: "sha-1",
 				Stats: []*pb.ClientStatsBucket{
 					{
@@ -104,6 +106,7 @@ var ClientStatsTests = []struct {
 			Env:          "testing",
 			Version:      "0.1-alpha",
 			ImageTag:     "image-tag",
+			Lang:         "go",
 			GitCommitSha: "sha-1",
 			Stats: []*pb.ClientStatsBucket{
 				{
@@ -166,6 +169,7 @@ var ClientStatsTests = []struct {
 						Env:          "testing",
 						Version:      "0.1-alpha",
 						ImageTag:     "image-tag",
+						Lang:         "go",
 						GitCommitSha: "sha-1",
 						Stats: []*pb.ClientStatsBucket{
 							{

@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"go.uber.org/multierr"
 )
 
 // Restart restarts an upstart service using initctl
@@ -35,11 +36,10 @@ func Stop(ctx context.Context, name string) error {
 
 // StopAll stops all upstart services using initctl
 func StopAll(ctx context.Context, names ...string) error {
+	var errs error
 	for _, name := range names {
 		err := Stop(ctx, name)
-		if err != nil {
-			return err
-		}
+		errs = multierr.Append(errs, err)
 	}
-	return nil
+	return errs
 }

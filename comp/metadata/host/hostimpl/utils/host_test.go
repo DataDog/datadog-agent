@@ -144,6 +144,7 @@ func TestGetPayload(t *testing.T) {
 	assert.NotNil(t, p.InstallMethod)
 	assert.NotNil(t, p.ProxyMeta)
 	assert.NotNil(t, p.OtlpMeta)
+	assert.NotNil(t, p.FipsMode)
 
 	_, found = cache.Cache.Get(hostCacheKey)
 	assert.True(t, found)

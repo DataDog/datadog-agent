@@ -48,14 +48,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -70,6 +72,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/metadata/softwareinventory/fx"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
@@ -104,6 +107,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			server dogstatsdServer.Component,
 			_ replay.Component,
 			wmeta workloadmeta.Component,
+			filterStore workloadfilter.Component,
 			taggerComp tagger.Component,
 			ac autodiscovery.Component,
 			rcclient rcclient.Component,
@@ -136,6 +140,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ option.Option[gui.Component],
 			agenttelemetryComponent agenttelemetry.Component,
 			hostname hostnameinterface.Component,
+			ipc ipc.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -146,6 +151,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				sysprobeconfig,
 				server,
 				wmeta,
+				filterStore,
 				taggerComp,
 				ac,
 				rcclient,
@@ -166,6 +172,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				settings,
 				agenttelemetryComponent,
 				hostname,
+				ipc,
 			)
 			if err != nil {
 				return err
@@ -243,6 +250,7 @@ func getPlatformModules() fx.Option {
 		winregistryimpl.Module(),
 		etwimpl.Module,
 		comptraceconfig.Module(),
+		softwareinventoryfx.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),

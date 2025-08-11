@@ -15,28 +15,50 @@
         "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}"
       },
       {
-        "matchDepNames": ["buildimages"],
-        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main"
+        "matchDepNames": ["linux-images"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 * * 1-5"]
+      },
+      {
+        "matchDepNames": ["windows-images"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 2 * *"]
+      },
+      {
+        "matchDepNames": ["DataDog/datadog-agent-dev"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-dev/releases/tag/v{{newValue}}",
+        "schedule": ["* 1-4 5 6,12 *"]
       }
     ],
     "pre-commit": {
       "enabled": true,
-      "fileMatch": [".pre-commit-config.yaml"]
+      "managerFilePatterns": [".pre-commit-config.yaml"]
     },
     "customManagers" : [
       {
         "customType": "regex",
-        "fileMatch": [".gitlab-ci.yml"],
+        "managerFilePatterns": [".gitlab-ci.yml"],
         "matchStrings": [
-          "  CI_IMAGE_[^:]*: (?<currentValue>v.*)"
+          "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"
         ],
-        "depNameTemplate": "buildimages",
+        "depNameTemplate": "linux-images",
         "versioningTemplate": "loose",
-        "datasourceTemplate": "custom.buildimages"
+        "datasourceTemplate": "custom.linux-images"
       },
       {
         "customType": "regex",
-        "fileMatch": [".protoc-version"],
+        "managerFilePatterns": [".gitlab-ci.yml"],
+        "matchStrings": [
+          "  CI_IMAGE_WIN_[^:]*: (?<currentValue>v.*)"
+        ],
+        "depNameTemplate": "windows-images",
+        "versioningTemplate": "regex:^(ltsc2022-)?v(?<major>\\d+)-.*$",
+        "datasourceTemplate": "custom.windows-images",
+        "extractVersionTemplate": "^(ltsc2022-)?(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [".protoc-version"],
         "matchStrings": [
           "(?<currentValue>[0-9]+.[0-9]+)"
         ],
@@ -45,7 +67,16 @@
       },
       {
         "customType": "regex",
-        "fileMatch": ["release.json"],
+        "managerFilePatterns": [".dda/version"],
+        "matchStrings": [
+          "(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "DataDog/datadog-agent-dev",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["release.json"],
         "matchStrings": [
           "[ ]+\"OMNIBUS_RUBY_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
         ],
@@ -56,7 +87,7 @@
       },
       {
         "customType": "regex",
-        "fileMatch": ["release.json"],
+        "managerFilePatterns": ["release.json"],
         "matchStrings": [
           "[ ]+\"INTEGRATIONS_CORE_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
         ],
@@ -67,8 +98,14 @@
       }
     ],
     "customDatasources": {
-      "buildimages": {
+      "linux-images": {
         "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-deb_x64/tags",
+        "transformTemplates": [
+          "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
+        ]
+      },
+      "windows-images": {
+        "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-windows_x64/tags",
         "transformTemplates": [
           "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
         ]

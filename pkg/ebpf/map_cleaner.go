@@ -54,6 +54,8 @@ type MapCleaner[K any, V any] struct {
 	batchDeleted  telemetry.SimpleCounter
 	aborts        telemetry.SimpleCounter
 	elapsed       telemetry.SimpleHistogram
+
+	cleanerFunc func(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool)
 }
 
 // NewMapCleaner instantiates a new MapCleaner. defaultBatchSize controls the
@@ -81,7 +83,8 @@ func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32, name, 
 	if useBatchAPI {
 		tags = batchTags
 	}
-	return &MapCleaner[K, V]{
+
+	cleaner := &MapCleaner[K, V]{
 		emap:          m,
 		batchSize:     batchSize,
 		done:          make(chan struct{}),
@@ -91,10 +94,21 @@ func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32, name, 
 		aborts:        mapCleanerTelemetry.aborts.WithTags(tags),
 		elapsed:       mapCleanerTelemetry.elapsed.WithTags(tags),
 		useBatchAPI:   useBatchAPI,
-	}, nil
+	}
+
+	// Since kernel 5.6, the eBPF library supports batch operations on maps, which reduces the number of syscalls
+	// required to clean the map. We use the new batch operations if they are supported (we check with a feature test instead
+	// of a version comparison because some distros have backported this API), and fallback to
+	// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
+	cleaner.cleanerFunc = cleaner.cleanWithoutBatches
+	if useBatchAPI {
+		cleaner.cleanerFunc = cleaner.cleanWithBatches
+	}
+
+	return cleaner, nil
 }
 
-// Clean eBPF map
+// Start eBPF map periodically.
 // `interval` determines how often the eBPF map is scanned;
 // `shouldClean` is a predicate method that determines whether a certain
 // map entry should be deleted. the callback argument `nowTS` can be directly
@@ -102,20 +116,12 @@ func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32, name, 
 // `preClean` callback (optional, can pass nil) is invoked before the map is scanned; if it returns false,
 // the map is not scanned; this can be used to synchronize with other maps, or preform preliminary checks.
 // `postClean` callback (optional, can pass nil) is invoked after the map is scanned, to allow resource cleanup.
-func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, postClean func(), shouldClean func(nowTS int64, k K, v V) bool) {
+func (mc *MapCleaner[K, V]) Start(interval time.Duration, preClean func() bool, postClean func(), shouldClean func(nowTS int64, k K, v V) bool) {
 	if mc == nil {
 		return
 	}
 
 	mc.once.Do(func() {
-		// Since kernel 5.6, the eBPF library supports batch operations on maps, which reduces the number of syscalls
-		// required to clean the map. We use the new batch operations if they are supported (we check with a feature test instead
-		// of a version comparison because some distros have backported this API), and fallback to
-		// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
-		cleaner := mc.cleanWithoutBatches
-		if mc.useBatchAPI {
-			cleaner = mc.cleanWithBatches
-		}
 		ticker := time.NewTicker(interval)
 		go func() {
 			defer ticker.Stop()
@@ -123,25 +129,36 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, 
 			for {
 				select {
 				case <-ticker.C:
-					now, err := NowNanoseconds()
-					if err != nil {
-						break
-					}
-					// Allowing to prepare for the cleanup.
-					if preClean != nil && !preClean() {
-						continue
-					}
-					cleaner(now, shouldClean)
-					// Allowing cleanup after the cleanup.
-					if postClean != nil {
-						postClean()
-					}
+					mc.Clean(preClean, postClean, shouldClean)
 				case <-mc.done:
 					return
 				}
 			}
 		}()
 	})
+}
+
+// Clean eBPF map on demand.
+// `shouldClean` is a predicate method that determines whether a certain
+// map entry should be deleted. the callback argument `nowTS` can be directly
+// compared to timestamps generated using the `bpf_ktime_get_ns()` helper;
+// `preClean` callback (optional, can pass nil) is invoked before the map is scanned; if it returns false,
+// the map is not scanned; this can be used to synchronize with other maps, or preform preliminary checks.
+// `postClean` callback (optional, can pass nil) is invoked after the map is scanned, to allow resource cleanup.
+func (mc *MapCleaner[K, V]) Clean(preClean func() bool, postClean func(), shouldClean func(nowTS int64, k K, v V) bool) {
+	now, err := NowNanoseconds()
+	if err != nil {
+		return
+	}
+	// Allowing to prepare for the cleanup.
+	if preClean != nil && !preClean() {
+		return
+	}
+	mc.cleanerFunc(now, shouldClean)
+	// Allowing cleanup after the cleanup.
+	if postClean != nil {
+		postClean()
+	}
 }
 
 // Stop stops the map cleaner

@@ -14,6 +14,7 @@ import (
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -120,15 +121,15 @@ func (s *service) IsReady() bool {
 
 // HasFilter returns whether the service should not collect certain data (logs
 // or metrics) due to filtering applied by filter.
-func (s *service) HasFilter(filter containers.FilterType) bool {
-	switch filter {
-	case containers.MetricsFilter:
+func (s *service) HasFilter(fs filter.Scope) bool {
+	switch fs {
+	case filter.MetricsFilter:
 		return s.metricsExcluded
-	case containers.LogsFilter:
+	case filter.LogsFilter:
 		return s.logsExcluded
+	default:
+		return false
 	}
-
-	return false
 }
 
 // FilterTemplates implements Service#FilterTemplates.

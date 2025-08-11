@@ -9,7 +9,6 @@ package db
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"go.etcd.io/bbolt"
@@ -38,8 +37,7 @@ type PackagesDB struct {
 }
 
 type options struct {
-	timeout  time.Duration
-	readOnly bool
+	timeout time.Duration
 }
 
 // Option is a function that sets an option on a PackagesDB
@@ -52,43 +50,25 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithReadOnly sets the database to read-only mode
-func WithReadOnly() Option {
-	return func(o *options) {
-		o.readOnly = true
-	}
-}
-
 // New creates a new PackagesDB
 func New(dbPath string, opts ...Option) (*PackagesDB, error) {
 	o := options{}
-
 	for _, opt := range opts {
 		opt(&o)
 	}
-
-	if _, err := os.Stat(dbPath); err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("could not stat database path: %w", err)
-	} else if os.IsNotExist(err) && o.readOnly {
-		return nil, os.ErrNotExist
-	}
-
 	db, err := bbolt.Open(dbPath, 0644, &bbolt.Options{
-		ReadOnly:     o.readOnly,
 		Timeout:      o.timeout,
 		FreelistType: bbolt.FreelistArrayType,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not open database: %w", err)
 	}
-	if !o.readOnly {
-		err = db.Update(func(tx *bbolt.Tx) error {
-			_, err := tx.CreateBucketIfNotExists(bucketPackages)
-			return err
-		})
-		if err != nil {
-			return nil, fmt.Errorf("could not create packages bucket: %w", err)
-		}
+	err = db.Update(func(tx *bbolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists(bucketPackages)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not create packages bucket: %w", err)
 	}
 	return &PackagesDB{
 		db: db,
