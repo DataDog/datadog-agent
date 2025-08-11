@@ -155,7 +155,7 @@ func (sc *SpanConcentrator) NewStatSpan(
 		isTopLevel:       isTopLevel,
 		matchingPeerTags: matchingPeerTags(meta, peerTags),
 
-		grpcStatusCode: getGRPCStatusCode(meta, metrics),
+		grpcStatusCode: getGRPCStatusCode(name, meta, metrics),
 	}, true
 }
 
