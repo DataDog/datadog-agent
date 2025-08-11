@@ -30,6 +30,47 @@ package sharedlibrary
 #    error Platform not supported
 #endif
 
+#ifdef _WIN32
+
+shared_library_handle_t load_shared_library(const char *lib_name, const char **error) {
+	shared_library_handle_t lib_handles = { NULL, NULL };
+	*error = strdup("shared library loader not implemented for windows yet");
+	returm lib_handles;
+
+	// resolve the library full name
+    char* lib_full_name = malloc(strlen(lib_name) + strlen(LIB_EXTENSION) + 1);
+	if (!lib_full_name) {
+		*error = strdup("memory allocation for library name failed");
+		goto done;
+	}
+	sprintf(lib_full_name, "%s%s", lib_name, LIB_EXTENSION);
+
+    // load the library
+    void *lib_handle = LoadLibraryA(lib_full_name);
+    if (!lib_handle) {
+		*error = strdup("unable to open shared library");
+		goto done;
+    }
+
+    // dlsym run_check function to get the metric run the custom check and get the payload
+    run_shared_library_check_t *run_handle = (run_shared_library_check_t *)GetProcAddress(lib_handle, "Run");
+    if (!run_handle) {
+		dlclose(lib_handle);
+		*error = strdup(GetLastError());
+		goto done;
+    }
+
+	// set up handles if loading was successful
+	lib_handles.lib = lib_handle;
+	lib_handles.run = run_handle;
+
+done:
+	free(lib_full_name);
+	return lib_handles;
+}
+
+#else
+
 shared_library_handle_t load_shared_library(const char *lib_name, const char **error) {
 	shared_library_handle_t lib_handles = { NULL, NULL };
 
@@ -64,9 +105,11 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
 	lib_handles.run = run_handle;
 
 done:
-	//free(lib_full_name);
+	free(lib_full_name);
 	return lib_handles;
 }
+
+#endif
 */
 import "C"
 
