@@ -648,6 +648,10 @@ Package agent provides the trace agent component type.
 
 Package compression provides compression for trace payloads
 
+### [comp/trace/payload-modifier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/payload-modifier)
+
+Package payloadmodifier defines the trace payload modifier component interface
+
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/config)
 
 Package config implements a component to handle trace-agent configuration.  This
