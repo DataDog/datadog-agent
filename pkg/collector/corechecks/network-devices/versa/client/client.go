@@ -45,6 +45,10 @@ type Client struct {
 	tokenExpiry         time.Time
 	username            string
 	password            string
+	clientID            string
+	clientSecret        string
+	useDirectorOAuth    bool
+	useAnalyticsOAuth   bool
 	authenticationMutex *sync.Mutex
 	maxAttempts         int
 	maxPages            int
@@ -125,6 +129,23 @@ func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint
 		return fmt.Errorf("invalid password")
 	}
 	return nil
+}
+
+// WithOAuthConfig is a functional option to use OAuth for director calls
+func WithOAuthConfig(clientID, clientSecret string) (ClientOptions, error) {
+	if clientID == "" {
+		return nil, errors.New("invalid client ID")
+	}
+	if clientSecret == "" {
+		return nil, errors.New("invalid client secret")
+	}
+
+	return func(c *Client) {
+		c.useDirectorOAuth = true
+		c.useAnalyticsOAuth = false // TODO: separate this out
+		c.clientID = clientID
+		c.clientSecret = clientSecret
+	}, nil
 }
 
 // WithTLSConfig is a functional option to set the HTTP Client TLS Config

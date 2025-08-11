@@ -6,15 +6,34 @@
 package client
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+type OAuthRequest struct {
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	GrantType    string `json:"grant_type"`
+}
+
+type OAuthResponse struct {
+	AccessToken  string `json:"access_token"`
+	IssuedAt     string `json:"issued_at"`
+	ExpiresIn    string `json:"expires_in"`
+	TokenType    string `json:"token_type"`
+	RefreshToken string `json:"refresh_token"`
+}
 
 // Login logs in to the Versa Director API, Versa Analytics API, gets CSRF
 // tokens, and a session cookie
@@ -44,6 +63,73 @@ func (client *Client) login() error {
 		return fmt.Errorf("failed to perform analytics login: %w", err)
 	}
 
+	return nil
+}
+
+// TODO: remove, for testing only
+func (client *Client) OAuth() error {
+	return client.loginOAuth()
+}
+
+// loginOAuth logs in to the Director API using OAuth
+func (client *Client) loginOAuth() error {
+	reqBody, err := json.Marshal(OAuthRequest{
+		ClientID:     client.clientID,
+		ClientSecret: client.clientSecret,
+		Username:     client.username,
+		Password:     client.password,
+		GrantType:    "password",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal oauth request body: %v", err)
+	}
+
+	// Request to /auth/token to perform OAuth authentication
+	req, err := client.newRequest("POST", "/auth/token", bytes.NewReader(reqBody), false)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json")
+
+	// Execute the request
+	resp, err := client.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("OAuth request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read OAuth response body: %w", err)
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("OAuth authentication failed, status code: %v: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	// Parse JSON response
+	var oauthResp OAuthResponse
+	err = json.Unmarshal(bodyBytes, &oauthResp)
+	if err != nil {
+		// If JSON parsing fails, return the raw response for debugging
+		return fmt.Errorf("failed to parse OAuth response as JSON: %v, response: %s", err, string(bodyBytes))
+	}
+
+	// Set token and expiration on the client
+	client.token = oauthResp.AccessToken
+	// Convert expires_in (seconds) to expiration time
+	expiresInSeconds, err := strconv.ParseInt(oauthResp.ExpiresIn, 10, 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse expires_in as integer: %v, value: %s", err, oauthResp.ExpiresIn)
+	}
+	expirationDuration := time.Duration(expiresInSeconds) * time.Second
+	client.tokenExpiry = timeNow().Add(expirationDuration)
+
+	// TODO: remove, for testing only
+	log.Tracef("OAuth Response: %+v", oauthResp)
+
+	log.Trace("OAuth authentication successful")
 	return nil
 }
 
