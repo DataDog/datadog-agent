@@ -46,15 +46,18 @@ type Webhook struct {
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 
-	wmeta   workloadmeta.Component
-	mutator mutatecommon.Mutator
+	wmeta       workloadmeta.Component
+	mutator     mutatecommon.Mutator
+	tagResolver *TagResolver
 
 	// use to store all the config option from the config component to avoid costly lookups in the admission webhook hot path.
 	config *WebhookConfig
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
-func NewWebhook(config *Config, wmeta workloadmeta.Component, mutator mutatecommon.Mutator) (*Webhook, error) {
+func NewWebhook(config *Config, wmeta workloadmeta.Component, mutator mutatecommon.Mutator, rcClient RemoteConfigClient) (*Webhook, error) {
+	tagResolver := NewTagResolver(rcClient)
+
 	webhook := &Webhook{
 		name:            webhookName,
 		resources:       map[string][]string{"": {"pods"}},
@@ -62,6 +65,7 @@ func NewWebhook(config *Config, wmeta workloadmeta.Component, mutator mutatecomm
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		mutator:         mutator,
 		wmeta:           wmeta,
+		tagResolver:     tagResolver,
 		config:          config.Webhook,
 	}
 
@@ -175,10 +179,10 @@ func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator 
 
 // getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
 // that should be enabled by default
-func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
+func getAllLatestDefaultLibraries(containerRegistry string, resolver *TagResolver) []libInfo {
 	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
-		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
+		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, "", resolver))
 	}
 
 	return libsToInject

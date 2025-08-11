@@ -196,7 +196,7 @@ func injectorDebug(boolean string) injectorOption {
 	}
 }
 
-func newInjector(startTime time.Time, registry string, opts ...injectorOption) *injector {
+func newInjector(startTime time.Time, registry string, resolver *TagResolver, opts ...injectorOption) *injector {
 	i := &injector{
 		registry:   registry,
 		injectTime: startTime,
@@ -204,6 +204,16 @@ func newInjector(startTime time.Time, registry string, opts ...injectorOption) *
 
 	for _, opt := range opts {
 		opt(i)
+	}
+
+	if i.image == "" {
+		// set default image
+		i.image = fmt.Sprintf("%s/apm-inject:v0", i.registry)
+	}
+
+	// Apply deterministic resolution to injector image
+	if resolver != nil {
+		i.image = resolver.ResolveImageReference(i.image)
 	}
 
 	return i

@@ -405,11 +405,11 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 			continue
 		}
 
-		info := l.libInfo("", l.libImageName(registry, version))
+		info := l.libInfo("", l.libImageName(registry, version, nil)) // No resolver for pinned libraries
 		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
 		libs = append(libs, info)
 
-		if info.image != l.libImageName(registry, l.defaultLibVersion()) {
+		if info.image != l.libImageName(registry, l.defaultLibVersion(), nil) {
 			allDefaults = false
 		}
 	}

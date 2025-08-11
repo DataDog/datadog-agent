@@ -38,6 +38,7 @@ var validProducts = map[string]struct{}{
 	ProductMetricControl:                {},
 	ProductDataStreamsLiveMessages:      {},
 	ProductLiveDebuggingSymbolDB:        {},
+	ProductAutoInstrumentationCatalog:   {},
 }
 
 const (
@@ -106,4 +107,6 @@ const (
 	ProductMetricControl = "METRIC_CONTROL"
 	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
+	// ProductAutoInstrumentationCatalog is the product used to receive APM library tag-to-digest mappings
+	ProductAutoInstrumentationCatalog = "AUTO_INSTRUMENTATION_CATALOG"
 )

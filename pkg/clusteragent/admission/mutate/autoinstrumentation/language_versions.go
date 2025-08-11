@@ -28,16 +28,23 @@ const (
 // language is lang-library we might be injecting.
 type language string
 
-func (l language) defaultLibInfo(registry, ctrName string) libInfo {
-	return l.libInfo(ctrName, l.libImageName(registry, l.defaultLibVersion()))
+func (l language) defaultLibInfo(registry, ctrName string, resolver *TagResolver) libInfo {
+	return l.libInfo(ctrName, l.libImageName(registry, l.defaultLibVersion(), resolver))
 }
 
-func (l language) libImageName(registry, tag string) string {
+func (l language) libImageName(registry, tag string, resolver *TagResolver) string {
 	if tag == defaultVersionMagicString {
 		tag = l.defaultLibVersion()
 	}
 
-	return fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, tag)
+	imageRef := fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, tag)
+	
+	// Apply deterministic resolution if resolver is available
+	if resolver != nil {
+		return resolver.ResolveImageReference(imageRef)
+	}
+	
+	return imageRef
 }
 
 func (l language) libInfo(ctrName, image string) libInfo {
@@ -64,11 +71,11 @@ func (l language) customLibAnnotationExtractor() annotationExtractor[libInfo] {
 	}
 }
 
-func (l language) libVersionAnnotationExtractor(registry string) annotationExtractor[libInfo] {
+func (l language) libVersionAnnotationExtractor(registry string, resolver *TagResolver) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
 		do: func(version string) (libInfo, error) {
-			return l.libInfo("", l.libImageName(registry, version)), nil
+			return l.libInfo("", l.libImageName(registry, version, resolver)), nil
 		},
 	}
 }
@@ -82,11 +89,11 @@ func (l language) ctrCustomLibAnnotationExtractor(ctr string) annotationExtracto
 	}
 }
 
-func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotationExtractor[libInfo] {
+func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string, resolver *TagResolver) annotationExtractor[libInfo] {
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
 		do: func(version string) (libInfo, error) {
-			return l.libInfo(ctr, l.libImageName(registry, version)), nil
+			return l.libInfo(ctr, l.libImageName(registry, version, resolver)), nil
 		},
 	}
 }

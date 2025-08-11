@@ -34,10 +34,11 @@ type NamespaceMutator struct {
 	wmeta           workloadmeta.Component
 	pinnedLibraries pinnedLibraries
 	core            *mutatorCore
+	tagResolver     *TagResolver
 }
 
 // NewNamespaceMutator creates a new injector interface for the auto-instrumentation injector.
-func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*NamespaceMutator, error) {
+func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component, resolver *TagResolver) (*NamespaceMutator, error) {
 	filter, err := NewFilter(config)
 	if err != nil {
 		return nil, err
@@ -49,7 +50,8 @@ func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*Namespa
 		filter:          filter,
 		wmeta:           wmeta,
 		pinnedLibraries: pinnedLibraries,
-		core:            newMutatorCore(config, wmeta, filter),
+		core:            newMutatorCore(config, wmeta, filter, resolver),
+		tagResolver:     resolver,
 	}, nil
 }
 
@@ -116,16 +118,18 @@ func (m *NamespaceMutator) IsNamespaceEligible(ns string) bool {
 }
 
 type mutatorCore struct {
-	config *Config
-	wmeta  workloadmeta.Component
-	filter mutatecommon.MutationFilter
+	config      *Config
+	wmeta       workloadmeta.Component
+	filter      mutatecommon.MutationFilter
+	tagResolver *TagResolver
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, resolver *TagResolver) *mutatorCore {
 	return &mutatorCore{
-		config: config,
-		wmeta:  wmeta,
-		filter: filter,
+		config:      config,
+		wmeta:       wmeta,
+		filter:      filter,
+		tagResolver: resolver,
 	}
 }
 
@@ -324,7 +328,7 @@ func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts li
 		opts = append(opts, opt)
 	}
 
-	return newInjector(startTime, m.config.containerRegistry, opts...)
+	return newInjector(startTime, m.config.containerRegistry, m.tagResolver, opts...)
 }
 
 // isPodEligible checks whether we are allowed to inject in this pod.
@@ -337,7 +341,7 @@ func (m *NamespaceMutator) isPodEligible(pod *corev1.Pod) bool {
 func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	extracted := m.core.initExtractedLibInfo(pod)
 
-	libs := extractLibrariesFromAnnotations(pod, m.config.containerRegistry)
+	libs := extractLibrariesFromAnnotations(pod, m.config.containerRegistry, m.tagResolver)
 	if len(libs) > 0 {
 		return extracted.withLibs(libs)
 	}
@@ -361,7 +365,7 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	}
 
 	if extracted.source.isSingleStep() {
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry))
+		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.tagResolver))
 	}
 
 	// Get libraries to inject for Remote Instrumentation
@@ -375,13 +379,13 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
 		}
 
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry))
+		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.tagResolver))
 	}
 
 	return extractedPodLibInfo{}
 }
 
-func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) []libInfo {
+func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string, resolver *TagResolver) []libInfo {
 	var (
 		libList        []libInfo
 		extractLibInfo = func(e annotationExtractor[libInfo]) {
@@ -398,10 +402,10 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) 
 
 	for _, l := range supportedLanguages {
 		extractLibInfo(l.customLibAnnotationExtractor())
-		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry))
+		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry, resolver))
 		for _, ctr := range pod.Spec.Containers {
 			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
-			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry))
+			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry, resolver))
 		}
 	}
 
