@@ -70,6 +70,7 @@ class TestPost(unittest.TestCase):
         os.rmdir(install_directory)
         os.rmdir(storage_location)
 
+    @unittest.skipIf(os.name == 'nt', "Skip this test on Windows environments")
     @patch('packages.install_datadog_package')
     @patch('packages.install_dependency_package')
     def test_datadog_integration_vs_python_package_installation(self, mock_instalL_dependency, mock_install_datadog):
@@ -106,6 +107,7 @@ class TestPost(unittest.TestCase):
         os.rmdir(install_directory)
         os.rmdir(storage_location)
 
+    @unittest.skipIf(os.name == 'nt', "Skip this test on Windows environments")
     @patch('packages.install_datadog_package')
     @patch('packages.install_dependency_package')
     @patch('packages.load_requirements')
