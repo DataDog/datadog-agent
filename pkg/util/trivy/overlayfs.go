@@ -24,12 +24,30 @@ import (
 	local "github.com/aquasecurity/trivy/pkg/fanal/artifact/container"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/samber/lo"
 )
 
 type fakeContainer struct {
 	layerIDs   []string
 	imgMeta    *workloadmeta.ContainerImageMetadata
 	layerPaths []string
+}
+
+func newFakeContainer(layerPaths []string, imgMeta *workloadmeta.ContainerImageMetadata, layerIDs []string) (*fakeContainer, error) {
+	imageLayers := lo.Filter(imgMeta.Layers, func(layer workloadmeta.ContainerImageLayer, _ int) bool {
+		return layer.Digest != ""
+	})
+	if len(layerIDs) > len(layerPaths) || len(layerIDs) > len(imageLayers) {
+		return nil, fmt.Errorf("mismatch count for layer IDs and paths (%v, %v, %v)", layerIDs, layerPaths, imgMeta)
+	}
+
+	log.Debugf("create fake container with paths=%v", layerPaths)
+
+	return &fakeContainer{
+		layerIDs:   layerIDs,
+		imgMeta:    imgMeta,
+		layerPaths: layerPaths,
+	}, nil
 }
 
 func (c *fakeContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {

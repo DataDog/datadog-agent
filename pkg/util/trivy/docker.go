@@ -110,13 +110,14 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 			}
 		}
 
+		fc, err := newFakeContainer(layers, imgMeta, fanalImage.inspect.RootFS.Layers)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create fake container, err: %w", err)
+		}
+
 		fakeContainer := &fakeDockerContainer{
-			image: fanalImage,
-			fakeContainer: &fakeContainer{
-				layerIDs:   fanalImage.inspect.RootFS.Layers,
-				layerPaths: layers,
-				imgMeta:    imgMeta,
-			},
+			image:         fanalImage,
+			fakeContainer: fc,
 		}
 
 		return c.scanOverlayFS(ctx, layers, fakeContainer, imgMeta, scanOptions)
