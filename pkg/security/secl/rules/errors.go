@@ -49,15 +49,6 @@ var (
 	ErrPolicyIsEmpty = errors.New("the policy is empty")
 )
 
-// ErrFieldTypeUnknown is returned when a field has an unknown type
-type ErrFieldTypeUnknown struct {
-	Field string
-}
-
-func (e *ErrFieldTypeUnknown) Error() string {
-	return fmt.Sprintf("field type unknown for `%s`", e.Field)
-}
-
 // ErrValueTypeUnknown is returned when the value of a field has an unknown type
 type ErrValueTypeUnknown struct {
 	Field string
@@ -149,7 +140,7 @@ func (e ErrRuleLoad) Type() RuleLoadErrType {
 	}
 
 	switch e.Err.(type) {
-	case *ErrFieldTypeUnknown, *ErrValueTypeUnknown, *ErrRuleSyntax, *ErrFieldNotAvailable:
+	case *ErrValueTypeUnknown, *ErrRuleSyntax, *ErrFieldNotAvailable:
 		return SyntaxErrType
 	}
 
