@@ -108,7 +108,11 @@ func NewComponent(deps Requires) Provides {
 		clusterID:   clusterID,
 	}
 
-	// Only initialize inventory payload for cluster agent
+	provides := Provides{
+		Comp: cc,
+	}
+
+	// Only initialize inventory payload and provider for cluster agent
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		cc.InventoryPayload = util.CreateInventoryPayload(
 			deps.Conf,
@@ -117,21 +121,10 @@ func NewComponent(deps Requires) Provides {
 			cc.getPayloadAsMarshaler,
 			"cluster-checks-metadata.json",
 		)
-	} else {
-		// For non-cluster agents, create a no-op payload
-		cc.InventoryPayload = util.CreateInventoryPayload(
-			deps.Conf,
-			deps.Log,
-			nil,
-			cc.getPayloadAsMarshaler,
-			"cluster-checks-metadata.json",
-		)
+		provides.Provider = cc.MetadataProvider()
 	}
 
-	return Provides{
-		Comp:     cc,
-		Provider: cc.MetadataProvider(),
-	}
+	return provides
 }
 
 // getAsJSON returns the cluster checks metadata payload as JSON (delegating to InventoryPayload)
