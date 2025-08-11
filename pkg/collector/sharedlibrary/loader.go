@@ -34,8 +34,6 @@ package sharedlibrary
 
 shared_library_handle_t load_shared_library(const char *lib_name, const char **error) {
 	shared_library_handle_t lib_handles = { NULL, NULL };
-	*error = strdup("shared library loader not implemented for windows yet");
-	returm lib_handles;
 
 	// resolve the library full name
     char* lib_full_name = malloc(strlen(lib_name) + strlen(LIB_EXTENSION) + 1);
