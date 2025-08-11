@@ -185,6 +185,19 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 				pulumi.DependsOn(defender.Resources)))
 	}
 
+	if params.testsigningOptions != nil {
+		fmt.Println("Enabling test signing")
+		fmt.Println("testsigningOptions", params.testsigningOptions)
+		testsigning, err := testsigning.NewTestSigning(awsEnv.CommonEnvironment, host, params.testsigningOptions...)
+		if err != nil {
+			return err
+		}
+		// Active Directory setup needs to happen after TestSigning setup
+		params.activeDirectoryOptions = append(params.activeDirectoryOptions,
+			activedirectory.WithPulumiResourceOptions(
+				pulumi.DependsOn(testsigning.Resources)))
+	}
+
 	if params.activeDirectoryOptions != nil {
 		activeDirectoryComp, activeDirectoryResources, err := activedirectory.NewActiveDirectory(ctx, &awsEnv, host, params.activeDirectoryOptions...)
 		if err != nil {
@@ -285,14 +298,15 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	}
 
 	// check env and enable test signing if we have a test signed driver
-	if sysos.Getenv("WINDOWS_DDNPM_DRIVER") == "testsigned" || sysos.Getenv("WINDOWS_PROCMON_DRIVER") == "testsigned" {
-		params.testsigningOptions = []testsigning.Option{testsigning.WithTestSigningEnabled()}
+	if sysos.Getenv("WINDOWS_DDNPM_DRIVER") == "testsigned" || sysos.Getenv("WINDOWS_DDPROCMON_DRIVER") == "testsigned" {
+		params.testsigningOptions = append(params.testsigningOptions, testsigning.WithTestSigningEnabled())
 	}
 
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
 	}
+	fmt.Println("testsigningOptions", params.testsigningOptions)
 	return params
 }
 

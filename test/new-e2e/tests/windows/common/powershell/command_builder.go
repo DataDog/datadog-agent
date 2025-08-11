@@ -246,7 +246,7 @@ func (ps *powerShellCommandBuilder) EnableTestSigning() *powerShellCommandBuilde
 	ps.cmds = append(ps.cmds, `
 $result = bcdedit.exe | findstr "testsigning" | findstr "Yes"
 if ($result -eq $null) {
-	bcdedit.exe /set testsigning on /f
+	bcdedit.exe /set testsigning on
 	Restart-Computer -Force
 }
 else {
