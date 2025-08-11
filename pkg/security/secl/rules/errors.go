@@ -79,8 +79,12 @@ type ErrMacroLoad struct {
 	Err   error
 }
 
-func (e ErrMacroLoad) Error() string {
+func (e *ErrMacroLoad) Error() string {
 	return fmt.Sprintf("macro `%s` definition error: %s", e.Macro.Def.ID, e.Err)
+}
+
+func (e *ErrMacroLoad) Unwrap() error {
+	return e.Err
 }
 
 // ErrRuleLoad is on rule definition error
