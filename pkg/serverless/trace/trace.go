@@ -135,9 +135,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 				lambdaSpanChan:  args.LambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}
-			ta.TracerPayloadModifier = &tracerPayloadModifier{
-				functionTags: args.FunctionTags,
-			}
+			ta.TracerPayloadModifier = NewTracerPayloadModifier(args.FunctionTags)
 
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			startTraceAgentConfigEndpoint(args.RCService, tc)

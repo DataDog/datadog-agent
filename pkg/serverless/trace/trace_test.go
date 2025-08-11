@@ -260,7 +260,7 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 			assert.NotNil(t, serverlessAgent.ta.TracerPayloadModifier)
 
 			// Test that the modifier has the correct function tags
-			modifier := serverlessAgent.ta.TracerPayloadModifier.(*tracerPayloadModifier)
+			modifier := serverlessAgent.ta.TracerPayloadModifier.(*TracerPayloadModifier)
 			assert.Equal(t, tt.functionTags, modifier.functionTags)
 		})
 	}
