@@ -298,7 +298,10 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	}
 
 	// check env and enable test signing if we have a test signed driver
+	fmt.Println("WINDOWS_DDNPM_DRIVER", sysos.Getenv("WINDOWS_DDNPM_DRIVER"))
+	fmt.Println("WINDOWS_DDPROCMON_DRIVER", sysos.Getenv("WINDOWS_DDPROCMON_DRIVER"))
 	if sysos.Getenv("WINDOWS_DDNPM_DRIVER") == "testsigned" || sysos.Getenv("WINDOWS_DDPROCMON_DRIVER") == "testsigned" {
+		fmt.Println("Enabling test signing :)")
 		params.testsigningOptions = append(params.testsigningOptions, testsigning.WithTestSigningEnabled())
 	}
 
