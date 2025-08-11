@@ -24,6 +24,7 @@ RUN apt-get update && \
     python3 \
     python3-pip \
     python3-venv \
+    rpm \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -76,10 +77,48 @@ RUN . venv/bin/activate && dda inv collector.generate
 # Build the OTel agent
 RUN . venv/bin/activate && dda inv otel-agent.build --byoc
 
-# Create a stage for extracting just the built artifact
+# Install nfpm if package type is specified
+ARG PACKAGE_TYPE
+RUN if [ -n "$PACKAGE_TYPE" ]; then \
+    ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then ARCH="x86_64"; fi && \
+    curl -sL -o /usr/local/bin/nfpm https://github.com/goreleaser/nfpm/releases/download/v2.43.0/nfpm_2.43.0_linux_${ARCH}.tar.gz && \
+    tar -xzf /usr/local/bin/nfpm -C /usr/local/bin/ && \
+    chmod +x /usr/local/bin/nfpm; \
+    fi
+
+# Build packages if PACKAGE_TYPE is specified, otherwise just output the binary
+RUN <<'RUNSCRIPT'
+ARCH=$(dpkg --print-architecture)
+mkdir -p /dist
+if [ -n "$PACKAGE_TYPE" ]; then
+  if [ "$PACKAGE_TYPE" != "deb" ] && [ "$PACKAGE_TYPE" != "rpm" ]; then
+    echo "PACKAGE_TYPE must be 'deb' or 'rpm', got: $PACKAGE_TYPE" >&2
+    exit 1
+  fi
+  cd /workspace/datadog-agent-${AGENT_BRANCH}
+  cat > nfpm.yaml <<EOF
+name: datadog-agent-ddot-byoc
+version: "${AGENT_VERSION}"
+arch: "${ARCH}"
+description: "Datadog Distribution of OpenTelemetry Collector (Custom)"
+contents:
+  - src: bin/otel-agent/otel-agent
+    dst: /opt/datadog-agent/embedded/bin/otel-agent
+    type: file
+    file_info:
+      mode: 0755
+EOF
+  nfpm package --config nfpm.yaml --target /dist --packager "${PACKAGE_TYPE}"
+else
+  cp /workspace/datadog-agent-${AGENT_BRANCH}/bin/otel-agent/otel-agent /dist/
+fi
+RUNSCRIPT
+
+# Create a stage for extracting the built artifact (binary or packages)
 FROM scratch AS artifact
 ARG AGENT_BRANCH
-COPY --from=builder /workspace/datadog-agent-${AGENT_BRANCH}/bin/otel-agent/otel-agent /otel-agent
+COPY --from=builder /dist/* /ddot-byoc/
 
 # Use the final Datadog agent image
 FROM ${AGENT_REPO}:${AGENT_VERSION}
