@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"

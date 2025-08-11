@@ -30,11 +30,14 @@ func main() {
 	executeArrayFuncs()
 	executeSliceFuncs()
 	executeStructFuncs()
-	executeStackAndInlining()
+	executeStack()
+	executeInlined()
 	executePointerFuncs()
 	executeComplexFuncs()
 	lib.Foo()
 	lib_v2.FooV2()
+	var t lib_v2.V2Type
+	t.MyMethod()
 
 	// unsupported for MVP, should not cause failures
 	executeEsoteric()

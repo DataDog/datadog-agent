@@ -2,15 +2,15 @@ import io
 import os
 import platform
 import re
-import sys
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from shutil import which
-from subprocess import PIPE, CalledProcessError, Popen
+from subprocess import check_call
 
 from invoke.exceptions import Exit
 
@@ -104,8 +104,7 @@ def junit_upload_from_tgz(junit_tgz, result_json, codeowners_path=".github/CODEO
         # Upload junit on a per-team basis (all folders except the one part of the original archive)
         team_folders = [item for item in working_dir.iterdir() if item.is_dir() and item not in xml_folders]
         with ThreadPoolExecutor() as executor:
-            for log in executor.map(upload_junitxmls, team_folders):
-                print(log)
+            _upload_junitxmls(team_folders, executor)
 
 
 def get_flaky_failures_and_marked_flaky_tests_from_test_output(result_json):
@@ -211,31 +210,49 @@ def split_junitxml(root_dir: Path, xml_path: Path, codeowners, flaky_failures, m
     return len(output_xmls)
 
 
-def upload_junitxmls(team_dir: Path):
+def _upload_junitxmls(team_dirs: list[Path], executor: ThreadPoolExecutor):
     """
-    Upload all per-team split JUnit XMLs from given directory.
+    Upload all per-team split JUnit XMLs from given directories.
     """
     datadog_ci_command = [get_datadog_ci_command(), "junit", "upload"]
+    futures = []
+    for team_dir in team_dirs:
+        for args, env in _generate_junitxmls(team_dir):
+            futures.append(executor.submit(_execute_with_specific_temp_dir, args=datadog_ci_command + args, env=env))
+    exceptions = []
+    for future in futures:
+        try:
+            future.result()
+        except Exception as e:
+            exceptions.append(e)
+    if exceptions:
+        raise ExceptionGroup(f"{len(exceptions)} junit uploads failed", exceptions)
+
+
+def _generate_junitxmls(team_dir: Path) -> Iterator[tuple[list[str], dict[str, str]]]:
+    """
+    Generate all per-team split JUnit XMLs from given directory.
+    """
     additional_tags = read_additional_tags(team_dir.parent)
     process_env = _update_environ(team_dir.parent)
-    processes = []
-
     owner, flavor = team_dir.name.split("_")
     # Kitchen/e2e can generate additional tags
     xml_files = group_per_tags(team_dir, additional_tags)
     for flags, files in xml_files.items():
         args = set_tags(owner, flavor, flags, additional_tags, files[0])
         args.extend(files)
-        processes.append(Popen(datadog_ci_command + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
+        yield args, process_env
 
-    for process in processes:
-        stdout, stderr = process.communicate()
-        print(stdout)
-        print(f" Uploaded {len(tuple(team_dir.iterdir()))} files for {team_dir.name}")
-        if stderr:
-            print(f"Failed uploading junit:\n{stderr.decode()}", file=sys.stderr)
-            raise CalledProcessError(process.returncode, datadog_ci_command)
-    return ""  # For ThreadPoolExecutor.map. Without this it prints None in the log output.
+
+def _execute_with_specific_temp_dir(args, env):
+    """
+    Execute the given command with TEMP, TMP and TMPDIR set to a fresh temporary directory, deleted after execution.
+
+    This ensures that temporary files are isolated, since most runtimes (Python, Node.js, etc.) use some of these well
+    known environment variables to determine where to write - which applies to `tempfile.TemporaryDirectory` used here.
+    """
+    with tempfile.TemporaryDirectory(prefix="junit-upload-") as tmp_dir:
+        return check_call(args, env=env | {"TEMP": tmp_dir, "TMP": tmp_dir, "TMPDIR": tmp_dir})
 
 
 def group_per_tags(team_dir: Path, additional_tags: list):

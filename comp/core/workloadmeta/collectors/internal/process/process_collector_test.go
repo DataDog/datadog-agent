@@ -18,7 +18,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/benbjohnson/clock"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -46,6 +48,598 @@ type collectorTest struct {
 	mockContainerProvider *proccontainers.MockContainerProvider
 }
 
+// TestBasicCreatedProcessesCollection tests the collector capturing new processes without language + container data
+func TestBasicCreatedProcessesCollection(t *testing.T) {
+	collectionInterval := time.Second * 10
+	configOverrides := map[string]interface{}{
+		"process_config.process_collection.enabled": true,
+		"process_config.process_collection.use_wlm": true,
+		"process_config.intervals.process":          10,
+	}
+
+	creationTime1 := time.Now().Unix()
+	pid1 := int32(1234)
+	proc1 := createTestPythonProcess(pid1, creationTime1)
+
+	creationTime2 := time.Now().Add(time.Second).Unix()
+	pid2 := int32(9999)
+	proc2 := createTestJavaProcess(pid2, creationTime2)
+
+	creationTime3 := time.Now().Add(time.Second).Unix()
+	pid3 := int32(3333)
+	proc3 := createTestUnknownProcess(pid3, creationTime3)
+
+	for _, tc := range []struct {
+		description        string
+		processesToCollect map[int32]*procutil.Process
+		expectedProcesses  map[int32]*workloadmeta.Process
+	}{
+		{
+			description: "single new python process",
+			processesToCollect: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+			},
+			expectedProcesses: map[int32]*workloadmeta.Process{
+				proc1.Pid: workloadmetaProcess(proc1, nil, nil),
+			},
+		},
+		{
+			description: "multiple new processes",
+			processesToCollect: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+				proc3.Pid: proc3,
+			},
+			expectedProcesses: map[int32]*workloadmeta.Process{
+				proc1.Pid: workloadmetaProcess(proc1, nil, nil),
+				proc2.Pid: workloadmetaProcess(proc2, nil, nil),
+				proc3.Pid: workloadmetaProcess(proc3, nil, nil),
+			},
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			c := setUpCollectorTest(t, configOverrides, nil, nil)
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			// start execution
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
+
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+			// update clock to trigger processing
+			c.mockClock.Add(collectionInterval)
+
+			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+				for pid, expectedProc := range tc.expectedProcesses {
+					actualProc, err := c.mockStore.GetProcess(pid)
+					assert.NoError(cT, err)
+					assert.Equal(cT, expectedProc, actualProc)
+				}
+			}, time.Second, time.Millisecond*100)
+		})
+	}
+}
+
+// TestCreatedProcessesCollectionWithLanguages tests the collector capturing new processes with language data
+func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
+	collectionInterval := time.Second * 10
+	configOverrides := map[string]interface{}{
+		"process_config.process_collection.enabled": true,
+		"process_config.process_collection.use_wlm": true,
+		"process_config.intervals.process":          10,
+		"language_detection.enabled":                true,
+	}
+
+	creationTime1 := time.Now().Unix()
+	pid1 := int32(1234)
+	proc1 := createTestPythonProcess(pid1, creationTime1)
+
+	creationTime2 := time.Now().Add(time.Second).Unix()
+	pid2 := int32(9999)
+	proc2 := createTestJavaProcess(pid2, creationTime2)
+
+	creationTime3 := time.Now().Add(time.Second).Unix()
+	pid3 := int32(3333)
+	proc3 := createTestUnknownProcess(pid3, creationTime3)
+
+	for _, tc := range []struct {
+		description        string
+		processesToCollect map[int32]*procutil.Process
+		expectedProcesses  map[int32]*workloadmeta.Process
+	}{
+		{
+			description: "single new python process",
+			processesToCollect: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+			},
+			expectedProcesses: map[int32]*workloadmeta.Process{
+				proc1.Pid: workloadmetaProcess(proc1, &languagemodels.Language{
+					Name: languagemodels.Python,
+				}, nil),
+			},
+		},
+		{
+			description: "multiple new processes",
+			processesToCollect: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+				proc3.Pid: proc3,
+			},
+			expectedProcesses: map[int32]*workloadmeta.Process{
+				proc1.Pid: workloadmetaProcess(proc1, &languagemodels.Language{
+					Name: languagemodels.Python,
+				}, nil),
+				proc2.Pid: workloadmetaProcess(proc2, &languagemodels.Language{
+					Name: languagemodels.Java,
+				}, nil),
+				proc3.Pid: workloadmetaProcess(proc3, &languagemodels.Language{
+					Name: languagemodels.Unknown,
+				}, nil),
+			},
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			c := setUpCollectorTest(t, configOverrides, nil, nil)
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			// start execution
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
+
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+			// update clock to trigger processing
+			c.mockClock.Add(collectionInterval)
+
+			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+				for pid, expectedProc := range tc.expectedProcesses {
+					actualProc, err := c.mockStore.GetProcess(pid)
+					assert.NoError(cT, err)
+					assert.Equal(cT, expectedProc, actualProc)
+				}
+			}, time.Second, time.Millisecond*100)
+		})
+	}
+}
+
+// TestCreatedProcessesCollectionWithContainers tests the collector capturing new processes with container data
+func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
+	collectionInterval := time.Second * 10
+	configOverrides := map[string]interface{}{
+		"process_config.process_collection.enabled": true,
+		"process_config.process_collection.use_wlm": true,
+		"process_config.intervals.process":          10,
+	}
+
+	creationTime1 := time.Now().Unix()
+	pid1 := int32(1234)
+	proc1 := createTestPythonProcess(pid1, creationTime1)
+
+	creationTime2 := time.Now().Add(time.Second).Unix()
+	pid2 := int32(9999)
+	proc2 := createTestJavaProcess(pid2, creationTime2)
+
+	creationTime3 := time.Now().Add(time.Second * 2).Unix()
+	pid3 := int32(3333)
+	proc3 := createTestJavaProcess(pid3, creationTime3)
+
+	creationTime4 := time.Now().Add(time.Second * 3).Unix()
+	pid4 := int32(4444)
+	proc4 := createTestUnknownProcess(pid4, creationTime4)
+
+	for _, tc := range []struct {
+		description        string
+		processesToCollect map[int32]*procutil.Process
+		pidToCidToCollect  map[int]string
+		expectedProcesses  map[int32]*workloadmeta.Process
+	}{
+		{
+			description: "single new python process in a container",
+			processesToCollect: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+			},
+			pidToCidToCollect: map[int]string{
+				int(proc1.Pid): "some_container_id",
+			},
+			expectedProcesses: map[int32]*workloadmeta.Process{
+				proc1.Pid: workloadmetaProcess(proc1, nil,
+					&workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "some_container_id",
+					}),
+			},
+		},
+		{
+			description: "multiple new processes in containers",
+			processesToCollect: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+				proc3.Pid: proc3,
+				proc4.Pid: proc4,
+			},
+			pidToCidToCollect: map[int]string{
+				int(proc1.Pid): "some_container_id1",
+				int(proc2.Pid): "some_container_id2",
+				int(proc3.Pid): "some_container_id2",
+				int(proc4.Pid): "some_container_id4",
+			},
+			expectedProcesses: map[int32]*workloadmeta.Process{
+				proc1.Pid: workloadmetaProcess(proc1, nil,
+					&workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "some_container_id1",
+					}),
+				proc2.Pid: workloadmetaProcess(proc2, nil,
+					&workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "some_container_id2",
+					}),
+				proc3.Pid: workloadmetaProcess(proc3, nil,
+					&workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "some_container_id2",
+					}),
+				proc4.Pid: workloadmetaProcess(proc4, nil,
+					&workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "some_container_id4",
+					}),
+			},
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			c := setUpCollectorTest(t, configOverrides, nil, nil)
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			// start execution
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
+
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollect).Times(1)
+
+			// update clock to trigger processing
+			c.mockClock.Add(collectionInterval)
+			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+				for pid, expectedProc := range tc.expectedProcesses {
+					actualProc, err := c.mockStore.GetProcess(pid)
+					assert.NoError(cT, err)
+					assert.Equal(cT, expectedProc, actualProc)
+				}
+			}, time.Second, time.Millisecond*100)
+		})
+	}
+}
+
+// TestCreatedProcessesCollection tests the collector capturing lifecycle of a process (creation, deletion) with all types of data
+func TestProcessLifecycleCollection(t *testing.T) {
+	collectionInterval := time.Second * 10
+	configOverrides := map[string]interface{}{
+		"process_config.process_collection.enabled": true,
+		"process_config.process_collection.use_wlm": true,
+		"process_config.intervals.process":          10,
+		"language_detection.enabled":                true,
+	}
+	creationTime1 := time.Now().Unix()
+	pid1 := int32(1234)
+	proc1 := createTestPythonProcess(pid1, creationTime1)
+
+	creationTime2 := time.Now().Add(time.Second).Unix()
+	pid2 := int32(9999)
+	proc2 := createTestJavaProcess(pid2, creationTime2)
+
+	// same pid as proc1 but different creation time
+	proc3 := createTestPythonProcess(pid1, creationTime2)
+
+	// same pid as proc2 but different creation time and unknown language
+	creationTime3 := time.Now().Add(2 * time.Second).Unix()
+	proc4 := createTestUnknownProcess(pid2, creationTime3)
+
+	for _, tc := range []struct {
+		description              string
+		processesToCollectA      map[int32]*procutil.Process
+		pidToCidToCollectA       map[int]string
+		processesToCollectB      map[int32]*procutil.Process
+		pidToCidToCollectB       map[int]string
+		expectedDeletedProcesses []*workloadmeta.Process
+		expectedLiveProcesses    []*workloadmeta.Process
+	}{
+		{
+			description: "2 new processes and 1 finishes",
+			processesToCollectA: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+			},
+			processesToCollectB: map[int32]*procutil.Process{
+				proc2.Pid: proc2,
+			},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc1,
+					nil,
+					nil),
+			},
+			expectedLiveProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc2,
+					&languagemodels.Language{
+						Name: languagemodels.Java,
+					},
+					nil),
+			},
+		},
+		{
+			description: "2 new processes and 2 finishes",
+			processesToCollectA: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+			},
+			processesToCollectB:   map[int32]*procutil.Process{},
+			expectedLiveProcesses: []*workloadmeta.Process{},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc1, nil, nil),
+				workloadmetaProcess(proc2, nil, nil),
+			},
+		},
+		{
+			description: "2 new processes, 2 finish, but 2 new processes with the same pid",
+			processesToCollectA: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+			},
+			processesToCollectB: map[int32]*procutil.Process{
+				proc3.Pid: proc3,
+				proc4.Pid: proc4,
+			},
+			expectedLiveProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc3,
+					&languagemodels.Language{
+						Name: languagemodels.Python,
+					},
+					nil),
+				workloadmetaProcess(proc4,
+					&languagemodels.Language{
+						Name: languagemodels.Unknown,
+					}, nil),
+			},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc1, nil, nil),
+				workloadmetaProcess(proc2, nil, nil),
+			},
+		},
+		{
+			description: "2 new processes with containers, 2 finish, but 2 new processes with the same pid diff container",
+			processesToCollectA: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+			},
+			pidToCidToCollectA: map[int]string{
+				int(proc1.Pid): "container_id_1",
+				int(proc2.Pid): "container_id_2",
+			},
+			processesToCollectB: map[int32]*procutil.Process{
+				proc3.Pid: proc3,
+				proc4.Pid: proc4,
+			},
+			pidToCidToCollectB: map[int]string{
+				int(proc3.Pid): "container_id_3",
+				int(proc4.Pid): "container_id_4",
+			},
+			expectedLiveProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc3,
+					&languagemodels.Language{
+						Name: languagemodels.Python,
+					},
+					&workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "container_id_3",
+					}),
+				workloadmetaProcess(proc4,
+					&languagemodels.Language{
+						Name: languagemodels.Unknown,
+					},
+					&workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "container_id_4",
+					}),
+			},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				workloadmetaProcess(proc1, nil, nil),
+				workloadmetaProcess(proc2, nil, nil),
+			},
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			c := setUpCollectorTest(t, configOverrides, nil, nil)
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			// start execution
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.NoError(t, err)
+
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectA, nil).Times(1)
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollectA).Times(1)
+
+			// update clock to trigger processing
+			c.mockClock.Add(collectionInterval)
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectB, nil).Times(1)
+
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollectB).Times(1)
+			// update clock to trigger processing
+			c.mockClock.Add(collectionInterval)
+
+			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+				actualProcs := c.mockStore.ListProcesses()
+				mapActualProcs := make(map[int32]*workloadmeta.Process, len(actualProcs))
+				for _, proc := range actualProcs {
+					mapActualProcs[proc.Pid] = proc
+				}
+
+				for _, expectedLiveProc := range tc.expectedLiveProcesses {
+					actualProc, exists := mapActualProcs[expectedLiveProc.Pid]
+					assert.True(cT, exists)
+					assert.Equal(cT, expectedLiveProc, actualProc)
+				}
+
+				for _, expectedDeletedProc := range tc.expectedDeletedProcesses {
+					actualProc, exists := mapActualProcs[expectedDeletedProc.Pid]
+
+					// the same process pid can exist so we ensure it is a different process by checking the creation time
+					if exists {
+						assert.NotEqual(cT, expectedDeletedProc.CreationTime, actualProc.CreationTime)
+					}
+
+				}
+			}, time.Second, time.Millisecond*100)
+		})
+	}
+}
+
+func TestStartConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		description        string
+		configOverrides    map[string]interface{}
+		sysConfigOverrides map[string]interface{}
+		expectedError      error
+	}{
+		{
+			description: "everything enabled correctly",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: nil,
+		},
+		{
+			description: "only process collection enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			expectedError: nil,
+		},
+		{
+			description: "only service discovery enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: nil,
+		},
+		{
+			description: "only service discovery enabled but use_wlm gate disabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": false,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
+		},
+		{
+			description: "only process collection enabled but use_wlm gate disabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": false,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
+		},
+
+		{
+			description: "everything enabled but use_wlm gate disabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": true,
+				"process_config.process_collection.use_wlm": false,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
+		},
+		{
+			description: "use_wlm gate_enabled but process collection and service discovery not enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"process_config.process_collection.use_wlm": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			expectedError: errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled"),
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			c := setUpCollectorTest(t, tc.configOverrides, tc.sysConfigOverrides, nil)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			err := c.collector.Start(ctx, c.mockStore)
+			assert.Equal(t, tc.expectedError, err)
+			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
+			telemetry.GetCompatComponent().Reset()
+		})
+	}
+}
+
+func TestProcessCollectorIntervalConfig(t *testing.T) {
+	for _, tc := range []struct {
+		description      string
+		configOverrides  map[string]interface{}
+		expectedInterval time.Duration
+	}{
+		{
+			description:      "unconfigured defaults",
+			configOverrides:  nil,
+			expectedInterval: 10 * time.Second,
+		},
+		{
+			description: "shorter than default config",
+			configOverrides: map[string]interface{}{
+				"process_config.intervals.process": 5,
+			},
+			expectedInterval: 5 * time.Second,
+		},
+		{
+			description: "longer than default config but shorter than service discovery interval",
+			configOverrides: map[string]interface{}{
+				"process_config.intervals.process": 30,
+			},
+			expectedInterval: 30 * time.Second,
+		},
+		{
+			description: "longer than service discovery interval fallback to max interval",
+			configOverrides: map[string]interface{}{
+				"process_config.intervals.process": 61,
+			},
+			expectedInterval: 60 * time.Second,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			c := setUpCollectorTest(t, tc.configOverrides, nil, nil)
+			actualInterval := c.collector.processCollectionIntervalConfig()
+			assert.Equal(t, tc.expectedInterval, actualInterval)
+		})
+	}
+}
+
 func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}, sysProbeConfigOverrides map[string]interface{}, wlmConfigOverrides map[string]interface{}) collectorTest {
 	// mock workloadmeta store
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -63,19 +657,20 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}, sy
 	mockClock := clock.NewMock()
 	mockProbe := mocks.NewProbe(t)
 
-	// mock config
+	// mock configOverrides
 	mockConfig := fxutil.Test[config.Component](t, fx.Options(
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: configOverrides}),
 	))
 
-	// mock language detection system probe config
+	// mock language detection system probe configOverrides
 	mockSystemProbeConfig := fxutil.Test[sysprobeconfig.Component](t, fx.Options(
 		sysprobeconfigimpl.MockModule(),
-		fx.Replace(config.MockParams{Overrides: sysProbeConfigOverrides}),
+		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysProbeConfigOverrides}),
 	))
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, mockConfig, mockSystemProbeConfig)
 	processCollector.sysProbeClient = &http.Client{}
+	processCollector.containerProvider = mockContainerProvider
 
 	return collectorTest{&processCollector, mockProbe, mockConfig, mockSystemProbeConfig, mockClock, mockStore, mockContainerProvider}
 }
@@ -166,462 +761,4 @@ func workloadmetaProcess(proc *procutil.Process, language *languagemodels.Langua
 		Owner:        owner,
 	}
 	return wlmProc
-}
-
-// TestBasicCreatedProcessesCollection tests the collector capturing new processes without language + container data
-func TestBasicCreatedProcessesCollection(t *testing.T) {
-	collectionInterval := time.Second * 10
-
-	creationTime1 := time.Now().Unix()
-	pid1 := int32(1234)
-	proc1 := createTestPythonProcess(pid1, creationTime1)
-
-	creationTime2 := time.Now().Add(time.Second).Unix()
-	pid2 := int32(9999)
-	proc2 := createTestJavaProcess(pid2, creationTime2)
-
-	creationTime3 := time.Now().Add(time.Second).Unix()
-	pid3 := int32(3333)
-	proc3 := createTestUnknownProcess(pid3, creationTime3)
-
-	for _, tc := range []struct {
-		description        string
-		processesToCollect map[int32]*procutil.Process
-		expectedProcesses  map[int32]*workloadmeta.Process
-	}{
-		{
-			description: "single new python process",
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1, nil, nil),
-			},
-		},
-		{
-			description: "multiple new processes",
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-				proc3.Pid: proc3,
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1, nil, nil),
-				proc2.Pid: workloadmetaProcess(proc2, nil, nil),
-				proc3.Pid: workloadmetaProcess(proc3, nil, nil),
-			},
-		},
-	} {
-		t.Run(tc.description, func(t *testing.T) {
-			c := setUpCollectorTest(t, nil, nil, nil)
-			ctx, cancel := context.WithCancel(context.TODO())
-			defer cancel()
-
-			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
-			// by default disabled
-			c.collector.containerProvider = c.mockContainerProvider
-			c.collector.store = c.mockStore
-			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
-			go c.collector.stream(ctx)
-
-			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
-			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
-
-			// update clock to trigger processing
-			c.mockClock.Add(collectionInterval)
-
-			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-				for pid, expectedProc := range tc.expectedProcesses {
-					actualProc, err := c.mockStore.GetProcess(pid)
-					assert.NoError(cT, err)
-					assert.Equal(cT, expectedProc, actualProc)
-				}
-			}, time.Second, time.Millisecond*100)
-		})
-	}
-}
-
-// TestCreatedProcessesCollectionWithLanguages tests the collector capturing new processes with language data
-func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
-	collectionInterval := time.Second * 10
-	configEnableLanguageDetection := map[string]interface{}{
-		"language_detection.enabled": true,
-	}
-
-	creationTime1 := time.Now().Unix()
-	pid1 := int32(1234)
-	proc1 := createTestPythonProcess(pid1, creationTime1)
-
-	creationTime2 := time.Now().Add(time.Second).Unix()
-	pid2 := int32(9999)
-	proc2 := createTestJavaProcess(pid2, creationTime2)
-
-	creationTime3 := time.Now().Add(time.Second).Unix()
-	pid3 := int32(3333)
-	proc3 := createTestUnknownProcess(pid3, creationTime3)
-
-	for _, tc := range []struct {
-		description        string
-		configOverrides    map[string]interface{}
-		processesToCollect map[int32]*procutil.Process
-		expectedProcesses  map[int32]*workloadmeta.Process
-	}{
-		{
-			description:     "single new python process",
-			configOverrides: configEnableLanguageDetection,
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1, &languagemodels.Language{
-					Name: languagemodels.Python,
-				}, nil),
-			},
-		},
-		{
-			description:     "multiple new processes",
-			configOverrides: configEnableLanguageDetection,
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-				proc3.Pid: proc3,
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1, &languagemodels.Language{
-					Name: languagemodels.Python,
-				}, nil),
-				proc2.Pid: workloadmetaProcess(proc2, &languagemodels.Language{
-					Name: languagemodels.Java,
-				}, nil),
-				proc3.Pid: workloadmetaProcess(proc3, &languagemodels.Language{
-					Name: languagemodels.Unknown,
-				}, nil),
-			},
-		},
-	} {
-		t.Run(tc.description, func(t *testing.T) {
-			c := setUpCollectorTest(t, tc.configOverrides, nil, nil)
-			ctx, cancel := context.WithCancel(context.TODO())
-			defer cancel()
-
-			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
-			// by default disabled
-			c.collector.containerProvider = c.mockContainerProvider
-			c.collector.store = c.mockStore
-			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
-			go c.collector.stream(ctx)
-
-			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
-			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
-
-			// update clock to trigger processing
-			c.mockClock.Add(collectionInterval)
-
-			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-				for pid, expectedProc := range tc.expectedProcesses {
-					actualProc, err := c.mockStore.GetProcess(pid)
-					assert.NoError(cT, err)
-					assert.Equal(cT, expectedProc, actualProc)
-				}
-			}, time.Second, time.Millisecond*100)
-		})
-	}
-}
-
-// TestCreatedProcessesCollectionWithContainers tests the collector capturing new processes with container data
-func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
-	collectionInterval := time.Second * 10
-
-	creationTime1 := time.Now().Unix()
-	pid1 := int32(1234)
-	proc1 := createTestPythonProcess(pid1, creationTime1)
-
-	creationTime2 := time.Now().Add(time.Second).Unix()
-	pid2 := int32(9999)
-	proc2 := createTestJavaProcess(pid2, creationTime2)
-
-	creationTime3 := time.Now().Add(time.Second * 2).Unix()
-	pid3 := int32(3333)
-	proc3 := createTestJavaProcess(pid3, creationTime3)
-
-	creationTime4 := time.Now().Add(time.Second * 3).Unix()
-	pid4 := int32(4444)
-	proc4 := createTestUnknownProcess(pid4, creationTime4)
-
-	for _, tc := range []struct {
-		description        string
-		processesToCollect map[int32]*procutil.Process
-		pidToCidToCollect  map[int]string
-		expectedProcesses  map[int32]*workloadmeta.Process
-	}{
-		{
-			description: "single new python process in a container",
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-			},
-			pidToCidToCollect: map[int]string{
-				int(proc1.Pid): "some_container_id",
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1, nil,
-					&workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   "some_container_id",
-					}),
-			},
-		},
-		{
-			description: "multiple new processes in containers",
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-				proc3.Pid: proc3,
-				proc4.Pid: proc4,
-			},
-			pidToCidToCollect: map[int]string{
-				int(proc1.Pid): "some_container_id1",
-				int(proc2.Pid): "some_container_id2",
-				int(proc3.Pid): "some_container_id2",
-				int(proc4.Pid): "some_container_id4",
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1, nil,
-					&workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   "some_container_id1",
-					}),
-				proc2.Pid: workloadmetaProcess(proc2, nil,
-					&workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   "some_container_id2",
-					}),
-				proc3.Pid: workloadmetaProcess(proc3, nil,
-					&workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   "some_container_id2",
-					}),
-				proc4.Pid: workloadmetaProcess(proc4, nil,
-					&workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   "some_container_id4",
-					}),
-			},
-		},
-	} {
-		t.Run(tc.description, func(t *testing.T) {
-			c := setUpCollectorTest(t, nil, nil, nil)
-			ctx, cancel := context.WithCancel(context.TODO())
-			defer cancel()
-
-			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
-			// by default disabled
-			c.collector.containerProvider = c.mockContainerProvider
-			c.collector.store = c.mockStore
-			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
-			go c.collector.stream(ctx)
-
-			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
-
-			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollect).Times(1)
-
-			// update clock to trigger processing
-			c.mockClock.Add(collectionInterval)
-
-			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-				for pid, expectedProc := range tc.expectedProcesses {
-					actualProc, err := c.mockStore.GetProcess(pid)
-					assert.NoError(cT, err)
-					assert.Equal(cT, expectedProc, actualProc)
-				}
-			}, time.Second, time.Millisecond*100)
-		})
-	}
-}
-
-// TestCreatedProcessesCollection tests the collector capturing lifecycle of a process (creation, deletion) with all types of data
-func TestProcessLifecycleCollection(t *testing.T) {
-	collectionInterval := time.Second * 10
-	configEnableLanguageDetection := map[string]interface{}{
-		"language_detection.enabled": true,
-	}
-	creationTime1 := time.Now().Unix()
-	pid1 := int32(1234)
-	proc1 := createTestPythonProcess(pid1, creationTime1)
-
-	creationTime2 := time.Now().Add(time.Second).Unix()
-	pid2 := int32(9999)
-	proc2 := createTestJavaProcess(pid2, creationTime2)
-
-	// same pid as proc1 but different creation time
-	proc3 := createTestPythonProcess(pid1, creationTime2)
-
-	// same pid as proc2 but different creation time and unknown language
-	creationTime3 := time.Now().Add(2 * time.Second).Unix()
-	proc4 := createTestUnknownProcess(pid2, creationTime3)
-
-	for _, tc := range []struct {
-		description              string
-		configOverrides          map[string]interface{}
-		processesToCollectA      map[int32]*procutil.Process
-		pidToCidToCollectA       map[int]string
-		processesToCollectB      map[int32]*procutil.Process
-		pidToCidToCollectB       map[int]string
-		expectedDeletedProcesses []*workloadmeta.Process
-		expectedLiveProcesses    []*workloadmeta.Process
-	}{
-		{
-			description:     "2 new processes and 1 finishes",
-			configOverrides: configEnableLanguageDetection,
-			processesToCollectA: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-			},
-			processesToCollectB: map[int32]*procutil.Process{
-				proc2.Pid: proc2,
-			},
-			expectedDeletedProcesses: []*workloadmeta.Process{
-				workloadmetaProcess(proc1,
-					nil,
-					nil),
-			},
-			expectedLiveProcesses: []*workloadmeta.Process{
-				workloadmetaProcess(proc2,
-					&languagemodels.Language{
-						Name: languagemodels.Java,
-					},
-					nil),
-			},
-		},
-		{
-			description:     "2 new processes and 2 finishes",
-			configOverrides: configEnableLanguageDetection,
-			processesToCollectA: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-			},
-			processesToCollectB:   map[int32]*procutil.Process{},
-			expectedLiveProcesses: []*workloadmeta.Process{},
-			expectedDeletedProcesses: []*workloadmeta.Process{
-				workloadmetaProcess(proc1, nil, nil),
-				workloadmetaProcess(proc2, nil, nil),
-			},
-		},
-		{
-			description:     "2 new processes, 2 finish, but 2 new processes with the same pid",
-			configOverrides: configEnableLanguageDetection,
-			processesToCollectA: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-			},
-			processesToCollectB: map[int32]*procutil.Process{
-				proc3.Pid: proc3,
-				proc4.Pid: proc4,
-			},
-			expectedLiveProcesses: []*workloadmeta.Process{
-				workloadmetaProcess(proc3,
-					&languagemodels.Language{
-						Name: languagemodels.Python,
-					},
-					nil),
-				workloadmetaProcess(proc4,
-					&languagemodels.Language{
-						Name: languagemodels.Unknown,
-					}, nil),
-			},
-			expectedDeletedProcesses: []*workloadmeta.Process{
-				workloadmetaProcess(proc1, nil, nil),
-				workloadmetaProcess(proc2, nil, nil),
-			},
-		},
-		{
-			description:     "2 new processes with containers, 2 finish, but 2 new processes with the same pid diff container",
-			configOverrides: configEnableLanguageDetection,
-			processesToCollectA: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-			},
-			pidToCidToCollectA: map[int]string{
-				int(proc1.Pid): "container_id_1",
-				int(proc2.Pid): "container_id_2",
-			},
-			processesToCollectB: map[int32]*procutil.Process{
-				proc3.Pid: proc3,
-				proc4.Pid: proc4,
-			},
-			pidToCidToCollectB: map[int]string{
-				int(proc3.Pid): "container_id_3",
-				int(proc4.Pid): "container_id_4",
-			},
-			expectedLiveProcesses: []*workloadmeta.Process{
-				workloadmetaProcess(proc3,
-					&languagemodels.Language{
-						Name: languagemodels.Python,
-					},
-					&workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   "container_id_3",
-					}),
-				workloadmetaProcess(proc4,
-					&languagemodels.Language{
-						Name: languagemodels.Unknown,
-					},
-					&workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   "container_id_4",
-					}),
-			},
-			expectedDeletedProcesses: []*workloadmeta.Process{
-				workloadmetaProcess(proc1, nil, nil),
-				workloadmetaProcess(proc2, nil, nil),
-			},
-		},
-	} {
-		t.Run(tc.description, func(t *testing.T) {
-			c := setUpCollectorTest(t, tc.configOverrides, nil, nil)
-			ctx, cancel := context.WithCancel(context.TODO())
-			defer cancel()
-
-			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
-			// by default disabled
-			c.collector.containerProvider = c.mockContainerProvider
-			c.collector.store = c.mockStore
-			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
-			go c.collector.stream(ctx)
-
-			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectA, nil).Times(1)
-			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollectA).Times(1)
-
-			// update clock to trigger processing
-			c.mockClock.Add(collectionInterval)
-			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectB, nil).Times(1)
-
-			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(tc.pidToCidToCollectB).Times(1)
-			// update clock to trigger processing
-			c.mockClock.Add(collectionInterval)
-
-			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-				actualProcs := c.mockStore.ListProcesses()
-				mapActualProcs := make(map[int32]*workloadmeta.Process, len(actualProcs))
-				for _, proc := range actualProcs {
-					mapActualProcs[proc.Pid] = proc
-				}
-
-				for _, expectedLiveProc := range tc.expectedLiveProcesses {
-					actualProc, exists := mapActualProcs[expectedLiveProc.Pid]
-					assert.True(cT, exists)
-					assert.Equal(cT, expectedLiveProc, actualProc)
-				}
-
-				for _, expectedDeletedProc := range tc.expectedDeletedProcesses {
-					actualProc, exists := mapActualProcs[expectedDeletedProc.Pid]
-
-					// the same process pid can exist so we ensure it is a different process by checking the creation time
-					if exists {
-						assert.NotEqual(cT, expectedDeletedProc.CreationTime, actualProc.CreationTime)
-					}
-
-				}
-			}, time.Second, time.Millisecond*100)
-		})
-	}
 }

@@ -24,7 +24,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -233,6 +233,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	setupAPM,
 	OTLP,
 	setupMultiRegionFailover,
+	setupPreaggregation,
 	telemetry,
 	autoconfig,
 	remoteconfig,
@@ -289,6 +290,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
+	config.BindEnvAndSetDefault("collect_ccrid", true)
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
@@ -567,6 +569,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // 4 MB
+	// Enable TLS verification for Agent cross-node communications (NodeAgent->DCA / CLC->DCA / DCA->CLC).
+	config.BindEnvAndSetDefault("cluster_agent.enable_tls_verification", false)
 	// the entity id, typically set by dca admisson controller config mutator, used for external origin detection
 	config.SetKnown("entity_id")
 
@@ -618,8 +622,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// GPU
 	config.BindEnvAndSetDefault("collect_gpu_tags", true)
-	config.BindEnvAndSetDefault("nvml_lib_path", "")
-	config.BindEnvAndSetDefault("enable_nvml_detection", false)
+	config.BindEnvAndSetDefault("gpu.enabled", false)
+	config.BindEnvAndSetDefault("gpu.nvml_lib_path", "")
+	config.BindEnvAndSetDefault("gpu.use_sp_process_metrics", false)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -904,6 +909,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
 	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
+	config.BindEnvAndSetDefault("sbom.container_image.additional_directories", []string{})
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)
@@ -911,6 +917,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Host SBOM configuration
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("sbom.host.additional_directories", []string{})
 
 	// Service discovery configuration
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
@@ -1096,6 +1103,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
+	config.BindEnvAndSetDefault("remote_agent_registry.config_stream_retry_interval", time.Duration(1*time.Second))
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1178,6 +1186,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
+
+	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
