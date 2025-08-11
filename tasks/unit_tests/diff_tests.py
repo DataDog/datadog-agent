@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, patch
 from tasks.libs.common.diff import diff
 
 
+# TODO(incident-41849): re-enable this test once macOS runners are back up
+@unittest.SkipTest
 class TestDiff(unittest.TestCase):
     @patch('os.stat')
     @patch('os.path.islink')
