@@ -14,8 +14,6 @@ import (
 
 // Component is the component interface for clusterchecks metadata
 type Component interface {
-	// SetClusterHandler sets the cluster checks handler for collecting cluster check metadata
-	SetClusterHandler(handler interface{})
 	// WritePayloadAsJSON writes the cluster checks payload as JSON to HTTP response
 	WritePayloadAsJSON(w http.ResponseWriter, r *http.Request)
 }
