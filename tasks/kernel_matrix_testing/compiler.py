@@ -54,10 +54,14 @@ class CompilerImage:
         return f"kmt-compiler-{self.arch.name}"
 
     @property
-    def image(self):
+    def expected_image_name(self):
         suffix, version = get_build_image_suffix_and_version()
 
         return f"registry.ddbuild.io/ci/datadog-agent-buildimages/linux{suffix}:{version}"
+
+    @property
+    def running_image_name(self):
+        return get_docker_image_name(self.ctx, self.name)
 
     def _check_container_exists(self, allow_stopped=False):
         if self.ctx.config.run["dry"]:
@@ -130,9 +134,11 @@ class CompilerImage:
         if not self.is_loaded:
             return  # Nothing to do if the container is not loaded
 
-        image_used = get_docker_image_name(self.ctx, self.name)
-        if image_used != self.image:
-            warn(f"[!] Running compiler image {image_used} is different from the expected {self.image}, will restart")
+        image_used = self.running_image_name
+        if image_used != self.expected_image_name:
+            warn(
+                f"[!] Running compiler image {image_used} is different from the expected {self.expected_image_name}, will restart"
+            )
             self.start()
 
     def ensure_in_git_repo(self):
@@ -188,10 +194,10 @@ class CompilerImage:
         self.ensure_in_git_repo()
 
         # Check if the image exists
-        res = self.ctx.run(f"docker image inspect {self.image}", hide=True, warn=True)
+        res = self.ctx.run(f"docker image inspect {self.expected_image_name}", hide=True, warn=True)
         if res is None or not res.ok:
-            info(f"[!] Image {self.image} not found, pulling...")
-            self.ctx.run(f"docker pull {self.image}")
+            info(f"[!] Image {self.expected_image_name} not found, pulling...")
+            self.ctx.run(f"docker pull {self.expected_image_name}")
 
         platform = ""
         if self.arch != Arch.local():
@@ -199,7 +205,7 @@ class CompilerImage:
         res = self.ctx.run(
             f"docker run {platform} -d --restart always --name {self.name} "
             f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH} "
-            f"{self.image} sleep \"infinity\"",
+            f"{self.expected_image_name} sleep \"infinity\"",
             warn=True,
         )
         if res is None or not res.ok:
@@ -280,7 +286,7 @@ class CompilerImage:
         )
 
         info(
-            f"[*] Compiler image {self.name} for {self.arch} started, image {self.image}, compiler user '{self.compiler_user}'"
+            f"[*] Compiler image {self.name} for {self.arch} started, image {self.expected_image_name}, compiler user '{self.compiler_user}'"
         )
 
 
