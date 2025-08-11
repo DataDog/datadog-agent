@@ -18,4 +18,3 @@ type Component interface {
 	// Returns nil if payload modification is not enabled
 	GetModifier() pkgagent.TracerPayloadModifier
 }
-

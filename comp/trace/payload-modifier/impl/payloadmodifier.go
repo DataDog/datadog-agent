@@ -55,4 +55,3 @@ func NewComponent(deps Dependencies) Provides {
 func (c *component) GetModifier() pkgagent.TracerPayloadModifier {
 	return c.modifier
 }
-
