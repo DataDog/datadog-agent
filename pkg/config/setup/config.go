@@ -124,8 +124,13 @@ const (
 
 var (
 	// datadog is the global configuration object
-	datadog     pkgconfigmodel.BuildableConfig
-	systemProbe pkgconfigmodel.BuildableConfig
+	// NOTE: The constructor `create.New` returns a `model.BuildableConfig`, which is the
+	// most general interface for the methods implemented by these types. However, we store
+	// them as `model.Config` because that is what the global `Datadog()` accessor returns.
+	// Keeping these types aligned signficantly reduces the compiled size of this binary.
+	// See https://datadoghq.atlassian.net/wiki/spaces/ACFG/pages/5386798973/Datadog+global+accessor+PR+size+increase
+	datadog     pkgconfigmodel.Config
+	systemProbe pkgconfigmodel.Config
 
 	datadogMutex     = sync.RWMutex{}
 	systemProbeMutex = sync.RWMutex{}
@@ -259,7 +264,7 @@ func init() {
 	// Configuration defaults
 	initConfig()
 
-	datadog.BuildSchema()
+	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.

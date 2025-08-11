@@ -29,12 +29,12 @@ func SystemProbe() pkgconfigmodel.Config {
 func GlobalConfigBuilder() pkgconfigmodel.BuildableConfig {
 	datadogMutex.RLock()
 	defer datadogMutex.RUnlock()
-	return datadog
+	return datadog.(pkgconfigmodel.BuildableConfig)
 }
 
 // GlobalSystemProbeConfigBuilder returns a builder for the system probe config
 func GlobalSystemProbeConfigBuilder() pkgconfigmodel.BuildableConfig {
 	systemProbeMutex.RLock()
 	defer systemProbeMutex.RUnlock()
-	return systemProbe
+	return systemProbe.(pkgconfigmodel.BuildableConfig)
 }
