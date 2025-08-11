@@ -7,6 +7,8 @@
 package payloadmodifierimpl
 
 import (
+	"go.uber.org/fx"
+
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	payloadmodifier "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/def"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
@@ -17,6 +19,8 @@ import (
 
 // Dependencies holds the dependencies for the payload modifier component
 type Dependencies struct {
+	fx.In
+
 	Config coreconfig.Component
 }
 
