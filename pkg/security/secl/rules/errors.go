@@ -9,7 +9,6 @@ package rules
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -48,15 +47,6 @@ var (
 	// ErrPolicyIsEmpty is returned when a policy has no rules or macros
 	ErrPolicyIsEmpty = errors.New("the policy is empty")
 )
-
-// ErrNoApprover is returned when no approver was found for a set of rules
-type ErrNoApprover struct {
-	Fields []string
-}
-
-func (e ErrNoApprover) Error() string {
-	return fmt.Sprintf("no approver for fields `%s`", strings.Join(e.Fields, ", "))
-}
 
 // ErrNoEventTypeBucket is returned when no bucket could be found for an event type
 type ErrNoEventTypeBucket struct {
