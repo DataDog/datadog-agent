@@ -58,10 +58,11 @@ func TestPytorchBatchedKernels(t *testing.T) {
 
 	// Have generous limits to avoid any eviction/rejection of data, as we're just testing without
 	// actually having the consumers running.
-	cfg.MaxKernelLaunchesPerStream = len(events.Events)
-	cfg.MaxMemAllocEventsPerStream = len(events.Events)
-	cfg.MaxPendingKernelSpans = len(events.Events)
-	cfg.MaxPendingMemorySpans = len(events.Events)
+	cfg.StreamConfig.MaxKernelLaunches = len(events.Events)
+	cfg.StreamConfig.MaxMemAllocEvents = len(events.Events)
+	cfg.StreamConfig.MaxPendingKernelSpans = len(events.Events)
+	cfg.StreamConfig.MaxPendingMemorySpans = len(events.Events)
+	cfg.StreamConfig.MaxActiveStreams = 1000
 
 	handlers := newStreamCollection(ctx, telemetryMock, cfg)
 	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, telemetryMock)

@@ -474,6 +474,70 @@ const GetLinkStatusMetrics = `
     ]
 }`
 
+// GetSLAMetricsPage1 - First page of SLA metrics for pagination testing
+const GetSLAMetricsPage1 = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 4,
+    "iTotalRecords": 4,
+    "aaData": [
+        [
+            "test-branch-1,test-branch-2,INET,INET,best-effort",
+            "test-branch-1",
+            "test-branch-2",
+            "INET",
+            "INET",
+            "best-effort",
+            120.5,
+            1.2,
+            1.1,
+            0.001,
+            0.002,
+            0.0015
+        ],
+        [
+            "test-branch-1,test-branch-3,MPLS,MPLS,real-time",
+            "test-branch-1",
+            "test-branch-3",
+            "MPLS",
+            "MPLS",
+            "real-time",
+            95.3,
+            0.8,
+            0.9,
+            0.0005,
+            0.0008,
+            0.00065
+        ]
+    ]
+}`
+
+// GetSLAMetricsPage2 - Second page of SLA metrics for pagination testing
+const GetSLAMetricsPage2 = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 4,
+    "iTotalRecords": 4,
+    "aaData": [
+        [
+            "test-branch-2,test-branch-4,INET,MPLS,best-effort",
+            "test-branch-2",
+            "test-branch-4",
+            "INET",
+            "MPLS",
+            "best-effort",
+            110.7,
+            1.5,
+            1.3,
+            0.002,
+            0.003,
+            0.0025
+        ]
+    ]
+}`
+
 // GetApplicationsByApplianceMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
 const GetApplicationsByApplianceMetrics = `
 {
@@ -536,4 +600,84 @@ const GetTunnelMetrics = `
             12345.0
         ]
     ]
-}`
+}
+`
+
+// GetPathQoSMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetPathQoSMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,test-branch-2C",
+            "test-branch-2B",
+			"test-branch-2C",
+            1000.0,
+            50.0,
+            2000.0,
+            25.0,
+            1500.0,
+            75.0,
+            500.0,
+            10.0,
+            8000000.0,
+            16000000.0,
+            12000000.0,
+            4000000.0,
+            5000.0,
+            160.0,
+            3.2,
+            40000000.0
+        ]
+    ]
+}
+`
+
+// GetDIAMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetDIAMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,DIA-1,192.168.1.1",
+            "test-branch-2B",
+            "DIA-1",
+            "192.168.1.1",
+            15000.0,
+            12000.0,
+            150000.0,
+            120000.0
+        ]
+    ]
+}
+`
+
+// GetSiteMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetSiteMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B",
+            "123 Main St, Anytown, USA",
+            "40.7128",
+            "-74.0060",
+            "GPS",
+            15000.0,
+            12000.0,
+            150000.0,
+            120000.0,
+            99.5
+        ]
+    ]
+}
+`

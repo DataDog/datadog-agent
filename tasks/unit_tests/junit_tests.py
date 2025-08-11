@@ -123,6 +123,17 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         )
         mock_check_call.assert_called()
         self.assertEqual(mock_check_call.call_count, 29)
+        tmp_dir_vars = ("TEMP", "TMP", "TMPDIR")
+        seen_tmp_dirs = set()
+        for _, kwargs in mock_check_call.call_args_list:
+            env = kwargs["env"]
+            for k in tmp_dir_vars:
+                self.assertIn(k, env)
+            last_tmp_dir = env[tmp_dir_vars[-1]]
+            self.assertDictEqual({k: env[k] for k in tmp_dir_vars}, {k: last_tmp_dir for k in tmp_dir_vars})
+            self.assertNotIn(last_tmp_dir, seen_tmp_dirs)
+            self.assertFalse(Path(last_tmp_dir).exists())
+            seen_tmp_dirs.add(last_tmp_dir)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
     @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "beer"})
@@ -144,3 +155,5 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         self.assertEqual(mock_check_call.call_count, 29)
         self.assertEqual(eg.exception.message, "14 junit uploads failed")
         self.assertEqual(len(eg.exception.exceptions), 14)
+        for _, kwargs in mock_check_call.call_args_list:
+            self.assertFalse(Path(kwargs["env"]["TMPDIR"]).exists())

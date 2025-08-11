@@ -26,8 +26,8 @@ import (
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
@@ -86,7 +86,7 @@ func main() {
 		coreconfig.Module(),
 		logscompressionfx.Module(),
 		fx.Supply(secrets.NewEnabledParams()),
-		secretsimpl.Module(),
+		secretsfx.Module(),
 		fx.Provide(func(secrets secrets.Component) option.Option[secrets.Component] { return option.New(secrets) }),
 		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "off", true)),
 		logfx.Module(),
@@ -153,7 +153,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
 
-	metricAgent := setupMetricAgent(tags, tagger)
+	metricAgent := setupMetricAgent(tags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
 	metric.Add(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource(), *metricAgent)
 
@@ -197,7 +197,7 @@ func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.
 	return traceAgent
 }
 
-func setupMetricAgent(tags map[string]string, tagger tagger.Component) *metrics.ServerlessMetricAgent {
+func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *metrics.ServerlessMetricAgent {
 	pkgconfigsetup.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
@@ -207,7 +207,7 @@ func setupMetricAgent(tags map[string]string, tagger tagger.Component) *metrics.
 	}
 	// we don't want to add certain tags to metrics for cardinality reasons
 	tags = serverlessInitTag.WithoutHighCardinalityTags(tags)
-	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer)
 	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags))
 	return metricAgent
 }

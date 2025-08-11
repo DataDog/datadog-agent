@@ -42,6 +42,7 @@ def _run_calls_to_string(mock_calls):
         'S3_OMNIBUS_GIT_CACHE_BUCKET': 'omnibus-cache',
         'API_KEY_ORG2': 'api-key',
         'AGENT_API_KEY_ORG2': 'agent-api-key',
+        'POD_NAMESPACE': os.environ.get('POD_NAMESPACE', 'gitlab-runner'),
     },
     clear=True,
 )

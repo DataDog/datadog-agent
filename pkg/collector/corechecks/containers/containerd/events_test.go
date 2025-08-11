@@ -22,13 +22,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 const testTimeout = 2 * time.Second
@@ -288,16 +288,18 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 // TestComputeEvents checks the conversion of Containerd events to Datadog events
 func TestComputeEvents(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_exclude", "image:dd-agent")
+	mockConfig.SetWithoutSource("container_exclude_metrics", "image:dd-metric-exclude")
+	mockConfig.SetWithoutSource("container_exclude_logs", "image:dd-log-exclude") // shouldn't be used
+	fakeFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 	containerdCheck := &ContainerdCheck{
-		instance:  &ContainerdConfig{},
-		CheckBase: corechecks.NewCheckBase("containerd"),
-		tagger:    fakeTagger,
+		instance:    &ContainerdConfig{},
+		CheckBase:   corechecks.NewCheckBase("containerd"),
+		filterStore: fakeFilterStore,
+		tagger:      fakeTagger,
 	}
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
-	var err error
-	defer containers.ResetSharedFilter()
-	containerdCheck.containerFilter, err = containers.GetSharedMetricFilter()
-	require.NoError(t, err)
 
 	tests := []struct {
 		name          string
@@ -357,7 +359,7 @@ func TestComputeEvents(t *testing.T) {
 			numberEvents:  1,
 		},
 		{
-			name: "Filtered event",
+			name: "Filtered event paused container",
 			events: []containerdEvent{
 				{
 					Topic:     "/images/create",
@@ -371,10 +373,55 @@ func TestComputeEvents(t *testing.T) {
 			expectedTags:  nil,
 			numberEvents:  0,
 		},
+		{
+			name: "Filtered event ID via container_exclude",
+			events: []containerdEvent{
+				{
+					Topic:     "/images/create",
+					Timestamp: time.Now(),
+					Extra:     map[string]string{},
+					Message:   "Container 123-dd-agent-123 created",
+					ID:        "123-dd-agent-123",
+				},
+			},
+			expectedTitle: "Event on images from Containerd",
+			expectedTags:  nil,
+			numberEvents:  0,
+		},
+		{
+			name: "Filtered event ID via container_exclude_metrics",
+			events: []containerdEvent{
+				{
+					Topic:     "/images/create",
+					Timestamp: time.Now(),
+					Extra:     map[string]string{},
+					Message:   "Container dd-metric-exclude created",
+					ID:        "dd-metric-exclude",
+				},
+			},
+			expectedTitle: "Event on images from Containerd",
+			expectedTags:  nil,
+			numberEvents:  0,
+		},
+		{
+			name: "Filtered event ID via container_exclude",
+			events: []containerdEvent{
+				{
+					Topic:     "/images/create",
+					Timestamp: time.Now(),
+					Extra:     map[string]string{},
+					Message:   "Container dd-log-exclude created",
+					ID:        "dd-log-exclude",
+				},
+			},
+			expectedTitle: "Event on images from Containerd",
+			expectedTags:  nil,
+			numberEvents:  1,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			containerdCheck.computeEvents(test.events, mocked, containerdCheck.containerFilter)
+			containerdCheck.computeEvents(test.events, mocked)
 			mocked.On("Event", mock.AnythingOfType("event.Event"))
 			if len(mocked.Calls) > 0 {
 				res := (mocked.Calls[0].Arguments.Get(0)).(event.Event)

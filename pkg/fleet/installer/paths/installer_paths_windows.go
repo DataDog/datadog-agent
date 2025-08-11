@@ -561,3 +561,35 @@ func resetPermissionsForTree(path string) error {
 	flags |= windows.UNPROTECTED_DACL_SECURITY_INFORMATION
 	return TreeResetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, flags, admins, admins, nil, nil, false)
 }
+
+// CreateSystemTempDir creates a directory in the system temp directory with the correct permissions
+// to run the installer.
+//
+// The directory is created with the following permissions:
+// - OWNER: Administrators
+// - GROUP: Administrators
+// - SYSTEM: Full Control (propagates to children)
+// - Administrators: Full Control (propagates to children)
+// - Everyone: 0x1200a9 List folder contents (propagates to container children only, so no access to file content)
+// - PROTECTED: does not inherit permissions from parent
+var CreateSystemTempDir = createSystemTempDir
+
+func createSystemTempDir() (string, error) {
+
+	sddl := "O:BAG:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;CI;0x1200a9;;;WD)"
+
+	// os.TempDir() uses GetTempPath, returning the first non-empty value from %TMP%, %TEMP%, %USERPROFILE%, or the Windows directory.
+	//
+	// https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-gettemppath2w
+	tempDir := os.TempDir()
+	tempDir = filepath.Join(tempDir, "datadog-installer")
+
+	err := secureCreateDirectory(tempDir, sddl)
+	if err != nil {
+		// Failed to create directory or existing directory is not secure
+		log.Errorf("Failed to create system temp directory: %v", err)
+		return "", err
+	}
+
+	return tempDir, nil
+}

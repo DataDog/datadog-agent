@@ -6,13 +6,13 @@
 package common
 
 import (
-	"crypto/tls"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
@@ -33,9 +33,7 @@ func DualTaggerParams() (tagger.DualParams, tagger.RemoteParams) {
 			},
 			RemoteFilter: types.NewFilterBuilder().Exclude(types.KubernetesPodUID).Build(types.HighCardinality),
 
-			// TODO IPC: we don't have IPC certificate supply chain between CLC and Cluster Agent yet
-			// So we need to skip the verification
-			OverrideTLSConfig:       &tls.Config{InsecureSkipVerify: true},
+			OverrideTLSConfigGetter: pkgapiutil.GetCrossNodeClientTLSConfig,
 			OverrideAuthTokenGetter: security.GetClusterAgentAuthToken,
 		}
 }

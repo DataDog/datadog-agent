@@ -10,7 +10,6 @@ package gpu
 import (
 	"fmt"
 	"iter"
-	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -41,13 +40,11 @@ type globalStreamKey struct {
 }
 
 type streamCollection struct {
-	streams             map[streamKey]*StreamHandler
-	globalStreams       map[globalStreamKey]*StreamHandler
-	sysCtx              *systemContext
-	telemetry           *streamTelemetry
-	streamLimits        streamLimits
-	maxStreams          int
-	maxStreamInactivity time.Duration
+	streams       map[streamKey]*StreamHandler
+	globalStreams map[globalStreamKey]*StreamHandler
+	sysCtx        *systemContext
+	telemetry     *streamTelemetry
+	streamConfig  config.StreamConfig
 }
 
 type streamTelemetry struct {
@@ -65,24 +62,13 @@ type streamTelemetry struct {
 	rejectedSpans            telemetry.Counter
 }
 
-func getStreamLimits(config *config.Config) streamLimits {
-	return streamLimits{
-		maxKernelLaunches:     config.MaxKernelLaunchesPerStream,
-		maxAllocEvents:        config.MaxMemAllocEventsPerStream,
-		maxPendingKernelSpans: config.MaxPendingKernelSpans,
-		maxPendingMemorySpans: config.MaxPendingMemorySpans,
-	}
-}
-
 func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component, config *config.Config) *streamCollection {
 	return &streamCollection{
-		streams:             make(map[streamKey]*StreamHandler),
-		globalStreams:       make(map[globalStreamKey]*StreamHandler),
-		sysCtx:              sysCtx,
-		telemetry:           newStreamTelemetry(telemetry),
-		streamLimits:        getStreamLimits(config),
-		maxStreams:          config.MaxStreams,
-		maxStreamInactivity: config.MaxStreamInactivity,
+		streams:       make(map[streamKey]*StreamHandler),
+		globalStreams: make(map[globalStreamKey]*StreamHandler),
+		sysCtx:        sysCtx,
+		telemetry:     newStreamTelemetry(telemetry),
+		streamConfig:  config.StreamConfig,
 	}
 }
 
@@ -170,9 +156,9 @@ func (sc *streamCollection) getNonGlobalStream(header *gpuebpf.CudaEventHeader) 
 // createStreamHandler creates a new StreamHandler for a given CUDA stream.
 // If the device not provided (it's nil), it will be retrieved from the system context.
 func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader, device ddnvml.Device, containerIDFunc func() string) (*StreamHandler, error) {
-	if sc.streamCount() >= sc.maxStreams {
+	if sc.streamCount() >= sc.streamConfig.MaxActiveStreams {
 		sc.telemetry.rejectedStreams.Inc()
-		return nil, fmt.Errorf("max streams reached")
+		return nil, fmt.Errorf("max streams (%d) reached", sc.streamConfig.MaxActiveStreams)
 	}
 
 	pid, tid := getPidTidFromHeader(header)
@@ -197,7 +183,7 @@ func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader,
 	metadata.gpuUUID = device.GetDeviceInfo().UUID
 	metadata.smVersion = device.GetDeviceInfo().SMVersion
 
-	return newStreamHandler(metadata, sc.sysCtx, sc.streamLimits, sc.telemetry)
+	return newStreamHandler(metadata, sc.sysCtx, sc.streamConfig, sc.telemetry)
 }
 
 // memoizedContainerID returns a function that memoizes the container ID for a given CUDA stream.
@@ -260,7 +246,7 @@ func cleanHandlerMap[K comparable](sc *streamCollection, handlerMap map[K]*Strea
 
 		if handler.ended {
 			deleteReason = "ended"
-		} else if handler.isInactive(nowKtime, sc.maxStreamInactivity) {
+		} else if handler.isInactive(nowKtime, sc.streamConfig.Timeout) {
 			deleteReason = "inactive"
 		}
 

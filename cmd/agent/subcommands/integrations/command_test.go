@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -60,7 +60,7 @@ func TestFreezeCommand(t *testing.T) {
 		[]string{"integration", "freeze"},
 		list,
 		func(cliParams *cliParams, secretParams secrets.Params) {
-			require.Equal(t, []string{}, cliParams.args)
+			require.Empty(t, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
 			require.Equal(t, false, secretParams.Enabled)
 		})
