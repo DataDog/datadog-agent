@@ -10,6 +10,7 @@ package gpu
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -89,7 +90,9 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	}
 
 	// Process the metrics
-	err := check.emitMetrics(mockSender, gpuToContainersMap)
+	metricTime := time.Now()
+	metricTimestamp := float64(metricTime.UnixNano())
+	err := check.emitMetrics(mockSender, gpuToContainersMap, metricTime)
 	assert.NoError(t, err)
 
 	// Verify metrics for each device
@@ -114,13 +117,13 @@ func TestEmitNvmlMetrics(t *testing.T) {
 
 		// Verify metrics for this device
 		// metric1: only from device collector (priority 0)
-		mockSender.AssertCalled(t, "Gauge", "gpu.metric1", float64(metricValueBase+1), "", mock.MatchedBy(matchTagsFunc))
+		mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.metric1", float64(metricValueBase+1), "", mock.MatchedBy(matchTagsFunc), metricTimestamp)
 
 		// metric2: priority 1 wins (from fields collector)
-		mockSender.AssertCalled(t, "Gauge", "gpu.metric2", float64(metricValueBase+2), "", mock.MatchedBy(matchTagsFunc))
+		mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.metric2", float64(metricValueBase+2), "", mock.MatchedBy(matchTagsFunc), metricTimestamp)
 
 		// metric3: only from fields collector (priority 1)
-		mockSender.AssertCalled(t, "Gauge", "gpu.metric3", float64(metricValueBase+3), "", mock.MatchedBy(matchTagsFunc))
+		mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.metric3", float64(metricValueBase+3), "", mock.MatchedBy(matchTagsFunc), metricTimestamp)
 	}
 }
 
