@@ -93,11 +93,11 @@ type ErrRuleLoad struct {
 	Err  error
 }
 
-func (e ErrRuleLoad) Error() string {
+func (e *ErrRuleLoad) Error() string {
 	return fmt.Sprintf("rule `%s` error: %s", e.Rule.Def.ID, e.Err)
 }
 
-func (e ErrRuleLoad) Unwrap() error {
+func (e *ErrRuleLoad) Unwrap() error {
 	return e.Err
 }
 
@@ -118,7 +118,7 @@ const (
 )
 
 // Type return the type of the error
-func (e ErrRuleLoad) Type() RuleLoadErrType {
+func (e *ErrRuleLoad) Type() RuleLoadErrType {
 	switch e.Err {
 	case ErrRuleAgentVersion:
 		return AgentVersionErrType
