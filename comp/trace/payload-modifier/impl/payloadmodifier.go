@@ -7,8 +7,6 @@
 package payloadmodifierimpl
 
 import (
-	"go.uber.org/fx"
-
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	payloadmodifier "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/def"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
@@ -19,9 +17,12 @@ import (
 
 // Dependencies holds the dependencies for the payload modifier component
 type Dependencies struct {
-	fx.In
-
 	Config coreconfig.Component
+}
+
+// Provides contains the payload modifier component
+type Provides struct {
+	Comp payloadmodifier.Component
 }
 
 type component struct {
@@ -29,7 +30,7 @@ type component struct {
 }
 
 // NewComponent creates a new payload modifier component
-func NewComponent(deps Dependencies) payloadmodifier.Component {
+func NewComponent(deps Dependencies) Provides {
 	var modifier pkgagent.TracerPayloadModifier
 
 	// Only enable TracerPayloadModifier when running in Azure App Services
@@ -41,8 +42,12 @@ func NewComponent(deps Dependencies) payloadmodifier.Component {
 		modifier = serverlesstrace.NewTracerPayloadModifier(functionTags)
 	}
 
-	return &component{
+	comp := &component{
 		modifier: modifier,
+	}
+
+	return Provides{
+		Comp: comp,
 	}
 }
 
