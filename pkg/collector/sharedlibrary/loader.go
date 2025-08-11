@@ -53,8 +53,8 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
     // dlsym run_check function to get the metric run the custom check and get the payload
     run_shared_library_check_t *run_handle = (run_shared_library_check_t *)GetProcAddress(lib_handle, "Run");
     if (!run_handle) {
-		dlclose(lib_handle);
-		*error = strdup(GetLastError());
+		FreeLibrary(lib_handle);
+		*error = strdup("unable to get shared library symbol");
 		goto done;
     }
 
