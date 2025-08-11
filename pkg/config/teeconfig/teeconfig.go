@@ -38,11 +38,12 @@ func NewTeeConfig(baseline, compare model.BuildableConfig) model.BuildableConfig
 	return &teeConfig{baseline: baseline, compare: compare}
 }
 
-// NewBuilder returns an interface that can build more on the current config, instead
-// of treating it as sealed
-func (t *teeConfig) NewBuilder() model.BuildableConfig {
-	t.baseline.NewBuilder()
-	t.compare.NewBuilder()
+// RevertFinishedBackToBuilder returns an interface that can build more on the
+// current config, instead of treating it as sealed
+// NOTE: Only used by OTel, no new uses please!
+func (t *teeConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
+	t.baseline.RevertFinishedBackToBuilder()
+	t.compare.RevertFinishedBackToBuilder()
 	return t
 }
 

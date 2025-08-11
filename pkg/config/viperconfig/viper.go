@@ -498,9 +498,10 @@ func (c *safeConfig) isReady() bool {
 	return c.ready.Load()
 }
 
-// NewBuilder returns an interface that can build more on the current config, instead
-// of treating it as sealed
-func (c *safeConfig) NewBuilder() model.BuildableConfig {
+// RevertFinishedBackToBuilder returns an interface that can build more on
+// the current config, instead of treating it as sealed
+// NOTE: Only used by OTel, no new uses please!
+func (c *safeConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 	c.ready.Store(false)
 	return c
 }

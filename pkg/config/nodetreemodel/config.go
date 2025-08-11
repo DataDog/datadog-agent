@@ -213,9 +213,10 @@ func (c *ntmConfig) SetTestOnlyDynamicSchema(allow bool) {
 	c.allowDynamicSchema.Store(allow)
 }
 
-// NewBuilder returns an interface that can build more on the current config, instead
-// of treating it as sealed
-func (c *ntmConfig) NewBuilder() model.BuildableConfig {
+// RevertFinishedBackToBuilder returns an interface that can build more on the current
+// config, instead of treating it as sealed
+// NOTE: Only used by OTel, no new uses please!
+func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 	c.ready.Store(false)
 	return c
 }
