@@ -10,6 +10,8 @@ import (
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 )
 
+// team: agent-apm
+
 // Component provides trace payload modification functionality
 type Component interface {
 	// GetModifier returns the TracerPayloadModifier instance
