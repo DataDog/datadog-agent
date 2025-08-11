@@ -152,15 +152,14 @@ Invoke-BuildScript `
         $Env:EXTRA_OPTS
     $err = $LASTEXITCODE
 
+    $codecovUploadErr = 0
     if ($UploadCoverage) {
         # 1. Upload coverage reports to Codecov
         $Env:CODECOV_TOKEN=$(Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN")
         & dda inv -- -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
-        $localErr = $LASTEXITCODE
-        if($localErr -ne 0){
-            Write-Host -ForegroundColor Red "coverage upload failed $localErr"
-        }
+        $codecovUploadErr = $LASTEXITCODE
     }
+    $junitUploadErr = 0
     if ($UploadTestResults) {
         # 2. Upload junit files
         # Copy test files to c:\mnt for further gitlab upload
@@ -169,10 +168,7 @@ Invoke-BuildScript `
         }
         $Env:DATADOG_API_KEY=$(Get-VaultSecret -parameterName "$Env:API_KEY_ORG2")
         & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json C:\mnt\$test_output_file
-        $localErr = $LASTEXITCODE
-        if($localErr -ne 0){
-            Write-Host -ForegroundColor Red "junit upload failed $localErr"
-        }
+        $junitUploadErr = $LASTEXITCODE
     }
 
     If ($err -ne 0) {
@@ -180,5 +176,13 @@ Invoke-BuildScript `
         exit $err
     }
 
-    Write-Host Test passed
+    if ($codecovUploadErr -ne 0) {
+        Write-Host -ForegroundColor Red "Tests passed, but Codecov upload failed $codecovUploadErr"
+        exit $codecovUploadErr
+    }
+    if ($junitUploadErr -ne 0) {
+        Write-Host -ForegroundColor Red "Tests passed, but JUnit upload failed $junitUploadErr"
+        exit $junitUploadErr
+    }
+    Write-Host -ForegroundColor Green "All tests and uploads completed successfully"
 }
