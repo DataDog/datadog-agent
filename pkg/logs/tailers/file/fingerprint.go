@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Fingerprinter is a struct that contains the fingerprinting configuration
 type Fingerprinter struct {
 	fingerprintingEnabled    bool
 	defaultFingerprintConfig *types.FingerprintConfig
@@ -45,6 +46,7 @@ func newInvalidFingerprint(config *types.FingerprintConfig) *types.Fingerprint {
 // to avoid recreating it on every fingerprint computation
 var crc64Table = crc64.MakeTable(crc64.ISO)
 
+// NewFingerprinter creates a new Fingerprinter with the given configuration
 func NewFingerprinter(fingerprintEnabled bool, defaultFingerprintConfig *types.FingerprintConfig) *Fingerprinter {
 	log.Debugf("Creating new fingerprinter: enabled=%t, defaultConfig=%+v", fingerprintEnabled, defaultFingerprintConfig)
 	return &Fingerprinter{

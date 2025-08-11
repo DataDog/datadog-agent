@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package types provides data structures and types for the logs system.
 package types
 
 import (
 	"fmt"
 )
 
+// InvalidFingerprintValue is the value that is returned when a fingerprint cannot be produced
 const (
 	InvalidFingerprintValue = 0
 )
@@ -23,10 +25,12 @@ func (f *Fingerprint) String() string {
 	return fmt.Sprintf("Fingerprint{Value: %d, Config: %v}", f.Value, f.Config)
 }
 
+// Equals compares two fingerprints and returns true if they are equal
 func (f *Fingerprint) Equals(other *Fingerprint) bool {
 	return f.Value == other.Value
 }
 
+// ValidFingerprint returns true if the fingerprint is valid (non-zero value and non-nil config)
 func (f *Fingerprint) ValidFingerprint() bool {
 	return f.Value != InvalidFingerprintValue && f.Config != nil
 }
@@ -53,7 +57,9 @@ type FingerprintConfig struct {
 type FingerprintStrategy string
 
 const (
+	// FingerprintStrategyLineChecksum computes a checksum based on line content
 	FingerprintStrategyLineChecksum FingerprintStrategy = "line_checksum"
+	// FingerprintStrategyByteChecksum computes a checksum based on byte content
 	FingerprintStrategyByteChecksum FingerprintStrategy = "byte_checksum"
 )
 

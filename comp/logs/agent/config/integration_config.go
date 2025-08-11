@@ -35,6 +35,7 @@ const (
 	SHIFTJIS string = "shift-jis"
 )
 
+// FingerprintStrategy defines the strategy used for fingerprinting (line_checksum or byte_checksum)
 type FingerprintStrategy string
 
 // Fingerprint strategy options
@@ -47,6 +48,7 @@ func (s FingerprintStrategy) String() string {
 	return string(s)
 }
 
+// Validate checks if the fingerprint strategy is valid (either line_checksum or byte_checksum)
 func (s FingerprintStrategy) Validate() error {
 	switch s {
 	case FingerprintStrategyLineChecksum, FingerprintStrategyByteChecksum:
