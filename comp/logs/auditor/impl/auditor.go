@@ -269,15 +269,25 @@ func (a *registryAuditor) run() {
 			for _, msg := range payload.MessageMetas {
 				var fingerprintConfig *types.FingerprintConfig
 				if msg.Origin.LogSource.Config.FingerprintConfig != nil {
-					// Convert from config.FingerprintConfig to types.FingerprintConfig
+					// Use the source config first since it takes precedence
 					fingerprintConfig = &types.FingerprintConfig{
 						FingerprintStrategy: types.FingerprintStrategy(msg.Origin.LogSource.Config.FingerprintConfig.FingerprintStrategy),
 						Count:               msg.Origin.LogSource.Config.FingerprintConfig.Count,
 						CountToSkip:         msg.Origin.LogSource.Config.FingerprintConfig.CountToSkip,
 						MaxBytes:            msg.Origin.LogSource.Config.FingerprintConfig.MaxBytes,
 					}
+				} else if msg.Origin.Fingerprint != nil && msg.Origin.Fingerprint.Config != nil {
+					// Fallback to fingerprint config from the message origin
+					fingerprintConfig = msg.Origin.Fingerprint.Config
 				}
-				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, msg.Origin.Fingerprint, fingerprintConfig)
+
+				// Get fingerprint value safely, defaulting to 0 if Fingerprint is nil
+				var fingerprintValue uint64
+				if msg.Origin.Fingerprint != nil {
+					fingerprintValue = msg.Origin.Fingerprint.Value
+				}
+
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, fingerprintValue, fingerprintConfig)
 			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from the registry

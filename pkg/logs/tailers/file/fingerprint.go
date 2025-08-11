@@ -168,7 +168,7 @@ func computeFingerprint(filePath string, fingerprintConfig *types.FingerprintCon
 	}
 }
 
-// computeFileFingerPrintByBytes computes fingerprint using byte-based approach for a given file path
+// computeFingerPrintByBytes computes fingerprint using byte-based approach for a given file path
 func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConfig *types.FingerprintConfig) *types.Fingerprint {
 	bytesToSkip := fingerprintConfig.CountToSkip
 	maxBytes := fingerprintConfig.Count
@@ -210,7 +210,7 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}
 }
 
-// computeFileFingerPrintByLines computes fingerprint using line-based approach for a given file path
+// computeFingerPrintByLines computes fingerprint using line-based approach for a given file path
 func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConfig *types.FingerprintConfig) *types.Fingerprint {
 	linesToSkip := fingerprintConfig.CountToSkip
 	maxLines := fingerprintConfig.Count

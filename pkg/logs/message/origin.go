@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // Origin represents the Origin of a message
@@ -20,7 +21,7 @@ type Origin struct {
 	// This is only populated for file and journald sources. It is used by the
 	// auditor to store the file path when fingerprinting is enabled.
 	FilePath    string
-	Fingerprint uint64
+	Fingerprint *types.Fingerprint
 	service     string
 	source      string
 	tags        []string

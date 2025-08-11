@@ -375,6 +375,7 @@ func (t *Tailer) forwardMessages() {
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.FilePath = t.file.Path
+		origin.Fingerprint = t.fingerprint
 
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
