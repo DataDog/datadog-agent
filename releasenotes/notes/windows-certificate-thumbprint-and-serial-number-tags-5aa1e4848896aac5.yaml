@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Add thumbprints and serial numbers as tags for Certificates and CRLs to the Windows Certificate Store integration.
