@@ -83,6 +83,7 @@ func (s *minimalTestSuite) TestHosts() {
 }
 
 func (s *minimalTestSuite) TestPrometheusMetrics() {
+	// Test
 	utils.TestPrometheusMetrics(s)
 }
 
