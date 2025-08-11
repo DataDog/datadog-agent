@@ -45,12 +45,14 @@ var checkTelemetry = struct {
 	failedResponses    telemetry.Counter
 	responseErrors     telemetry.Counter
 	malformedResponses telemetry.Counter
+	requestDuration    telemetry.Gauge
 }{
 	telemetry.NewCounter(telemetrySubsystem, "requests__total", []string{checkLabelName}, "Counter measuring how many system-probe check requests were made"),
 	telemetry.NewCounter(telemetrySubsystem, "requests__failed", []string{checkLabelName}, "Counter measuring how many system-probe check requests failed to be sent"),
 	telemetry.NewCounter(telemetrySubsystem, "responses__not_received", []string{checkLabelName}, "Counter measuring how many responses from system-probe check were not read from the socket"),
 	telemetry.NewCounter(telemetrySubsystem, "responses__errors", []string{checkLabelName}, "Counter measuring how many non_ok status code received from system-probe checks"),
 	telemetry.NewCounter(telemetrySubsystem, "responses__malformed", []string{checkLabelName}, "Counter measuring how many malformed responses were received from system-probe checks"),
+	telemetry.NewGauge(telemetrySubsystem, "requests__duration", []string{checkLabelName, "status"}, "Histogram measuring the duration of system-probe check requests"),
 }
 
 // Get returns a http client configured to talk to the system-probe
@@ -105,7 +107,16 @@ func getCheckClient(socketPath string) *CheckClient {
 	}
 }
 
-func doReq(client *http.Client, req *http.Request, module types.ModuleName) ([]byte, error) {
+func doReq(client *http.Client, req *http.Request, module types.ModuleName) (body []byte, err error) {
+	startTime := time.Now()
+	defer func() {
+		status := "error"
+		if err == nil {
+			status = "success"
+		}
+		checkTelemetry.requestDuration.Set(float64(time.Since(startTime).Milliseconds()), string(module), status)
+	}()
+
 	resp, err := client.Do(req)
 	if err != nil {
 		checkTelemetry.failedRequests.IncWithTags(map[string]string{checkLabelName: string(module)})
@@ -113,7 +124,7 @@ func doReq(client *http.Client, req *http.Request, module types.ModuleName) ([]b
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		checkTelemetry.failedResponses.IncWithTags(map[string]string{checkLabelName: string(module)})
 		return nil, err
@@ -124,6 +135,10 @@ func doReq(client *http.Client, req *http.Request, module types.ModuleName) ([]b
 	}
 
 	return body, err
+}
+
+func (c *CheckClient) SetTimeout(timeout time.Duration) {
+	c.client.Timeout = timeout
 }
 
 func (c *CheckClient) ensureStarted(module types.ModuleName) error {
