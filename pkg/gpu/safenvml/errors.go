@@ -25,10 +25,10 @@ type NvmlAPIError struct {
 
 // Error implements the error interface
 func (e *NvmlAPIError) Error() string {
-	switch e.NvmlErrorCode {
-	case nvml.ERROR_FUNCTION_NOT_FOUND:
+	switch {
+	case errors.Is(e.NvmlErrorCode, nvml.ERROR_FUNCTION_NOT_FOUND):
 		return fmt.Sprintf("%s symbol not found in NVML library", e.APIName)
-	case nvml.ERROR_NOT_SUPPORTED:
+	case errors.Is(e.NvmlErrorCode, nvml.ERROR_NOT_SUPPORTED):
 		return fmt.Sprintf("%s is not supported by the GPU or driver", e.APIName)
 	default:
 		return fmt.Sprintf("NVML API error for %s: %s", e.APIName, nvml.ErrorString(e.NvmlErrorCode))
@@ -38,7 +38,7 @@ func (e *NvmlAPIError) Error() string {
 // NewNvmlAPIErrorOrNil creates a new NvmlAPIError with the given API name and error code,
 // or returns nil if the error code is nvml.SUCCESS
 func NewNvmlAPIErrorOrNil(apiName string, errorCode nvml.Return) error {
-	if errorCode == nvml.SUCCESS {
+	if errors.Is(errorCode, nvml.SUCCESS) {
 		return nil
 	}
 	return &NvmlAPIError{
@@ -52,6 +52,6 @@ func NewNvmlAPIErrorOrNil(apiName string, errorCode nvml.Return) error {
 func IsUnsupported(err error) bool {
 	var nvmlErr *NvmlAPIError
 	return err != nil && errors.As(err, &nvmlErr) &&
-		(nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_SUPPORTED ||
-			nvmlErr.NvmlErrorCode == nvml.ERROR_FUNCTION_NOT_FOUND)
+		(errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_SUPPORTED) ||
+			errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_FUNCTION_NOT_FOUND))
 }

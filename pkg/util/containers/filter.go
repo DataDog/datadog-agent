@@ -396,20 +396,21 @@ func (cf Filter) isExcludedByAnnotation(annotations map[string]string, container
 	switch cf.FilterType {
 	case GlobalFilter:
 	case MetricsFilter:
-		if isExcludedByAnnotationInner(annotations, containerName, "metrics_") {
+		if IsExcludedByAnnotationInner(annotations, containerName, "metrics_") {
 			return true
 		}
 	case LogsFilter:
-		if isExcludedByAnnotationInner(annotations, containerName, "logs_") {
+		if IsExcludedByAnnotationInner(annotations, containerName, "logs_") {
 			return true
 		}
 	default:
 		log.Warnf("unrecognized filter type: %s", cf.FilterType)
 	}
-	return isExcludedByAnnotationInner(annotations, containerName, "")
+	return IsExcludedByAnnotationInner(annotations, containerName, "")
 }
 
-func isExcludedByAnnotationInner(annotations map[string]string, containerName string, excludePrefix string) bool {
+// IsExcludedByAnnotationInner checks if an entity is excluded by annotations.
+func IsExcludedByAnnotationInner(annotations map[string]string, containerName string, excludePrefix string) bool {
 	var e bool
 	// try container-less annotations first
 	exclude, found := annotations[fmt.Sprintf(kubeAutodiscoveryAnnotation, excludePrefix)]

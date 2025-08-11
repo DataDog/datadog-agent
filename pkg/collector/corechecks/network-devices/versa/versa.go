@@ -36,37 +36,42 @@ const (
 // Configuration for the Versa check
 type checkCfg struct {
 	// add versa specific fields
-	Name                            string   `yaml:"name"` // TODO: remove this field, only added it for testing
-	DirectorEndpoint                string   `yaml:"director_endpoint"`
-	DirectorPort                    int      `yaml:"director_port"`
-	AnalyticsEndpoint               string   `yaml:"analytics_endpoint"`
-	Username                        string   `yaml:"username"`
-	Password                        string   `yaml:"password"`
-	MaxAttempts                     int      `yaml:"max_attempts"`
-	MaxPages                        int      `yaml:"max_pages"`
-	MaxCount                        int      `yaml:"max_count"`
-	LookbackTimeWindowMinutes       int      `yaml:"lookback_time_window_minutes"`
-	UseHTTP                         bool     `yaml:"use_http"`
-	Insecure                        bool     `yaml:"insecure"`
-	CAFile                          string   `yaml:"ca_file"`
-	Namespace                       string   `yaml:"namespace"`
-	IncludedTenants                 []string `yaml:"included_tenants"`
-	ExcludedTenants                 []string `yaml:"excluded_tenants"`
-	SendDeviceMetadata              *bool    `yaml:"send_device_metadata"`
-	SendInterfaceMetadata           *bool    `yaml:"send_interface_metadata"`
-	MinCollectionInterval           int      `yaml:"min_collection_interval"`
-	CollectHardwareMetrics          *bool    `yaml:"collect_hardware_metrics"`
-	CollectInterfaceMetrics         *bool    `yaml:"collect_interface_metrics"`
-	CollectTunnelMetrics            *bool    `yaml:"collect_tunnel_metrics"`
-	CollectControlConnectionMetrics *bool    `yaml:"collect_control_connection_metrics"`
-	CollectOMPPeerMetrics           *bool    `yaml:"collect_omp_peer_metrics"`
-	CollectDeviceCountersMetrics    *bool    `yaml:"collect_device_counters_metrics"`
-	CollectBFDSessionStatus         *bool    `yaml:"collect_bfd_session_status"`
-	CollectHardwareStatus           *bool    `yaml:"collect_hardware_status"`
-	CollectCloudApplicationsMetrics *bool    `yaml:"collect_cloud_applications_metrics"`
-	CollectBGPNeighborStates        *bool    `yaml:"collect_bgp_neighbor_states"`
-	CollectSLAMetrics               *bool    `yaml:"collect_sla_metrics"`
-	CollectLinkMetrics              *bool    `yaml:"collect_link_metrics"`
+	Name                                  string   `yaml:"name"` // TODO: remove this field, only added it for testing
+	DirectorEndpoint                      string   `yaml:"director_endpoint"`
+	DirectorPort                          int      `yaml:"director_port"`
+	AnalyticsEndpoint                     string   `yaml:"analytics_endpoint"`
+	Username                              string   `yaml:"username"`
+	Password                              string   `yaml:"password"`
+	MaxAttempts                           int      `yaml:"max_attempts"`
+	MaxPages                              int      `yaml:"max_pages"`
+	MaxCount                              int      `yaml:"max_count"`
+	LookbackTimeWindowMinutes             int      `yaml:"lookback_time_window_minutes"`
+	UseHTTP                               bool     `yaml:"use_http"`
+	Insecure                              bool     `yaml:"insecure"`
+	CAFile                                string   `yaml:"ca_file"`
+	Namespace                             string   `yaml:"namespace"`
+	IncludedTenants                       []string `yaml:"included_tenants"`
+	ExcludedTenants                       []string `yaml:"excluded_tenants"`
+	SendDeviceMetadata                    *bool    `yaml:"send_device_metadata"`
+	SendInterfaceMetadata                 *bool    `yaml:"send_interface_metadata"`
+	MinCollectionInterval                 int      `yaml:"min_collection_interval"`
+	CollectHardwareMetrics                *bool    `yaml:"collect_hardware_metrics"`
+	CollectInterfaceMetrics               *bool    `yaml:"collect_interface_metrics"`
+	CollectTunnelMetrics                  *bool    `yaml:"collect_tunnel_metrics"`
+	CollectControlConnectionMetrics       *bool    `yaml:"collect_control_connection_metrics"`
+	CollectOMPPeerMetrics                 *bool    `yaml:"collect_omp_peer_metrics"`
+	CollectDeviceCountersMetrics          *bool    `yaml:"collect_device_counters_metrics"`
+	CollectBFDSessionStatus               *bool    `yaml:"collect_bfd_session_status"`
+	CollectHardwareStatus                 *bool    `yaml:"collect_hardware_status"`
+	CollectCloudApplicationsMetrics       *bool    `yaml:"collect_cloud_applications_metrics"`
+	CollectBGPNeighborStates              *bool    `yaml:"collect_bgp_neighbor_states"`
+	CollectSLAMetrics                     *bool    `yaml:"collect_sla_metrics"`
+	CollectLinkMetrics                    *bool    `yaml:"collect_link_metrics"`
+	CollectApplicationsByApplianceMetrics *bool    `yaml:"collect_applications_by_appliance_metrics"`
+	CollectTopUserMetrics                 *bool    `yaml:"collect_top_user_metrics"`
+	CollectQoSMetrics                     *bool    `yaml:"collect_qos_metrics"`
+	CollectDIAMetrics                     *bool    `yaml:"collect_dia_metrics"`
+	CollectSiteMetrics                    *bool    `yaml:"collect_site_metrics"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -115,7 +120,8 @@ func (v *VersaCheck) Run() error {
 
 	// Determine if we need appliances for device mapping
 	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics ||
-		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics
+		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics || *v.config.CollectApplicationsByApplianceMetrics ||
+		*v.config.CollectTopUserMetrics
 
 	for _, org := range organizations {
 		log.Tracef("Processing organization: %s", org.Name)
@@ -278,14 +284,64 @@ func (v *VersaCheck) Run() error {
 			}
 		}
 
+		// Collect site metrics if enabled
+		if *v.config.CollectSiteMetrics {
+			siteMetrics, err := c.GetSiteMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting site metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendSiteMetrics(siteMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect applications by appliance metrics if enabled
+		if *v.config.CollectApplicationsByApplianceMetrics {
+			appsByApplianceMetrics, err := c.GetApplicationsByAppliance(org.Name)
+			if err != nil {
+				log.Errorf("error getting applications by appliance metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendApplicationsByApplianceMetrics(appsByApplianceMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect top user metrics if enabled
+		if *v.config.CollectTopUserMetrics {
+			topUserMetrics, err := c.GetTopUsers(org.Name)
+			if err != nil {
+				log.Errorf("error getting top user metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendTopUserMetrics(topUserMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect tunnel metrics if enabled
 		if *v.config.CollectTunnelMetrics {
-			// Collect tunnel metrics for each organization
 			tunnelMetrics, err := c.GetTunnelMetrics(org.Name)
 			if err != nil {
 				log.Warnf("error getting tunnel metrics for tenant %s from Versa client: %v", org.Name, err)
 				continue
 			}
 			v.metricsSender.SendTunnelMetrics(tunnelMetrics, deviceNameToIDMap)
+		}
+
+		// Collect QoS metrics if enabled
+		if *v.config.CollectQoSMetrics {
+			qosMetrics, err := c.GetPathQoSMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting QoS metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendPathQoSMetrics(qosMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect DIA metrics if enabled
+		if *v.config.CollectDIAMetrics {
+			diaMetrics, err := c.GetDIAMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting DIA metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendDIAMetrics(diaMetrics, deviceNameToIDMap)
+			}
 		}
 	}
 
@@ -329,6 +385,11 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
 	instanceConfig.CollectLinkMetrics = boolPointer(false)
+	instanceConfig.CollectApplicationsByApplianceMetrics = boolPointer(false)
+	instanceConfig.CollectTopUserMetrics = boolPointer(false)
+	instanceConfig.CollectQoSMetrics = boolPointer(false)
+	instanceConfig.CollectDIAMetrics = boolPointer(false)
+	instanceConfig.CollectSiteMetrics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {

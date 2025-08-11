@@ -90,6 +90,11 @@ type installerImpl struct {
 	userConfigsDir string
 }
 
+type experimentConfigAction struct {
+	ActionType configFileAction `json:"action_type"`
+	Files      []configFile     `json:"files"`
+}
+
 // NewInstaller returns a new Package Manager.
 func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
@@ -307,7 +312,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not remove package installation in db: %w", err)
 	}
-	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
+	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
@@ -365,7 +370,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		)
 	}
 	defer os.RemoveAll(tmpDir)
-	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
+	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -496,8 +501,9 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
+// TODO: remove the last parameter (configOrder)
 func (i *installerImpl) InstallConfigExperiment(
-	ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string,
+	ctx context.Context, pkg string, version string, rawConfigs [][]byte, _ []string,
 ) error {
 	i.m.Lock()
 	defer i.m.Unlock()
@@ -511,15 +517,17 @@ func (i *installerImpl) InstallConfigExperiment(
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Merge config files
-	mergedConfigs, err := mergeConfigs(version, rawConfigs, configOrder)
+	// Copy the files from the stable config
+	configRepo := i.configs.Get(pkg)
+	err = configRepo.CopyStable(ctx, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
-			installerErrors.ErrConfigMergeFailed,
-			fmt.Errorf("could not merge configs: %w", err),
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not copy stable config: %w", err),
 		)
 	}
-	err = i.writeConfig(tmpDir, mergedConfigs)
+
+	err = i.writeConfig(tmpDir, rawConfigs)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -527,7 +535,6 @@ func (i *installerImpl) InstallConfigExperiment(
 		)
 	}
 
-	configRepo := i.configs.Get(pkg)
 	err = configRepo.SetExperiment(ctx, version, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -664,6 +671,11 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	if err != nil {
 		log.Warnf("could not delete packages dir: %v", err)
 	}
+
+	err = purgeTmpDirectory(paths.RootTmpDir)
+	if err != nil {
+		log.Warnf("could not delete tmp directory: %v", err)
+	}
 }
 
 // Remove uninstalls a package.
@@ -696,6 +708,10 @@ func (i *installerImpl) GarbageCollect(ctx context.Context) error {
 	err = i.configs.Cleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("could not cleanup configs: %w", err)
+	}
+	err = cleanupTmpDirectory(paths.RootTmpDir)
+	if err != nil {
+		return fmt.Errorf("could not cleanup tmp directory: %w", err)
 	}
 	return nil
 }
@@ -804,6 +820,7 @@ func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err 
 var (
 	allowedConfigFiles = []string{
 		"/datadog.yaml",
+		"/otel-config.yaml",
 		"/security-agent.yaml",
 		"/system-probe.yaml",
 		"/application_monitoring.yaml",
@@ -834,43 +851,87 @@ func cleanConfigName(p string) string {
 type configFileAction string
 
 const (
-	configFileActionUnknown configFileAction = ""
-	configFileActionAdd     configFileAction = "add"
-	configFileActionRemove  configFileAction = "remove"
+	configFileActionUnknown   configFileAction = ""
+	configFileActionWrite     configFileAction = "write"
+	configFileActionRemove    configFileAction = "remove"
+	configFileActionRemoveAll configFileAction = "remove_all"
 )
 
 type configFile struct {
-	Path     string           `json:"path"`
-	Action   configFileAction `json:"action"`
-	Contents json.RawMessage  `json:"contents"`
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
 }
 
-func (i *installerImpl) writeConfig(dir string, files map[string]configFile) error {
-	for _, file := range files {
-		file.Path = cleanConfigName(file.Path)
-		if !configNameAllowed(file.Path) {
-			return fmt.Errorf("config file %s is not allowed", file)
+func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error {
+	for _, rawConfigAction := range rawConfigActions {
+		var configAction experimentConfigAction
+		err := json.Unmarshal(rawConfigAction, &configAction)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal config files: %w (raw: %s)", err, string(rawConfigAction))
 		}
 
-		if file.Action != configFileActionAdd {
-			return fmt.Errorf("config file %s has unknown action %s", file.Path, file.Action)
-		}
-		var c interface{}
-		err := json.Unmarshal(file.Contents, &c)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal config file contents: %w", err)
-		}
-		serialized, err := yaml.Marshal(c)
-		if err != nil {
-			return fmt.Errorf("could not serialize config file contents: %w", err)
-		}
-		err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
-		if err != nil {
-			return fmt.Errorf("could not create config file directory: %w", err)
-		}
-		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
-		if err != nil {
-			return fmt.Errorf("could not write config file: %w", err)
+		switch configAction.ActionType {
+		case configFileActionRemoveAll:
+			// Remove all the files and directory under `dir`, but not `dir` itself
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				return fmt.Errorf("could not read config directory: %w", err)
+			}
+			for _, entry := range entries {
+				entryPath := filepath.Join(dir, entry.Name())
+				err = os.RemoveAll(entryPath)
+				if err != nil {
+					return fmt.Errorf("could not remove config file/directory %s: %w", entryPath, err)
+				}
+			}
+		case configFileActionRemove:
+			for _, file := range configAction.Files {
+				file.Path = cleanConfigName(file.Path)
+
+				if !configNameAllowed(file.Path) {
+					return fmt.Errorf("config file %s is not allowed", file)
+				}
+
+				err = os.Remove(filepath.Join(dir, file.Path))
+				if err != nil {
+					if os.IsNotExist(err) {
+						log.Warnf("config file %s does not exist, skipping", file.Path)
+						continue
+					}
+					return fmt.Errorf("could not remove config file: %w", err)
+				}
+			}
+		case configFileActionWrite:
+			for _, file := range configAction.Files {
+				file.Path = cleanConfigName(file.Path)
+
+				if !configNameAllowed(file.Path) {
+					return fmt.Errorf("config file %s is not allowed", file)
+				}
+
+				var c interface{}
+				err = json.Unmarshal(file.Contents, &c)
+				if err != nil {
+					return fmt.Errorf("could not unmarshal config file contents: %w", err)
+				}
+				serialized, err := yaml.Marshal(c)
+				if err != nil {
+					return fmt.Errorf("could not serialize config file contents: %w", err)
+				}
+				if len(serialized) == 0 {
+					return fmt.Errorf("config file %s has no contents, skipping", file.Path)
+				}
+				err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
+				if err != nil {
+					return fmt.Errorf("could not create config file directory: %w", err)
+				}
+				err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
+				if err != nil {
+					return fmt.Errorf("could not write config file: %w", err)
+				}
+			}
+		default:
+			return fmt.Errorf("unknown config file action: %s", configAction.ActionType)
 		}
 	}
 	return nil
@@ -966,74 +1027,60 @@ func ensureRepositoriesExist() error {
 	return nil
 }
 
-// mergeConfigs merges multiple config files into a single map of config files.
-// Takes remote-config configs as an input, and returns a map of files to write
-// on disk. The map is keyed by the path of the file to write, and the value is
-// the contents of the file.
-//
-// The input is a slice of bytes, which is the JSON-encoded contents of the
-// remote-config config files. The JSON is expected to be an array of objects,
-// each with a `path` and `contents` field.
-func mergeConfigs(version string, rawConfigs [][]byte, configOrder []string) (map[string]configFile, error) {
-	mergedFiles := make(map[string]configFile)
-	for _, rawConfig := range rawConfigs {
-		var configFiles []configFile
-		err := json.Unmarshal(rawConfig, &configFiles)
-		if err != nil {
-			return nil, fmt.Errorf("could not unmarshal config files: %w", err)
-		}
-		for _, file := range configFiles {
-			if file.Action == configFileActionUnknown {
-				// Default to add if action is unknown
-				file.Action = configFileActionAdd
-			}
-			file.Path = cleanConfigName(file.Path)
-			if !configNameAllowed(file.Path) {
-				return nil, fmt.Errorf("config file %s is not allowed", file)
-			}
-
-			if file.Action == configFileActionRemove {
-				delete(mergedFiles, file.Path)
-			} else if file.Action == configFileActionAdd {
-				mergedFiles[file.Path] = file
-			}
-		}
+// cleanupTmpDirectory removes files and directories in RootTmpDir that are older than 24 hours
+func cleanupTmpDirectory(rootTmpDir string) error {
+	// Check if RootTmpDir exists
+	if _, err := os.Stat(rootTmpDir); os.IsNotExist(err) {
+		// Directory doesn't exist, nothing to clean up
+		return nil
 	}
 
-	if len(configOrder) == 0 {
-		// Early return if no config order is provided
-		return mergedFiles, nil
-	}
+	// Calculate the cutoff time (24 hours ago)
+	cutoffTime := time.Now().Add(-24 * time.Hour)
 
-	// Inject fleet_layers into datadog.yaml
-	datadogConfig := make(map[string]interface{})
-	datadogFile, ok := mergedFiles["/datadog.yaml"]
-	if ok {
-		err := json.Unmarshal(datadogFile.Contents, &datadogConfig)
-		if err != nil {
-			return nil, fmt.Errorf("could not unmarshal datadog.yaml contents: %w", err)
-		}
-	} else {
-		datadogFile = configFile{
-			Path:     "/datadog.yaml",
-			Action:   configFileActionAdd,
-			Contents: json.RawMessage(`{"fleet_layers": []]}`),
-		}
-	}
-
-	// Add fleet_layers configuration
-	datadogConfig["fleet_layers"] = configOrder
-	datadogConfig["config_id"] = version
-
-	// Marshal back to JSON
-	updatedContents, err := json.Marshal(datadogConfig)
+	// Read the directory contents
+	entries, err := os.ReadDir(rootTmpDir)
 	if err != nil {
-		return nil, fmt.Errorf("could not marshal updated datadog.yaml contents: %w", err)
+		return fmt.Errorf("could not read tmp directory: %w", err)
 	}
 
-	// Update the file with new contents
-	datadogFile.Contents = updatedContents
-	mergedFiles["/datadog.yaml"] = datadogFile
+	var cleanupErrors []string
+	for _, entry := range entries {
+		entryPath := filepath.Join(rootTmpDir, entry.Name())
 
-	return mergedFiles, nil
+		// Get file info to check modification time
+		info, err := entry.Info()
+		if err != nil {
+			log.Warnf("Could not get info for %s: %v", entryPath, err)
+			continue
+		}
+
+		// Check if the file/directory is older than 24 hours
+		if info.ModTime().Before(cutoffTime) {
+			log.Debugf("Removing old tmp file/directory: %s (modified: %v)", entryPath, info.ModTime())
+
+			err := os.RemoveAll(entryPath)
+			if err != nil {
+				cleanupErrors = append(cleanupErrors, fmt.Sprintf("failed to remove %s: %v", entryPath, err))
+				log.Warnf("Could not remove old tmp file/directory %s: %v", entryPath, err)
+			} else {
+				log.Debugf("Successfully removed old tmp file/directory: %s", entryPath)
+			}
+		}
+	}
+
+	if len(cleanupErrors) > 0 {
+		return fmt.Errorf("tmp directory cleanup completed with errors: %s", strings.Join(cleanupErrors, "; "))
+	}
+
+	return nil
+}
+
+// purgeTmpDirectory removes the tmp directory
+var purgeTmpDirectory = func(rootTmpDir string) error {
+	err := os.RemoveAll(rootTmpDir)
+	if err != nil {
+		return err
+	}
+	return nil
 }

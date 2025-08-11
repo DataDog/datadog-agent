@@ -27,7 +27,7 @@
 '@datadog/ebpf-platform': EBPF
 '@datadog/networks': NPM
 '@datadog/universal-service-monitoring': USMON
-'@datadog/windows-agent': WINA
+'@datadog/windows-products': WINA
 '@datadog/opentelemetry': OTAGENT
 '@datadog/opentelemetry-agent': OTAGENT
 '@datadog/agent-e2e-testing': ADXT

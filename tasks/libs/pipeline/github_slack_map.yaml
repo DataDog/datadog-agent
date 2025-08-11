@@ -51,4 +51,4 @@
 '@datadog/single-machine-performance': '#single-machine-performance'
 '@datadog/telemetry-and-analytics': '#instrumentation-telemetry'
 '@datadog/universal-service-monitoring': '#universal-service-monitoring'
-'@datadog/windows-agent': '#windows-agent-ops'
+'@datadog/windows-products': '#windows-products-ops'

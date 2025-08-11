@@ -14,7 +14,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -42,7 +42,7 @@ const (
 	TracerouteModule             types.ModuleName = "traceroute"
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
-	InventorySoftwareModule      types.ModuleName = "inventory_software"
+	SoftwareInventoryModule      types.ModuleName = "software_inventory"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -120,7 +120,7 @@ func load() (*types.Config, error) {
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
-	swEnabled := cfg.GetBool(swNS("enabled"))
+	swEnabled := pkgconfigsetup.Datadog().GetBool(swNS("enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
@@ -178,7 +178,7 @@ func load() (*types.Config, error) {
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 		}
 		if swEnabled {
-			c.EnabledModules[InventorySoftwareModule] = struct{}{}
+			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
 		}
 	}
 

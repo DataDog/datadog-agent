@@ -433,12 +433,52 @@ type LinkUsageMetrics struct {
 	BandwidthRx       float64
 }
 
+// SiteMetrics represents the columns to parse from the Site metrics response
+type SiteMetrics struct {
+	Site           string
+	Address        string
+	Latitude       string
+	Longitude      string
+	LocationSource string
+	VolumeTx       float64
+	VolumeRx       float64
+	BandwidthTx    float64
+	BandwidthRx    float64
+	Availability   float64
+}
+
 // LinkStatusMetrics represents the columns to parse from the LinkStatusMetricsResponse
 type LinkStatusMetrics struct {
 	DrillKey      string
 	Site          string
 	AccessCircuit string
 	Availability  float64
+}
+
+// ApplicationsByApplianceMetrics represents the columns to parse from the ApplicationsByApplianceMetricsResponse
+type ApplicationsByApplianceMetrics struct {
+	DrillKey    string
+	Site        string
+	AppID       string
+	Sessions    float64
+	VolumeTx    float64
+	VolumeRx    float64
+	BandwidthTx float64
+	BandwidthRx float64
+	Bandwidth   float64
+}
+
+// TopUserMetrics represents the columns to parse from the TopUserMetricsResponse
+type TopUserMetrics struct {
+	DrillKey    string
+	Site        string
+	User        string
+	Sessions    float64
+	VolumeTx    float64
+	VolumeRx    float64
+	BandwidthTx float64
+	BandwidthRx float64
+	Bandwidth   float64
 }
 
 // TunnelMetrics represents the columns to parse from the TunnelMetricsResponse
@@ -450,4 +490,39 @@ type TunnelMetrics struct {
 	VpnProfName string
 	VolumeRx    float64
 	VolumeTx    float64
+}
+
+// QoSMetrics represents the columns to parse from the QoS (Class of Service) metrics response
+type QoSMetrics struct {
+	DrillKey             string
+	LocalSiteName        string
+	RemoteSiteName       string
+	BestEffortTx         float64
+	BestEffortTxDrop     float64
+	ExpeditedForwardTx   float64
+	ExpeditedForwardDrop float64
+	AssuredForwardTx     float64
+	AssuredForwardDrop   float64
+	NetworkControlTx     float64
+	NetworkControlDrop   float64
+	BestEffortBandwidth  float64
+	ExpeditedForwardBW   float64
+	AssuredForwardBW     float64
+	NetworkControlBW     float64
+	VolumeTx             float64
+	TotalDrop            float64
+	PercentDrop          float64
+	Bandwidth            float64
+}
+
+// DIAMetrics represents the columns to parse from the DIA (Direct Internet Access) metrics response
+type DIAMetrics struct {
+	DrillKey      string
+	Site          string
+	AccessCircuit string
+	IP            string
+	VolumeTx      float64
+	VolumeRx      float64
+	BandwidthTx   float64
+	BandwidthRx   float64
 }

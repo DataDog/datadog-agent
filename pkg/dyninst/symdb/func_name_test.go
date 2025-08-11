@@ -120,6 +120,14 @@ func TestParseFuncName(t *testing.T) {
 				failureReason: parseFuncNameFailureReasonMapInit,
 			},
 		},
+		{"import path with dot", "gopkg.in/square/go-jose%2ev2.newBuffer",
+			parseFuncNameResult{
+				funcName: funcName{
+					Package: "gopkg.in/square/go-jose.v2",
+					Type:    "",
+					Name:    "newBuffer",
+				},
+			}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {

@@ -50,6 +50,7 @@ const (
 	eventTypeDBMMetrics  = "dbm-metrics"
 	eventTypeDBMActivity = "dbm-activity"
 	eventTypeDBMMetadata = "dbm-metadata"
+	eventTypeDBMHealth   = "dbm-health"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
@@ -121,6 +122,22 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		forceCompressionLevel: config.GzipCompressionLevel,
 	},
 	{
+		eventType:   eventTypeDBMHealth,
+		contentType: logshttp.JSONContentType,
+		// set the endpoint config to "metrics" since health will hit the same endpoint
+		// as metrics, so there is no need to add an extra config endpoint.
+		endpointsConfigPrefix:  "database_monitoring.metrics.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		intakeTrackType:        "dbmhealth",
+		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6,
+		defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+		// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+		defaultInputChanSize:  500,
+		forceCompressionKind:  config.GzipCompressionKind,
+		forceCompressionLevel: config.GzipCompressionLevel,
+	}, {
 		eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
 		category:                      "NDM",
 		contentType:                   logshttp.JSONContentType,
@@ -464,7 +481,6 @@ func newHTTPPassthroughPipeline(
 			senderImpl.In(),
 			make(chan struct{}),
 			serverlessMeta,
-			sender.NewArraySerializer(),
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,

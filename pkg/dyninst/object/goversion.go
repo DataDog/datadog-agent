@@ -81,9 +81,10 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 		return "", fmt.Errorf("failed to load section data: %w", err)
 	}
 	defer ms.Close()
+	msData := ms.Data()
 
 	offset := address - section.Addr
-	if offset+size > uint64(len(ms.Data)) {
+	if offset+size > uint64(len(msData)) {
 		return "", fmt.Errorf("string data out of bounds")
 	}
 
@@ -91,18 +92,18 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 	var dataAddr, dataSize uint64
 	if size == 8 {
 		// 32-bit pointers
-		if offset+8 > uint64(len(ms.Data)) {
+		if offset+8 > uint64(len(msData)) {
 			return "", fmt.Errorf("not enough data for 32-bit string header")
 		}
-		dataAddr = uint64(binary.LittleEndian.Uint32(ms.Data[offset:]))
-		dataSize = uint64(binary.LittleEndian.Uint32(ms.Data[offset+4:]))
+		dataAddr = uint64(binary.LittleEndian.Uint32(msData[offset:]))
+		dataSize = uint64(binary.LittleEndian.Uint32(msData[offset+4:]))
 	} else if size == 16 {
 		// 64-bit pointers
-		if offset+16 > uint64(len(ms.Data)) {
+		if offset+16 > uint64(len(msData)) {
 			return "", fmt.Errorf("not enough data for 64-bit string header")
 		}
-		dataAddr = binary.LittleEndian.Uint64(ms.Data[offset:])
-		dataSize = binary.LittleEndian.Uint64(ms.Data[offset+8:])
+		dataAddr = binary.LittleEndian.Uint64(msData[offset:])
+		dataSize = binary.LittleEndian.Uint64(msData[offset+8:])
 	} else {
 		return "", fmt.Errorf("invalid string header size: %d", size)
 	}
@@ -125,13 +126,14 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 		return "", fmt.Errorf("failed to load data section: %w", err)
 	}
 	defer mds.Close()
+	mdsData := mds.Data()
 
 	dataOffset := dataAddr - dataSection.Addr
-	if dataOffset+dataSize > uint64(len(mds.Data)) {
+	if dataOffset+dataSize > uint64(len(mdsData)) {
 		return "", fmt.Errorf("string data out of bounds in data section")
 	}
 
-	return string(mds.Data[dataOffset : dataOffset+dataSize]), nil
+	return string(mdsData[dataOffset : dataOffset+dataSize]), nil
 }
 
 var goVersionRegex = regexp.MustCompile(`^go(\d+)\.(\d+)(\.(\d+)|rc(\d+))`)
