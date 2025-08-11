@@ -55,9 +55,9 @@ func estimate(val reflect.Value, seen map[uintptr]bool) uint64 {
 	case reflect.Struct:
 		size := uint64(val.Type().Size()) // includes padding
 		for i := 0; i < val.NumField(); i++ {
-			if val.Type().Field(i).IsExported() {
-				size += estimate(val.Field(i), seen)
-			}
+			field := val.Field(i)
+			// Traverse all fields (both exported and unexported) for accurate size calculation
+			size += estimate(field, seen)
 		}
 		return size
 
