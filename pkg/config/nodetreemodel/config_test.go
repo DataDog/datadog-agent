@@ -1165,7 +1165,7 @@ func TestMultipleTransformersRaisesError(t *testing.T) {
 	}, "env transform for list_of_nums works if set once")
 
 	assert.PanicsWithValue(t, "env transform for list_of_strings already exists", func() {
-		config.ParseEnvAsStringSlice("list_of_strings", func(in string) []string {
+		config.ParseEnvAsStringSlice("list_of_strings", func(_ string) []string {
 			return []string{"a", "b"}
 		})
 		config.ParseEnvAsStringSlice("list_of_strings", func(in string) []string {
