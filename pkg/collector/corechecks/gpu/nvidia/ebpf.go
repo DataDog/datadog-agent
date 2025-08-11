@@ -30,7 +30,7 @@ type SystemProbeCache struct {
 // NewSystemProbeCache creates a new stats cache that connects to system-probe using sysprobeclient.
 func NewSystemProbeCache() *SystemProbeCache {
 	return &SystemProbeCache{
-		client: sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		client: sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))),
 		stats:  nil, // Start with no data
 	}
 }
