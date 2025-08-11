@@ -167,8 +167,8 @@ func (prs *EndpointPairPortRollupStore) AddToStore(store map[string][]uint16, sr
 	// Increment call counter and log store sizes
 	prs.callCounter++
 	if prs.logMapSizesEveryN > 0 && prs.callCounter%uint64(prs.logMapSizesEveryN) == 0 {
-		curStoreSize := common.Sizeof(prs.curStore)
-		newStoreSize := common.Sizeof(prs.newStore)
+		curStoreSize := common.Sizeof(prs.curStore, true)
+		newStoreSize := common.Sizeof(prs.newStore, true)
 		curStoreLen := len(prs.curStore)
 		newStoreLen := len(prs.newStore)
 
@@ -224,8 +224,8 @@ func (prs *EndpointPairPortRollupStore) AddToStoreIPv4(store map[[11]byte][]uint
 	// Increment call counter and log store sizes
 	prs.callCounter++
 	if prs.logMapSizesEveryN > 0 && prs.callCounter%uint64(prs.logMapSizesEveryN) == 0 {
-		curStoreSize := common.Sizeof(prs.curStoreIPv4)
-		newStoreSize := common.Sizeof(prs.newStoreIPv4)
+		curStoreSize := common.Sizeof(prs.curStoreIPv4, true)
+		newStoreSize := common.Sizeof(prs.newStoreIPv4, true)
 		curStoreLen := len(prs.curStoreIPv4)
 		newStoreLen := len(prs.newStoreIPv4)
 
@@ -283,7 +283,7 @@ func (prs *EndpointPairPortRollupStore) AddToSingleStore(srcToDestKey string, de
 	// Increment call counter and log store sizes
 	prs.callCounter++
 	if prs.logMapSizesEveryN > 0 && prs.callCounter%uint64(prs.logMapSizesEveryN) == 0 {
-		singleStoreSize := common.Sizeof(prs.singleStore)
+		singleStoreSize := common.Sizeof(prs.singleStore, true)
 		singleStoreLen := len(prs.singleStore)
 
 		var singleAvgSize float64
@@ -354,7 +354,7 @@ func (prs *EndpointPairPortRollupStore) AddToSingleStoreIPv4(srcToDestKey [11]by
 	// Increment call counter and log store sizes
 	prs.callCounter++
 	if prs.logMapSizesEveryN > 0 && prs.callCounter%uint64(prs.logMapSizesEveryN) == 0 {
-		singleStoreSize := common.Sizeof(prs.singleStoreIPv4)
+		singleStoreSize := common.Sizeof(prs.singleStoreIPv4, true)
 		singleStoreLen := len(prs.singleStoreIPv4)
 
 		var singleAvgSize float64

@@ -217,7 +217,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		f.callCounter++
 		if f.logMapSizesEveryN > 0 && f.callCounter%uint64(f.logMapSizesEveryN) == 0 {
 			// Log the flows map size and average size per entry
-			flowsMapSize := common.Sizeof(f.flows)
+			flowsMapSize := common.Sizeof(f.flows, true)
 			flowsMapLen := len(f.flows)
 
 			var avgSize float64
@@ -230,7 +230,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 
 			// Log the flow that was added and its size
 			if f.logMapSizesEveryN > 0 && f.callCounter%uint64(f.logMapSizesEveryN) == 0 {
-				f.logger.Infof("Flow added: flowContext: %+v, flow: %+v, total size: %d bytes, flow size: %d bytes", f.flows[aggHash], f.flows[aggHash].flow, common.Sizeof(f.flows[aggHash]), common.Sizeof(f.flows[aggHash].flow))
+				f.logger.Infof("Flow added: flowContext: %+v, flow: %+v, total size: %d bytes, flow size: %d bytes", f.flows[aggHash], f.flows[aggHash].flow, common.Sizeof(f.flows[aggHash], true), common.Sizeof(f.flows[aggHash].flow, true))
 			}
 		}
 	}
@@ -243,7 +243,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		if f.shouldSampleMemoryStats() {
 			// Calculate the size of the flow being added (sampled 1/100 calls)
 			f.flowAccStats.flowSizeCount++
-			f.flowAccStats.flowSizeBytes += common.Sizeof(f.flows[aggHash])
+			f.flowAccStats.flowSizeBytes += common.Sizeof(f.flows[aggHash], true)
 		}
 		updateCallCounterAndLogMapSizes()
 		return
