@@ -65,8 +65,12 @@ type ErrPolicyLoad struct {
 	Err     error
 }
 
-func (e ErrPolicyLoad) Error() string {
+func (e *ErrPolicyLoad) Error() string {
 	return fmt.Sprintf("error loading policy `%s` from source `%s`: %s", e.Name, e.Source, e.Err)
+}
+
+func (e *ErrPolicyLoad) Unwrap() error {
+	return e.Err
 }
 
 // ErrMacroLoad is on macro definition error
