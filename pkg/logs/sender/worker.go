@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -119,13 +118,6 @@ func (s *worker) run() {
 			sent := false
 			for !sent {
 				for _, destSender := range reliableDestinations {
-					// Drop non-MRF payloads to MRF destinations
-					if destSender.destination.IsMRF() && !payload.IsMRF() {
-						log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-						sent = true
-						continue
-					}
-
 					if destSender.Send(payload) {
 						if destSender.destination.Metadata().ReportingEnabled {
 							s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag(), s.workerID)
@@ -147,12 +139,6 @@ func (s *worker) run() {
 			}
 
 			for i, destSender := range reliableDestinations {
-				// Drop non-MRF payloads to MRF destinations
-				if destSender.destination.IsMRF() && !payload.IsMRF() {
-					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-					sent = true
-					continue
-				}
 				// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
 				// loss on intermittent failures.
 				if !destSender.lastSendSucceeded {
@@ -165,12 +151,6 @@ func (s *worker) run() {
 
 			// Attempt to send to unreliable destinations
 			for i, destSender := range unreliableDestinations {
-				// Drop non-MRF payloads to MRF destinations
-				if destSender.destination.IsMRF() && !payload.IsMRF() {
-					log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
-					sent = true
-					continue
-				}
 				if !destSender.NonBlockingSend(payload) {
 					tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
 					tlmMessagesDropped.Add(float64(payload.Count()), "false", strconv.Itoa(i))
