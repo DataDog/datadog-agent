@@ -60,6 +60,19 @@ func estimate(val reflect.Value, seen map[uintptr]bool, followPointers bool) uin
 	switch val.Kind() {
 	case reflect.Struct:
 		size := uint64(val.Type().Size()) // includes padding for the struct itself
+
+		// Special handling for time.Time - skip the location pointer
+		if val.Type().String() == "time.Time" {
+			// For time.Time, only count additional memory from first two fields (wall, ext)
+			// Skip the loc pointer field (index 2) to avoid including shared timezone data
+			for i := 0; i < val.NumField() && i < 2; i++ {
+				field := val.Field(i)
+				additionalSize := estimateAdditional(field, seen, followPointers)
+				size += additionalSize
+			}
+			return size
+		}
+
 		for i := 0; i < val.NumField(); i++ {
 			field := val.Field(i)
 			// Only count additional memory beyond the struct (e.g., heap allocations)
@@ -169,6 +182,17 @@ func estimateAdditional(val reflect.Value, seen map[uintptr]bool, followPointers
 		return estimate(val.Elem(), seen, followPointers)
 
 	case reflect.Struct:
+		// Special handling for time.Time - skip the location pointer
+		if val.Type().String() == "time.Time" {
+			// For time.Time, only count the first two fields (wall, ext) and skip loc pointer
+			size := uint64(0)
+			for i := 0; i < val.NumField() && i < 2; i++ {
+				field := val.Field(i)
+				size += estimateAdditional(field, seen, followPointers)
+			}
+			return size
+		}
+
 		// Nested struct: count additional memory beyond its base size
 		size := uint64(0)
 		for i := 0; i < val.NumField(); i++ {
