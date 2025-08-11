@@ -133,11 +133,11 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	// and exit right away.
 	_ = cloudService.Init()
 
-	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
-
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configuredTags),
+			serverlessTag.ArrayToMap(
+				configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false),
+			),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
@@ -154,7 +154,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	origin := cloudService.GetOrigin()
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
-	functionTags := strings.Join(configuredTags, ",")
+	functionTags := serverlessTag.GetFunctionTags(pkgconfigsetup.Datadog())
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
