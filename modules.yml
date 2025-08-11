@@ -187,7 +187,10 @@ modules:
     used_by_otel: true
   pkg/config/viperconfig:
     used_by_otel: true
-  pkg/dyninst/testprogs/progs: ignored
+  pkg/dyninst/testprogs/progs:
+    independent: false
+    should_tag: false
+    should_test_condition: never
   pkg/errors: default
   pkg/fips:
     used_by_otel: true
