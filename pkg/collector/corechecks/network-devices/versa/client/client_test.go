@@ -462,6 +462,105 @@ func TestGetLinkStatusMetrics(t *testing.T) {
 	require.Equal(t, expectedLinkStatusMetrics, linkStatusMetrics)
 }
 
+func TestGetQoSMetrics(t *testing.T) {
+	expectedQoSMetrics := []QoSMetrics{
+		{
+			DrillKey:             "test-branch-2B,test-branch-2C",
+			LocalSiteName:        "test-branch-2B",
+			RemoteSiteName:       "test-branch-2C",
+			BestEffortTx:         1000.0,
+			BestEffortTxDrop:     50.0,
+			ExpeditedForwardTx:   2000.0,
+			ExpeditedForwardDrop: 25.0,
+			AssuredForwardTx:     1500.0,
+			AssuredForwardDrop:   75.0,
+			NetworkControlTx:     500.0,
+			NetworkControlDrop:   10.0,
+			BestEffortBandwidth:  8000000.0,
+			ExpeditedForwardBW:   16000000.0,
+			AssuredForwardBW:     12000000.0,
+			NetworkControlBW:     4000000.0,
+			VolumeTx:             5000.0,
+			TotalDrop:            160.0,
+			PercentDrop:          3.2,
+			Bandwidth:            40000000.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	qosMetrics, err := client.GetPathQoSMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(qosMetrics), 1)
+	require.Equal(t, expectedQoSMetrics, qosMetrics)
+}
+func TestGetDIAMetrics(t *testing.T) {
+	expectedDIAMetrics := []DIAMetrics{
+		{
+			DrillKey:      "test-branch-2B,DIA-1,192.168.1.1",
+			Site:          "test-branch-2B",
+			AccessCircuit: "DIA-1",
+			IP:            "192.168.1.1",
+			VolumeTx:      15000.0,
+			VolumeRx:      12000.0,
+			BandwidthTx:   150000.0,
+			BandwidthRx:   120000.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	diaMetrics, err := client.GetDIAMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(diaMetrics), 1)
+	require.Equal(t, expectedDIAMetrics, diaMetrics)
+}
+
+func TestGetSiteMetrics(t *testing.T) {
+	expectedSiteMetrics := []SiteMetrics{
+		{
+			Site:           "test-branch-2B",
+			Address:        "123 Main St, Anytown, USA",
+			Latitude:       "40.7128",
+			Longitude:      "-74.0060",
+			LocationSource: "GPS",
+			VolumeTx:       15000.0,
+			VolumeRx:       12000.0,
+			BandwidthTx:    150000.0,
+			BandwidthRx:    120000.0,
+			Availability:   99.5,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	siteMetrics, err := client.GetSiteMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(siteMetrics), 1)
+	require.Equal(t, expectedSiteMetrics, siteMetrics)
+}
+
 func TestGetApplicationsByAppliance(t *testing.T) {
 	expectedApplicationsByApplianceMetrics := []ApplicationsByApplianceMetrics{
 		{
