@@ -7,6 +7,7 @@ package clusteragent
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -129,6 +130,57 @@ func TestGetDCALocalAutoscalingWorkloadListError(t *testing.T) {
 
 	_, err := getDCALocalAutoscalingWorkloadList(&flare.RemoteFlareProvider{IPC: ipcMock})
 	assert.Error(t, err, "Should return an error when server responds with error")
+}
+
+func TestGetClusterChecksMetadata(t *testing.T) {
+	mockResponse := map[string]any{
+		"clustername": "test-cluster",
+		"clustercheck_metadata": map[string][]map[string]any{
+			"kubernetes_state_core": {{
+				"status":    "dispatched",
+				"node_name": "node-1",
+				"errors":    "",
+			}},
+			"openmetrics": {{
+				"status": "dangling",
+				"errors": "Check not assigned to any node",
+			}},
+		},
+		"clustercheck_status": map[string]any{
+			"dangling_count": 1,
+			"node_count":     2,
+		},
+	}
+
+	ipcMock := ipcmock.New(t)
+
+	// Create test server that responds to /metadata/cluster-checks path
+	s := ipcMock.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/metadata/cluster-checks" {
+			out, _ := json.Marshal(mockResponse)
+			w.Write(out)
+		}
+	}))
+
+	setupClusterAgentIPCAddress(t, configmock.New(t), s.URL)
+
+	// Test that we can retrieve cluster checks metadata from the endpoint
+	targetURL := url.URL{
+		Scheme: "https",
+		Host:   fmt.Sprintf("localhost:%v", configmock.New(t).GetInt("cluster_agent.cmd_port")),
+		Path:   "/metadata/cluster-checks",
+	}
+
+	r, err := ipcMock.GetClient().Get(targetURL.String())
+	require.NoError(t, err)
+
+	// Verify the response content
+	var actual map[string]any
+	err = json.Unmarshal(r, &actual)
+	require.NoError(t, err)
+	assert.Equal(t, "test-cluster", actual["clustername"])
+	assert.Contains(t, actual, "clustercheck_metadata")
+	assert.Contains(t, actual, "clustercheck_status")
 }
 
 func setupClusterAgentIPCAddress(t *testing.T, confMock model.Config, URL string) {
