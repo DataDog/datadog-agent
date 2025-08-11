@@ -9,7 +9,6 @@ package datastreams
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -125,31 +124,53 @@ func (c *controller) Stream(ctx context.Context) <-chan integration.ConfigChange
 		c.closed = true
 		close(c.configChanges)
 	}()
+	go func() {
+		// every 10 seconds, send config change downstream
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			c.sendConfig([]liveMessagesConfig{{
+				ID: "test",
+				Kafka: kafkaConfig{
+					Cluster:                 "test-cluster",
+					Topic:                   "test-topic",
+					Partition:               0,
+					StartOffset:             0,
+					NMessages:               10,
+					ValueFormat:             "json",
+					ValueSchema:             "",
+					ValueUsesSchemaRegistry: false,
+					KeyFormat:               "json",
+					KeySchema:               "",
+					KeyUsesSchemaRegistry:   false,
+				},
+			}})
+		}
+	}()
 	return c.configChanges
 }
 
-// update parses updates from remote configuration, and configures the kafka_consumer integration to fetch messages from Kafka
-func (c *controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	remoteConfigs := parseRemoteConfig(updates, applyStateCallback)
+func (c *controller) sendConfig(remoteConfigs []liveMessagesConfig) {
 	if len(remoteConfigs) == 0 {
 		return
 	}
 	configChange := integration.ConfigChanges{}
 	cfgs := c.ac.GetAllConfigs()
+	log.Info("looking at all configs")
 	for _, integrationConfig := range cfgs {
 		if integrationConfig.Name != kafkaConsumerIntegrationName {
 			continue
 		}
+		log.Info("Live messages update: found kafka_consumer integration config", "integration_config", integrationConfig.Name, "logs_config", string(integrationConfig.LogsConfig))
 		configChange.Unschedule = append(configChange.Unschedule, integrationConfig)
 		updatedConfig := integrationConfig
 		updatedConfig.Instances = make([]integration.Data, 0, len(updatedConfig.Instances))
 		if updatedConfig.LogsConfig == nil {
 			updatedConfig.LogsConfig = integration.Data(logsConfig)
-			fmt.Println("logs config is null")
+			// updatedConfig.LogsConfig = nil
+			log.Info("Logs config is not set, setting it now", "logs_config", string(updatedConfig.LogsConfig))
 		} else {
 			log.Info("Logs config is already set", "logs_config", string(updatedConfig.LogsConfig))
-			fmt.Println("logs config is not null")
-			fmt.Println("logs config: ", string(updatedConfig.LogsConfig))
 		}
 		for _, instance := range integrationConfig.Instances {
 			updatedInstance := instance
@@ -171,6 +192,12 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		return
 	}
 	c.configChanges <- configChange
+}
+
+// update parses updates from remote configuration, and configures the kafka_consumer integration to fetch messages from Kafka
+func (c *controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	remoteConfigs := parseRemoteConfig(updates, applyStateCallback)
+	c.sendConfig(remoteConfigs)
 }
 
 func parseRemoteConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) (configs []liveMessagesConfig) {

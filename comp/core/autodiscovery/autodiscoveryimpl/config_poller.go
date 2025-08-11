@@ -166,11 +166,12 @@ func (cp *configPoller) poll(provider types.CollectingConfigProvider, ac *AutoCo
 func (cp *configPoller) collectOnce(ctx context.Context, provider types.CollectingConfigProvider, ac *AutoConfig) {
 	// retrieve the list of newly added configurations as well
 	// as removed configurations
+	log.Info("collecting configurations from provider ", cp.provider)
 	newConfigs, removedConfigs := cp.collect(ctx, provider)
 	if len(newConfigs) > 0 || len(removedConfigs) > 0 {
 		log.Infof("%v provider: collected %d new configurations, removed %d", cp.provider, len(newConfigs), len(removedConfigs))
 	} else {
-		log.Debugf("%v provider: no configuration change", cp.provider)
+		log.Infof("%v provider: no configuration change", cp.provider)
 	}
 
 	// Process removed configs first to handle the case where a
@@ -227,6 +228,7 @@ func (cp *configPoller) storeAndDiffConfigs(configs []integration.Config) ([]int
 	var newConf []integration.Config
 	var removedConf []integration.Config
 
+	log.Info("doing diff of configs for provider ", cp.provider.String())
 	// We allocate a new map. We could do without it with a bit more processing
 	// but it allows to free some memory if number of collected configs varies a lot
 	fetchedMap := make(map[uint64]integration.Config, len(configs))

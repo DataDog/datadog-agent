@@ -843,7 +843,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetKnown("metadata_providers")
-	config.SetKnown("config_providers")
+	config.BindEnvAndSetDefault("config_providers", []map[string]interface{}{
+		{"name": "docker"},
+	})
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
 
@@ -1262,8 +1264,8 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	// Autoconfig
 	// Where to look for check templates if no custom path is defined
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
-	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
-	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
+	config.BindEnvAndSetDefault("autoconf_config_files_poll", true)
+	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 10)
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
 	config.BindEnvAndSetDefault("include_ephemeral_containers", false)
 	config.BindEnvAndSetDefault("ac_include", []string{})

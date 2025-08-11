@@ -37,6 +37,7 @@ type ContainerConfigProvider struct {
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
 func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+	log.Info("New container config provider")
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
@@ -76,6 +77,7 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 				if !ok {
 					return
 				}
+				log.Info("new events", evBundle)
 
 				// send changes even when they're empty, as we
 				// need to signal that an event has been
@@ -94,12 +96,23 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 	defer k.mu.Unlock()
 
 	changes := integration.ConfigChanges{}
+	d := integration.Data(`kafka_connect_str: localhost:9092
+consumer_groups:
+  my-consumer-group: {}
+`)
+	changes.ScheduleConfig(integration.Config{
+		Name:       "kafka_consumer",
+		Instances:  []integration.Data{d},
+		InitConfig: integration.Data{},
+	})
 
 	for _, event := range evBundle.Events {
 		entityName := buildEntityName(event.Entity)
+		log.Info("getting new event", entityName)
 
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
+			log.Info("processing event", event.Type, "for entity", entityName, "string of entity is", event.Entity.String(true))
 			configs, err := k.generateConfig(event.Entity)
 
 			if err != nil {
@@ -133,6 +146,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 			}
 
 		case workloadmeta.EventTypeUnset:
+			log.Info("processing event unset", event.Type, "for entity", entityName)
 			oldConfigs, found := k.configCache[entityName]
 			if !found {
 				log.Debugf("entity %q removed from workloadmeta store but not found in cache. skipping", entityName)
@@ -154,7 +168,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 	if k.telemetryStore != nil {
 		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeContainer)
 	}
-
+	log.Info("changes are", len(changes.Schedule), changes)
 	return changes
 }
 

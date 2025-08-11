@@ -454,6 +454,7 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 // GetAllConfigs returns all resolved and non-template configs known to
 // AutoConfig.
 func (ac *AutoConfig) GetAllConfigs() []integration.Config {
+	log.Info("get all configs is called")
 	var configs []integration.Config
 
 	ac.cfgMgr.mapOverLoadedConfigs(func(scheduledConfigs map[string]integration.Config) {
