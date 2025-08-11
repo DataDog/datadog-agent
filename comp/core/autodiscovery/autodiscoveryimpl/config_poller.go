@@ -228,7 +228,9 @@ func (cp *configPoller) storeAndDiffConfigs(configs []integration.Config) ([]int
 	var newConf []integration.Config
 	var removedConf []integration.Config
 
-	log.Info("doing diff of configs for provider ", cp.provider.String())
+	if cp.provider != nil {
+		log.Info("doing diff of configs for provider ", cp.provider.String())
+	}
 	// We allocate a new map. We could do without it with a bit more processing
 	// but it allows to free some memory if number of collected configs varies a lot
 	fetchedMap := make(map[uint64]integration.Config, len(configs))

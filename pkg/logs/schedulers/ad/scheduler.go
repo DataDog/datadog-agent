@@ -216,7 +216,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
 		}
 	case names.DataStreamsLiveMessages:
-		log.Info("New source from live messages", "logs_config", string(config.LogsConfig))
+		log.Info("New source from live messages", "logs_config", string(config.LogsConfig), "id", config.Digest(), config.Dump(false))
 		// Live messages provides a default (Json) logs config for the kafka_consumer integration when there is no config.
 		// However, if there is already a logs config, live messages will not override it, so it can be a yaml config in this case.
 		configs, err = logsConfig.ParseJSONOrYAML(config.LogsConfig)
@@ -258,6 +258,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		}
 
 		if service != nil {
+			log.Info("service not nil", service.GetEntityID())
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
 			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog) {
