@@ -29,7 +29,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 
 	fingerprintsAlign := true
 
-	if fingerprinter.IsFingerprintingEnabled() {
+	if fingerprinter.IsFingerprintingEnabled() && filePath != "" {
 		prevFingerprint := registry.GetFingerprint(identifier)
 		if prevFingerprint != nil {
 			newFingerprint := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
