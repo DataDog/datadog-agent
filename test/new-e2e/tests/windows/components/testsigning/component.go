@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package defender contains code to control the behavior of Windows defender in the E2E tests
+// Package testsigning contains code to control the behavior of Windows test signing in the E2E tests
 package testsigning
 
 import (
@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
 )
 
-// Manager contains the resources to manage Windows Defender
+// Manager contains the resources to manage Windows TestSigning
 type Manager struct {
 	namer namer.Namer
 	host  *remote.Host
