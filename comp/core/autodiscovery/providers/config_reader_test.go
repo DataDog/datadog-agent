@@ -110,6 +110,21 @@ func TestGetIntegrationConfig(t *testing.T) {
 	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_with_service_id.yaml")
 	assert.Nil(t, err)
 	assert.Empty(t, config.ServiceID)
+
+	// discovery configuration with instances
+	config, err = GetIntegrationConfigFromFile("foo", "tests/discovery.yaml")
+	require.Nil(t, err)
+	assert.Equal(t, config.ADIdentifiers, []string{"postgres"})
+	assert.NotNil(t, config.DiscoveryConfig)
+	assert.Contains(t, string(config.DiscoveryConfig), "postgresql")
+
+	// discovery-only configuration (no instances, init_config)
+	config, err = GetIntegrationConfigFromFile("foo", "tests/discovery_only.yaml")
+	require.Nil(t, err)
+	assert.Equal(t, config.ADIdentifiers, []string{"postgres"})
+	assert.NotNil(t, config.DiscoveryConfig)
+	assert.Contains(t, string(config.DiscoveryConfig), "postgresql")
+	assert.Empty(t, config.Instances)
 }
 
 func TestReadConfigFiles(t *testing.T) {
@@ -118,7 +133,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 20, len(configs))
+	require.Equal(t, 22, len(configs))
 	require.Equal(t, 4, len(errors))
 
 	for _, c := range configs {
@@ -129,7 +144,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
 	require.Nil(t, err)
-	require.Equal(t, 18, len(configs))
+	require.Equal(t, 20, len(configs))
 
 	expectedConfig1 := integration.Config{
 		Name: "advanced_ad",

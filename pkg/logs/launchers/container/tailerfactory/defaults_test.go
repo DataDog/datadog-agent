@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
@@ -139,6 +141,59 @@ func TestDefaultSourceAndService(t *testing.T) {
 			},
 			nil)
 		require.Equal(t, "", source)
+		require.Equal(t, "svc", service)
+	})
+
+	t.Run("source from discovery registry", func(t *testing.T) {
+		// Setup discovery registry with test data
+		registry := discovery.GetRegistry()
+		registry.Reset()
+
+		// Register a discovery info for "postgres" -> "postgresql"
+		testConfig := integration.Config{
+			Name:            "postgres",
+			ADIdentifiers:   []string{"postgres"},
+			DiscoveryConfig: []byte(`log_source: postgresql`),
+		}
+		registry.RegisterConfig(testConfig)
+
+		source, service := defaultSourceAndServiceInner(
+			sources.NewLogSource("test", &config.LogsConfig{
+				Identifier: "abc123",
+				// Source not set, should use discovery
+				Service: "svc",
+			}), containersorpods.LogContainers,
+			// getContainer
+			func(containerID string) (*workloadmeta.Container, error) {
+				require.Equal(t, "abc123", containerID)
+				return makeContainer("postgres", "postgres-container"), nil
+			},
+			nil)
+		require.Equal(t, "postgresql", source) // Should use discovery-configured source
+		require.Equal(t, "svc", service)
+
+		// Clean up
+		registry.Reset()
+	})
+
+	t.Run("source from shortName when discovery not found", func(t *testing.T) {
+		// Setup empty discovery registry
+		registry := discovery.GetRegistry()
+		registry.Reset()
+
+		source, service := defaultSourceAndServiceInner(
+			sources.NewLogSource("test", &config.LogsConfig{
+				Identifier: "abc123",
+				// Source not set
+				Service: "svc",
+			}), containersorpods.LogContainers,
+			// getContainer
+			func(containerID string) (*workloadmeta.Container, error) {
+				require.Equal(t, "abc123", containerID)
+				return makeContainer("nginx", "nginx-container"), nil
+			},
+			nil)
+		require.Equal(t, "nginx", source) // Should fall back to short name
 		require.Equal(t, "svc", service)
 	})
 }
