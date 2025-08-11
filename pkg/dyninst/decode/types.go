@@ -544,6 +544,14 @@ func (h *goHMapHeaderType) encodeValueFields(
 	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
 	}
+	if uint64(encodedItems) < count {
+		if err := writeTokens(enc,
+			notCapturedReason,
+			notCapturedReasonPruned,
+		); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
