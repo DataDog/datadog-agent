@@ -78,8 +78,14 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				continue
 			}
 
+			log.Info("before filtering sources", "sources", len(sources))
 			filtered := s.filterConflictingSources(sources, config.Provider)
+			log.Info("after filtering sources", "sources", len(filtered), config.Name)
 			for _, source := range filtered {
+				log.Info("adding source", source.Name)
+				if source.Config != nil {
+					log.Info("type is", source.Config.Type)
+				}
 				s.mgr.AddSource(source)
 			}
 		default:
