@@ -44,8 +44,16 @@ jobs:
         run: |
           dda inv -- -e release.check-previous-agent6-rc
 
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.create-rc-pr.create-pr
+
       - name: Determine the release active branches
         id: branches
+        env:
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
           if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
             echo "value=[\"6.53.x\"]" >> $GITHUB_OUTPUT
