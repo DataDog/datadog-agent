@@ -151,15 +151,11 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 }
 
 // ContainerPausedProgram creates a program for filtering paused containers
-func ContainerPausedProgram(config config.Component, logger log.Component) program.FilterProgram {
+func ContainerPausedProgram(_ config.Component, logger log.Component) program.FilterProgram {
 	programName := "ContainerPausedProgram"
 	var initErrors []error
-	var excludeList []string
-	if config.GetBool("exclude_pause_container") {
-		excludeList = containers.GetPauseContainerExcludeList()
-	}
 
-	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.ContainerType)
+	excludeProgram, excludeErr := createProgramFromOldFilters(containers.GetPauseContainerExcludeList(), workloadfilter.ContainerType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
 		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)
