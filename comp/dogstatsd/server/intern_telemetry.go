@@ -19,8 +19,7 @@ type stringInternerTelemetry struct {
 }
 
 type stringInternerInstanceTelemetry struct {
-	enabled  bool
-	curBytes int
+	enabled bool
 
 	resets               telemetry.SimpleCounter
 	size                 telemetry.SimpleGauge

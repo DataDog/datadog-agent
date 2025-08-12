@@ -83,4 +83,3 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 	assert.NotEqual(&v2, &v4, "must point to a different address")
 	assert.NotEqual(&v3, &v4, "must point to a different address")
 }
-
