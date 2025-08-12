@@ -55,7 +55,7 @@ func hostDockerHttpbinEnvProvisionerWindows(opt ...awsHostWindows.ProvisionerOpt
 			opts = append(opts, opt...)
 		}
 		params := awsHostWindows.GetProvisionerParams(opts...)
-		awsHostWindows.Run(ctx, &env.WindowsHost, params)
+		awsHostWindows.Run(ctx, &env.WindowsHost, awsEnv, params)
 
 		vmName := "httpbinvm"
 
