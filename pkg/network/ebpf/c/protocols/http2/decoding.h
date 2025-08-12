@@ -11,6 +11,29 @@ PKTBUF_READ_INTO_BUFFER(http2_preface, HTTP2_MARKER_SIZE, HTTP2_MARKER_SIZE)
 PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(http2_frame_header, HTTP2_FRAME_HEADER_SIZE, HTTP2_FRAME_HEADER_SIZE)
 PKTBUF_READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
+// Callback function for bpf_loop to handle dynamic table update iteration
+static long dynamic_table_update_callback(unsigned long i, void* ctx) {
+    pktbuf_t pkt = *(pktbuf_t*)ctx;
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+    case PKTBUF_TLS:
+        break;
+    default:
+        pktbuf_invalid_operation();
+    }
+    __u8 current_ch;
+
+    pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
+    pktbuf_advance(pkt, sizeof(current_ch));
+
+    // If MSB is not set, we've consumed the complete integer
+    if ((current_ch & 128) == 0) {
+        return 1; // Exit the loop
+    }
+
+    return 0; // Continue the loop
+}
+
 // Handles the dynamic table size update.
 static __always_inline void pktbuf_handle_dynamic_table_update(pktbuf_t pkt) {
     // To determine the size of the dynamic table update, we read an integer representation byte by byte.
@@ -23,14 +46,7 @@ static __always_inline void pktbuf_handle_dynamic_table_update(pktbuf_t pkt) {
     // If the top 3 bits are 001, then we have a dynamic table size update.
     if ((current_ch & 224) == 32) {
         pktbuf_advance(pkt, sizeof(current_ch));
-    #pragma unroll(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS)
-        for (__u8 iter = 0; iter < HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS; ++iter) {
-            pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
-            pktbuf_advance(pkt, sizeof(current_ch));
-            if ((current_ch & 128) == 0) {
-                return;
-            }
-        }
+        bpf_loop(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS, dynamic_table_update_callback, (void*)&pkt, 0);
     }
 }
 
