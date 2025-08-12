@@ -8,6 +8,7 @@ artifact measurement and report generation.
 import os
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
@@ -18,6 +19,7 @@ from tasks.static_quality_gates.experimental_gates import (
     InPlaceArtifactReport,
     InPlacePackageMeasurer,
 )
+from tasks.static_quality_gates.gates import ArtifactMeasurement
 
 
 class TestFileInfo(unittest.TestCase):
@@ -177,24 +179,27 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
             os.unlink(invalid_config_file.name)
 
     @patch.dict(os.environ, {"CI_PIPELINE_ID": "12345", "CI_COMMIT_SHA": "abc123def456"})
-    @patch('tasks.static_quality_gates.experimental_gates.extract_package')
-    @patch('tasks.static_quality_gates.experimental_gates.file_size')
-    @patch('tasks.static_quality_gates.experimental_gates.directory_size')
     @patch('os.path.exists')
-    def test_measure_package_success(self, mock_exists, mock_dir_size, mock_file_size, mock_extract):
-        """Test successful package measurement."""
+    def test_measure_package_success(self, mock_exists):
+        """Test successful package measurement with optimized single extraction."""
         # Setup mocks
         mock_exists.return_value = True
-        mock_file_size.return_value = 100000  # 100KB wire size
-        mock_dir_size.return_value = 500000  # 500KB disk size
-        mock_extract.return_value = None
 
-        # Mock the file inventory generation
-        with patch.object(self.measurer, '_generate_file_inventory') as mock_inventory:
-            mock_inventory.return_value = [
+        # Mock the optimized extraction and analysis method
+        with patch.object(self.measurer, '_extract_and_analyze_package') as mock_extract_analyze:
+            # Create mock measurement
+            mock_measurement = ArtifactMeasurement(
+                artifact_path="/path/to/package.deb", on_wire_size=100000, on_disk_size=500000
+            )
+
+            # Create mock file inventory
+            mock_file_inventory = [
                 FileInfo("opt/agent/bin/agent", 400000, "sha256:abc123"),
                 FileInfo("etc/config.yaml", 100000, None),
             ]
+
+            # Configure the mock to return both measurement and file inventory
+            mock_extract_analyze.return_value = (mock_measurement, mock_file_inventory)
 
             # Mock context
             mock_ctx = Mock()
@@ -220,11 +225,11 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
         self.assertEqual(report.build_job_name, "test_job")
         self.assertEqual(len(report.file_inventory), 2)
 
-        # Verify mocks were called
+        # Verify key methods were called
         mock_exists.assert_called_once_with("/path/to/package.deb")
-        mock_file_size.assert_called_once_with("/path/to/package.deb")
-        mock_extract.assert_called_once()
-        mock_dir_size.assert_called_once()
+        mock_extract_analyze.assert_called_once_with(
+            mock_ctx, "/path/to/package.deb", unittest.mock.ANY, 10000, True, False
+        )
 
     def test_measure_package_missing_file(self):
         """Test measuring package with missing file."""

@@ -156,11 +156,8 @@ class InPlacePackageMeasurer:
         # Create quality gate config
         gate_config = create_quality_gate_config(gate_name, self.config[gate_name])
 
-        # Measure package sizes
-        measurement = self._measure_package_sizes(ctx, package_path, gate_config)
-
-        # Generate file inventory with enhanced options
-        file_inventory = self._generate_file_inventory(
+        # Single extraction and analysis (optimization 1A)
+        measurement, file_inventory = self._extract_and_analyze_package(
             ctx, package_path, gate_config, max_files, generate_checksums, debug
         )
 
@@ -186,9 +183,158 @@ class InPlacePackageMeasurer:
             artifact_flavors=artifact_flavors,
         )
 
-    def _measure_package_sizes(self, ctx: Context, package_path: str, config: QualityGateConfig) -> ArtifactMeasurement:
+    def _extract_and_analyze_package(
+        self,
+        ctx: Context,
+        package_path: str,
+        config: QualityGateConfig,
+        max_files: int = 10000,
+        generate_checksums: bool = True,
+        debug: bool = False,
+    ) -> tuple[ArtifactMeasurement, list[FileInfo]]:
+        """
+        Extract package once and perform both size measurement and file inventory.
+
+        This optimization (1A) eliminates duplicate package extraction by combining
+        size measurement and file inventory generation into a single extraction operation.
+
+        Args:
+            ctx: Invoke context for running commands
+            package_path: Path to the package file
+            config: Quality gate configuration
+            max_files: Maximum number of files to process in inventory
+            generate_checksums: Whether to generate checksums for files
+            debug: Enable debug logging
+
+        Returns:
+            Tuple of (ArtifactMeasurement, list[FileInfo])
+
+        Raises:
+            RuntimeError: If extraction or analysis fails
+        """
+        try:
+            # Measure wire size (compressed package file size)
+            wire_size = file_size(package_path)
+
+            with tempfile.TemporaryDirectory() as extract_dir:
+                if debug:
+                    print(f"📁 Extracting package to: {extract_dir}")
+
+                # Extract package once for both measurements
+                extract_package(ctx, config.os, package_path, extract_dir)
+
+                # Measure disk size from extracted content
+                disk_size = directory_size(extract_dir)
+
+                # Create measurement object
+                measurement = ArtifactMeasurement(
+                    artifact_path=package_path, on_wire_size=wire_size, on_disk_size=disk_size
+                )
+
+                # Generate file inventory from the same extracted content
+                file_inventory = self._walk_extracted_files(extract_dir, max_files, generate_checksums, debug)
+
+                if debug:
+                    print("✅ Single extraction completed:")
+                    print(f"   • Wire size: {wire_size:,} bytes")
+                    print(f"   • Disk size: {disk_size:,} bytes")
+                    print(f"   • Files inventoried: {len(file_inventory):,}")
+
+                return measurement, file_inventory
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to extract and analyze package {package_path}: {e}") from e
+
+    def _walk_extracted_files(
+        self, extract_dir: str, max_files: int, generate_checksums: bool, debug: bool
+    ) -> list[FileInfo]:
+        """
+        Walk through extracted files and create file inventory.
+
+        This method is extracted from _generate_file_inventory to be reused
+        by the optimized _extract_and_analyze_package method.
+
+        Args:
+            extract_dir: Directory containing extracted package files
+            max_files: Maximum number of files to process
+            generate_checksums: Whether to generate checksums for files
+            debug: Enable debug logging
+
+        Returns:
+            List of FileInfo objects for all files in the package
+        """
+        extract_path = Path(extract_dir)
+
+        # Verify extraction worked
+        if not any(extract_path.iterdir()):
+            if debug:
+                print("⚠️  Warning: No files found after extraction")
+            return []
+
+        if debug:
+            all_items = list(extract_path.rglob('*'))
+            files_count = sum(1 for item in all_items if item.is_file())
+            dirs_count = sum(1 for item in all_items if item.is_dir())
+            print(f"📊 Found {files_count} files and {dirs_count} directories")
+
+        file_inventory = []
+        files_processed = 0
+        total_size = 0
+
+        # Walk through all files in the extracted package
+        for file_path in extract_path.rglob('*'):
+            if file_path.is_file():
+                # Respect max_files limit
+                if files_processed >= max_files:
+                    if debug:
+                        print(f"⚠️  Reached max files limit ({max_files}), stopping inventory")
+                    break
+
+                try:
+                    relative_path = str(file_path.relative_to(extract_path))
+                    file_stat = file_path.stat()
+                    size_bytes = file_stat.st_size
+
+                    # Generate checksum for larger files to help track changes
+                    checksum = None
+                    if generate_checksums and size_bytes > 1024:
+                        checksum = self._generate_checksum(file_path)
+
+                    file_inventory.append(
+                        FileInfo(
+                            relative_path=relative_path,
+                            size_bytes=size_bytes,
+                            checksum=checksum,
+                        )
+                    )
+
+                    files_processed += 1
+                    total_size += size_bytes
+
+                    if debug and files_processed % 1000 == 0:
+                        print(f"📋 Processed {files_processed} files...")
+
+                except (OSError, PermissionError) as e:
+                    if debug:
+                        print(f"⚠️  Skipping file {file_path}: {e}")
+                    continue
+
+        # Sort by size (descending) for easier analysis
+        file_inventory.sort(key=lambda f: f.size_bytes, reverse=True)
+
+        if debug:
+            print("✅ File inventory completed:")
+            print(f"   • Total files processed: {files_processed}")
+            print(f"   • Total size: {total_size:,} bytes ({total_size / 1024 / 1024:.2f} MB)")
+
+        return file_inventory
+
+    def _measure_package_sizes(self, ctx: Context, package_path: str, config: QualityGateConfig) -> ArtifactMeasurement:  # noqa: vulture
         """
         Measure package wire and disk sizes.
+
+        DEPRECATED: This method is kept for backward compatibility but is no longer used
+        by the main flow. Use _extract_and_analyze_package instead for better performance.
 
         Args:
             ctx: Invoke context
@@ -211,7 +357,7 @@ class InPlacePackageMeasurer:
         except Exception as e:
             raise RuntimeError(f"Failed to measure package sizes for {package_path}: {e}") from e
 
-    def _generate_file_inventory(
+    def _generate_file_inventory(  # noqa: vulture
         self,
         ctx: Context,
         package_path: str,
@@ -222,6 +368,9 @@ class InPlacePackageMeasurer:
     ) -> list[FileInfo]:
         """
         Generate detailed file inventory for the package.
+
+        DEPRECATED: This method is kept for backward compatibility but is no longer used
+        by the main flow. Use _extract_and_analyze_package instead for better performance.
 
         Args:
             ctx: Invoke context
@@ -251,71 +400,8 @@ class InPlacePackageMeasurer:
                         print(f"❌ Package extraction failed: {e}")
                     raise RuntimeError(f"Package extraction failed: {e}") from e
 
-                extract_path = Path(extract_dir)
-
-                # Verify extraction worked
-                if not any(extract_path.iterdir()):
-                    if debug:
-                        print("⚠️  Warning: No files found after extraction")
-                    return []
-
-                if debug:
-                    all_items = list(extract_path.rglob('*'))
-                    files_count = sum(1 for item in all_items if item.is_file())
-                    dirs_count = sum(1 for item in all_items if item.is_dir())
-                    print(f"📊 Found {files_count} files and {dirs_count} directories")
-
-                file_inventory = []
-                files_processed = 0
-                total_size = 0
-
-                # Walk through all files in the extracted package
-                for file_path in extract_path.rglob('*'):
-                    if file_path.is_file():
-                        # Respect max_files limit
-                        if files_processed >= max_files:
-                            if debug:
-                                print(f"⚠️  Reached max files limit ({max_files}), stopping inventory")
-                            break
-
-                        try:
-                            relative_path = str(file_path.relative_to(extract_path))
-                            file_stat = file_path.stat()
-                            size_bytes = file_stat.st_size
-
-                            # Generate checksum for larger files to help track changes
-                            checksum = None
-                            if generate_checksums and size_bytes > 1024:
-                                checksum = self._generate_checksum(file_path)
-
-                            file_inventory.append(
-                                FileInfo(
-                                    relative_path=relative_path,
-                                    size_bytes=size_bytes,
-                                    checksum=checksum,
-                                )
-                            )
-
-                            files_processed += 1
-                            total_size += size_bytes
-
-                            if debug and files_processed % 1000 == 0:
-                                print(f"📋 Processed {files_processed} files...")
-
-                        except (OSError, PermissionError) as e:
-                            if debug:
-                                print(f"⚠️  Skipping file {file_path}: {e}")
-                            continue
-
-                # Sort by size (descending) for easier analysis
-                file_inventory.sort(key=lambda f: f.size_bytes, reverse=True)
-
-                if debug:
-                    print("✅ File inventory completed:")
-                    print(f"   • Total files processed: {files_processed}")
-                    print(f"   • Total size: {total_size:,} bytes ({total_size / 1024 / 1024:.2f} MB)")
-
-                return file_inventory
+                # Use the optimized file walking method
+                return self._walk_extracted_files(extract_dir, max_files, generate_checksums, debug)
 
         except Exception as e:
             error_msg = f"Failed to generate file inventory for {package_path}: {e}"
