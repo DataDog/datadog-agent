@@ -4,6 +4,7 @@
 #include "bpf_metadata.h"
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
+#include "cfa.h"
 #include "compiler.h"
 #include "context.h"
 #include "framing.h"
@@ -78,9 +79,9 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   global_ctx.stack_walk->regs = *regs;
   global_ctx.stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG;
 #if defined(bpf_target_x86)
-  bool frameless = *(volatile bool *)&params->frameless;
   global_ctx.stack_walk->stack.fps[0] = regs->DWARF_BP_REG;
-  if (frameless) {
+  if (params->frameless) {
+    // Call instruction saves return address on the stack.
     if (bpf_probe_read_user(&global_ctx.stack_walk->stack.pcs.pcs[1],
                             sizeof(global_ctx.stack_walk->stack.pcs.pcs[1]),
                             (void*)(regs->sp))) {
@@ -90,12 +91,13 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     global_ctx.stack_walk->idx_shift = 1;
   }
 #elif defined(bpf_target_arm64)
-  // Use the link register to populate the next frame's pc.
-  global_ctx.stack_walk->stack.pcs.pcs[1] = regs->DWARF_REGISTER(30);
-  // For reasons explained below when setting up the cfa, the BP register is
-  // pointing to the caller's frame pointer at this point.
-  global_ctx.stack_walk->stack.fps[1] = regs->DWARF_BP_REG;
-  global_ctx.stack_walk->idx_shift = 1;
+  global_ctx.stack_walk->stack.fps[0] = regs->DWARF_SP_REG - 8;
+  if (params->frameless) {
+    // Call instruction saves return address in the link register.
+    global_ctx.stack_walk->stack.pcs.pcs[1] = regs->DWARF_REGISTER(30);
+    global_ctx.stack_walk->stack.fps[1] = regs->DWARF_SP_REG - 8;
+    global_ctx.stack_walk->idx_shift = 1;
+  }
 #else
   #error "Unsupported architecture"
 #endif
@@ -123,43 +125,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   frame_data_t frame_data = {
     .stack_idx = 0,
   };
-// Stack layout is slightly different in Go between arm64 and x86_64.
-// Established based on following documentation and machine code reads:
-// https://tip.golang.org/src/cmd/compile/abi-internal#architecture-specifics
-//
-// There's some trickery to get our hands on the CFA in Go based on whether or
-// not the leaf function is frameless. If it is frameless, then we need to
-// assume that the frame pointer is actually set up for the caller's frame.
-#if defined(bpf_target_arm64)
-// On arm, if the function is framless, the base pointer will be pointing to at
-// the lowest entry of our caller's frame which is almost our CFA. If it's not
-// frameless, then the base pointer will be pointing to the lowest entry of our
-// frame and it needs to be dereferenced to get to the CFA. Fortunately, we
-// already did that dereferencing in the stack walk.
-//
-// Or at least you might think that'd be the situation. Unfortunately, or
-// perhaps fortunately, Go is marking the beginning of the prologue stack
-// adjustment as the end of the prologue. So, when we use the prologue_end
-// marker set by Go in DWARF to find the prologue end, we're actually getting
-// the beginning of the prologue adjustment and can assume the registers are
-// still set up for the caller's frame.
-//
-// See https://github.com/golang/go/issues/74357.
-    *(volatile uint64_t*)(&frame_data.cfa) = global_ctx.regs->DWARF_BP_REG + 8;
-#elif defined(bpf_target_x86)
-// On x86, if the function is frameless, the stack pointer is pointing to the
-// return pc, so one word above that is our CFA. If it's not frameless, then the
-// base pointer is pointing to our frame pointer which is 16 bytes less than our
-// CFA.
-    if (frameless) {
-      *(volatile uint64_t*)(&frame_data.cfa) = global_ctx.regs->DWARF_SP_REG + 8;
-    } else {
-      *(volatile uint64_t*)(&frame_data.cfa) = global_ctx.regs->DWARF_BP_REG + 16;
-    }
-#else
-    #error "Unsupported architecture"
-#endif
-
+  frame_data.cfa = calculate_cfa(global_ctx.regs, params->frameless);
   if (params->stack_machine_pc != 0) {
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);
@@ -167,6 +133,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   chase_steps = stack_machine_chase_pointers(&global_ctx);
   if (!events_scratch_buf_submit(global_ctx.buf)) {
     // TODO: Report dropped events metric.
+    LOG(1, "probe_run output dropped");
   }
   if (stack_hash != 0) {
     upsert_stack_hash(stack_hash);

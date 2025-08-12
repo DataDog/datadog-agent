@@ -462,71 +462,105 @@ func TestGetLinkStatusMetrics(t *testing.T) {
 	require.Equal(t, expectedLinkStatusMetrics, linkStatusMetrics)
 }
 
-func TestParseLinkUsageMetrics(t *testing.T) {
-	testData := [][]interface{}{
+func TestGetQoSMetrics(t *testing.T) {
+	expectedQoSMetrics := []QoSMetrics{
 		{
-			"test-branch-2B,INET-1",
-			"test-branch-2B",
-			"INET-1",
-			"10000000000",
-			"10000000000",
-			"Unknown",
-			"Unknown",
-			"10.20.20.7",
-			"",
-			757144.0,
-			457032.0,
-			6730.168888888889,
-			4062.5066666666667,
+			DrillKey:             "test-branch-2B,test-branch-2C",
+			LocalSiteName:        "test-branch-2B",
+			RemoteSiteName:       "test-branch-2C",
+			BestEffortTx:         1000.0,
+			BestEffortTxDrop:     50.0,
+			ExpeditedForwardTx:   2000.0,
+			ExpeditedForwardDrop: 25.0,
+			AssuredForwardTx:     1500.0,
+			AssuredForwardDrop:   75.0,
+			NetworkControlTx:     500.0,
+			NetworkControlDrop:   10.0,
+			BestEffortBandwidth:  8000000.0,
+			ExpeditedForwardBW:   16000000.0,
+			AssuredForwardBW:     12000000.0,
+			NetworkControlBW:     4000000.0,
+			VolumeTx:             5000.0,
+			TotalDrop:            160.0,
+			PercentDrop:          3.2,
+			Bandwidth:            40000000.0,
 		},
 	}
+	server := SetupMockAPIServer()
+	defer server.Close()
 
-	expected := []LinkUsageMetrics{
-		{
-			DrillKey:          "test-branch-2B,INET-1",
-			Site:              "test-branch-2B",
-			AccessCircuit:     "INET-1",
-			UplinkBandwidth:   "10000000000",
-			DownlinkBandwidth: "10000000000",
-			Type:              "Unknown",
-			Media:             "Unknown",
-			IP:                "10.20.20.7",
-			ISP:               "",
-			VolumeTx:          757144.0,
-			VolumeRx:          457032.0,
-			BandwidthTx:       6730.168888888889,
-			BandwidthRx:       4062.5066666666667,
-		},
-	}
-
-	result, err := parseLinkUsageMetrics(testData)
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
 	require.NoError(t, err)
-	require.Equal(t, expected, result)
+
+	qosMetrics, err := client.GetPathQoSMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(qosMetrics), 1)
+	require.Equal(t, expectedQoSMetrics, qosMetrics)
 }
-
-func TestParseLinkStatusMetrics(t *testing.T) {
-	testData := [][]interface{}{
+func TestGetDIAMetrics(t *testing.T) {
+	expectedDIAMetrics := []DIAMetrics{
 		{
-			"test-branch-2B,INET-1",
-			"test-branch-2B",
-			"INET-1",
-			98.5,
-		},
-	}
-
-	expected := []LinkStatusMetrics{
-		{
-			DrillKey:      "test-branch-2B,INET-1",
+			DrillKey:      "test-branch-2B,DIA-1,192.168.1.1",
 			Site:          "test-branch-2B",
-			AccessCircuit: "INET-1",
-			Availability:  98.5,
+			AccessCircuit: "DIA-1",
+			IP:            "192.168.1.1",
+			VolumeTx:      15000.0,
+			VolumeRx:      12000.0,
+			BandwidthTx:   150000.0,
+			BandwidthRx:   120000.0,
 		},
 	}
+	server := SetupMockAPIServer()
+	defer server.Close()
 
-	result, err := parseLinkStatusMetrics(testData)
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
 	require.NoError(t, err)
-	require.Equal(t, expected, result)
+
+	diaMetrics, err := client.GetDIAMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(diaMetrics), 1)
+	require.Equal(t, expectedDIAMetrics, diaMetrics)
 }
+
+func TestGetSiteMetrics(t *testing.T) {
+	expectedSiteMetrics := []SiteMetrics{
+		{
+			Site:           "test-branch-2B",
+			Address:        "123 Main St, Anytown, USA",
+			Latitude:       "40.7128",
+			Longitude:      "-74.0060",
+			LocationSource: "GPS",
+			VolumeTx:       15000.0,
+			VolumeRx:       12000.0,
+			BandwidthTx:    150000.0,
+			BandwidthRx:    120000.0,
+			Availability:   99.5,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	siteMetrics, err := client.GetSiteMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(siteMetrics), 1)
+	require.Equal(t, expectedSiteMetrics, siteMetrics)
+}
+
 func TestGetApplicationsByAppliance(t *testing.T) {
 	expectedApplicationsByApplianceMetrics := []ApplicationsByApplianceMetrics{
 		{
@@ -585,36 +619,6 @@ func TestGetTunnelMetrics(t *testing.T) {
 	require.Equal(t, expectedTunnelMetrics, tunnelMetrics)
 }
 
-func TestParseTunnelMetrics(t *testing.T) {
-	testData := [][]interface{}{
-		{
-			"test-branch-2B,10.1.1.1",
-			"test-branch-2B",
-			"10.1.1.1",
-			"10.2.2.2",
-			"vpn-profile-1",
-			67890.0,
-			12345.0,
-		},
-	}
-
-	expected := []TunnelMetrics{
-		{
-			DrillKey:    "test-branch-2B,10.1.1.1",
-			Appliance:   "test-branch-2B",
-			LocalIP:     "10.1.1.1",
-			RemoteIP:    "10.2.2.2",
-			VpnProfName: "vpn-profile-1",
-			VolumeRx:    67890.0,
-			VolumeTx:    12345.0,
-		},
-	}
-
-	result, err := parseTunnelMetrics(testData)
-	require.NoError(t, err)
-	require.Equal(t, expected, result)
-}
-
 func TestGetTunnelMetricsEmptyTenant(t *testing.T) {
 	server := SetupMockAPIServer()
 	defer server.Close()
@@ -655,4 +659,122 @@ func TestGetTopUsers(t *testing.T) {
 
 	require.Equal(t, len(topUsers), 1)
 	require.Equal(t, expectedTopUsers, topUsers)
+}
+
+func TestGetSLAMetricsPagination(t *testing.T) {
+	expectedSLAMetrics := []SLAMetrics{
+		// First page results
+		{
+			DrillKey:            "test-branch-1,test-branch-2,INET,INET,best-effort",
+			LocalSite:           "test-branch-1",
+			RemoteSite:          "test-branch-2",
+			LocalAccessCircuit:  "INET",
+			RemoteAccessCircuit: "INET",
+			ForwardingClass:     "best-effort",
+			Delay:               120.5,
+			FwdDelayVar:         1.2,
+			RevDelayVar:         1.1,
+			FwdLossRatio:        0.001,
+			RevLossRatio:        0.002,
+			PDULossRatio:        0.0015,
+		},
+		{
+			DrillKey:            "test-branch-1,test-branch-3,MPLS,MPLS,real-time",
+			LocalSite:           "test-branch-1",
+			RemoteSite:          "test-branch-3",
+			LocalAccessCircuit:  "MPLS",
+			RemoteAccessCircuit: "MPLS",
+			ForwardingClass:     "real-time",
+			Delay:               95.3,
+			FwdDelayVar:         0.8,
+			RevDelayVar:         0.9,
+			FwdLossRatio:        0.0005,
+			RevLossRatio:        0.0008,
+			PDULossRatio:        0.00065,
+		},
+		// Second page results
+		{
+			DrillKey:            "test-branch-2,test-branch-4,INET,MPLS,best-effort",
+			LocalSite:           "test-branch-2",
+			RemoteSite:          "test-branch-4",
+			LocalAccessCircuit:  "INET",
+			RemoteAccessCircuit: "MPLS",
+			ForwardingClass:     "best-effort",
+			Delay:               110.7,
+			FwdDelayVar:         1.5,
+			RevDelayVar:         1.3,
+			FwdLossRatio:        0.002,
+			RevLossRatio:        0.003,
+			PDULossRatio:        0.0025,
+		},
+	}
+
+	server := SetupPaginationMockAPIServer()
+	defer server.Close()
+
+	// Create client with small maxCount to force pagination
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	// Override client settings to test pagination
+	client.maxCount = "2" // Small page size to force pagination
+	client.maxPages = 5   // Allow enough pages
+
+	// TODO: remove this override when single auth method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	slaMetrics, err := client.GetSLAMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(expectedSLAMetrics), len(slaMetrics))
+	require.Equal(t, expectedSLAMetrics, slaMetrics)
+}
+
+func TestGetSLAMetricsPaginationWithMaxPages(t *testing.T) {
+	server := SetupPaginationMockAPIServer()
+	defer server.Close()
+
+	// Create client with maxPages limit to test early termination
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	// Override client settings - limit to 1 page only
+	client.maxCount = "2" // Small page size
+	client.maxPages = 1   // Only allow 1 page
+
+	// TODO: remove this override when single auth method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	slaMetrics, err := client.GetSLAMetrics("datadog")
+	require.NoError(t, err)
+
+	// Should only get results from first page (2 items)
+	require.Equal(t, 2, len(slaMetrics))
+	require.Equal(t, "test-branch-1", slaMetrics[0].LocalSite)
+	require.Equal(t, "test-branch-1", slaMetrics[1].LocalSite)
+}
+
+func TestGetSLAMetricsPaginationEmptyResponse(t *testing.T) {
+	server := SetupPaginationMockAPIServer()
+	defer server.Close()
+
+	// Create client that will request beyond available data
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	// Override client settings to start from a high offset
+	client.maxCount = "100" // Large page size to get all data in first page
+	client.maxPages = 5     // Allow enough pages
+
+	// TODO: remove this override when single auth method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	slaMetrics, err := client.GetSLAMetrics("datadog")
+	require.NoError(t, err)
+
+	// Should get all available data in first page and stop
+	require.Equal(t, 3, len(slaMetrics)) // Total of 3 items across all pages
 }
