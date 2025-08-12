@@ -144,6 +144,162 @@ func TestProbabilisticSampler(t *testing.T) {
 	})
 }
 
+func TestSamplingRules(t *testing.T) {
+	type testSpan struct {
+		sampled bool
+		span    *trace.Span
+	}
+	tests := []struct {
+		name            string
+		agentConfig     *config.AgentConfig
+		testSpans       []testSpan
+		expectedMetrics map[string]probabilisticSamplerRuleMetrics
+	}{
+		{
+			name: "empty rule",
+			agentConfig: &config.AgentConfig{
+				ProbabilisticSamplerEnabled:            true,
+				ProbabilisticSamplerSamplingPercentage: 100,
+				ProbabilisticSamplerTraceSamplingRules: []config.ProbabilisticSamplerRule{
+					{},
+				},
+			},
+			testSpans: []testSpan{
+				{sampled: true, span: &trace.Span{TraceID: 1, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 2, Service: "test-service-suffix", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 3, Service: "test-service", Name: "test-operation-suffix", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 4, Service: "test-service", Name: "test-operation", Resource: "test-resource-suffix", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 5, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1-suffix"}}},
+				{sampled: true, span: &trace.Span{TraceID: 6, Service: "", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 7, Service: "test-service", Name: "", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 8, Service: "test-service", Name: "test-operation", Resource: "", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 9, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{}}},
+				{sampled: true, span: &trace.Span{TraceID: 10, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1", "key2": "value2"}}},
+				{sampled: true, span: &trace.Span{TraceID: 11, Service: "", Name: "", Resource: "", Meta: map[string]string{}}},
+			},
+			expectedMetrics: map[string]probabilisticSamplerRuleMetrics{},
+		},
+		{
+			name: "nil rule",
+			agentConfig: &config.AgentConfig{
+				ProbabilisticSamplerEnabled:            true,
+				ProbabilisticSamplerSamplingPercentage: 100,
+				ProbabilisticSamplerTraceSamplingRules: nil,
+			},
+			testSpans: []testSpan{
+				{sampled: true, span: &trace.Span{TraceID: 1, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 2, Service: "test-service-suffix", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 3, Service: "test-service", Name: "test-operation-suffix", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 4, Service: "test-service", Name: "test-operation", Resource: "test-resource-suffix", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 5, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1-suffix"}}},
+				{sampled: true, span: &trace.Span{TraceID: 6, Service: "", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 7, Service: "test-service", Name: "", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 8, Service: "test-service", Name: "test-operation", Resource: "", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 9, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{}}},
+				{sampled: true, span: &trace.Span{TraceID: 10, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1", "key2": "value2"}}},
+				{sampled: true, span: &trace.Span{TraceID: 11, Service: "", Name: "", Resource: "", Meta: map[string]string{}}},
+			},
+			expectedMetrics: map[string]probabilisticSamplerRuleMetrics{},
+		},
+		{
+			name: "AND condition in a single rule",
+			agentConfig: &config.AgentConfig{
+				ProbabilisticSamplerEnabled:            true,
+				ProbabilisticSamplerSamplingPercentage: 100,
+				ProbabilisticSamplerTraceSamplingRules: []config.ProbabilisticSamplerRule{
+					{
+						Service:       "^test-service$",
+						OperationName: "^test-operation$",
+						ResourceName:  "^test-resource$",
+						Attributes: map[string]string{
+							"key1": "^value1$",
+							"key2": "^200$",
+						},
+						Percentage: 0,
+					},
+				},
+			},
+			testSpans: []testSpan{
+				{sampled: false, span: &trace.Span{TraceID: 1, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}, Metrics: map[string]float64{"key2": 200}}},
+				{sampled: true, span: &trace.Span{TraceID: 2, Service: "test-service-suffix", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}, Metrics: map[string]float64{"key2": 200}}},
+				{sampled: true, span: &trace.Span{TraceID: 3, Service: "test-service", Name: "test-operation-suffix", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}, Metrics: map[string]float64{"key2": 200}}},
+				{sampled: true, span: &trace.Span{TraceID: 4, Service: "test-service", Name: "test-operation", Resource: "test-resource-suffix", Meta: map[string]string{"key1": "value1"}, Metrics: map[string]float64{"key2": 200}}},
+				{sampled: true, span: &trace.Span{TraceID: 5, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1-suffix"}, Metrics: map[string]float64{"key2": 200}}},
+				{sampled: true, span: &trace.Span{TraceID: 6, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}, Metrics: map[string]float64{"key2": 2000}}},
+				{sampled: false, span: &trace.Span{TraceID: 7, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1", "key2": "200"}, Metrics: map[string]float64{"key2": 200}}},
+				{sampled: false, span: &trace.Span{TraceID: 8, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1", "key2": "200"}}},
+				{sampled: false, span: &trace.Span{TraceID: 9, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1", "key2": "value2"}, Metrics: map[string]float64{"key2": 200}}},
+				{sampled: true, span: &trace.Span{TraceID: 10, Service: "test-service", Name: "test-operation", Resource: "test-resource", Meta: map[string]string{"key1": "value1", "key2": "value2"}, Metrics: map[string]float64{"key2": 100, "key3": 200}}},
+			},
+			expectedMetrics: map[string]probabilisticSamplerRuleMetrics{
+				"test-service":        {evaluations: 9, matches: 4},
+				"test-service-suffix": {evaluations: 1, matches: 0},
+			},
+		},
+		{
+			name: "OR condition between rules",
+			agentConfig: &config.AgentConfig{
+				ProbabilisticSamplerEnabled:            true,
+				ProbabilisticSamplerSamplingPercentage: 0,
+				ProbabilisticSamplerTraceSamplingRules: []config.ProbabilisticSamplerRule{
+					{
+						OperationName: "^example1$",
+						Percentage:    100,
+					},
+					{
+						OperationName: "^example2$",
+						Percentage:    0,
+					},
+					{
+						OperationName: "^example3$",
+						Percentage:    100,
+					},
+				},
+			},
+			testSpans: []testSpan{
+				{sampled: true, span: &trace.Span{TraceID: 1, Service: "test-service", Name: "example1", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 2, Service: "", Name: "example1", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 3, Service: "", Name: "example1", Resource: "", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 4, Service: "", Name: "example1", Resource: "", Meta: map[string]string{}}},
+				{sampled: true, span: &trace.Span{TraceID: 5, Service: "", Name: "example1", Resource: "", Meta: nil}},
+				{sampled: false, span: &trace.Span{TraceID: 6, Service: "test-service", Name: "example2", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: false, span: &trace.Span{TraceID: 7, Service: "", Name: "example2", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: false, span: &trace.Span{TraceID: 8, Service: "", Name: "example2", Resource: "", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: false, span: &trace.Span{TraceID: 9, Service: "", Name: "example2", Resource: "", Meta: map[string]string{}}},
+				{sampled: false, span: &trace.Span{TraceID: 10, Service: "", Name: "example2", Resource: "", Meta: nil}},
+				{sampled: true, span: &trace.Span{TraceID: 11, Service: "test-service", Name: "example3", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 12, Service: "", Name: "example3", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 13, Service: "", Name: "example3", Resource: "", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: true, span: &trace.Span{TraceID: 14, Service: "", Name: "example3", Resource: "", Meta: map[string]string{}}},
+				{sampled: true, span: &trace.Span{TraceID: 15, Service: "", Name: "example3", Resource: "", Meta: nil}},
+				{sampled: false, span: &trace.Span{TraceID: 16, Service: "test-service-2", Name: "", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: false, span: &trace.Span{TraceID: 17, Service: "", Name: "", Resource: "test-resource", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: false, span: &trace.Span{TraceID: 18, Service: "", Name: "", Resource: "", Meta: map[string]string{"key1": "value1"}}},
+				{sampled: false, span: &trace.Span{TraceID: 19, Service: "", Name: "", Resource: "", Meta: map[string]string{}}},
+				{sampled: false, span: &trace.Span{TraceID: 20, Service: "", Name: "", Resource: "", Meta: nil}},
+			},
+			expectedMetrics: map[string]probabilisticSamplerRuleMetrics{
+				"":               {evaluations: 16, matches: 12},
+				"test-service":   {evaluations: 3, matches: 3},
+				"test-service-2": {evaluations: 1, matches: 0},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sampler := NewProbabilisticSampler(tt.agentConfig)
+			for _, ts := range tt.testSpans {
+				sampled := sampler.Sample(ts.span)
+				assert.Equal(t, ts.sampled, sampled, "mismatch: traceID: %d", ts.span.TraceID)
+			}
+			require.Lenf(t, sampler.samplingRuleMetrics, len(tt.expectedMetrics), "unexpected number of metrics: %#v", sampler.samplingRuleMetrics)
+			for service, expectedMetrics := range tt.expectedMetrics {
+				require.Equalf(t, expectedMetrics, sampler.samplingRuleMetrics[service], "unexpected metrics for service: %q", service)
+			}
+		})
+	}
+}
+
 type mockConsumer struct {
 	traces []ptrace.Traces
 }
