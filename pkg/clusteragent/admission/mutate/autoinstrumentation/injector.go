@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -179,7 +180,7 @@ func injectorWithImageName(name string) injectorOption {
 func injectorWithImageTag(tag string) injectorOption {
 	return func(i *injector) {
 		// For public registries, try to get the SHA digest from the SSI mapping
-		if !isPrivateRegistry(i.registry) {
+		if !mutatecommon.IsPrivateRegistry(i.registry) {
 			mapping := GetMapping()
 			if sha, exists := mapping[tag]; exists {
 				// Use digest-based image reference for immutable image resolution

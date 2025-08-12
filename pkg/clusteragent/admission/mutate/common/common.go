@@ -231,3 +231,15 @@ func MarkVolumeAsSafeToEvictForAutoscaler(pod *corev1.Pod, volumeNameToAdd strin
 	volumeList = append(volumeList, volumeNameToAdd)
 	pod.Annotations[K8sAutoscalerSafeToEvictVolumesAnnotation] = strings.Join(volumeList, ",")
 }
+
+// IsPrivateRegistry checks if the given registry is a private registry
+// by comparing against known public registries
+func IsPrivateRegistry(registry string) bool {
+	public := []string{"gcr.io", "docker.io", "public.ecr.aws"}
+	for _, pub := range public {
+		if strings.Contains(registry, pub) {
+			return false
+		}
+	}
+	return true
+}

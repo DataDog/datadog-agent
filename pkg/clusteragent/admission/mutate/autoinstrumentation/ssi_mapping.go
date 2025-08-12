@@ -19,6 +19,7 @@ var (
 	mapping map[string]string // tag -> sha
 )
 
+// UpdateMapping updates the tag-to-SHA digest mapping from remote config updates
 func UpdateMapping(update map[string]state.RawConfig) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -30,6 +31,7 @@ func UpdateMapping(update map[string]state.RawConfig) {
 	}
 }
 
+// GetMapping returns a copy of the current tag-to-SHA digest mapping
 func GetMapping() map[string]string {
 	mu.RLock()
 	defer mu.RUnlock()
