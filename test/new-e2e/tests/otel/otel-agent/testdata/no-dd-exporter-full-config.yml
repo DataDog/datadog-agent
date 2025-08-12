@@ -117,9 +117,9 @@ processors:
         expressions: []
         match_type: regexp
         metric_names:
-          - scrape_.*
-          - up
-          - promhttp_metric_handler_errors_total
+          - ^scrape_.*$
+          - ^up$
+          - ^promhttp_metric_handler_errors_total$
         regexp: null
         resource_attributes: []
       include: null
