@@ -7,6 +7,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -19,5 +21,7 @@ func Module() fxutil.Module {
 			privateactionrunnerimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[privateactionrunner.Component](),
+		// Force instantiation since no other component depends on privateactionrunner
+		fx.Invoke(func(_ privateactionrunner.Component) {}),
 	)
 }

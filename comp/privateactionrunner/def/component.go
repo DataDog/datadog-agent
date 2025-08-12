@@ -6,8 +6,12 @@
 // Package privateactionrunner allows you to //TODO
 package privateactionrunner
 
+import "context"
+
 // team: action-platform
 
 // Component is the component type.
 type Component interface {
+	Start(_ context.Context) error
+	Stop(_ context.Context) error
 }

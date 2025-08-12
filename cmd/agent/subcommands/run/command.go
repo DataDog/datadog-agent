@@ -35,6 +35,7 @@ import (
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/datastreams"
@@ -539,6 +540,7 @@ func getSharedFxOption() fx.Option {
 		ssistatusfx.Module(),
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
+		privateactionrunnerfx.Module(),
 	)
 }
 
