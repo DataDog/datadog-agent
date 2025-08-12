@@ -37,7 +37,7 @@ func TestEC2VMWKitSuite(t *testing.T) {
 
 	s := &ec2VMWKitSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbinWindows", hostDockerHttpbinEnvProvisionerWindows(awsHostWindows.WithEC2InstanceOptions()), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisionerWindows(), nil))}
 
 	e2e.Run(t, s, e2eParams...)
 }

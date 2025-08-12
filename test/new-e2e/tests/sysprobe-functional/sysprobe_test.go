@@ -14,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	componentsos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -36,7 +34,7 @@ var (
 )
 
 func TestVMSuite(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake(awsHostWindows.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsDefault))))}
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
