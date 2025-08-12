@@ -11,16 +11,16 @@ pub enum ServiceCheckStatus {
 }
 
 pub struct AgentCheck {
-    pub check_id: String,
-    instance: Instance, // used to get specific check parameters
+    check_id: String,
     aggregator: &'static Aggregator, // submit callbacks
+    pub instance: Instance, // used to get specific check parameters
 }
 
 impl AgentCheck {
     pub fn new(instance_str: &str, aggregator: &'static Aggregator) -> Result<Self, Box<dyn Error>> {
         let instance = Instance::new(instance_str)?;
 
-        // mandatory parameter
+        // required parameters
         let check_id = instance.get("check_id")?;
 
         Ok(Self { check_id, aggregator, instance })

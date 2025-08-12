@@ -32,8 +32,8 @@ package sharedlibrary
 
 #ifdef _WIN32
 
-shared_library_handle_t load_shared_library(const char *lib_name, const char **error) {
-	shared_library_handle_t lib_handles = { NULL, NULL };
+shared_library_handles_t load_shared_library(const char *lib_name, const char **error) {
+	shared_library_handles_t lib_handles = { NULL, NULL };
 
 	// resolve the library full name
     char* lib_full_name = malloc(strlen(lib_name) + strlen(LIB_EXTENSION) + 1);
@@ -51,16 +51,25 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
     }
 
     // dlsym run_check function to get the metric run the custom check and get the payload
-    run_shared_library_check_t *run_handle = (run_shared_library_check_t *)GetProcAddress(lib_handle, "Run");
-    if (!run_handle) {
+    run_function_t *run_callback = (run_function_t *)GetProcAddress(lib_handle, "Run");
+    if (!run_callback) {
 		FreeLibrary(lib_handle);
-		*error = strdup("unable to get shared library symbol");
+		*error = strdup("unable to get shared library 'Run' symbol");
+		goto done;
+    }
+
+	free_function_t *free_callback = (free_function_t *)GetProcAddress(lib_handle, "Free");
+    dlsym_error = dlerror();
+    if (dlsym_error) {
+		FreeLibrary(lib_handle);
+		*error = strdup("unable to get shared library 'Free' symbol");
 		goto done;
     }
 
 	// set up handles if loading was successful
 	lib_handles.lib = lib_handle;
-	lib_handles.run = run_handle;
+	lib_handles.run = run_callback;
+	lib_handles.run = free_callback;
 
 done:
 	free(lib_full_name);
@@ -69,8 +78,8 @@ done:
 
 #else
 
-shared_library_handle_t load_shared_library(const char *lib_name, const char **error) {
-	shared_library_handle_t lib_handles = { NULL, NULL };
+shared_library_handles_t load_shared_library(const char *lib_name, const char **error) {
+	shared_library_handles_t lib_handles = { NULL, NULL };
 
     // resolve the library full name
     char* lib_full_name = malloc(strlen(lib_name) + strlen(LIB_EXTENSION) + 1);
@@ -90,7 +99,15 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
     const char *dlsym_error = NULL;
 
     // dlsym run_check function to get the metric run the custom check and get the payload
-    run_shared_library_check_t *run_handle = (run_shared_library_check_t *)dlsym(lib_handle, "Run");
+    run_function_t *run_callback = (run_function_t *)dlsym(lib_handle, "Run");
+    dlsym_error = dlerror();
+    if (dlsym_error) {
+		dlclose(lib_handle);
+		*error = strdup(dlsym_error);
+		goto done;
+    }
+
+	free_function_t *free_callback = (free_function_t *)dlsym(lib_handle, "Free");
     dlsym_error = dlerror();
     if (dlsym_error) {
 		dlclose(lib_handle);
@@ -100,7 +117,8 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
 
 	// set up handles if loading was successful
 	lib_handles.lib = lib_handle;
-	lib_handles.run = run_handle;
+	lib_handles.run = run_callback;
+	lib_handles.free = free_callback;
 
 done:
 	free(lib_full_name);
@@ -170,7 +188,8 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	defer C.free(unsafe.Pointer(cName))
 
 	// Get the shared library handles
-	libPtrs := C.load_shared_library(cName, &cErr)
+	// TODO: free libHandles
+	libHandles := C.load_shared_library(cName, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 
@@ -180,7 +199,7 @@ func (sl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	}
 
 	// Create the check
-	c, err := NewSharedLibraryCheck(senderManager, config.Name, libPtrs.lib, libPtrs.run)
+	c, err := NewSharedLibraryCheck(senderManager, config.Name, libHandles)
 	if err != nil {
 		return c, err
 	}

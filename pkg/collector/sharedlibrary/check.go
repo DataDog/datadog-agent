@@ -24,13 +24,18 @@ static const submit_callbacks_t aggregator = {
 	SubmitServiceCheckSo,
 	SubmitEventSo,
 	SubmitHistogramBucketSo,
-	SubmitEventPlatformEventSo
+	SubmitEventPlatformEventSo,
 };
 
-void run_shared_library(char *instance, run_shared_library_check_t *run_function, const char **error) {
+void run_shared_library(char *instance, run_function_t *run_function, free_function_t *free_function, const char **error) {
 	// verify the run function pointer
     if (!run_function) {
-        *error = strdup("Pointer to shared library run function is null");
+        *error = strdup("pointer to shared library run function is null");
+		return;
+    }
+
+	if (!free_function) {
+        *error = strdup("pointer to shared library free function is null");
 		return;
     }
 
@@ -39,12 +44,14 @@ void run_shared_library(char *instance, run_shared_library_check_t *run_function
 
 	if (run_error) {
 		*error = strdup(run_error);
+		free_function(run_error);
 	}
 }
 */
 import "C"
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 	"unsafe"
@@ -66,20 +73,23 @@ import (
 type SharedLibraryCheck struct {
 	senderManager sender.SenderManager
 	id            checkid.ID
+	instance      map[string]any
 	interval      time.Duration
 	libName       string
-	libPtr        unsafe.Pointer                // pointer to the shared library (unused)
-	libRunPtr     *C.run_shared_library_check_t // pointer to the function symbol that runs the check
+	libHandle     unsafe.Pointer     // pointer to the shared library
+	runCb         *C.run_function_t  // run function callback
+	freeCb        *C.free_function_t // free function callback
 }
 
 // NewSharedLibraryCheck conveniently creates a SharedLibraryCheck instance
-func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libPtr unsafe.Pointer, libRunPtr *C.run_shared_library_check_t) (*SharedLibraryCheck, error) {
+func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libHandles C.shared_library_handles_t) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
 		libName:       name,
-		libPtr:        libPtr,
-		libRunPtr:     libRunPtr,
+		libHandle:     libHandles.lib,
+		runCb:         libHandles.run,
+		freeCb:        libHandles.free,
 	}
 
 	return check, nil
@@ -89,15 +99,17 @@ func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libP
 func (c *SharedLibraryCheck) Run() error {
 	var cErr *C.char
 
-	// instance aggregates every check's parameter such as its ID, its tags
-	// and its specific parameters
-	instance := fmt.Sprintf("{%q: %q}", "check_id", string(c.ID()))
+	// aggregate check parameters into a json
+	jsonInstance, err := json.Marshal(c.instance)
+	if err != nil {
+		return err
+	}
 
-	cInstance := C.CString(instance)
+	cInstance := C.CString(string(jsonInstance))
 	defer C.free(unsafe.Pointer(cInstance))
 
 	// execute the check with the symbol retrieved earlier
-	C.run_shared_library(cInstance, c.libRunPtr, &cErr)
+	C.run_shared_library(cInstance, c.runCb, c.freeCb, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("failed to run shared library check %s: %s", c.libName, C.GoString(cErr))
@@ -105,7 +117,7 @@ func (c *SharedLibraryCheck) Run() error {
 
 	s, err := c.senderManager.GetSender(c.ID())
 	if err != nil {
-		return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+		return fmt.Errorf("failed to retrieve a Sender instance: %v", err)
 	}
 	s.Commit()
 
@@ -127,11 +139,11 @@ func (c *SharedLibraryCheck) ConfigSource() string {
 }
 
 // Configure the shared library check from YAML data
-func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, _source string) error {
-	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
+func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, instance integration.Data, initConfig integration.Data, _source string) error {
+	c.id = checkid.BuildID(c.String(), integrationConfigDigest, instance, initConfig)
 
 	commonOptions := integration.CommonInstanceConfig{}
-	if err := yaml.Unmarshal(data, &commonOptions); err != nil {
+	if err := yaml.Unmarshal(instance, &commonOptions); err != nil {
 		log.Errorf("invalid instance section for check %s: %s", string(c.id), err)
 		return err
 	}
@@ -139,6 +151,18 @@ func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, inte
 	// See if a collection interval was specified
 	if commonOptions.MinCollectionInterval > 0 {
 		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
+	}
+
+	if err := yaml.Unmarshal(instance, &c.instance); err != nil {
+		log.Errorf("invalid instance section for check %s: %s", string(c.id), err)
+		return err
+	}
+
+	// common check parameters
+	c.instance["check_id"] = c.id
+	if _, ok := c.instance["tags"]; !ok { // check if there's no `tags` key
+		// create empty list in case that there's no tags field
+		c.instance["tags"] = make([]string, 0)
 	}
 
 	return nil

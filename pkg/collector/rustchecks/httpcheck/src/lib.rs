@@ -1,6 +1,7 @@
 mod agent_check;
 use agent_check::base::{AgentCheck, ServiceCheckStatus};
 use agent_check::aggregator::Aggregator;
+use agent_check::helpers::free_cstring;
 
 use std::error::Error;
 use std::ffi::{c_char, CString, CStr};
@@ -18,20 +19,29 @@ use x509_parser::parse_x509_certificate;
 // entrypoint of the check
 #[unsafe(no_mangle)]
 pub extern "C" fn Run(instance_cstr: *const c_char, aggregator_ptr: *const Aggregator) -> *mut c_char {
-    // return error message if there's any
+    // return the error message if there's any
     match run_check(instance_cstr, aggregator_ptr) {
         Ok(()) => std::ptr::null_mut(),
-        Err(e) => CString::new(e.to_string()).unwrap_or_default().into_raw()            
+        Err(e) => CString::new(e.to_string()).unwrap_or_default().into_raw(),        
     }
 }
 
+// free the error string
+#[unsafe(no_mangle)]
+pub extern "C" fn Free(run_error: *mut c_char) {
+    println!("freed string");
+    free_cstring(run_error);
+} 
+
 fn run_check(instance_cstr: *const c_char, aggregator_ptr: *const Aggregator) -> Result<(), Box<dyn Error>> {
-    // try to create the instance using the provided configuration and run its custom implementation
+    // read ffi arguments
     let instance_str = unsafe { CStr::from_ptr(instance_cstr) }.to_str()?;
     let aggregator = unsafe { &*aggregator_ptr };
 
+    // try to create the instance using the provided configuration
     let check = AgentCheck::new(instance_str, aggregator)?;
 
+    // try to run its custom implementation
     check.check()
 }
 
@@ -46,11 +56,11 @@ impl AgentCheck {
         const DEFAULT_EXPIRE_WARNING: i32 = DEFAULT_EXPIRE_DAYS_WARNING * 24 * 3600;
         const DEFAULT_EXPIRE_CRITICAL: i32 = DEFAULT_EXPIRE_DAYS_CRITICAL * 24 * 3600;
                 
-        // hardcoded variables (should be passed as parameters)
-        let url = "datadog.com";
-        let mut tags = Vec::<String>::new();
+        // instance variables
+        let url: String = self.instance.get("url")?;
+        let mut tags: Vec<String> = vec![];
 
-        // ssl certs
+        // ssl certificates are gotten during the execution of the check
         let mut peer_cert: Option<CertificateDer> = None;
 
         // list service checks and their custom tags
@@ -67,7 +77,7 @@ impl AgentCheck {
         // Allow using SSLKEYLOGFILE.
         config.key_log = Arc::new(KeyLogFile::new());
 
-        let server_name = url.try_into()?;
+        let server_name = url.clone().try_into()?;
 
         let mut conn = ClientConnection::new(Arc::new(config), server_name)?;
 

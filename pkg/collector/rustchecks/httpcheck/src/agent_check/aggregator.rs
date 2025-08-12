@@ -103,14 +103,13 @@ impl Instance {
                 let value = serde_json::from_value(serde_value.clone())?;
                 Ok(value)
             },
-            None => Err(format!("Key '{key}' not found in the instance").into()),
+            None => Err(format!("key '{key}' not found in the instance").into()),
         }
     }
 }
 
 // Aggregator stores callbacks for submitting metrics, service checks...
 #[repr(C)]
-#[derive(Debug)]
 pub struct Aggregator {
     cb_submit_metric: SubmitMetric,
     cb_submit_service_check: SubmitServiceCheck,

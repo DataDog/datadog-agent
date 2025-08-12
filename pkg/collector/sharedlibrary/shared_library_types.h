@@ -46,14 +46,19 @@ typedef struct submit_callbacks_s {
     cb_submit_event_platform_event_t cb_submit_event_platform_event;
 } submit_callbacks_t;
 
-// run_function_cb
+// run function callback
 // (instance string, callbacks)
-typedef char *(run_shared_library_check_t)(char *, const submit_callbacks_t *);
+typedef char *(run_function_t)(char *, const submit_callbacks_t *);
+
+// free function callback
+// (string to free)
+typedef void(free_function_t)(char *);
 
 // library and symbols pointers
-typedef struct shared_library_handle_s {
+typedef struct shared_library_handles_s {
     void *lib; // handle to the shared library
-    run_shared_library_check_t *run; // handle to the run function
-} shared_library_handle_t;
+    run_function_t *run; // handle to the run function
+    free_function_t *free; // handle to the free function
+} shared_library_handles_t;
 
 #endif

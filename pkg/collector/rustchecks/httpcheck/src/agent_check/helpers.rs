@@ -14,6 +14,10 @@ pub fn to_cstring_array(vec: &[String]) -> *mut *mut c_char {
 }
 
 pub fn free_cstring(ptr: *mut c_char) {
+    if ptr.is_null() {
+        return;
+    }
+    
     unsafe { drop(CString::from_raw(ptr)) };
 }
 
