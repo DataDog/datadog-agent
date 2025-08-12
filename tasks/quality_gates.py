@@ -20,7 +20,7 @@ from tasks.static_quality_gates.gates import (
     GateMetricHandler,
     QualityGateFactory,
     StaticQualityGate,
-    StaticQualityGateFailed,
+    StaticQualityGateError,
     byte_to_string,
 )
 from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
@@ -173,8 +173,10 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     )
     gate_list = QualityGateFactory.create_gates_from_config(config_path)
 
+    # python 3.11< does not allow to use \n in f-strings
+    delimiter = '\n'
     print(color_message(f"Starting {len(gate_list)} quality gates...", "cyan"))
-    print(color_message(f"Gates to run: {'\n'.join(gate.config.gate_name for gate in gate_list)}", "cyan"))
+    print(color_message(f"Gates to run: {delimiter.join(gate.config.gate_name for gate in gate_list)}", "cyan"))
 
     nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
     branch = os.environ["CI_COMMIT_BRANCH"]
@@ -184,7 +186,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         try:
             result = gate.execute_gate(ctx)
             gate_states.append({"name": result.config.gate_name, "state": True, "error_type": None, "message": None})
-        except StaticQualityGateFailed as e:
+        except StaticQualityGateError as e:
             final_state = "failure"
             gate_states.append(
                 {

@@ -114,14 +114,13 @@ def read_byte_input(byte_input: str | int) -> int:
         return byte_input
 
 
-class StaticQualityGateFailed(Exception):
+class StaticQualityGateError(Exception):
     """
     Exception raised when a static quality gate fails
     """
 
     def __init__(self, message: str):
-        self.message = color_message(message, "red")
-        super().__init__(self.message)
+        super().__init__(color_message(message, "red"))
 
 
 @dataclass(frozen=True)
@@ -253,10 +252,10 @@ class PackageArtifactMeasurer:
             primary_path = artifact_paths.get('primary', artifact_paths.get('msi', ''))
 
             return ArtifactMeasurement(artifact_path=primary_path, on_wire_size=wire_size, on_disk_size=disk_size)
-        except (StaticQualityGateFailed, InfraError):
+        except (StaticQualityGateError, InfraError):
             raise
         except Exception as e:
-            raise StaticQualityGateFailed(f"Failed to measure package {config.gate_name}") from e
+            raise StaticQualityGateError(f"Failed to measure package {config.gate_name}") from e
 
     def _find_package_paths(self, config: QualityGateConfig) -> dict:
         """
@@ -362,9 +361,9 @@ class DockerArtifactMeasurer:
 
             return ArtifactMeasurement(artifact_path=image_url, on_wire_size=wire_size, on_disk_size=disk_size)
         except Exception as e:
-            if isinstance(e, StaticQualityGateFailed | InfraError):
+            if isinstance(e, StaticQualityGateError | InfraError):
                 raise
-            raise StaticQualityGateFailed(f"Failed to measure Docker image {config.gate_name}: {e}") from e
+            raise StaticQualityGateError(f"Failed to measure Docker image {config.gate_name}: {e}") from e
 
     def _get_image_url(self, config: QualityGateConfig) -> str:
         """
@@ -397,7 +396,7 @@ class DockerArtifactMeasurer:
         commit_sha = os.environ.get("CI_COMMIT_SHORT_SHA")
 
         if not pipeline_id or not commit_sha:
-            raise StaticQualityGateFailed(
+            raise StaticQualityGateError(
                 "This gate needs to be run from the CI environment. (Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA)"
             )
 
@@ -532,7 +531,7 @@ class StaticQualityGate:
 
             error_message = f"{self.config.gate_name} failed!\n" + "\n".join(violation_messages)
             print(color_message(error_message, "red"))
-            raise StaticQualityGateFailed(error_message)
+            raise StaticQualityGateError(error_message)
         # To outline the end of the gate execution
         print("+" * 40)
         return result

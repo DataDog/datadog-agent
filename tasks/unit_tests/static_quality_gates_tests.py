@@ -38,7 +38,7 @@ from tasks.static_quality_gates.gates import (
     # Main quality gate class
     StaticQualityGate,
     # Exceptions
-    StaticQualityGateFailed,
+    StaticQualityGateError,
     _extract_arch_from_gate_name,
     _extract_os_from_gate_name,
     byte_to_string,
@@ -346,7 +346,7 @@ class TestDockerArtifactMeasurer(unittest.TestCase):
         """Test Docker image URL generation with missing CI variables"""
         config = QualityGateConfig("docker_agent_amd64", 1000, 2000, "amd64", "docker")
 
-        with self.assertRaises(StaticQualityGateFailed) as cm:
+        with self.assertRaises(StaticQualityGateError) as cm:
             self.measurer._get_image_url(config)
 
         self.assertIn("CI environment", str(cm.exception))
@@ -423,7 +423,7 @@ class TestDockerArtifactMeasurer(unittest.TestCase):
             config = create_quality_gate_config(
                 "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": "100 MiB", "max_on_disk_size": "100 MiB"}
             )
-            with self.assertRaises(StaticQualityGateFailed) as context:
+            with self.assertRaises(StaticQualityGateError) as context:
                 self.measurer._get_image_url(config)
             self.assertIn("Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA", str(context.exception))
 
@@ -432,7 +432,7 @@ class TestDockerArtifactMeasurer(unittest.TestCase):
             config = create_quality_gate_config(
                 "static_quality_gate_docker_agent_amd64", {"max_on_wire_size": "100 MiB", "max_on_disk_size": "100 MiB"}
             )
-            with self.assertRaises(StaticQualityGateFailed) as context:
+            with self.assertRaises(StaticQualityGateError) as context:
                 self.measurer._get_image_url(config)
             self.assertIn("Missing CI_PIPELINE_ID, CI_COMMIT_SHORT_SHA", str(context.exception))
 
@@ -464,7 +464,7 @@ class TestStaticQualityGate(unittest.TestCase):
         measurement = ArtifactMeasurement("/path", 120 * 1024 * 1024, 150 * 1024 * 1024)
         self.mock_measurer.measure.return_value = measurement
 
-        with self.assertRaises(StaticQualityGateFailed) as cm:
+        with self.assertRaises(StaticQualityGateError) as cm:
             self.gate.execute_gate(self.mock_ctx)
 
         error_msg = str(cm.exception)
@@ -478,7 +478,7 @@ class TestStaticQualityGate(unittest.TestCase):
         measurement = ArtifactMeasurement("/path", 80 * 1024 * 1024, 250 * 1024 * 1024)
         self.mock_measurer.measure.return_value = measurement
 
-        with self.assertRaises(StaticQualityGateFailed) as cm:
+        with self.assertRaises(StaticQualityGateError) as cm:
             self.gate.execute_gate(self.mock_ctx)
 
         error_msg = str(cm.exception)
@@ -491,7 +491,7 @@ class TestStaticQualityGate(unittest.TestCase):
         measurement = ArtifactMeasurement("/path", 120 * 1024 * 1024, 250 * 1024 * 1024)
         self.mock_measurer.measure.return_value = measurement
 
-        with self.assertRaises(StaticQualityGateFailed) as cm:
+        with self.assertRaises(StaticQualityGateError) as cm:
             self.gate.execute_gate(self.mock_ctx)
 
         error_message = str(cm.exception)
