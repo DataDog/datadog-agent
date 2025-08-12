@@ -44,13 +44,24 @@ const (
 var (
 	filesystem = afero.NewOsFs()
 
-	ethtoolObject     = ethtool.Ethtool{}
-	getEthtoolDrvInfo = ethtoolObject.DriverInfo
-	getEthtoolStats   = ethtoolObject.Stats
+	getNewEthtool = newEthtool
 
 	runCommandFunction  = runCommand
 	ssAvailableFunction = checkSSExecutable
 )
+
+type ethtoolInterface interface {
+	DriverInfo(intf string) (ethtool.DrvInfo, error)
+	Stats(intf string) (map[string]uint64, error)
+	Close()
+}
+
+var _ ethtoolInterface = (*ethtool.Ethtool)(nil)
+
+func newEthtool() (ethtoolInterface, error) {
+	eth, err := ethtool.NewEthtool()
+	return eth, err
+}
 
 // NetworkCheck represent a network check
 type NetworkCheck struct {
@@ -162,11 +173,18 @@ func (c *NetworkCheck) Run() error {
 
 	submitInterfaceSysMetrics(sender)
 
+	ethtoolObject, err := getNewEthtool()
+	if err != nil {
+		log.Errorf("Failed to create ethtool object: %s", err)
+		return err
+	}
+	defer ethtoolObject.Close()
+
 	for _, interfaceIO := range ioByInterface {
 		if !c.isInterfaceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
 			if c.config.instance.CollectEthtoolStats {
-				err = handleEthtoolStats(sender, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
+				err = handleEthtoolStats(sender, ethtoolObject, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
 				if err != nil {
 					return err
 				}
@@ -261,29 +279,21 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
+func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
 	if interfaceIO.Name == "lo" || interfaceIO.Name == "lo0" {
 		// Skip loopback ifaces as they don't support SIOCETHTOOL
 		log.Debugf("Skipping loopbackinterface %s", interfaceIO.Name)
 		return nil
 	}
 
-	ethtoolObjectPtr, err := ethtool.NewEthtool()
-	if err != nil {
-		log.Errorf("Failed to create ethtool object: %s", err)
-		return err
-	}
-	defer ethtoolObjectPtr.Close()
-	ethtoolObject = *ethtoolObjectPtr
-
 	// Preparing the interface name and copy it into the request
-	ifaceBytes := []byte(interfaceIO.Name)
-	if len(ifaceBytes) > 15 {
-		ifaceBytes = ifaceBytes[:15]
+	iface := interfaceIO.Name
+	if len(iface) > 15 {
+		iface = iface[:15]
 	}
 
 	// Fetch driver information (ETHTOOL_GDRVINFO)
-	drvInfo, err := getEthtoolDrvInfo(string(ifaceBytes))
+	drvInfo, err := ethtoolObject.DriverInfo(iface)
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
@@ -297,7 +307,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 	driverVersion := replacer.Replace(drvInfo.Version)
 
 	// Fetch ethtool stats values (ETHTOOL_GSTATS)
-	statsMap, err := getEthtoolStats(string(ifaceBytes))
+	statsMap, err := ethtoolObject.Stats(iface)
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)

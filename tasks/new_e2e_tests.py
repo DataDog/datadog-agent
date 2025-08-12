@@ -810,7 +810,9 @@ def deps(ctx, verbose=False):
 
 
 def _get_default_env():
-    return {"PULUMI_SKIP_UPDATE_CHECK": "true"}
+    return {
+        "PULUMI_SKIP_UPDATE_CHECK": "true",
+    }
 
 
 def _get_home_dir():
@@ -914,12 +916,16 @@ def _destroy_stack(ctx: Context, stack: str):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored. It is expected to fail on stacks existing locally
     # with resources removed by agent-sandbox clean up job
+
+    destroy_env = _get_default_env()
+    destroy_env["PULUMI_K8S_DELETE_UNREACHABLE"] = "true"
+
     with ctx.cd(tempfile.gettempdir()):
         ret = ctx.run(
             f"pulumi destroy --stack {stack} --yes --remove --skip-preview",
             warn=True,
             hide=True,
-            env=_get_default_env(),
+            env=destroy_env,
         )
         if ret is not None and ret.exited != 0:
             if "No valid credential sources found" in ret.stdout:
@@ -939,7 +945,7 @@ def _destroy_stack(ctx: Context, stack: str):
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
                 warn=True,
                 hide=True,
-                env=_get_default_env(),
+                env=destroy_env,
             )
         if ret is not None and ret.exited != 0:
             raise Exit(
