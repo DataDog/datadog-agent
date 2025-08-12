@@ -10,7 +10,6 @@ struct activity_dump_config {
     u16 events_rate;
     u16 padding;
     u32 paused;
-    u32 cgroup_flags;
 };
 
 #endif

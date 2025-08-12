@@ -26,7 +26,7 @@ type BinaryInspector interface {
 	// is a map of symbol names to their corresponding metadata. It is
 	// encouraged to return early if the binary is not compatible, to avoid
 	// unnecessary work.
-	Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, error)
+	Inspect(fpath utils.FilePath, requestSets map[int][]SymbolRequest) (map[int]*InspectionResult, error)
 
 	// Cleanup is called when a certain file path is not needed anymore, the implementation can clean up
 	// any resources associated with the file path.
@@ -44,6 +44,14 @@ type SymbolRequest struct {
 	IncludeReturnLocations bool
 }
 
+// InspectionResult is the result of an inspection of a binary for a given set of requests.
+type InspectionResult struct {
+	// SymbolMap is a map of symbol names to their corresponding metadata.
+	SymbolMap map[string]bininspect.FunctionMetadata
+	// Error is the error that occurred during the inspection.
+	Error error
+}
+
 // NativeBinaryInspector is a BinaryInspector that uses the ELF format to extract the metadata directly from native functions.
 type NativeBinaryInspector struct {
 }
@@ -52,7 +60,7 @@ type NativeBinaryInspector struct {
 var _ BinaryInspector = &NativeBinaryInspector{}
 
 // Inspect extracts the metadata required to attach to a binary from the ELF file at the given path.
-func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, error) {
+func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[int][]SymbolRequest) (map[int]*InspectionResult, error) {
 	path := fpath.HostPath
 	elfFile, err := safeelf.Open(path)
 	if err != nil {
@@ -79,40 +87,44 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolR
 		return nil, fmt.Errorf("architecture mismatch: %s != %s", arch, runtime.GOARCH)
 	}
 
-	mandatorySymbols := make(common.StringSet, len(requests))
-	bestEffortSymbols := make(common.StringSet, len(requests))
-
-	for _, req := range requests {
-		if req.BestEffort {
-			bestEffortSymbols.Add(req.Name)
-		} else {
-			mandatorySymbols.Add(req.Name)
+	symbols := make(common.StringSet)
+	result := make(map[int]*InspectionResult, len(requestSets))
+	for setID, requests := range requestSets {
+		result[setID] = &InspectionResult{
+			SymbolMap: make(map[string]bininspect.FunctionMetadata),
+			Error:     nil,
 		}
-
-		if req.IncludeReturnLocations {
-			return nil, errors.New("return locations are not supported by the native binary inspector")
+		for _, req := range requests {
+			symbols.Add(req.Name)
+			if req.IncludeReturnLocations {
+				return nil, errors.New("return locations are not supported by the native binary inspector")
+			}
 		}
 	}
 
-	symbolMap, err := bininspect.GetAllSymbolsInSetByName(elfFile, mandatorySymbols)
-	if err != nil {
-		return nil, err
-	}
-	/* Best effort to resolve symbols, so we don't care about the error */
-	symbolMapBestEffort, _ := bininspect.GetAllSymbolsInSetByName(elfFile, bestEffortSymbols)
+	// Ignore the error here, as we will check below for non-existing symbols
+	symbolMap, _ := bininspect.GetAllSymbolsInSetByName(elfFile, symbols)
 
-	funcMap := make(map[string]bininspect.FunctionMetadata, len(symbolMap)+len(symbolMapBestEffort))
-	for _, symMap := range []map[string]safeelf.Symbol{symbolMap, symbolMapBestEffort} {
-		for symbolName, symbol := range symMap {
+	for setID, requests := range requestSets {
+		for _, req := range requests {
+			symbol, found := symbolMap[req.Name]
+			if !found {
+				if !req.BestEffort {
+					result[setID].Error = errors.Join(result[setID].Error, fmt.Errorf("symbol %s not found in %s", req.Name, fpath.HostPath))
+				}
+
+				continue
+			}
 			m, err := p.symbolToFuncMetadata(elfFile, symbol)
 			if err != nil {
-				return nil, fmt.Errorf("failed to convert symbol %s to function metadata: %w", symbolName, err)
+				result[setID].Error = errors.Join(result[setID].Error, fmt.Errorf("failed to convert symbol %s to function metadata: %w", req.Name, err))
+				continue
 			}
-			funcMap[symbolName] = *m
+			result[setID].SymbolMap[req.Name] = *m
 		}
 	}
 
-	return funcMap, nil
+	return result, nil
 }
 
 func (*NativeBinaryInspector) symbolToFuncMetadata(elfFile *safeelf.File, sym safeelf.Symbol) (*bininspect.FunctionMetadata, error) {

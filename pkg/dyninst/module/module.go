@@ -16,8 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
@@ -30,7 +31,7 @@ import (
 // Module is the dynamic instrumentation system probe module
 type Module struct {
 	procMon       *procmon.ProcessMonitor
-	actuator      *actuator.Actuator
+	actuator      Actuator[ActuatorTenant]
 	controller    *Controller
 	cancel        context.CancelFunc
 	logUploader   *uploader.LogsUploaderFactory
@@ -71,11 +72,21 @@ func NewModule(
 	if err != nil {
 		return nil, fmt.Errorf("error creating loader: %w", err)
 	}
+	var elfFileLoader irgen.ElfFileLoader
+	if config.DiskCacheEnabled {
+		elfFileLoader, err = object.NewDiskCache(config.DiskCacheConfig)
+		if err != nil {
+			return nil, fmt.Errorf("error creating disk cache: %w", err)
+		}
+	} else {
+		elfFileLoader = object.NewInMemoryElfFileLoader()
+	}
 
-	actuator := actuator.NewActuator(loader)
+	actuator := config.actuatorConstructor(loader)
 	rcScraper := rcscrape.NewScraper(actuator)
+	irGenerator := irgen.NewGenerator(irgen.WithElfFileLoader(elfFileLoader))
 	controller := NewController(
-		actuator, logUploader, diagsUploader, rcScraper, DefaultDecoderFactory{},
+		actuator, logUploader, diagsUploader, rcScraper, DefaultDecoderFactory{}, irGenerator,
 	)
 	procMon := procmon.NewProcessMonitor(&processHandler{
 		scraperHandler: rcScraper.AsProcMonHandler(),

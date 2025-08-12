@@ -92,6 +92,9 @@ func SetupDefaultScript(s *common.Setup) error {
 	// Install agent package
 	installAgentPackage(s)
 
+	// Install DDOT package if enabled
+	installDDOTPackage(s)
+
 	// Optionally setup SSI
 	err := SetupAPMSSIScript(s)
 	if err != nil {
@@ -165,6 +168,14 @@ func installAgentPackage(s *common.Setup) {
 	// Agent install
 	if _, ok := os.LookupEnv("DD_NO_AGENT_INSTALL"); !ok {
 		s.Packages.Install(common.DatadogAgentPackage, agentVersion())
+	}
+}
+
+// installDDOTPackage installs the DDOT package if enabled
+func installDDOTPackage(s *common.Setup) {
+	// DDOT install - check if otel-collector is enabled
+	if otelEnabled, ok := os.LookupEnv("DD_OTELCOLLECTOR_ENABLED"); ok && strings.ToLower(otelEnabled) == "true" {
+		s.Packages.Install(common.DatadogAgentDDOTPackage, agentVersion())
 	}
 }
 
