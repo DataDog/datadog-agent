@@ -91,7 +91,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 
 	// Process the metrics
 	metricTime := time.Now()
-	metricTimestamp := float64(metricTime.UnixNano())
+	metricTimestamp := float64(metricTime.UnixNano()) / float64(time.Second)
 	err := check.emitMetrics(mockSender, gpuToContainersMap, metricTime)
 	assert.NoError(t, err)
 
