@@ -253,10 +253,10 @@ class PackageArtifactMeasurer:
             primary_path = artifact_paths.get('primary', artifact_paths.get('msi', ''))
 
             return ArtifactMeasurement(artifact_path=primary_path, on_wire_size=wire_size, on_disk_size=disk_size)
+        except (StaticQualityGateFailed, InfraError):
+            raise
         except Exception as e:
-            if isinstance(e, StaticQualityGateFailed | InfraError):
-                raise
-            raise StaticQualityGateFailed(f"Failed to measure package {config.gate_name}: {e}") from e
+            raise StaticQualityGateFailed(f"Failed to measure package {config.gate_name}") from e
 
     def _find_package_paths(self, config: QualityGateConfig) -> dict:
         """
