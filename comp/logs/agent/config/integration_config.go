@@ -120,9 +120,9 @@ type LogsConfig struct {
 	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
-	AutoMultiLineSamples      []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
-	FingerprintConfig         *FingerprintConfig     `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
-	RotationDetectionStrategy string                 `mapstructure:"rotation_detection_strategy" json:"rotation_detection_strategy" yaml:"rotation_detection_strategy"`
+	AutoMultiLineSamples           []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
+	FingerprintConfig              *FingerprintConfig     `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
+	ExperimentalFingerprintEnabled bool                   `mapstructure:"fingerprint_enabled_experimental" json:"fingerprint_enabled_experimental" yaml:"fingerprint_enabled_experimental"`
 }
 
 // SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.
@@ -282,9 +282,9 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	} else {
 		fmt.Fprint(&b, ws("AutoMultiLine: nil,"))
 	}
-	fmt.Fprintf(&b, ws("RotationDetectionStrategy: %s,"), c.RotationDetectionStrategy)
 	fmt.Fprintf(&b, ws("AutoMultiLineSampleSize: %d,"), c.AutoMultiLineSampleSize)
-	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f}"), c.AutoMultiLineMatchThreshold)
+	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f,"), c.AutoMultiLineMatchThreshold)
+	fmt.Fprintf(&b, ws("ExperimentalFingerprintEnabled: %t}"), c.ExperimentalFingerprintEnabled)
 	return b.String()
 }
 

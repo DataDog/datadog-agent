@@ -190,7 +190,7 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithV
 }
 
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidJSONString() {
-	suite.config.SetWithoutSource("logs_config.rotation_detection_strategy", true)
+	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"fingerprint_strategy": "byte_checksum", "count": 5, "count_to_skip": 2, "max_bytes": 512}`)
 
 	config, err := GlobalFingerprintConfig(suite.config)
@@ -203,7 +203,7 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithV
 }
 
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidJSON() {
-	suite.config.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"fingerprint_strategy": "line_checksum", "count": 5, "count_to_skip": 2, "max_bytes": 512`)
 
 	config, err := GlobalFingerprintConfig(suite.config)
@@ -212,7 +212,7 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithIn
 }
 
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
-	suite.config.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
 		"fingerprint_strategy": "invalid_strategy", // Invalid: unknown strategy
 		"count":                -1,                 // Invalid: negative value
