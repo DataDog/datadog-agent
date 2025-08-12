@@ -1,9 +1,9 @@
-
 .lint:
   stage: lint
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: []
+  retry: !reference [.retry_only_infra_failure, retry]
 
 lint_licenses:
   extends: .lint
@@ -43,7 +43,6 @@ lint_components:
   extends: .lint
   script:
     - dda inv -- -e lint-components lint-fxutil-oneshot-test
-
 
 lint_python:
   extends: .lint

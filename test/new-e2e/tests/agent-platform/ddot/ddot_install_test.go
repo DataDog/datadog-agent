@@ -118,6 +118,8 @@ func (is *ddotInstallSuite) TestDDOTInstall() {
 	require.NoError(is.T(), err)
 	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
+	ExecuteWithoutError(is.T(), VMclient, "sudo mkdir /etc/datadog-agent")
+	ExecuteWithoutError(is.T(), VMclient, "sudo touch /etc/datadog-agent/datadog.yaml")
 	if *platform == "debian" || *platform == "ubuntu" {
 		is.ddotDebianTest(VMclient)
 	} else if *platform == "centos" || *platform == "amazonlinux" || *platform == "fedora" || *platform == "redhat" {
@@ -132,9 +134,8 @@ func (is *ddotInstallSuite) TestDDOTInstall() {
 
 func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestClient) {
 	is.T().Run("add config file", func(t *testing.T) {
-		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
-		ExecuteWithoutError(t, VMclient, "sudo sh -c \"printf 'otelcollector:\\n  enabled: true\\n' >> /etc/datadog-agent/datadog.yaml\"")
-		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml.example > /etc/datadog-agent/otel-config.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"printf 'api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' >> /etc/datadog-agent/datadog.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed -i -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/otel-config.yaml && chmod 640 /etc/datadog-agent/otel-config.yaml\"")
 		if (*platform == "ubuntu" && is.osVersion == 14.04) || (*platform == "centos" && is.osVersion == 6.10) {
@@ -142,6 +143,10 @@ func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestCli
 		} else {
 			ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
 		}
+
+		// Reset systemd failure state and start ddot service
+		ExecuteWithoutError(t, VMclient, "sudo systemctl reset-failed datadog-agent-ddot.service")
+		ExecuteWithoutError(t, VMclient, "sudo systemctl start datadog-agent-ddot.service")
 	})
 
 	is.T().Run("check ddot systemd units are running", func(t *testing.T) {
@@ -149,6 +154,7 @@ func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestCli
 		require.NotNil(t, ddotUnit, "DDOT unit should be present after installation")
 		require.Equal(t, "datadog-agent-ddot.service", ddotUnit.Name, "DDOT unit name should be datadog-agent-ddot.service")
 		require.Equal(t, "active", ddotUnit.Active, "DDOT unit should be active because of dependency on datadog-agent")
+		require.Equal(t, "enabled", ddotUnit.Enabled, "DDOT unit should be enabled when running")
 		require.Equal(t, host.Loaded, ddotUnit.LoadState, "DDOT unit should be loaded")
 		require.Equal(t, host.Running, ddotUnit.SubState, "DDOT unit should be started when datadog-agent is started")
 	})
@@ -182,7 +188,7 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 		ExecuteWithoutError(t, VMclient, "sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring)
 		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_C0962C7D.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
 		for _, key := range keys {
-			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key)
+			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://apttesting.datad0g.com/test-keys-vault/%s\"", key, key)
 			ExecuteWithoutError(t, VMclient, "sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring)
 		}
 	})
@@ -237,10 +243,10 @@ func (is *ddotInstallSuite) ddotRhelTest(VMclient *common.TestClient) {
 		"enabled=1\n"+
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=%s\n"+
-		"gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"\thttps://keys.datadoghq.com/DATADOG_RPM_KEY_B01082D3.public\n"+
-		"\thttps://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"\thttps://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
+		"gpgkey=https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"\thttps://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_B01082D3.public\n"+
+		"\thttps://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"\thttps://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_E09422B3.public",
 		yumrepo, repogpgcheck)
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
@@ -290,21 +296,21 @@ func (is *ddotInstallSuite) ddotSuseTest(VMclient *common.TestClient) {
 		"enabled=1\n"+
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=1\n"+
-		"gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_B01082D3.public\n"+
-		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public\n",
+		"gpgkey=https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"	    https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_B01082D3.public\n"+
+		"	    https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"	    https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_E09422B3.public\n",
 		suseRepo)
 	_, err = fileManager.WriteFile("/etc/zypp/repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
 
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_CURRENT.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_CURRENT.public")
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_B01082D3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_B01082D3.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_B01082D3.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_B01082D3.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_B01082D3.public")
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_FD4BF915.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_FD4BF915.public")
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://apttesting.datad0g.com/test-keys-vault/DATADOG_RPM_KEY_E09422B3.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
 
 	is.T().Run("install ddot", func(t *testing.T) {

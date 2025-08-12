@@ -15,6 +15,7 @@ import (
 	"net"
 	"strconv"
 	"testing"
+	"time"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	io_prometheus_client "github.com/prometheus/client_model/go"
@@ -61,11 +62,14 @@ func TestRecommendedRefreshInterval(t *testing.T) {
 
 	component := provides.Comp
 
+	remoteAgentServer := &testRemoteAgentServer{}
+	server, port := buildRemoteAgentServer(t, remoteAgentServer)
+	defer server.Stop()
+
 	registrationData := &remoteagent.RegistrationData{
 		AgentID:     "test-agent",
 		DisplayName: "Test Agent",
-		APIEndpoint: "localhost:1234",
-		AuthToken:   "",
+		APIEndpoint: fmt.Sprintf("localhost:%d", port),
 	}
 
 	actualRefreshIntervalSecs, err := component.RegisterRemoteAgent(registrationData)
@@ -81,11 +85,14 @@ func TestGetRegisteredAgents(t *testing.T) {
 	provides, _, _, _ := buildComponent(t)
 	component := provides.Comp
 
+	remoteAgentServer := &testRemoteAgentServer{}
+	server, port := buildRemoteAgentServer(t, remoteAgentServer)
+	defer server.Stop()
+
 	registrationData := &remoteagent.RegistrationData{
 		AgentID:     "test-agent",
 		DisplayName: "Test Agent",
-		APIEndpoint: "localhost:1234",
-		AuthToken:   "",
+		APIEndpoint: fmt.Sprintf("localhost:%d", port),
 	}
 
 	_, err := component.RegisterRemoteAgent(registrationData)
@@ -94,6 +101,7 @@ func TestGetRegisteredAgents(t *testing.T) {
 	agents := component.GetRegisteredAgents()
 	require.Len(t, agents, 1)
 	require.Equal(t, "Test Agent", agents[0].DisplayName)
+	require.Equal(t, "test-agent", agents[0].SanatizedDisplayName)
 }
 
 func TestGetRegisteredAgentStatuses(t *testing.T) {
@@ -297,11 +305,28 @@ func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides
 }
 
 type testRemoteAgentServer struct {
-	StatusMain  map[string]string
-	StatusNamed map[string]map[string]string
-	FlareFiles  map[string][]byte
-	PromText    string
+	StatusMain   map[string]string
+	StatusNamed  map[string]map[string]string
+	FlareFiles   map[string][]byte
+	PromText     string
+	ConfigEvents chan *pbgo.ConfigEvent
 	pbgo.UnimplementedRemoteAgentServer
+}
+
+func (t *testRemoteAgentServer) StreamConfigEvents(stream pbgo.RemoteAgent_StreamConfigEventsServer) error {
+	if t.ConfigEvents != nil {
+		defer close(t.ConfigEvents)
+		for {
+			event, err := stream.Recv()
+			if err != nil {
+				return err
+			}
+			t.ConfigEvents <- event
+		}
+	}
+
+	<-stream.Context().Done()
+	return nil
 }
 
 func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetStatusDetailsResponse, error) {
@@ -381,4 +406,66 @@ func buildSelfSignedTLSCertificate() (*tls.Certificate, error) {
 	}
 
 	return &pair, nil
+}
+
+func TestConfigUpdate(t *testing.T) {
+	provides, lc, config, _ := buildComponent(t)
+	component := provides.Comp
+	lc.Start(context.Background())
+	defer lc.Stop(context.Background())
+
+	configEvents := make(chan *pbgo.ConfigEvent, 2) // buffer for snapshot and update
+	remoteAgentServer := &testRemoteAgentServer{
+		ConfigEvents: configEvents,
+	}
+
+	server, port := buildRemoteAgentServer(t, remoteAgentServer)
+	defer server.Stop()
+
+	registrationData := &remoteagent.RegistrationData{
+		AgentID:     "test-agent",
+		DisplayName: "Test Agent",
+		APIEndpoint: fmt.Sprintf("localhost:%d", port),
+	}
+
+	_, err := component.RegisterRemoteAgent(registrationData)
+	require.NoError(t, err)
+
+	// 1. Verify we receive the initial snapshot
+	var snapshot *pbgo.ConfigEvent
+	require.Eventually(t, func() bool {
+		select {
+		case e := <-configEvents:
+			if _, ok := e.GetEvent().(*pbgo.ConfigEvent_Snapshot); ok {
+				snapshot = e
+				return true
+			}
+		default:
+		}
+		return false
+	}, 5*time.Second, 200*time.Millisecond, "did not receive snapshot")
+
+	require.NotNil(t, snapshot)
+
+	// 2. Change a config value and verify we receive an update
+	config.Set("random_setting", "random_value", configmodel.SourceAgentRuntime)
+
+	var update *pbgo.ConfigEvent
+	require.Eventually(t, func() bool {
+		select {
+		case e := <-configEvents:
+			if _, ok := e.GetEvent().(*pbgo.ConfigEvent_Update); ok {
+				update = e
+				return true
+			}
+		default:
+		}
+		return false
+	}, 5*time.Second, 200*time.Millisecond, "did not receive update")
+
+	require.NotNil(t, update)
+	configUpdate := update.GetUpdate()
+	require.Equal(t, "random_setting", configUpdate.Setting.Key)
+	require.Equal(t, "random_value", configUpdate.Setting.Value.GetStringValue())
+	require.Equal(t, "agent-runtime", configUpdate.Setting.Source)
 }

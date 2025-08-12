@@ -13,6 +13,7 @@
 package msi
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -319,6 +320,11 @@ func isRetryableExitCode(err error) bool {
 	var exitError exitCodeError
 	if errors.As(err, &exitError) {
 		if exitError.ExitCode() == int(windows.ERROR_INSTALL_ALREADY_RUNNING) {
+			// another MSI is already running, we have to wait for it to finish.
+			return true
+		} else if exitError.ExitCode() == int(windows.ERROR_INSTALL_SERVICE_FAILURE) {
+			// could not connect to msiserver service.
+			// it should auto start when the MSI is run, but maybe it failed or was too slow to start.
 			return true
 		}
 	}
@@ -326,11 +332,29 @@ func isRetryableExitCode(err error) bool {
 	return false
 }
 
+// containsRetryableError returns true if the input contains a retryable error message
+//
+// This function expects to be used on the post-processed log file, which is significantly
+// smaller than the original log file.
+func containsRetryableError(b []byte) bool {
+	// This case seems to be similar to when msiexec returns 1601, but the connection failure appears
+	// to occur during a custom action, and the MSI exit code is 1603 instead.
+	// Example log lines:
+	//   Action start 17:48:55: WixSharp_InitRuntime_Action.
+	//   CustomAction WixSharp_InitRuntime_Action returned actual error code 1601 (note this may not be 100% accurate if translation happened inside sandbox)
+	//   MSI (s) (E4:18) [17:48:56:009]: Product: Datadog Agent -- Error 1719. The Windows Installer Service could not be accessed. This can occur if you are running Windows in safe mode, or if the Windows Installer is not correctly installed. Contact your support personnel for assistance.
+	if bytes.Contains(b, []byte("returned actual error code 1601")) &&
+		bytes.Contains(b, []byte("Error 1719")) {
+		return true
+	}
+	return false
+}
+
 // Run runs msiexec synchronously with retry logic
 func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 	var attemptCount int
 
-	operation := func() (any, err error) {
+	operation := func() (output []byte, err error) {
 		span, _ := telemetry.StartSpanFromContext(ctx, "msiexec")
 		defer func() {
 			// Add telemetry metadata about the msiexec operation
@@ -341,7 +365,12 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 			span.SetTag("params.logfile", m.args.logFile)
 			span.SetTag("attempt_count", attemptCount)
 			if err != nil {
-				span.SetTag("is_error_retryable", isRetryableExitCode(err))
+				var perm *backoff.PermanentError
+				span.SetTag("is_error_retryable", !errors.As(err, &perm))
+				// include the processed log data in the span, but only on error (msiexec failed)
+				// this way we get the error log on each attempt, in case it changes before the final error
+				// is reported by the caller.
+				span.SetTag("log", string(output))
 			}
 			span.Finish(err)
 		}()
@@ -351,24 +380,31 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 		// Execute the command
 		err = m.cmdRunner.Run(m.execPath, m.cmdLine)
 
-		// Return permanent error for non-retryable exit codes
-		if err != nil && !isRetryableExitCode(err) {
-			return nil, backoff.Permanent(err)
+		// Process log file
+		logFileBytes, logErr := m.openAndProcessLogFile()
+		if logErr != nil {
+			err = errors.Join(err, logErr)
+		}
+		if err != nil {
+			// An error occurred, check if it's retryable or permanent
+			if isRetryableExitCode(err) {
+				return logFileBytes, err
+			}
+			// Exit code is not retryable, check the processed log for retryable errors
+			if containsRetryableError(logFileBytes) {
+				return logFileBytes, err
+			}
+			// No retryable errors found
+			return logFileBytes, backoff.Permanent(err)
 		}
 
-		return nil, err
+		return logFileBytes, nil
 	}
 
 	// Execute with retry
-	_, err := backoff.Retry(ctx, operation,
+	logFileBytes, err := backoff.Retry(ctx, operation,
 		backoff.WithBackOff(m.backoff),
 	)
-
-	// Process log file once after all retries are complete
-	logFileBytes, logErr := m.openAndProcessLogFile()
-	if logErr != nil {
-		err = errors.Join(err, logErr)
-	}
 
 	// Execute post-execution actions
 	for _, p := range m.postExecActions {

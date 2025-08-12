@@ -10,7 +10,9 @@ package symdb
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Utilities for parsing Go function names.
@@ -160,6 +162,14 @@ func parseFuncName(qualifiedName string) (parseFuncNameResult, error) {
 		name = groups[standaloneFuncRENameIdx]
 	}
 
+	// If the last element of the package's import path contains dots, they are
+	// replaced with %2e in DWARF to differentiate them from the dot
+	// that separates the package path from the function name.
+	// For example, functions in package "gopkg.in/square/go-jose.v2" will
+	// appear in DWARF as "gopkg.in/square/go-jose%2ev2.newBuffer".
+	// See https://groups.google.com/g/golang-nuts/c/Can9WXHrqHg/m/kMfx1x6sBgAJ
+	pkg = strings.ReplaceAll(pkg, "%2e", ".")
+
 	// Check whether we're with anonymous functions. If we are, they might have
 	// parsed as a method, but they are not actually methods, so we need to
 	// rectify the results of the parsing and wipe the type.
@@ -204,4 +214,124 @@ func parseFuncName(qualifiedName string) (parseFuncNameResult, error) {
 			QualifiedName: qualifiedName,
 		},
 	}, nil
+}
+
+// splitPkg splits a full linker symbol name into package (full import path) and
+// local symbol name.
+//
+// Copied from
+// https://github.com/golang/go/blob/c0025d5e0b3f6fca7117e9b8f4593a95e37a9fa5/src/cmd/compile/internal/ir/func.go#L367
+func splitPkg(name string) (pkgpath, sym string) {
+	// package-sym split is at first dot after last the / that comes before
+	// any characters illegal in a package path.
+
+	lastSlashIdx := 0
+	for i, r := range name {
+		// Catches cases like:
+		// * example.foo[sync/atomic.Uint64].
+		// * example%2ecom.foo[sync/atomic.Uint64].
+		//
+		// Note that name is still escaped; unescape occurs after splitPkg.
+		if !escapedImportPathOK(r) {
+			break
+		}
+		if r == '/' {
+			lastSlashIdx = i
+		}
+	}
+	for i := lastSlashIdx; i < len(name); i++ {
+		r := name[i]
+		if r == '.' {
+			return name[:i], name[i+1:]
+		}
+	}
+
+	return "", name
+}
+
+// parseLinkFuncName parsers a symbol name (such as a type or function name) as
+// it appears in DWARF to the package path and local identifier name. The
+// returned package name is unescaped. If the package name contained escape
+// sequences, wasEscaped is returned true. Otherwise, name == <pkg>.<sym>
+//
+// This and related functions were adapted from
+// https://github.com/golang/go/blob/7a1679d7ae32dd8a01bd355413ee77ba517f5f43/src/cmd/internal/objabi/path.go#L18
+func parseLinkFuncName(name string) (pkg, sym string, wasEscaped bool, err error) {
+	pkg, sym = splitPkg(name)
+	if pkg == "" {
+		return "", sym, false, nil
+	}
+
+	pkg, wasEscaped, err = prefixToPath(pkg) // unescape
+	if err != nil {
+		return "", "", false, fmt.Errorf("malformed package path: %v", err)
+	}
+
+	return pkg, sym, wasEscaped, nil
+}
+
+// unescapeSymbol takes a symbol name as it appears in DWARF (i.e. package
+// import path + identifier) and unescapes the package import path, returning
+// the full symbol name with the unescaped package path.
+func unescapeSymbol(name string) (string, error) {
+	pkg, sym, wasEscaped, err := parseLinkFuncName(name)
+	if err != nil {
+		return "", err
+	}
+	if !wasEscaped {
+		// Avoid allocation on the common case.
+		return name, nil
+	}
+	return pkg + "." + sym, nil
+}
+
+// prefixToPath unescapes package import paths, replacing escape sequences with
+// the original character.
+//
+// The bool return value is true if any escape sequences were found and
+// replaced.
+func prefixToPath(s string) (string, bool, error) {
+	// Short-circuit the common case.
+	percent := strings.IndexByte(s, '%')
+	if percent == -1 {
+		return s, false, nil
+	}
+
+	p := make([]byte, 0, len(s))
+	for i := 0; i < len(s); {
+		if s[i] != '%' {
+			p = append(p, s[i])
+			i++
+			continue
+		}
+		if i+2 >= len(s) {
+			// Not enough characters remaining to be a valid escape
+			// sequence.
+			return "", false, fmt.Errorf("malformed prefix %q: escape sequence must contain two hex digits", s)
+		}
+
+		b, err := strconv.ParseUint(s[i+1:i+3], 16, 8)
+		if err != nil {
+			// Not a valid escape sequence.
+			return "", false, fmt.Errorf("malformed prefix %q: escape sequence %q must contain two hex digits", s, s[i:i+3])
+		}
+
+		p = append(p, byte(b))
+		i += 3
+	}
+	return string(p), true, nil
+}
+
+func modPathOK(r rune) bool {
+	if r < utf8.RuneSelf {
+		return r == '-' || r == '.' || r == '_' || r == '~' ||
+			'0' <= r && r <= '9' ||
+			'A' <= r && r <= 'Z' ||
+			'a' <= r && r <= 'z'
+	}
+	return false
+}
+
+func escapedImportPathOK(r rune) bool {
+	return modPathOK(r) || r == '+' || r == '/' || r == '%'
 }

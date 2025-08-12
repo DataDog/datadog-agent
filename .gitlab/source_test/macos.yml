@@ -23,7 +23,7 @@ include:
     - dda inv -- -e invoke-unit-tests
   after_script:
     - !reference [.vault_login]
-    - !reference [.select_python_env_commands]
+    - !reference [.install_python_dependencies]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   artifacts:
@@ -36,6 +36,7 @@ include:
       junit: "**/junit-out-*.xml"
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
@@ -44,7 +45,3 @@ tests_macos_gitlab_amd64:
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
   tags: ["macos:ventura-arm64", "specific:true"]
-  #TODO(regis): remove below `rules` section once enough `macos:ventura-arm64` runners are provisioned
-  rules:
-    - !reference [.except_mergequeue]
-    - !reference [.tests_macos_gitlab, rules]
