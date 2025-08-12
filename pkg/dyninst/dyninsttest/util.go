@@ -11,15 +11,19 @@ package dyninsttest
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -46,6 +50,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+//go:embed testdata/decoded
+var testdataFS embed.FS
 
 // MinimumKernelVersion is the minimum kernel version required by the ebpf program.
 var MinimumKernelVersion = kernel.VersionCode(5, 17, 0)
@@ -661,6 +668,8 @@ type RunTestSuiteConfig struct {
 	TestFunc       func(t *testing.T, service, bin string, probeSlice []ir.ProbeDefinition, rewrite bool, expectedOutput map[string][]json.RawMessage, debug bool, sem Semaphore) map[string][]json.RawMessage
 }
 
+type probeOutputs map[string][]json.RawMessage
+
 // RunIntegrationTestSuite provides the common test suite execution pattern
 // used by both regular and fault injection tests.
 func RunIntegrationTestSuite(t *testing.T, config RunTestSuiteConfig) {
@@ -731,4 +740,116 @@ func RunIntegrationTestSuite(t *testing.T, config RunTestSuiteConfig) {
 			}
 		})
 	}
+}
+
+// validateAndSaveOutputs ensures that the outputs for the same probe are consistent
+// across all tests and saves them to disk.
+func validateAndSaveOutputs(
+	t *testing.T, svc string, byTest map[string]probeOutputs,
+) {
+	byProbe := make(map[string][]byte)
+	msgEq := func(a, b json.RawMessage) bool { return bytes.Equal(a, b) }
+	findMismatchingTests := func(
+		probeID string, cur []json.RawMessage,
+	) (testNames []string) {
+		for testName, testOutputs := range byTest {
+			if out, ok := testOutputs[probeID]; ok {
+				if !slices.EqualFunc(out, cur, msgEq) {
+					testNames = append(testNames, testName)
+				}
+			}
+		}
+		return testNames
+	}
+	for testName, testOutputs := range byTest {
+		for id, out := range testOutputs {
+			marshaled, err := json.MarshalIndent(out, "", "  ")
+			require.NoError(t, err)
+			prev, ok := byProbe[id]
+			if !ok {
+				byProbe[id] = marshaled
+				continue
+			}
+			if bytes.Equal(prev, marshaled) {
+				continue
+			}
+			otherTestNames := findMismatchingTests(id, out)
+			require.Equal(
+				t,
+				string(prev),
+				string(marshaled),
+				"inconsistent output for probe %s in test %s and %s",
+				id, testName, strings.Join(otherTestNames, ", "),
+			)
+		}
+	}
+	for id, out := range byProbe {
+		path := getProbeOutputFilename(svc, id)
+		if err := saveActualOutputOfProbe(path, out); err != nil {
+			t.Logf("error saving actual output for probe %s: %v", id, err)
+		} else {
+			t.Logf("output saved to: %s", path)
+		}
+	}
+}
+
+func getProbeOutputFilename(service, probeID string) string {
+	return filepath.Join(
+		"testdata", "decoded", service, probeID+".json",
+	)
+}
+
+// getExpectedDecodedOutputOfProbes returns the expected output for a given service.
+func getExpectedDecodedOutputOfProbes(progName string) (map[string][]json.RawMessage, error) {
+	dir := filepath.Join("testdata", "decoded", progName)
+	entries, err := testdataFS.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	expected := make(map[string][]json.RawMessage)
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		probeID := strings.TrimSuffix(e.Name(), ".json")
+		content, err := testdataFS.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("reading %s: %w", e.Name(), err)
+		}
+		var out []json.RawMessage
+		if err := json.Unmarshal(content, &out); err != nil {
+			return nil, fmt.Errorf("unmarshalling %s: %w", e.Name(), err)
+		}
+		expected[probeID] = out
+	}
+	return expected, nil
+}
+
+// saveActualOutputOfProbes saves the actual output for a given service.
+// The output is saved to the expected output directory with the same format as getExpectedDecodedOutputOfProbes.
+// Note: This function now saves to the current working directory since embedded files are read-only.
+func saveActualOutputOfProbe(outputPath string, content []byte) error {
+	outputDir := path.Dir(outputPath)
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return fmt.Errorf("error creating testdata directory: %w", err)
+	}
+
+	baseName := path.Base(outputPath)
+	tmpFile, err := os.CreateTemp(outputDir, "."+baseName+".*.tmp.json")
+	if err != nil {
+		return fmt.Errorf("error creating temp output file: %w", err)
+	}
+	tmpName := tmpFile.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+
+	if _, err := io.Copy(tmpFile, bytes.NewReader(content)); err != nil {
+		return fmt.Errorf("error writing temp output: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("error closing temp output: %w", err)
+	}
+	if err := os.Rename(tmpName, outputPath); err != nil {
+		return fmt.Errorf("error renaming temp output: %w", err)
+	}
+	return nil
 }
