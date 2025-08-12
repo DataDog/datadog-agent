@@ -206,9 +206,9 @@ func getProcessorInternalPipeline() component {
 				"exclude": map[string]any{
 					"match_type": "regexp",
 					"metric_names": []any{
-						"scrape_.*",
-						"up",
-						"promhttp_metric_handler_errors_total",
+						"^scrape_.*",
+						"^up$",
+						"^promhttp_metric_handler_errors_total$",
 					},
 				},
 			},
