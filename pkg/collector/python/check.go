@@ -100,11 +100,6 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 
 	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
 
-	if c.instance == nil {
-		log.Warn("runCheckImpl received a nil instance, skipping check")
-		return fmt.Errorf("python check %s is not initialized", c.ModuleName)
-	}
-
 	cResult := C.run_check(rtloader, c.instance)
 	if cResult == nil {
 		if err := getRtLoaderError(); err != nil {
@@ -164,11 +159,6 @@ func (c *PythonCheck) Cancel() {
 		return
 	}
 	defer gstate.unlock()
-
-	if c.instance == nil {
-		log.Warn("cancel check received a nil instance, skipping check")
-		return
-	}
 
 	C.cancel_check(rtloader, c.instance)
 	if err := getRtLoaderError(); err != nil {
@@ -391,11 +381,6 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	}
 	defer gstate.unlock()
 
-	if c.instance == nil {
-		log.Warn("GetDiagnoses received a nil instance, skipping check")
-		return nil, nil
-	}
-
 	// Get JSON serialized diagnoses. Handcrafted and significantly more complicated
 	// manual serialization was only 2-2.5 times faster and hence not worth it for
 	// low-rate calls like this
@@ -441,8 +426,6 @@ func pythonCheckFinalizer(c *PythonCheck) {
 		C.rtloader_decref(rtloader, c.class)
 		if c.instance != nil {
 			C.rtloader_decref(rtloader, c.instance)
-		} else {
-			log.Warn("pythonCheckFinalizer received a nil instance, skipping check")
 		}
 	}(c)
 }
