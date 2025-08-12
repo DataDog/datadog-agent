@@ -14,6 +14,10 @@ telemetry.checks: '*'
 
 logs_enabled: true
 logs_config:
+  # Reducing the scan period to 5 seconds in order to smooth out the RSS fluctuations that occur during file rotation.
+  # This will allow tighter memory bounds on the quality gates that are more likely to catch code-caused memory regressions, 
+  # at the cost of deviating slightly from the expected production base behavior.
+  file_scan_period: 5 
   logs_dd_url: 127.0.0.1:9091
   logs_no_ssl: true
   force_use_tcp: true
