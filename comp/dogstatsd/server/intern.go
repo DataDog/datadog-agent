@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !go1.23
+
 package server
 
 import (
@@ -72,4 +74,10 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	i.telemetry.Miss(len(s))
 
 	return s
+}
+
+// cacheSize returns the current number of strings in the cache.
+// This is primarily for testing purposes.
+func (i *stringInterner) cacheSize() int {
+	return len(i.strings)
 }
