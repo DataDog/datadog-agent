@@ -304,7 +304,7 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 	}
 
 	m.hosts[host] = md
-	changed = changed && found
+	changed = changed && !found
 	return
 }
 
