@@ -75,6 +75,7 @@ import (
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -166,6 +167,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 			MemProfile:  "",
 			PIDFilePath: "",
 		}),
+		payloadmodifierfx.NilModule(),
 		tracecomp.Bundle(),
 		agenttelemetryfx.Module(),
 	)
