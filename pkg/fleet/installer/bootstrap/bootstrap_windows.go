@@ -75,7 +75,8 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		// this is expected for versions earlier than 7.70
 		return downloadInstallerOld(ctx, env, url, tmpDir)
 	}
-	return newInstallerExecFromSystemTemp(env, installerBinPath)
+	return iexec.NewInstallerExec(env, installerBinPath), nil
+	//return newInstallerExecFromSystemTemp(env, installerBinPath)
 }
 
 // downloadInstallerOld downloads the installer package from the registry and returns the path to the executable.
@@ -112,7 +113,8 @@ func downloadInstallerOld(ctx context.Context, env *env.Env, url string, tmpDir 
 		return nil, fmt.Errorf("failed to get installer path: %w", err)
 	}
 
-	return newInstallerExecFromSystemTemp(env, installPath)
+	//return newInstallerExecFromSystemTemp(env, installPath)
+	return iexec.NewInstallerExec(env, installPath), nil
 }
 
 func getInstallerPath(ctx context.Context, tmpDir string) (string, error) {
@@ -201,7 +203,8 @@ func moveInstallerToSystemTemp(installPath string) (string, error) {
 
 	tempInstallerPath = filepath.Join(tempInstallerPath, "datadog-installer.exe")
 
-	err = os.Rename(installPath, tempInstallerPath)
+	//err = os.Rename(installPath, tempInstallerPath)
+	err = paths.CopyFile(installPath, tempInstallerPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to move installer to system temp: %w", err)
 	}
@@ -212,10 +215,10 @@ func moveInstallerToSystemTemp(installPath string) (string, error) {
 //
 // This executable will stay running after we return and on Windows we can't delete files that are in use,
 // so we move it to the system temporary directory so it gets cleaned up by the OS.
-func newInstallerExecFromSystemTemp(env *env.Env, installPath string) (*iexec.InstallerExec, error) {
-	installPath, err := moveInstallerToSystemTemp(installPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to move installer to system temp: %w", err)
-	}
-	return iexec.NewInstallerExec(env, installPath), nil
-}
+// func newInstallerExecFromSystemTemp(env *env.Env, installPath string) (*iexec.InstallerExec, error) {
+// 	installPath, err := moveInstallerToSystemTemp(installPath)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to move installer to system temp: %w", err)
+// 	}
+// 	return iexec.NewInstallerExec(env, installPath), nil
+// }
