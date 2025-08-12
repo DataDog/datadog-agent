@@ -24,7 +24,7 @@ import (
 )
 
 type vmSuite struct {
-	e2e.BaseSuite[environments.Host]
+	e2e.BaseSuite[environments.WindowsHost]
 
 	testspath string
 }
