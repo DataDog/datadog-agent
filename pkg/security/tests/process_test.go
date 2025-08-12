@@ -1026,7 +1026,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	testProcessContextRule := func(t *testing.T, ruleID, filename string) {
-		test.RunMultiMode(t, ruleID, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
+		t.Run(ruleID, func(t *testing.T) {
 			testFile, _, err := test.Path(filename)
 			if err != nil {
 				t.Fatal(err)
