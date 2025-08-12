@@ -1,6 +1,6 @@
-use super::aggregator::{CheckInstance, MetricType, Aggregator};
+use super::aggregator::{Instance, MetricType, Aggregator};
 
-pub type Instance = CheckInstance;
+use std::error::Error;
 
 #[repr(i32)]
 pub enum ServiceCheckStatus {
@@ -11,22 +11,20 @@ pub enum ServiceCheckStatus {
 }
 
 pub struct AgentCheck {
-    check_id: String,
-    aggregator: Aggregator,
+    pub check_id: String,
+    instance: Instance, // used to get specific check parameters
+    aggregator: &'static Aggregator, // submit callbacks
 }
 
 impl AgentCheck {
-    pub fn new(instance_ptr: *const Instance) -> Self {
-        let instance = unsafe { &*instance_ptr };
+    pub fn new(instance_str: &str, aggregator: &'static Aggregator) -> Result<Self, Box<dyn Error>> {
+        let instance = Instance::new(instance_str)?;
 
-        let check_id  = instance.get_check_id();
+        // mandatory parameter
+        let check_id = instance.get("check_id")?;
 
-        let aggregator  = instance.get_callbacks();
-
-        AgentCheck { check_id, aggregator }
+        Ok(Self { check_id, aggregator, instance })
     }
-
-    // TODO: maybe use Option for optional arguments (tags, hostname, flush_first_value)
 
     // metric functions
     pub fn gauge(&self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {

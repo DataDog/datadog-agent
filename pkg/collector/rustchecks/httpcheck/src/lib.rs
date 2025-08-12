@@ -1,40 +1,38 @@
 mod agent_check;
-use agent_check::base::{Instance, AgentCheck, ServiceCheckStatus};
+use agent_check::base::{AgentCheck, ServiceCheckStatus};
+use agent_check::aggregator::Aggregator;
 
 use std::error::Error;
+use std::ffi::{c_char, CString, CStr};
+
 use std::time::Instant;
 use std::sync::Arc;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::io::{ErrorKind, Read, Write};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
 use rustls::{KeyLogFile, ClientConnection, RootCertStore, Stream};
 use rustls::pki_types::CertificateDer;
 use webpki_roots::TLS_SERVER_ROOTS;
 use x509_parser::parse_x509_certificate;
 
 // entrypoint of the check
-// instead of passing CheckID, it will be more flexible to pass a struct that contains
-// the same info as the 'instance' variable in Python checks.
-// pub extern "C" fn Run(instance: Instance) {
-//      let check_id = instance.get("check_id").expect("'check_id' not found");
-//      ...
-// }
 #[unsafe(no_mangle)]
-pub extern "C" fn Run(instance: *const Instance) {
-    // create the instance using the provided configuration
-    let check = AgentCheck::new(instance);
-
-    // run the custom check implementation
-    // TODO: change prints to logs
-    match check.check() {
-        Ok(()) => {
-            //println!("[SharedLibraryCheck] Check completed successfully.");
-        }
-        Err(e) => {
-            eprintln!("[SharedLibraryCheck] Error when running check: {e}");
-        }
+pub extern "C" fn Run(instance_cstr: *const c_char, aggregator_ptr: *const Aggregator) -> *mut c_char {
+    // return error message if there's any
+    match run_check(instance_cstr, aggregator_ptr) {
+        Ok(()) => std::ptr::null_mut(),
+        Err(e) => CString::new(e.to_string()).unwrap_or_default().into_raw()            
     }
+}
+
+fn run_check(instance_cstr: *const c_char, aggregator_ptr: *const Aggregator) -> Result<(), Box<dyn Error>> {
+    // try to create the instance using the provided configuration and run its custom implementation
+    let instance_str = unsafe { CStr::from_ptr(instance_cstr) }.to_str()?;
+    let aggregator = unsafe { &*aggregator_ptr };
+
+    let check = AgentCheck::new(instance_str, aggregator)?;
+
+    check.check()
 }
 
 // custom check implementation
@@ -69,15 +67,15 @@ impl AgentCheck {
         // Allow using SSLKEYLOGFILE.
         config.key_log = Arc::new(KeyLogFile::new());
 
-        let server_name = url.try_into().unwrap();
+        let server_name = url.try_into()?;
 
-        let mut conn = ClientConnection::new(Arc::new(config), server_name).unwrap();
+        let mut conn = ClientConnection::new(Arc::new(config), server_name)?;
 
         // establish communication
         let start_time = Instant::now();
 
         let addr = format!("{url}:443")
-            .to_socket_addrs().unwrap()
+            .to_socket_addrs()?
             .next().unwrap();
 
         match TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
@@ -122,14 +120,14 @@ impl AgentCheck {
 
                         match tls.read_to_end(&mut response_raw) {
                             Ok(_) => {
-                                let response = String::from_utf8(response_raw).unwrap();
+                                let response = String::from_utf8(response_raw)?;
 
                                 // status code
                                 let first_line = response.lines().nth(0).unwrap();
                                 let status_code: u32 = first_line
                                     .split_whitespace()
                                     .nth(1).unwrap()
-                                    .parse().unwrap();
+                                    .parse()?;
 
                                 // check for client or server http error
                                 if status_code >= 400 {

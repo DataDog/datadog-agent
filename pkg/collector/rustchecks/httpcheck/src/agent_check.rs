@@ -1,3 +1,3 @@
 pub mod base;
-mod aggregator;
+pub mod aggregator;
 mod helpers;

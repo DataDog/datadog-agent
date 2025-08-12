@@ -38,17 +38,17 @@ typedef void (*cb_submit_histogram_bucket_t)(char *, char *, long long, float, f
 typedef void (*cb_submit_event_platform_event_t)(char *, char *, int, char *);
 
 // config passed to the check
-typedef struct check_instance_s {
-    char *check_id;
+typedef struct submit_callbacks_s {
     cb_submit_metric_t cb_submit_metric;
     cb_submit_service_check_t cb_submit_service_check;
     cb_submit_event_t cb_submit_event;
     cb_submit_histogram_bucket_t cb_submit_histogram_bucket;
     cb_submit_event_platform_event_t cb_submit_event_platform_event;
-} check_instance_t;
+} submit_callbacks_t;
 
-// (run_function_cb)
-typedef void(run_shared_library_check_t)(check_instance_t *);
+// run_function_cb
+// (instance string, callbacks)
+typedef char *(run_shared_library_check_t)(char *, const submit_callbacks_t *);
 
 // library and symbols pointers
 typedef struct shared_library_handle_s {

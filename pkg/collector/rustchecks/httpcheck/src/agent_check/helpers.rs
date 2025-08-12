@@ -17,7 +17,6 @@ pub fn free_cstring(ptr: *mut c_char) {
     unsafe { drop(CString::from_raw(ptr)) };
 }
 
-// should be used later to avoid memory leaks when rust types are converted to C types
 pub fn free_cstring_array(ptr: *mut *mut c_char) {
     if ptr.is_null() {
         return;
