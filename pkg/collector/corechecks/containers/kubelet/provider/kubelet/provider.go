@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
@@ -94,11 +93,11 @@ var (
 
 // Provider provides the metrics related to data collected from the `/metrics` Kubelet endpoint
 type Provider struct {
-	filter   *containers.Filter
-	store    workloadmeta.Component
-	podUtils *common.PodUtils
-	tagger   tagger.Component
-	firstRun bool
+	filterStore workloadfilter.Component
+	store       workloadmeta.Component
+	podUtils    *common.PodUtils
+	tagger      tagger.Component
+	firstRun    bool
 	prometheus.Provider
 }
 
@@ -117,11 +116,11 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 	}
 
 	provider := &Provider{
-		filter:   filter,
-		store:    store,
-		podUtils: podUtils,
-		tagger:   tagger,
-		firstRun: true,
+		filterStore: filterStore,
+		store:       store,
+		podUtils:    podUtils,
+		tagger:      tagger,
+		firstRun:    true,
 	}
 
 	transformers := prometheus.Transformers{

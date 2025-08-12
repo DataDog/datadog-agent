@@ -9,8 +9,6 @@ package kubelet
 
 import (
 	"fmt"
-	"reflect"
-	"regexp"
 	"strconv"
 	"testing"
 
