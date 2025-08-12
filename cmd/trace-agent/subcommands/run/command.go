@@ -92,7 +92,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		statsd.Module(),
 		optionalRemoteTaggerfx.Module(
 			tagger.OptionalRemoteParams{
-				// We disable the remote tagger *only* if we dectect that the
+				// We disable the remote tagger *only* if we detect that the
 				// trace-agent is running in the Azure App Services (AAS)
 				// Extension. The Extension only includes a trace-agent and the
 				// dogstatsd binary, and cannot include the core agent. We know
