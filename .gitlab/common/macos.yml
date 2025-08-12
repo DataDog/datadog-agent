@@ -35,8 +35,19 @@
     echo "Temporary folder created, TMPDIR=$TMPDIR -> $NEWTMPDIR"
 
 .install_python_dependencies:
-  # Create custom temporary folder to isolate jobs from each other
-  # We have to symlink it to /tmp/gitlabci to avoid some path length issues (sockets should be <= 104 characters on MacOS)
+  - |
+    echo "Setting PYENV_VERSION for aws v1..."
+    [ -n "$PYENV_VERSION" ] && { echo >&2 "❌ Unexpected PYENV_VERSION=$PYENV_VERSION"; exit 1; }
+    export PATH="$(pyenv root)/bin:$PATH"
+    eval "$(pyenv init -)"
+    candidates=($(pyenv versions --bare | grep '^datadog-agent-python'))
+    case "${#candidates[@]}" in
+    1) export PYENV_VERSION="${candidates[0]}"; echo "PYENV_VERSION=$PYENV_VERSION";;
+    0) echo >&2 "❌ No datadog-agent-python* environment found"; exit 1;;
+    *) echo >&2 "❌ Multiple datadog-agent-python* environments found: ${candidates[@]}"; exit 1;;
+    esac
+    which aws
+    cat "$(which aws)"
   - |
     if [ -z "$TMPDIR" ]; then
       echo "TMPDIR must be set" >& 2
