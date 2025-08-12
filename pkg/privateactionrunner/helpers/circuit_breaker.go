@@ -18,8 +18,9 @@ type CircuitBreaker struct {
 	maxAttempts     int32
 }
 
-func NewCircuitBreaker(name string, minBackoff, maxBackoff, waitBeforeRetry time.Duration, maxAttempts int32) *CircuitBreaker {
+func NewCircuitBreaker(log log.Component, name string, minBackoff, maxBackoff, waitBeforeRetry time.Duration, maxAttempts int32) *CircuitBreaker {
 	return &CircuitBreaker{
+		log:             log,
 		name:            name,
 		minBackoff:      minBackoff,
 		maxBackoff:      maxBackoff,
