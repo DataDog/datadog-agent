@@ -7,8 +7,10 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -928,4 +930,137 @@ func TestRetryWithActualBodyConsumption(t *testing.T) {
 	// Verify both bodies are identical (proving the body was properly recreated for retry)
 	assert.Equal(t, transport.bodiesRead[0], transport.bodiesRead[1],
 		"Both attempts should have received identical body content")
+}
+
+func TestProfileProxyErrorHandler(t *testing.T) {
+	tests := []struct {
+		name           string
+		error          error
+		expectedStatus int
+		expectedLog    string
+	}{
+		{
+			name:           "timeout error returns 408",
+			error:          &mockTimeoutError{message: "read tcp 127.0.0.1:8126->127.0.0.1:45066: i/o timeout"},
+			expectedStatus: http.StatusRequestTimeout, // 408
+			expectedLog:    "Returning 408 Request Timeout for body read timeout",
+		},
+		{
+			name:           "retryable read operation error returns 503",
+			error:          &net.OpError{Op: "read", Net: "tcp", Err: fmt.Errorf("connection reset")},
+			expectedStatus: http.StatusServiceUnavailable, // 503
+			expectedLog:    "Returning 503 Service Unavailable for retryable body read error",
+		},
+		{
+			name:           "deadline exceeded returns 504",
+			error:          fmt.Errorf("context deadline exceeded: %w", context.DeadlineExceeded),
+			expectedStatus: http.StatusGatewayTimeout, // 504
+			expectedLog:    "Returning 504 Gateway Timeout for deadline exceeded",
+		},
+		{
+			name:           "non-retryable error returns 502",
+			error:          fmt.Errorf("some other error"),
+			expectedStatus: http.StatusBadGateway, // 502
+			expectedLog:    "Returning 502 Bad Gateway for error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test configuration
+			conf := config.New()
+
+			// Create the proxy
+			proxy := newProfileProxy(conf, []*url.URL{}, []string{}, "test-tags", &statsd.NoOpClient{})
+
+			// Create test request and response recorder
+			req := httptest.NewRequest("POST", "/profiling/v1/input", nil)
+			w := httptest.NewRecorder()
+
+			// Call the error handler
+			proxy.ErrorHandler(w, req, tt.error)
+
+			// Verify the status code
+			assert.Equal(t, tt.expectedStatus, w.Code, "Expected status code %d, got %d", tt.expectedStatus, w.Code)
+
+			// Verify the response body contains the error message
+			body := w.Body.String()
+			assert.Contains(t, body, tt.error.Error(), "Response body should contain error message")
+		})
+	}
+}
+
+// mockTimeoutError implements net.Error with Timeout() returning true
+type mockTimeoutError struct {
+	message string
+}
+
+func (e *mockTimeoutError) Error() string   { return e.message }
+func (e *mockTimeoutError) Timeout() bool   { return true }
+func (e *mockTimeoutError) Temporary() bool { return true }
+
+func TestIsRetryableBodyReadError(t *testing.T) {
+	tests := []struct {
+		name     string
+		error    error
+		expected bool
+	}{
+		{
+			name:     "nil error is not retryable",
+			error:    nil,
+			expected: false,
+		},
+		{
+			name:     "timeout error is retryable",
+			error:    &mockTimeoutError{message: "i/o timeout"},
+			expected: true,
+		},
+		{
+			name:     "non-timeout network error is not retryable",
+			error:    &mockNetError{timeout: false}, // Use existing mockNetError
+			expected: false,                         // Only timeout errors are retryable for body reads
+		},
+		{
+			name:     "read operation error is retryable",
+			error:    &net.OpError{Op: "read", Net: "tcp", Err: fmt.Errorf("connection reset")},
+			expected: true,
+		},
+		{
+			name:     "write operation error is not retryable for body read",
+			error:    &net.OpError{Op: "write", Net: "tcp", Err: fmt.Errorf("broken pipe")},
+			expected: false,
+		},
+		{
+			name:     "context canceled is retryable",
+			error:    context.Canceled,
+			expected: true,
+		},
+		{
+			name:     "context deadline exceeded is retryable",
+			error:    context.DeadlineExceeded,
+			expected: true,
+		},
+		{
+			name:     "EOF is not retryable",
+			error:    io.EOF,
+			expected: false,
+		},
+		{
+			name:     "unexpected EOF is not retryable",
+			error:    io.ErrUnexpectedEOF,
+			expected: false,
+		},
+		{
+			name:     "generic error is not retryable",
+			error:    fmt.Errorf("some other error"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isRetryableBodyReadError(tt.error)
+			assert.Equal(t, tt.expected, result, "Expected %t for error: %v", tt.expected, tt.error)
+		})
+	}
 }

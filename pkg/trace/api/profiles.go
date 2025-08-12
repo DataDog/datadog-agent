@@ -7,6 +7,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -145,12 +146,46 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 	// overlap with other timeouts or periodicities. It provides sufficient buffer time compared to 60, whilst still
 	// allowing connection reuse for tracer setups that upload multiple profiles per minute.
 	transport.IdleConnTimeout = 47 * time.Second
-	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
-	return &httputil.ReverseProxy{
+	// Temporarily disable log throttling to see all errors during debugging
+	// logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	logger := log.NewThrottled(1000, 1*time.Second) // Much higher limit for debugging
+	proxy := &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
 		Transport: &multiTransport{transport, targets, keys},
 	}
+
+	// Custom error handler to provide better HTTP status codes based on error type
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		log.Warnf("ReverseProxy ErrorHandler called for %s %s: %v", r.Method, r.URL.String(), err)
+
+		// Determine appropriate HTTP status code based on error type
+		var statusCode int
+		if errors.Is(err, context.DeadlineExceeded) {
+			statusCode = http.StatusGatewayTimeout // 504
+			log.Warnf("Returning 504 Gateway Timeout for deadline exceeded")
+		} else if isRetryableBodyReadError(err) {
+			// Check if this is specifically a timeout error
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
+				statusCode = http.StatusRequestTimeout // 408 (client timeout)
+				log.Warnf("Returning 408 Request Timeout for body read timeout")
+			} else {
+				statusCode = http.StatusServiceUnavailable // 503 (other retryable errors)
+				log.Warnf("Returning 503 Service Unavailable for retryable body read error")
+			}
+		} else { // default case
+			statusCode = http.StatusBadGateway // 502 (default)
+			log.Warnf("Returning 502 Bad Gateway for error: %v", err)
+		}
+
+		w.WriteHeader(statusCode)
+		if _, writeErr := w.Write([]byte(err.Error())); writeErr != nil {
+			log.Debugf("Failed to write error response body: %v", writeErr)
+		}
+	}
+
+	return proxy
 }
 
 // multiTransport sends HTTP requests to multiple targets using an
@@ -199,6 +234,41 @@ func isRetryableError(err error) bool {
 	return false
 }
 
+// isRetryableBodyReadError determines if a body read error should be retried
+func isRetryableBodyReadError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for specific connection errors during body read FIRST
+	// (before checking net.Error, since net.OpError implements net.Error)
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if opErr.Op == "read" {
+			return true
+		}
+	}
+
+	// Check for network-level errors that might be transient
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		// Retry on timeout or temporary network errors
+		return netErr.Timeout()
+	}
+
+	// Check for context cancellation (might be transient)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	// Don't retry EOF or other stream-related errors
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return false
+	}
+
+	return false
+}
+
 // isRetryableStatusCode determines if an HTTP status code should trigger a retry
 func isRetryableStatusCode(statusCode int) bool {
 	switch statusCode {
@@ -240,6 +310,12 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		var err error
 		bodyBytes, err = io.ReadAll(req.Body)
 		if err != nil {
+			// Classify the error for better debugging
+			if isRetryableBodyReadError(err) {
+				log.Warnf("multiTransport: RETRYABLE body read error (client should retry): %v", err)
+			} else {
+				log.Warnf("multiTransport: NON-RETRYABLE body read error: %v", err)
+			}
 			return nil, err
 		}
 		req.Body.Close() // Close the original body
@@ -257,8 +333,11 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 				time.Sleep(delay)
 			}
 
-			// Clone the request and set up a fresh body for this attempt
-			attemptReq := req.Clone(req.Context())
+			// Clone the request with a fresh context to avoid inheriting the original request timeout
+			// The original request context has a 5-second timeout from timeoutMiddleware,
+			// but we want our retries to use the transport's own timeouts
+			freshCtx := context.Background()
+			attemptReq := req.Clone(freshCtx)
 			if bodyBytes != nil {
 				attemptReq.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 			}
@@ -291,6 +370,8 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 			if lastErr != nil {
 				// Connection-level error - check if retryable
 				shouldRetry = isRetryableError(lastErr) && !isLastAttempt
+				// Log ALL connection errors at WARN level for production debugging
+				log.Warnf("Connection error for profile upload to %s (payload size: %d bytes, duration: %v, retryable: %t, isLastAttempt: %t): %v", u.Host, len(bodyBytes), attemptDuration, isRetryableError(lastErr), isLastAttempt, lastErr)
 				if !shouldRetry && !isLastAttempt {
 					log.Debugf("Non-retryable connection error for profile upload to %s (payload size: %d bytes, duration: %v): %v", u.Host, len(bodyBytes), attemptDuration, lastErr)
 				}
@@ -304,6 +385,9 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 
 			if !shouldRetry {
 				// Either success, non-retryable error, or final attempt - return result
+				if lastErr == nil && resp != nil && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
+					log.Warnf("Profile upload non-2xx response to %s (payload size: %d bytes, duration: %v, status: %d)", u.Host, len(bodyBytes), attemptDuration, resp.StatusCode)
+				}
 				return resp, lastErr
 			}
 
