@@ -579,11 +579,20 @@ func (t *Translator) mapSummaryMetrics(
 		ts := uint64(p.Timestamp())
 		pointDims := dims.WithAttributeMap(p.Attributes())
 
-		// count and sum are increasing; we treat them as cumulative monotonic sums.
+		// treat count as a cumulative monotonic metric
+		// and sum as a non-monotonic metric
+		// https://prometheus.io/docs/practices/histograms/#count-and-sum-of-observations
 		{
 			countDims := pointDims.WithSuffix("count")
-			if dx, ok := t.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok && !t.isSkippable(countDims.name, dx) {
-				consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, dx)
+			val := float64(p.Count())
+			dx, isFirstPoint, shouldDropPoint := t.prevPts.MonotonicDiff(countDims, startTs, ts, val)
+			if !shouldDropPoint && !t.isSkippable(countDims.name, dx) {
+				if !isFirstPoint {
+					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, dx)
+				} else if i == 0 && t.shouldConsumeInitialValue(startTs, ts) {
+					// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
+					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, val)
+				}
 			}
 		}
 
