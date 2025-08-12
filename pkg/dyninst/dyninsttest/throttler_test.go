@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package dyninst_test
+package dyninsttest
 
 import (
 	"context"
@@ -18,13 +18,12 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
 func TestThrottler(t *testing.T) {
-	dyninsttest.SkipIfKernelNotSupported(t)
+	SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, cfg := range cfgs {
 		t.Run(cfg.String(), func(t *testing.T) {
@@ -43,12 +42,12 @@ func TestThrottler(t *testing.T) {
 }
 
 func enforcesBudget(t *testing.T, busyloopPath string) {
-	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-throttler-test-")
+	tempDir, cleanup := PrepTmpDir(t, "dyninst-throttler-test-")
 	defer cleanup()
 
 	// Load the binary and generate the IR.
 	t.Logf("loading binary")
-	obj, irp := dyninsttest.GenerateIr(t, tempDir, busyloopPath, "busyloop")
+	obj, irp := GenerateIr(t, tempDir, busyloopPath, "busyloop")
 
 	// Adjust throttling parameters.
 	// Practically infinite period, with specific event count.
@@ -63,18 +62,18 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 
 	// Compile the IR and prepare the BPF program.
 	t.Logf("loading BPF")
-	program, cleanup := dyninsttest.CompileAndLoadBPF(t, tempDir, irp)
+	program, cleanup := CompileAndLoadBPF(t, tempDir, irp)
 	defer cleanup()
 
 	// Launch the sample service, inject the BPF program and collect the output.
 	t.Logf("running and instrumenting sample")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	sampleProc, sampleStdin := dyninsttest.StartProcess(
+	sampleProc, sampleStdin := StartProcess(
 		ctx, t, tempDir, busyloopPath,
 		"1" /*round_cnt*/, "20" /*round_sec*/, "3", /*concurrency*/
 	)
-	cleanup = dyninsttest.AttachBPFProbes(
+	cleanup = AttachBPFProbes(
 		t, busyloopPath, obj, sampleProc.Process.Pid, program,
 	)
 	defer cleanup()
@@ -102,12 +101,12 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 }
 
 func refreshesBudget(t *testing.T, busyloopPath string) {
-	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-throttler-test-")
+	tempDir, cleanup := PrepTmpDir(t, "dyninst-throttler-test-")
 	defer cleanup()
 
 	// Load the binary and generate the IR.
 	t.Logf("loading binary")
-	obj, irp := dyninsttest.GenerateIr(t, tempDir, busyloopPath, "busyloop")
+	obj, irp := GenerateIr(t, tempDir, busyloopPath, "busyloop")
 
 	// Adjust throttling parameters.
 	// Small period, and budget.
@@ -120,18 +119,18 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 
 	// Compile the IR and prepare the BPF program.
 	t.Logf("compiling BPF")
-	program, cleanup := dyninsttest.CompileAndLoadBPF(t, tempDir, irp)
+	program, cleanup := CompileAndLoadBPF(t, tempDir, irp)
 	defer cleanup()
 
 	// Launch the sample service, inject the BPF program and collect the output.
 	t.Logf("running and instrumenting sample")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	sampleProc, sampleStdin := dyninsttest.StartProcess(
+	sampleProc, sampleStdin := StartProcess(
 		ctx, t, tempDir, busyloopPath,
 		"1" /*round_cnt*/, "20" /*round_sec*/, "3", /*concurrency*/
 	)
-	cleanup = dyninsttest.AttachBPFProbes(t, busyloopPath, obj, sampleProc.Process.Pid, program)
+	cleanup = AttachBPFProbes(t, busyloopPath, obj, sampleProc.Process.Pid, program)
 	defer cleanup()
 	defer func() {
 		sampleProc.Process.Kill()

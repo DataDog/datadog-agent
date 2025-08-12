@@ -5,16 +5,14 @@
 
 //go:build linux_bpf
 
-package dyninst
+package dyninsttest
 
 import (
 	"os"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 )
 
 func TestMain(m *testing.M) {
-	dyninsttest.SetupLogging()
+	SetupLogging()
 	os.Exit(m.Run())
 }

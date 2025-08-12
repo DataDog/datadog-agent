@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package dyninst_test
+package dyninsttest
 
 import (
 	"bytes"

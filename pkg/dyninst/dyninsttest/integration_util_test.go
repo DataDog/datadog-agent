@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package dyninst_test
+package dyninsttest
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
 // TestEnvironment holds the common test setup artifacts that both
@@ -144,7 +143,7 @@ func makeTestReporter(t *testing.T, irDump *os.File) *testReporter {
 // prepareTestEnvironment sets up the common test environment with temp directories
 // and output files that both test types use.
 func prepareTestEnvironment(t *testing.T, testName string) *TestEnvironment {
-	tempDir, cleanup := dyninsttest.PrepTmpDir(t, testName)
+	tempDir, cleanup := PrepTmpDir(t, testName)
 
 	irDump, err := os.Create(filepath.Join(tempDir, "probe.ir.yaml"))
 	require.NoError(t, err)
@@ -211,7 +210,7 @@ type processInfo struct {
 func launchTestProcess(ctx context.Context, t *testing.T, env *TestEnvironment, service, servicePath string) *processInfo {
 	t.Logf("launching %s", service)
 
-	sampleProc, sampleStdin := dyninsttest.StartProcess(ctx, t, env.TempDir, servicePath)
+	sampleProc, sampleStdin := StartProcess(ctx, t, env.TempDir, servicePath)
 
 	stat, err := os.Stat(servicePath)
 	require.NoError(t, err)
@@ -489,9 +488,9 @@ type RunTestSuiteConfig struct {
 	Service        string
 	Config         testprogs.Config
 	Rewrite        bool
-	Semaphore      dyninsttest.Semaphore
+	Semaphore      Semaphore
 	TestNameSuffix string // Optional suffix for test naming (e.g., "-fault-injection")
-	TestFunc       func(t *testing.T, service, bin string, probeSlice []ir.ProbeDefinition, rewrite bool, expectedOutput map[string][]json.RawMessage, debug bool, sem dyninsttest.Semaphore) map[string][]json.RawMessage
+	TestFunc       func(t *testing.T, service, bin string, probeSlice []ir.ProbeDefinition, rewrite bool, expectedOutput map[string][]json.RawMessage, debug bool, sem Semaphore) map[string][]json.RawMessage
 }
 
 // RunIntegrationTestSuite provides the common test suite execution pattern

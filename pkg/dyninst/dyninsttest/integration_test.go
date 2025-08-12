@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package dyninst_test
+package dyninsttest
 
 import (
 	"bytes"
@@ -27,16 +27,15 @@ import (
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
 //go:embed testdata/decoded
 var testdataFS embed.FS
 
 func TestDyninst(t *testing.T) {
-	dyninsttest.SkipIfKernelNotSupported(t)
+	SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	programs := testprogs.MustGetPrograms(t)
 	var integrationTestPrograms = map[string]struct{}{
@@ -44,7 +43,7 @@ func TestDyninst(t *testing.T) {
 		"sample": {},
 	}
 
-	sem := dyninsttest.MakeSemaphore()
+	sem := MakeSemaphore()
 
 	// The debug variants of the tests spew logs to the trace_pipe, so we need
 	// to clear it after the tests to avoid interfering with other tests.
@@ -90,7 +89,7 @@ func testDyninst(
 	rewriteEnabled bool,
 	expOut map[string][]json.RawMessage,
 	debug bool,
-	sem dyninsttest.Semaphore,
+	sem Semaphore,
 ) map[string][]json.RawMessage {
 	defer sem.Acquire()()
 	start := time.Now()
@@ -139,7 +138,7 @@ func runIntegrationTestSuite(
 	service string,
 	cfg testprogs.Config,
 	rewrite bool,
-	sem dyninsttest.Semaphore,
+	sem Semaphore,
 ) {
 	RunIntegrationTestSuite(t, RunTestSuiteConfig{
 		Service:   service,

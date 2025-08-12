@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package dyninst_test
+package dyninsttest
 
 import (
 	"archive/tar"
@@ -38,19 +38,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	di_module "github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
 
 type testState struct {
 	tmpDir string
 
-	rc       *dyninsttest.MockAgentRCServer
+	rc       *MockAgentRCServer
 	rcServer *httptest.Server
 
 	backend       *mockBackend
@@ -91,7 +90,7 @@ func TestEndToEnd(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping end-to-end test in short mode")
 	}
-	dyninsttest.SkipIfKernelNotSupported(t)
+	SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	idx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
 		return c.GOARCH == runtime.GOARCH
@@ -149,7 +148,7 @@ type e2eTestConfig struct {
 }
 
 func runE2ETest(t *testing.T, cfg e2eTestConfig) {
-	tmpDir, cleanup := dyninsttest.PrepTmpDir(t, strings.ReplaceAll(t.Name(), "/", "_"))
+	tmpDir, cleanup := PrepTmpDir(t, strings.ReplaceAll(t.Name(), "/", "_"))
 	defer cleanup()
 	ts := &testState{tmpDir: tmpDir, useDocker: cfg.useDocker}
 
@@ -158,7 +157,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	ts.backendServer = httptest.NewServer(ts.backend)
 	t.Cleanup(ts.backendServer.Close)
 
-	ts.rc = dyninsttest.NewMockAgentRCServer()
+	ts.rc = NewMockAgentRCServer()
 	ts.rcServer = httptest.NewServer(ts.rc)
 	t.Cleanup(ts.rcServer.Close)
 	t.Cleanup(ts.rc.Close)

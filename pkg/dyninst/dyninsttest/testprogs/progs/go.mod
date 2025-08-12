@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+module github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs
 
 go 1.23.1
 
@@ -14,7 +14,7 @@ require (
 )
 
 // We need to pick up the latest version of the remoteconfig/state package.
-replace github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.67.0 => ../../../remoteconfig/state
+replace github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.67.0 => ../../../../remoteconfig/state
 
 require (
 	github.com/DataDog/appsec-internal-go v1.13.0 // indirect

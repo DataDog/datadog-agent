@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package dyninst_test
+package dyninsttest
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
@@ -32,15 +32,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
 
 // TestDecoderErrorHandling tests that decoder errors do not cause the
 // entire subsystem to fail and shut down.
 func TestDecoderErrorHandling(t *testing.T) {
-	dyninsttest.SkipIfKernelNotSupported(t)
-	tmpDir, cleanup := dyninsttest.PrepTmpDir(t, "decoder-error-handling-test")
+	SkipIfKernelNotSupported(t)
+	tmpDir, cleanup := PrepTmpDir(t, "decoder-error-handling-test")
 	defer cleanup()
 
 	diagCh := make(chan []byte, 10)
