@@ -393,20 +393,6 @@ func (s *FaultySymbolicator) Symbolicate(_ []uint64, _ uint64) ([]symbol.StackFr
 	return nil, fmt.Errorf("error symbolicating stack")
 }
 
-// injectMissingDecoderType removes decoder types for testing fault injection scenarios.
-func injectMissingDecoderType(program *ir.Program, ev output.Event) error {
-	for item, err := range ev.DataItems() {
-		if err != nil {
-			return err
-		}
-		_, ok := program.Types[ir.TypeID(item.Header().Type)].(*ir.EventRootType)
-		if !ok {
-			delete(program.Types, ir.TypeID(item.Header().Type))
-		}
-	}
-	return nil
-}
-
 // EventProcessingConfig configures how events are processed and decoded.
 type EventProcessingConfig struct {
 	Service        string
