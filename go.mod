@@ -1024,7 +1024,7 @@ exclude go.opentelemetry.io/proto/otlp v1.1.0
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20250206221735-64e5a8c92d94
 
 // Remove once https://github.com/kubernetes/kube-state-metrics/pull/2553 is merged
-replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241119155242-07761b9fe9a0
+replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20250808193648-ead8278ad9fb
 
 // Remove once https://github.com/Iceber/iouring-go/pull/31 or equivalent is merged,
 // among with the Connect, Bind and Accept requests
