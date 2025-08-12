@@ -66,6 +66,7 @@
   - rm -f dda.tar.gz
   - export PATH="$DDA_DIR:$PATH"
   - dda self dep sync -f legacy-tasks
+  - dda self pip install awscli==1.29.45
 
 .vault_login:
   # Point the CLI to our internal vault
