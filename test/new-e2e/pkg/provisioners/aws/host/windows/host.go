@@ -186,8 +186,6 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	}
 
 	if params.testsigningOptions != nil {
-		fmt.Println("Enabling test signing")
-		fmt.Println("testsigningOptions", params.testsigningOptions)
 		testsigning, err := testsigning.NewTestSigning(awsEnv.CommonEnvironment, host, params.testsigningOptions...)
 		if err != nil {
 			return err
@@ -298,10 +296,7 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	}
 
 	// check env and enable test signing if we have a test signed driver
-	fmt.Println("WINDOWS_DDNPM_DRIVER", sysos.Getenv("WINDOWS_DDNPM_DRIVER"))
-	fmt.Println("WINDOWS_DDPROCMON_DRIVER", sysos.Getenv("WINDOWS_DDPROCMON_DRIVER"))
 	if sysos.Getenv("WINDOWS_DDNPM_DRIVER") == "testsigned" || sysos.Getenv("WINDOWS_DDPROCMON_DRIVER") == "testsigned" {
-		fmt.Println("Enabling test signing :)")
 		params.testsigningOptions = append(params.testsigningOptions, testsigning.WithTestSigningEnabled())
 	}
 
@@ -309,7 +304,6 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	if err != nil {
 		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
 	}
-	fmt.Println("testsigningOptions", params.testsigningOptions)
 	return params
 }
 
