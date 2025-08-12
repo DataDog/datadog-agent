@@ -1,3 +1,6 @@
 enhancements:
   - |
     Add thumbprints and serial numbers as tags for Certificates and CRLs to the Windows Certificate Store integration.
+fixes:
+  - |
+    Fixed an issue where metrics in the Windows Certificate Store integration are merged when multiple certificates have the same subject.
