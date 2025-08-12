@@ -163,9 +163,9 @@ class QualityGateConfig:
         if not self.gate_name:
             raise ValueError("gate_name cannot be empty")
         if self.max_on_wire_size <= 0:
-            raise ValueError("max_on_wire_size must be positive")
+            raise ValueError("max_on_wire_size must be strictly positive")
         if self.max_on_disk_size <= 0:
-            raise ValueError("max_on_disk_size must be positive")
+            raise ValueError("max_on_disk_size must be strictly positive")
         if not self.arch:
             raise ValueError("arch cannot be empty")
         if not self.os:
