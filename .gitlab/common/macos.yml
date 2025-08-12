@@ -66,18 +66,13 @@
   - rm -f dda.tar.gz
   - export PATH="$DDA_DIR:$PATH"
   - dda self dep sync -f legacy-tasks
-  # Install awscli
-  - export AWSCLI_DIR="$TMPDIR/awscli-${CI_JOB_ID}"
+  # Add a shim to make aws work
   - |
-    echo 'Installing AWS CLI...'
-    AWSCLI_VERSION=1.29.45
-    awscli_d="$(mktemp -d)"
-    pushd "$awscli_d"
-    curl -fsSL "https://s3.amazonaws.com/aws-cli/awscli-bundle-$AWSCLI_VERSION.zip" --output bundle.zip
-    unzip bundle.zip
-    $(pyenv root)/versions/datadog-agent-python-3.12.6/bin/python awscli-bundle/install -i $AWSCLI_DIR/installation -b $AWSCLI_DIR/aws
-    popd
-    rm -rv "$awscli_d"
+    AWSCLI_DIR="$TMPDIR/awscli-${CI_JOB_ID}"
+    mkdir -p "$AWSCLI_DIR"
+    install -m 755 /dev/stdin $AWSCLI_DIR/aws <<'EOF'
+    $(pyenv root)/versions/datadog-agent-python-3.12.6/bin/python $(which aws)
+    EOF
   - export PATH="AWSCLI_DIR:$PATH"
 
 .vault_login:
