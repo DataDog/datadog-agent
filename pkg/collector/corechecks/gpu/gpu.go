@@ -57,6 +57,7 @@ type checkTelemetry struct {
 	activeMetrics                telemetry.Gauge
 	missingContainerGpuMapping   telemetry.Counter
 	multipleContainersGpuMapping telemetry.Counter
+	collectorTime                telemetry.Gauge
 }
 
 // Factory creates a new check factory
@@ -84,6 +85,7 @@ func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 		duplicateMetrics:             tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 		missingContainerGpuMapping:   tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
 		multipleContainersGpuMapping: tm.NewCounter(CheckName, "multiple_containers_gpu_mapping", []string{"device"}, "Number of devices assigned to multiple containers"),
+		collectorTime:                tm.NewGauge(CheckName, "collector_time_ms", []string{"collector", "gpu_uuid"}, "Time taken to collect metrics from NVML collectors, in milliseconds"),
 	}
 }
 
@@ -227,7 +229,11 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 	var multiErr error
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
+		startTime := time.Now()
 		metrics, collectErr := collector.Collect()
+		collectTime := time.Since(startTime)
+		c.telemetry.collectorTime.Set(float64(collectTime.Milliseconds()), string(collector.Name()), collector.DeviceUUID())
+
 		if collectErr != nil {
 			c.telemetry.collectorErrors.Add(1, string(collector.Name()))
 			multiErr = multierror.Append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
