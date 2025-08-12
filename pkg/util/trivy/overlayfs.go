@@ -41,7 +41,7 @@ func newFakeContainer(layerPaths []string, imgMeta *workloadmeta.ContainerImageM
 		return nil, fmt.Errorf("mismatch count for layer IDs and paths (%v, %v, %v)", layerIDs, layerPaths, imgMeta)
 	}
 
-	log.Debugf("create fake container with paths=%v", layerPaths)
+	log.Infof("create fake container with paths=%v", layerPaths)
 
 	return &fakeContainer{
 		layerIDs:   layerIDs,
