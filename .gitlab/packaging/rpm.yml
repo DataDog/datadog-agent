@@ -7,18 +7,18 @@
     - |
       if [[ -n "$GATE_NAME" ]]; then
         echo "📊 Starting package measurement..."
-        
+
         # Use BASE_PACKAGE_DIR to build pattern dynamically
         PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${DD_PROJECT}-7*${DD_PKG_ARCH}.rpm"
         echo "🔍 Looking for package with pattern: $PACKAGE_PATTERN"
-        
+
         # Extract report prefix from gate name (e.g. static_quality_gate_agent_rpm_amd64 -> agent_rpm_amd64)
         REPORT_PREFIX="${GATE_NAME#static_quality_gate_}"
-        
+
         for package_file in $PACKAGE_PATTERN; do
           if [[ -f "$package_file" ]]; then
             echo "📏 Measuring package: $package_file"
-            
+
             # Generate measurement report using GATE_NAME variable
             dda inv quality-gates.measure-package-local \
               --package-path "$package_file" \
@@ -26,7 +26,7 @@
               --build-job-name "$CI_JOB_NAME" \
               --output-path "${REPORT_PREFIX}_size_report_${CI_PIPELINE_ID}_${CI_COMMIT_SHA:0:8}.yml" \
               --debug || echo "⚠️  Package measurement failed for $package_file"
-            
+
             echo "✅ Package measurement completed"
           else
             echo "⚠️  No package found matching pattern: $PACKAGE_PATTERN"
