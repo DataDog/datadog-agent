@@ -57,6 +57,7 @@ type checkTelemetry struct {
 	activeMetrics                telemetry.Gauge
 	missingContainerGpuMapping   telemetry.Counter
 	multipleContainersGpuMapping telemetry.Counter
+	collectorTime                telemetry.Gauge
 }
 
 // Factory creates a new check factory
@@ -84,6 +85,7 @@ func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 		duplicateMetrics:             tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 		missingContainerGpuMapping:   tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
 		multipleContainersGpuMapping: tm.NewCounter(CheckName, "multiple_containers_gpu_mapping", []string{"device"}, "Number of devices assigned to multiple containers"),
+		collectorTime:                tm.NewGauge(CheckName, "collector_time_ms", []string{"collector", "gpu_uuid"}, "Time taken to collect metrics from NVML collectors, in milliseconds"),
 	}
 }
 
@@ -155,6 +157,8 @@ func (c *Check) Cancel() {
 
 // Run executes the check
 func (c *Check) Run() error {
+	currentExecutionTime := time.Now()
+
 	snd, err := c.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %w", err)
@@ -178,7 +182,7 @@ func (c *Check) Run() error {
 	// metrics with the tags of containers that are using them
 	gpuToContainersMap := c.getGPUToContainersMap()
 
-	if err := c.emitMetrics(snd, gpuToContainersMap); err != nil && logLimitCheck.ShouldLog() {
+	if err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error while sending gpu metrics: %s", err)
 	}
 
@@ -216,7 +220,7 @@ type deviceMetricsCollection struct {
 	totalCount       int                                      // total number of metrics across all collectors
 }
 
-func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container) error {
+func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container, currentExecutionTime time.Time) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
@@ -227,7 +231,11 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 	var multiErr error
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
+		startTime := time.Now()
 		metrics, collectErr := collector.Collect()
+		collectTime := time.Since(startTime)
+		c.telemetry.collectorTime.Set(float64(collectTime.Milliseconds()), string(collector.Name()), collector.DeviceUUID())
+
 		if collectErr != nil {
 			c.telemetry.collectorErrors.Add(1, string(collector.Name()))
 			multiErr = multierror.Append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
@@ -284,14 +292,20 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 			metricName := gpuMetricsNs + metric.Name
 			allTags := append(append(c.deviceTags[deviceUUID], containerTags...), metric.Tags...)
 
+			// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
+			// We need this to ensure weighted metrics are calibrated correctly.
 			switch metric.Type {
 			case ddmetrics.CountType:
-				snd.Count(metricName, metric.Value, "", allTags)
+				err = snd.CountWithTimestamp(metricName, metric.Value, "", allTags, float64(currentExecutionTime.UnixNano())/float64(time.Second))
 			case ddmetrics.GaugeType:
-				snd.Gauge(metricName, metric.Value, "", allTags)
+				err = snd.GaugeWithTimestamp(metricName, metric.Value, "", allTags, float64(currentExecutionTime.UnixNano())/float64(time.Second))
 			default:
 				multiErr = multierror.Append(multiErr, fmt.Errorf("unsupported metric type %s for metric %s", metric.Type, metricName))
 				continue
+			}
+
+			if err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("error sending metric %s: %w", metricName, err))
 			}
 		}
 	}
