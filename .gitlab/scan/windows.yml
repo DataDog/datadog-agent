@@ -3,9 +3,10 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   variables:
-    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-7*.msi"
+    OMNIBUS_PIPELINE_DIR: $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PIPELINE_DIR
   script:
     # TODO: Put that in the buildimage
     - curl -L -o vt-cli.zip "https://github.com/VirusTotal/vt-cli/releases/download/1.1.1/Linux64.zip"
@@ -20,7 +21,7 @@
     - chmod +x vt
     - ./vt version
     # Find the MSI file for this pipeline
-    - MSI_FILE=$(find "$OMNIBUS_PACKAGE_DIR" -name "$SCAN_ARTIFACT_PATTERN" | head -n 1)
+    - MSI_FILE=$(find "$OMNIBUS_PIPELINE_DIR" -name "$SCAN_ARTIFACT_PATTERN" | head -n 1)
     - |
       if [ -z "$MSI_FILE" ]; then
         echo "No MSI file found for pattern $SCAN_ARTIFACT_PATTERN and pipeline ID $CI_PIPELINE_ID"
@@ -101,7 +102,7 @@ scan_packages_windows-x64:
   extends: .scan_windows_package
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
   variables:
-    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-7*.msi"
   allow_failure: true
 
 scan_packages_windows-fips-x64:
@@ -113,5 +114,5 @@ scan_packages_windows-fips-x64:
   extends: .scan_windows_package
   needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
   variables:
-    SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+    SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-7*.msi"
   allow_failure: true
