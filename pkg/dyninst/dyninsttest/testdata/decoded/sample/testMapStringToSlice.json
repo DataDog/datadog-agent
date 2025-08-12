@@ -17,17 +17,17 @@
         "stack": [
           {
             "function": "main.testMapStringToSlice",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/sample/maps.go",
             "lineNumber": 30
           },
           {
             "function": "main.executeMapFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/sample/maps.go",
             "lineNumber": 138
           },
           {
             "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/sample/main.go",
             "lineNumber": 45
           },
           {

@@ -17,17 +17,17 @@
         "stack": [
           {
             "function": "main.testPointerToSimpleStruct",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/sample/pointers.go",
             "lineNumber": 38
           },
           {
             "function": "main.executePointerFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/sample/pointers.go",
             "lineNumber": 135
           },
           {
             "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/sample/main.go",
             "lineNumber": 35
           },
           {

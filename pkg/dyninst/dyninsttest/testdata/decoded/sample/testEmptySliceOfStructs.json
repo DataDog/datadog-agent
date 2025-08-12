@@ -17,17 +17,17 @@
         "stack": [
           {
             "function": "main.testEmptySliceOfStructs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/sample/slices.go",
             "lineNumber": 45
           },
           {
             "function": "main.executeSliceFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/sample/slices.go",
             "lineNumber": 76
           },
           {
             "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/sample/main.go",
             "lineNumber": 31
           },
           {
