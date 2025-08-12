@@ -192,12 +192,34 @@ installer_suse_rpm-arm64:
     - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
+    # Measure IoT agent package size and generate in-place report
+    - |
+      # Find the main IoT agent RPM using pattern similar to gates.py (excludes debug packages)
+      PACKAGE_PATTERN="$OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7*${IOT_RPM_ARCH}.rpm"
+      echo "🔍 Looking for IoT agent package with pattern: $PACKAGE_PATTERN"
+      
+      for package_file in $PACKAGE_PATTERN; do
+        if [[ -f "$package_file" ]]; then
+          echo "📏 Measuring IoT agent package: $package_file"
+          
+          # Generate measurement report
+          dda inv quality-gates.measure-package-local \
+            --package-path "$package_file" \
+            --gate-name "$IOT_GATE_NAME" \
+            --build-job-name "$CI_JOB_NAME" \
+            --output-path "iot_agent_size_report_${IOT_REPORT_ARCH}_${CI_PIPELINE_ID}.yml" \
+            --debug || echo "⚠️  Package measurement failed for $package_file"
+        else
+          echo "⚠️  No IoT agent package found matching pattern: $PACKAGE_PATTERN"
+        fi
+      done
     - !reference [.create_signature_and_lint_linux_packages]
   stage: packaging
   artifacts:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+      - "iot_agent_size_report_*.yml"
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
@@ -211,10 +233,18 @@ installer_suse_rpm-arm64:
 iot_agent_rpm-x64:
   extends: [.package_iot_rpm_common, .package_rpm_x86]
   needs: ["iot-agent-x64"]
+  variables:
+    IOT_RPM_ARCH: "x86_64"
+    IOT_GATE_NAME: "static_quality_gate_iot_agent_rpm_amd64"
+    IOT_REPORT_ARCH: "x86_64"
 
 iot_agent_rpm-arm64:
   extends: [.package_iot_rpm_common, .package_rpm_arm64]
   needs: ["iot-agent-arm64"]
+  variables:
+    IOT_RPM_ARCH: "aarch64"
+    IOT_GATE_NAME: "static_quality_gate_iot_agent_rpm_arm64"
+    IOT_REPORT_ARCH: "arm64"
 
 iot_agent_rpm-armhf:
   extends: .package_iot_rpm_common
@@ -225,6 +255,9 @@ iot_agent_rpm-armhf:
   variables:
     PACKAGE_ARCH: armhf
     DD_PKG_ARCH: "arm64"
+    IOT_RPM_ARCH: "armv7hl"
+    IOT_GATE_NAME: "static_quality_gate_iot_agent_rpm_armhf"
+    IOT_REPORT_ARCH: "armhf"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_ENABLE_VPA: false
   before_script:
@@ -244,8 +277,12 @@ iot_agent_suse-x64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
+      - "iot_agent_size_report_*.yml"
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
+    IOT_RPM_ARCH: "x86_64"
+    IOT_GATE_NAME: "static_quality_gate_iot_agent_suse_amd64"
+    IOT_REPORT_ARCH: "x86_64"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
