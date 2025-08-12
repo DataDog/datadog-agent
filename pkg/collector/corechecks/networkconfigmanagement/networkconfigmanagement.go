@@ -8,8 +8,9 @@ package networkconfigmanagement
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -32,11 +33,10 @@ const CheckName = "network_config_management"
 // Check is the main struct for the network configuration management check
 type Check struct {
 	core.CheckBase
-	deviceConfig  *ncmconfig.DeviceConfig
-	sender        *ncmsender.NCMSender
-	agentConfig   config.Component
-	clientFactory ncmremote.ClientFactory
-	remoteClient  ncmremote.Client
+	deviceConfig *ncmconfig.DeviceConfig
+	sender       *ncmsender.NCMSender
+	agentConfig  config.Component
+	remoteClient ncmremote.Client
 }
 
 // TimeNow useful for mocking
@@ -47,13 +47,16 @@ func (c *Check) Run() error {
 	var checkErr error
 	var configs []ncmreport.NetworkDeviceConfig
 
-	c.remoteClient, checkErr = c.clientFactory.Connect(c.deviceConfig.IPAddress, c.deviceConfig.Auth)
+	checkErr = c.remoteClient.Connect()
 	if checkErr != nil {
 		log.Errorf("unable to connect to remote device %s: %s", c.deviceConfig.IPAddress, checkErr)
 		return checkErr
 	}
-
-	defer c.remoteClient.Close()
+	defer func() {
+		if c.remoteClient != nil {
+			_ = c.remoteClient.Close()
+		}
+	}()
 
 	// TODO: validate the running config to make sure it's valid, extract other information from it, etc.
 	runningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
@@ -67,12 +70,14 @@ func (c *Check) Run() error {
 	}
 	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.RUNNING, TimeNow().Unix(), tags, runningConfig))
 
-	// TODO: validate the startup config to make sure it's valid, extract other information from it, etc.
-	startupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
-	if checkErr != nil {
-		return checkErr
+	if c.deviceConfig.CollectStartupConfig {
+		// TODO: validate the startup config to make sure it's valid, extract other information from it, etc.
+		startupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
+		if checkErr != nil {
+			return checkErr
+		}
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.STARTUP, TimeNow().Unix(), tags, startupConfig))
 	}
-	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.STARTUP, TimeNow().Unix(), tags, startupConfig))
 
 	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.deviceConfig.Namespace, "", configs, TimeNow().Unix()))
 	if checkErr != nil {
@@ -127,9 +132,14 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.sender = ncmSender
 
 	// TODO: add check to see the device's credentials type (SSH/Telnet) and create appropriate client factory
-	c.clientFactory = &ncmremote.SSHClientFactory{}
+	c.remoteClient = ncmremote.NewSSHClient(c.deviceConfig)
 
 	return nil
+}
+
+// Interval returns the interval at which the check should run (default 15 minutes for now)
+func (c *Check) Interval() time.Duration {
+	return time.Minute * 15
 }
 
 // Factory creates a new check factory

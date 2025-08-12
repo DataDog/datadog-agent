@@ -7,6 +7,7 @@ package remote
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 // SSHClient implements Client using SSH
 type SSHClient struct {
 	client *ssh.Client
+	device *ncmconfig.DeviceConfig // Device configuration for authentication
 }
 
 // SSHSession implements Session using an SSH session
@@ -28,22 +30,40 @@ type SSHSession struct {
 
 // SSHClientConfig holds configuration for SSH client
 type SSHClientConfig struct {
-	Timeout         time.Duration
-	HostKeyCallback ssh.HostKeyCallback
+	Timeout           time.Duration
+	HostKeyCallback   ssh.HostKeyCallback
+	Ciphers           []string // configurable ciphers
+	KeyExchanges      []string // configurable key exchanges
+	HostKeyAlgorithms []string // configurable host key algorithms
 }
 
-// SSHClientFactory creates a new SSHClient for SSH connections
-type SSHClientFactory struct {
-	config *SSHClientConfig
+// NewSSHClient creates a new SSH client for the given device configuration
+func NewSSHClient(device *ncmconfig.DeviceConfig) *SSHClient {
+	return &SSHClient{
+		device: device,
+	}
+}
+
+func (c *SSHClient) redial() error {
+	if c.client != nil {
+		_ = c.client.Close()
+	}
+	newClient, err := connectToHost(c.device.IPAddress, c.device.Auth, nil)
+	if err != nil {
+		return err
+	}
+	c.client = newClient
+	return nil
 }
 
 // Connect establishes a new SSH connection to the specified IP address using the provided authentication credentials
-func (f *SSHClientFactory) Connect(ip string, auth ncmconfig.AuthCredentials) (Client, error) {
-	client, err := connectToHost(ip, auth, f.config)
+func (c *SSHClient) Connect() error {
+	client, err := connectToHost(c.device.IPAddress, c.device.Auth, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &SSHClient{client: client}, nil
+	c.client = client
+	return nil
 }
 
 // DefaultSSHClientConfig returns a default SSH client configuration
@@ -57,10 +77,25 @@ func DefaultSSHClientConfig() *SSHClientConfig {
 // NewSession creates a new SSH session for the client (needed for every command execution)
 func (c *SSHClient) NewSession() (Session, error) {
 	sess, err := c.client.NewSession()
+	if err != nil && isTransientSSH(err) {
+		if rerr := c.redial(); rerr == nil {
+			sess, err = c.client.NewSession()
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SSH session: %w", err)
 	}
 	return &SSHSession{session: sess}, nil
+}
+
+func isTransientSSH(err error) bool {
+	if err == io.EOF {
+		return true
+	}
+	s := err.Error()
+	return strings.Contains(s, "unexpected packet in response to channel open") ||
+		strings.Contains(s, "channel open") ||
+		strings.Contains(s, "connection reset by peer")
 }
 
 // CombinedOutput runs a command using the SSH session and returns its output
@@ -131,6 +166,11 @@ func connectToHost(ipAddress string, auth ncmconfig.AuthCredentials, config *SSH
 		Auth:            []ssh.AuthMethod{ssh.Password(auth.Password)},
 		HostKeyCallback: config.HostKeyCallback,
 		Timeout:         config.Timeout,
+		Config: ssh.Config{
+			Ciphers:      auth.SSHCiphers,
+			KeyExchanges: auth.SSHKeyExchanges,
+		},
+		HostKeyAlgorithms: auth.SSHHostKeyAlgos,
 	}
 
 	// TODO: Add support for SSH key authentication

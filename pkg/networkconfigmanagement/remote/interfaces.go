@@ -6,12 +6,9 @@
 // Package remote provides interfaces for remote device communications (SSH/Telnet) to retrieve configurations
 package remote
 
-import (
-	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
-)
-
 // Client defines the interface for a remote client that can create sessions to execute commands on a device
 type Client interface {
+	Connect() error
 	NewSession() (Session, error)
 	RetrieveRunningConfig() (string, error)
 	RetrieveStartupConfig() (string, error)
@@ -22,9 +19,4 @@ type Client interface {
 type Session interface {
 	CombinedOutput(cmd string) ([]byte, error)
 	Close() error
-}
-
-// ClientFactory defines the interface for creating remote clients
-type ClientFactory interface {
-	Connect(ip string, auth ncmconfig.AuthCredentials) (Client, error)
 }

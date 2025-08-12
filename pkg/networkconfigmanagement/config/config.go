@@ -9,14 +9,15 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
+	"strconv"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
-	"net"
-	"net/url"
-	"strconv"
 )
 
 // AuthCredentials holds the authentication credentials to connect to a network device.
@@ -25,6 +26,10 @@ type AuthCredentials struct { // auth_credentials
 	Password string `yaml:"password"`
 	Port     string `yaml:"port"`
 	Protocol string `yaml:"remote"`
+	// SSH-specific configurations
+	SSHCiphers      []string `yaml:"ssh_ciphers,omitempty"`
+	SSHKeyExchanges []string `yaml:"ssh_key_exchanges,omitempty"`
+	SSHHostKeyAlgos []string `yaml:"ssh_host_key_algorithms,omitempty"`
 	// TODO: Uncomment and implement SSH key support
 	//SshKeyPath       string `yaml:"sshKeyPath"`       // path to the SSH key file
 	//SshKeyPassphrase string `yaml:"sshKeyPassphrase"` // passphrase for SSH key if needed
@@ -34,9 +39,10 @@ type AuthCredentials struct { // auth_credentials
 
 // DeviceConfig holds the info to connect to a network device, including its IP address and authentication credentials.
 type DeviceConfig struct {
-	Namespace string          `yaml:"namespace"`
-	IPAddress string          `yaml:"ip_address"` // ip address of the network device, e.g., "10.0.0.1"
-	Auth      AuthCredentials `yaml:"auth"`
+	Namespace            string          `yaml:"namespace"`
+	IPAddress            string          `yaml:"ip_address"`                       // ip address of the network device, e.g., "10.0.0.1"
+	CollectStartupConfig bool            `yaml:"collect_startup_config,omitempty"` // whether to collect the startup config (default: false)
+	Auth                 AuthCredentials `yaml:"auth"`
 }
 
 // NcmConfig is the processed config structure for Network Config Management (NCM) to be used by the component
