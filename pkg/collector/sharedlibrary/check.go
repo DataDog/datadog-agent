@@ -27,16 +27,6 @@ static const submit_callbacks_t aggregator = {
 	SubmitEventPlatformEventSo
 };
 
-// static void set_callbacks(void) {
-// 	aggregator = (submit_callbacks_t){
-// 		SubmitMetricSo,
-// 		SubmitServiceCheckSo,
-// 		SubmitEventSo,
-// 		SubmitHistogramBucketSo,
-// 		SubmitEventPlatformEventSo
-// 	};
-// }
-
 void run_shared_library(char *instance, run_shared_library_check_t *run_function, const char **error) {
 	// verify the run function pointer
     if (!run_function) {
@@ -211,9 +201,4 @@ func (c *SharedLibraryCheck) GetWarnings() []error {
 
 // Stop is not implemented yet
 func (c *SharedLibraryCheck) Stop() {
-}
-
-// set_callbacks
-func setCallbacks() {
-	//C.set_callbacks()
 }
