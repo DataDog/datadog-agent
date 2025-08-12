@@ -5,4 +5,4 @@ issues:
 fixes:
   - |
     Adds a new tag 'is_physical_disk' to every 'system.disk.*' metric if 'tag_by_physical_disk' configuration option (defaults to false) is enabled
-    Emits a new set of metrics: 'system.disk.physical_total','system.disk.physical_used', 'system.disk.physical_free', 'system.disk.physical_utilized' and 'system.disk.physical_in_use' if 'collect_physical_metrics' configuration option (defaults to false) is enabled
+    Emits a new set of metrics: 'system.disk.physical_total','system.disk.physical_used', 'system.disk.physical_free', 'system.disk.physical_utilized', and 'system.disk.physical_in_use' if 'collect_physical_metrics' configuration option (defaults to false) is enabled
