@@ -61,6 +61,9 @@ const (
 func osinit() {
 	// Agent binary
 	if installPathOverride, ok := os.LookupEnv("DD_TEST_INSTALL_PATH_OVERRIDE"); ok {
+		// Some tests use the InstallPath variable to fetch dependencies. These tests' executable.Folder()
+		// are relative to the test files, but dependencies are always put in the same place during the tests'
+		// executions. This environment variable allows us to override the install path during the tests.
 		InstallPath = installPathOverride
 	} else {
 		_here, err := executable.Folder() // {InstallPath}/bin/agent OR {InstallPath}/embedded/bin
