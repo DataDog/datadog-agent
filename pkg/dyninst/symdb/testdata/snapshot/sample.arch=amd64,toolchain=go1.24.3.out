@@ -510,7 +510,6 @@ Package: main
 		Arg: x: int (declared at line 0, available: [75-75])
 	Function: testInlinedSumArray (main.testInlinedSumArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [70:71]
 		Arg: a: [5]int (declared at line 0, available: [71-71])
-	Type: main.typeAlias
 	Type: main.interfaceComplexityA
 		Field: b: int
 		Field: c: main.interfaceComplexityB
@@ -550,13 +549,11 @@ Package: main
 		Field: i: int
 		Function: DoSomething (main.secondBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [30:31]
 			Arg: b: main.secondBehavior (declared at line 0, available: [30-31])
-	Type: main.behavior
 	Type: main.structWithMap
 		Field: m: map[int]int
 	Type: main.node
 		Field: val: int
 		Field: b: *main.node
-	Type: main.triggerVerifierErrorForTesting
 	Type: main.structWithTwoValues
 		Field: a: uint
 		Field: b: bool
@@ -577,7 +574,6 @@ Package: main
 	Type: main.spws
 		Field: a: int
 		Field: x: *string
-	Type: main.t
 	Type: main.threeStringStruct
 		Field: a: string
 		Field: b: string
@@ -643,7 +639,6 @@ Package: main
 	Type: main.deepStruct1
 		Field: a: int
 		Field: b: main.deepStruct2
-	Type: main.emptyStruct
 	Type: main.lotsOfFields
 		Field: a: uint8
 		Field: b: uint8

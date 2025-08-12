@@ -109,7 +109,8 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb 
 	}
 }
 
-func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+// RunMultiMode executes the provided test function in both -std and -docker modes.
+func (tm *testModule) RunMultiMode(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
 	tm.cmdWrapper.Run(t, name, fnc)
 }
 
