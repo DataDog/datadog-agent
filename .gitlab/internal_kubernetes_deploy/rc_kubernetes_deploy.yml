@@ -25,6 +25,7 @@ rc_kubernetes_deploy:
       optional: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
+  allow_failure: true
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
     SKIP_PLAN_CHECK: "true"
