@@ -43,7 +43,7 @@ func TestK8SUserSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-k8s-user-session-exec")
 		if err != nil {
 			t.Fatal(err)

@@ -34,71 +34,37 @@
     export TMPDIR="/tmp/gitlabci"
     echo "Temporary folder created, TMPDIR=$TMPDIR -> $NEWTMPDIR"
 
-.select_python_env_commands:
-  # Select the virtualenv using the current Python version. Create it if it doesn't exist.
-  - |
-    export PATH="$(pyenv root)/shims:$PATH"
-    eval "$(pyenv init -)"
-    eval "$(pyenv virtualenv-init -)"
-  # Select target python version
-  # 1. If PYTHON_VERSION is set, use it (and install it if necessary)
-  # 2. If PYTHON_VERSION is not set, use a version matching the one in .python-version
-  #   2.a If there is a 3.M.x version (or multiple matches) that is already installed on the runner, select the latest version in this list
-  #   2.b If there is no match, download and install the latest one
-  - |
-    if [ -n "$PYTHON_VERSION" ]; then
-      # 1. Use PYTHON_VERSION if set
-      if ! [[ "$PYTHON_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "Invalid Python version format (should be X.Y.Z): $PYTHON_VERSION" >& 2
-        exit 1
-      fi
-      if ! [ -d "$(pyenv root)/versions/$PYTHON_VERSION" ]; then
-        echo "Python version $PYTHON_VERSION not found. Installing..."
-        pyenv install "$PYTHON_VERSION"
-      fi
-    else
-      # 2. Find appropriate python version from major version
-      PYTHON_VERSION="$(cat .python-version)"
-      echo "Find python version matching $PYTHON_VERSION"
-      PYTHON_VERSION_ESCAPED="${PYTHON_VERSION//./\\.}"
-      versionmatches="$(ls "$(pyenv root)/versions" | grep -E "^${PYTHON_VERSION_ESCAPED}\\.[0-9]+$")"
-      if [ -n "$versionmatches" ]; then
-        # 2.a.
-        echo "Found already existing python version for $PYTHON_VERSION"
-      else
-        # 2.b.
-        echo "Installing Python $PYTHON_VERSION..."
-        pyenv install "$PYTHON_VERSION"
-        versionmatches="$(ls "$(pyenv root)/versions" | grep -E "^${PYTHON_VERSION_ESCAPED}\\.[0-9]+$")"
-        if [ -z "$versionmatches" ]; then
-          echo "No matching Python version found for $PYTHON_VERSION even after installation." >& 2
-          exit 1
-        fi
-      fi
-      # If there are multiple matches, select the latest one
-      PYTHON_VERSION="$(echo "$versionmatches" | sort -V | tail -n 1)"
-    fi
-    VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
-    VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
-  - echo "Using Python $PYTHON_VERSION..."
-  - |
-    # Check if the virtual environment directory exists
-    if [ ! -d "$VENV_PATH" ]; then
-      echo "Creating virtual environment '$VENV_NAME'..."
-      pyenv virtualenv "$PYTHON_VERSION" "$VENV_NAME"
-    else
-      echo "Virtual environment '$VENV_NAME' already exists. Skipping creation."
-    fi
-  - pyenv activate $VENV_NAME
-
 .install_python_dependencies:
-  # Get the commit from the build image variable in the format `vPIPELINE_ID-COMMIT`
-  - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
-  - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
-  - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@${DDA_VERSION}" --break-system-packages
-  - pyenv rehash
-  - python3 -m dda self dep sync -f legacy-tasks
-  - pyenv rehash
+  # Create custom temporary folder to isolate jobs from each other
+  # We have to symlink it to /tmp/gitlabci to avoid some path length issues (sockets should be <= 104 characters on MacOS)
+  - |
+    if [ -z "$TMPDIR" ]; then
+      echo "TMPDIR must be set" >& 2
+      exit 1
+    fi
+  - export DDA_DIR="$TMPDIR/dda-${CI_JOB_ID}"
+  - export DDA_NO_DYNAMIC_DEPS=1
+  - |
+    # Perform installation only if the directory does not exist
+    if [ ! -d "$DDA_DIR" ]; then
+      # Get the commit from the build image variable in the format `vPIPELINE_ID-COMMIT`
+      export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
+      export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+      # Detect architecture and download appropriate binary
+      if [ "$(uname -m)" = "arm64" ]; then
+        dda_target_triple="aarch64-apple-darwin"
+      else
+        dda_target_triple="x86_64-apple-darwin"
+      fi
+      curl -Lo dda.tar.gz https://github.com/DataDog/datadog-agent-dev/releases/download/${DDA_VERSION}/dda-${dda_target_triple}.tar.gz
+      tar -xzf dda.tar.gz
+      mkdir -p "$DDA_DIR"
+      sudo mv dda $DDA_DIR
+      rm -f dda.tar.gz
+      export PATH="$DDA_DIR:$PATH"
+      dda self dep sync -f legacy-tasks
+      dda self pip install awscli==1.29.45
+    fi
 
 .vault_login:
   # Point the CLI to our internal vault
@@ -117,8 +83,6 @@
     - |
       eval $(gimme $(cat .go-version))
       export GOPATH=$GOROOT
-    # Selecting the current Python version
-    - !reference [.select_python_env_commands]
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
