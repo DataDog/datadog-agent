@@ -250,8 +250,8 @@ func testDyninst(
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
 	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,

@@ -28,8 +28,11 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -63,6 +66,8 @@ const (
 	ownerKindKey = "owner_kind"
 	// ownerNameKey represents the KSM label key owner_name
 	ownerNameKey = "owner_name"
+	// namespaceKey represents the KSM label key namespace
+	namespaceKey = "namespace"
 )
 
 var extendedCollectors = map[string]string{
@@ -228,6 +233,7 @@ type KSMCheck struct {
 	instance             *KSMConfig
 	allStores            [][]cache.Store
 	telemetry            *telemetryCache
+	tagger               tagger.Component
 	cancel               context.CancelFunc
 	isCLCRunner          bool
 	isRunningOnNodeAgent bool
@@ -736,8 +742,14 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	// generate a dedicated tags slice
 	tagList := make([]string, 0, len(labels)+len(labelsToAdd))
 
-	ownerKind, ownerName := "", ""
+	ownerKind, ownerName, resourceNamespace := "", "", ""
+
 	for key, value := range labels {
+
+		if key == namespaceKey {
+			resourceNamespace = value
+		}
+
 		switch key {
 		case createdByKindKey, ownerKindKey:
 			ownerKind = value
@@ -758,6 +770,11 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 
 	// apply label joins
 	for _, label := range labelsToAdd {
+
+		if label.key == namespaceKey {
+			resourceNamespace = label.value
+		}
+
 		switch label.key {
 		case createdByKindKey, ownerKindKey:
 			ownerKind = label.value
@@ -778,6 +795,20 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 
 	if owners := ownerTags(ownerKind, ownerName); len(owners) != 0 {
 		tagList = append(tagList, owners...)
+	}
+
+	var namespaceTags []string
+	var tagErr error
+
+	if resourceNamespace != "" {
+		namespaceTags, tagErr = k.tagger.Tag(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", resourceNamespace))), types.LowCardinality)
+	}
+
+	if tagErr != nil {
+		log.Errorf("failed to get namespace tags for %q from tagger: %v", resourceNamespace, tagErr)
+	} else {
+		log.Debugf("obtained tags for namespace %q from tagger: %v", resourceNamespace, namespaceTags)
+		tagList = append(tagList, namespaceTags...)
 	}
 
 	return hostname, tagList
@@ -1012,38 +1043,45 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 }
 
 // Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
-	return option.New(newCheck)
+func Factory(tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
+		return newCheck(tagger)
+	})
 }
 
-func newCheck() check.Check {
+func newCheck(tagger tagger.Component) check.Check {
 	return newKSMCheck(
 		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: make(map[string]string),
 			LabelJoins:   make(map[string]*JoinsConfigWithoutLabelsMapping),
 			Namespaces:   []string{},
-		})
+		},
+		tagger,
+	)
 }
 
 // KubeStateMetricsFactoryWithParam is used only by test/benchmarks/kubernetes_state
-func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins map[string]*JoinsConfigWithoutLabelsMapping, allStores [][]cache.Store) *KSMCheck {
+func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins map[string]*JoinsConfigWithoutLabelsMapping, allStores [][]cache.Store, tagger tagger.Component) *KSMCheck {
 	check := newKSMCheck(
 		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: labelsMapper,
 			LabelJoins:   labelJoins,
 			Namespaces:   []string{},
-		})
+		},
+		tagger,
+	)
 	check.allStores = allStores
 	return check
 }
 
-func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
+func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component) *KSMCheck {
 	return &KSMCheck{
 		CheckBase:            base,
 		instance:             instance,
 		telemetry:            newTelemetryCache(),
+		tagger:               tagger,
 		isCLCRunner:          pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 		metricNamesMapper:    defaultMetricNamesMapper(),

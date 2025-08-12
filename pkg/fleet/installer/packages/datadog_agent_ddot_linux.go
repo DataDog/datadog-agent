@@ -6,15 +6,16 @@
 package packages
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,8 +33,8 @@ const (
 var (
 	// ddotConfigPermissions are the ownerships and modes that are enforced on the DDOT configuration files
 	ddotConfigPermissions = file.Permissions{
-		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
-		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
+		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
+		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
 
 	// ddotPackagePermissions are the ownerships and modes that are enforced on the DDOT package files
@@ -83,9 +84,9 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 		span.Finish(err)
 	}()
 
-	// Copy example config to default path
-	if err = paths.CopyFile("/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent/otel-config.yaml"); err != nil {
-		return fmt.Errorf("could not copy otel-config.yaml.example file: %s", err)
+	// Write otel-config.yaml with API key substitution
+	if err = writeOTelConfig(); err != nil {
+		return fmt.Errorf("could not write otel-config.yaml file: %s", err)
 	}
 
 	// Ensure the dd-agent user and group exist
@@ -94,17 +95,17 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	}
 
 	// Set DDOT package permissions
-	if err = ddotPackagePermissions.Ensure(ctx.PackagePath); err != nil {
+	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
 	}
 
 	// Set DDOT config permissions
-	if err = ddotConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
+	if err = ddotConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
 	// Enable otelcollector in datadog.yaml
-	if err = enableOtelCollectorConfig(); err != nil {
+	if err = enableOtelCollectorConfig(ctx); err != nil {
 		return fmt.Errorf("failed to enable otelcollector in datadog.yaml: %v", err)
 	}
 
@@ -152,7 +153,7 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 
 	if !ctx.Upgrade {
 		// Only remove config files during actual uninstall, not during upgrades
-		err := ddotConfigUninstallPaths.EnsureAbsent("/etc/datadog-agent")
+		err := ddotConfigUninstallPaths.EnsureAbsent(ctx, "/etc/datadog-agent")
 		if err != nil {
 			log.Warnf("failed to remove DDOT config files: %s", err)
 		}
@@ -167,7 +168,7 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 }
 
 // enableOtelCollectorConfig adds otelcollector.enabled: true to datadog.yaml
-func enableOtelCollectorConfig() error {
+func enableOtelCollectorConfig(ctx context.Context) error {
 	// Read existing config
 	var existingConfig map[string]interface{}
 	data, err := os.ReadFile(datadogYamlPath)
@@ -185,6 +186,10 @@ func enableOtelCollectorConfig() error {
 	}
 
 	existingConfig["otelcollector"] = map[string]interface{}{"enabled": true}
+	existingConfig["agent_ipc"] = map[string]interface{}{
+		"port":                    5009,
+		"config_refresh_interval": 60,
+	}
 
 	// Write back the updated config
 	updatedData, err := yaml.Marshal(existingConfig)
@@ -200,7 +205,7 @@ func enableOtelCollectorConfig() error {
 		{Path: "datadog.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
 
-	if err := datadogYamlPermissions.Ensure("/etc/datadog-agent"); err != nil {
+	if err := datadogYamlPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set ownership on datadog.yaml: %w", err)
 	}
 
@@ -225,6 +230,7 @@ func disableOtelCollectorConfig() error {
 	}
 
 	delete(existingConfig, "otelcollector")
+	delete(existingConfig, "agent_ipc")
 
 	// Write back the updated config
 	updatedData, err := yaml.Marshal(existingConfig)
@@ -234,6 +240,47 @@ func disableOtelCollectorConfig() error {
 
 	if err := os.WriteFile(datadogYamlPath, updatedData, 0640); err != nil {
 		return fmt.Errorf("failed to write updated datadog.yaml: %w", err)
+	}
+
+	return nil
+}
+
+// writeOTelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml
+func writeOTelConfig() error {
+	// Read existing datadog.yaml to extract API key and site
+	var existingConfig map[string]interface{}
+	data, err := os.ReadFile(datadogYamlPath)
+	if err != nil {
+		return fmt.Errorf("failed to read datadog.yaml: %w", err)
+	}
+
+	if err := yaml.Unmarshal(data, &existingConfig); err != nil {
+		return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
+	}
+
+	apiKey, apiOk := existingConfig["api_key"].(string)
+	site, siteOk := existingConfig["site"].(string)
+
+	// Read the example config file
+	exampleData, err := os.ReadFile("/etc/datadog-agent/otel-config.yaml.example")
+	if err != nil {
+		return fmt.Errorf("failed to read otel-config.yaml.example: %w", err)
+	}
+
+	// Substitute values
+	configData := string(exampleData)
+	if apiOk && apiKey != "" {
+		configData = strings.ReplaceAll(configData, "${env:DD_API_KEY}", apiKey)
+	}
+
+	if siteOk && site != "" {
+		configData = strings.ReplaceAll(configData, "${env:DD_SITE}", site)
+	}
+
+	// Write the processed config
+	err = os.WriteFile("/etc/datadog-agent/otel-config.yaml", []byte(configData), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
 	}
 
 	return nil

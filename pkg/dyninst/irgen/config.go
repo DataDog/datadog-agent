@@ -7,14 +7,23 @@
 
 package irgen
 
+import "github.com/DataDog/datadog-agent/pkg/dyninst/object"
+
+// ElfFileLoader is an interface that abstracts the loading of elf files.
+type ElfFileLoader interface {
+	Load(path string) (*object.ElfFile, error)
+}
+
 type config struct {
 	maxDynamicTypeSize uint32
 	maxHashBucketsSize uint32
+	elfFileLoader      ElfFileLoader
 }
 
 var defaultConfig = config{
 	maxDynamicTypeSize: defaultMaxDynamicTypeSize,
 	maxHashBucketsSize: defaultMaxHashBucketsSize,
+	elfFileLoader:      object.NewInMemoryElfFileLoader(),
 }
 
 // This is an arbitrary limit for how much data will be captured for
@@ -46,3 +55,12 @@ func (o maxDynamicDataSizeOption) apply(c *config) {
 func WithMaxDynamicDataSize(size int) Option {
 	return maxDynamicDataSizeOption(size)
 }
+
+// WithElfFileLoader sets the elf file loader to use for loading elf files.
+func WithElfFileLoader(elfFileLoader ElfFileLoader) Option {
+	return optionFunc(func(c *config) { c.elfFileLoader = elfFileLoader })
+}
+
+type optionFunc func(c *config)
+
+func (o optionFunc) apply(c *config) { o(c) }
