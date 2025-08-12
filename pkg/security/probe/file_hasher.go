@@ -104,10 +104,6 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, action *rules.HashDefinitio
 		return false
 	}
 
-	if fileEvent.IsFileless() {
-		return false
-	}
-
 	if ev.ProcessContext.Pid == utils.Getpid() {
 		return false
 	}
