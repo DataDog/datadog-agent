@@ -282,7 +282,8 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	return nil
 }
 
-func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
+// GetProvisionerParams return ProvisionerParams from options opts setup
+func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
 		name:               defaultVMName,
 		instanceOptions:    []ec2.VMOption{},
@@ -311,11 +312,11 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 // FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.WindowsHost] {
 	// We need to build params here to be able to use params.name in the provisioner name
-	params := getProvisionerParams(opts...)
+	params := GetProvisionerParams(opts...)
 	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.WindowsHost) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
-		params := getProvisionerParams(opts...)
+		params := GetProvisionerParams(opts...)
 		return Run(ctx, env, params)
 	}, nil)
 

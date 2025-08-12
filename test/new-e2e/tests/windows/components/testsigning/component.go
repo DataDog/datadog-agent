@@ -55,7 +55,7 @@ func NewTestSigning(e *config.CommonEnvironment, host *remote.Host, options ...O
 		}
 
 		waitForRebootCmd, err := time.NewSleep(e.Ctx(), manager.namer.ResourceName("wait-for-host-to-reboot"), &time.SleepArgs{
-			CreateDuration: pulumi.String("30s"),
+			CreateDuration: pulumi.String("60s"),
 		}, pulumi.Provider(timeProvider), pulumi.DependsOn(manager.Resources))
 		if err != nil {
 			return nil, err

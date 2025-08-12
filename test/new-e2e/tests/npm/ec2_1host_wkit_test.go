@@ -8,16 +8,27 @@ package npm
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/docker"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 )
 
+type hostHttpbinEnvWindows struct {
+	environments.WindowsHost
+	// Extra Components
+	HTTPBinHost *components.RemoteHost
+}
+
 type ec2VMWKitSuite struct {
-	e2e.BaseSuite[hostHttpbinEnv]
+	e2e.BaseSuite[hostHttpbinEnvWindows]
 }
 
 // TestEC2VMWKitSuite will validate running the agent on a single EC2 VM
@@ -26,9 +37,51 @@ func TestEC2VMWKitSuite(t *testing.T) {
 
 	s := &ec2VMWKitSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbinWindows", hostDockerHttpbinEnvProvisionerWindows(awsHostWindows.WithEC2InstanceOptions()), nil))}
 
 	e2e.Run(t, s, e2eParams...)
+}
+
+func hostDockerHttpbinEnvProvisionerWindows(opt ...awsHostWindows.ProvisionerOption) provisioners.PulumiEnvRunFunc[hostHttpbinEnvWindows] {
+	return func(ctx *pulumi.Context, env *hostHttpbinEnvWindows) error {
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+		opts := []awsHostWindows.ProvisionerOption{
+			awsHostWindows.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
+		}
+		if len(opt) > 0 {
+			opts = append(opts, opt...)
+		}
+		params := awsHostWindows.GetProvisionerParams(opts...)
+		awsHostWindows.Run(ctx, &env.WindowsHost, params)
+
+		vmName := "httpbinvm"
+
+		nginxHost, err := ec2.NewVM(awsEnv, vmName)
+		if err != nil {
+			return err
+		}
+		err = nginxHost.Export(ctx, &env.HTTPBinHost.HostOutput)
+		if err != nil {
+			return err
+		}
+
+		// install docker.io
+		manager, err := docker.NewManager(&awsEnv, nginxHost)
+		if err != nil {
+			return err
+		}
+
+		composeContents := []docker.ComposeInlineManifest{dockerHTTPBinCompose()}
+		_, err = manager.ComposeStrUp("httpbin", composeContents, pulumi.StringMap{})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
 }
 
 // SetupSuite
