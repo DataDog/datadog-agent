@@ -210,7 +210,7 @@ func (hr *horizontalController) computeScaleAction(
 		targetDesiredReplicas = stabilizationLimitedReplicas
 	}
 
-	// Scaling is allowed, applying Min/Max replicas constraints from Spec
+	// Applying Min/Max replicas constraints from Spec
 	if targetDesiredReplicas > maxReplicas {
 		targetDesiredReplicas = maxReplicas
 		limitReason = fmt.Sprintf("desired replica count limited to %d (originally %d) due to max replicas constraint", maxReplicas, originalTargetDesiredReplicas)
@@ -233,6 +233,7 @@ func (hr *horizontalController) computeScaleAction(
 		} else if scaleDirection == common.ScaleDown && autoscalerSpec.ApplyPolicy != nil {
 			rulesLimitedReplicas, rulesNextEvalAfter, rulesLimitReason = applyScaleDownPolicy(scalingTimestamp, autoscalerInternal.HorizontalLastActions(), autoscalerSpec.ApplyPolicy.ScaleDown, currentDesiredReplicas, targetDesiredReplicas)
 		}
+
 		// If rules had any effect, use values from rules
 		if rulesLimitReason != "" {
 			limitReason = rulesLimitReason

@@ -80,6 +80,7 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 
 	var bytes []byte
 	var statusCode int
+	var lastErr error
 
 	for attempts := 0; attempts < client.maxAttempts; attempts++ {
 		// TODO: uncomment when OAuth is implemented
@@ -97,10 +98,11 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 			// Got a valid response, stop retrying
 			return bytes, nil
 		}
+		lastErr = err
 	}
 
-	log.Tracef("%d error code hitting endpoint %q response: %s", statusCode, endpoint, string(bytes))
-	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
+	log.Tracef("%d error code hitting endpoint %q with error %+v and response: %s", statusCode, endpoint, lastErr, string(bytes))
+	return nil, fmt.Errorf("%s http responded with %d code and error %v", endpoint, statusCode, lastErr)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -129,12 +131,16 @@ func isValidStatusCode(code int) bool {
 }
 
 // getPaginatedAnalytics handles the common pagination pattern for all analytics endpoints
+// TODO: perhaps this can be a struct? that way there's no passing around of arguments through
+// layers of stuff
 func getPaginatedAnalytics[T any](
 	client *Client,
 	tenant string,
 	feature string,
 	lookback string,
 	query string,
+	filterQuery string,
+	joinQuery string,
 	metrics []string,
 	parser func([][]interface{}) ([]T, error),
 ) ([]T, error) {
@@ -149,7 +155,7 @@ func getPaginatedAnalytics[T any](
 	// Paginate through the results
 	for page := 0; page < client.maxPages; page++ {
 		fromCount := page * maxCount
-		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", metrics, maxCount, fromCount)
+		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", filterQuery, joinQuery, metrics, maxCount, fromCount)
 
 		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
 		if err != nil {

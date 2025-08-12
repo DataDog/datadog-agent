@@ -295,7 +295,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al", "--password", "secret", "--custom", "secret"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib", "DD_API_KEY=dd-api-key"}
 		test.WaitSignal(t, func() error {
@@ -364,7 +364,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "envp", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al", "http://example.com"}
 		envs := []string{"ENVP=test"}
 
@@ -410,7 +410,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "args-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "args-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -454,7 +454,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "args-overflow-list-50", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "args-overflow-list-50", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// number of args overflow
@@ -501,7 +501,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	test.Run(t, "args-overflow-list-500", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "args-overflow-list-500", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// number of args overflow
@@ -556,7 +556,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	test.Run(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -603,7 +603,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 
 		// number of envs overflow
@@ -660,7 +660,7 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
-	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 
 		// number of envs overflow
@@ -805,7 +805,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "ancestors", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "ancestors", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-process-ancestors")
 		if err != nil {
 			t.Fatal(err)
@@ -831,7 +831,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "parent", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "parent", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-process-parent")
 		if err != nil {
 			t.Fatal(err)
@@ -858,7 +858,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "pid1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "pid1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		SkipIfNotAvailable(t)
 
 		testFile, _, err := test.Path("test-process-pid1")
@@ -883,7 +883,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "service-tag", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "service-tag", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-event-service")
 		if err != nil {
 			t.Fatal(err)
@@ -910,7 +910,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "ancestors-args", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "ancestors-args", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-ancestors-args")
 		if err != nil {
 			t.Fatal(err)
@@ -930,7 +930,7 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "args-envs-dedup", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		shell, args, envs := "sh", []string{"-x", "-c", "ls -al test123456; echo"}, []string{"DEDUP=dedup123"}
 
 		test.WaitSignal(t, func() error {
@@ -981,7 +981,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "self-exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "self-exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"self-exec", "selfexec123", "abc"}
 		envs := []string{}
 
@@ -998,7 +998,7 @@ func TestProcessContext(t *testing.T) {
 		}))
 	})
 
-	test.Run(t, "container-id", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "container-id", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-container")
 		if err != nil {
 			t.Fatal(err)
@@ -1026,7 +1026,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	testProcessContextRule := func(t *testing.T, ruleID, filename string) {
-		test.Run(t, ruleID, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.RunMultiMode(t, ruleID, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
 			testFile, _, err := test.Path(filename)
 			if err != nil {
 				t.Fatal(err)
@@ -2197,7 +2197,7 @@ chmod 755 pyscript.py
 	defer testModule.Close()
 
 	for _, test := range tests {
-		testModule.Run(t, test.name, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
+		testModule.RunMultiMode(t, test.name, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
 			scriptLocation := filepath.Join(os.TempDir(), test.scriptName)
 			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
 				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
