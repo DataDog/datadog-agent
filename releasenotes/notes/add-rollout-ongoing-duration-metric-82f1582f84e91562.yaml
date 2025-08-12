@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Adds ongoing_duration guage metric for deployment and statefulset rollouts.
+    Adds the ongoing_duration gauge metric for deployment and statefulset rollouts.
