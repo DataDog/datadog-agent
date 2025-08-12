@@ -218,7 +218,8 @@ modules:
     used_by_otel: true
   pkg/logs/status/utils:
     used_by_otel: true
-  pkg/logs/types: default
+  pkg/logs/types:
+    used_by_otel: true
   pkg/logs/util/testutils:
     used_by_otel: true
   pkg/metrics:
