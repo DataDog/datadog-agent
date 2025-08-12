@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build go1.23
+//go:build go1.23 && (test || functionaltests || stresstests)
 
 package server
 
