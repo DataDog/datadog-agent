@@ -12,11 +12,8 @@
 package trace
 
 import (
-	"go.uber.org/fx"
-
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -26,8 +23,5 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		config.Module(),
-		// Provide nil TracerPayloadModifier by default - can be overridden by
-		// specific commands
-		fx.Provide(func() pkgagent.TracerPayloadModifier { return nil }),
 		traceagentfx.Module())
 }
