@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -133,6 +134,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+
+	// Gradual Rollout
+	ssimapping "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/ssi_mapping"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -397,8 +401,17 @@ func start(log log.Component,
 	rcserv, isSet := rcService.Get()
 	if pkgconfigsetup.IsRemoteConfigEnabled(config) && isSet {
 		var products []string
+		var shouldSubscribeToGradualRolloutMapping bool
+
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
+
+			// Only subscribe to K8S_INJECTION_DD if not using a private registry
+			containerRegistry := config.GetString("admission_controller.container_registry")
+			if !isPrivateRegistry(containerRegistry) {
+				products = append(products, state.ProductK8sSSIGradualRollout)
+				shouldSubscribeToGradualRolloutMapping = true
+			}
 		}
 		if config.GetBool("autoscaling.workload.enabled") {
 			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
@@ -411,6 +424,13 @@ func start(log log.Component,
 				log.Errorf("Failed to start remote-configuration: %v", err)
 			} else {
 				rcClient.Start()
+
+				if shouldSubscribeToSSIMapping {
+					rcClient.Subscribe(state.ProductK8sSSIGradualRollout, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+						ssimapping.UpdateMapping(update)
+					})
+				}
+
 				defer func() {
 					rcClient.Close()
 				}()
@@ -650,4 +670,15 @@ func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg con
 	}
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
+}
+
+// DEV: checks if the given registry is a private registry by comparing against known public registries
+func isPrivateRegistry(registry string) bool {
+	public := []string{"gcr.io", "docker.io", "public.ecr.aws"}
+	for _, pub := range public {
+		if strings.Contains(registry, pub) {
+			return false
+		}
+	}
+	return true
 }

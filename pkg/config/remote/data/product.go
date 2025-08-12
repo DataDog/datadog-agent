@@ -35,6 +35,8 @@ const (
 	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
 	// ProductDataStreamsLiveMessages is to capture messages from Kafka
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
+	// ProductK8sGradualRolloutSSI is used to track APM injector and library tag-to-digest mappings for SSI gradual rollout
+	ProductK8sSSIGradualRollout Product = "K8S_INJECTION_DD"
 )
 
 // ProductListToString converts a product list to string list

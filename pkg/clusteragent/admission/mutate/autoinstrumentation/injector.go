@@ -178,6 +178,15 @@ func injectorWithImageName(name string) injectorOption {
 
 func injectorWithImageTag(tag string) injectorOption {
 	return func(i *injector) {
+		// For public registries, try to get the SHA digest from the SSI mapping
+		if !isPrivateRegistry(i.registry) {
+			mapping := GetMapping()
+			if sha, exists := mapping[tag]; exists {
+				// Use digest-based image reference for immutable image resolution
+				i.image = fmt.Sprintf("%s/apm-inject@sha256:%s", i.registry, sha)
+			}
+		}
+		// Fallback to tag-based reference for private registries or if no mapping found
 		i.image = fmt.Sprintf("%s/apm-inject:%s", i.registry, tag)
 	}
 }
