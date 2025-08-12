@@ -185,35 +185,6 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	assert.Equal(t, strings.Count(b.String(), "this is a ****** password: hunter2"), 1)
 }
 
-func TestExtraLogging(t *testing.T) {
-	setupScrubbing(t)
-
-	var a, b bytes.Buffer
-	w := bufio.NewWriter(&a)
-	wA := bufio.NewWriter(&b)
-
-	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %Msg")
-	assert.NoError(t, err)
-	lA, err := LoggerFromWriterWithMinLevelAndFormat(wA, DebugLvl, "[%LEVEL] %Msg")
-	assert.NoError(t, err)
-
-	SetupLogger(l, "info")
-	assert.NotNil(t, logger.Load())
-
-	err = RegisterAdditionalLogger("extra", lA)
-	assert.NoError(t, err)
-
-	Info("don't tell anyone: ", "SECRET")
-	Infof("this is a SECRET password: %s", "hunter2")
-	w.Flush()
-	wA.Flush()
-
-	assert.Equal(t, strings.Count(a.String(), "SECRET"), 0)
-	assert.Equal(t, strings.Count(a.String(), "don't tell anyone:  ******"), 1)
-	assert.Equal(t, strings.Count(a.String(), "this is a ****** password: hunter2"), 1)
-	assert.Equal(t, b.String(), a.String())
-}
-
 func TestFormatErrorfScrubbing(t *testing.T) {
 	setupScrubbing(t)
 
@@ -843,81 +814,6 @@ func TestValidateLogLevelUnknownLevel(t *testing.T) {
 	assert.Equal(t, "unknown log level: "+strings.ToLower("unknownLogLevel"), err.Error())
 }
 
-func TestRegisterAdditionalLogger(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
-
-	// create a new logger
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(nil, DebugLvl, "")
-
-	err := RegisterAdditionalLogger("new logger", l)
-	assert.NoError(t, err)
-	assert.Equal(t, logger.Load().extra["new logger"], l)
-}
-
-func TestRegisterAdditionalLoggerNilLogger(t *testing.T) {
-	logger.Store(nil)
-
-	err := RegisterAdditionalLogger("new logger", LoggerInterface(nil))
-	assert.Error(t, err)
-	assert.Equal(t, "cannot register: logger not initialized", err.Error())
-}
-
-func TestRegisterAdditionalLoggerNilInnerLogger(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
-	logger.Load().inner = nil
-
-	err := RegisterAdditionalLogger("new logger", LoggerInterface(nil))
-	assert.Error(t, err)
-	assert.Equal(t, "cannot register: logger not initialized", err.Error())
-}
-
-func TestRegisterAdditionalLoggerNilExtraLogger(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
-	logger.Load().extra = nil
-
-	err := RegisterAdditionalLogger("", nil)
-	assert.Error(t, err)
-	assert.Equal(t, "logger not fully initialized, additional logging unavailable", err.Error())
-}
-
-func TestRegisterAdditionalLoggerAlreadyRegistered(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
-
-	// register a logger
-	lA, _ := LoggerFromWriterWithMinLevelAndFormat(nil, DebugLvl, "")
-
-	err := RegisterAdditionalLogger("new logger", lA)
-	assert.NoError(t, err)
-
-	// register another logger with the same key
-	lB, _ := LoggerFromWriterWithMinLevelAndFormat(nil, DebugLvl, "")
-
-	err = RegisterAdditionalLogger("new logger", lB)
-	assert.Error(t, err)
-	assert.Equal(t, "logger already registered with that name", err.Error())
-}
-
-func TestReplaceLogger(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(nil, DebugLvl, "")
-
-	assert.Equal(t, Default(), ReplaceLogger(l)) // old logger should be returned
-}
-
-func TestReplaceLoggerNilLogger(t *testing.T) {
-	logger.Store(nil)
-
-	// should return nil and not change the inner logger
-	assert.Nil(t, ReplaceLogger(Default()))
-}
-
-func TestReplaceLoggerNilInnerLogger(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
-	logger.Load().inner = nil
-
-	assert.Nil(t, ReplaceLogger(Default()))
-}
-
 func TestTraceNilLogger(t *testing.T) {
 	// reset buffer state
 	logsBuffer = []func(){}
@@ -927,65 +823,6 @@ func TestTraceNilLogger(t *testing.T) {
 
 	// should not write to the logs buffer
 	assert.Equal(t, 0, len(logsBuffer))
-}
-
-func TestLogExtraLogger(t *testing.T) {
-	SetupLogger(Default(), TraceStr)
-
-	// register a new logger
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, TraceLvl, "[%LEVEL] %FuncShort: %Msg\n")
-	RegisterAdditionalLogger("extra logger", l)
-
-	// log messages
-	logger.trace("message")
-	logger.tracef("message %d", 123)
-	logger.traceStackDepth("message", 2)
-
-	logger.debug("message")
-	logger.debugf("message %d", 123)
-	logger.debugStackDepth("message", 2)
-
-	logger.info("message")
-	logger.infof("message %d", 123)
-	logger.infoStackDepth("message", 2)
-
-	logger.warn("message")
-	logger.warnf("message %d", 123)
-	logger.warnStackDepth("message", 2)
-
-	logger.error("message")
-	logger.errorf("message %d", 123)
-	logger.errorStackDepth("message", 2)
-
-	logger.critical("message")
-	logger.criticalf("message %d", 123)
-	logger.criticalStackDepth("message", 2)
-
-	w.Flush()
-
-	assert.Subset(t, strings.Split(b.String(), "\n"), []string{
-		"[TRACE] trace: message",
-		"[TRACE] tracef: message 123",
-		"[TRACE] traceStackDepth: message",
-		"[DEBUG] debug: message",
-		"[DEBUG] debugf: message 123",
-		"[DEBUG] debugStackDepth: message",
-		"[INFO] info: message",
-		"[INFO] infof: message 123",
-		"[INFO] infoStackDepth: message",
-		"[WARN] warn: message",
-		"[WARN] warnf: message 123",
-		"[WARN] warnStackDepth: message",
-		"[ERROR] error: message",
-		"[ERROR] errorf: message 123",
-		"[ERROR] errorStackDepth: message",
-		"[CRITICAL] critical: message",
-		"[CRITICAL] criticalf: message 123",
-		"[CRITICAL] criticalStackDepth: message",
-	})
 }
 
 func TestJMXLoggerSetup(t *testing.T) {

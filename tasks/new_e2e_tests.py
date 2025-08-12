@@ -64,7 +64,7 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         binary_path = output_path / binary_name
 
         # Build test binary
-        cmd = f"go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
 
         result = ctx.run(cmd, hide=True)
         if result.ok:
@@ -388,6 +388,7 @@ def run(
 
     to_teardown: set[tuple[str, str]] = set()
     result_jsons: list[str] = []
+    result_junits: list[str] = []
     for attempt in range(max_retries + 1):
         remaining_tries = max_retries - attempt
         if remaining_tries > 0:
@@ -399,6 +400,9 @@ def run(
         partial_result_json = f"{result_json}.{attempt}.part"
         result_jsons.append(partial_result_json)
 
+        partial_result_junit = f"junit-out-{str(AgentFlavor.base)}-{attempt}.xml"
+        result_junits.append(partial_result_junit)
+
         test_res = test_flavor(
             ctx,
             flavor=AgentFlavor.base,
@@ -407,7 +411,7 @@ def run(
             args=args,
             cmd=cmd,
             env=env_vars,
-            junit_tar=junit_tar,
+            result_junit=partial_result_junit,
             result_json=partial_result_json,
             test_profiler=None,
         )
@@ -480,8 +484,8 @@ def run(
             args=args,
             cmd=cmd,
             env=env_vars,
-            junit_tar="",  # No need to store JUnit results for teardown-only runs
-            result_json="/dev/null",  # No need to store results for teardown-only runs
+            result_junit="",  # No need to store JUnit results for teardown-only runs
+            result_json="",  # No need to store results for teardown-only runs
             test_profiler=None,
         )
 
@@ -491,7 +495,7 @@ def run(
             with open(partial_file) as f:
                 merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
-    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+    success = process_test_result(test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
@@ -618,9 +622,12 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         print("No stacks to delete")
         return
 
+    def trigger_destroy(stack):
+        return destroy_remote_stack(ctx, stack)
+
     print("About to delete the following stacks:", to_delete_stacks)
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
-        res = pool.map(destroy_remote_stack, to_delete_stacks)
+        res = pool.map(trigger_destroy, to_delete_stacks)
         destroyed_stack = set()
         failed_stack = set()
         for r, stack in res:
@@ -803,7 +810,9 @@ def deps(ctx, verbose=False):
 
 
 def _get_default_env():
-    return {"PULUMI_SKIP_UPDATE_CHECK": "true"}
+    return {
+        "PULUMI_SKIP_UPDATE_CHECK": "true",
+    }
 
 
 def _get_home_dir():
@@ -907,12 +916,16 @@ def _destroy_stack(ctx: Context, stack: str):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored. It is expected to fail on stacks existing locally
     # with resources removed by agent-sandbox clean up job
+
+    destroy_env = _get_default_env()
+    destroy_env["PULUMI_K8S_DELETE_UNREACHABLE"] = "true"
+
     with ctx.cd(tempfile.gettempdir()):
         ret = ctx.run(
             f"pulumi destroy --stack {stack} --yes --remove --skip-preview",
             warn=True,
             hide=True,
-            env=_get_default_env(),
+            env=destroy_env,
         )
         if ret is not None and ret.exited != 0:
             if "No valid credential sources found" in ret.stdout:
@@ -932,7 +945,7 @@ def _destroy_stack(ctx: Context, stack: str):
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
                 warn=True,
                 hide=True,
-                env=_get_default_env(),
+                env=destroy_env,
             )
         if ret is not None and ret.exited != 0:
             raise Exit(

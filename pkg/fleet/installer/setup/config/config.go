@@ -146,7 +146,13 @@ type DatadogConfig struct {
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
 	CollectGPUTags       bool                       `yaml:"collect_gpu_tags,omitempty"`
-	EnableNVMLDetection  bool                       `yaml:"enable_nvml_detection,omitempty"`
+	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
+}
+
+// GPUCheckConfig represents the configuration for the GPU check
+type GPUCheckConfig struct {
+	Enabled     bool   `yaml:"enabled,omitempty"`
+	NvmlLibPath string `yaml:"nvml_lib_path,omitempty"`
 }
 
 // DatadogConfigProxy represents the configuration for the proxy

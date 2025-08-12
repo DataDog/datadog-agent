@@ -72,19 +72,6 @@ single-machine-performance-regression_detector:
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
     - !reference [.on_dev_branches]
-    - changes:
-        - "**/*.md"
-        - "**/*_test.go"
-        - "docs/**/*"
-        - "README*"
-        - ".vscode/**/*"
-        - "examples/**/*"
-        - "LICENSE*"
-        - "NOTICE*"
-        - "CHANGELOG*"
-        - "releasenotes/**/*"
-        - "releasenotes-dca/**/*"
-      when: never
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64"]
@@ -108,6 +95,7 @@ single-machine-performance-regression_detector:
     SMP_VERSION: 0.23.5
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
+  retry: !reference [.retry_only_infra_failure, retry]
   script:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY

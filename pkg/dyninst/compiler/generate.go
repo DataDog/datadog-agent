@@ -9,6 +9,7 @@ package compiler
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/pkg/errors"
@@ -222,16 +223,12 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	needed := false
 	offsetShift := uint32(0)
 	var ops []Op
-	switch t := t.(type) {
-	case *ir.BaseType:
-		// Nothing to process.
-
-	case *ir.StructureType:
-		ops = make([]Op, 0, 2*len(t.Fields))
-		for _, field := range t.Fields {
+	structureTypeHandler := func(t *ir.StructureType) error {
+		ops = make([]Op, 0, 2*len(t.RawFields))
+		for field := range t.Fields() {
 			elemFunc, elemNeeded, err := g.addTypeHandler(field.Type)
 			if err != nil {
-				return nil, false, err
+				return err
 			}
 			if !elemNeeded {
 				continue
@@ -244,9 +241,22 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			offsetShift = field.Offset + g.typeFuncMetadata[field.Type.GetID()].offsetShift
 		}
 		ops = append(ops, ReturnOp{})
+		return nil
+	}
+	switch t := t.(type) {
+	case *ir.BaseType:
+		// Nothing to process.
+
+	case *ir.GoHMapBucketType:
+		if err := structureTypeHandler(t.StructureType); err != nil {
+			return fid, needed, err
+		}
+	case *ir.StructureType:
+		if err := structureTypeHandler(t); err != nil {
+			return fid, needed, err
+		}
 
 	// Sequential containers
-
 	case *ir.ArrayType:
 		elemFunc, elemNeeded, err := g.addTypeHandler(t.Element)
 		if err != nil {
@@ -262,7 +272,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize() - g.typeFuncMetadata[t.Element.GetID()].offsetShift},
 			ReturnOp{},
 		}
 
@@ -281,7 +291,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize() - g.typeFuncMetadata[t.Element.GetID()].offsetShift},
 			ReturnOp{},
 		}
 
@@ -289,6 +299,9 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		// Nothing to process.
 
 	// Pointer or fat pointer types.
+
+	case *ir.VoidPointerType:
+		// Nothing to process. We don't know what the pointee is.
 
 	case *ir.PointerType:
 		g.typeQueue = append(g.typeQueue, t.Pointee)
@@ -326,8 +339,15 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		// TODO: support Go interfaces
 
 	case *ir.GoMapType:
-		// TODO: support Go maps
-
+		g.typeQueue = append(g.typeQueue, t.HeaderType)
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessPointerOp{
+				Pointee: t.HeaderType,
+			},
+			ReturnOp{},
+		}
 	case *ir.GoChannelType:
 		// TODO: support Go channels
 
@@ -336,18 +356,90 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 
 	// Map containers
 	case *ir.GoHMapHeaderType:
-	case *ir.GoHMapBucketType:
+		needed = true
+		flagsOffset, err := offsetOfUint8(t.RawFields, "flags")
+		if err != nil {
+			return nil, false, err
+		}
+		bOffset, err := offsetOfUint8(t.RawFields, "B")
+		if err != nil {
+			return nil, false, err
+		}
+		bucketsOffset, err := offsetOfUint8(t.RawFields, "buckets")
+		if err != nil {
+			return nil, false, err
+		}
+		oldBucketsOffset, err := offsetOfUint8(t.RawFields, "oldbuckets")
+		if err != nil {
+			return nil, false, err
+		}
+		ops = []Op{
+			ProcessGoHmapOp{
+				BucketsType:      t.BucketsType,
+				BucketType:       t.BucketType,
+				FlagsOffset:      flagsOffset,
+				BOffset:          bOffset,
+				BucketsOffset:    bucketsOffset,
+				OldBucketsOffset: oldBucketsOffset,
+			},
+			ReturnOp{},
+		}
+		g.typeQueue = append(
+			g.typeQueue,
+			t.BucketsType,
+			t.BucketType,
+			t.BucketType.KeyType,
+			t.BucketType.ValueType,
+		)
 	case *ir.GoSwissMapGroupsType:
+		dataOffset, err := offsetOfUint8(t.RawFields, "data")
+		if err != nil {
+			return nil, false, err
+		}
+		lengthMaskOffset, err := offsetOfUint8(t.RawFields, "lengthMask")
+		if err != nil {
+			return nil, false, err
+		}
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoSwissMapGroupsOp{
+				DataOffset:       uint8(dataOffset),
+				LengthMaskOffset: uint8(lengthMaskOffset),
+				GroupSlice:       t.GroupSliceType,
+				Group:            t.GroupType,
+			},
+			ReturnOp{},
+		}
+		g.typeQueue = append(g.typeQueue, t.GroupSliceType, t.GroupType)
 	case *ir.GoSwissMapHeaderType:
-		// TODO: support Go maps
-
+		directoryPtrOffset, err := offsetOfUint8(t.RawFields, "dirPtr")
+		if err != nil {
+			return nil, false, err
+		}
+		directoryLenOffset, err := offsetOfUint8(t.RawFields, "dirLen")
+		if err != nil {
+			return nil, false, err
+		}
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoSwissMapOp{
+				TablePtrSlice: t.TablePtrSliceType,
+				Group:         t.GroupType,
+				DirPtrOffset:  uint8(directoryPtrOffset),
+				DirLenOffset:  uint8(directoryLenOffset),
+			},
+			ReturnOp{},
+		}
+		g.typeQueue = append(g.typeQueue, t.TablePtrSliceType, t.GroupType)
 	case *ir.EventRootType:
 		// EventRootType is handled by event and expression processing functions
 		// family.
 		return nil, false, errors.New("internal: unexpected EventRootType")
 
 	default:
-		panic(fmt.Sprintf("unexpected ir.Type: %#v", t))
+		panic(fmt.Sprintf("unexpected ir.Type to handle: %#v", t))
 	}
 
 	g.typeFuncMetadata[t.GetID()] = typeFuncMetadata{
@@ -379,7 +471,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 		var err error
 		switch t := t.(type) {
 		case *ir.StructureType:
-			for _, field := range t.Fields {
+			for _, field := range t.RawFields {
 				err = collectPieces(field.Type, offset+field.Offset)
 				if err != nil {
 					return err
@@ -395,22 +487,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 			}
 
 		// Base or pointer types.
-		case *ir.BaseType:
-			pieces = append(pieces, memoryLayoutPiece{
-				PaddedOffset: offset,
-				Size:         uint32(t.GetByteSize()),
-			})
-		case *ir.GoChannelType:
-			pieces = append(pieces, memoryLayoutPiece{
-				PaddedOffset: offset,
-				Size:         uint32(t.GetByteSize()),
-			})
-		case *ir.PointerType:
-			pieces = append(pieces, memoryLayoutPiece{
-				PaddedOffset: offset,
-				Size:         uint32(t.GetByteSize()),
-			})
-		case *ir.GoMapType:
+		case *ir.BaseType, *ir.GoChannelType, *ir.PointerType, *ir.VoidPointerType, *ir.GoMapType, *ir.GoSubroutineType:
 			pieces = append(pieces, memoryLayoutPiece{
 				PaddedOffset: offset,
 				Size:         uint32(t.GetByteSize()),
@@ -442,7 +519,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 		case *ir.GoSwissMapHeaderType:
 			err = errors.Errorf("internal: unexpected GoSwissMapHeaderType: %#v", t)
 		default:
-			panic(fmt.Sprintf("unexpected ir.Type: %#v", t))
+			panic(fmt.Sprintf("unexpected ir.Type for layout: %#v", t))
 		}
 		return err
 	}
@@ -451,6 +528,26 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 		return nil, err
 	}
 	return pieces, nil
+}
+
+func offsetOf(fields []ir.Field, name string) (uint32, error) {
+	for _, field := range fields {
+		if field.Name == name {
+			return field.Offset, nil
+		}
+	}
+	return 0, errors.Errorf("internal: field `%s` not found", name)
+}
+
+func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
+	offset, err := offsetOf(fields, name)
+	if err != nil {
+		return 0, err
+	}
+	if offset > math.MaxUint8 {
+		return 0, errors.Errorf("offset of %s overflows uint8: %d", name, offset)
+	}
+	return uint8(offset), nil
 }
 
 // `ops` is used as an output buffer for the encoded instructions.
@@ -478,6 +575,9 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			break
 		}
 		for _, piece := range loclist.Pieces {
+			if layoutIdx >= len(layoutPieces) {
+				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout")
+			}
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
 			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {

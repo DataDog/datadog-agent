@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -23,18 +22,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func getTestSystemContext(t *testing.T, extraOpts ...systemContextOption) *systemContext {
+func getTestSystemContext(tb testing.TB, extraOpts ...systemContextOption) *systemContext {
 	opts := []systemContextOption{
 		withProcRoot(kernel.ProcFSRoot()),
-		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
-		withTelemetry(testutil.GetTelemetryMock(t)),
+		withWorkloadMeta(testutil.GetWorkloadMetaMock(tb)),
+		withTelemetry(testutil.GetTelemetryMock(tb)),
 	}
 
 	opts = append(opts, extraOpts...) // Allow overriding the default options
 
 	sysCtx, err := getSystemContext(opts...)
-	require.NoError(t, err)
-	require.NotNil(t, sysCtx)
+	require.NoError(tb, err)
+	require.NotNil(tb, sysCtx)
 	return sysCtx
 }
 
@@ -75,6 +74,23 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		ResolvedAllocatedResources: nil,
 	}
 
+	containerIDGke := "gke-1234567890"
+	containerGke := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerIDGke,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerIDGke,
+		},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{
+				Name: string(gpuutil.GpuNvidiaGeneric),
+				ID:   "nvidia0",
+			},
+		},
+	}
+
 	wmetaMock.Set(container)
 	storeContainer, err := wmetaMock.GetContainer(containerID)
 	require.NoError(t, err, "container should be found in the store")
@@ -82,6 +98,11 @@ func TestFilterDevicesForContainer(t *testing.T) {
 
 	wmetaMock.Set(containerNoGpu)
 	storeContainer, err = wmetaMock.GetContainer(containerIDNoGpu)
+	require.NoError(t, err, "container should be found in the store")
+	require.NotNil(t, storeContainer, "container should be found in the store")
+
+	wmetaMock.Set(containerGke)
+	storeContainer, err = wmetaMock.GetContainer(containerIDGke)
 	require.NoError(t, err, "container should be found in the store")
 	require.NotNil(t, storeContainer, "container should be found in the store")
 
@@ -116,6 +137,13 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		require.Len(t, filtered, 1)
 		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysDevices)
 	})
+
+	t.Run("ContainerWithGKEPlugin", func(t *testing.T) {
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), containerIDGke)
+		require.NoError(t, err)
+		require.Len(t, filtered, 1)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.All()[0:1])
+	})
 }
 
 func TestGetCurrentActiveGpuDevice(t *testing.T) {
@@ -131,7 +159,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	}
 	envVisibleDevicesValue := strings.Join(envVisibleDevicesStr, ",")
 
-	procFs := uprobes.CreateFakeProcFS(t, []uprobes.FakeProcFSEntry{
+	procFs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
 		{Pid: uint32(pidNoContainer)},
 		{Pid: uint32(pidContainer)},
 		{Pid: uint32(pidContainerAndEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},

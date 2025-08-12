@@ -6,10 +6,12 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,9 +21,9 @@ import (
 func (client *Client) newRequest(method, uri string, body io.Reader, useSessionAuth bool) (*http.Request, error) {
 	// session auth requires token authentication
 	if useSessionAuth {
-		return http.NewRequest(method, client.directorEndpoint+uri, body)
+		return http.NewRequestWithContext(context.Background(), method, client.directorEndpoint+uri, body)
 	}
-	return http.NewRequest(method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
+	return http.NewRequestWithContext(context.Background(), method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -78,6 +80,7 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 
 	var bytes []byte
 	var statusCode int
+	var lastErr error
 
 	for attempts := 0; attempts < client.maxAttempts; attempts++ {
 		// TODO: uncomment when OAuth is implemented
@@ -95,9 +98,11 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 			// Got a valid response, stop retrying
 			return bytes, nil
 		}
+		lastErr = err
 	}
 
-	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
+	log.Tracef("%d error code hitting endpoint %q with error %+v and response: %s", statusCode, endpoint, lastErr, string(bytes))
+	return nil, fmt.Errorf("%s http responded with %d code and error %v", endpoint, statusCode, lastErr)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -123,4 +128,52 @@ func get[T Content](client *Client, endpoint string, params map[string]string, u
 
 func isValidStatusCode(code int) bool {
 	return code >= 200 && code < 400
+}
+
+// getPaginatedAnalytics handles the common pagination pattern for all analytics endpoints
+// TODO: perhaps this can be a struct? that way there's no passing around of arguments through
+// layers of stuff
+func getPaginatedAnalytics[T any](
+	client *Client,
+	tenant string,
+	feature string,
+	lookback string,
+	query string,
+	filterQuery string,
+	joinQuery string,
+	metrics []string,
+	parser func([][]interface{}) ([]T, error),
+) ([]T, error) {
+	// TODO: store client.maxCount as both string and int?
+	maxCount, err := strconv.Atoi(client.maxCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse maxCount: %v", err)
+	}
+
+	var allMetrics []T
+
+	// Paginate through the results
+	for page := 0; page < client.maxPages; page++ {
+		fromCount := page * maxCount
+		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", filterQuery, joinQuery, metrics, maxCount, fromCount)
+
+		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get analytics metrics page %d: %v", page+1, err)
+		}
+
+		metrics, err := parser(resp.AaData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse analytics metrics page %d: %v", page+1, err)
+		}
+
+		allMetrics = append(allMetrics, metrics...)
+
+		// If we got fewer results than maxCount, we've reached the end
+		if len(metrics) < maxCount {
+			break
+		}
+	}
+
+	return allMetrics, nil
 }

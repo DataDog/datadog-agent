@@ -45,7 +45,7 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, _ i
 			_ = closer.Close()
 		}
 	}()
-	mef, err := object.NewMMappingElfFile(executable.Path)
+	mef, err := object.OpenMMappingElfFile(executable.Path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating mmapping elf file: %w", err)
 	}
@@ -58,7 +58,7 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, _ i
 		return nil, nil, fmt.Errorf("error parsing module data: %w", err)
 	}
 
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ReadGoVersion(mef)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error parsing go version: %w", err)
 	}
@@ -69,8 +69,8 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, _ i
 	}
 	closer.closers = append(closer.closers, goDebugSections)
 	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,

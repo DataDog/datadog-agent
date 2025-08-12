@@ -9,6 +9,7 @@ package rcscrape
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 // Scraper is a component that scrapes remote config files from processes.
 // It coalesces updates and reports them via the GetUpdates method.
 type Scraper struct {
-	tenant *actuator.Tenant
+	tenant ActuatorTenant
 	mu     struct {
 		sync.Mutex
 
@@ -38,17 +39,22 @@ type Scraper struct {
 const defaultIdlePeriod = 250 * time.Millisecond
 
 // Actuator is an interface that enables the Scraper to create a new tenant.
-type Actuator interface {
+type Actuator[T ActuatorTenant] interface {
 	NewTenant(
 		name string,
 		reporter actuator.Reporter,
 		irGenerator actuator.IRGenerator,
-	) *actuator.Tenant
+	) T
+}
+
+// ActuatorTenant is an interface that enables the Scraper to handle updates
+type ActuatorTenant interface {
+	HandleUpdate(update actuator.ProcessesUpdate)
 }
 
 // NewScraper creates a new Scraper.
-func NewScraper(
-	a Actuator,
+func NewScraper[A Actuator[T], T ActuatorTenant](
+	a A,
 ) *Scraper {
 	v := &Scraper{}
 	v.mu.sinks = make(map[ir.ProgramID]*scraperSink)
@@ -65,8 +71,9 @@ func NewScraper(
 // the runtime ID of the process.
 type ProcessUpdate struct {
 	procmon.ProcessUpdate
-	RuntimeID string
-	Probes    []ir.ProbeDefinition
+	RuntimeID         string
+	Probes            []ir.ProbeDefinition
+	ShouldUploadSymDB bool
 }
 
 // GetUpdates returns the current set of updates.
@@ -94,8 +101,9 @@ func (h *procMonHandler) HandleUpdate(update procmon.ProcessesUpdate) {
 			ProcessID:  process.ProcessID,
 			Executable: process.Executable,
 			Probes: []ir.ProbeDefinition{
-				remoteConfigProbeDefinitionV1,
-				remoteConfigProbeDefinitionV2,
+				probeDefinitionV1{},
+				probeDefinitionV2{},
+				symdbProbeDefinition{},
 			},
 		})
 	}
@@ -117,14 +125,34 @@ type scraperSink struct {
 
 func (s *scraperSink) HandleEvent(ev output.Event) error {
 	now := time.Now()
-	rcFile, err := s.decoder.HandleMessage(ev)
+	d, err := s.decoder.getEventDecoder(ev)
 	if err != nil {
 		return err
 	}
-	s.scraper.mu.Lock()
-	defer s.scraper.mu.Unlock()
-	s.scraper.mu.debouncer.addInFlight(now, s.processID, rcFile)
-	return nil
+	switch d := d.(type) {
+	case *remoteConfigEventDecoder:
+		rcFile, err := d.decodeRemoteConfigFile(ev)
+		if err != nil {
+			return err
+		}
+		s.scraper.mu.Lock()
+		defer s.scraper.mu.Unlock()
+		s.scraper.mu.debouncer.addInFlight(now, s.processID, rcFile)
+		return nil
+	case *symdbEventDecoder:
+		runtimeID, symdbEnabled, err := d.decodeSymdbEnabled(ev)
+		if err != nil {
+			return err
+		}
+		s.scraper.mu.Lock()
+		defer s.scraper.mu.Unlock()
+		s.scraper.mu.debouncer.addSymdbEnabled(
+			now, s.processID, runtimeID, symdbEnabled,
+		)
+		return nil
+	default:
+		return fmt.Errorf("unknown event decoder: %T", d)
+	}
 }
 
 func (s *scraperSink) Close() {
@@ -151,7 +179,7 @@ func (s *scraperReporter) ReportAttached(
 	procID actuator.ProcessID,
 	_ *ir.Program,
 ) {
-	log.Tracef("rcscrape: attached to process %v", procID)
+	log.Debugf("rcscrape: attached to process %v", procID)
 }
 
 // ReportAttachingFailed implements actuator.Reporter.

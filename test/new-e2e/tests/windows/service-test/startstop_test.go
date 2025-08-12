@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"testing"
 
@@ -403,6 +405,9 @@ func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agen
 		),
 		awsHostWindows.WithAgentClientOptions(
 			agentclientparams.WithSkipWaitForAgentReady(),
+		),
+		awsHostWindows.WithEC2InstanceOptions(
+			ec2.WithAMI("ami-0345f44fe05216fc4", e2eos.WindowsServer2022, e2eos.AMD64Arch),
 		),
 	))}
 	e2e.Run(t, s, opts...)
@@ -865,8 +870,6 @@ type dvAgentServiceDisabledInstallerSuite struct {
 // TestDriverVerifierOnServiceBehaviorAgentCommand tests the same as TestServiceBehaviorAgentCommand
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
-	// incident-40498
-	flake.Mark(t)
 	s := &dvAgentServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
@@ -876,8 +879,6 @@ func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorPowerShell tests the the same as TestServiceBehaviorPowerShell
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
-	// incident-40498
-	flake.Mark(t)
 	s := &dvPowerShellServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
@@ -918,8 +919,6 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent tests the same as TestServiceBehaviorWhenDisabledTraceAgent
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
-	// incident-40498
-	flake.Mark(t)
 	s := &dvAgentServiceDisabledTraceAgentSuite{}
 	s.disabledServices = []string{
 		"datadog-trace-agent",
@@ -932,8 +931,6 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 // TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller tests the same as TestServiceBehaviorWhenDisabledInstaller
 // with driver verifier enabled.
 func TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller(t *testing.T) {
-	// incident-40498
-	flake.Mark(t)
 	s := &dvAgentServiceDisabledInstallerSuite{}
 	s.disabledServices = []string{
 		"Datadog Installer",
