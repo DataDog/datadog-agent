@@ -12,15 +12,7 @@ PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(http2_frame_header, HTTP2_FRAME_HEADER
 PKTBUF_READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // Callback function for bpf_loop to handle dynamic table update iteration
-static long dynamic_table_update_callback(unsigned long i, void* ctx) {
-    pktbuf_t pkt = *(pktbuf_t*)ctx;
-    switch (pkt.type) {
-    case PKTBUF_SKB:
-    case PKTBUF_TLS:
-        break;
-    default:
-        pktbuf_invalid_operation();
-    }
+static long dynamic_table_update(unsigned long i, pktbuf_t pkt) {
     __u8 current_ch;
 
     pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
@@ -34,6 +26,82 @@ static long dynamic_table_update_callback(unsigned long i, void* ctx) {
     return 0; // Continue the loop
 }
 
+// These wrappers are needed to ensure that the compiler knows that the callback
+// function only has one type of pktbuf_t.
+#define PKTBUF_BPF_LOOP_WRAPPER(callback_fn, name, _type) \
+    static long callback_fn_##name(unsigned long i, void* ctx) { \
+        pktbuf_t pkt = *(pktbuf_t*)ctx; \
+        if (pkt.type != _type) { \
+            __builtin_unreachable(); \
+        } \
+        return callback_fn(i, pkt); \
+    }
+
+// The copy for the bpf_loop() argument is needed since if you take the address
+// of the pktbuf_t and pass it to some unknown function (bpf_loop() in this case), the compiler
+// must assume that the pktbuf_t has been modified (it won't help even if the
+// argument is const void *).
+//
+// Something like this should also work, but it's not clear there is difference in the
+// generated code vs passing a copy:
+//        pktbuf_t orig = pkt;
+//        bpf_loop((void *)&pkt);
+//        // Need to assert all fields, since pointers could be in theory
+//        // made to point to the type field and change it during later code.
+//        __builtin_assume(pkt.type == orig.type);
+//        __builtin_assume(pkt.other_pointer == orig.other_pointer);
+
+#define PKTBUF_BPF_LOOP(callback_fn) \
+    PKTBUF_BPF_LOOP_WRAPPER(callback_fn, skb, PKTBUF_SKB) \
+    PKTBUF_BPF_LOOP_WRAPPER(callback_fn, tls, PKTBUF_TLS) \
+    static __always_inline void pktbuf_bpf_loop_##callback_fn(pktbuf_t pkt, __u32 nr_loops) { \
+        pktbuf_t copy = pkt; \
+        switch (pkt.type) { \
+        case PKTBUF_SKB: \
+            bpf_loop(nr_loops, callback_fn_##skb, (void*)&copy, 0); \
+            break; \
+        case PKTBUF_TLS: \
+            bpf_loop(nr_loops, callback_fn_##tls, (void*)&copy, 0); \
+            break; \
+        default: \
+            pktbuf_invalid_operation(); \
+        } \
+    }
+
+PKTBUF_BPF_LOOP(dynamic_table_update)
+
+// static long dynamic_table_update_callback_skb(unsigned long i, void* ctx) {
+//     pktbuf_t pkt = *(pktbuf_t*)ctx;
+//     if (pkt.type != PKTBUF_SKB) {
+//         __builtin_unreachable();
+//     }
+//
+//     return dynamic_table_update_callback(i, pkt);
+// }
+//
+// static long dynamic_table_update_callback_tls(unsigned long i, void* ctx) {
+//     pktbuf_t pkt = *(pktbuf_t*)ctx;
+//     if (pkt.type != PKTBUF_TLS) {
+//         __builtin_unreachable();
+//     }
+//
+//     return dynamic_table_update_callback(i, pkt);
+// }
+//
+// static __always_inline void pktbuf_bpf_loop(pktbuf_t pkt) {
+//     pktbuf_t copy = pkt;
+//     switch (pkt.type) {
+//     case PKTBUF_SKB:
+//         bpf_loop(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS, dynamic_table_update_callback_skb, (void*)&copy, 0);
+//         break;
+//     case PKTBUF_TLS:
+//         bpf_loop(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS, dynamic_table_update_callback_tls, (void*)&copy, 0);
+//         break;
+//     default:
+//         pktbuf_invalid_operation();
+//     }
+// }
+
 // Handles the dynamic table size update.
 static __always_inline void pktbuf_handle_dynamic_table_update(pktbuf_t pkt) {
     // To determine the size of the dynamic table update, we read an integer representation byte by byte.
@@ -46,7 +114,7 @@ static __always_inline void pktbuf_handle_dynamic_table_update(pktbuf_t pkt) {
     // If the top 3 bits are 001, then we have a dynamic table size update.
     if ((current_ch & 224) == 32) {
         pktbuf_advance(pkt, sizeof(current_ch));
-        bpf_loop(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS, dynamic_table_update_callback, (void*)&pkt, 0);
+        pktbuf_bpf_loop_dynamic_table_update(pkt, HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS);
     }
 }
 
