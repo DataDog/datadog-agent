@@ -144,6 +144,13 @@ Package flare implements a component to generate flares from the agent.
 
 Package gui provides the GUI server component for the Datadog Agent.
 
+### [comp/core/health-platform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/health-platform)
+
+Package healthplatform provides the interface for the health platform component.
+This component collects and reports health information from the host system,
+sending it to the Datadog backend with hostname, host ID, organization ID,
+and a list of issues.
+
 ### [comp/core/healthprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/healthprobe)
 
 Package healthprobe implements the health check server
