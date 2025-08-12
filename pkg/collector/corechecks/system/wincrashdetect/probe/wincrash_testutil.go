@@ -7,7 +7,7 @@
 
 package probe
 
-type readCrashDumpType func(filename string, ctx *logCallbackContext, _ *uint32) error
+type readCrashDumpType func(filename string, ctx *logCallbackContext, crashCtx *crashContext, _ *uint32) error
 type parseCrashDumpType func(wcs *WinCrashStatus)
 
 // SetCachedSettings sets the settings used for tests without reading the Registry.

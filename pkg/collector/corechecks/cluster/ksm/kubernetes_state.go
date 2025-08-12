@@ -314,12 +314,12 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
 
 		k.processLabelJoins()
-		k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
+		k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true, k.isRunningOnNodeAgent)
 		k.processLabelsAsTags()
 
 		// We need to merge the user-defined annotations as tags with the default annotations first
-		mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(k.instance.AnnotationsAsTags, defaultAnnotationsAsTags(), false)
-		k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), mergedAnnotationsAsTags, true)
+		mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(k.instance.AnnotationsAsTags, defaultAnnotationsAsTags(), false, k.isRunningOnNodeAgent)
+		k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), mergedAnnotationsAsTags, true, k.isRunningOnNodeAgent)
 		k.processAnnotationsAsTags()
 	}
 
@@ -1095,7 +1095,7 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 }
 
 // mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping
-func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]string, shouldTransformResource bool) map[string]map[string]string {
+func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]string, shouldTransformResource bool, isNodeAgent bool) map[string]map[string]string {
 	if instanceMap == nil {
 		instanceMap = make(map[string]map[string]string)
 	}
@@ -1109,7 +1109,7 @@ func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]stri
 	for resource, mapping := range extra {
 		var singularName = resource
 		var err error
-		if shouldTransformResource {
+		if shouldTransformResource && !isNodeAgent {
 			// modify the resource name to the singular form of the resource
 			singularName, err = toSingularResourceName(resource)
 			if err != nil {

@@ -129,6 +129,32 @@ processors:
       metric: []
     traces:
       span: []
+  filter/drop-prometheus-internal-metrics/dd-autoconfigured:
+    error_mode: propagate
+    logs:
+      exclude: null
+      include: null
+      log_record: []
+    metrics:
+      datapoint: []
+      exclude:
+        expressions: []
+        match_type: regexp
+        metric_names:
+          - ^scrape_.*$
+          - ^up$
+          - ^promhttp_metric_handler_errors_total$
+        regexp: null
+        resource_attributes: []
+      include: null
+      metric: []
+      regexp: null
+    spans:
+      exclude: null
+      include: null
+    traces:
+      span: []
+      spanevent: []
 receivers:
   otlp:
     protocols:
@@ -221,7 +247,8 @@ service:
     metrics/dd-autoconfigured/datadog:
       exporters:
         - datadog
-      processors: []
+      processors:
+        - filter/drop-prometheus-internal-metrics/dd-autoconfigured
       receivers:
         - prometheus/dd-autoconfigured
     traces:
