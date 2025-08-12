@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package datadog.privateactionrunner;
+package datadog.privateactionrunner.error_code;
 
-option go_package = "pkg/proto/pbgo/privateactionrunner";  // golang
+option go_package = "pkg/proto/pbgo/privateactionrunner/errorcode";  // golang
 
 enum ActionPlatformErrorCode {
   UNSPECIFIED = 0;
