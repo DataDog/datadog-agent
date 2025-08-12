@@ -27,28 +27,27 @@
     fi
   - export DDA_DIR="$TMPDIR/dda-${CI_JOB_ID}"
   - export DDA_NO_DYNAMIC_DEPS=1
-  # If the directory already exists, skip the installation and only update PATH
   - |
-    if [ -d "$DDA_DIR" ]; then
-      exit 0
+    # Perform installation only if the directory does not exist
+    if [ ! -d "$DDA_DIR" ]; then
+      # Get the commit from the build image variable in the format `vPIPELINE_ID-COMMIT`
+      export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
+      export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+      # Detect architecture and download appropriate binary
+      if [ "$(uname -m)" = "arm64" ]; then
+        dda_target_triple="aarch64-apple-darwin"
+      else
+        dda_target_triple="x86_64-apple-darwin"
+      fi
+      curl -Lo dda.tar.gz https://github.com/DataDog/datadog-agent-dev/releases/download/${DDA_VERSION}/dda-${dda_target_triple}.tar.gz
+      tar -xzf dda.tar.gz
+      mkdir -p "$DDA_DIR"
+      sudo mv dda $DDA_DIR
+      rm -f dda.tar.gz
+      export PATH="$DDA_DIR:$PATH"
+      dda self dep sync -f legacy-tasks
+      dda self pip install awscli==1.29.45
     fi
-  # Get the commit from the build image variable in the format `vPIPELINE_ID-COMMIT`
-  - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
-  - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
-  # Detect architecture and download appropriate binary
-  - |
-    if [ "$(uname -m)" = "arm64" ]; then
-      export DDA_TARGET_TRIPLE="aarch64-apple-darwin"
-    else
-      export DDA_TARGET_TRIPLE="x86_64-apple-darwin"
-    fi
-  - curl -Lo dda.tar.gz https://github.com/DataDog/datadog-agent-dev/releases/download/${DDA_VERSION}/dda-${DDA_TARGET_TRIPLE}.tar.gz
-  - tar -xzf dda.tar.gz
-  - mkdir -p "$DDA_DIR"
-  - sudo mv dda $DDA_DIR
-  - rm -f dda.tar.gz
-  - export PATH="$DDA_DIR:$PATH"
-  - dda self dep sync -f legacy-tasks
 
 .vault_login:
   # Point the CLI to our internal vault
