@@ -8,6 +8,7 @@
 package ir
 
 import (
+	"iter"
 	"reflect"
 )
 
@@ -20,7 +21,7 @@ type Type interface {
 	// GetName returns the name of the type.
 	GetName() string
 	// GetByteSize returns the size of the type in bytes.
-	GetByteSize() int
+	GetByteSize() uint32
 	// GetGoRuntimeType returns the runtime type of the type, if it is associated
 	// with a Go type.
 	GetGoRuntimeType() (uint32, bool)
@@ -34,24 +35,23 @@ type Type interface {
 // associated with a Go type.
 type GoTypeAttributes struct {
 	// GoRuntimeType is the runtime type of the type, if it is associated with a
-	// Go type.
+	// Go type. It will be zero if the type is not associated with a go type.
 	GoRuntimeType uint32
-	// HasGoRuntimeType is true if the type has a Go runtime type.
-	HasGoRuntimeType bool
-	// GoKind is the kind of the type, if it is associated with a Go type.
+	// GoKind is the kind of the type, if it is associated with a Go type. It
+	// will be reflect.Invalid if the type is not associated with a go type.
 	GoKind reflect.Kind
-	// HasGoKind is true if the type has a Go kind.
-	HasGoKind bool
 }
 
 // GetGoRuntimeType returns the runtime type of the type, if it is associated
 // with a Go type.
 func (t *GoTypeAttributes) GetGoRuntimeType() (uint32, bool) {
-	return t.GoRuntimeType, t.HasGoRuntimeType
+	return t.GoRuntimeType, t.GoRuntimeType != 0
 }
 
 // GetGoKind returns the kind of the type, if it is associated with a Go type.
-func (t *GoTypeAttributes) GetGoKind() (reflect.Kind, bool) { return t.GoKind, t.HasGoKind }
+func (t *GoTypeAttributes) GetGoKind() (reflect.Kind, bool) {
+	return t.GoKind, t.GoKind != reflect.Invalid
+}
 
 var (
 	_ Type = (*BaseType)(nil)
@@ -59,6 +59,7 @@ var (
 	_ Type = (*StructureType)(nil)
 	_ Type = (*ArrayType)(nil)
 
+	_ Type = (*VoidPointerType)(nil)
 	_ Type = (*GoSliceHeaderType)(nil)
 	_ Type = (*GoSliceDataType)(nil)
 	_ Type = (*GoStringHeaderType)(nil)
@@ -71,6 +72,7 @@ var (
 	_ Type = (*GoChannelType)(nil)
 	_ Type = (*GoEmptyInterfaceType)(nil)
 	_ Type = (*GoInterfaceType)(nil)
+	_ Type = (*GoSubroutineType)(nil)
 
 	_ Type = (*EventRootType)(nil)
 )
@@ -86,8 +88,8 @@ func (t *TypeCommon) GetName() string {
 }
 
 // GetByteSize returns the size of the type in bytes.
-func (t *TypeCommon) GetByteSize() int {
-	return t.Size
+func (t *TypeCommon) GetByteSize() uint32 {
+	return t.ByteSize
 }
 
 // TypeCommon has common fields for all types.
@@ -96,8 +98,8 @@ type TypeCommon struct {
 	ID TypeID
 	// Name is the name of the type.
 	Name string
-	// Size is the size of the type in bytes.
-	Size int
+	// ByteSize is the size of the type in bytes.
+	ByteSize uint32
 }
 
 // BaseType is a basic type in the target program.
@@ -107,6 +109,15 @@ type BaseType struct {
 }
 
 func (t *BaseType) irType() {}
+
+// VoidPointerType is a type that represents a pointer to a value of an unknown type.
+// unsafe.Pointer is such a type.
+type VoidPointerType struct {
+	TypeCommon
+	GoTypeAttributes
+}
+
+func (t *VoidPointerType) irType() {}
 
 // PointerType is a pointer type in the target program.
 type PointerType struct {
@@ -124,13 +135,28 @@ type StructureType struct {
 	TypeCommon
 	GoTypeAttributes
 
-	// Fields contains the fields of the structure.
-	Fields []Field
+	// RawFields contains all the fields of the structure.
+	// Use Fields() method to filter out uninteresting fields.
+	RawFields []Field
 }
 
 var _ Type = &StructureType{}
 
 func (t *StructureType) irType() {}
+
+// Fields returns interesting fields of the structure.
+func (t *StructureType) Fields() iter.Seq[Field] {
+	return func(yield func(Field) bool) {
+		for _, f := range t.RawFields {
+			if f.Name == "_" {
+				continue
+			}
+			if !yield(f) {
+				return
+			}
+		}
+	}
+}
 
 // Field is a field in a structure.
 type Field struct {
@@ -139,7 +165,7 @@ type Field struct {
 	// Offset in the parent structure.
 	Offset uint32
 	// Type is the type of the field.
-	Type TypeID
+	Type Type
 }
 
 // ArrayType is an array type in the target program.
@@ -148,7 +174,7 @@ type ArrayType struct {
 	GoTypeAttributes
 
 	// Count is the number of elements in the array.
-	Count int
+	Count uint32
 	// HasCount is true if the array has a count.
 	HasCount bool
 	// Element is the type of the element in the array.
@@ -183,11 +209,11 @@ func (t *GoInterfaceType) irType() {}
 
 // GoSliceHeaderType is the type of the slice header.
 type GoSliceHeaderType struct {
-	StructureType
+	*StructureType
 
-	// ArrayType is the synthetic type that represents the variable-length array
+	// GoSliceDataType is the synthetic type that represents the variable-length array
 	// of elements in the slice.
-	ArrayType *GoSliceDataType
+	Data *GoSliceDataType
 }
 
 func (GoSliceHeaderType) irType() {}
@@ -207,17 +233,15 @@ func (GoSliceDataType) irType() {}
 // GoChannelType is a synthetic type that represents a channel.
 type GoChannelType struct {
 	TypeCommon
-	syntheticType
-
-	// TODO: fill in the details
+	GoTypeAttributes
 }
 
 func (GoChannelType) irType() {}
 
 // GoStringHeaderType is the type of the string header.
 type GoStringHeaderType struct {
-	StructureType
-	ArrayType *GoStringDataType
+	*StructureType
+	Data *GoStringDataType
 }
 
 func (GoStringHeaderType) irType() {}
@@ -231,7 +255,7 @@ type GoStringDataType struct {
 
 func (GoStringDataType) irType() {}
 
-// GoMapType is a type that represents a map in the target program.
+// GoMapType is a type that represents a map.
 type GoMapType struct {
 	TypeCommon
 	GoTypeAttributes
@@ -243,7 +267,7 @@ func (GoMapType) irType() {}
 
 // GoHMapHeaderType is the type of the hash map header.
 type GoHMapHeaderType struct {
-	StructureType
+	*StructureType
 	// BucketType is the type of the bucket in the hash map.
 	BucketType *GoHMapBucketType
 	// BucketsType is the type of the slice of buckets in the hash map.
@@ -254,7 +278,7 @@ func (GoHMapHeaderType) irType() {}
 
 // GoHMapBucketType is the type of the bucket in the hash map.
 type GoHMapBucketType struct {
-	StructureType
+	*StructureType
 	// KeyType is the type of the key in the hash map.
 	KeyType Type
 	// ValueType is the type of the value in the hash map.
@@ -265,26 +289,37 @@ func (GoHMapBucketType) irType() {}
 
 // GoSwissMapHeaderType is the type of the header of a SwissMap.
 type GoSwissMapHeaderType struct {
-	StructureType
-	// TablePtrSliceType is the slide data type stored conditionally under
-	// `dirPtr`.
-	TablePtrSliceType Type
-	// GroupType is the pointer type stored conditionally under `dirPtr`.
-	GroupType Type
+	*StructureType
+
+	// TablePtrSliceType is the slice data type stored conditionally under
+	// `dirPtr` in the case when dirlen > 0.
+	TablePtrSliceType *GoSliceDataType
+	// GroupType is the type stored conditionally under `dirPtr` in the case
+	// where dirlen == 0.
+	GroupType *StructureType
 }
 
 func (GoSwissMapHeaderType) irType() {}
 
 // GoSwissMapGroupsType is the type of the groups of a SwissMap.
 type GoSwissMapGroupsType struct {
-	StructureType
+	*StructureType
 	// GroupType is the type stored in the slice under `data`.
-	GroupType Type
+	GroupType *StructureType
 	// GroupSliceType is the type of the slice under `data`.
-	GroupSliceType Type
+	GroupSliceType *GoSliceDataType
 }
 
 func (GoSwissMapGroupsType) irType() {}
+
+// GoSubroutineType is a type that represents a function type in the target
+// program.
+type GoSubroutineType struct {
+	TypeCommon
+	GoTypeAttributes
+}
+
+func (GoSubroutineType) irType() {}
 
 type syntheticType struct{}
 
@@ -303,10 +338,10 @@ type EventRootType struct {
 
 	// Bitset tracking successful expression evaluation (one bit per
 	// expression).
-	PresenseBitsetSize int
+	PresenceBitsetSize uint32
 	// Expressions is the list of expressions that are used to evaluate the
 	// value of the event.
-	Expressions []RootExpression
+	Expressions []*RootExpression
 }
 
 func (EventRootType) irType() {}
@@ -320,7 +355,7 @@ type RootExpression struct {
 	// in the snapshot to name the variable.
 	Name string
 	// Offset is the offset of the expression in the event output.
-	Offset int
+	Offset uint32
 	// Expression is the logical operations to be evaluated to produce the
 	// value of the event.
 	Expression Expression

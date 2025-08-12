@@ -40,6 +40,7 @@ type ProcessorContext interface {
 	GetAPIVersion() string
 	IsTerminatedResources() bool
 	GetCollectorTags() []string
+	GetAgentVersion() *model.AgentVersion
 }
 
 // BaseProcessorContext is the base context for all processors
@@ -53,6 +54,7 @@ type BaseProcessorContext struct {
 	APIVersion          string
 	CollectorTags       []string
 	TerminatedResources bool
+	AgentVersion        *model.AgentVersion
 }
 
 // GetOrchestratorConfig returns the orchestrator config
@@ -100,6 +102,11 @@ func (c *BaseProcessorContext) IsTerminatedResources() bool {
 	return c.TerminatedResources
 }
 
+// GetAgentVersion returns the agent version
+func (c *BaseProcessorContext) GetAgentVersion() *model.AgentVersion {
+	return c.AgentVersion
+}
+
 // K8sProcessorContext holds k8s resource processing attributes
 type K8sProcessorContext struct {
 	BaseProcessorContext
@@ -109,6 +116,7 @@ type K8sProcessorContext struct {
 	ResourceType      string
 	LabelsAsTags      map[string]string
 	AnnotationsAsTags map[string]string
+	NodeName          string
 }
 
 // ECSProcessorContext holds ECS resource processing attributes
@@ -165,6 +173,8 @@ type Handlers interface {
 
 	// GetMetadataTags returns the resource tags with the metadata
 	GetMetadataTags(ctx ProcessorContext, resourceMetadataModel interface{}) []string
+
+	GetNodeName(ctx ProcessorContext, resource interface{}) string
 
 	// ScrubBeforeExtraction replaces sensitive information in the resource
 	// before resource extraction.
@@ -275,6 +285,9 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 			// include collector tags as buffered Manifests share types, and only ExtraTags should be included in CollectorManifests
 			Tags:         util.ImmutableTagsJoin(ctx.GetCollectorTags(), p.h.GetMetadataTags(ctx, resourceMetadataModel)),
 			IsTerminated: ctx.IsTerminatedResources(),
+			Kind:         ctx.GetKind(),
+			ApiVersion:   ctx.GetAPIVersion(),
+			NodeName:     p.h.GetNodeName(ctx, resource),
 		})
 	}
 

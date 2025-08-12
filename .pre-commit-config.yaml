@@ -8,7 +8,7 @@ default_stages:
 
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.11.9
+  rev: v0.12.2
   hooks:
     - id: ruff
       args: [ --fix ]
@@ -118,21 +118,13 @@ repos:
       pass_filenames: false
     - id: gitlab-configuration
       name: gitlab-configuration
-      description: test the gitlab configuration on main
-      entry: 'dda inv linter.gitlab-ci -t main'
+      description: Lint and test GitLab CI configuration files
+      entry: "dda inv linter.full-gitlab-ci -t main --pre-push-linters --fail-fast"
       language: system
       require_serial: true
       files: .*gitlab.*\.yml$
       pass_filenames: false
       stages: [pre-push]
-    - id: gitlab-lint-jobs-codeowners
-      name: gitlab-lint-jobs-codeowners
-      description: lint the gitlab configuration to verify jobs codeowners
-      entry: 'dda inv linter.gitlab-ci-jobs-codeowners'
-      language: system
-      require_serial: true
-      files: .*gitlab.*\.yml$
-      pass_filenames: false
     - id: update-go
       name: update-go
       description: test formatting of files will allow go update

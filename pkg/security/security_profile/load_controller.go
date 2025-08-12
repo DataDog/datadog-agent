@@ -13,19 +13,17 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-func (m *Manager) newActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate uint16, start time.Time, flags containerutils.CGroupFlags) *model.ActivityDumpLoadConfig {
+func (m *Manager) newActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate uint16, start time.Time) *model.ActivityDumpLoadConfig {
 	lc := &model.ActivityDumpLoadConfig{
 		TracedEventTypes: evt,
 		Timeout:          timeout,
 		Rate:             uint16(rate),
-		CGroupFlags:      flags,
 	}
 	if m.resolvers != nil {
 		lc.StartTimestampRaw = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(start))
@@ -35,44 +33,22 @@ func (m *Manager) newActivityDumpLoadConfig(evt []model.EventType, timeout time.
 	return lc
 }
 
-func (m *Manager) defaultActivityDumpLoadConfig(now time.Time, flags containerutils.CGroupFlags) *model.ActivityDumpLoadConfig {
+func (m *Manager) defaultActivityDumpLoadConfig(now time.Time) *model.ActivityDumpLoadConfig {
 	return m.newActivityDumpLoadConfig(
 		m.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
 		m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
 		m.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout,
 		m.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		now,
-		flags,
 	)
 }
 
-func (m *Manager) getDefaultLoadConfigs() (map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig, error) {
+func (m *Manager) getDefaultLoadConfig() *model.ActivityDumpLoadConfig {
 	if m.activityDumpLoadConfig != nil {
-		return m.activityDumpLoadConfig, nil
+		return m.activityDumpLoadConfig
 	}
-
-	defaults := m.defaultActivityDumpLoadConfig(time.Now(), containerutils.CGroupFlags(0)) // cgroup flags will be set per cgroup manager
-
-	allDefaultConfigs := map[string]containerutils.CGroupManager{
-		containerutils.CGroupManagerDocker.String():  containerutils.CGroupManagerDocker,
-		containerutils.CGroupManagerPodman.String():  containerutils.CGroupManagerPodman,
-		containerutils.CGroupManagerCRI.String():     containerutils.CGroupManagerCRI,
-		containerutils.CGroupManagerCRIO.String():    containerutils.CGroupManagerCRIO,
-		containerutils.CGroupManagerSystemd.String(): containerutils.CGroupManagerSystemd,
-	}
-	defaultConfigs := make(map[containerutils.CGroupManager]*model.ActivityDumpLoadConfig)
-	for _, cgroupManager := range m.config.RuntimeSecurity.ActivityDumpCgroupsManagers {
-		cgroupManager, found := allDefaultConfigs[cgroupManager]
-		if !found {
-			return nil, fmt.Errorf("unsupported cgroup manager '%s'", cgroupManager)
-		}
-		cgroupManagerLoadConfig := *defaults
-		cgroupManagerLoadConfig.CGroupFlags = containerutils.CGroupFlags(cgroupManager)
-		defaultConfigs[cgroupManager] = &cgroupManagerLoadConfig
-	}
-
-	m.activityDumpLoadConfig = defaultConfigs
-	return defaultConfigs, nil
+	m.activityDumpLoadConfig = m.defaultActivityDumpLoadConfig(time.Now())
+	return m.activityDumpLoadConfig
 }
 
 func (m *Manager) sendLoadControllerTriggeredMetric(tags []string) error {
@@ -133,7 +109,7 @@ func (m *Manager) nextPartialDump(prev *dump.ActivityDump) *dump.ActivityDump {
 	}
 
 	now := time.Now()
-	newLoadConfig := m.newActivityDumpLoadConfig(newEvents, newTimeout, m.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout, newRate, now, previousLoadConfig.CGroupFlags)
+	newLoadConfig := m.newActivityDumpLoadConfig(newEvents, newTimeout, m.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout, newRate, now)
 	newDump := dump.NewActivityDump(m.pathsReducer, prev.Profile.Metadata.DifferentiateArgs, 0, m.config.RuntimeSecurity.ActivityDumpTracedEventTypes, m.updateTracedPid, newLoadConfig, func(ad *dump.ActivityDump) {
 		ad.Profile.Header = prev.Profile.Header
 		ad.Profile.Metadata = prev.Profile.Metadata
@@ -189,7 +165,8 @@ func (m *Manager) triggerLoadController() {
 		if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 			if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-			} else if m.config.RuntimeSecurity.SecurityProfileEnabled { // drop the profile if we don't care about using it as a security profile
+			} else if m.config.RuntimeSecurity.SecurityProfileEnabled && ad.Profile.Metadata.ContainerID != "" {
+				// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
 				select {
 				case m.newProfiles <- ad.Profile:
 				default:

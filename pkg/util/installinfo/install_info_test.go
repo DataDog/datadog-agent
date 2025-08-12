@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -289,4 +290,153 @@ install_method:
 			assert.Equal(t, tt.want, string(b))
 		})
 	}
+}
+
+func TestScrubFromEnvVars(t *testing.T) {
+	t.Setenv("DD_INSTALL_INFO_TOOL", "./my_installer.sh --password=hunter2")
+	t.Setenv("DD_INSTALL_INFO_TOOL_VERSION", "2.5.0 password=hunter2")
+	t.Setenv("DD_INSTALL_INFO_INSTALLER_VERSION", "3.7.1 password=hunter2")
+
+	info, ok := getFromEnvVars()
+	assert.True(t, ok)
+
+	assert.Equal(t, "./my_installer.sh --password=********", info.Tool)
+	assert.Equal(t, "2.5.0 password=********", info.ToolVersion)
+	assert.Equal(t, "3.7.1 password=********", info.InstallerVersion)
+}
+
+func TestScrubFromPath(t *testing.T) {
+	installInfoYaml := `install_method:
+  tool: "./my_installer.sh --password=hunter2"
+  tool_version: "2.5.0 password=hunter2"
+  installer_version: "3.7.1 password=hunter2"
+`
+	f, err := os.CreateTemp("", "install-info.yaml")
+	require.NoError(t, err)
+	f.WriteString(installInfoYaml)
+	defer os.Remove(f.Name())
+
+	info, err := getFromPath(f.Name())
+	require.NoError(t, err)
+
+	assert.Equal(t, "./my_installer.sh --password=********", info.Tool)
+	assert.Equal(t, "2.5.0 password=********", info.ToolVersion)
+	assert.Equal(t, "3.7.1 password=********", info.InstallerVersion)
+}
+
+func TestSetRuntimeInstallInfo(t *testing.T) {
+	tests := []struct {
+		name        string
+		info        *InstallInfo
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "valid install info",
+			info: &InstallInfo{
+				Tool:             "ECS",
+				ToolVersion:      "1.0",
+				InstallerVersion: "ecs-task-def-v1",
+			},
+			expectError: false,
+		},
+		{
+			name: "valid install info with scrubbing needed",
+			info: &InstallInfo{
+				Tool:             "ECS --password=hunter2",
+				ToolVersion:      "1.0 password=hunter2",
+				InstallerVersion: "ecs-task-def-v1 password=hunter2",
+			},
+			expectError: false,
+		},
+		{
+			name:        "nil install info",
+			info:        nil,
+			expectError: true,
+			errorMsg:    "install info cannot be nil",
+		},
+		{
+			name: "empty tool field",
+			info: &InstallInfo{
+				Tool:             "",
+				ToolVersion:      "1.0",
+				InstallerVersion: "ecs-task-def-v1",
+			},
+			expectError: true,
+			errorMsg:    "install info must have tool, tool_version, and installer_version set",
+		},
+		{
+			name: "empty tool version field",
+			info: &InstallInfo{
+				Tool:             "ECS",
+				ToolVersion:      "",
+				InstallerVersion: "ecs-task-def-v1",
+			},
+			expectError: true,
+			errorMsg:    "install info must have tool, tool_version, and installer_version set",
+		},
+		{
+			name: "empty installer version field",
+			info: &InstallInfo{
+				Tool:             "ECS",
+				ToolVersion:      "1.0",
+				InstallerVersion: "",
+			},
+			expectError: true,
+			errorMsg:    "install info must have tool, tool_version, and installer_version set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := setRuntimeInstallInfo(tt.info)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				assert.NoError(t, err)
+				retrieved := getRuntimeInstallInfo()
+				assert.NotNil(t, retrieved)
+
+				if strings.Contains(tt.info.Tool, "password=hunter2") {
+					assert.Contains(t, retrieved.Tool, "password=********")
+				} else {
+					assert.Equal(t, tt.info.Tool, retrieved.Tool)
+				}
+
+				if strings.Contains(tt.info.ToolVersion, "password=hunter2") {
+					assert.Contains(t, retrieved.ToolVersion, "password=********")
+				} else {
+					assert.Equal(t, tt.info.ToolVersion, retrieved.ToolVersion)
+				}
+
+				if strings.Contains(tt.info.InstallerVersion, "password=hunter2") {
+					assert.Contains(t, retrieved.InstallerVersion, "password=********")
+				} else {
+					assert.Equal(t, tt.info.InstallerVersion, retrieved.InstallerVersion)
+				}
+			}
+		})
+	}
+}
+
+func TestGetRuntimeInstallInfo(t *testing.T) {
+	info := &InstallInfo{
+		Tool:             "ECS",
+		ToolVersion:      "1.0",
+		InstallerVersion: "ecs-task-def-v1",
+	}
+	err := setRuntimeInstallInfo(info)
+	require.NoError(t, err)
+
+	retrieved := getRuntimeInstallInfo()
+	assert.NotNil(t, retrieved)
+	assert.Equal(t, info.Tool, retrieved.Tool)
+	assert.Equal(t, info.ToolVersion, retrieved.ToolVersion)
+	assert.Equal(t, info.InstallerVersion, retrieved.InstallerVersion)
+
+	retrieved.Tool = "MODIFIED"
+	retrieved2 := getRuntimeInstallInfo()
+	assert.Equal(t, "ECS", retrieved2.Tool)
 }

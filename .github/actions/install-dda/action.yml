@@ -15,11 +15,15 @@ runs:
   steps:
   - name: Set version
     id: set-version
-    run: echo "version=$(cat .dda/version)" >> $GITHUB_OUTPUT
+    run: |-
+      buildimages_version="$(yq '.variables.CI_IMAGE_LINUX' .gitlab-ci.yml)"
+      buildimages_commit="${buildimages_version#*-}"
+      version="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${buildimages_commit}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+      echo "version=${version}" >> $GITHUB_OUTPUT
     shell: bash
 
   - name: Install dda
-    uses: DataDog/datadog-agent-dev@4540b9f990efec2113005942a3b434ed93eeebb8
+    uses: DataDog/datadog-agent-dev@1bc144c32a57327b768fb7161081b6a25a5c485e
     with:
       version: ${{ inputs.version || steps.set-version.outputs.version }}
       features: ${{ inputs.features }}

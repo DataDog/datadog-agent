@@ -9,4 +9,15 @@ package auditor
 type Registry interface {
 	GetOffset(identifier string) string
 	GetTailingMode(identifier string) string
+
+	// KeepAlive is used to signal that the identifier still exists and should not be removed from the registry.
+	// Used for identifiers that are not guaranteed to have a tailer assigned to them.
+	KeepAlive(identifier string)
+
+	// SetTailed is used to signal that the identifier is still being tailed and should not be removed from the registry.
+	SetTailed(identifier string, isTailed bool)
+
+	// SetOffset allows direct setting of an offset for an identifier, marking it as tailed.
+	// This enables tailers to persist bookmarks without sending messages through the pipeline.
+	SetOffset(identifier string, offset string)
 }

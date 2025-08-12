@@ -55,12 +55,13 @@ func (h *ServiceHandlers) BuildMessageBody(ctx processors.ProcessorContext, reso
 	}
 
 	return &model.CollectorService{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		Services:    models,
-		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		Services:     models,
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 }
 

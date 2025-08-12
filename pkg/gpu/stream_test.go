@@ -8,6 +8,10 @@
 package gpu
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,9 +26,9 @@ import (
 )
 
 func TestKernelLaunchesHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
-	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), config.New().StreamConfig, streamTelemetry)
 	require.NoError(t, err)
 
 	kernStartTime := uint64(1)
@@ -48,15 +52,15 @@ func TestKernelLaunchesHandled(t *testing.T) {
 	}
 
 	// No sync, so we should have data
-	require.Nil(t, stream.getPastData(false))
+	require.Nil(t, stream.getPastData())
 
 	// We should have a current kernel span running
 	currTime := uint64(100)
 	currData := stream.getCurrentData(currTime)
 	require.NotNil(t, currData)
-	require.Len(t, currData.spans, 1)
+	require.Len(t, currData.kernels, 1)
 
-	span := currData.spans[0]
+	span := currData.kernels[0]
 	require.Equal(t, kernStartTime, span.startKtime)
 	require.Equal(t, currTime, span.endKtime)
 	require.Equal(t, uint64(numLaunches), span.numKernels)
@@ -67,11 +71,11 @@ func TestKernelLaunchesHandled(t *testing.T) {
 	stream.markSynchronization(syncTime)
 
 	// We should have a past kernel span
-	pastData := stream.getPastData(true)
+	pastData := stream.getPastData()
 	require.NotNil(t, pastData)
 
-	require.Len(t, pastData.spans, 1)
-	span = pastData.spans[0]
+	require.Len(t, pastData.kernels, 1)
+	span = pastData.kernels[0]
 	require.Equal(t, kernStartTime, span.startKtime)
 	require.Equal(t, syncTime, span.endKtime)
 	require.Equal(t, uint64(numLaunches), span.numKernels)
@@ -82,9 +86,9 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
-	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), config.New().StreamConfig, streamTelemetry)
 	require.NoError(t, err)
 
 	memAllocTime := uint64(1)
@@ -118,7 +122,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 	stream.handleMemEvent(allocation)
 
 	// With just an allocation event, we should have no data
-	require.Nil(t, stream.getPastData(false))
+	require.Nil(t, stream.getPastData())
 
 	// We should have a current memory allocation span running
 	currTime := uint64(100)
@@ -136,7 +140,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 	stream.handleMemEvent(free)
 
 	// We should have a past memory allocation span
-	pastData := stream.getPastData(true)
+	pastData := stream.getPastData()
 	require.NotNil(t, pastData)
 
 	require.Len(t, pastData.allocations, 1)
@@ -154,9 +158,9 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
-	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), config.New().StreamConfig, streamTelemetry)
 	require.NoError(t, err)
 
 	memAllocTime := uint64(1)
@@ -179,7 +183,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 	stream.markEnd() // Mark the stream as ended. This should mark the allocation as leaked
 
 	// We should have a past memory allocatio
-	pastData := stream.getPastData(true)
+	pastData := stream.getPastData()
 	require.NotNil(t, pastData)
 
 	require.Len(t, pastData.allocations, 1)
@@ -190,9 +194,9 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
-	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), config.New().StreamConfig, streamTelemetry)
 	require.NoError(t, err)
 
 	memAllocTime := uint64(1)
@@ -231,13 +235,13 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 	stream.handleMemEvent(free)
 
 	// The free was for a different address, so we should have no data
-	require.Nil(t, stream.getPastData(false))
+	require.Nil(t, stream.getPastData())
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
-	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), config.New().StreamConfig, streamTelemetry)
 	require.NoError(t, err)
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
@@ -297,7 +301,7 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 	stream.handleMemEvent(free2)
 
 	// We should have a past memory allocation span
-	pastData := stream.getPastData(true)
+	pastData := stream.getPastData()
 	require.NotNil(t, pastData)
 
 	require.Len(t, pastData.allocations, 2)
@@ -335,8 +339,14 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 		}
 
 		t.Run(name, func(t *testing.T) {
-			proc := kernel.ProcFSRoot()
-			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+			var proc string
+			if fatbinParsingEnabled {
+				proc = t.TempDir()
+			} else {
+				proc = kernel.ProcFSRoot()
+			}
+
+			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), withProcRoot(proc))
 
 			if fatbinParsingEnabled {
@@ -350,7 +360,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			// Set up the caches in system context so no actual queries are done
 			pid, tid := uint64(1), uint64(1)
 			kernAddress := uint64(42)
-			binPath := "/path/to/binary"
+			binPath := "binary"
 			smVersion := uint32(75)
 			kernName := "kernel"
 			kernSize := uint64(1000)
@@ -365,11 +375,22 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			}
 
 			if fatbinParsingEnabled {
+				// Create all parent directories,
+				// the path should match the procBinPath var value in cuda.AddKernelCacheEntry
+				tmpFoldersPath := filepath.Join(proc, fmt.Sprintf("%d", pid), "root")
+				err := os.MkdirAll(tmpFoldersPath, 0755)
+				require.NoError(t, err)
+				filePath := filepath.Join(tmpFoldersPath, binPath)
+				data := []byte(kernName)
+				//create a dummy file because AddKernelCacheEntry expects a file to exist to get the file stats for verification
+				err = os.WriteFile(filePath, data, 0644)
+				require.NoError(t, err)
+
 				cuda.AddKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
 			}
 
 			streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
-			stream, err := newStreamHandler(streamMetadata{pid: uint32(pid), smVersion: smVersion}, sysCtx, getStreamLimits(config.New()), streamTelemetry)
+			stream, err := newStreamHandler(streamMetadata{pid: uint32(pid), smVersion: smVersion}, sysCtx, config.New().StreamConfig, streamTelemetry)
 			require.NoError(t, err)
 
 			kernStartTime := uint64(1)
@@ -398,15 +419,15 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			}
 
 			// No sync, so we should have data
-			require.Nil(t, stream.getPastData(false))
+			require.Nil(t, stream.getPastData())
 
 			// We should have a current kernel span running
 			currTime := uint64(100)
 			currData := stream.getCurrentData(currTime)
 			require.NotNil(t, currData)
-			require.Len(t, currData.spans, 1)
+			require.Len(t, currData.kernels, 1)
 
-			span := currData.spans[0]
+			span := currData.kernels[0]
 			require.Equal(t, kernStartTime, span.startKtime)
 			require.Equal(t, currTime, span.endKtime)
 			require.Equal(t, uint64(numLaunches), span.numKernels)
@@ -427,11 +448,11 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			stream.markSynchronization(syncTime)
 
 			// We should have a past kernel span
-			pastData := stream.getPastData(true)
+			pastData := stream.getPastData()
 			require.NotNil(t, pastData)
 
-			require.Len(t, pastData.spans, 1)
-			span = pastData.spans[0]
+			require.Len(t, pastData.kernels, 1)
+			span = pastData.kernels[0]
 			require.Equal(t, kernStartTime, span.startKtime)
 			require.Equal(t, syncTime, span.endKtime)
 			require.Equal(t, uint64(numLaunches), span.numKernels)
@@ -454,18 +475,20 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 }
 
 func TestKernelLaunchTriggersSyncIfLimitReached(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
-	limits := streamLimits{
-		maxKernelLaunches: 5,
-		maxAllocEvents:    5,
+	limits := config.StreamConfig{
+		MaxKernelLaunches:     5,
+		MaxMemAllocEvents:     5,
+		MaxPendingKernelSpans: 100,
+		MaxPendingMemorySpans: 100,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
 	require.NoError(t, err)
 
 	// Add a few kernel launches, not reaching the limit
-	for i := 0; i < limits.maxKernelLaunches-1; i++ {
+	for i := 0; i < limits.MaxKernelLaunches-1; i++ {
 		stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
 			Header: gpuebpf.CudaEventHeader{
 				Type:     uint32(gpuebpf.CudaEventTypeKernelLaunch),
@@ -474,29 +497,33 @@ func TestKernelLaunchTriggersSyncIfLimitReached(t *testing.T) {
 		})
 	}
 
-	require.Len(t, stream.kernelLaunches, limits.maxKernelLaunches-1)
+	require.Len(t, stream.kernelLaunches, limits.MaxKernelLaunches-1)
 
 	// Add one more, should trigger a sync
 	stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
 		Header: gpuebpf.CudaEventHeader{
 			Type:     uint32(gpuebpf.CudaEventTypeKernelLaunch),
-			Ktime_ns: uint64(limits.maxKernelLaunches),
+			Ktime_ns: uint64(limits.MaxKernelLaunches),
 		},
 	})
 	require.Len(t, stream.kernelLaunches, 0)
 
-	require.Len(t, stream.kernelSpans, 1)
-	span := stream.kernelSpans[0]
-	require.Equal(t, uint64(limits.maxKernelLaunches), span.numKernels)
+	pastData := stream.getPastData()
+	require.NotNil(t, pastData)
+	require.Len(t, pastData.kernels, 1)
+	span := pastData.kernels[0]
+	require.Equal(t, uint64(limits.MaxKernelLaunches), span.numKernels)
 }
 
 func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
-	limits := streamLimits{
-		maxKernelLaunches: 5,
-		maxAllocEvents:    5,
+	limits := config.StreamConfig{
+		MaxKernelLaunches:     5,
+		MaxMemAllocEvents:     5,
+		MaxPendingKernelSpans: 100,
+		MaxPendingMemorySpans: 100,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
 	require.NoError(t, err)
@@ -548,9 +575,11 @@ func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
 	require.Len(t, stream.kernelLaunches, 0)
 
 	// Check that the spans are as expected
-	require.Len(t, stream.kernelSpans, len(expectedSpanLengths))
+	pastData := stream.getPastData()
+	require.NotNil(t, pastData)
+	require.Len(t, pastData.kernels, len(expectedSpanLengths))
 	kernelsSeen := 0
-	for i, span := range stream.kernelSpans {
+	for i, span := range pastData.kernels {
 		spanLength := expectedSpanLengths[i]
 		require.Equal(t, uint64(spanLength), span.numKernels, "numKernels for span %d is incorrect", i)
 		require.Equal(t, getTimeForKernel(kernelsSeen), span.startKtime, "startKtime for span %d is incorrect", i)
@@ -570,18 +599,20 @@ func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
 }
 
 func TestMemoryAllocationEviction(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
-	limits := streamLimits{
-		maxKernelLaunches: 5,
-		maxAllocEvents:    5,
+	limits := config.StreamConfig{
+		MaxKernelLaunches:     5,
+		MaxMemAllocEvents:     5,
+		MaxPendingKernelSpans: 100,
+		MaxPendingMemorySpans: 100,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
 	require.NoError(t, err)
 
 	// Add a few memory allocations, go over the limit
-	for i := 0; i < limits.maxAllocEvents+1; i++ {
+	for i := 0; i < limits.MaxMemAllocEvents+1; i++ {
 		stream.handleMemEvent(&gpuebpf.CudaMemEvent{
 			Header: gpuebpf.CudaEventHeader{
 				Type:     uint32(gpuebpf.CudaEventTypeMemory),
@@ -592,14 +623,14 @@ func TestMemoryAllocationEviction(t *testing.T) {
 			Size: uint64((i + 1) * 1024),
 		})
 
-		if i < limits.maxAllocEvents {
+		if i < limits.MaxMemAllocEvents {
 			// No evictions yet
 			require.Equal(t, i+1, stream.memAllocEvents.Len())
 		}
 	}
 
 	// At this point we should have gotten one eviction
-	require.Equal(t, limits.maxAllocEvents, stream.memAllocEvents.Len())
+	require.Equal(t, limits.MaxMemAllocEvents, stream.memAllocEvents.Len())
 
 	// Check that we got an allocation evicted
 	evictionCounter, err := telemetryMock.GetCountMetric("gpu__streams", "alloc_evicted")
@@ -609,17 +640,19 @@ func TestMemoryAllocationEviction(t *testing.T) {
 }
 
 func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
-	limits := streamLimits{
-		maxKernelLaunches: 5,
-		maxAllocEvents:    5,
+	limits := config.StreamConfig{
+		MaxKernelLaunches:     5,
+		MaxMemAllocEvents:     5,
+		MaxPendingKernelSpans: 1000,
+		MaxPendingMemorySpans: 1000,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, streamTelemetry)
 	require.NoError(t, err)
 
-	totalEvents := 200 * limits.maxAllocEvents
+	totalEvents := 200 * limits.MaxMemAllocEvents
 
 	for i := 0; i < totalEvents; i++ {
 		addr := uint64(i)
@@ -650,21 +683,23 @@ func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
 		}
 
 		// We should have at most the max number of allocations
-		require.LessOrEqual(t, stream.memAllocEvents.Len(), limits.maxAllocEvents)
+		require.LessOrEqual(t, stream.memAllocEvents.Len(), limits.MaxMemAllocEvents)
 	}
 
 	// Now validate all the allocations
-	require.Equal(t, limits.maxAllocEvents, stream.memAllocEvents.Len())
+	require.Equal(t, limits.MaxMemAllocEvents, stream.memAllocEvents.Len())
 
 	// We should have
 	// - 100 allocations from the corresponding frees on every even iteration
 	expectedAllocations := totalEvents / 2
-	require.Len(t, stream.allocations, expectedAllocations)
+	pastData := stream.getPastData()
+	require.NotNil(t, pastData)
+	require.Len(t, pastData.allocations, expectedAllocations)
 
 	seenIndexes := make(map[uint64]bool)
 
 	// Check that the allocations are correct
-	for _, alloc := range stream.allocations {
+	for _, alloc := range pastData.allocations {
 		// Only even allocations should have a corresponding free event
 		require.True(t, alloc.startKtime%2 == 0, "allocation startKtime should be even")
 		// The timeis deterministic, the one that we set in the free event
@@ -681,14 +716,16 @@ func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
 	evictionCounter, err := telemetryMock.GetCountMetric("gpu__streams", "alloc_evicted")
 	require.NoError(t, err)
 	require.Len(t, evictionCounter, 1)
-	require.Equal(t, float64(totalEvents/2-limits.maxAllocEvents), evictionCounter[0].Value())
+	require.Equal(t, float64(totalEvents/2-limits.MaxMemAllocEvents), evictionCounter[0].Value())
 }
 
 func TestStreamHandlerIsInactive(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
-	limits := streamLimits{
-		maxKernelLaunches: 5,
-		maxAllocEvents:    5,
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	limits := config.StreamConfig{
+		MaxKernelLaunches:     5,
+		MaxMemAllocEvents:     5,
+		MaxPendingKernelSpans: 100,
+		MaxPendingMemorySpans: 100,
 	}
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, newStreamTelemetry(testutil.GetTelemetryMock(t)))
 	require.NoError(t, err)
@@ -716,4 +753,185 @@ func TestStreamHandlerIsInactive(t *testing.T) {
 
 	// Test case 3: Stream with events older than inactivity threshold should be considered inactive
 	require.True(t, stream.isInactive(3000000000, inactivityThreshold)) // 3 seconds later with 1 second threshold
+}
+
+func TestStreamHandlerMaxPendingSpans(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	limits := config.StreamConfig{
+		MaxKernelLaunches:     1000,
+		MaxMemAllocEvents:     1000,
+		MaxPendingKernelSpans: 5,
+		MaxPendingMemorySpans: 5,
+	}
+	telemetryMock := testutil.GetTelemetryMock(t)
+
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, newStreamTelemetry(telemetryMock))
+	require.NoError(t, err)
+
+	spansToSend := limits.MaxPendingKernelSpans * 2
+	prevRejectionCount := 0
+
+	t.Run("KernelLaunches", func(t *testing.T) {
+		for i := 0; i < spansToSend; i++ {
+			stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
+				Header: gpuebpf.CudaEventHeader{
+					Ktime_ns: uint64(time.Now().UnixNano()),
+				},
+			})
+			stream.markSynchronization(uint64(time.Now().UnixNano()))
+		}
+
+		data := stream.getPastData()
+		require.NotNil(t, data)
+		require.Len(t, data.kernels, limits.MaxPendingKernelSpans)
+
+		rejectionCounter, err := telemetryMock.GetCountMetric("gpu__streams", "rejected_spans_due_to_limit")
+		require.NoError(t, err)
+		require.Len(t, rejectionCounter, 1)
+		rejectionCount := int(rejectionCounter[0].Value())
+		prevRejectionCount = rejectionCount
+		require.Equal(t, spansToSend-limits.MaxPendingKernelSpans, rejectionCount)
+	})
+
+	t.Run("MemoryAllocations", func(t *testing.T) {
+		for i := 0; i < spansToSend; i++ {
+			stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+				Header: gpuebpf.CudaEventHeader{
+					Ktime_ns: uint64(time.Now().UnixNano()),
+				},
+				Type: gpuebpf.CudaMemAlloc,
+				Addr: uint64(i),
+				Size: uint64(1024),
+			})
+			stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+				Header: gpuebpf.CudaEventHeader{
+					Ktime_ns: uint64(time.Now().UnixNano()),
+				},
+				Type: gpuebpf.CudaMemFree,
+				Addr: uint64(i),
+				Size: uint64(1024),
+			})
+		}
+
+		data := stream.getPastData()
+		require.NotNil(t, data)
+		require.Len(t, data.allocations, limits.MaxPendingKernelSpans)
+
+		rejectionCounter, err := telemetryMock.GetCountMetric("gpu__streams", "rejected_spans_due_to_limit")
+		require.NoError(t, err)
+		require.Len(t, rejectionCounter, 1)
+		rejectionCount := int(rejectionCounter[0].Value()) - prevRejectionCount
+		require.Equal(t, spansToSend-limits.MaxPendingKernelSpans, rejectionCount)
+	})
+}
+func TestGetPastDataConcurrency(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+
+	eventsPerSync := 100
+	limits := config.StreamConfig{
+		MaxKernelLaunches:     eventsPerSync * 1000,
+		MaxMemAllocEvents:     eventsPerSync * 1000,
+		MaxPendingKernelSpans: eventsPerSync * 1000,
+		MaxPendingMemorySpans: eventsPerSync * 1000,
+	}
+
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, newStreamTelemetry(testutil.GetTelemetryMock(t)))
+	require.NoError(t, err)
+
+	// Create a goroutine that will send kernel launches and syncs
+	done := make(chan struct{})
+	sentSyncs := atomic.Uint64{}
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				// Send 100 events of each type and then synchronize
+				for i := 0; i < eventsPerSync; i++ {
+					stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
+						Header: gpuebpf.CudaEventHeader{
+							Ktime_ns: uint64(time.Now().UnixNano()),
+						},
+						Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+						Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+						Shared_mem_size: 100,
+					})
+					memType := gpuebpf.CudaMemAlloc
+					if i%2 == 1 {
+						memType = gpuebpf.CudaMemFree
+					}
+					stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+						Header: gpuebpf.CudaEventHeader{
+							Ktime_ns: uint64(time.Now().UnixNano()),
+						},
+						Type: uint32(memType),
+						Addr: uint64(i / 2),
+						Size: uint64(1024),
+					})
+				}
+				stream.markSynchronization(uint64(time.Now().UnixNano()))
+				sentSyncs.Add(1)
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		close(done)
+	})
+
+	// Ensure some data is sent
+	time.Sleep(200 * time.Millisecond)
+
+	beforeGetDataSyncs := sentSyncs.Load()
+	require.Greater(t, beforeGetDataSyncs, uint64(0))
+
+	data := stream.getPastData()
+	require.NotNil(t, data)
+
+	// As the data is being sent concurrently, we don't know the exact amount of data
+	// sent, but it must be greater or equal than the number of syncs sent before the data was requested
+	require.GreaterOrEqual(t, len(data.kernels), int(beforeGetDataSyncs))
+	require.GreaterOrEqual(t, len(data.allocations), int(beforeGetDataSyncs))
+}
+
+func BenchmarkHandleEvents(b *testing.B) {
+	ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+
+	// Set limits high enough so that we don't hit them, as we have nothing consuming the channels
+	// and we want to test just the non-blocking send
+	limits := config.StreamConfig{
+		MaxKernelLaunches:     1000000,
+		MaxMemAllocEvents:     1000000,
+		MaxPendingKernelSpans: 1000000,
+		MaxPendingMemorySpans: 1000000,
+	}
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(b), limits, newStreamTelemetry(testutil.GetTelemetryMock(b)))
+	require.NoError(b, err)
+
+	now := uint64(time.Now().UnixNano())
+	i := 0
+
+	for b.Loop() {
+		stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
+			Header: gpuebpf.CudaEventHeader{
+				Ktime_ns:  now + uint64(i),
+				Stream_id: 1,
+			},
+		})
+		memType := gpuebpf.CudaMemAlloc
+		if i%2 == 1 {
+			memType = gpuebpf.CudaMemFree
+		}
+		stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+			Header: gpuebpf.CudaEventHeader{
+				Ktime_ns:  now + uint64(i),
+				Stream_id: 1,
+			},
+			Type: uint32(memType),
+			Addr: uint64(i / 2),
+			Size: uint64(1024),
+		})
+
+		i++
+	}
 }

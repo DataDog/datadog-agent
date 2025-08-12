@@ -42,7 +42,6 @@ import (
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
@@ -2258,10 +2257,12 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	config := buildConfigComponent(t, true, fx.Supply(corecomp.Params{}))
 
 	handler := config.GetConfigHandler().(http.HandlerFunc)
+	ipcComp := ipcmock.New(t)
 
 	// Refuse non Get query
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
@@ -2281,7 +2282,7 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	// Accept valid auth token and returning a valid YAML conf
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest("GET", "/config", nil)
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -2295,10 +2296,12 @@ func TestSetConfigHandler(t *testing.T) {
 	config := buildConfigComponent(t, true, fx.Supply(corecomp.Params{}))
 
 	handler := config.SetHandler().ServeHTTP
+	ipcComp := ipcmock.New(t)
 
 	// Refuse non POST query
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
@@ -2318,7 +2321,7 @@ func TestSetConfigHandler(t *testing.T) {
 	// Accept valid auth token return OK
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest("POST", "/config", nil)
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
 }
@@ -2381,4 +2384,106 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 		MockModule(),
 	))
 	return c
+}
+
+func TestMultiRegionFailoverConfig(t *testing.T) {
+	t.Run("default-values", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.enabled": true,
+			"multi_region_failover.site":    "site2",
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		// Check that the default values are set correctly
+		assert.False(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.False(t, cfg.MRFFailoverAPM())
+
+		// Verify MRF endpoint is created
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://trace.agent.mrf.site2", cfg.Endpoints[1].Host)
+	})
+
+	t.Run("default-true-config", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.site":         "site2",
+			"multi_region_failover.enabled":      true,
+			"multi_region_failover.failover_apm": true,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		assert.True(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.True(t, cfg.MRFFailoverAPM())
+
+		// Verify MRF endpoint is created
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://trace.agent.mrf.site2", cfg.Endpoints[1].Host)
+	})
+
+	t.Run("default-false-config", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.site":         "site2",
+			"multi_region_failover.enabled":      true,
+			"multi_region_failover.failover_apm": false,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		assert.False(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.False(t, cfg.MRFFailoverAPM())
+
+		// Verify MRF endpoint is created
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://trace.agent.mrf.site2", cfg.Endpoints[1].Host)
+	})
+
+	t.Run("mrf-disabled", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.site":         "site2",
+			"multi_region_failover.enabled":      false,
+			"multi_region_failover.failover_apm": true,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		// When MRF is disabled, the failover_apm setting should not be applied
+		assert.False(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.False(t, cfg.MRFFailoverAPM())
+
+		// Verify no MRF endpoint is created when MRF is disabled
+		assert.Len(t, cfg.Endpoints, 1)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+	})
+
+	t.Run("mrf-custom-url", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.enabled":      true,
+			"multi_region_failover.dd_url":       "https://custom.mrf.site",
+			"multi_region_failover.failover_apm": true,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		// Verify MRF endpoint is created with custom URL
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://custom.mrf.site", cfg.Endpoints[1].Host)
+	})
 }

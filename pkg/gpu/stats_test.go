@@ -32,7 +32,7 @@ func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.Utilizati
 }
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, *streamCollection, int64) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	sysCtx := getTestSystemContext(t)
 
 	ktime, err := ddebpf.NowNanoseconds()
@@ -56,7 +56,7 @@ func addStream(t *testing.T, streamHandlers *streamCollection, pid uint32, strea
 		gpuUUID:     gpuUUID,
 	}
 
-	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, getStreamLimits(config.New()), streamHandlers.telemetry)
+	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, config.New().StreamConfig, streamHandlers.telemetry)
 	require.NoError(t, err)
 	streamHandlers.streams[key] = stream
 
@@ -73,7 +73,7 @@ func addGlobalStream(t *testing.T, streamHandlers *streamCollection, pid uint32,
 		gpuUUID:     gpuUUID,
 	}
 
-	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, getStreamLimits(config.New()), streamHandlers.telemetry)
+	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, config.New().StreamConfig, streamHandlers.telemetry)
 	require.NoError(t, err)
 	streamHandlers.globalStreams[key] = stream
 
@@ -141,26 +141,24 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	numThreads := uint64(5)
 	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 	stream.ended = false
-	stream.kernelSpans = []*kernelSpan{
-		{
-			startKtime:     uint64(startKtime),
-			endKtime:       uint64(endKtime),
-			avgThreadCount: numThreads,
-			numKernels:     10,
-		},
+	// Send kernel span to the channel
+	stream.pendingKernelSpans <- &kernelSpan{
+		startKtime:     uint64(startKtime),
+		endKtime:       uint64(endKtime),
+		avgThreadCount: numThreads,
+		numKernels:     10,
 	}
 
 	allocSize := uint64(10)
 	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
 	stream.ended = false
-	stream.allocations = []*memoryAllocation{
-		{
-			startKtime: uint64(startKtime),
-			endKtime:   uint64(endKtime),
-			size:       allocSize,
-			isLeaked:   false,
-			allocType:  globalMemAlloc,
-		},
+	// Send allocation to the channel
+	stream.pendingMemorySpans <- &memorySpan{
+		startKtime: uint64(startKtime),
+		endKtime:   uint64(endKtime),
+		size:       allocSize,
+		isLeaked:   false,
+		allocType:  globalMemAlloc,
 	}
 
 	checkDuration := 10 * time.Second
@@ -206,26 +204,24 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 		},
 	}
 
-	stream.kernelSpans = []*kernelSpan{
-		{
-			startKtime:     uint64(startKtime),
-			endKtime:       uint64(endKtime),
-			avgThreadCount: numThreads,
-			numKernels:     10,
-		},
+	// Send kernel span to the channel
+	stream.pendingKernelSpans <- &kernelSpan{
+		startKtime:     uint64(startKtime),
+		endKtime:       uint64(endKtime),
+		avgThreadCount: numThreads,
+		numKernels:     10,
 	}
 
 	allocSize := uint64(10)
 	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
 	stream.ended = false
-	stream.allocations = []*memoryAllocation{
-		{
-			startKtime: uint64(startKtime),
-			endKtime:   uint64(endKtime),
-			size:       allocSize,
-			isLeaked:   false,
-			allocType:  globalMemAlloc,
-		},
+	// Send allocation to the channel
+	stream.pendingMemorySpans <- &memorySpan{
+		startKtime: uint64(startKtime),
+		endKtime:   uint64(endKtime),
+		size:       allocSize,
+		isLeaked:   false,
+		allocType:  globalMemAlloc,
 	}
 
 	stream.memAllocEvents.Add(0, gpuebpf.CudaMemEvent{
@@ -268,13 +264,12 @@ func TestGetStatsMultiGPU(t *testing.T) {
 		streamID := uint64(i)
 		stream := addStream(t, streamHandlers, pid, streamID, uuid, "")
 		stream.ended = false
-		stream.kernelSpans = []*kernelSpan{
-			{
-				startKtime:     uint64(startKtime),
-				endKtime:       uint64(endKtime),
-				avgThreadCount: numThreads,
-				numKernels:     10,
-			},
+		// Send kernel span to the channel
+		stream.pendingKernelSpans <- &kernelSpan{
+			startKtime:     uint64(startKtime),
+			endKtime:       uint64(endKtime),
+			avgThreadCount: numThreads,
+			numKernels:     10,
 		}
 	}
 
@@ -356,26 +351,24 @@ func TestGetStatsNormalization(t *testing.T) {
 		streamID := uint64(pid)
 		stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
 		stream.ended = false
-		stream.kernelSpans = []*kernelSpan{
-			{
-				startKtime:     uint64(startKtime),
-				endKtime:       uint64(endKtime),
-				avgThreadCount: numThreads,
-				numKernels:     10,
-			},
+		// Send kernel span to the channel
+		stream.pendingKernelSpans <- &kernelSpan{
+			startKtime:     uint64(startKtime),
+			endKtime:       uint64(endKtime),
+			avgThreadCount: numThreads,
+			numKernels:     10,
 		}
 
 		// Add memory allocations
 		globalStream := addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
 		globalStream.ended = false
-		globalStream.allocations = []*memoryAllocation{
-			{
-				startKtime: uint64(startKtime),
-				endKtime:   uint64(endKtime),
-				size:       memSize,
-				isLeaked:   false,
-				allocType:  globalMemAlloc,
-			},
+		// Send allocation to the channel
+		globalStream.pendingMemorySpans <- &memorySpan{
+			startKtime: uint64(startKtime),
+			endKtime:   uint64(endKtime),
+			size:       memSize,
+			isLeaked:   false,
+			allocType:  globalMemAlloc,
 		}
 	}
 

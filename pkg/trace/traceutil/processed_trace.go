@@ -19,6 +19,7 @@ type ProcessedTrace struct {
 	ClientDroppedP0sWeight float64
 	GitCommitSha           string
 	ImageTag               string
+	Lang                   string
 }
 
 // Clone creates a copy of ProcessedTrace, cloning p, p.TraceChunk, and p.Root. This means it is

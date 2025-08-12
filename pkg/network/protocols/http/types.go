@@ -8,7 +8,6 @@
 package http
 
 /*
-#include "../../ebpf/c/protocols/tls/tags-types.h"
 #include "../../ebpf/c/protocols/http/types.h"
 #include "../../ebpf/c/protocols/classification/defs.h"
 */
@@ -26,26 +25,4 @@ type EbpfTx C.http_transaction_t
 
 const (
 	BufferSize = C.HTTP_BUFFER_SIZE
-)
-
-type ConnTag = uint64
-
-const (
-	GnuTLS  ConnTag = C.LIBGNUTLS
-	OpenSSL ConnTag = C.LIBSSL
-	Go      ConnTag = C.GO
-	TLS     ConnTag = C.CONN_TLS
-	Istio   ConnTag = C.ISTIO
-	NodeJS  ConnTag = C.NODEJS
-)
-
-var (
-	StaticTags = map[ConnTag]string{
-		GnuTLS:  "tls.library:gnutls",
-		OpenSSL: "tls.library:openssl",
-		Go:      "tls.library:go",
-		TLS:     "tls.connection:encrypted",
-		Istio:   "tls.library:istio",
-		NodeJS:  "tls.library:nodejs",
-	}
 )

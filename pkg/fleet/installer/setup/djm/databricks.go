@@ -23,10 +23,12 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.40.0-1"
-	databricksJavaTracerVersion = "1.49.0-1"
-	databricksAgentVersion      = "7.63.3-1"
+	databricksInjectorVersion   = "0.43.1-1"
+	databricksJavaTracerVersion = "1.51.1-1"
+	databricksAgentVersion      = "7.68.2-1"
 	fetchTimeoutDuration        = 5 * time.Second
+	gpuIntegrationRestartDelay  = 60 * time.Second
+	restartLogFile              = "/var/log/datadog-gpu-restart"
 )
 
 var (
@@ -117,6 +119,10 @@ func SetupDatabricks(s *common.Setup) error {
 	}
 	s.Span.SetTag("install_method", installMethod)
 
+	if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+		setupGPUIntegration(s)
+	}
+
 	switch os.Getenv("DB_IS_DRIVER") {
 	case "TRUE":
 		setupDatabricksDriver(s)
@@ -133,6 +139,8 @@ func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil)
 	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
 	setClearIfExists(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil)
+	setClearIfExists(s, "DATABRICKS_RUNTIME_VERSION", "databricks_runtime", nil)
+	setClearIfExists(s, "SPARK_SCALA_VERSION", "scala_version", nil)
 	setIfExists(s, "DD_JOB_NAME", "job_name", func(v string) string {
 		return jobNameRegex.ReplaceAllString(v, "_")
 	})
@@ -159,8 +167,18 @@ func setupCommonHostTags(s *common.Setup) {
 	if ok {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
+		setHostTag(s, "dd.internal.resource:databricks_job", jobID)
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true")
+
+	// Set databricks_cluster resource tag based on whether we're on a job cluster
+	isJobCluster, _ := os.LookupEnv("DB_IS_JOB_CLUSTER")
+	if isJobCluster == "TRUE" && ok {
+		setHostTag(s, "dd.internal.resource:databricks_cluster", jobID)
+	} else {
+		setIfExists(s, "DB_CLUSTER_ID", "dd.internal.resource:databricks_cluster", nil)
+	}
+
 	addCustomHostTags(s)
 }
 
@@ -218,6 +236,28 @@ func setClearHostTag(s *common.Setup, tagKey, value string) {
 	s.Span.SetTag("host_tag_value."+tagKey, value)
 }
 
+// setupGPUIntegration configures GPU monitoring integration
+func setupGPUIntegration(s *common.Setup) {
+	s.Out.WriteString("Setting up GPU monitoring based on env variable GPU_MONITORING_ENABLED=true\n")
+
+	s.Config.DatadogYAML.CollectGPUTags = true
+	s.Config.DatadogYAML.GPUCheck.Enabled = true
+
+	if s.Config.SystemProbeYAML == nil {
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
+	}
+	s.Config.SystemProbeYAML.GPUMonitoringConfig = config.GPUMonitoringConfig{
+		Enabled: true,
+	}
+
+	s.Span.SetTag("host_tag_set.gpu_monitoring_enabled", "true")
+
+	// Agent must be restarted after NVML initialization, which occurs after init script execution
+	s.DelayedAgentRestartConfig.Scheduled = true
+	s.DelayedAgentRestartConfig.Delay = gpuIntegrationRestartDelay
+	s.DelayedAgentRestartConfig.LogFile = restartLogFile
+}
+
 func setupDatabricksDriver(s *common.Setup) {
 	s.Out.WriteString("Setting up Spark integration config on the Driver\n")
 	setClearHostTag(s, "spark_node", "driver")
@@ -245,14 +285,25 @@ func setupDatabricksDriver(s *common.Setup) {
 
 func setupDatabricksWorker(s *common.Setup) {
 	setClearHostTag(s, "spark_node", "worker")
+	var sparkIntegration config.IntegrationConfig
 
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
-		var sparkIntegration config.IntegrationConfig
 		s.Config.DatadogYAML.LogsEnabled = true
 		sparkIntegration.Logs = workerLogs
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
-		s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 	}
+	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {
+		sparkIntegration.Instances = []any{
+			config.IntegrationConfigInstanceSpark{
+				SparkURL:         "http://" + os.Getenv("DB_DRIVER_IP") + ":40001",
+				SparkClusterMode: "spark_driver_mode",
+				ClusterName:      os.Getenv("DB_CLUSTER_NAME"),
+				StreamingMetrics: true,
+			},
+		}
+		s.Span.SetTag("host_tag_set.worker_spark_enabled", "true")
+	}
+	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
 
 func addCustomHostTags(s *common.Setup) {
@@ -406,18 +457,7 @@ func fetchClusterTags(client *http.Client, host, token, clusterID string, s *com
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// Create a copy of the custom tags
-	tags := make(map[string]string)
-	for k, v := range clusterResponse.CustomTags {
-		tags[k] = v
-	}
-
-	// Add spark_version as runtime tag if available
-	if clusterResponse.SparkVersion != "" {
-		tags["runtime"] = clusterResponse.SparkVersion
-	}
-
-	return tags, nil
+	return clusterResponse.CustomTags, nil
 }
 
 func fetchJobTags(client *http.Client, host, token, jobID string, s *common.Setup) (map[string]string, error) {

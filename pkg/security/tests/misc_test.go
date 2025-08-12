@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"testing"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
@@ -59,7 +60,9 @@ func TestOsOrigin(t *testing.T) {
 func TestHostname(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	hostname, err := hostnameutils.GetHostname()
+	ipcComp := ipcmock.New(t)
+
+	hostname, err := hostnameutils.GetHostname(ipcComp)
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

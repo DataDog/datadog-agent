@@ -49,6 +49,20 @@
     - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+    # Setup authanywhere to interact with agent ci api and trigger stack cleaner
+    - |
+      if [ $(uname -m) = x86_64 ]; then
+        AAA="amd64";
+      else
+        AAA="arm64";
+      fi;
+      curl -OL "binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}" || exit $?
+      mv "authanywhere-linux-${AAA}" /bin/authanywhere || exit $?
+      chmod +x /bin/authanywhere || exit $?
+    - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
+    - export DD_CIVISIBILITY_ENABLED=true
+    - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   variables:
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
@@ -72,8 +86,11 @@
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
+    E2E_COVERAGE_OUT_DIR: $CI_PROJECT_DIR/coverage
+    PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
+    MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
   script:
-    - dda inv -- -e new-e2e-tests.run --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    - dda inv -- -e new-e2e-tests.run $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   artifacts:
@@ -86,12 +103,44 @@
       - $E2E_RESULT_JSON
       # junit tarball, kept for investigations
       - junit-*.tgz
+      - $E2E_COVERAGE_OUT_DIR
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
+  retry: !reference [.retry_only_infra_failure, retry]
 
 .needs_new_e2e_template:
   - go_e2e_deps
+  - go_e2e_test_binaries
+
+# Build test binaries job that creates pre-compiled test binaries
+# This job runs early in the pipeline and creates artifacts that can be reused by test jobs
+go_e2e_test_binaries:
+  stage: binary_build
+  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs:
+    - go_e2e_deps
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: 64Gi
+    KUBERNETES_MEMORY_LIMIT: 64Gi
+  before_script:
+    - !reference [.retrieve_linux_go_e2e_deps]
+  script:
+    - pushd test/new-e2e
+    - go install github.com/DataDog/orchestrion@v1.4.0
+    - popd
+    - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
+    - tar czf test-binaries.tar.gz test-binaries
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - test-binaries.tar.gz
+      - manifest.json
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
 
 .new_e2e_template_needs_windows_x64:
   extends: .new_e2e_template
@@ -156,7 +205,7 @@ new-e2e-containers-eks-init:
   stage: e2e_init
   extends: .new_e2e_template
   needs:
-    - !reference [.needs_new_e2e_template]
+    - go_e2e_deps
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
@@ -166,6 +215,9 @@ new-e2e-containers-eks-init:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
 
 new-e2e-containers-eks:
@@ -182,6 +234,7 @@ new-e2e-containers-eks:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -191,7 +244,7 @@ new-e2e-remote-config:
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
-    ON_NIGHTLY_FIPS: "true"
+    # TODO: Re-enable on fips pipeline when fips is available with remote config using: ON_NIGHTLY_FIPS: "true"
 
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -211,6 +264,7 @@ new-e2e-agent-runtimes:
     TARGETS: ./tests/agent-runtimes
     TEAM: agent-runtimes
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -250,6 +304,7 @@ new-e2e-fips-compliance-test:
     matrix:
       - EXTRA_PARAMS: --run "TestFIPSCiphersLinuxSuite$"
       - EXTRA_PARAMS: --run "TestLinuxFIPSComplianceSuite$"
+      - EXTRA_PARAMS: --run "TestFIPSCiphersClusterAgentSuite$"
 
 new-e2e-windows-fips-compliance-test:
   extends: .new_e2e_template
@@ -257,12 +312,13 @@ new-e2e-windows-fips-compliance-test:
     - !reference [.needs_new_e2e_template]
     - qa_agent_fips
     - windows_msi_and_bosh_zip_x64-a7-fips
+    - deploy_windows_testing-a7-fips
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/fips-compliance
-    TEAM: windows-agent
+    TEAM: windows-products
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestWindowsVM$"
@@ -278,7 +334,7 @@ new-e2e-windows-service-test:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/windows/service-test
-    TEAM: windows-agent
+    TEAM: windows-products
     ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
@@ -288,6 +344,25 @@ new-e2e-windows-service-test:
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledProcessAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorAgentCommand
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorPowerShell
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller
+
+new-e2e-windows-certificate:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_certificate_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  variables:
+    TARGETS: ./tests/windows/windows-certificate
+    TEAM: windows-products
+    EXTRA_PARAMS: --run "TestRemoteCertificates$"
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
@@ -296,7 +371,7 @@ new-e2e-language-detection:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
-    TEAM: processes
+    TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-packages:
@@ -311,7 +386,7 @@ new-e2e-npm-packages:
     - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/npm
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
     ON_NIGHTLY_FIPS: "true"
 
@@ -326,7 +401,7 @@ new-e2e-npm-docker:
     - qa_agent
   variables:
     TARGETS: ./tests/npm
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
     ON_NIGHTLY_FIPS: "true"
 
@@ -334,16 +409,19 @@ new-e2e-npm-eks-init:
   stage: e2e_init
   extends: .new_e2e_template
   needs:
-    - !reference [.needs_new_e2e_template]
+    - go_e2e_deps
   rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/npm
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
 
 new-e2e-npm-eks:
@@ -358,10 +436,11 @@ new-e2e-npm-eks:
     - qa_dca
   variables:
     TARGETS: ./tests/npm
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-npm:
   extends: .new_e2e_template
@@ -374,7 +453,7 @@ new-e2e-npm:
     - qa_dca
   variables:
     TARGETS: ./tests/npm
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run TestCiliumLBConntracker
 
 new-e2e-amp:
@@ -427,14 +506,17 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestAgentSuite
+      - EXTRA_PARAMS: --run TestAgentSuite(EC2|GCP)
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
       - EXTRA_PARAMS: --run TestAgentWindowsSuite
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
   allow_failure: true
 
 new-e2e-discovery:
@@ -464,7 +546,7 @@ new-e2e-process:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/process
-    TEAM: processes
+    TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-orchestrator:
@@ -491,7 +573,8 @@ new-e2e-apm:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
@@ -520,6 +603,7 @@ new-e2e-installer-script:
     TEAM: fleet
     FLEET_INSTALL_METHOD: "install_script"
     E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
 
 new-e2e-installer:
   extends: .new_e2e_template
@@ -536,13 +620,14 @@ new-e2e-installer:
     - deploy_suse_rpm_testing_x64-a7
     - deploy_installer_oci
     - deploy_agent_oci
+    - installer-install-scripts
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "install_script"
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
     E2E_USE_AWS_PROFILE: "false"
-  retry: 1  # Force retry on this specific job to limit flakiness
+    MAX_RETRIES_FLAG: "--max-retries=3"
 
 new-e2e-installer-windows:
   extends: .new_e2e_template
@@ -568,6 +653,7 @@ new-e2e-installer-windows:
     TEAM: fleet
     FLEET_INSTALL_METHOD: "windows"
     E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
   parallel:
     matrix:
       # agent-package
@@ -584,14 +670,25 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenTimeout$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentMSIRollbackMaintainsCustomUserAndAltDir$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDiesMaintainsCustomUserAndAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithHostNameChange$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesAfterDCPromotion$/TestUpgradeAfterDCPromotion$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
+      - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
+      - EXTRA_PARAMS: --run "TestUpgradeWithMissingPassword$/TestUpgradeWithMissingPassword$"
+      # agent config experiment
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeNewAgents$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       # install-script
@@ -614,7 +711,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$"
-  retry: 1  # Force retry on this specific job to limit flakiness
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallScript$"
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -636,7 +733,7 @@ new-e2e-installer-ansible:
     TEAM: fleet
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
-  retry: 1  # Force retry on this specific job to limit flakiness
+    MAX_RETRIES_FLAG: "--max-retries=3"
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
@@ -673,7 +770,8 @@ new-e2e-ha-agent:
   variables:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
 
 new-e2e-ha-agent-failover:
@@ -695,7 +793,7 @@ new-e2e-netpath:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/netpath
-    TEAM: network-performance-monitoring
+    TEAM: cloud-network-monitoring
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-windows-systemprobe:
@@ -710,7 +808,7 @@ new-e2e-windows-systemprobe:
     - windows_msi_and_bosh_zip_x64-a7
   variables:
     TARGETS: ./tests/sysprobe-functional
-    TEAM: windows-agent
+    TEAM: windows-products
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
@@ -727,7 +825,7 @@ new-e2e-windows-security-agent:
     - tests_windows_secagent_x64
   variables:
     TARGETS: ./tests/security-agent-functional
-    TEAM: windows-agent
+    TEAM: windows-products
 
 new-e2e-otel-eks-init:
   stage: e2e_init
@@ -736,13 +834,16 @@ new-e2e-otel-eks-init:
     - !reference [.on_otel_or_e2e_changes]
     - !reference [.manual]
   needs:
-    - !reference [.needs_new_e2e_template]
+    - go_e2e_deps
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
 
 new-e2e-otel-eks:
@@ -761,6 +862,7 @@ new-e2e-otel-eks:
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
     E2E_PRE_INITIALIZED: "true"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-otel:
   extends: .new_e2e_template
@@ -834,22 +936,22 @@ new-e2e-gpu:
     - !reference [.on_gpu_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/gpu                          # the target path where tests are
+    TARGETS: ./tests/gpu # the target path where tests are
     TEAM: ebpf-platform
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
     ON_NIGHTLY_FIPS: "true"
-  needs:                                         # list of required jobs. By default gitlab waits for any previous jobs.
+  needs: # list of required jobs. By default gitlab waits for any previous jobs.
     - !reference [.new_e2e_template_needs_container_deploy, needs]
-    - agent_deb-x64-a7                  # agent 7 debian package
+    - agent_deb-x64-a7 # agent 7 debian package
   parallel:
     matrix:
-      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu2204'
-      - EXTRA_PARAMS: '--run TestGPUK8sSuiteUbuntu2204'
-      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver510'
-      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver430' # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+      - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu2204"
+      - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
+      - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
+      - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
 
 generate-flakes-finder-pipeline:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
@@ -899,7 +1001,7 @@ trigger-flakes-finder:
   allow_failure: true
 
 generate-fips-e2e-pipeline:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
@@ -954,7 +1056,7 @@ trigger-fips-e2e:
         job: generate-fips-e2e-pipeline
     strategy: depend
 
-new-e2e-eks-cleanup-on-failure:
+new-e2e-cleanup-on-failure:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: e2e_cleanup
@@ -970,7 +1072,7 @@ new-e2e-eks-cleanup-on-failure:
     # Use S3 backend
     - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
-    - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "ci-init-$CI_PIPELINE_ID.*eks.*" --pulumi-backend=dd-pulumi-state
+    - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "ci-init-$CI_PIPELINE_ID-.*" --pulumi-backend=dd-pulumi-state
   variables:
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key

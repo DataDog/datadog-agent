@@ -6,7 +6,9 @@
 #include "helpers/discarders.h"
 
 int __attribute__((always_inline)) sys_connect(u64 pid_tgid) {
+    struct policy_t policy = fetch_policy(EVENT_CONNECT);
     struct syscall_cache_t syscall = {
+        .policy = policy,
         .type = EVENT_CONNECT,
         .async = pid_tgid ? 1: 0,
         .connect = {
@@ -31,6 +33,10 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
         return 0;
     }
 
+    if (approve_syscall(syscall, connect_approvers) == DISCARDED) {
+        return 0;
+    }
+
     // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64)
     if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
         return 0;
@@ -52,7 +58,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
     } else {
         entry = fill_process_context(&event.process);
     }
-    fill_container_context(entry, &event.container);
+    fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
     // Check if we should sample this event for activity dumps

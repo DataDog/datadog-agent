@@ -7,10 +7,16 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
+	"maps"
+	"reflect"
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // MacroID represents the ID of a macro
@@ -106,6 +112,12 @@ const (
 	LogAction ActionName = "log"
 )
 
+// ActionDefinitionInterface is an interface that describes a rule action section
+type ActionDefinitionInterface interface {
+	PreCheck(opts PolicyLoaderOpts) error
+	PostCheck(rule *eval.Rule) error
+}
+
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
 	Filter   *string             `yaml:"filter" json:"filter,omitempty"`
@@ -134,11 +146,77 @@ func (a *ActionDefinition) Name() ActionName {
 	}
 }
 
+func (a *ActionDefinition) getCandidateActions() map[string]ActionDefinitionInterface {
+	return map[string]ActionDefinitionInterface{
+		SetAction:      a.Set,
+		KillAction:     a.Kill,
+		HashAction:     a.Hash,
+		CoreDumpAction: a.CoreDump,
+		LogAction:      a.Log,
+	}
+}
+
+// PreCheck returns an error if the action is invalid
+func (a *ActionDefinition) PreCheck(opts PolicyLoaderOpts) error {
+	candidateActions := a.getCandidateActions()
+	actions := 0
+
+	for _, action := range candidateActions {
+		if !reflect.ValueOf(action).IsNil() {
+			if err := action.PreCheck(opts); err != nil {
+				return err
+			}
+			actions++
+		}
+	}
+
+	if actions == 0 {
+		return fmt.Errorf("either %+v section of an action must be specified", maps.Keys(candidateActions))
+	}
+
+	if actions > 1 {
+		return errors.New("only one action can be specified")
+	}
+
+	return nil
+}
+
+// PostCheck returns an error if the action is invalid after parsing
+func (a *ActionDefinition) PostCheck(rule *eval.Rule) error {
+	candidateActions := a.getCandidateActions()
+	actions := 0
+
+	for _, action := range candidateActions {
+		if !reflect.ValueOf(action).IsNil() {
+			if err := action.PostCheck(rule); err != nil {
+				return err
+			}
+			actions++
+		}
+	}
+
+	return nil
+}
+
 // Scope describes the scope variables
 type Scope string
 
+// DefaultActionDefinition describes the base type for action
+type DefaultActionDefinition struct{}
+
+// PreCheck returns an error if the action is invalid before parsing
+func (a *DefaultActionDefinition) PreCheck(_ PolicyLoaderOpts) error {
+	return nil
+}
+
+// PostCheck returns an error if the action is invalid after parsing
+func (a *DefaultActionDefinition) PostCheck(_ *eval.Rule) error {
+	return nil
+}
+
 // SetDefinition describes the 'set' section of a rule action
 type SetDefinition struct {
+	DefaultActionDefinition
 	Name         string                 `yaml:"name" json:"name"`
 	Value        interface{}            `yaml:"value" json:"value,omitempty" jsonschema:"oneof_required=SetWithValue,oneof_type=string;integer;boolean;array"`
 	DefaultValue interface{}            `yaml:"default_value" json:"default_value,omitempty" jsonschema:"oneof_type=string;integer;boolean;array"`
@@ -146,21 +224,76 @@ type SetDefinition struct {
 	Expression   string                 `yaml:"expression" json:"expression,omitempty"`
 	Append       bool                   `yaml:"append" json:"append,omitempty"`
 	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
+	ScopeField   string                 `yaml:"scope_field" json:"scope_field,omitempty"`
 	Size         int                    `yaml:"size" json:"size,omitempty"`
 	TTL          *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
 	Private      bool                   `yaml:"private" json:"private,omitempty"`
+	Inherited    bool                   `yaml:"inherited" json:"inherited,omitempty"`
+}
+
+// PreCheck returns an error if the set action is invalid
+func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
+	if s.Name == "" {
+		return errors.New("variable name is empty")
+	}
+
+	if s.DefaultValue != nil {
+		if defaultValueType, valueType := reflect.TypeOf(s.DefaultValue), reflect.TypeOf(s.Value); valueType != nil && defaultValueType != valueType {
+			return fmt.Errorf("'default_value' and 'value' must be of the same type (%s != %s)", defaultValueType, valueType)
+		}
+	}
+
+	if (s.Value == nil && s.Expression == "" && s.Field == "") ||
+		(s.Expression != "" && s.Field != "") ||
+		(s.Field != "" && s.Value != nil) ||
+		(s.Value != nil && s.Expression != "") {
+		return errors.New("either 'value', 'field' or 'expression' must be specified")
+	}
+
+	if s.Expression != "" && s.DefaultValue == nil && s.Value == nil {
+		return fmt.Errorf("failed to infer type for variable '%s', please set 'default_value'", s.Name)
+	}
+
+	if s.Inherited && s.Scope != "process" {
+		return fmt.Errorf("only variables scoped to process can be marked as inherited")
+	}
+
+	if len(s.ScopeField) > 0 && s.Scope != "process" {
+		return fmt.Errorf("only variables scoped to process can have a custom scope_field")
+	}
+
+	return nil
 }
 
 // KillDefinition describes the 'kill' section of a rule action
 type KillDefinition struct {
+	DefaultActionDefinition
 	Signal                    string `yaml:"signal" json:"signal" jsonschema:"description=A valid signal name,example=SIGKILL,example=SIGTERM"`
 	Scope                     string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
 	DisableContainerDisarmer  bool   `yaml:"disable_container_disarmer" json:"disable_container_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic container disarmer safeguard"`
 	DisableExecutableDisarmer bool   `yaml:"disable_executable_disarmer" json:"disable_executable_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic executable disarmer safeguard"`
 }
 
+// PreCheck returns an error if the kill action is invalid
+func (k *KillDefinition) PreCheck(opts PolicyLoaderOpts) error {
+	if opts.DisableEnforcement {
+		return errors.New("'kill' action is disabled globally")
+	}
+
+	if k.Signal == "" {
+		return errors.New("a valid signal has to be specified to the 'kill' action")
+	}
+
+	if _, found := model.SignalConstants[k.Signal]; !found {
+		return fmt.Errorf("unsupported signal '%s'", k.Signal)
+	}
+
+	return nil
+}
+
 // CoreDumpDefinition describes the 'coredump' action
 type CoreDumpDefinition struct {
+	DefaultActionDefinition
 	Process       bool `yaml:"process" json:"process,omitempty" jsonschema:"anyof_required=CoreDumpWithProcess"`
 	Mount         bool `yaml:"mount" json:"mount,omitempty" jsonschema:"anyof_required=CoreDumpWithMount"`
 	Dentry        bool `yaml:"dentry" json:"dentry,omitempty" jsonschema:"anyof_required=CoreDumpWithDentry"`
@@ -168,12 +301,58 @@ type CoreDumpDefinition struct {
 }
 
 // HashDefinition describes the 'hash' section of a rule action
-type HashDefinition struct{}
+type HashDefinition struct {
+	DefaultActionDefinition
+	Field string `yaml:"field" json:"field,omitempty"`
+}
+
+// PostCheck returns an error if the hash action is invalid after parsing
+func (h *HashDefinition) PostCheck(rule *eval.Rule) error {
+	ruleEventType, err := rule.GetEventType()
+	if err != nil {
+		return err
+	}
+
+	if h.Field == "" {
+		switch ruleEventType {
+		case "open":
+			h.Field = "open.file"
+		case "exec":
+			h.Field = "exec.file"
+		default:
+			return fmt.Errorf("`field` attribute is mandatory for '%s' rules", ruleEventType)
+		}
+	}
+
+	var eventType model.EventType
+	ev := model.NewFakeEvent()
+	eventType, err = model.ParseEvalEventType(ruleEventType)
+	if err != nil {
+		return err
+	}
+
+	ev.Type = uint32(eventType)
+	if err := ev.ValidateFileField(h.Field); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // LogDefinition describes the 'log' section of a rule action
 type LogDefinition struct {
+	DefaultActionDefinition
 	Level   string
 	Message string
+}
+
+// PreCheck returns an error if the log action is invalid
+func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
+	if l.Level == "" {
+		return errors.New("a valid log level must be specified to the the 'log' action")
+	}
+
+	return nil
 }
 
 // OnDemandHookPoint represents a hook point definition

@@ -137,7 +137,6 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 		}
 		evt.ProcessContext.Process = pn.Process
 		evt.CGroupContext.CGroupID = containerutils.CGroupID(pn.Process.CGroup.CGroupID)
-		evt.CGroupContext.CGroupFlags = pn.Process.CGroup.CGroupFlags
 		evt.ContainerContext.ContainerID = containerutils.ContainerID(pn.Process.ContainerID)
 
 		var fileStats unix.Statx_t
@@ -263,7 +262,7 @@ func extractPathFromSmapsLine(line []byte) (string, bool) {
 }
 
 func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {
-	boundSockets, err := procfs.GetBoundSockets(p)
+	boundSockets, err := procfs.NewBoundSocketSnapshotter().GetBoundSockets(p)
 	if err != nil {
 		seclog.Warnf("error while listing sockets (pid: %v): %s", p.Pid, err)
 		return

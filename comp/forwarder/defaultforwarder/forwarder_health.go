@@ -98,19 +98,10 @@ func (fh *forwarderHealth) init() {
 		fh.timeout /= time.Duration(apiKeyCount)
 	}
 
-	// when the config updates the "api_key", process that change
-	if fh.config != nil {
-		fh.config.OnUpdate(func(setting string, oldValue, newValue any) {
-			if setting != "api_key" {
-				return
-			}
-			oldAPIKey, ok1 := oldValue.(string)
-			newAPIKey, ok2 := newValue.(string)
-			if ok1 && ok2 {
-				fh.log.Debugf("Updating API key in forwarder, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
-				fh.updateAPIKey(oldAPIKey, newAPIKey)
-			}
-		})
+	// Ensure the forwarders have a reference to this so that we can receive
+	// updates to the API keys.
+	for _, dr := range fh.domainResolvers {
+		dr.SetForwarderHealth(fh)
 	}
 }
 
@@ -175,32 +166,50 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	}
 }
 
-func (fh *forwarderHealth) updateAPIKey(oldKey, newKey string) {
+// UpdateAPIKeys will be called by the domain resolver when it has updated an api key.
+func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []string) {
 	fh.keyMapMutex.Lock()
-	for domainURL, keyList := range fh.keysPerAPIEndpoint {
-		replaceList := make([]string, 0, len(keyList))
-		for _, currKey := range keyList {
-			if currKey == oldKey {
-				replaceList = append(replaceList, newKey)
-			} else {
-				replaceList = append(replaceList, currKey)
-			}
+
+	apiDomain := getAPIDomain(domain)
+	newList := []string{}
+
+	// We need to go through all the resolvers to build up the api keys for a given
+	// api domain incase multiple resolvers have the same api endpoint.
+	for domainURL, resolver := range fh.domainResolvers {
+		if getAPIDomain(domainURL) == apiDomain {
+			newList = append(newList, resolver.GetAPIKeys()...)
 		}
-		fh.keysPerAPIEndpoint[domainURL] = replaceList
+	}
+	fh.keysPerAPIEndpoint[apiDomain] = newList
+
+	// remove old key messages, then check apiKey validity and update the messages
+	for _, oldKey := range old {
+		// Need to check the old key doesn't exist in the list
+		// Even if it has been replaced here, it may still belong to another
+		// resolver sharing the same api endpoint and so shouldn't be removed.
+		if !slices.Contains(newList, oldKey) {
+			fh.setAPIKeyStatus(oldKey, "", &apiKeyRemove)
+		}
 	}
 	fh.keyMapMutex.Unlock()
-	// remove old key messages, then check apiKey validity and update the messages
-	fh.setAPIKeyStatus(oldKey, "", &apiKeyRemove)
-	fh.checkValidAPIKey()
+
+	// Check our new API keys
+	fh.checkValidAPIKeys(apiDomain, new)
+}
+
+func getAPIDomain(domain string) string {
+	if domainURLRegexp.MatchString(domain) {
+		return "https://api." + domainURLRegexp.FindString(domain)
+	}
+
+	return domain
 }
 
 // computeDomainURLAPIKeyMap populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
 func (fh *forwarderHealth) computeDomainURLAPIKeyMap() {
 	fh.keyMapMutex.Lock()
 	for domain, dr := range fh.domainResolvers {
-		if domainURLRegexp.MatchString(domain) {
-			domain = "https://api." + domainURLRegexp.FindString(domain)
-		}
+		domain = getAPIDomain(domain)
 		fh.keysPerAPIEndpoint[domain] = append(fh.keysPerAPIEndpoint[domain], dr.GetAPIKeys()...)
 	}
 	fh.keyMapMutex.Unlock()
@@ -280,24 +289,12 @@ func (fh *forwarderHealth) checkValidAPIKey() bool {
 	fh.keyMapMutex.Unlock()
 
 	for domain, apiKeys := range keysPerDomain {
-		for _, apiKey := range apiKeys {
-			v, err := fh.validateAPIKey(apiKey, domain)
-			scrubbedAPIKey := scrubber.HideKeyExceptLastFiveChars(apiKey)
-			if err != nil {
-				fh.log.Debugf(
-					"api_key '%s' for domain %s could not be validated: %s",
-					scrubbedAPIKey,
-					domain,
-					err.Error(),
-				)
-				apiError = true
-			} else if v {
-				fh.log.Debugf("api_key '%s' for domain %s is valid", scrubbedAPIKey, domain)
-				validKey = true
-			} else {
-				fh.log.Warnf("api_key '%s' for domain %s is invalid", scrubbedAPIKey, domain)
-			}
-		}
+		endpointAPIError, endpointValidKey := fh.checkValidAPIKeys(domain, apiKeys)
+
+		// Only set the valid if the endpoint valid is true to ensure
+		// we don't unset the flag if one endpoint is not valid.
+		validKey = validKey || endpointValidKey
+		apiError = endpointAPIError || apiError
 	}
 
 	// If there is an error during the api call, we assume that there is a
@@ -306,4 +303,28 @@ func (fh *forwarderHealth) checkValidAPIKey() bool {
 		return true
 	}
 	return validKey
+}
+
+// checkValidAPIKeys checks a given set of keys on an api endpoint
+func (fh *forwarderHealth) checkValidAPIKeys(domain string, keys []string) (apiError bool, validKey bool) {
+	for _, apiKey := range keys {
+		v, err := fh.validateAPIKey(apiKey, domain)
+		scrubbedAPIKey := scrubber.HideKeyExceptLastFiveChars(apiKey)
+		if err != nil {
+			fh.log.Debugf(
+				"api_key '%s' for domain %s could not be validated: %s",
+				scrubbedAPIKey,
+				domain,
+				err.Error(),
+			)
+			apiError = true
+		} else if v {
+			fh.log.Debugf("api_key '%s' for domain %s is valid", scrubbedAPIKey, domain)
+			validKey = true
+		} else {
+			fh.log.Warnf("api_key '%s' for domain %s is invalid", scrubbedAPIKey, domain)
+		}
+	}
+
+	return
 }

@@ -8,6 +8,7 @@ package model
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/google/uuid"
 )
 
 var (
@@ -19,6 +20,9 @@ var (
 				return 0, false
 			}
 			return int(pc.Process.Pid), true
+		}, nil),
+		"builtins.uuid4": eval.NewScopedStringVariable(func(_ *eval.Context) (string, bool) {
+			return uuid.New().String(), true
 		}, nil),
 	}
 )

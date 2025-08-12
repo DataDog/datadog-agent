@@ -11,7 +11,9 @@ import os.path
 import re
 import shutil
 import tempfile
+import threading
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import yaml
@@ -31,6 +33,8 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
+from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
+from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack
@@ -49,6 +53,159 @@ class TestState:
         return f'{"Failing" if failing else "Successful"} / {"Flaky" if flaky else "Non-flaky"}'
 
 
+def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
+    """
+    Build a single test binary for the given package.
+    Returns (pkg, success, message) tuple.
+    """
+    try:
+        # Create binary name from package path
+        binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
+        binary_path = output_path / binary_name
+
+        # Build test binary
+        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+
+        result = ctx.run(cmd, hide=True)
+        if result.ok:
+            with print_lock:
+                print(f"  ✓ Built {binary_name}")
+            return (pkg, True, f"Built {binary_name}")
+        else:
+            with print_lock:
+                print(f"  ✗ Failed to build {binary_name}: {result.stderr}")
+            return (pkg, False, f"Failed to build {binary_name}: {result.stderr}")
+
+    except Exception as e:
+        with print_lock:
+            print(f"  ✗ Error building {binary_name}: {e}")
+        return (pkg, False, f"Error building {binary_name}: {e}")
+
+
+@task(
+    help={
+        "output_dir": "Directory to store compiled test binaries",
+        "tags": "Build tags to use",
+        "parallel": "Number of parallel builds [default: number of CPUs]",
+    },
+)
+def build_binaries(
+    ctx,
+    output_dir="test-binaries",
+    manifest_file_path="manifest.json",
+    tags=[],  # noqa: B006
+    parallel=0,
+):
+    """
+    Build E2E test binaries for all test packages to be reused across test jobs.
+    This pre-builds all test binaries to optimize CI pipeline performance.
+    """
+
+    if parallel == 0:
+        parallel = multiprocessing.cpu_count()
+
+    print(f"Building test binaries using {parallel} parallel workers")
+
+    e2e_test_dir = Path("test/new-e2e/tests")
+    output_path = Path(output_dir).absolute()
+
+    # Create output directory
+    output_path.mkdir(exist_ok=True, parents=True)
+
+    # Find all test packages
+    test_packages = []
+    for root, _, files in os.walk(e2e_test_dir):
+        # Check if directory contains Go test files
+        has_go_tests = any(f.endswith("_test.go") for f in files)
+        if has_go_tests:
+            # Convert to Go package path
+            pkg_path = os.path.relpath(root, "./test/new-e2e")
+            test_packages.append(pkg_path)
+
+    if not test_packages:
+        print("No test packages found")
+        return
+
+    print(f"Found {len(test_packages)} test packages to build")
+
+    # Build tags
+    build_tags = ",".join(tags) if tags else "test"
+
+    # Build test binaries in parallel
+    print_lock = threading.Lock()
+    success_count = 0
+    failure_count = 0
+    built_packages = []  # Track successfully built packages with their info
+    with ctx.cd("test/new-e2e"):
+        with ThreadPoolExecutor(max_workers=parallel) as executor:
+            # Submit all build jobs
+            futures = {
+                executor.submit(_build_single_binary, ctx, pkg, build_tags, output_path, print_lock): pkg
+                for pkg in test_packages
+            }
+
+            # Process completed builds
+            for i, future in enumerate(as_completed(futures), 1):
+                pkg = futures[future]
+                try:
+                    pkg_result, success, message = future.result()
+                    if success:
+                        success_count += 1
+
+                    else:
+                        failure_count += 1
+
+                    # Even if it failed to build, we still want to add it to the manifest, so that we know something is missing in the test execution
+                    binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
+                    built_packages.append((pkg_result, binary_name))
+
+                    # Print progress
+                    with print_lock:
+                        print(f"Progress: {i}/{len(test_packages)} completed")
+
+                except Exception as e:
+                    failure_count += 1
+                    with print_lock:
+                        print(f"  ✗ Unexpected error building {pkg}: {e}")
+
+    print(f"\nBuild completed: {success_count} successful, {failure_count} failed")
+    print(f"Test binaries built in: {output_path.absolute()}")
+
+    # Create manifest file
+    manifest = {
+        "build_info": {
+            "timestamp": ctx.run("date -u +%Y-%m-%dT%H:%M:%SZ", hide=True).stdout.strip(),
+            "commit": get_commit_sha(ctx, short=True),
+            "build_tags": build_tags,
+            "parallel_workers": parallel,
+            "success_count": success_count,
+            "failure_count": failure_count,
+        },
+        "binaries": [],
+    }
+
+    # Use the original package paths from the build process
+    for pkg_path, binary_name in built_packages:
+        binary_file = output_path / binary_name
+        if binary_file.exists():
+            manifest["binaries"].append(
+                {
+                    "package": pkg_path,
+                    "binary": binary_name,
+                    "size": binary_file.stat().st_size,
+                }
+            )
+
+    with open(manifest_file_path, "w") as f:
+        json.dump(manifest, f, indent=2)
+
+    print(f"Manifest created: {manifest_file_path}")
+
+    if failure_count > 0:
+        print(f"Error: {failure_count} packages failed to build")
+        raise Exit(code=1)
+
+
 @task(
     iterable=['tags', 'targets', 'configparams', 'run', 'skip'],
     help={
@@ -61,6 +218,9 @@ class TestState:
         "skip": "Only run tests not matching the regular expression",
         "agent_image": 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
         "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
+        "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
+        "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
+        "max_retries": "Maximum number of retries for failed tests, default 3",
     },
 )
 def run(
@@ -93,6 +253,9 @@ def run(
     logs_folder="e2e_logs",
     local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
+    stack_name_suffix="",
+    use_prebuilt_binaries=False,
+    max_retries=0,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -114,6 +277,23 @@ def run(
         env_vars["E2E_PROFILE"] = profile
 
     parsed_params = {}
+
+    # Outside of CI try to automatically configure the secret to pull agent image
+    if not running_in_ci():
+        # Authentication against agent-qa is required for all kubernetes tests, to use the cache
+        parsed_params["ddagent:imagePullPassword"] = ctx.run(
+            "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True
+        ).stdout.strip()
+        parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+        parsed_params["ddagent:imagePullUsername"] = "AWS"
+        # If we use an agent image from sandbox registry we need to authenticate against it
+        if "376334461865" in agent_image or "376334461865" in cluster_agent_image:
+            parsed_params["ddagent:imagePullPassword"] += (
+                f",{ctx.run('aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password', hide=True).stdout.strip()}"
+            )
+            parsed_params["ddagent:imagePullRegistry"] += ",376334461865.dkr.ecr.us-east-1.amazonaws.com"
+            parsed_params["ddagent:imagePullUsername"] += ",AWS"
+
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
@@ -135,6 +315,9 @@ def run(
     if parsed_params:
         env_vars["E2E_STACK_PARAMS"] = json.dumps(parsed_params)
 
+    if stack_name_suffix:
+        env_vars["E2E_STACK_NAME_SUFFIX"] = stack_name_suffix
+
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 
     test_run_arg = ""
@@ -149,16 +332,29 @@ def run(
             f.write("{}")
 
     cmd = f"gotestsum --format {gotestsum_format} "
-    scrubber_raw_command = ""
+    raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
+
+    if use_prebuilt_binaries:
+        if not os.path.exists("test-binaries.tar.gz") or not os.path.exists("manifest.json"):
+            print(
+                "WARNING: required artifacts test-binaries.tar.gz and manifest.json not found, disabling use_prebuilt_binaries"
+            )
+            use_prebuilt_binaries = False
+
+    if use_prebuilt_binaries:
+        ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
+        raw_command = "--raw-command ./gotest-custom {packages}"
+        env_vars["GOTEST_COMMAND"] = "./gotest-custom"
+
     if running_in_ci():
-        scrubber_raw_command = (
+        raw_command = (
             # Using custom go command piped with scrubber sed instructions https://github.com/gotestyourself/gotestsum#custom-go-test-command
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
 
-    # Strings can come with extra double-quotes which can break the command, remove them
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
+    # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
     for r in run:
@@ -169,8 +365,8 @@ def run(
     args = {
         "go_mod": "readonly",
         "timeout": "4h",
-        "verbose": "-v" if verbose else "",
-        "nocache": "-count=1" if not cache else "",
+        "verbose": "-test.v" if verbose else "",
+        "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
         "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
@@ -190,20 +386,116 @@ def run(
         "extra_flags": extra_flags,
     }
 
-    test_res = test_flavor(
-        ctx,
-        flavor=AgentFlavor.base,
-        build_tags=tags,
-        modules=[e2e_module],
-        args=args,
-        cmd=cmd,
-        env=env_vars,
-        junit_tar=junit_tar,
-        result_json=result_json,
-        test_profiler=None,
-    )
+    to_teardown: set[tuple[str, str]] = set()
+    result_jsons: list[str] = []
+    result_junits: list[str] = []
+    for attempt in range(max_retries + 1):
+        remaining_tries = max_retries - attempt
+        if remaining_tries > 0:
+            # If any tries are left, avoid destroying infra on failure
+            env_vars["E2E_SKIP_DELETE_ON_FAILURE"] = "true"
+        else:
+            env_vars.pop("E2E_SKIP_DELETE_ON_FAILURE", None)
 
-    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+        partial_result_json = f"{result_json}.{attempt}.part"
+        result_jsons.append(partial_result_json)
+
+        partial_result_junit = f"junit-out-{str(AgentFlavor.base)}-{attempt}.xml"
+        result_junits.append(partial_result_junit)
+
+        test_res = test_flavor(
+            ctx,
+            flavor=AgentFlavor.base,
+            build_tags=tags,
+            modules=[e2e_module],
+            args=args,
+            cmd=cmd,
+            env=env_vars,
+            result_junit=partial_result_junit,
+            result_json=partial_result_json,
+            test_profiler=None,
+        )
+
+        washer = TestWasher(test_output_json_file=partial_result_json)
+
+        if remaining_tries > 0:
+            failed_tests = filter_only_leaf_tests(
+                (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
+            )
+
+            # Note: `get_flaky_failures` can return some unexpected things due to its logic for detecting failing tests by looking at its eventual children.
+            # By using an `intersection` we ensure that we only get tests that have actually failed.
+            known_flaky_failures = failed_tests.intersection(
+                {(package, test_name) for package, tests in washer.get_flaky_failures().items() for test_name in tests}
+            )
+
+            # Retry any failed tests that are not known to be flaky
+            to_retry = failed_tests - known_flaky_failures
+
+            if known_flaky_failures:
+                print(
+                    color_message(
+                        f"{len(known_flaky_failures)} tests failed but are known flaky. They will not be retried !",
+                        "yellow",
+                    )
+                )
+                # Schedule teardown for all known flaky failures, so that they are not left hanging after the retry loop
+                to_teardown.update(known_flaky_failures)
+
+            if to_retry:
+                failed_tests_printout = '\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))
+                print(
+                    color_message(
+                        f"Retrying {len(to_retry)} failed tests:\n- {failed_tests_printout}",
+                        "yellow",
+                    )
+                )
+
+                # Retry the failed tests only
+                affected_packages = {
+                    os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/")
+                    for package, _ in to_retry
+                }
+                e2e_module.test_targets = list(affected_packages)
+                args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_retry])
+            else:
+                break
+
+    # Make sure that any non-successful test suites that were not retried (i.e., fully-known-flaky-failing suites) are torn down
+    # Do this by calling the tests with the E2E_TEARDOWN_ONLY env var set, which will only run the teardown logic
+    if to_teardown:
+        print(
+            color_message(
+                f"Tearing down {len(to_teardown)} leftover test infras",
+                "yellow",
+            )
+        )
+        affected_packages = {
+            os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
+        }
+        e2e_module.test_targets = list(affected_packages)
+        args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_teardown])
+        env_vars["E2E_TEARDOWN_ONLY"] = "true"
+        test_flavor(
+            ctx,
+            flavor=AgentFlavor.base,
+            build_tags=tags,
+            modules=[e2e_module],
+            args=args,
+            cmd=cmd,
+            env=env_vars,
+            result_junit="",  # No need to store JUnit results for teardown-only runs
+            result_json="",  # No need to store results for teardown-only runs
+            test_profiler=None,
+        )
+
+    # Merge all the partial result JSON files into the final result JSON
+    with open(result_json, "w") as merged_file:
+        for partial_file in result_jsons:
+            with open(partial_file) as f:
+                merged_file.writelines(line.strip() + "\n" for line in f.readlines())
+
+    success = process_test_result(test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
@@ -330,9 +622,12 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         print("No stacks to delete")
         return
 
+    def trigger_destroy(stack):
+        return destroy_remote_stack(ctx, stack)
+
     print("About to delete the following stacks:", to_delete_stacks)
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
-        res = pool.map(destroy_remote_stack, to_delete_stacks)
+        res = pool.map(trigger_destroy, to_delete_stacks)
         destroyed_stack = set()
         failed_stack = set()
         for r, stack in res:
@@ -370,38 +665,36 @@ def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, 
         if len(parent) > len(child):
             return False
 
-        for i in range(len(parent)):
-            if parent[i] != child[i]:
+        for i, parent_part in enumerate(parent):
+            if parent_part != child[i]:
                 return False
 
         return True
 
-    with open(path) as f:
-        lines = [json.loads(line) for line in f]
+    result_json = ResultJson.from_file(path)
 
-    lines = [
-        json_line for json_line in lines if "Package" in json_line and "Test" in json_line and "Output" in json_line
-    ]
+    lines = [line for line in result_json.lines if line.output and line.test]
 
-    tests = {(json_line["Package"], json_line["Test"]): [] for json_line in lines}
+    tests: dict[tuple[str, str], list] = {(json_line.package, json_line.test): [] for json_line in lines}  # type: ignore
 
     # Used to preserve order, line where a test appeared first
-    test_order = {(json_line["Package"], json_line["Test"]): i for (i, json_line) in list(enumerate(lines))[::-1]}
+    test_order = {(json_line.package, json_line.test): i for (i, json_line) in list(enumerate(lines))[::-1]}
 
     for json_line in lines:
-        if json_line["Action"] == "output":
-            output: str = json_line["Output"]
+        assert json_line.output and json_line.test  # Just making mypy happy
+        if json_line.action == ActionType.OUTPUT:
+            output: str = json_line.output
             if "===" in output:
                 continue
 
             # Append logs to all children tests + this test
-            current_test_name_splitted = json_line["Test"].split("/")
+            current_test_name_splitted = json_line.test.split("/")
             for (package, test_name), logs in tests.items():
-                if package != json_line["Package"]:
+                if package != json_line.package:
                     continue
 
                 if is_parent(current_test_name_splitted, test_name.split("/")):
-                    logs.append(json_line["Output"])
+                    logs.append(json_line.output)
 
     # Rebuild order
     return sorted(

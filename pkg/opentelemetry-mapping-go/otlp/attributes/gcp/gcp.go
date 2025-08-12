@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 )
 
 // HostInfo holds the GCP host information.
@@ -31,7 +31,7 @@ type HostInfo struct {
 // HostnameFromAttrs gets the GCP Integration hostname from attributes
 // if available.
 func HostnameFromAttrs(attrs pcommon.Map) (string, bool) {
-	hostName, ok := attrs.Get(conventions.AttributeHostName)
+	hostName, ok := attrs.Get(string(conventions.HostNameKey))
 	if !ok {
 		// We need the hostname.
 		return "", false
@@ -44,7 +44,7 @@ func HostnameFromAttrs(attrs pcommon.Map) (string, bool) {
 		name = strings.SplitN(name, ".", 2)[0]
 	}
 
-	cloudAccount, ok := attrs.Get(conventions.AttributeCloudAccountID)
+	cloudAccount, ok := attrs.Get(string(conventions.CloudAccountIDKey))
 	if !ok {
 		// We need the project ID.
 		return "", false
@@ -59,19 +59,19 @@ func HostnameFromAttrs(attrs pcommon.Map) (string, bool) {
 func HostInfoFromAttrs(attrs pcommon.Map) (hostInfo *HostInfo) {
 	hostInfo = &HostInfo{}
 
-	if hostID, ok := attrs.Get(conventions.AttributeHostID); ok {
+	if hostID, ok := attrs.Get(string(conventions.HostIDKey)); ok {
 		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("instance-id:%s", hostID.Str()))
 	}
 
-	if cloudZone, ok := attrs.Get(conventions.AttributeCloudAvailabilityZone); ok {
+	if cloudZone, ok := attrs.Get(string(conventions.CloudAvailabilityZoneKey)); ok {
 		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("zone:%s", cloudZone.Str()))
 	}
 
-	if hostType, ok := attrs.Get(conventions.AttributeHostType); ok {
+	if hostType, ok := attrs.Get(string(conventions.HostTypeKey)); ok {
 		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("instance-type:%s", hostType.Str()))
 	}
 
-	if cloudAccount, ok := attrs.Get(conventions.AttributeCloudAccountID); ok {
+	if cloudAccount, ok := attrs.Get(string(conventions.CloudAccountIDKey)); ok {
 		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("project:%s", cloudAccount.Str()))
 	}
 

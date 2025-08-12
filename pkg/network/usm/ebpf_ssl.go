@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -66,6 +67,16 @@ const (
 
 	// UsmTLSAttacherName holds the name used for the uprobe attacher of tls programs. Used for tests.
 	UsmTLSAttacherName = "usm_tls"
+
+	sslSockByCtxMap     = "ssl_sock_by_ctx"
+	sslCtxByTupleMap    = "ssl_ctx_by_tuple"
+	sslCtxByPIDTGIDMap  = "ssl_ctx_by_pid_tgid"
+	sslReadArgsMap      = "ssl_read_args"
+	sslReadExArgsMap    = "ssl_read_ex_args"
+	sslWriteArgsMap     = "ssl_write_args"
+	sslWriteExArgsMap   = "ssl_write_ex_args"
+	bioNewSocketArgsMap = "bio_new_socket_args"
+	fdBySSLBioMap       = "fd_by_ssl_bio"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -233,32 +244,30 @@ var gnuTLSProbes = []manager.ProbesSelector{
 	},
 }
 
-const (
-	sslSockByCtxMap    = "ssl_sock_by_ctx"
-	sslCtxByPIDTGIDMap = "ssl_ctx_by_pid_tgid"
-)
-
 var sharedLibrariesMaps = []*manager.Map{
 	{
 		Name: sslSockByCtxMap,
 	},
 	{
-		Name: "ssl_read_args",
+		Name: sslCtxByTupleMap,
 	},
 	{
-		Name: "ssl_read_ex_args",
+		Name: sslReadArgsMap,
 	},
 	{
-		Name: "ssl_write_args",
+		Name: sslReadExArgsMap,
 	},
 	{
-		Name: "ssl_write_ex_args",
+		Name: sslWriteArgsMap,
 	},
 	{
-		Name: "bio_new_socket_args",
+		Name: sslWriteExArgsMap,
 	},
 	{
-		Name: "fd_by_ssl_bio",
+		Name: bioNewSocketArgsMap,
+	},
+	{
+		Name: fdBySSLBioMap,
 	},
 	{
 		Name: sslCtxByPIDTGIDMap,
@@ -434,10 +443,14 @@ type sslProgram struct {
 	cfg         *config.Config
 	attacher    *uprobes.UprobeAttacher
 	ebpfManager *manager.Manager
+
+	sslCtxByPIDTGIDMapCleaner *ddebpf.MapCleaner[uint64, uint64]
+	sslSockByCtxMapCleaner    *ddebpf.MapCleaner[uint64, http.SslSock]
+	sslCtxByTupleMapCleaner   *ddebpf.MapCleaner[http.ConnTuple, uint64]
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c) {
+	if !c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c) || !usmconfig.UretprobeSupported() {
 		return nil, nil
 	}
 
@@ -467,7 +480,8 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		EbpfConfig:                     &c.Config,
 		PerformInitialScan:             true,
 		EnablePeriodicScanNewProcesses: true,
-		SharedLibsLibset:               sharedlibraries.LibsetCrypto,
+		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
+		EnableDetailedLogging:          false,
 	}
 
 	o := &sslProgram{
@@ -503,6 +517,10 @@ func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Confi
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	options.MapSpecEditors[sslCtxByTupleMap] = manager.MapSpecEditor{
+		MaxEntries: cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -518,8 +536,45 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	o.addProcessExitProbe(options)
 }
 
+// initMapCleaner creates and assigns a MapCleaner for the given eBPF map.
+func initMapCleaner[K, V interface{}](mgr *manager.Manager, mapName, attacherName string) (*ddebpf.MapCleaner[K, V], error) {
+	mapObj, _, err := mgr.GetMap(mapName)
+	if err != nil {
+		return nil, fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", mapName, err)
+	}
+
+	cleaner, err := ddebpf.NewMapCleaner[K, V](mapObj, protocols.DefaultMapCleanerBatchSize, mapName, attacherName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s cleaner: %w", mapName, err)
+	}
+	return cleaner, nil
+}
+
+func (o *sslProgram) initAllMapCleaners() error {
+	var err error
+
+	o.sslCtxByPIDTGIDMapCleaner, err = initMapCleaner[uint64, uint64](o.ebpfManager, sslCtxByPIDTGIDMap, UsmTLSAttacherName)
+	if err != nil {
+		return err
+	}
+
+	o.sslSockByCtxMapCleaner, err = initMapCleaner[uint64, http.SslSock](o.ebpfManager, sslSockByCtxMap, UsmTLSAttacherName)
+	if err != nil {
+		return err
+	}
+
+	o.sslCtxByTupleMapCleaner, err = initMapCleaner[http.ConnTuple, uint64](o.ebpfManager, sslCtxByTupleMap, UsmTLSAttacherName)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart() error {
+	if err := o.initAllMapCleaners(); err != nil {
+		return err
+	}
 	return o.attacher.Start()
 }
 
@@ -545,7 +600,16 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "ssl_read_args": // maps/ssl_read_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_args_t
+	case sslCtxByTupleMap: // maps/ssl_ctx_by_tuple (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.void *
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'uintptr // C.void *'\n")
+		iter := currentMap.Iterate()
+		var key http.ConnTuple
+		var value uintptr
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case sslReadArgsMap: // maps/ssl_read_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -554,7 +618,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "ssl_read_ex_args": // maps/ssl_read_ex_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_ex_args_t
+	case sslReadExArgsMap: // maps/ssl_read_ex_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_ex_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_ex_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -563,7 +627,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "ssl_write_args": // maps/ssl_write_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
+	case sslWriteArgsMap: // maps/ssl_write_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_write_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -572,7 +636,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "ssl_write_ex_args_t": // maps/ssl_write_ex_args_t (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
+	case sslWriteExArgsMap: // maps/ssl_write_ex_args_t (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_write_ex_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -581,7 +645,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "bio_new_socket_args": // maps/bio_new_socket_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
+	case bioNewSocketArgsMap: // maps/bio_new_socket_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.__u32'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -590,7 +654,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "fd_by_ssl_bio": // maps/fd_by_ssl_bio (BPF_MAP_TYPE_HASH), key C.__u32, value uintptr // C.void *
+	case fdBySSLBioMap: // maps/fd_by_ssl_bio (BPF_MAP_TYPE_HASH), key C.__u32, value uintptr // C.void *
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u32', value: 'uintptr // C.void *'\n")
 		iter := currentMap.Iterate()
 		var key uint32
@@ -646,12 +710,11 @@ func (o *sslProgram) addProcessExitProbe(options *manager.Options) {
 }
 
 var sslPidKeyMaps = []string{
-	"ssl_read_args",
-	"ssl_read_ex_args",
-	"ssl_write_args",
-	"ssl_write_ex_args",
-	"ssl_ctx_by_pid_tgid",
-	"bio_new_socket_args",
+	sslReadArgsMap,
+	sslReadExArgsMap,
+	sslWriteArgsMap,
+	sslWriteExArgsMap,
+	bioNewSocketArgsMap,
 }
 
 // cleanupDeadPids clears maps of terminated processes, is invoked when raw tracepoints unavailable.
@@ -661,6 +724,9 @@ func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
 		if err != nil {
 			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
 		}
+	}
+	if err := o.deleteDeadPidsInSSLCtxMap(alivePIDs); err != nil {
+		log.Debugf("SSL map %q cleanup error: %v", sslCtxByPIDTGIDMap, err)
 	}
 }
 
@@ -686,6 +752,40 @@ func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map
 	for _, k := range keysToDelete {
 		_ = emap.Delete(unsafe.Pointer(&k))
 	}
+
+	return nil
+}
+
+// deleteDeadPidsInSSLCtxMap cleans up three related SSL maps in sequence:
+// 1. ssl_ctx_by_pid_tgid: Maps PIDs to SSL contexts
+// 2. ssl_sock_by_ctx: Maps SSL contexts to socket info
+// 3. ssl_ctx_by_tuple: Maps connection tuples to SSL contexts
+func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) error {
+	// Track SSL contexts that need to be cleaned up
+	// These are contexts belonging to dead PIDs
+	sslCtxToClean := make(map[uint64]struct{})
+
+	// First pass: Clean ssl_ctx_by_pid_tgid map and collect dead SSL contexts
+	o.sslCtxByPIDTGIDMapCleaner.Clean(nil, nil, func(_ int64, pidTgid uint64, sslCtx uint64) bool {
+		pid := uint32(pidTgid >> 32)
+		if _, isAlive := alivePIDs[pid]; !isAlive {
+			sslCtxToClean[sslCtx] = struct{}{}
+			return true
+		}
+		return false
+	})
+
+	// Second pass: Clean ssl_sock_by_ctx map using collected SSL contexts
+	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, sslCtx uint64, _ http.SslSock) bool {
+		_, shouldClean := sslCtxToClean[sslCtx]
+		return shouldClean
+	})
+
+	// Third pass: Clean ssl_ctx_by_tuple map using collected SSL contexts
+	o.sslCtxByTupleMapCleaner.Clean(nil, nil, func(_ int64, _ http.ConnTuple, sslCtx uint64) bool {
+		_, shouldClean := sslCtxToClean[sslCtx]
+		return shouldClean
+	})
 
 	return nil
 }

@@ -35,7 +35,7 @@ func (p *PoliciesDirProvider) Start() {}
 func (p *PoliciesDirProvider) loadPolicy(filename string, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, &ErrPolicyLoad{Name: filename, Err: err}
+		return nil, &ErrPolicyLoad{Name: filename, Source: PolicyProviderTypeDir, Err: err}
 	}
 	defer f.Close()
 

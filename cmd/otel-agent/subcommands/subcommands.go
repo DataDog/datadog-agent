@@ -23,6 +23,7 @@ type GlobalParams struct {
 	LoggerName        string
 	SyncOnInitTimeout time.Duration
 	SyncTimeout       time.Duration
+	BYOC              bool
 }
 
 // Set is called by Cobra when a flag is set.

@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
@@ -34,7 +33,6 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -43,12 +41,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
-	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/goroutinesdump"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -95,7 +91,6 @@ type provides struct {
 	Comp           option.Option[agent.Component]
 	FlareProvider  flaretypes.Provider
 	StatusProvider statusComponent.InformationProvider
-	RCListener     rctypes.ListenerProvider
 	LogsReciever   option.Option[integrations.Component]
 	APIStreamLogs  api.AgentEndpointProvider
 }
@@ -163,19 +158,10 @@ func newLogsAgent(deps dependencies) provides {
 			OnStop:  logsAgent.stop,
 		})
 
-		var rcListener rctypes.ListenerProvider
-		if sds.SDSEnabled {
-			rcListener.ListenerProvider = rctypes.RCListener{
-				state.ProductSDSAgentConfig: logsAgent.onUpdateSDSAgentConfig,
-				state.ProductSDSRules:       logsAgent.onUpdateSDSRules,
-			}
-		}
-
 		return provides{
 			Comp:           option.New[agent.Component](logsAgent),
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
-			RCListener:     rcListener,
 			LogsReciever:   option.New[integrations.Component](integrationsLogs),
 			APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
 				"/stream-logs",
@@ -243,10 +229,6 @@ func (a *logAgent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
-	if err := sds.ValidateConfigField(a.config); err != nil {
-		a.log.Error(fmt.Errorf("error while reading configuration, will block until the Agents receive an SDS configuration: %v", err))
-	}
-
 	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs)
 	return nil
 }
@@ -266,13 +248,7 @@ func (a *logAgent) startPipeline() {
 		a.launchers,
 	)
 	starter.Start()
-
-	if !sds.ShouldBlockCollectionUntilSDSConfiguration(a.config) {
-		a.startSchedulers()
-	} else {
-		a.log.Info("logs-agent ready, schedulers not started: waiting for an SDS configuration to start the logs collection")
-		a.started.Store(status.StatusCollectionNotStarted)
-	}
+	a.startSchedulers()
 }
 
 func (a *logAgent) startSchedulers() {
@@ -355,65 +331,6 @@ func (a *logAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 
 func (a *logAgent) GetPipelineProvider() pipeline.Provider {
 	return a.pipelineProvider
-}
-
-func (a *logAgent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
-	a.onUpdateSDS(sds.StandardRules, updates, applyStateCallback)
-}
-
-func (a *logAgent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
-	a.onUpdateSDS(sds.AgentConfig, updates, applyStateCallback)
-}
-
-func (a *logAgent) onUpdateSDS(reconfigType sds.ReconfigureOrderType, updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
-	var err error
-	allScannersActiveWithAllUpdatesApplied := true
-
-	// We received a hit that new updates arrived, but if the list of updates
-	// is empty, it means we don't have any updates applying to this agent anymore
-	// In this case, send the signal to stop the SDS processing.
-	if len(updates) == 0 {
-		err = a.pipelineProvider.StopSDSProcessing()
-	} else {
-		for _, config := range updates {
-			var allScannersActive bool
-			var rerr error
-
-			if reconfigType == sds.AgentConfig {
-				allScannersActive, rerr = a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config)
-			} else if reconfigType == sds.StandardRules {
-				allScannersActive, rerr = a.pipelineProvider.ReconfigureSDSStandardRules(config.Config)
-			}
-
-			if rerr != nil {
-				err = multierror.Append(err, rerr)
-			}
-
-			if !allScannersActive {
-				allScannersActiveWithAllUpdatesApplied = false
-			}
-		}
-	}
-
-	if err != nil {
-		a.log.Errorf("Can't update SDS configurations: %v", err)
-	}
-
-	if allScannersActiveWithAllUpdatesApplied && sds.ShouldBlockCollectionUntilSDSConfiguration(a.config) {
-		a.startSchedulers()
-	}
-
-	// Apply the new status to all configs
-	for cfgPath := range updates {
-		if err == nil {
-			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-		} else {
-			applyStateCallback(cfgPath, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-		}
-	}
 }
 
 func streamLogsEvents(logsAgent agent.Component) func(w http.ResponseWriter, r *http.Request) {

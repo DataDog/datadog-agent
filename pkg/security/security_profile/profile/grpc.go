@@ -49,7 +49,6 @@ func (p *Profile) ToSecurityActivityDumpMessage(timeout time.Duration, storageRe
 			DifferentiateArgs: p.Metadata.DifferentiateArgs,
 			ContainerID:       string(p.Metadata.ContainerID),
 			CGroupID:          string(p.Metadata.CGroupContext.CGroupID),
-			CGroupManager:     containerutils.CGroupManager(p.Metadata.CGroupContext.CGroupFlags & containerutils.CGroupManagerMask).String(),
 			Start:             p.Metadata.Start.Format(time.RFC822),
 			Timeout:           timeout.String(),
 			Size:              p.Metadata.Size,
@@ -103,8 +102,7 @@ func NewProfileFromActivityDumpMessage(msg *api.ActivityDumpMessage) (*Profile, 
 		DifferentiateArgs: metadata.GetDifferentiateArgs(),
 		ContainerID:       containerutils.ContainerID(metadata.GetContainerID()),
 		CGroupContext: model.CGroupContext{
-			CGroupID:      containerutils.CGroupID(metadata.GetCGroupID()),
-			CGroupManager: metadata.GetCGroupManager(),
+			CGroupID: containerutils.CGroupID(metadata.GetCGroupID()),
 		},
 		Start: startTime,
 		End:   startTime.Add(timeout),
@@ -197,6 +195,8 @@ func (p *Profile) ToSecurityProfileMessage(timeResolver *ktime.Resolver) *api.Se
 		msg.EventTypes = append(msg.EventTypes, evt.String())
 	}
 
+	p.InstancesLock.Lock()
+	defer p.InstancesLock.Unlock()
 	for _, inst := range p.Instances {
 		msg.Instances = append(msg.Instances, &api.InstanceMessage{
 			ContainerID: string(inst.ContainerID),

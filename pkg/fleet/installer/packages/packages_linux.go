@@ -12,6 +12,7 @@ var (
 	packagesHooks = map[string]hooks{
 		"datadog-agent":      datadogAgentPackage,
 		"datadog-apm-inject": apmInjectPackage,
+		"datadog-agent-ddot": datadogAgentDDOTPackage,
 	}
 
 	// AsyncPreRemoveHooks is called before a package is removed from the disk.
@@ -19,4 +20,7 @@ var (
 	// the rest of the uninstall or upgrade process.
 	// Today this is only useful for the dotnet tracer on windows and generally *SHOULD BE AVOIDED*.
 	AsyncPreRemoveHooks = map[string]repository.PreRemoveHook{}
+
+	// packageCommands is a map of package names to their command handlers
+	packageCommands = map[string]PackageCommandHandler{}
 )

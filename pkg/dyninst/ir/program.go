@@ -7,8 +7,6 @@
 
 package ir
 
-import "github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
 // identify messages from this program as they are communicated over the ring
 // buffer.
@@ -20,6 +18,9 @@ type TypeID uint32
 // EventID is a ID corresponding to an event output by the program.  It is used
 // to identify events as they are communicated over the ring buffer.
 type EventID uint32
+
+// SubprogramID is a ID corresponding to a subprogram in a program.
+type SubprogramID uint32
 
 // Program defines the information needed to generate an eBPF program for a set
 // of probes as they apply to a specific binary. This structure is used to drive
@@ -34,27 +35,39 @@ type Program struct {
 	// Subprograms are a list of subprograms that will be probed.
 	Subprograms []*Subprogram
 	// Types are the types that are used in the program.
-	Types []Type
+	Types map[TypeID]Type
 	// MaxTypeID is the maximum type ID that has been assigned.
 	MaxTypeID TypeID
+	// Issues is a list of probes that could not be created.
+	Issues []ProbeIssue
+}
+
+// InlinePCRanges represent the pc ranges for a single instance of an inlined subprogram.
+// Ranges correspond to the inlined instance itself. RootRanges correspond to the pc ranges
+// of a subprogram at the root of the tree formed by inlined subroutines. E.g. if this is a
+// subprogram A, that has been inlined into subprogram B, and subprogram B has been inlined
+// to a subprogram C, and C is not inlined, then these are pc ranges of C.
+type InlinePCRanges struct {
+	Ranges     []PCRange
+	RootRanges []PCRange
 }
 
 // Subprogram represents a function or method in the program.
 type Subprogram struct {
+	// ID is the ID of the subprogram.
+	ID SubprogramID
 	// Name is the name of the subprogram.
 	Name string
 	// OutOfLinePCRanges are the ranges of PC values that will be probed for the
 	// out-of-line-instances of the subprogram. These are sorted by start PC.
-	//
-	// What does this mean for inlined subprograms?
+	// Some functions may be inlined only in certain callers, in which case
+	// both OutOfLinePCRanges and InlinedPCRanges will be non-empty.
 	OutOfLinePCRanges []PCRange
 	// InlinePCRanges are the ranges of PC values that will be probed for the
 	// inlined instances of the subprogram. These are sorted by start PC.
-	InlinePCRanges [][]PCRange
+	InlinePCRanges []InlinePCRanges
 	// Variables are the variables that are used in the subprogram.
-	Variables []Variable
-	// Lines are the lines of the subprogram.
-	Lines []SubprogramLine
+	Variables []*Variable
 }
 
 // SubprogramLine represents a line in the subprogram.
@@ -78,57 +91,23 @@ type Variable struct {
 	Locations []Location
 	// IsParameter is true if the variable is a parameter.
 	IsParameter bool
-}
-
-// Location is the location of a parameter or variable in the subprogram.
-type Location struct {
-	// PCRange is the range of PC values that will be probed.
-	Range PCRange
-	// The locations of the pieces of the parameter or variable.
-	Location []bininspect.ParameterPiece
+	// IsReturn is true if this variable is a return value.
+	IsReturn bool
 }
 
 // PCRange is the range of PC values that will be probed.
-type PCRange struct {
-	// Start is the start PC value of the range.
-	Start uint64
-	// End is the end PC value of the range.
-	End uint64
-}
+type PCRange = [2]uint64
 
 // Probe represents a probe from the config as it applies to the program.
 type Probe struct {
-	// The config UUID of the probe.
-	ID string
-	// The kind of the probe.
-	Type ProbeKind
-	// The version of the probe.
-	Version int
-	// Tags that are passed through the probe.
-	Tags []string
+	ProbeDefinition
 	// The subprogram to which the probe is attached.
 	Subprogram *Subprogram
 	// The events that trigger the probe.
-	Events []Event
-	// Whether the probe should capture a snapshot of the state of the program.
-	Snapshot bool
+	Events []*Event
 	// TODO: Add template support:
 	//	TemplateSegments []TemplateSegment
 }
-
-// ProbeKind is the kind of probe.
-type ProbeKind uint8
-
-const (
-	_ ProbeKind = iota
-
-	// ProbeKindLog is a probe that emits a log.
-	ProbeKindLog
-	// ProbeKindSpan is a probe that emits a span.
-	ProbeKindSpan
-	// ProbeKindMetric is a probe that updates a metric.
-	ProbeKindMetric
-)
 
 // Event corresponds to an action that will occur when a PC is hit.
 type Event struct {
@@ -138,7 +117,15 @@ type Event struct {
 	// The datatype of the event.
 	Type *EventRootType
 	// The PC values at which the event should be injected.
-	InjectionPCs []uint64
+	InjectionPoints []InjectionPoint
 	// The condition that must be met for the event to be injected.
 	Condition *Expression
+}
+
+// InjectionPoint is a point at which an event should be injected.
+type InjectionPoint struct {
+	// The PC value at which the event should be injected.
+	PC uint64
+	// Whether the function at that PC is frameless.
+	Frameless bool
 }

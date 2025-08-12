@@ -8,6 +8,7 @@ package helpers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -32,10 +33,11 @@ const (
 
 func newBuilder(root string, hostname string, localFlare bool, flareArgs types.FlareArgs) (*builder, error) {
 	fb := &builder{
-		tmpDir:     root,
-		permsInfos: permissionsInfos{},
-		isLocal:    localFlare,
-		flareArgs:  flareArgs,
+		tmpDir:           root,
+		permsInfos:       permissionsInfos{},
+		isLocal:          localFlare,
+		flareArgs:        flareArgs,
+		nonScrubbedFiles: make(map[string]bool),
 	}
 
 	fb.flareDir = filepath.Join(fb.tmpDir, hostname)
@@ -127,6 +129,9 @@ type builder struct {
 	scrubber *scrubber.Scrubber
 
 	logFile *os.File
+
+	// nonScrubbedFiles tracks files that were added without scrubbing
+	nonScrubbedFiles map[string]bool
 }
 
 func getArchiveName() string {
@@ -149,6 +154,33 @@ func (fb *builder) Save() (string, error) {
 		fb.Lock()
 		defer fb.Unlock()
 		return fb.permsInfos.commit()
+	})
+
+	_ = fb.AddFileFromFunc("non_scrubbed_files.json", func() ([]byte, error) {
+		fb.Lock()
+		defer fb.Unlock()
+		if len(fb.nonScrubbedFiles) == 0 {
+			return []byte(`{"files": [], "message": "All files were scrubbed"}`), nil
+		}
+
+		// Convert map keys to slice for JSON output
+		files := make([]string, 0, len(fb.nonScrubbedFiles))
+		for file := range fb.nonScrubbedFiles {
+			files = append(files, file)
+		}
+
+		// Create JSON structure
+		result := map[string]interface{}{
+			"files": files,
+			"count": len(files),
+		}
+
+		jsonData, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling non-scrubbed files to JSON: %v", err)
+		}
+
+		return jsonData, nil
 	})
 
 	_ = fb.logFile.Close()
@@ -232,6 +264,11 @@ func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) er
 		if err != nil {
 			return fb.logError("error scrubbing content for '%s': %s", destFile, err)
 		}
+	} else {
+		// Track non-scrubbed files
+		fb.Lock()
+		fb.nonScrubbedFiles[destFile] = true
+		fb.Unlock()
 	}
 
 	fb.Lock()
@@ -292,6 +329,11 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string)
 		if err != nil {
 			return fb.logError("error scrubbing content for file '%s': %s", destFile, err)
 		}
+	} else {
+		// Track non-scrubbed files
+		fb.Lock()
+		fb.nonScrubbedFiles[destFile] = true
+		fb.Unlock()
 	}
 
 	fb.Lock()

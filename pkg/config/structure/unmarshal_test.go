@@ -238,6 +238,51 @@ network_devices:
 	assert.Equal(t, trapsCfg.StopTimeout, 0)
 }
 
+type containerConfig struct {
+	Network      string                   `mapstructure:"network_address"`
+	Port         uint16                   `mapstructure:"port"`
+	InnerConfigs map[string][]innerConfig `mapstructure:"interface_configs"`
+}
+
+type innerConfig struct {
+	Name  string `mapstructure:"name"`
+	Speed int    `mapstructure:"speed"`
+}
+
+func TestUnmarshalNestedConfig(t *testing.T) {
+	confYaml := `
+container_config:
+  network_address: 127.0.0.1
+  port: 1337
+  interface_configs:
+    first:
+      - name: cat
+        speed: 4
+      - name: dog
+        speed: 5
+    second:
+      - name: eel
+        speed: 2
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var cfg = containerConfig{}
+	err := unmarshalKeyReflection(mockConfig, "container_config", &cfg)
+	assert.NoError(t, err)
+
+	assert.Equal(t, cfg.Network, "127.0.0.1")
+	assert.Equal(t, cfg.Port, uint16(1337))
+	assert.Equal(t, len(cfg.InnerConfigs), 2)
+	assert.Equal(t, len(cfg.InnerConfigs["first"]), 2)
+	assert.Equal(t, cfg.InnerConfigs["first"][0].Name, "cat")
+	assert.Equal(t, cfg.InnerConfigs["first"][0].Speed, 4)
+	assert.Equal(t, cfg.InnerConfigs["first"][1].Name, "dog")
+	assert.Equal(t, cfg.InnerConfigs["first"][1].Speed, 5)
+	assert.Equal(t, len(cfg.InnerConfigs["second"]), 1)
+	assert.Equal(t, cfg.InnerConfigs["second"][0].Name, "eel")
+	assert.Equal(t, cfg.InnerConfigs["second"][0].Speed, 2)
+}
+
 type endpoint struct {
 	Name   string `yaml:"name"`
 	APIKey string `yaml:"apikey"`
@@ -297,6 +342,81 @@ endpoints:
 			}
 		})
 	}
+}
+
+func TestUnmarshalAllMapString(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test")
+
+	type testString struct {
+		A string
+		B string
+	}
+	checkString := func() {
+		obj := testString{}
+		err := unmarshalKeyReflection(mockConfig, "test", &obj)
+		require.NoError(t, err)
+		assert.Equal(t, testString{A: "a", B: "b"}, obj)
+	}
+	mockConfig.Set("test", map[string]string{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[interface{}]string{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[string]interface{}{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+}
+
+func TestUnmarshalAllMapInt(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test")
+
+	type testInt struct {
+		A int
+		B int
+	}
+	checkInt := func() {
+		objInt := testInt{}
+		err := unmarshalKeyReflection(mockConfig, "test", &objInt)
+		require.NoError(t, err)
+		assert.Equal(t, testInt{A: 1, B: 2}, objInt)
+	}
+	mockConfig.Set("test", map[string]int{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+
+	mockConfig.Set("test", map[interface{}]int{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+}
+
+func TestUnmarshalAllMapBool(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test")
+
+	type testBool struct {
+		A bool
+		B bool
+	}
+	checkBool := func() {
+		objBool := testBool{}
+		err := unmarshalKeyReflection(mockConfig, "test", &objBool)
+		require.NoError(t, err)
+		assert.Equal(t, testBool{A: true, B: true}, objBool)
+	}
+	mockConfig.Set("test", map[string]bool{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
+
+	mockConfig.Set("test", map[interface{}]bool{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
 }
 
 type featureConfig struct {

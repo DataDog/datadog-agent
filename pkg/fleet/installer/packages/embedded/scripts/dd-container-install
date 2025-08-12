@@ -44,10 +44,16 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ -z "$uninstall_flag" ]; then
-    $sudo_cmd /opt/datadog-packages/datadog-installer/stable/bin/installer/installer apm instrument docker
+if [ -x /opt/datadog-packages/run/datadog-installer-ssi ]; then
+    installerPath="/opt/datadog-packages/run/datadog-installer-ssi"
 else
-    $sudo_cmd /opt/datadog-packages/datadog-installer/stable/bin/installer/installer apm uninstrument docker
+    installerPath="/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
+fi
+
+if [ -z "$uninstall_flag" ]; then
+    $sudo_cmd $installerPath apm instrument docker
+else
+    $sudo_cmd $installerPath apm uninstrument docker
 fi
 
 exit 0

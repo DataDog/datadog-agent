@@ -16,6 +16,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
+
+	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,36 +28,7 @@ const (
 	userUnitsPath = "/etc/systemd/system"
 )
 
-// StopUnits stops multiple systemd units
-func StopUnits(ctx context.Context, units ...string) error {
-	for _, unit := range units {
-		err := StopUnit(ctx, unit)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// StopUnit starts a systemd unit
-func StopUnit(ctx context.Context, unit string, args ...string) error {
-	args = append([]string{"stop", unit}, args...)
-	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
-	exitErr := &exec.ExitError{}
-	if !errors.As(err, &exitErr) {
-		return err
-	}
-	// exit code 5 means the unit is not loaded, we can continue
-	if exitErr.ExitCode() == 5 {
-		return nil
-	}
-	return err
-}
-
-// StartUnit starts a systemd unit
-func StartUnit(ctx context.Context, unit string, args ...string) error {
-	args = append([]string{"start", unit}, args...)
-	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
+func handleSystemdSelfStops(err error) error {
 	exitErr := &exec.ExitError{}
 	if !errors.As(err, &exitErr) {
 		return err
@@ -69,10 +43,43 @@ func StartUnit(ctx context.Context, unit string, args ...string) error {
 	return err
 }
 
+// StopUnits stops multiple systemd units
+func StopUnits(ctx context.Context, units ...string) error {
+	var errs error
+	for _, unit := range units {
+		err := StopUnit(ctx, unit)
+		errs = multierr.Append(errs, err)
+	}
+	return errs
+}
+
+// StopUnit starts a systemd unit
+func StopUnit(ctx context.Context, unit string, args ...string) error {
+	args = append([]string{"stop", unit}, args...)
+	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	// exit code 5 means the unit is not loaded, we can continue
+	if exitErr.ExitCode() == 5 {
+		return nil
+	}
+	return handleSystemdSelfStops(err)
+}
+
+// StartUnit starts a systemd unit
+func StartUnit(ctx context.Context, unit string, args ...string) error {
+	args = append([]string{"start", unit}, args...)
+	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	return handleSystemdSelfStops(err)
+}
+
 // RestartUnit restarts a systemd unit
 func RestartUnit(ctx context.Context, unit string, args ...string) error {
 	args = append([]string{"restart", unit}, args...)
-	return telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	err := telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	return handleSystemdSelfStops(err)
 }
 
 // EnableUnit enables a systemd unit
@@ -82,13 +89,12 @@ func EnableUnit(ctx context.Context, unit string) error {
 
 // DisableUnits disables multiple systemd units
 func DisableUnits(ctx context.Context, units ...string) error {
+	var errs error
 	for _, unit := range units {
 		err := DisableUnit(ctx, unit)
-		if err != nil {
-			return err
-		}
+		errs = multierr.Append(errs, err)
 	}
-	return nil
+	return errs
 }
 
 // DisableUnit disables a systemd unit
@@ -141,4 +147,14 @@ func IsRunning() (running bool, err error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// JournaldLogs returns the logs for a given unit since a given time
+func JournaldLogs(ctx context.Context, unit string, since time.Time) (string, error) {
+	journalctlCmd := exec.CommandContext(ctx, "journalctl", "_COMM=systemd", "--unit", unit, "-e", "--no-pager", "--since", since.Format(time.RFC3339))
+	stdout, err := journalctlCmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(stdout), nil
 }

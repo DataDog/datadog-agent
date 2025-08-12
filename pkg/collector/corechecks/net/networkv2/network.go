@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 import (
@@ -44,13 +44,24 @@ const (
 var (
 	filesystem = afero.NewOsFs()
 
-	ethtoolObject     = ethtool.Ethtool{}
-	getEthtoolDrvInfo = ethtoolObject.DriverInfo
-	getEthtoolStats   = ethtoolObject.Stats
+	getNewEthtool = newEthtool
 
 	runCommandFunction  = runCommand
 	ssAvailableFunction = checkSSExecutable
 )
+
+type ethtoolInterface interface {
+	DriverInfo(intf string) (ethtool.DrvInfo, error)
+	Stats(intf string) (map[string]uint64, error)
+	Close()
+}
+
+var _ ethtoolInterface = (*ethtool.Ethtool)(nil)
+
+func newEthtool() (ethtoolInterface, error) {
+	eth, err := ethtool.NewEthtool()
+	return eth, err
+}
 
 // NetworkCheck represent a network check
 type NetworkCheck struct {
@@ -60,12 +71,16 @@ type NetworkCheck struct {
 }
 
 type networkInstanceConfig struct {
+	CollectRateMetrics        bool     `yaml:"collect_rate_metrics"`
+	CollectCountMetrics       bool     `yaml:"collect_count_metrics"`
 	CollectConnectionState    bool     `yaml:"collect_connection_state"`
 	CollectConnectionQueues   bool     `yaml:"collect_connection_queues"`
 	ExcludedInterfaces        []string `yaml:"excluded_interfaces"`
 	ExcludedInterfaceRe       string   `yaml:"excluded_interface_re"`
 	ExcludedInterfacePattern  *regexp.Regexp
-	CollectEthtoolStats       bool     `yaml:"collect_ethtool_stats"`
+	CollectEthtoolStats       bool
+	CollectEthtoolMetrics     bool     `yaml:"collect_ethtool_metrics"`
+	CollectEnaMetrics         bool     `yaml:"collect_aws_ena_metrics"`
 	ConntrackPath             string   `yaml:"conntrack_path"`
 	UseSudoConntrack          bool     `yaml:"use_sudo_conntrack"`
 	BlacklistConntrackMetrics []string `yaml:"blacklist_conntrack_metrics"`
@@ -90,6 +105,12 @@ type networkStats interface {
 
 type defaultNetworkStats struct {
 	procPath string
+}
+
+type connectionStateEntry struct {
+	count uint64
+	recvQ []uint64
+	sendQ []uint64
 }
 
 func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
@@ -140,16 +161,30 @@ func (c *NetworkCheck) Run() error {
 	} else {
 		for _, protocol := range protocols {
 			if _, ok := counters[protocol]; ok {
-				submitProtocolMetrics(sender, counters[protocol])
+				c.submitProtocolMetrics(sender, counters[protocol])
+			}
+		}
+		if tcpStats, ok := counters["Tcp"]; ok {
+			if val, ok := tcpStats.Stats["CurrEstab"]; ok {
+				sender.Gauge("system.net.tcp.current_established", float64(val), "", nil)
 			}
 		}
 	}
 
+	submitInterfaceSysMetrics(sender)
+
+	ethtoolObject, err := getNewEthtool()
+	if err != nil {
+		log.Errorf("Failed to create ethtool object: %s", err)
+		return err
+	}
+	defer ethtoolObject.Close()
+
 	for _, interfaceIO := range ioByInterface {
-		if !c.isDeviceExcluded(interfaceIO.Name) {
+		if !c.isInterfaceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
 			if c.config.instance.CollectEthtoolStats {
-				err = handleEthtoolStats(sender, interfaceIO)
+				err = handleEthtoolStats(sender, ethtoolObject, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
 				if err != nil {
 					return err
 				}
@@ -160,11 +195,7 @@ func (c *NetworkCheck) Run() error {
 	if c.config.instance.CollectConnectionState {
 		netProcfsBasePath := c.net.GetNetProcBasePath()
 		for _, protocol := range []string{"udp4", "udp6", "tcp4", "tcp6"} {
-			connectionsStats, err := c.net.Connections(protocol)
-			if err != nil {
-				return err
-			}
-			submitConnectionsMetrics(sender, protocol, connectionsStats, c.config.instance.CollectConnectionQueues, netProcfsBasePath)
+			submitConnectionStateMetrics(sender, protocol, c.config.instance.CollectConnectionQueues, netProcfsBasePath)
 		}
 	}
 
@@ -175,16 +206,57 @@ func (c *NetworkCheck) Run() error {
 	return nil
 }
 
-func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
-	for _, excludedDevice := range c.config.instance.ExcludedInterfaces {
-		if deviceName == excludedDevice {
-			return true
-		}
+func (c *NetworkCheck) isInterfaceExcluded(interfaceName string) bool {
+	if slices.Contains(c.config.instance.ExcludedInterfaces, interfaceName) {
+		log.Debugf("Skipping network interface %s", interfaceName)
+		return true
 	}
-	if c.config.instance.ExcludedInterfacePattern != nil {
-		return c.config.instance.ExcludedInterfacePattern.MatchString(deviceName)
+	if c.config.instance.ExcludedInterfacePattern != nil && c.config.instance.ExcludedInterfacePattern.MatchString(interfaceName) {
+		log.Debugf("Skipping network interface from match: %s", interfaceName)
+		return true
 	}
 	return false
+}
+
+func submitInterfaceSysMetrics(sender sender.Sender) {
+	sysNetLocation := "/sys/class/net"
+	sysNetMetrics := []string{"mtu", "tx_queue_len", "up"}
+	ifaces, err := afero.ReadDir(filesystem, sysNetLocation)
+	if err != nil {
+		log.Debugf("Unable to list %s, skipping system iface metrics: %s.", sysNetLocation, err)
+		return
+	}
+	for _, iface := range ifaces {
+		ifaceTag := []string{fmt.Sprintf("iface:%s", iface.Name())}
+		for _, metricName := range sysNetMetrics {
+			metricFileName := metricName
+			if metricName == "up" {
+				metricFileName = "carrier"
+			}
+			metricFilepath := filepath.Join(sysNetLocation, iface.Name(), metricFileName)
+			val, err := readIntFile(metricFilepath, filesystem)
+			if err != nil {
+				log.Debugf("Unable to read %s, skipping: %s.", metricFilepath, err)
+			}
+			sender.Gauge(fmt.Sprintf("system.net.iface.%s", metricName), float64(val), "", ifaceTag)
+		}
+		queuesFilepath := filepath.Join(sysNetLocation, iface.Name(), "queues")
+		queues, err := afero.ReadDir(filesystem, queuesFilepath)
+		if err != nil {
+			log.Debugf("Unable to list %s, skipping: %s.", queuesFilepath, err)
+		} else {
+			txQueueCount, rxQueueCount := 0, 0
+			for _, queue := range queues {
+				if strings.HasPrefix(queue.Name(), "tx-") {
+					txQueueCount++
+				} else if strings.HasPrefix(queue.Name(), "rx-") {
+					rxQueueCount++
+				}
+			}
+			sender.Gauge("system.net.iface.num_tx_queues", float64(txQueueCount), "", ifaceTag)
+			sender.Gauge("system.net.iface.num_rx_queues", float64(rxQueueCount), "", ifaceTag)
+		}
+	}
 }
 
 func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat) {
@@ -207,22 +279,21 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) error {
-	ethtoolObjectPtr, err := ethtool.NewEthtool()
-	if err != nil {
-		log.Errorf("Failed to create ethtool object: %s", err)
-		return err
+func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
+	if interfaceIO.Name == "lo" || interfaceIO.Name == "lo0" {
+		// Skip loopback ifaces as they don't support SIOCETHTOOL
+		log.Debugf("Skipping loopbackinterface %s", interfaceIO.Name)
+		return nil
 	}
-	ethtoolObject = *ethtoolObjectPtr
 
 	// Preparing the interface name and copy it into the request
-	ifaceBytes := []byte(interfaceIO.Name)
-	if len(ifaceBytes) > 15 {
-		ifaceBytes = ifaceBytes[:15]
+	iface := interfaceIO.Name
+	if len(iface) > 15 {
+		iface = iface[:15]
 	}
 
 	// Fetch driver information (ETHTOOL_GDRVINFO)
-	drvInfo, err := getEthtoolDrvInfo(string(ifaceBytes))
+	drvInfo, err := ethtoolObject.DriverInfo(iface)
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
@@ -236,7 +307,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) er
 	driverVersion := replacer.Replace(drvInfo.Version)
 
 	// Fetch ethtool stats values (ETHTOOL_GSTATS)
-	statsMap, err := getEthtoolStats(string(ifaceBytes))
+	statsMap, err := ethtoolObject.Stats(iface)
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)
@@ -245,22 +316,53 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) er
 		}
 	}
 
-	processedMap := getEthtoolMetrics(driverName, statsMap)
-	for extraTag, keyValuePairing := range processedMap {
+	if collectEnaMetrics {
+		enaMetrics := getEnaMetrics(statsMap)
 		tags := []string{
-			"interface:" + interfaceIO.Name,
+			"device:" + interfaceIO.Name,
 			"driver_name:" + driverName,
 			"driver_version:" + driverVersion,
-			extraTag,
 		}
 
-		for metricName, metricValue := range keyValuePairing {
+		count := 0
+		for metricName, metricValue := range enaMetrics {
 			metricName := fmt.Sprintf("system.net.%s", metricName)
-			sender.MonotonicCount(metricName, float64(metricValue), "", tags)
+			sender.Gauge(metricName, float64(metricValue), "", tags)
+			count++
+		}
+		log.Debugf("tracked %d network ena metrics for interface %s", count, interfaceIO.Name)
+	}
+
+	if collectEthtoolMetrics {
+		processedMap := getEthtoolMetrics(driverName, statsMap)
+		for extraTag, keyValuePairing := range processedMap {
+			tags := []string{
+				"device:" + interfaceIO.Name,
+				"driver_name:" + driverName,
+				"driver_version:" + driverVersion,
+				extraTag,
+			}
+
+			for metricName, metricValue := range keyValuePairing {
+				metricName := fmt.Sprintf("system.net.%s", metricName)
+				sender.MonotonicCount(metricName, float64(metricValue), "", tags)
+			}
 		}
 	}
 
 	return nil
+}
+
+func getEnaMetrics(statsMap map[string]uint64) map[string]uint64 {
+	metrics := make(map[string]uint64)
+
+	for stat, value := range statsMap {
+		if slices.Contains(enaMetricNames, stat) {
+			metrics[enaMetricPrefix+stat] = value
+		}
+	}
+
+	return metrics
 }
 
 func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string]map[string]uint64 {
@@ -360,73 +462,164 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 	return result
 }
 
-func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCountersStat) {
+func (c *NetworkCheck) submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCountersStat) {
 	if protocolMapping, ok := protocolsMetricsMapping[protocolStats.Protocol]; ok {
 		for rawMetricName, metricName := range protocolMapping {
 			if metricValue, ok := protocolStats.Stats[rawMetricName]; ok {
-				sender.Rate(metricName, float64(metricValue), "", nil)
-				sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+				if c.config.instance.CollectRateMetrics {
+					sender.Rate(metricName, float64(metricValue), "", nil)
+				}
+				if c.config.instance.CollectCountMetrics {
+					sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+				}
 			}
 		}
 	}
 }
 
 // Try using `ss` for increased performance over `netstat`
-func checkSSExecutable() error {
+func checkSSExecutable() bool {
 	_, err := exec.LookPath("ss")
 	if err != nil {
-		return errors.New("`ss` executable not found in system PATH")
+		log.Debug("`ss` executable not found in system PATH")
+		return false
 	}
-	return nil
+	return true
 }
 
-func getQueueMetrics(ipVersion string, procfsPath string) (map[string][]uint64, error) {
+func getSocketStateMetrics(protocol string, procfsPath string) (map[string]*connectionStateEntry, error) {
 	env := []string{"PROC_ROOT=" + procfsPath}
-	ipFlag := fmt.Sprintf("--ipv%s", ipVersion)
+	// Pass the IP version to `ss` because there's no built-in way of distinguishing between the IP versions in the output
+	// Also calls `ss` for each protocol, because on some systems (e.g. Ubuntu 14.04), there is a bug that print `tcp` even if it's `udp`
+	// The `-H` flag isn't available on old versions of `ss`.
+
+	ipFlag := fmt.Sprintf("--ipv%s", protocol[len(protocol)-1:])
+	protocolFlag := fmt.Sprintf("--%s", protocol[:len(protocol)-1])
 	// Go's exec.Command environment is the same as the running process unlike python so we do not need to adjust the PATH
-	output, err := runCommandFunction([]string{"sh", "-c", "ss", "--numeric", "--tcp", "--all", ipFlag}, env)
+	cmd := fmt.Sprintf("ss --numeric %s --all %s", protocolFlag, ipFlag)
+	output, err := runCommandFunction([]string{"sh", "-c", cmd}, env)
 	if err != nil {
 		return nil, fmt.Errorf("error executing ss command: %v", err)
 	}
-	return parseQueueMetrics(output)
+	return parseSocketStatsMetrics(protocol, output)
 }
 
-func getQueueMetricsNetstat(ipVersion string, _ string) (map[string][]uint64, error) {
+func getNetstatStateMetrics(protocol string, _ string) (map[string]*connectionStateEntry, error) {
 	output, err := runCommandFunction([]string{"netstat", "-n", "-u", "-t", "-a"}, []string{})
 	if err != nil {
 		return nil, fmt.Errorf("error executing netstat command: %v", err)
 	}
-	return parseQueueMetricsNetstat(output)
+	return parseNetstatMetrics(protocol, output)
 }
 
-func parseQueueMetrics(output string) (map[string][]uint64, error) {
-	queueMetrics := make(map[string][]uint64)
-	suffixMapping := tcpStateMetricsSuffixMapping["ss"]
+// why not sum here
+func parseSocketStatsMetrics(protocol, output string) (map[string]*connectionStateEntry, error) {
+	results := make(map[string]*connectionStateEntry)
 
-	// 7624 CLOSE-WAIT
-	//   72 ESTAB
-	//    9 LISTEN
-	//    1 State
-	//   37 TIME-WAIT
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) > 2 {
-			val, ok := suffixMapping[fields[1]]
-			if ok {
-				state := val
-				recvQ := parseQueue(fields[2])
-				sendQ := parseQueue(fields[3])
-				queueMetrics[state] = append(queueMetrics[state], recvQ, sendQ)
+	suffixMapping := tcpStateMetricsSuffixMapping["ss"]
+	if protocol[:3] == "udp" {
+		results["connections"] = &connectionStateEntry{
+			count: 0,
+			recvQ: []uint64{},
+			sendQ: []uint64{},
+		}
+	} else {
+		for _, state := range suffixMapping {
+			if state == "connections" {
+				continue
+			}
+			if _, exists := results[state]; !exists {
+				results[state] = &connectionStateEntry{
+					count: 0,
+					recvQ: []uint64{},
+					sendQ: []uint64{},
+				}
 			}
 		}
 	}
-	return queueMetrics, nil
+
+	// State       Recv-Q   Send-Q     Local Address:Port          Peer Address:Port
+	// LISTEN      0        4096       127.0.0.53%lo:53                 0.0.0.0:*
+	// LISTEN      0        4096           127.0.0.1:5001               0.0.0.0:*
+	// LISTEN      0        4096           127.0.0.1:5000               0.0.0.0:*
+	// LISTEN      0        10               0.0.0.0:27500              0.0.0.0:*
+	// LISTEN      0        4096          127.0.0.54:53                 0.0.0.0:*
+	// LISTEN      0        4096             0.0.0.0:5355               0.0.0.0:*
+	// LISTEN      0        4096           127.0.0.1:631                0.0.0.0:*
+	// SYN-SENT    0        1           192.168.64.6:46118      169.254.169.254:80
+	// ESTAB       0        0           192.168.64.6:50204        3.233.157.145:443
+	// ESTAB       0        0              127.0.0.1:51064            127.0.0.1:5001
+	// ESTAB       0        0           192.168.64.6:50522        34.107.243.93:443
+	// SYN-SENT    0        1           192.168.64.6:46104      169.254.169.254:80
+	// SYN-SENT    0        1           192.168.64.6:46124      169.254.169.254:80
+	// SYN-SENT    0        1           192.168.64.6:56644      169.254.169.254:80
+	// ESTAB       0        0           192.168.64.6:55976         3.233.158.71:443
+	// TIME-WAIT   0        0           192.168.64.6:38964        3.233.157.100:443
+	// SYN-SENT    0        1           192.168.64.6:56654      169.254.169.254:80
+	// ESTAB       0        0              127.0.0.1:5001             127.0.0.1:51064
+	// SYN-SENT    0        1           192.168.64.6:56650      169.254.169.254:80
+	// SYN-SENT    0        1           192.168.64.6:53594      100.100.100.200:80
+
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		// skip malformed ss entry result
+		if len(fields) < 3 {
+			continue
+		}
+
+		var stateField string
+		// skip the header
+		if fields[0] == "State" {
+			continue
+		}
+		if protocol[:3] == "udp" {
+			// all UDP suffixes resolve to connections
+			stateField = "NONE"
+		} else {
+			stateField = fields[0]
+		}
+		// skip connection states we do not have mappings for
+		state, ok := suffixMapping[stateField]
+		if !ok {
+			continue
+		}
+
+		recvQ := parseQueue(fields[1])
+		sendQ := parseQueue(fields[2])
+		if entry, exists := results[state]; exists {
+			entry.count = entry.count + 1
+			entry.recvQ = append(entry.recvQ, recvQ)
+			entry.sendQ = append(entry.sendQ, sendQ)
+		}
+	}
+	return results, nil
 }
 
-func parseQueueMetricsNetstat(output string) (map[string][]uint64, error) {
-	queueMetrics := make(map[string][]uint64)
+func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEntry, error) {
+	protocol = strings.ReplaceAll(protocol, "4", "") // the output entry is tcp, tcp6, udp, udp6 so we need to strip the 4
+	results := make(map[string]*connectionStateEntry)
 	suffixMapping := tcpStateMetricsSuffixMapping["netstat"]
+	if protocol[:3] == "udp" {
+		results["connections"] = &connectionStateEntry{
+			count: 0,
+			recvQ: []uint64{},
+			sendQ: []uint64{},
+		}
+	} else {
+		for _, state := range suffixMapping {
+			if state == "connections" {
+				continue
+			}
+			if _, exists := results[state]; !exists {
+				results[state] = &connectionStateEntry{
+					count: 0,
+					recvQ: []uint64{},
+					sendQ: []uint64{},
+				}
+			}
+		}
+	}
 
 	// Active Internet connections (w/o servers)
 	// Proto Recv-Q Send-Q Local Address           Foreign Address         State
@@ -436,24 +629,44 @@ func parseQueueMetricsNetstat(output string) (map[string][]uint64, error) {
 	// tcp6       0      0 46.105.75.4:80          93.15.237.188:58038     FIN_WAIT2
 	// tcp6       0      0 46.105.75.4:80          79.220.227.193:2029     ESTABLISHED
 	// udp        0      0 0.0.0.0:123             0.0.0.0:*
+	// udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
 	// udp6       0      0 :::41458                :::*
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
-		if strings.Contains(line, "tcp") {
-			fields := strings.Fields(line)
-			if len(fields) > 5 {
-				val, ok := suffixMapping[fields[5]]
-				if ok {
-					state := val
-					recvQ := parseQueue(fields[1])
-					sendQ := parseQueue(fields[2])
-					queueMetrics[state] = append(queueMetrics[state], recvQ, sendQ)
-				}
-			}
+		fields := strings.Fields(line)
+
+		if len(fields) < 5 {
+			continue
+		}
+
+		// filter out the rows that do not match the current protocol enumeration
+		entryProtocol := fields[0]
+		if protocol != entryProtocol {
+			continue
+		}
+
+		var stateField string
+		if protocol[:3] == "udp" {
+			// all UDP suffixes resolve to connections
+			stateField = "NONE"
+		} else {
+			stateField = fields[5]
+		}
+		// skip connection states we do not have mappings for
+		state, ok := suffixMapping[stateField]
+		if !ok {
+			continue
+		}
+
+		recvQ := parseQueue(fields[1])
+		sendQ := parseQueue(fields[2])
+		if entry, exists := results[state]; exists {
+			entry.count = entry.count + 1
+			entry.recvQ = append(entry.recvQ, recvQ)
+			entry.sendQ = append(entry.sendQ, sendQ)
 		}
 	}
-
-	return queueMetrics, nil
+	return results, nil
 }
 
 func parseQueue(queueStr string) uint64 {
@@ -465,63 +678,35 @@ func parseQueue(queueStr string) uint64 {
 	return queue
 }
 
-func submitConnectionsMetrics(
+func submitConnectionStateMetrics(
 	sender sender.Sender,
 	protocolName string,
-	connectionsStats []net.ConnectionStat,
 	collectConnectionQueues bool,
 	procfsPath string,
 ) {
-	useSS := false
-	queueFunc := getQueueMetricsNetstat
-	if ssAvailableFunction() == nil {
-		log.Debug("Using `ss` for queue metrics")
-		useSS = true
-		queueFunc = getQueueMetrics
+	var getStateMetrics func(ipVersion string, procfsPath string) (map[string]*connectionStateEntry, error)
+	if ssAvailableFunction() {
+		log.Debug("Using `ss` for connection state metrics")
+		getStateMetrics = getSocketStateMetrics
+	} else {
+		log.Debug("Using `netstat` for connection state metrics")
+		getStateMetrics = getNetstatStateMetrics
 	}
 
-	var stateMetricSuffixMapping map[string]string
-	switch protocolName {
-	case "udp4", "udp6":
-		stateMetricSuffixMapping = udpStateMetricsSuffixMapping
-	case "tcp4", "tcp6":
-		if useSS {
-			stateMetricSuffixMapping = tcpStateMetricsSuffixMapping["ss"]
-		} else {
-			stateMetricSuffixMapping = tcpStateMetricsSuffixMapping["netstat"]
-		}
+	results, err := getStateMetrics(protocolName, procfsPath)
+	if err != nil {
+		log.Debug("Error getting connection state metrics:", err)
+		return
 	}
 
-	metricCount := map[string]float64{}
-	for _, suffix := range stateMetricSuffixMapping {
-		metricCount[suffix] = 0
-	}
-	for _, connectionStats := range connectionsStats {
-		metricCount[stateMetricSuffixMapping[connectionStats.Status]]++
-	}
-	for suffix, count := range metricCount {
-		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix), count, "", nil)
-	}
-
-	queueMetrics := make(map[string][]uint64)
-	if collectConnectionQueues && protocolName[:3] == "tcp" {
-		var queues map[string][]uint64
-		var err error
-		// Pass the IP version to `ss` because there's no built-in way of distinguishing between the IP versions in the output
-		// Also calls `ss` for each protocol, because on some systems (e.g. Ubuntu 14.04), there is a bug that print `tcp` even if it's `udp`
-		// The `-H` flag isn't available on old versions of `ss`.
-		queues, err = queueFunc(protocolName[len(protocolName)-1:], procfsPath)
-		if err != nil {
-			log.Debug("Error getting queue metrics:", err)
-			return
-		}
-		for state, queues := range queues {
-			queueMetrics[state] = append(queueMetrics[state], queues...)
-		}
-		for state, queues := range queueMetrics {
-			for _, queue := range queues {
-				sender.Histogram("system.net.tcp.recv_q", float64(queue), "", []string{"state:" + state})
-				sender.Histogram("system.net.tcp.send_q", float64(queue), "", []string{"state:" + state})
+	for suffix, metrics := range results {
+		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix), float64(metrics.count), "", nil)
+		if collectConnectionQueues && protocolName[:3] == "tcp" {
+			for _, point := range metrics.recvQ {
+				sender.Histogram("system.net.tcp.recv_q", float64(point), "", []string{"state:" + suffix})
+			}
+			for _, point := range metrics.sendQ {
+				sender.Histogram("system.net.tcp.send_q", float64(point), "", []string{"state:" + suffix})
 			}
 		}
 	}
@@ -600,6 +785,10 @@ func readIntFile(filePath string, fs afero.Fs) (int, error) {
 }
 
 func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) {
+	if conntrackPath == "" {
+		return
+	}
+
 	// In CentOS, conntrack is located in /sbin and /usr/sbin which may not be in the agent user PATH
 	cmd := []string{conntrackPath, "-S"}
 	if useSudoConntrack {
@@ -658,45 +847,50 @@ func runCommand(cmd []string, env []string) (string, error) {
 }
 
 func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
-	if conntrackPath != "None" {
-		addConntrackStatsMetrics(sender, conntrackPath, useSudo)
-		conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
-		var availableFiles []string
-		fs := filesystem
-		files, err := afero.ReadDir(fs, conntrackFilesLocation)
-		if err != nil {
-			log.Debugf("Unable to list files in %s: %v", conntrackFilesLocation, err)
-		} else {
-			for _, file := range files {
-				if file.Mode().IsRegular() && strings.HasPrefix(file.Name(), "nf_conntrack_") {
-					availableFiles = append(availableFiles, strings.TrimPrefix(file.Name(), "nf_conntrack_"))
-				}
-			}
-		}
+	addConntrackStatsMetrics(sender, conntrackPath, useSudo)
 
-		// By default, only max and count are reported. However if the blacklist is set,
-		// the whitelist is losing its default value
-		for _, metricName := range availableFiles {
-			if len(blacklistConntrackMetrics) > 0 {
-				if slices.Contains(blacklistConntrackMetrics, metricName) {
-					continue
-				}
-			} else if len(whitelistConntrackMetrics) > 0 {
-				if !slices.Contains(whitelistConntrackMetrics, metricName) {
-					continue
-				}
-			} else {
-				if !slices.Contains([]string{"max", "count"}, metricName) {
-					continue
-				}
+	conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
+	var availableFiles []string
+	fs := filesystem
+	files, err := afero.ReadDir(fs, conntrackFilesLocation)
+	if err != nil {
+		log.Debugf("Unable to list files in %s: %v", conntrackFilesLocation, err)
+	} else {
+		for _, file := range files {
+			if file.Mode().IsRegular() && strings.HasPrefix(file.Name(), "nf_conntrack_") {
+				availableFiles = append(availableFiles, strings.TrimPrefix(file.Name(), "nf_conntrack_"))
 			}
-			metricFileLocation := filepath.Join(conntrackFilesLocation, "nf_conntrack_"+metricName)
-			value, err := readIntFile(metricFileLocation, fs)
-			if err != nil {
-				log.Debugf("Error reading %s: %v", metricFileLocation, err)
-			}
-			sender.Gauge("system.net.conntrack."+metricName, float64(value), "", nil)
 		}
+	}
+
+	// By default, only max and count are reported. However if the blacklist is set,
+	// the whitelist is losing its default value
+	for _, metricName := range availableFiles {
+		if len(blacklistConntrackMetrics) > 0 {
+			if slices.ContainsFunc(blacklistConntrackMetrics, func(s string) bool {
+				return strings.Contains(metricName, s)
+			}) {
+				continue
+			}
+		} else if len(whitelistConntrackMetrics) > 0 {
+			if !slices.ContainsFunc(whitelistConntrackMetrics, func(s string) bool {
+				return strings.Contains(metricName, s)
+			}) {
+				continue
+			}
+		} else {
+			if !slices.ContainsFunc([]string{"max", "count"}, func(s string) bool {
+				return strings.Contains(metricName, s)
+			}) {
+				continue
+			}
+		}
+		metricFileLocation := filepath.Join(conntrackFilesLocation, "nf_conntrack_"+metricName)
+		value, err := readIntFile(metricFileLocation, fs)
+		if err != nil {
+			log.Debugf("Error reading %s: %v", metricFileLocation, err)
+		}
+		sender.Gauge("system.net.conntrack."+metricName, float64(value), "", nil)
 	}
 }
 
@@ -724,6 +918,10 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 		}
 	}
 
+	if c.config.instance.CollectEthtoolMetrics || c.config.instance.CollectEnaMetrics {
+		c.config.instance.CollectEthtoolStats = true
+	}
+
 	return nil
 }
 
@@ -741,7 +939,15 @@ func newCheck(cfg config.Component) check.Check {
 	}
 
 	return &NetworkCheck{
-		net:       defaultNetworkStats{procPath: procfsPath},
 		CheckBase: core.NewCheckBase(CheckName),
+		net:       defaultNetworkStats{procPath: procfsPath},
+		config: networkConfig{
+			instance: networkInstanceConfig{
+				CollectRateMetrics:        true,
+				ConntrackPath:             "",
+				WhitelistConntrackMetrics: []string{"max", "count"},
+				UseSudoConntrack:          true,
+			},
+		},
 	}
 }

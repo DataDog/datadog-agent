@@ -27,7 +27,7 @@ jobs:
             ubuntu-latest,
             macos-13,
             macos-latest,
-            windows-2019,
+            windows-2022,
             windows-latest,
           ]
         # Run tests with both the agent's version and gohai's pinned version

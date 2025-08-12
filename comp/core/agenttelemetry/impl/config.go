@@ -203,8 +203,6 @@ var defaultProfiles = `
       period: 900
   - name: logs-and-metrics
     metric:
-      exclude:
-        zero_metric: true
       metrics:
         - name: dogstatsd.udp_packets_bytes
         - name: dogstatsd.uds_packets_bytes
@@ -216,6 +214,10 @@ var defaultProfiles = `
           aggregate_tags:
             - compression_kind
         - name: logs.sender_latency
+        - name: logs.truncated
+          aggregate_tags:
+            - service
+            - source
         - name: logs.auto_multi_line_aggregator_flush
           aggregate_tags:
             - truncated
@@ -226,6 +228,10 @@ var defaultProfiles = `
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
+        - name: transactions.http_errors
+          aggregate_tags:
+            - code
+            - endpoint
     schedule:
       start_after: 30
       iterations: 0
@@ -276,19 +282,49 @@ var defaultProfiles = `
         request_type: agent-bsod
         payload_key: agent_bsod
         message: 'Agent BSOD'
-  - name: status
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: status.dce_render_errors
-          aggregate_tags:
-            - kind
-            - template_name
   - name: service-discovery
     metric:
       metrics:
         - name: service_discovery.discovered_services
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
+  - name: runtime-started
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: runtime.started
+    schedule:
+      start_after: 5
+      iterations: 1
+  - name: runtime-running
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: runtime.running
+  - name: otlp
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: runtime.datadog_agent_otlp_ingest_metrics
+          aggregate_tags:
+            - version
+            - command
+            - host
+        - name: runtime.datadog_agent_ddot_metrics
+          aggregate_tags:
+            - version
+            - command
+            - host
+        - name: runtime.datadog_agent_ddot_traces
+          aggregate_tags:
+            - version
+            - command
+            - host
     schedule:
       start_after: 30
       iterations: 0

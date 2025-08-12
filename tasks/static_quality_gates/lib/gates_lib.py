@@ -49,8 +49,9 @@ def byte_to_string(size, unit_power=None, with_unit=True):
     return f"{sign}{s}{' '+size_name[unit_power] if with_unit else ''}"
 
 
-def string_to_latex_color(text, latex_color):
-    return r"$${\color{" + latex_color + "}" + text + "}$$"
+def string_to_latex_color(text):
+    # Github latex colors are currently broken, we are disabling this function's color temporarily for now
+    return r"$${" + text + "}$$"
 
 
 def string_to_byte(size: str):
@@ -84,6 +85,8 @@ def find_package_path(flavor, package_os, arch, extension=None):
     separator = '_' if package_os == 'debian' else '-'
     if not extension:
         extension = "deb" if package_os == 'debian' else "rpm"
+    if package_os == "windows":
+        package_dir = f"{package_dir}/pipeline-{os.environ['CI_PIPELINE_ID']}"
     glob_pattern = f'{package_dir}/{flavor}{separator}7*{arch}.{extension}'
     package_paths = glob.glob(glob_pattern)
     if len(package_paths) > 1:
@@ -101,6 +104,7 @@ class GateMetricHandler:
         "datadog.agent.static_quality_gate.max_allowed_on_wire_size": "max_on_wire_size",
         "datadog.agent.static_quality_gate.max_allowed_on_disk_size": "max_on_disk_size",
     }
+    S3_REPORT_PATH = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates"
 
     def __init__(self, git_ref, bucket_branch, filename=None):
         self.metrics = {}
@@ -117,22 +121,22 @@ class GateMetricHandler:
         string_value = byte_to_string(value, with_unit=with_unit, unit_power=2)
         if value > 0:
             string_value = "+" + string_value
-            return string_to_latex_color(string_value, "red")
+            return string_to_latex_color(string_value)
         elif value < 0:
-            return string_to_latex_color(string_value, "green")
+            return string_to_latex_color(string_value)
         else:
-            return string_to_latex_color(string_value, "green")
+            return string_to_latex_color(string_value)
 
     def get_formatted_metric_comparison(self, gate_name, first_metric, limit_metric):
         first_value = self.metrics[gate_name][first_metric]
         second_value = self.metrics[gate_name][limit_metric]
         limit_value_string = r"$${" + byte_to_string(second_value, unit_power=2, with_unit=False) + "}$$"
         if first_value > second_value:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "red")} > {limit_value_string}"
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} > {limit_value_string}"
         elif first_value < second_value:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "green")} < {limit_value_string}"
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} < {limit_value_string}"
         else:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "orange")} = {limit_value_string}"
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} = {limit_value_string}"
 
     def register_metric(self, gate_name, metric_name, metric_value):
         if self.metrics.get(gate_name, None) is None:
@@ -163,17 +167,19 @@ class GateMetricHandler:
             )
         return None
 
-    def generate_relative_size(self, ctx, filename="static_gate_report.json", ancestor=None):
+    def generate_relative_size(
+        self, ctx, filename="static_gate_report.json", report_path="static_gate_report.json", ancestor=None
+    ):
         if ancestor:
             # Fetch the ancestor's static quality gates report json file
             out = ctx.run(
-                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{ancestor}/{filename} {filename}",
+                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.S3_REPORT_PATH}/{ancestor}/{filename} {report_path}",
                 hide=True,
                 warn=True,
             )
             if out.exited == 0:
                 # Load the report inside of a GateMetricHandler specific to the ancestor
-                ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, filename)
+                ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, report_path)
                 for gate in self.metrics:
                     ancestor_gate = ancestor_metric_handler.metrics.get(gate)
                     if not ancestor_gate:
@@ -181,12 +187,12 @@ class GateMetricHandler:
                     # Compute the difference between the wire and disk size of common gates between the ancestor and the current pipeline
                     for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
                         if self.metrics[gate].get(metric_key) and ancestor_gate.get(metric_key):
-                            relative_metric_size = ancestor_gate[metric_key] - self.metrics[gate][metric_key]
+                            relative_metric_size = self.metrics[gate][metric_key] - ancestor_gate[metric_key]
                             self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
             else:
                 print(
                     color_message(
-                        f"[WARN] Unable to fetch quality gates {filename} from {ancestor} !\nstdout:\n{out.stdout}\nstderr:\n{out.stderr}",
+                        f"[WARN] Unable to fetch quality gates {report_path} from {ancestor} !\nstdout:\n{out.stdout}\nstderr:\n{out.stderr}",
                         "orange",
                     )
                 )
@@ -238,7 +244,7 @@ class GateMetricHandler:
             send_metrics(series=series)
         print(color_message("Metric sending finished !", "blue"))
 
-    def generate_metric_reports(self, ctx, filename="static_gate_report.json", branch=None):
+    def generate_metric_reports(self, ctx, filename="static_gate_report.json", branch=None, is_nightly=False):
         if not self.series_is_complete:
             print(
                 color_message(
@@ -251,8 +257,8 @@ class GateMetricHandler:
             json.dump(self.metrics, f)
 
         CI_COMMIT_SHA = os.environ.get("CI_COMMIT_SHA")
-        if branch == "main" and CI_COMMIT_SHA:
+        if not is_nightly and branch == "main" and CI_COMMIT_SHA:
             ctx.run(
-                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{CI_COMMIT_SHA}/{filename}",
+                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} {self.S3_REPORT_PATH}/{CI_COMMIT_SHA}/{filename}",
                 hide="stdout",
             )

@@ -10,21 +10,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-traceroute/udp"
 	"math/rand"
 	"net"
 	"net/netip"
 	"slices"
 	"time"
 
+	"github.com/DataDog/datadog-traceroute/common"
+	"github.com/DataDog/datadog-traceroute/icmp"
+	tracerlog "github.com/DataDog/datadog-traceroute/log"
+	"github.com/DataDog/datadog-traceroute/sack"
+	"github.com/DataDog/datadog-traceroute/tcp"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/sack"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
@@ -54,6 +58,17 @@ var tracerouteRunnerTelemetry = struct {
 }{
 	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "runs", []string{}, "Counter measuring the number of traceroutes run"),
 	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "failed_runs", []string{}, "Counter measuring the number of traceroute run failures"),
+}
+
+func init() {
+	tracerlog.SetLogger(tracerlog.Logger{
+		Tracef:    log.Tracef,
+		Infof:     log.Infof,
+		Debugf:    log.Debugf,
+		Warnf:     log.Warnf,
+		Errorf:    log.Errorf,
+		TraceFunc: log.TraceFunc,
+	})
 }
 
 // Runner executes traceroutes
@@ -147,11 +162,66 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 			tracerouteRunnerTelemetry.failedRuns.Inc()
 			return payload.NetworkPath{}, err
 		}
+	case payload.ProtocolICMP:
+		log.Tracef("Running ICMP traceroute for: %+v", cfg)
+		pathResult, err = r.runICMP(cfg, hname, dest, maxTTL, timeout)
+		if err != nil {
+			tracerouteRunnerTelemetry.failedRuns.Inc()
+			return payload.NetworkPath{}, err
+		}
 	default:
 		log.Errorf("Invalid protocol for: %+v", cfg)
 		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return payload.NetworkPath{}, fmt.Errorf("failed to run traceroute, invalid protocol: %s", cfg.Protocol)
 	}
+
+	return pathResult, nil
+}
+
+func (r *Runner) runICMP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
+	targetAddr, ok := netip.AddrFromSlice(target)
+	if !ok {
+		return payload.NetworkPath{}, fmt.Errorf("invalid target IP")
+	}
+	results, err := icmp.RunICMPTraceroute(context.TODO(), icmp.Params{
+		Target: targetAddr,
+		ParallelParams: common.TracerouteParallelParams{
+			TracerouteParams: common.TracerouteParams{
+				MinTTL:            DefaultMinTTL,
+				MaxTTL:            maxTTL,
+				TracerouteTimeout: timeout,
+				PollFrequency:     100 * time.Millisecond,
+				SendDelay:         10 * time.Millisecond,
+			},
+		},
+	})
+	if err != nil {
+		return payload.NetworkPath{}, err
+	}
+	pathResult, err := r.processResults(results, payload.ProtocolICMP, hname, cfg.DestHostname, cfg.DestPort)
+	if err != nil {
+		return payload.NetworkPath{}, err
+	}
+	log.Tracef("ICMP Results: %+v", pathResult)
+
+	return pathResult, nil
+}
+
+func (r *Runner) runUDP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
+	destPort := cfg.DestPort
+	if destPort == 0 {
+		destPort = 33434 // TODO: is this the default we want?
+	}
+	tr := udp.NewUDPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout)
+	results, err := tr.Traceroute()
+	if err != nil {
+		return payload.NetworkPath{}, err
+	}
+	pathResult, err := r.processResults(results, payload.ProtocolUDP, hname, cfg.DestHostname, cfg.DestPort)
+	if err != nil {
+		return payload.NetworkPath{}, err
+	}
+	log.Tracef("UDP Results: %+v", pathResult)
 
 	return pathResult, nil
 }
@@ -221,7 +291,7 @@ func (r *Runner) runTCP(cfg config.Config, hname string, target net.IP, maxTTL u
 
 	doSyn := func() (*common.Results, error) {
 		tr := tcp.NewTCPv4(target, destPort, DefaultNumPaths, DefaultMinTTL, maxTTL, time.Duration(DefaultDelay)*time.Millisecond, timeout, cfg.TCPSynParisTracerouteMode)
-		return tr.TracerouteSequential()
+		return tr.Traceroute()
 	}
 	doSack := func() (*common.Results, error) {
 		params, err := makeSackParams(target, destPort, maxTTL, timeout)

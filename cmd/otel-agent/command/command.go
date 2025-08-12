@@ -30,6 +30,11 @@ const (
 	loggerName = "OTELCOL"
 )
 
+var (
+	// BYOC indicates whether the otel agent was built via byoc
+	BYOC string
+)
+
 // MakeRootCommand is the root command for the otel-agent
 // Please note that the otel-agent can be launched directly
 // by the root command, unlike other agents that are managed
@@ -38,6 +43,7 @@ func MakeRootCommand() *cobra.Command {
 	globalParams := subcommands.GlobalParams{
 		ConfigName: "datadog-otel",
 		LoggerName: loggerName,
+		BYOC:       strings.EqualFold(BYOC, "true"),
 	}
 
 	return makeCommands(&globalParams)

@@ -21,7 +21,7 @@ import (
 )
 
 func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	ctx := getTestSystemContext(t)
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), config.New())
 
@@ -86,10 +86,10 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 }
 
 func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	ctx := getTestSystemContext(t)
 	cfg := config.New()
-	cfg.MaxStreamInactivity = 1 * time.Second // Set inactivity threshold to 1 second
+	cfg.StreamConfig.Timeout = 1 * time.Second // Set inactivity threshold to 1 second
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
 
 	// Create two streams
@@ -146,7 +146,7 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	stream2.handleKernelLaunch(launch2)
 
 	// Clean at a time when stream2 should still be active but stream1 should be inactive
-	endTime := ktimeLaunch1 + uint64(cfg.MaxStreamInactivity.Nanoseconds()+1)
+	endTime := ktimeLaunch1 + uint64(cfg.StreamConfig.Timeout.Nanoseconds()+1)
 	handlers.clean(int64(endTime))
 
 	// Verify stream1 is not present (inactive)

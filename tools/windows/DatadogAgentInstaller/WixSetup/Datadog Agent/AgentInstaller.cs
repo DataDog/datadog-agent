@@ -30,7 +30,7 @@ namespace WixSetup.Datadog_Agent
         // Source directories
         private const string InstallerSource = @"C:\opt\datadog-agent";
         private const string BinSource = @"C:\opt\datadog-agent\bin\agent";
-        private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
+        private const string EtcSource = @"C:\opt\datadog-agent\etc\datadog-agent";
 
         private readonly AgentBinaries _agentBinaries;
         private readonly AgentFeatures _agentFeatures = new();
@@ -573,6 +573,9 @@ namespace WixSetup.Datadog_Agent
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     }
             );
+            var scriptsBinDir = new Dir(new Id("SCRIPTS"), "scripts",
+                 new Files($@"{InstallerSource}\bin\scripts\*")
+            );
             var securityAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentsecurityservice"),
                 Constants.SecurityAgentServiceName,
@@ -616,8 +619,7 @@ namespace WixSetup.Datadog_Agent
                         // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                         StopOn = null,
                         RemoveOn = SvcEvent.Uninstall_Wait,
-                        Start = SvcStartType.auto,
-                        DelayedAutoStart = true,
+                        Start = SvcStartType.demand,
                         ServiceSid = ServiceSid.none,
                         FirstFailureActionType = FailureActionType.restart,
                         SecondFailureActionType = FailureActionType.restart,
@@ -629,7 +631,8 @@ namespace WixSetup.Datadog_Agent
                         Account = "LocalSystem",
                         Vital = true
                     }
-                )
+                ),
+                scriptsBinDir
             );
 
             return targetBinFolder;
@@ -644,7 +647,7 @@ namespace WixSetup.Datadog_Agent
                 new Dir("run"),
                 new Dir("logs"),
                 new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
-                    new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
+                    new Files($@"{EtcSource}\conf.d\*")
                 ));
 
             appData.AddDir(new Dir(new Id("security.d"),

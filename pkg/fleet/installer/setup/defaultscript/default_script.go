@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultInjectorVersion = "0.35.0-1"
+	defaultInjectorVersion = "0.40.0-1"
 )
 
 var (
@@ -89,9 +89,17 @@ func SetupDefaultScript(s *common.Setup) error {
 		s.Config.DatadogYAML.DDURL = url
 	}
 
-	// Install packages
+	// Install agent package
 	installAgentPackage(s)
-	installAPMPackages(s)
+
+	// Install DDOT package if enabled
+	installDDOTPackage(s)
+
+	// Optionally setup SSI
+	err := SetupAPMSSIScript(s)
+	if err != nil {
+		return fmt.Errorf("failed to setup APM SSI script: %w", err)
+	}
 
 	return nil
 }
@@ -160,6 +168,14 @@ func installAgentPackage(s *common.Setup) {
 	// Agent install
 	if _, ok := os.LookupEnv("DD_NO_AGENT_INSTALL"); !ok {
 		s.Packages.Install(common.DatadogAgentPackage, agentVersion())
+	}
+}
+
+// installDDOTPackage installs the DDOT package if enabled
+func installDDOTPackage(s *common.Setup) {
+	// DDOT install - check if otel-collector is enabled
+	if otelEnabled, ok := os.LookupEnv("DD_OTELCOLLECTOR_ENABLED"); ok && strings.ToLower(otelEnabled) == "true" {
+		s.Packages.Install(common.DatadogAgentDDOTPackage, agentVersion())
 	}
 }
 

@@ -60,7 +60,7 @@ build do
   configure_args = []
   if mac_os_x?
     configure_cmd = "./Configure"
-    configure_args << "darwin64-x86_64-cc"
+    configure_args << "darwin64-#{arm_target? ? "arm64" : "x86_64"}-cc"
   elsif windows?
     configure_cmd = "perl.exe ./Configure"
     configure_args << (windows_arch_i386? ? "mingw" : "mingw64")
@@ -79,7 +79,11 @@ build do
   ]
 
   if windows?
-    configure_args << "no-zlib"
+    configure_args << [
+      "--prefix=#{python_3_embedded}",
+      "no-zlib",
+      "no-uplink",
+    ]
     if ENV["AGENT_FLAVOR"] == "fips"
       configure_args << '--openssldir="C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"'
       # Provide a context name for our configuration through the registry
@@ -87,6 +91,7 @@ build do
     end
   else
     configure_args << [
+      "--prefix=#{install_dir}/embedded",
       "--with-zlib-lib=#{install_dir}/embedded/lib",
       "--with-zlib-include=#{install_dir}/embedded/include",
       "zlib",
@@ -97,7 +102,9 @@ build do
   # the crazy platform specific compiler flags at the end.
   configure_args << env["CFLAGS"] << env["LDFLAGS"]
 
-  configure(*configure_args, bin: configure_cmd, env: env, no_build_triplet: true)
+  # We don't use the regular configure wrapper function here since openssl's configure
+  # is not the usual autoconf configure but something handmade written in perl
+  command "#{configure_cmd} #{configure_args.join(' ')}", env: env
 
   command "make depend", env: env
   command "make -j #{workers}", env: env
@@ -109,6 +116,5 @@ build do
     delete "#{install_dir}/embedded/lib/libcrypto.a"
     delete "#{install_dir}/embedded/lib/libssl.a"
   else
-    copy "ms/applink.c", "#{install_dir}/embedded3/include/openssl"
   end
 end

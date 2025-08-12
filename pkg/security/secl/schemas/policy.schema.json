@@ -99,7 +99,11 @@
       "description": "CoreDumpDefinition describes the 'coredump' action"
     },
     "HashDefinition": {
-      "properties": {},
+      "properties": {
+        "field": {
+          "type": "string"
+        }
+      },
       "additionalProperties": false,
       "type": "object",
       "description": "HashDefinition describes the 'hash' section of a rule action"
@@ -386,6 +390,9 @@
             "cgroup"
           ]
         },
+        "scope_field": {
+          "type": "string"
+        },
         "size": {
           "type": "integer"
         },
@@ -403,6 +410,9 @@
           ]
         },
         "private": {
+          "type": "boolean"
+        },
+        "inherited": {
           "type": "boolean"
         }
       },

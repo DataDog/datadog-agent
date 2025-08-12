@@ -8,6 +8,7 @@ package rcserviceimpl
 
 import (
 	"context"
+	"expvar"
 	"fmt"
 	"time"
 
@@ -26,6 +27,16 @@ import (
 
 	"go.uber.org/fx"
 )
+
+var (
+	rcExpvars              = expvar.NewMap("remoteConfigStartup")
+	rcStartupFailureReason = expvar.String{}
+)
+
+func init() {
+	rcExpvars.Init()
+	rcExpvars.Set("startupFailureReason", &rcStartupFailureReason)
+}
 
 // Module conditionally provides the remote config service.
 func Module() fxutil.Module {
@@ -109,8 +120,10 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 		options...,
 	)
 	if err != nil {
+		rcStartupFailureReason.Set(err.Error())
 		return nil, fmt.Errorf("unable to create remote config service: %w", err)
 	}
+	rcStartupFailureReason.Set("")
 
 	deps.Lc.Append(fx.Hook{OnStart: func(_ context.Context) error {
 		configService.Start()

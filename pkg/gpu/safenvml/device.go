@@ -69,6 +69,8 @@ type SafeDevice interface {
 	GetPowerManagementLimit() (uint32, error)
 	// GetPowerUsage returns the power usage in milliwatts
 	GetPowerUsage() (uint32, error)
+	// GetProcessUtilization returns process utilization samples since the given timestamp
+	GetProcessUtilization(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, error)
 	// GetRemappedRows returns the remapped rows information
 	GetRemappedRows() (int, int, bool, bool, error)
 	// GetSamples returns samples for the specified counter type
@@ -83,6 +85,10 @@ type SafeDevice interface {
 	GetUtilizationRates() (nvml.Utilization, error)
 	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
 	IsMigDeviceHandle() (bool, error)
+	// GpmQueryDeviceSupport returns true if the device supports GPM
+	GpmQueryDeviceSupport() (nvml.GpmSupport, error)
+	// GpmSampleGet gets a sample for GPM
+	GpmSampleGet(sample nvml.GpmSample) error
 }
 
 // DeviceInfo holds common cached properties for a GPU device

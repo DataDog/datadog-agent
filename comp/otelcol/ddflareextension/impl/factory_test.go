@@ -10,28 +10,32 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/extension"
+
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func getTestFactory(t *testing.T) extension.Factory {
 	factories, err := components()
 	assert.NoError(t, err)
 
-	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false))
+	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false), option.None[ipc.Component](), false)
 }
 
 func TestNewFactoryForAgent(t *testing.T) {
 	factory := getTestFactory(t)
-	assert.NotNil(t, factory)
+	require.NotNil(t, factory)
 
 	cfg := factory.CreateDefaultConfig()
-	assert.NotNil(t, cfg)
+	require.NotNil(t, cfg)
 
 	ext, err := factory.Create(context.Background(), extension.Settings{}, cfg)
-	assert.NoError(t, err)
-	assert.NotNil(t, ext)
+	require.NoError(t, err)
+	require.NotNil(t, ext)
 
 	_, ok := ext.(*ddExtension)
 	assert.True(t, ok)
@@ -39,7 +43,7 @@ func TestNewFactoryForAgent(t *testing.T) {
 
 func TestTypeStability(t *testing.T) {
 	factory := getTestFactory(t)
-	assert.NotNil(t, factory)
+	require.NotNil(t, factory)
 
 	typ := factory.Type()
 	assert.Equalf(t, typ, metadata.Type,

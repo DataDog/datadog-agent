@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: container-intake
+// team: container-experiences
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type Component interface {

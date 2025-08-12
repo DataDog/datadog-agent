@@ -22,13 +22,12 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/detector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
@@ -37,21 +36,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
-	pathCheck = "/check"
-
-	// Use a low cache validity to ensure that we refresh information every time
-	// the check is run if needed. This is the same as cacheValidityNoRT in
-	// pkg/process/checks/container.go.
-	containerCacheValidity = 2 * time.Second
+	pathCheck    = "/check"
+	pathServices = "/services"
 
 	// The maximum number of times that we check if a process has open ports
 	// before ignoring it forever.
@@ -61,150 +53,32 @@ const (
 // Ensure discovery implements the module.Module interface.
 var _ module.Module = &discovery{}
 
-// serviceInfo holds process data that should be cached between calls to the
-// endpoint.
-type serviceInfo struct {
-	name                       string
-	generatedName              string
-	generatedNameSource        string
-	additionalGeneratedNames   []string
-	containerServiceName       string
-	containerServiceNameSource string
-	ddServiceName              string
-	ddServiceInjected          bool
-	tracerMetadata             []tracermetadata.TracerMetadata
-	ports                      []uint16
-	checkedContainerData       bool
-	language                   language.Language
-	apmInstrumentation         apm.Instrumentation
-	cmdLine                    []string
-	startTimeMilli             uint64
-	rss                        uint64
-	cpuTime                    uint64
-	cpuUsage                   float64
-	containerID                string
-	lastHeartbeat              int64
-	addedToMap                 bool
-	rxBytes                    uint64
-	txBytes                    uint64
-	rxBps                      float64
-	txBps                      float64
-}
-
-// toModelService fills the model.Service struct pointed to by out, using the
-// service info to do it.
-func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Service {
-	if i == nil {
-		log.Warn("toModelService called with nil pointer")
-		return nil
-	}
-
-	out.PID = int(pid)
-	out.Name = i.name
-	out.GeneratedName = i.generatedName
-	out.GeneratedNameSource = i.generatedNameSource
-	out.AdditionalGeneratedNames = i.additionalGeneratedNames
-	out.ContainerServiceName = i.containerServiceName
-	out.ContainerServiceNameSource = i.containerServiceNameSource
-	out.DDService = i.ddServiceName
-	out.DDServiceInjected = i.ddServiceInjected
-	out.TracerMetadata = i.tracerMetadata
-	out.Ports = i.ports
-	out.APMInstrumentation = string(i.apmInstrumentation)
-	out.Language = string(i.language)
-	out.Type = string(servicetype.Detect(i.ports))
-	out.RSS = i.rss
-	out.CommandLine = i.cmdLine
-	out.StartTimeMilli = i.startTimeMilli
-	out.CPUCores = i.cpuUsage
-	out.ContainerID = i.containerID
-	out.LastHeartbeat = i.lastHeartbeat
-	out.RxBytes = i.rxBytes
-	out.TxBytes = i.txBytes
-	out.RxBps = i.rxBps
-	out.TxBps = i.txBps
-
-	return out
-}
-
-type timeProvider interface {
-	Now() time.Time
-}
-
-type realTime struct{}
-
-func (realTime) Now() time.Time { return time.Now() }
-
-type pidSet map[int32]struct{}
-
-func (s pidSet) has(pid int32) bool {
-	_, present := s[pid]
-	return present
-}
-
-func (s pidSet) add(pid int32) {
-	s[pid] = struct{}{}
-}
-
-func (s pidSet) remove(pid int32) {
-	delete(s, pid)
-}
-
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
-	config *discoveryConfig
+	core core.Discovery
+
+	config *core.DiscoveryConfig
 
 	mux *sync.RWMutex
-
-	// cache maps pids to data that should be cached between calls to the endpoint.
-	cache map[int32]*serviceInfo
 
 	// noPortTries stores the number of times in a row that we did not find
 	// open ports for this process.
 	noPortTries map[int32]int
-
-	// potentialServices stores processes that we have seen once in the previous
-	// iteration, but not yet confirmed to be a running service.
-	potentialServices pidSet
-
-	// runningServices stores services that we have previously confirmed as
-	// running.
-	runningServices pidSet
-
-	// ignorePids stores processes to be excluded from discovery
-	ignorePids pidSet
 
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
 
 	// scrubber is used to remove potentially sensitive data from the command line
 	scrubber *procutil.DataScrubber
-
-	// lastGlobalCPUTime stores the total cpu time of the system from the last time
-	// the endpoint was called.
-	lastGlobalCPUTime uint64
-
-	// lastCPUTimeUpdate is the last time lastGlobalCPUTime was updated.
-	lastCPUTimeUpdate time.Time
-
-	lastNetworkStatsUpdate time.Time
-
-	wmeta  workloadmeta.Component
-	tagger tagger.Component
-
-	timeProvider timeProvider
-	network      networkCollector
-
-	networkErrorLimit *log.Limit
 }
 
-type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
+type networkCollectorFactory func(_ *core.DiscoveryConfig) (core.NetworkCollector, error)
 
-func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Component, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
-	cfg := newConfig()
+func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Component, tp core.TimeProvider, getNetworkCollector networkCollectorFactory) *discovery {
+	cfg := core.NewConfig()
 
-	var network networkCollector
-	if cfg.networkStatsEnabled {
+	var network core.NetworkCollector
+	if cfg.NetworkStatsEnabled {
 		var err error
 		network, err = getNetworkCollector(cfg)
 		if err != nil {
@@ -217,26 +91,29 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 	}
 
 	return &discovery{
+		core: core.Discovery{
+			Config:            cfg,
+			Cache:             make(map[int32]*core.ServiceInfo),
+			PotentialServices: make(core.PidSet),
+			RunningServices:   make(core.PidSet),
+			IgnorePids:        make(core.PidSet),
+			WMeta:             wmeta,
+			Tagger:            tagger,
+			TimeProvider:      tp,
+			Network:           network,
+			NetworkErrorLimit: log.NewLogLimit(10, 10*time.Minute),
+		},
 		config:             cfg,
 		mux:                &sync.RWMutex{},
-		cache:              make(map[int32]*serviceInfo),
 		noPortTries:        make(map[int32]int),
-		potentialServices:  make(pidSet),
-		runningServices:    make(pidSet),
-		ignorePids:         make(pidSet),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
-		wmeta:              wmeta,
-		tagger:             tagger,
-		timeProvider:       tp,
-		network:            network,
-		networkErrorLimit:  log.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	d := newDiscoveryWithNetwork(deps.WMeta, deps.Tagger, realTime{}, newNetworkCollector)
+	d := newDiscoveryWithNetwork(deps.WMeta, deps.Tagger, core.RealTime{}, newNetworkCollector)
 
 	return d, nil
 }
@@ -251,7 +128,10 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
+	httpMux.HandleFunc("/network-stats", s.handleNetworkStatsEndpoint)
 	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
+	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
+
 	return nil
 }
 
@@ -260,16 +140,8 @@ func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	s.cleanCache(pidSet{})
-	if s.network != nil {
-		s.network.close()
-		s.network = nil
-	}
-	clear(s.cache)
+	s.core.Close()
 	clear(s.noPortTries)
-	clear(s.ignorePids)
-	clear(s.potentialServices)
-	clear(s.runningServices)
 }
 
 // handleStatusEndpoint is the handler for the /status endpoint.
@@ -297,17 +169,17 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 	defer s.mux.Unlock()
 
 	state := &state{
-		Cache:             make(map[int]*model.Service, len(s.cache)),
+		Cache:             make(map[int]*model.Service, len(s.core.Cache)),
 		NoPortTries:       make(map[int]int, len(s.noPortTries)),
-		PotentialServices: make([]int, 0, len(s.potentialServices)),
-		RunningServices:   make([]int, 0, len(s.runningServices)),
-		IgnorePids:        make([]int, 0, len(s.ignorePids)),
-		NetworkEnabled:    s.network != nil,
+		PotentialServices: make([]int, 0, len(s.core.PotentialServices)),
+		RunningServices:   make([]int, 0, len(s.core.RunningServices)),
+		IgnorePids:        make([]int, 0, len(s.core.IgnorePids)),
+		NetworkEnabled:    s.core.Network != nil,
 	}
 
-	for pid, info := range s.cache {
+	for pid, info := range s.core.Cache {
 		service := &model.Service{}
-		info.toModelService(pid, service)
+		info.ToModelService(pid, service)
 		state.Cache[int(pid)] = service
 	}
 
@@ -315,21 +187,21 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 		state.NoPortTries[int(pid)] = tries
 	}
 
-	for pid := range s.potentialServices {
+	for pid := range s.core.PotentialServices {
 		state.PotentialServices = append(state.PotentialServices, int(pid))
 	}
 
-	for pid := range s.runningServices {
+	for pid := range s.core.RunningServices {
 		state.RunningServices = append(state.RunningServices, int(pid))
 	}
 
-	for pid := range s.ignorePids {
+	for pid := range s.core.IgnorePids {
 		state.IgnorePids = append(state.IgnorePids, int(pid))
 	}
 
-	state.LastGlobalCPUTime = s.lastGlobalCPUTime
-	state.LastCPUTimeUpdate = s.lastCPUTimeUpdate.Unix()
-	state.LastNetworkStatsUpdate = s.lastNetworkStatsUpdate.Unix()
+	state.LastGlobalCPUTime = s.core.LastGlobalCPUTime
+	state.LastCPUTimeUpdate = s.core.LastCPUTimeUpdate.Unix()
+	state.LastNetworkStatsUpdate = s.core.LastNetworkStatsUpdate.Unix()
 
 	utils.WriteAsJSON(w, state, utils.CompactOutput)
 }
@@ -348,14 +220,14 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 	context := newParsingContext()
 
-	containers := s.getContainersMap()
+	containers := s.core.GetContainersMap()
 	containerTagsCache := make(map[string][]string)
 	for _, pid := range pids {
 		service := s.getService(context, pid)
 		if service == nil {
 			continue
 		}
-		s.enrichContainerData(service, containers, containerTagsCache)
+		s.core.EnrichContainerData(service, containers, containerTagsCache)
 
 		services = append(services, *service)
 	}
@@ -366,16 +238,34 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 // handleCheck is the handler for the /check endpoint.
 // Returns the list of service discovery events.
 func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
-	params, err := parseParams(req.URL.Query())
+	params, err := core.ParseParamsFromRequest(req)
 	if err != nil {
 		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	services, err := s.getServices(params)
+	services, err := s.getCheckServices(params)
 	if err != nil {
 		_ = log.Errorf("failed to handle /discovery%s: %v", pathCheck, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
+}
+
+func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
+	params, err := core.ParseParamsFromRequest(req)
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	services, err := s.getServices(params)
+	if err != nil {
+		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -553,30 +443,19 @@ func newParsingContext() parsingContext {
 	}
 }
 
-// addIgnoredPid store excluded pid.
-func (s *discovery) addIgnoredPid(pid int32) {
-	s.ignorePids[pid] = struct{}{}
-}
-
-// shouldIgnorePid returns true if process should be excluded from handling.
-func (s *discovery) shouldIgnorePid(pid int32) bool {
-	_, found := s.ignorePids[pid]
-	return found
-}
-
 // shouldIgnoreService returns true if the service should be excluded from handling.
 func (s *discovery) shouldIgnoreService(name string) bool {
-	if len(s.config.ignoreServices) == 0 {
+	if len(s.core.Config.IgnoreServices) == 0 {
 		return false
 	}
-	_, found := s.config.ignoreServices[name]
+	_, found := s.core.Config.IgnoreServices[name]
 
 	return found
 }
 
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
-func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
+func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 	proc := &process.Process{
 		Pid: pid,
 	}
@@ -624,25 +503,21 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	nameMeta := detector.GetServiceName(lang, ctx)
 	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
-	name := nameMeta.DDService
-	if name == "" {
-		name = nameMeta.Name
-	}
-
 	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
 
-	return &serviceInfo{
-		name:                     name,
-		generatedName:            nameMeta.Name,
-		generatedNameSource:      string(nameMeta.Source),
-		additionalGeneratedNames: nameMeta.AdditionalNames,
-		ddServiceName:            nameMeta.DDService,
-		tracerMetadata:           tracerMetadataArr,
-		language:                 lang,
-		apmInstrumentation:       apmInstrumentation,
-		ddServiceInjected:        nameMeta.DDServiceInjected,
-		cmdLine:                  truncateCmdline(lang, cmdline),
-		startTimeMilli:           uint64(createTime),
+	return &core.ServiceInfo{
+		Service: model.Service{
+			GeneratedName:            nameMeta.Name,
+			GeneratedNameSource:      string(nameMeta.Source),
+			AdditionalGeneratedNames: nameMeta.AdditionalNames,
+			DDService:                nameMeta.DDService,
+			DDServiceInjected:        nameMeta.DDServiceInjected,
+			TracerMetadata:           tracerMetadataArr,
+			Language:                 string(lang),
+			APMInstrumentation:       string(apmInstrumentation),
+			CommandLine:              truncateCmdline(lang, cmdline),
+			StartTimeMilli:           uint64(createTime),
+		},
 	}, nil
 }
 
@@ -650,11 +525,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 // service.
 const maxNumberOfPorts = 50
 
-func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error) {
-	sockets, err := getSockets(pid, context.readlinkBuffer)
-	if err != nil {
-		return nil, err
-	}
+func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64) ([]uint16, error) {
 	if len(sockets) == 0 {
 		return nil, nil
 	}
@@ -709,6 +580,17 @@ func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error
 	return ports, nil
 }
 
+// addIgnoredPid stores excluded pid.
+func (s *discovery) addIgnoredPid(pid int32) {
+	s.core.IgnorePids[pid] = struct{}{}
+}
+
+// shouldIgnorePid returns true if process should be excluded from handling.
+func (s *discovery) shouldIgnorePid(pid int32) bool {
+	_, found := s.core.IgnorePids[pid]
+	return found
+}
+
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
 	if s.shouldIgnorePid(pid) {
@@ -719,7 +601,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	ports, err := s.getPorts(context, pid)
+	openFileInfo, err := getOpenFilesInfo(pid, context.readlinkBuffer)
+	if err != nil {
+		return nil
+	}
+	ports, err := s.getPorts(context, pid, openFileInfo.sockets)
 	if err != nil {
 		return nil
 	}
@@ -739,13 +625,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	// Reset the try counter since we only count tries in a row.
 	delete(s.noPortTries, pid)
 
-	rss, err := getRSS(pid)
-	if err != nil {
-		return nil
-	}
-
-	var info *serviceInfo
-	cached, ok := s.cache[pid]
+	var info *core.ServiceInfo
+	cached, ok := s.core.Cache[pid]
 	if ok {
 		info = cached
 	} else {
@@ -754,359 +635,28 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 			return nil
 		}
 
-		s.cache[pid] = info
+		s.core.Cache[pid] = info
 	}
 
-	if s.shouldIgnoreService(info.name) {
+	preferredName := info.DDService
+	if preferredName == "" {
+		preferredName = info.GeneratedName
+	}
+	if s.shouldIgnoreService(preferredName) {
 		s.addIgnoredPid(pid)
 		return nil
 	}
 
 	service := &model.Service{}
-	info.toModelService(pid, service)
+	info.ToModelService(pid, service)
 	service.Ports = ports
-	service.RSS = rss
+	service.LogFiles = getLogFiles(pid, openFileInfo.logs)
 
 	return service
 }
 
-// cleanCache deletes dead PIDs from the cache. Note that this does not actually
-// shrink the map but should free memory for the service name strings referenced
-// from it. This function is not thread-safe and it is up to the caller to ensure
-// s.mux is locked.
-func (s *discovery) cleanCache(alivePids pidSet) {
-	for pid, info := range s.cache {
-		if alivePids.has(pid) {
-			continue
-		}
-
-		if info.addedToMap {
-			err := s.network.removePid(uint32(pid))
-			if err != nil {
-				log.Warn("unable to remove pid from network collector", pid, err)
-			}
-		}
-
-		delete(s.cache, pid)
-	}
-
-	for pid := range s.noPortTries {
-		if alivePids.has(pid) {
-			continue
-		}
-
-		delete(s.noPortTries, pid)
-	}
-}
-
-func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.ServicesResponse) {
-	for pid, info := range s.cache {
-		if !info.addedToMap {
-			err := s.network.addPid(uint32(pid))
-			if err == nil {
-				info.addedToMap = true
-			} else if s.networkErrorLimit.ShouldLog() {
-				// This error can occur if the eBPF map used by the network
-				// collector is full.
-				log.Warnf("unable to add to network collector %v: %v", pid, err)
-			}
-			continue
-		}
-
-		stats, err := s.network.getStats(uint32(pid))
-		if err != nil {
-			log.Warnf("unable to get network stats %v: %v", pid, err)
-			continue
-		}
-
-		deltaRx := stats.Rx - info.rxBytes
-		deltaTx := stats.Tx - info.txBytes
-
-		info.rxBps = float64(deltaRx) / deltaSeconds
-		info.txBps = float64(deltaTx) / deltaSeconds
-
-		info.rxBytes = stats.Rx
-		info.txBytes = stats.Tx
-	}
-
-	updateResponseNetworkStats := func(services []model.Service) {
-		for i := range services {
-			service := &services[i]
-			info, ok := s.cache[int32(service.PID)]
-			if !ok {
-				continue
-			}
-
-			service.RxBps = info.rxBps
-			service.TxBps = info.txBps
-			service.RxBytes = info.rxBytes
-			service.TxBytes = info.txBytes
-		}
-	}
-
-	updateResponseNetworkStats(response.StartedServices)
-	updateResponseNetworkStats(response.HeartbeatServices)
-}
-
-func (s *discovery) maybeUpdateNetworkStats(response *model.ServicesResponse) {
-	if s.network == nil {
-		return
-	}
-
-	now := s.timeProvider.Now()
-	delta := now.Sub(s.lastNetworkStatsUpdate)
-	if delta < s.config.networkStatsPeriod {
-		return
-	}
-
-	deltaSeconds := delta.Seconds()
-
-	s.updateNetworkStats(deltaSeconds, response)
-
-	s.lastNetworkStatsUpdate = now
-}
-
-// cleanPidSets deletes dead PIDs from the provided pidSets. This function is not
-// thread-safe and it is up to the caller to ensure s.mux is locked.
-func (s *discovery) cleanPidSets(alivePids pidSet, sets ...pidSet) {
-	for _, set := range sets {
-		for pid := range set {
-			if alivePids.has(pid) {
-				continue
-			}
-
-			delete(set, pid)
-		}
-	}
-}
-
-// updateServicesCPUStats updates the CPU stats of cached services, as well as the
-// global CPU time cache for future updates. This function is not thread-safe and
-// it is up to the caller to ensure s.mux is locked.
-func (s *discovery) updateServicesCPUStats(response *model.ServicesResponse) error {
-	if time.Since(s.lastCPUTimeUpdate) < s.config.cpuUsageUpdateDelay {
-		return nil
-	}
-
-	globalCPUTime, err := getGlobalCPUTime()
-	if err != nil {
-		return fmt.Errorf("could not get global CPU time: %w", err)
-	}
-
-	for pid, info := range s.cache {
-		_ = updateCPUCoresStats(int(pid), info, s.lastGlobalCPUTime, globalCPUTime)
-	}
-
-	updateResponseCPUStats := func(services []model.Service) {
-		for i := range services {
-			service := &services[i]
-			info, ok := s.cache[int32(service.PID)]
-			if !ok {
-				continue
-			}
-
-			service.CPUCores = info.cpuUsage
-		}
-	}
-
-	updateResponseCPUStats(response.StartedServices)
-	updateResponseCPUStats(response.HeartbeatServices)
-
-	s.lastGlobalCPUTime = globalCPUTime
-	s.lastCPUTimeUpdate = time.Now()
-
-	return nil
-}
-
-func getServiceNameFromContainerTags(tags []string) (string, string) {
-	// The tags we look for service name generation, in their priority order.
-	// The map entries will be filled as we go through the containers tags.
-	tagsPriority := []struct {
-		tagName  string
-		tagValue *string
-	}{
-		{"service", nil},
-		{"app", nil},
-		{"short_image", nil},
-		{"kube_container_name", nil},
-		{"kube_deployment", nil},
-		{"kube_service", nil},
-	}
-
-	// Sort the tags to make the function deterministic
-	slices.Sort(tags)
-
-	for _, tag := range tags {
-		// Get index of separator between name and value
-		sepIndex := strings.IndexRune(tag, ':')
-		if sepIndex < 0 || sepIndex >= len(tag)-1 {
-			// Malformed tag; we skip it
-			continue
-		}
-
-		for i := range tagsPriority {
-			if tagsPriority[i].tagValue != nil {
-				// We have seen this tag before, we don't need another value.
-				continue
-			}
-
-			if tag[:sepIndex] != tagsPriority[i].tagName {
-				// Not a tag we care about; we skip it
-				continue
-			}
-
-			value := tag[sepIndex+1:]
-			tagsPriority[i].tagValue = &value
-			break
-		}
-	}
-
-	for _, tag := range tagsPriority {
-		if tag.tagValue == nil {
-			continue
-		}
-
-		log.Debugf("Using %v:%v tag for service name", tag.tagName, *tag.tagValue)
-		return tag.tagName, *tag.tagValue
-	}
-
-	return "", ""
-}
-
-func (s *discovery) getContainersMap() map[int]*workloadmeta.Container {
-	containers := s.wmeta.ListContainersWithFilter(workloadmeta.GetRunningContainers)
-	containersMap := make(map[int]*workloadmeta.Container, len(containers))
-
-	metricsProvider := metrics.GetProvider(option.New(s.wmeta))
-
-	for _, container := range containers {
-		collector := metricsProvider.GetCollector(provider.NewRuntimeMetadata(
-			string(container.Runtime),
-			string(container.RuntimeFlavor),
-		))
-		if collector == nil {
-			containersMap[int(container.PID)] = container
-			continue
-		}
-
-		pids, err := collector.GetPIDs(container.Namespace, container.ID, containerCacheValidity)
-		if err != nil || len(pids) == 0 {
-			containersMap[int(container.PID)] = container
-			continue
-		}
-
-		for _, pid := range pids {
-			containersMap[int(pid)] = container
-		}
-	}
-	return containersMap
-}
-
-func (s *discovery) getProcessContainerInfo(pid int, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) (string, []string, bool) {
-	container, ok := containers[pid]
-	if !ok {
-		return "", nil, false
-	}
-
-	tags, ok := containerTagsCache[container.EntityID.ID]
-	if ok {
-		return container.EntityID.ID, tags, true
-	}
-
-	containerID := container.EntityID.ID
-	collectorTags := container.CollectorTags
-
-	// Getting the tags from the tagger. This logic is borrowed from
-	// the GetContainers helper in pkg/process/util/containers.
-	entityID := types.NewEntityID(types.ContainerID, containerID)
-	entityTags, err := s.tagger.Tag(entityID, types.HighCardinality)
-	if err != nil {
-		log.Tracef("Could not get tags for container %s: %v", containerID, err)
-		return containerID, collectorTags, false
-	}
-	tags = append(collectorTags, entityTags...)
-	containerTagsCache[containerID] = tags
-
-	return containerID, tags, true
-}
-
-func (s *discovery) enrichContainerData(service *model.Service, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) {
-	containerID, containerTags, ok := s.getProcessContainerInfo(service.PID, containers, containerTagsCache)
-	if !ok {
-		return
-	}
-
-	service.ContainerID = containerID
-	service.ContainerTags = containerTags
-
-	// We checked the container tags before, no need to do it again.
-	if service.CheckedContainerData {
-		return
-	}
-
-	tagName, serviceName := getServiceNameFromContainerTags(containerTags)
-	service.ContainerServiceName = serviceName
-	service.ContainerServiceNameSource = tagName
-	service.CheckedContainerData = true
-
-	serviceInfo, ok := s.cache[int32(service.PID)]
-	if ok {
-		serviceInfo.containerServiceName = serviceName
-		serviceInfo.containerServiceNameSource = tagName
-		serviceInfo.checkedContainerData = true
-		serviceInfo.containerID = containerID
-	}
-}
-
-func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
-	updateCachedHeartbeat := func(service *model.Service) {
-		info, ok := s.cache[int32(service.PID)]
-		if !ok {
-			log.Warnf("could not access service info from the cache when update last heartbeat for PID %v start event", service.PID)
-			return
-		}
-
-		info.lastHeartbeat = now.Unix()
-		info.ports = service.Ports
-		info.rss = service.RSS
-	}
-
-	for i := range response.StartedServices {
-		service := &response.StartedServices[i]
-		updateCachedHeartbeat(service)
-	}
-
-	for i := range response.HeartbeatServices {
-		service := &response.HeartbeatServices[i]
-		updateCachedHeartbeat(service)
-	}
-}
-
-// handleStoppedServices verifies services previously seen and registered as
-// running are still alive. If not, it will use the latest cached information
-// about them to generate a stop event for the service. This function is not
-// thread-safe and it is up to the caller to ensure s.mux is locked.
-func (s *discovery) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
-	for pid := range s.runningServices {
-		if alivePids.has(pid) {
-			continue
-		}
-
-		s.runningServices.remove(pid)
-		info, ok := s.cache[pid]
-		if !ok {
-			log.Warnf("could not get service from the cache to generate a stopped service event for PID %v", pid)
-			continue
-		}
-
-		// Build service struct in place in the slice
-		response.StoppedServices = append(response.StoppedServices, model.Service{})
-		info.toModelService(pid, &response.StoppedServices[len(response.StoppedServices)-1])
-	}
-}
-
 // getStatus returns the list of currently running services.
-func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
+func (s *discovery) getCheckServices(params core.Params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -1116,78 +666,114 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	}
 
 	context := newParsingContext()
+	return s.core.GetServices(params, pids, context, func(context any, pid int32) *model.Service {
+		return s.getService(context.(parsingContext), pid)
+	})
+}
 
-	response := &model.ServicesResponse{
-		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),
-		StoppedServices:   make([]model.Service, 0),
-		HeartbeatServices: make([]model.Service, 0),
+// getServices processes a list of PIDs and returns service information for each.
+// This is used by the /services endpoint which accepts explicit PID lists and bypasses
+// the port retry logic used by the /check endpoint. The caller (the Core-Agent
+// process collector) will handle the retry..
+func (s *discovery) getServices(params core.Params) (*model.ServicesEndpointResponse, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	response := &model.ServicesEndpointResponse{
+		Services: make([]model.Service, 0),
 	}
 
-	alivePids := make(pidSet, len(pids))
-	containers := s.getContainersMap()
-	containerTagsCache := make(map[string][]string)
+	context := newParsingContext()
 
-	now := s.timeProvider.Now()
-
-	for _, pid := range pids {
-		alivePids.add(pid)
-
-		_, knownService := s.runningServices[pid]
-		if knownService {
-			info, ok := s.cache[pid]
-			if !ok {
-				// Should never happen
-				continue
-			}
-
-			serviceHeartbeatTime := time.Unix(info.lastHeartbeat, 0)
-			if now.Sub(serviceHeartbeatTime).Truncate(time.Minute) < params.heartbeatTime {
-				// We only need to refresh the service info (ports, etc.) for
-				// this service if it's time to send a heartbeat.
-				continue
-			}
-		}
-
-		service := s.getService(context, pid)
+	for _, pid := range params.Pids {
+		service := s.getServiceWithoutRetry(context, int32(pid))
 		if service == nil {
 			continue
 		}
-		s.enrichContainerData(service, containers, containerTagsCache)
-
-		if knownService {
-			service.LastHeartbeat = now.Unix()
-			response.HeartbeatServices = append(response.HeartbeatServices, *service)
-			continue
-		}
-
-		if _, ok := s.potentialServices[pid]; ok {
-			// We have seen it first in the previous call of getServices, so it
-			// is confirmed to be running.
-			s.runningServices.add(pid)
-			delete(s.potentialServices, pid)
-			service.LastHeartbeat = now.Unix()
-			response.StartedServices = append(response.StartedServices, *service)
-			continue
-		}
-
-		// This is a new potential service
-		s.potentialServices.add(pid)
-		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
+		response.Services = append(response.Services, *service)
 	}
-
-	s.updateCacheInfo(response, now)
-	s.handleStoppedServices(response, alivePids)
-
-	s.cleanCache(alivePids)
-	s.cleanPidSets(alivePids, s.ignorePids, s.potentialServices)
-
-	if err = s.updateServicesCPUStats(response); err != nil {
-		log.Warnf("updating services CPU stats: %s", err)
-	}
-
-	s.maybeUpdateNetworkStats(response)
-
-	response.RunningServicesCount = len(s.runningServices)
 
 	return response, nil
+}
+
+// getServiceWithoutRetry extracts service information for a PID without port retry logic.
+// Unlike getService(), this function immediately returns nil if no ports are found,
+// rather than tracking retry attempts. This is used by the /services endpoint.
+func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *model.Service {
+	if s.shouldIgnoreComm(pid) {
+		return nil
+	}
+
+	openFileInfo, err := getOpenFilesInfo(pid, context.readlinkBuffer)
+	if err != nil {
+		return nil
+	}
+	ports, err := s.getPorts(context, pid, openFileInfo.sockets)
+	if err != nil {
+		return nil
+	}
+	if len(ports) == 0 {
+		return nil
+	}
+
+	info, err := s.getServiceInfo(pid)
+	if err != nil {
+		log.Tracef("[pid: %d] could not get service info: %v", pid, err)
+		return nil
+	}
+
+	info.Ports = ports
+	info.LogFiles = getLogFiles(pid, openFileInfo.logs)
+
+	out := &model.Service{}
+	info.ToModelService(pid, out)
+	return out
+}
+
+// handleNetworkStatsEndpoint is the handler for the /network-stats endpoint.
+// Returns network statistics for the provided list of PIDs.
+func (s *discovery) handleNetworkStatsEndpoint(w http.ResponseWriter, req *http.Request) {
+	if s.core.Network == nil {
+		http.Error(w, "network stats collection is not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Parse PIDs from query parameter
+	pidsStr := req.URL.Query().Get("pids")
+	if pidsStr == "" {
+		http.Error(w, "missing required 'pids' query parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Split and parse PIDs
+	pidStrs := strings.Split(pidsStr, ",")
+	pids := make(core.PidSet, len(pidStrs))
+	for _, pidStr := range pidStrs {
+		pid, err := strconv.ParseInt(pidStr, 10, 32)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid PID format: %s", pidStr), http.StatusBadRequest)
+			return
+		}
+		pids.Add(int32(pid))
+	}
+
+	// Get network stats
+	stats, err := s.core.Network.GetStats(pids)
+	if err != nil {
+		log.Errorf("failed to get network stats: %v", err)
+		http.Error(w, "failed to get network stats", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert stats to response format
+	response := model.NetworkStatsResponse{
+		Stats: make(map[int]model.NetworkStats, len(stats)),
+	}
+	for pid, stat := range stats {
+		response.Stats[int(pid)] = model.NetworkStats{
+			RxBytes: stat.Rx,
+			TxBytes: stat.Tx,
+		}
+	}
+
+	utils.WriteAsJSON(w, response, utils.CompactOutput)
 }
