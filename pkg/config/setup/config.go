@@ -596,8 +596,14 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // 4 MB
-	// Enable TLS verification for Agent cross-node communications (NodeAgent->DCA / CLC->DCA / DCA->CLC).
-	config.BindEnvAndSetDefault("cluster_agent.enable_tls_verification", false)
+
+	// Check that the trust chain is valid for Agent cross-node communications (NodeAgent->DCA / CLC->DCA / DCA->CLC).
+	config.BindEnvAndSetDefault("cluster_trust_chain.enable_tls_verification", false)
+	// Path to the cluster CA certificate file.
+	config.BindEnvAndSetDefault("cluster_trust_chain.ca_cert_file_path", "")
+	// Path to the cluster CA key file.
+	config.BindEnvAndSetDefault("cluster_trust_chain.ca_key_file_path", "")
+
 	// the entity id, typically set by dca admisson controller config mutator, used for external origin detection
 	config.SetKnown("entity_id")
 
