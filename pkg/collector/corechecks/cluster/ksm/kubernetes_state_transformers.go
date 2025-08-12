@@ -586,8 +586,6 @@ func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksms
 		startTime := time.Unix(int64(metric.Val), 0)
 		duration := currentTime.Sub(startTime).Seconds()
 
-		// Safety check: For long-running metrics (>5 minutes), verify if this might be a missed completion
-
 		if duration > 0 {
 			s.Gauge(ksmMetricPrefix+"deployment.ongoing_rollout.duration", duration, hostname, tags)
 		}
@@ -601,8 +599,6 @@ func statefulsetRolloutDurationTransformer(s sender.Sender, _ string, metric ksm
 	if metric.Val > 0 {
 		startTime := time.Unix(int64(metric.Val), 0)
 		duration := currentTime.Sub(startTime).Seconds()
-
-		// Safety check: For long-running metrics (>5 minutes), verify if this might be a missed completion
 
 		if duration > 0 {
 			s.Gauge(ksmMetricPrefix+"statefulset.ongoing_rollout.duration", duration, hostname, tags)

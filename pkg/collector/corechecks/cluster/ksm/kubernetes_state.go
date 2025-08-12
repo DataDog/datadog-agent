@@ -671,6 +671,7 @@ func (k *KSMCheck) Run() error {
 		for _, store := range stores {
 			metrics := store.(*ksmstore.MetricsStore).Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
 			k.processMetrics(sender, metrics, labelJoiner, currentTime)
+			k.processTelemetry(metrics)
 		}
 	}
 
@@ -691,7 +692,6 @@ func (k *KSMCheck) Cancel() {
 func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner, now time.Time) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
-			// Log all metric families for rollout debugging
 
 			// First check for aggregator, because the check use _labels metrics to aggregate values.
 			if aggregator, found := k.metricAggregators[metricFamily.Name]; found {

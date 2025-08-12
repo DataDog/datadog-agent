@@ -132,12 +132,6 @@ func (f *extendedStatefulSetFactory) getRolloutStartTime(s *appsv1.StatefulSet) 
 		}
 	}
 
-	// Additional safety check: if no replicas are progressing for a very long time, the rollout might be stuck
-	// This helps catch cases where the statefulset is genuinely stuck vs missed completion events
-	// Additional check: if no replicas are progressing, the rollout might be stuck
-	// (This helps catch cases where all replicas are failing to start)
-	_ = s.Status.UpdatedReplicas == 0 && s.Status.ReadyReplicas == 0
-
 	// Find the newest ControllerRevision for this statefulset
 	newestCRCreationTime := f.findNewestControllerRevisionCreationTime(s)
 	if newestCRCreationTime.IsZero() {
@@ -158,7 +152,6 @@ func (f *extendedStatefulSetFactory) findNewestControllerRevisionCreationTime(s 
 	}
 
 	var newestTime time.Time
-	var newestCR *appsv1.ControllerRevision
 
 	for i := range controllerRevisions.Items {
 		cr := &controllerRevisions.Items[i]
@@ -170,11 +163,8 @@ func (f *extendedStatefulSetFactory) findNewestControllerRevisionCreationTime(s 
 
 		if cr.CreationTimestamp.Time.After(newestTime) {
 			newestTime = cr.CreationTimestamp.Time
-			newestCR = cr
 		}
 	}
-
-	_ = newestCR
 
 	return newestTime
 }
