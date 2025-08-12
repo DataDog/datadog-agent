@@ -1007,6 +1007,8 @@ func getSockStructSKProtocolOffset(kv *kernel.Version) uint64 {
 
 func getFlowiProtoOffset(kv *kernel.Version) uint64 {
 	switch {
+	case kv.IsRockyKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_14, kernel.Kernel5_15):
+		return 18
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_10, kernel.Kernel5_18):
 		return 14
 	default:
