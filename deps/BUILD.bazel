@@ -1,1 +1,24 @@
 # Empty file to act as package marker
+
+# Do not depend on this.
+# This is a temporary target to make it easy to force build dependencies
+# before they are used by other targets.
+filegroup(
+    name = "smoketest",
+    srcs = [
+        "@bzip2//:bz2",
+        "@bzip2//:bzip2",
+        "@libyaml//:libyaml",
+        "@lua//:liblua",
+        "@ncurses//:ncurses",
+        "@ncurses//:form",
+        "@ncurses//:menu",
+        "@ncurses//:panel",
+        "@ncurses//:make_hash",
+        "@sqlite3//:sqlite3",
+        "@xz//:lzma",
+        "@xz//:xz",
+        "@zlib//:zlib",
+    ],
+    visibility = ["//visibility:private",],
+)
