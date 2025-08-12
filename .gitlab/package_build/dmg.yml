@@ -1,5 +1,7 @@
 ---
 .macos_setup_python:
+  # Selecting the current Python version
+  - !reference [.select_python_env_commands]
   - !reference [.install_python_dependencies]
 
 .macos_setup_go:

@@ -23,7 +23,7 @@ include:
     - dda inv -- -e invoke-unit-tests
   after_script:
     - !reference [.vault_login]
-    - !reference [.install_python_dependencies]
+    - !reference [.select_python_env_commands]
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   artifacts:
