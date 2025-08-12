@@ -4,6 +4,7 @@
 // Copyright 2025-present Datadog, Inc.
 
 // Package fx provides the fx module for the optional remote tagger component
+// for use in the trace-agent running in an Azure App Services (AAS) Extension.
 package fx
 
 import (
@@ -14,7 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for this component
+// Module defines the fx options for this component. This is intended to be
+// used with the trace-agent and only in Azure App Services (AAS) Extension
+// environments where we are confident that we do not need the container
+// tagging that the remote tagger provides.
 func Module(optionalParams tagger.OptionalRemoteParams, remoteParams tagger.RemoteParams) fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(

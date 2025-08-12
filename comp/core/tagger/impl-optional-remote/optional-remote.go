@@ -5,7 +5,10 @@
 
 // Package optionalimpl contains the implementation of the optional remote
 // tagger. The optionalimpl allow clients to use either the remote tagger or
-// the noop tagger based on their configuration
+// the noop tagger based on their configuration. This should only be used in
+// the trace-agent in an Azure App Services (AAS) Extension environment where
+// we are confident that the container tagging functionality provided by the
+// remote tagger is not needed.
 package optionalimpl
 
 import (
