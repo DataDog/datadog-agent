@@ -153,12 +153,7 @@ func WithInstaller(opts ...installer.Option) ProvisionerOption {
 }
 
 // Run deploys a Windows environment given a pulumi.Context
-func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
-	awsEnv, err := aws.NewEnvironment(ctx)
-	if err != nil {
-		return err
-	}
-
+func Run(ctx *pulumi.Context, env *environments.WindowsHost, awsEnv aws.Environment, params *ProvisionerParams) error {
 	env.Environment = &awsEnv
 
 	// Make sure to override any OS other than Windows
@@ -317,7 +312,12 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := GetProvisionerParams(opts...)
-		return Run(ctx, env, params)
+
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+		return Run(ctx, env, awsEnv, params)
 	}, nil)
 
 	return provisioner
