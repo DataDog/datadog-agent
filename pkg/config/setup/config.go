@@ -1152,9 +1152,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
 	config.BindEnvAndSetDefault("syslog_rfc", false)
-	config.BindEnvAndSetDefault("syslog_pem", "")
-	config.BindEnvAndSetDefault("syslog_key", "")
-	config.BindEnvAndSetDefault("syslog_tls_verify", true)
 	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
