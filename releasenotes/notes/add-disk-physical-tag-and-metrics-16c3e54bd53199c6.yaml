@@ -1,7 +1,7 @@
 ---
 issues:
   - |
-    Disk integration system.disk.total value is incorrect, disk size in host information of Datadog GUI is incorrect, too. [https://github.com/DataDog/datadog-agent/issues/5921]
+    Disk integration system.disk.total value is incorrect. Disk size in host information of Datadog GUI is incorrect, too. [https://github.com/DataDog/datadog-agent/issues/5921]
 fixes:
   - |
     Adds a new tag 'is_physical_disk' to every 'system.disk.*' metric if 'tag_by_physical_disk' configuration option (defaults to false) is enabled
