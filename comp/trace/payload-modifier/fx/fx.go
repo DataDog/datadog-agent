@@ -21,9 +21,6 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			payloadmodifierimpl.NewComponent,
 		),
-		fx.Provide(func(prov payloadmodifierimpl.Provides) payloadmodifier.Component {
-			return prov.Comp
-		}),
 		fx.Provide(func(comp payloadmodifier.Component) pkgagent.TracerPayloadModifier {
 			return comp.GetModifier()
 		}),
