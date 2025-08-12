@@ -146,9 +146,8 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 	// overlap with other timeouts or periodicities. It provides sufficient buffer time compared to 60, whilst still
 	// allowing connection reuse for tracer setups that upload multiple profiles per minute.
 	transport.IdleConnTimeout = 47 * time.Second
-	// Temporarily disable log throttling to see all errors during debugging
-	// logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
-	logger := log.NewThrottled(1000, 1*time.Second) // Much higher limit for debugging
+	// Throttling of logs, old value was 5 per second
+	logger := log.NewThrottled(50, 1*time.Second) // Much higher limit for debugging
 	proxy := &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
@@ -333,11 +332,8 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 				time.Sleep(delay)
 			}
 
-			// Clone the request with a fresh context to avoid inheriting the original request timeout
-			// The original request context has a 5-second timeout from timeoutMiddleware,
-			// but we want our retries to use the transport's own timeouts
-			freshCtx := context.Background()
-			attemptReq := req.Clone(freshCtx)
+			// Clone the request preserving the original context timeout
+			attemptReq := req.Clone(req.Context())
 			if bodyBytes != nil {
 				attemptReq.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 			}
