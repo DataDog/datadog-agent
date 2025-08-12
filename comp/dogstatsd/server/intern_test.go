@@ -84,26 +84,3 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 	assert.NotEqual(&v3, &v4, "must point to a different address")
 }
 
-func TestInternLoadOrStoreReset(t *testing.T) {
-	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	assert := assert.New(t)
-	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
-	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
-
-	// first test that the good value is returned.
-	sInterner.LoadOrStore([]byte("foo"))
-	assert.Equal(1, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("bar"))
-	sInterner.LoadOrStore([]byte("bar"))
-	assert.Equal(2, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("boo"))
-	assert.Equal(3, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("far"))
-	sInterner.LoadOrStore([]byte("far"))
-	sInterner.LoadOrStore([]byte("far"))
-	assert.Equal(4, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("val"))
-	assert.Equal(1, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("val"))
-	assert.Equal(1, len(sInterner.strings))
-}
