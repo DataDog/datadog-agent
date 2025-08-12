@@ -29,3 +29,10 @@ func Module() fxutil.Module {
 		}),
 	)
 }
+
+// NilModule provides a nil TracerPayloadModifier for contexts that need to satisfy
+// the dependency but don't require payload modification functionality.
+func NilModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(func() pkgagent.TracerPayloadModifier { return nil }))
+}
