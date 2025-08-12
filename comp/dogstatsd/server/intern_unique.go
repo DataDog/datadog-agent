@@ -25,11 +25,6 @@ import (
 type stringInterner struct {
 	id        string
 	telemetry *stringInternerInstanceTelemetry
-	
-	// Track whether we've seen a string before for telemetry purposes.
-	// Since unique.Handle doesn't expose whether a value already existed,
-	// we need to track this ourselves for hit/miss metrics.
-	seen map[unique.Handle[string]]bool
 }
 
 func newStringInterner(_ int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
@@ -37,7 +32,6 @@ func newStringInterner(_ int, internerID int, siTelemetry *stringInternerTelemet
 	i := &stringInterner{
 		id:        id,
 		telemetry: siTelemetry.PrepareForID(id),
-		seen:      make(map[unique.Handle[string]]bool),
 	}
 
 	return i
@@ -50,24 +44,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	// Create a handle for the string. unique.Make will automatically
 	// deduplicate and intern the string.
 	handle := unique.Make(string(key))
-	
-	// Track hit/miss for telemetry
-	if i.seen[handle] {
-		i.telemetry.Hit()
-	} else {
-		i.seen[handle] = true
-		i.telemetry.Miss(len(key))
-	}
-	
+
 	// Return the canonical string value
 	return handle.Value()
-}
-
-// cacheSize returns the current number of unique strings seen.
-// For the unique.Handle implementation, this returns the number of
-// unique handles we've tracked, not the actual cache size (which is
-// managed by the runtime and not accessible).
-// This is primarily for testing purposes.
-func (i *stringInterner) cacheSize() int {
-	return len(i.seen)
 }
