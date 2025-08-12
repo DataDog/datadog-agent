@@ -967,6 +967,66 @@ func TestMapIntMonotonicReportRateForFirstValue(t *testing.T) {
 	assert.Empty(t, rmt.Languages)
 }
 
+func secondsAfterStart(i int) pcommon.Timestamp {
+	return seconds(int(getProcessStartTime()) + 1 + i)
+}
+
+func buildIntPoints(startTs int, deltas []int64) pmetric.NumberDataPointSlice {
+	slice := pmetric.NewNumberDataPointSlice()
+	val := int64(0)
+	for i, delta := range deltas {
+		val += delta
+		point := slice.AppendEmpty()
+		point.SetStartTimestamp(secondsAfterStart(startTs))
+		point.SetTimestamp(secondsAfterStart(i + 1))
+		point.SetIntValue(val)
+	}
+	return slice
+}
+
+// Regression Test: Check initial point drop behavior based on the value of
+// InitialCumulMonoValueMode and whether the metric series started before or after the Agent.
+// Notably, we want to make sure that the "auto" value drops the initial point iff the series
+// started before the metrics translator.
+func TestInitialCumulMonoValueMode(t *testing.T) {
+	ctx := context.Background()
+
+	deltas := []int64{1, 2, 3}
+
+	agentRestartInput := buildIntPoints(-20, deltas)
+	appRestartInput := buildIntPoints(0, deltas)
+
+	var keepOutput []metric
+	for i, delta := range deltas {
+		keepOutput = append(keepOutput, newCount(exampleDims, uint64(secondsAfterStart(i+1)), float64(delta)))
+	}
+	dropOutput := keepOutput[1:]
+
+	type testCase struct {
+		name   string
+		mode   InitialCumulMonoValueMode
+		input  pmetric.NumberDataPointSlice
+		output []metric
+	}
+	testCases := []testCase{
+		{"auto/agent-restart", InitialCumulMonoValueModeAuto, agentRestartInput, dropOutput},
+		{"auto/app-restart", InitialCumulMonoValueModeAuto, appRestartInput, keepOutput},
+		{"drop/agent-restart", InitialCumulMonoValueModeDrop, agentRestartInput, dropOutput},
+		{"drop/app-restart", InitialCumulMonoValueModeDrop, appRestartInput, dropOutput},
+		{"keep/agent-restart", InitialCumulMonoValueModeKeep, agentRestartInput, keepOutput},
+		{"keep/app-restart", InitialCumulMonoValueModeKeep, appRestartInput, keepOutput},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tr := newTranslator(t, zap.NewNop())
+			tr.cfg.InitialCumulMonoValueMode = tc.mode
+			consumer := mockFullConsumer{}
+			tr.mapNumberMonotonicMetrics(ctx, &consumer, exampleDims, tc.input)
+			assert.Equal(t, tc.output, consumer.metrics)
+		})
+	}
+}
+
 func TestMapRuntimeMetricsHasMapping(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
