@@ -29,7 +29,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.2
-	github.com/DataDog/appsec-internal-go v1.12.0
+	github.com/DataDog/appsec-internal-go v1.13.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.64.0-rc.12
@@ -42,6 +42,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964
+	github.com/DataDog/datadog-traceroute v0.1.1
 	github.com/DataDog/ebpf-manager v0.7.13
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
@@ -317,7 +318,7 @@ require (
 	github.com/knqyf263/go-rpm-version v0.0.0-20220614171824-631e686d1075 // indirect
 	github.com/knqyf263/go-rpmdb v0.1.2-0.20241125135340-7670f0f23c16
 	github.com/libp2p/go-reuseport v0.2.0 // indirect
-	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
+	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/masahiro331/go-disk v0.0.0-20240625071113-56c933208fee // indirect
 	github.com/masahiro331/go-ext4-filesystem v0.0.0-20240620024024-ca14e6327bbd // indirect
@@ -654,7 +655,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.68.3
 	github.com/DataDog/go-libddwaf/v4 v4.3.0
 	github.com/DataDog/go-sqllexer v0.1.6
-	github.com/Datadog/dublin-traceroute v0.0.2
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aws/aws-sdk-go-v2/service/kms v1.41.4
 	github.com/aws/aws-sdk-go-v2/service/rds v1.99.2
@@ -768,7 +768,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.67.0 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.42.0 // indirect
-	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20241206090539-a14610dc22b6 // indirect
+	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.29.1 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.29.0 // indirect
@@ -1024,7 +1024,7 @@ exclude go.opentelemetry.io/proto/otlp v1.1.0
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20250206221735-64e5a8c92d94
 
 // Remove once https://github.com/kubernetes/kube-state-metrics/pull/2553 is merged
-replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20241119155242-07761b9fe9a0
+replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20250808193648-ead8278ad9fb
 
 // Remove once https://github.com/Iceber/iouring-go/pull/31 or equivalent is merged,
 // among with the Connect, Bind and Accept requests
