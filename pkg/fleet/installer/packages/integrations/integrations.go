@@ -106,46 +106,16 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 	span, _ := telemetry.StartSpanFromContext(ctx, "remove_custom_integrations")
 	defer func() { span.Finish(err) }()
 
-	if _, err := os.Stat(filepath.Join(installPath, "embedded/.installed_by_pkg.txt")); err != nil {
-		if os.IsNotExist(err) {
-			return nil // No-op
-		}
-		return err
-	}
-
-	fmt.Println("Removing integrations installed with the 'agent integration' command")
-
 	// Use an in-memory map to store all integration paths
 	allIntegrations, err := getAllIntegrations(installPath)
 	if err != nil {
 		return err
 	}
 
-	// Read the list of installed files
-	installedByPkg, err := os.ReadFile(filepath.Join(installPath, "embedded", ".installed_by_pkg.txt"))
-	if err != nil {
-		return err
-	}
-
-	// Create a set of paths installed by the package
-	installedByPkgSet := make(map[string]struct{})
-	for _, line := range strings.Split(string(installedByPkg), "\n") {
-		if line != "" {
-			// Make sure the path is absolute so we can compare apples to apples
-			if !filepath.IsAbs(line) && !strings.HasPrefix(line, "#") {
-				line = filepath.Join(installPath, line)
-			}
-			installedByPkgSet[line] = struct{}{}
-		}
-	}
-
 	// Remove paths that are in allIntegrations but not in installedByPkgSet
 	for _, path := range allIntegrations {
-		if _, exists := installedByPkgSet[path]; !exists {
-			// Remove if it was not installed by the package.
-			if err := os.RemoveAll(path); err != nil {
-				return err
-			}
+		if err := os.RemoveAll(path); err != nil {
+			return err
 		}
 	}
 
