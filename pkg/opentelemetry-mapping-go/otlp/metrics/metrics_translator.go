@@ -176,10 +176,15 @@ func (t *Translator) mapNumberMetrics(
 
 // TODO(songy23): consider changing this to a Translator start time that must be initialized
 // if the package-level variable causes any issue.
-var startTime = uint64(time.Now().Unix())
+var startTime = uint64(time.Now().UnixNano())
 
 // getProcessStartTime returns the start time of the Agent process in seconds since epoch
 func getProcessStartTime() uint64 {
+	return startTime / 1_000_000_000
+}
+
+// getProcessStartTimeNano returns the start time of the Agent process in nanoseconds since epoch
+func getProcessStartTimeNano() uint64 {
 	return startTime
 }
 
@@ -188,7 +193,7 @@ func getProcessStartTime() uint64 {
 func (t *Translator) shouldConsumeInitialValue(startTs, ts uint64) bool {
 	switch t.cfg.InitialCumulMonoValueMode {
 	case InitialCumulMonoValueModeAuto:
-		if getProcessStartTime() < startTs && startTs != ts {
+		if getProcessStartTimeNano() < startTs && startTs != ts {
 			// Report the first value if the timeseries started after the Datadog Agent process started.
 			return true
 		}
