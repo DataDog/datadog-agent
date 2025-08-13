@@ -46,4 +46,12 @@ type Component interface {
 
 	// IsolateCheck isolates a specific check
 	IsolateCheck(isolateCheckID string) types.IsolateResponse
+
+	// Stats Methods
+
+	// GetStats retrieves the stats of the handler
+	GetStats() (*types.Stats, error)
+
+	// GetNodeTypeCounts returns the number of CLC runners and node agents running cluster checks
+	GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error)
 }
