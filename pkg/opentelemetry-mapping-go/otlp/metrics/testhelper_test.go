@@ -14,13 +14,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
-	"github.com/DataDog/datadog-agent/pkg/util/quantile"
-	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
 )
 
 func NewTestTranslator(t testing.TB, options ...TranslatorOption) *Translator {
@@ -31,6 +32,13 @@ func NewTestTranslator(t testing.TB, options ...TranslatorOption) *Translator {
 	translator, err := NewTranslator(set, attributesTranslator, options...)
 	require.NoError(t, err)
 	return translator
+}
+
+// TestDatadog represents a test case for Datadog metrics.
+// This structure is not meant to be used directly; use AssertTranslatorMap instead.
+type TestDatadog struct {
+	Metrics TestMetrics
+	Hosts   map[string]struct{}
 }
 
 // TestMetrics is the struct used for serializing Datadog metrics for generating testdata.
@@ -102,19 +110,20 @@ func AssertTranslatorMap(t TestingT, translator *Translator, otlpfilename string
 	datadogbytes, err := os.ReadFile(datadogfilename)
 	require.NoError(t, err, "failed to read file %q", datadogfilename)
 
-	var expecteddata TestMetrics
+	var expecteddata TestDatadog
 	err = json.Unmarshal(datadogbytes, &expecteddata)
 	require.NoError(t, err, "failed to unmarshal Datadog data from file %q", datadogfilename)
 
 	// Map metrics using translator.
-	var consumer testConsumer
+	consumer := newTestConsumer()
 	_, err = translator.MapMetrics(context.Background(), otlpdata, &consumer, nil)
 	require.NoError(t, err)
 
-	if !assert.Equal(t, expecteddata, consumer.testMetrics) {
+	if !assert.Equal(t, expecteddata.Metrics, consumer.data.Metrics) ||
+		!assert.Equal(t, consumer.data.Hosts, expecteddata.Hosts) {
 		actualfile := datadogfilename + ".actual"
 		t.Logf("Translator output does not match expected data, saving actual data on %q", actualfile)
-		b, err := json.MarshalIndent(&consumer.testMetrics, "", "  ")
+		b, err := json.MarshalIndent(&consumer.data, "", "  ")
 		require.NoError(t, err)
 
 		err = os.WriteFile(actualfile, b, 0660)
@@ -126,9 +135,18 @@ func AssertTranslatorMap(t TestingT, translator *Translator, otlpfilename string
 }
 
 var _ Consumer = (*testConsumer)(nil)
+var _ HostConsumer = (*testConsumer)(nil)
 
 type testConsumer struct {
-	testMetrics TestMetrics
+	data TestDatadog
+}
+
+func newTestConsumer() testConsumer {
+	return testConsumer{
+		data: TestDatadog{
+			Hosts: make(map[string]struct{}),
+		},
+	}
 }
 
 func (t *testConsumer) ConsumeTimeSeries(
@@ -138,7 +156,7 @@ func (t *testConsumer) ConsumeTimeSeries(
 	timestamp uint64,
 	value float64,
 ) {
-	t.testMetrics.TimeSeries = append(t.testMetrics.TimeSeries,
+	t.data.Metrics.TimeSeries = append(t.data.Metrics.TimeSeries,
 		TestTimeSeries{
 			TestDimensions: TestDimensions{
 				Name:                dimensions.Name(),
@@ -162,7 +180,7 @@ func (t *testConsumer) ConsumeSketch(
 	sketch *quantile.Sketch,
 ) {
 	k, n := sketch.Cols()
-	t.testMetrics.Sketches = append(t.testMetrics.Sketches,
+	t.data.Metrics.Sketches = append(t.data.Metrics.Sketches,
 		TestSketch{
 			TestDimensions: TestDimensions{
 				Name:                dimensions.Name(),
@@ -179,6 +197,10 @@ func (t *testConsumer) ConsumeSketch(
 			Counts:    n,
 		},
 	)
+}
+
+func (t *testConsumer) ConsumeHost(host string) {
+	t.data.Hosts[host] = struct{}{}
 }
 
 // TestTestDimensions tests that TestDimensions fields match those of Dimensions.

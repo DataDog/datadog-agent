@@ -1,66 +1,71 @@
 {
-  "Sketches": [
-    {
-      "Name": "doubleHist.test.minmax",
-      "Tags": [
-        "attribute_tag:attribute_value"
-      ],
-      "Host": "hostname",
-      "OriginID": "",
-      "OriginProduct": 10,
-      "OriginSubProduct": 17,
-      "OriginProductDetail": 0,
-      "Timestamp": 1667560641226420924,
-      "Summary": {
-        "Min": -100,
-        "Max": 99.95733062532716,
-        "Sum": 3.141592653589793,
-        "Avg": 0.15707963267948966,
-        "Cnt": 20
-      },
-      "Keys": [
-        -1635,
-        -1590,
-        0,
-        1453,
-        1498,
-        1524,
-        1543,
-        1558,
-        1570,
-        1580,
-        1589,
-        1597,
-        1604,
-        1610,
-        1616,
-        1621,
-        1626,
-        1631,
-        1635
-      ],
-      "Counts": [
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        2
-      ]
-    }
-  ],
-  "TimeSeries": null
+  "Metrics": {
+    "Sketches": [
+      {
+        "Name": "doubleHist.test.minmax",
+        "Tags": [
+          "attribute_tag:attribute_value"
+        ],
+        "Host": "hostname",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Timestamp": 1667560641226420924,
+        "Summary": {
+          "Min": -100,
+          "Max": 99.95733062532716,
+          "Sum": 3.141592653589793,
+          "Avg": 0.15707963267948966,
+          "Cnt": 20
+        },
+        "Keys": [
+          -1635,
+          -1590,
+          0,
+          1453,
+          1498,
+          1524,
+          1543,
+          1558,
+          1570,
+          1580,
+          1589,
+          1597,
+          1604,
+          1610,
+          1616,
+          1621,
+          1626,
+          1631,
+          1635
+        ],
+        "Counts": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          2
+        ]
+      }
+    ],
+    "TimeSeries": null
+  },
+  "Hosts": {
+    "hostname": {}
+  }
 }
