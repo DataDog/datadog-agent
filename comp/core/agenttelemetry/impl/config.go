@@ -305,8 +305,23 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: runtime.running
+  - name: hostname
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
         - name: hostname.drift_detected
+          aggregate_tags:
+            - state
+            - provider
         - name: hostname.drift_resolution_time_ms
+          aggregate_tags:
+            - state
+            - provider
+    schedule:
+      start_after: 1800 # 30 minutes
+      iterations: 0
+      period: 21600 # 6 hours
   - name: otlp
     metric:
       exclude:
