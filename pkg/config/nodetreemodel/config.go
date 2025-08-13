@@ -213,6 +213,14 @@ func (c *ntmConfig) SetTestOnlyDynamicSchema(allow bool) {
 	c.allowDynamicSchema.Store(allow)
 }
 
+// RevertFinishedBackToBuilder returns an interface that can build more on the current
+// config, instead of treating it as sealed
+// NOTE: Only used by OTel, no new uses please!
+func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
+	c.ready.Store(false)
+	return c
+}
+
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	c.maybeRebuild()
@@ -998,7 +1006,7 @@ func (c *ntmConfig) Object() model.Reader {
 }
 
 // NewNodeTreeConfig returns a new Config object.
-func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
 	config := ntmConfig{
 		ready:               atomic.NewBool(false),
 		allowDynamicSchema:  atomic.NewBool(false),
