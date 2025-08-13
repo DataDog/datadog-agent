@@ -1341,12 +1341,25 @@ func (s *systemdServiceWrapper) ExecCommand(binary string, args []string) error 
 	return execCmd.Run()
 }
 
-func (s *systemdServiceWrapper) stop() {
+func (s *systemdServiceWrapper) stop() error {
 	// Stop the systemd service
-	exec.Command("systemctl", "stop", s.serviceName).Run()
-	exec.Command("systemctl", "disable", s.serviceName).Run()
-	os.Remove("/etc/systemd/system/" + s.serviceName + ".service")
-	exec.Command("systemctl", "daemon-reload").Run()
+	err := exec.Command("systemctl", "stop", s.serviceName).Run()
+	if err != nil {
+		return fmt.Errorf("failed to stop service: %v", err)
+	}
+	err = exec.Command("systemctl", "disable", s.serviceName).Run()
+	if err != nil {
+		return fmt.Errorf("failed to disable service: %v", err)
+	}
+	err = os.Remove("/etc/systemd/system/" + s.serviceName + ".service")
+	if err != nil {
+		return fmt.Errorf("failed to remove service file: %v", err)
+	}
+	err = exec.Command("systemctl", "daemon-reload").Run()
+	if err != nil {
+		return fmt.Errorf("failed to reload systemd: %v", err)
+	}
+	return nil
 }
 
 func (tm *testModule) StartSystemdService(serviceName string) (*systemdServiceWrapper, error) {
