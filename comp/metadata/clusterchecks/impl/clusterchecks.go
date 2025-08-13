@@ -257,7 +257,7 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 				"config.source":   config.Source,
 				"init_config":     string(config.InitConfig),
 				"node_name":       node.Name,
-				"status":          "dispatched",
+				"status":          "DISPATCHED",
 				"errors":          "", // Empty for now, ready for future error tracking
 			}
 
@@ -282,7 +282,7 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 			"config.provider": config.Provider,
 			"config.source":   config.Source,
 			"init_config":     string(config.InitConfig),
-			"status":          "dangling",
+			"status":          "DANGLING",
 			"errors":          "Check not assigned to any node",
 		}
 

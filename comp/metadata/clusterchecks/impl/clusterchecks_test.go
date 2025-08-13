@@ -213,7 +213,7 @@ func TestCollectClusterCheckMetadata(t *testing.T) {
 	// Verify dispatched check
 	assert.Contains(t, payload.ClusterCheckMetadata, "kubernetes_state_core")
 	ksm := payload.ClusterCheckMetadata["kubernetes_state_core"][0]
-	assert.Equal(t, "dispatched", ksm["status"])
+	assert.Equal(t, "DISPATCHED", ksm["status"])
 	assert.Equal(t, "node-1", ksm["node_name"])
 	assert.Equal(t, "", ksm["errors"])
 	assert.Equal(t, "cluster-checks", ksm["config.provider"])
@@ -224,7 +224,7 @@ func TestCollectClusterCheckMetadata(t *testing.T) {
 	// Verify dangling check
 	assert.Contains(t, payload.ClusterCheckMetadata, "openmetrics")
 	om := payload.ClusterCheckMetadata["openmetrics"][0]
-	assert.Equal(t, "dangling", om["status"])
+	assert.Equal(t, "DANGLING", om["status"])
 	assert.Equal(t, "Check not assigned to any node", om["errors"])
 
 	// Verify status counts

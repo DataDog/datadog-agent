@@ -174,9 +174,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
 					status.NewInformationProvider(admissionpkg.Provider{}),
 					status.NewInformationProvider(endpointsStatus.Provider{}),
-					status.NewInformationProvider(pkgclusterchecks.Provider{}),
-					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
+				fx.Provide(func(clusterChecksHandler option.Option[clustercheckhandler.Component]) []status.InformationProvider {
+					return []status.InformationProvider{
+						status.NewInformationProvider(pkgclusterchecks.NewProvider(clusterChecksHandler)),
+						status.NewInformationProvider(orchestratorStatus.NewProvider(clusterChecksHandler)),
+					}
+				}),
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
 				}),

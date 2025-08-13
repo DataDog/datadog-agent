@@ -82,3 +82,13 @@ func (n *noopImpl) RebalanceClusterChecks(_ bool) ([]types.RebalanceResponse, er
 func (n *noopImpl) IsolateCheck(_ string) types.IsolateResponse {
 	return types.IsolateResponse{Reason: "cluster checks not compiled"}
 }
+
+// GetStats returns an error for no-op
+func (n *noopImpl) GetStats() (*types.Stats, error) {
+	return nil, errors.New("cluster checks not compiled")
+}
+
+// GetNodeTypeCounts returns an error for no-op
+func (n *noopImpl) GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
+	return 0, 0, errors.New("cluster checks not compiled")
+}
