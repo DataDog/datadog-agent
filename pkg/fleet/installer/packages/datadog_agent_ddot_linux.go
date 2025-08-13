@@ -116,7 +116,7 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	}
 
 	// Set DDOT config permissions
-	if err = ddotConfigPermissionsOCI.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+	if err = ddotConfigPermissionsOCI.Ensure("/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
@@ -156,12 +156,12 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 	}
 
 	// Set DDOT package permissions
-	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
+	if err = ddotPackagePermissions.Ensure(ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
 	}
 
 	// Set DDOT config permissions
-	if err = ddotConfigPermissionsDEBRPM.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+	if err = ddotConfigPermissionsDEBRPM.Ensure("/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
