@@ -32,7 +32,7 @@ const (
 )
 
 // ContainerListener listens to container creation through a subscription to the
-// workloadmeta store.
+// workloadmeta store. 
 type ContainerListener struct {
 	workloadmetaListener
 	filterStore filter.Component

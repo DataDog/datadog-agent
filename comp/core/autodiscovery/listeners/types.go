@@ -80,6 +80,8 @@ type ServiceListenerFactory func(ServiceListernerDeps) (ServiceListener, error)
 func Register(name string,
 	factory ServiceListenerFactory,
 	serviceListenerFactories map[string]ServiceListenerFactory) {
+
+	log.Infof("[Checkpoint] registering %q", name)
 	if factory == nil {
 		log.Infof("Service listener factory %s does not exist.", name)
 		return

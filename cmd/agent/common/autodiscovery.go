@@ -195,7 +195,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 		for i := range listeners {
 			listeners[i].SetEnabledProviders(providersSet)
 		}
-
+		log.Debugf("[Checkpoint] here are the listeners: %v", listeners)
 		ac.AddListeners(listeners)
 	} else {
 		log.Errorf("Error while reading 'listeners' settings: %v", err)

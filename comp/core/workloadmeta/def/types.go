@@ -1310,6 +1310,10 @@ func (p Process) String(verbose bool) string {
 	if p.Language != nil {
 		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 	}
+
+	_, _ = fmt.Fprintln(&sb, "Comm:", p.Comm)
+	_, _ = fmt.Fprintln(&sb, p.Cmdline)
+
 	if p.Service != nil {
 		_, _ = fmt.Fprintln(&sb, "Service Generated Name:", p.Service.GeneratedName)
 		if verbose {
