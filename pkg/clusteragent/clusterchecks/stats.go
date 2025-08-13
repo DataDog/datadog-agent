@@ -8,45 +8,18 @@
 package clusterchecks
 
 import (
-	"errors"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
-const handlerCacheKey = "cluster_checks_handler"
-
-// GetStats retrieves the stats of the latest started handler.
+// GetStats retrieves the stats of the handler.
 // It is used for the agent status command.
-func GetStats() (*types.Stats, error) {
-	key := cache.BuildAgentKey(handlerCacheKey)
-	x, found := cache.Cache.Get(key)
-	if !found {
-		return nil, errors.New("Clusterchecks not running")
-	}
-
-	handler, ok := x.(*Handler)
-	if !ok {
-		return nil, errors.New("Cache entry is not a valid handler")
-	}
-
-	return handler.getStats(), nil
+func (h *Handler) GetStats() (*types.Stats, error) {
+	return h.getStats(), nil
 }
 
 // GetNodeTypeCounts returns the number of CLC runners and node agents running cluster checks.
-func GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
-	key := cache.BuildAgentKey(handlerCacheKey)
-	x, found := cache.Cache.Get(key)
-	if !found {
-		return 0, 0, errors.New("Clusterchecks not running")
-	}
-
-	handler, ok := x.(*Handler)
-	if !ok {
-		return 0, 0, errors.New("Cache entry is not a valid handler")
-	}
-
-	clcRunnerCount, nodeAgentCount = handler.dispatcher.store.CountNodeTypes()
+func (h *Handler) GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
+	clcRunnerCount, nodeAgentCount = h.dispatcher.store.CountNodeTypes()
 	return clcRunnerCount, nodeAgentCount, nil
 }
 
