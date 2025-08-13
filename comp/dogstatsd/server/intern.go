@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !go1.23
+// This file contains the legacy map-based string interner implementation.
 
 package server
 
@@ -26,26 +26,28 @@ import (
 // take advantage of the new "Unique" api that is proposed below.
 // ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
-	strings map[string]string
-	maxSize int
-	id      string
+	strings  map[string]string
+	maxSize  int
+	id       string
+	curBytes int // current bytes stored
 
 	telemetry *stringInternerInstanceTelemetry
 }
 
-func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
+func newLegacyStringInterner(maxSize int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
 	// telemetryOnce.Do(func() { initGlobalTelemetry(telemetrycomp) })
 
 	id := fmt.Sprintf("interner_%d", internerID)
 	i := &stringInterner{
-		strings:   make(map[string]string),
-		id:        id,
-		maxSize:   maxSize,
+		strings:  make(map[string]string),
+		id:       id,
+		maxSize:  maxSize,
 		telemetry: siTelemetry.PrepareForID(id),
 	}
 
 	return i
 }
+
 
 // LoadOrStore always returns the string from the cache, adding it into the
 // cache if needed.
@@ -58,12 +60,19 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	// for this string.
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
 	if s, found := i.strings[string(key)]; found {
-		i.telemetry.Hit()
+		if i.telemetry.enabled {
+			i.telemetry.hits.Inc()
+		}
 		return s
 	}
 
 	if len(i.strings) >= i.maxSize {
-		i.telemetry.Reset(len(i.strings))
+		if i.telemetry.enabled {
+			i.telemetry.resets.Inc()
+			i.telemetry.bytes.Sub(float64(i.curBytes))
+			i.telemetry.size.Sub(float64(len(i.strings)))
+			i.curBytes = 0
+		}
 
 		i.strings = make(map[string]string)
 	}
@@ -71,7 +80,13 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	s := string(key)
 	i.strings[s] = s
 
-	i.telemetry.Miss(len(s))
+	if i.telemetry.enabled {
+		i.telemetry.miss.Inc()
+		i.telemetry.size.Inc()
+		i.telemetry.bytes.Add(float64(len(s)))
+		i.telemetry.globaltlmSIRStrBytes.Observe(float64(len(s)))
+		i.curBytes += len(s)
+	}
 
 	return s
 }
