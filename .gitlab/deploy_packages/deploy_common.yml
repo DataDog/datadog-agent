@@ -43,13 +43,12 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
   variables:
-    ARTIFACTS_PREFIX: ""
     DD_PKG_ARCH: x86_64
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
     - !reference [.setup_dd_pkg]
-    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}"
+    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" "${DD_PKG_EXTRA_ARGS}"
 
 .deploy_packages_rpm-6:
   extends: .deploy_packages_rpm
@@ -70,7 +69,7 @@
 .deploy_packages_suse_rpm:
   extends: .deploy_packages_rpm
   variables:
-    ARTIFACTS_PREFIX: suse_
+    DD_PKG_EXTRA_ARGS: --suse
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
 
 .deploy_packages_suse_rpm-6:
