@@ -11,11 +11,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/command"
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands"
-
-	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 )
 
 func main() {
 	rootCmd := command.MakeCommand(subcommands.CWSInjectorSubcommands())
-	os.Exit(runcmd.Run(rootCmd))
+
+	if err := rootCmd.Execute(); err != nil {
+		// the error has already been printed
+		os.Exit(1)
+	}
 }
