@@ -6,10 +6,10 @@ package api
 
 import (
 	fmt "fmt"
-	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	protohelpers "github.com/planetscale/vtprotobuf/protohelpers"
 	timestamppb "github.com/planetscale/vtprotobuf/types/known/timestamppb"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb1 "google.golang.org/protobuf/types/known/timestamppb"
 	io "io"
 )
 
@@ -4511,7 +4511,7 @@ func (m *SecurityEventMessage) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Timestamp == nil {
-				m.Timestamp = &timestamp.Timestamp{}
+				m.Timestamp = &timestamppb1.Timestamp{}
 			}
 			if err := (*timestamppb.Timestamp)(m.Timestamp).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err

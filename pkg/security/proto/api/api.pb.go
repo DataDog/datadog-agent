@@ -7,9 +7,9 @@
 package api
 
 import (
-	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 )
@@ -63,7 +63,7 @@ type SecurityEventMessage struct {
 	Data          []byte                 `protobuf:"bytes,2,opt,name=Data,proto3" json:"Data,omitempty"`
 	Tags          []string               `protobuf:"bytes,3,rep,name=Tags,proto3" json:"Tags,omitempty"`
 	Service       string                 `protobuf:"bytes,4,opt,name=Service,proto3" json:"Service,omitempty"`
-	Timestamp     *timestamp.Timestamp   `protobuf:"bytes,5,opt,name=Timestamp,proto3" json:"Timestamp,omitempty"`
+	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=Timestamp,proto3" json:"Timestamp,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -126,7 +126,7 @@ func (x *SecurityEventMessage) GetService() string {
 	return ""
 }
 
-func (x *SecurityEventMessage) GetTimestamp() *timestamp.Timestamp {
+func (x *SecurityEventMessage) GetTimestamp() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Timestamp
 	}
@@ -3821,7 +3821,7 @@ var file_pkg_security_proto_api_api_proto_goTypes = []any{
 	(*SecurityProfileSaveMessage)(nil),      // 54: api.SecurityProfileSaveMessage
 	nil,                                     // 55: api.ProfileContextMessage.EventTypeStateEntry
 	nil,                                     // 56: api.SecurityProfileMessage.ProfileContextsEntry
-	(*timestamp.Timestamp)(nil),             // 57: google.protobuf.Timestamp
+	(*timestamppb.Timestamp)(nil),           // 57: google.protobuf.Timestamp
 }
 var file_pkg_security_proto_api_api_proto_depIdxs = []int32{
 	57, // 0: api.SecurityEventMessage.Timestamp:type_name -> google.protobuf.Timestamp
