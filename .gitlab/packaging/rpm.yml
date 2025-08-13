@@ -45,7 +45,7 @@
       fi
   artifacts:
     paths:
-      - "static_quality_gate_*_report.yml"
+      - "*_size_report_*.yml"
 
 .package_rpm_common:
   extends: .static_quality_gate_report_common
