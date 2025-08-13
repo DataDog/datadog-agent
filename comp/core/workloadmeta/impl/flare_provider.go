@@ -37,7 +37,7 @@ func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
 		return fmt.Errorf("failed to marshal results to JSON: %v", err)
 	}
 
-	_ = fb.AddFile("sbom.json", content)
+	_ = fb.AddFileWithoutScrubbing("sbom.json", content)
 
 	return nil
 }

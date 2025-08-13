@@ -87,12 +87,13 @@ func (c *Collector) ScanCRIOImageFromOverlayFS(ctx context.Context, imgMeta *wor
 		diffIDs = append(diffIDs, "sha256:"+filepath.Base(filepath.Dir(dir)))
 	}
 
+	fc, err := newFakeContainer(lowerDirs, imgMeta, diffIDs)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create fake container, err: %w", err)
+	}
+
 	report, err := c.scanOverlayFS(ctx, lowerDirs, &fakeCRIOContainer{
-		fakeContainer: &fakeContainer{
-			imgMeta:    imgMeta,
-			layerPaths: lowerDirs,
-			layerIDs:   diffIDs,
-		},
+		fakeContainer: fc,
 	}, imgMeta, scanOptions)
 	if err != nil {
 		return nil, err
