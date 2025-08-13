@@ -174,9 +174,9 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, awsEnv aws.Environm
 		if err != nil {
 			return err
 		}
-		// Active Directory setup needs to happen after Windows Defender setup
-		params.activeDirectoryOptions = append(params.activeDirectoryOptions,
-			activedirectory.WithPulumiResourceOptions(
+		// TestSigning setup needs to happen after Windows Defender setup
+		params.testsigningOptions = append(params.testsigningOptions,
+			testsigning.WithPulumiResourceOptions(
 				pulumi.DependsOn(defender.Resources)))
 	}
 

@@ -43,7 +43,7 @@ func NewTestSigning(e *config.CommonEnvironment, host *remote.Host, options ...O
 			Create: pulumi.String(powershell.PsHost().
 				EnableTestSigning().
 				Compile()),
-		})
+		}, params.ResourceOptions...)
 		if err != nil {
 			return nil, err
 		}
@@ -53,10 +53,11 @@ func NewTestSigning(e *config.CommonEnvironment, host *remote.Host, options ...O
 		if err != nil {
 			return nil, err
 		}
+		params.ResourceOptions = append(params.ResourceOptions, pulumi.DependsOn(manager.Resources), pulumi.Provider(timeProvider))
 
 		waitForRebootCmd, err := time.NewSleep(e.Ctx(), manager.namer.ResourceName("wait-for-host-to-reboot"), &time.SleepArgs{
 			CreateDuration: pulumi.String("60s"),
-		}, pulumi.Provider(timeProvider), pulumi.DependsOn(manager.Resources))
+		}, params.ResourceOptions...)
 		if err != nil {
 			return nil, err
 		}
