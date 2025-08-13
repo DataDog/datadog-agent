@@ -9,6 +9,12 @@
         echo "📊 Starting package measurement..."
 
         # Determine package type and set appropriate variables
+        # Handle FIPS packages by adjusting project name
+        PROJECT_NAME="$DD_PROJECT"
+        if [[ "$GATE_NAME" == *"fips"* ]]; then
+          PROJECT_NAME="${DD_PROJECT}-fips"
+        fi
+
         if [[ "$GATE_NAME" == *"rpm"* ]] || [[ "$GATE_NAME" == *"suse"* ]]; then
           # RPM packages
           ARCH_VAR="$DD_PKG_ARCH"
@@ -22,7 +28,7 @@
             MAPPED_ARCH="aarch64"
           fi
           
-          PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${DD_PROJECT}-7*${MAPPED_ARCH}.rpm"
+          PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${PROJECT_NAME}-7*${MAPPED_ARCH}.rpm"
         elif [[ "$GATE_NAME" == *"deb"* ]]; then
           # DEB packages
           ARCH_VAR="$PACKAGE_ARCH"
@@ -31,7 +37,7 @@
           # DEB packages typically don't need architecture remapping
           MAPPED_ARCH="$PACKAGE_ARCH"
           
-          PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${DD_PROJECT}_*_${MAPPED_ARCH}.deb"
+          PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${PROJECT_NAME}_*_${MAPPED_ARCH}.deb"
         else
           echo "⚠️  Unknown package type for gate: $GATE_NAME"
           exit 0
