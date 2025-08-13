@@ -8,4 +8,4 @@
 ---
 deprecations:
   - |
-    Logging to syslog with TLS is no longer supported, the feature is unused and has never worked properly.
+    Logging to syslog with TLS is no longer supported.
