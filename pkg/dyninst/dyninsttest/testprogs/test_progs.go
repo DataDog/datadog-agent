@@ -25,6 +25,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"slices"
@@ -121,18 +122,18 @@ var (
 func getState() (*state, error) {
 	globalStateOnce.Do(func() {
 		var haveSources bool
-		var srcPathDir string
+		var progsSrcDir string
 		if _, srcPath, _, ok := runtime.Caller(0); ok {
 			srcDir := path.Dir(srcPath)
 			s, err := os.Stat(srcDir)
 			haveSources = err == nil && s.IsDir()
 			if haveSources {
-				srcPathDir = path.Dir(srcDir)
+				progsSrcDir = path.Join(srcDir, "progs")
 			}
 		}
 		globalState, globalStateErr = initStateFromBinaries(
 			haveSources,
-			srcPathDir,
+			progsSrcDir,
 		)
 	})
 	return &globalState, globalStateErr
@@ -142,12 +143,23 @@ func initStateFromBinaries(
 	haveSources bool,
 	progsSrcDir string,
 ) (state, error) {
-	binariesDir, err := filepath.Abs(path.Join(progsSrcDir, "testprogs", "binaries"))
+	pkgPath := strings.TrimPrefix(
+		reflect.TypeOf(Config{}).PkgPath(),
+		"github.com/DataDog/datadog-agent/",
+	)
+	const maxDirectoryDepth = 10
+	binariesDir := path.Join(".", pkgPath, "binaries")
+	for range maxDirectoryDepth {
+		if _, err := os.Stat(binariesDir); err == nil {
+			goto found
+		}
+		binariesDir = path.Join("..", binariesDir)
+	}
+	return state{}, fmt.Errorf("binaries directory not found; %s; %s", binariesDir, helpMsg)
+found:
+	binariesDir, err := filepath.Abs(binariesDir)
 	if err != nil {
 		return state{}, fmt.Errorf("failed to get absolute path for binaries directory: %w", err)
-	}
-	if _, err := os.Stat(binariesDir); err != nil {
-		return state{}, fmt.Errorf("binaries directory not found; %s, %s, %v", binariesDir, helpMsg, err)
 	}
 	probesCfgsDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/probes"))
 	if err != nil {
@@ -233,7 +245,7 @@ func getBinary(
 	progsSrcDir := state.progsSrcDir
 	binaryDir := path.Join(binariesDir, cfg.String())
 	binaryPath := path.Join(binaryDir, name)
-	progDir := path.Join(progsSrcDir, "testprogs", "progs", name)
+	progDir := path.Join(progsSrcDir, name)
 	binInfo, err := os.Stat(binaryPath)
 	if errors.Is(err, os.ErrNotExist) {
 		log.Printf(

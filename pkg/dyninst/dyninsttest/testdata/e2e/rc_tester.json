@@ -245,7 +245,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadogagent]pkg/dyninst/dyninsttest/testprogs/progs/[binary]/main.go:[line]"
                       }
                     }
                   },
@@ -548,7 +548,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadogagent]pkg/dyninst/dyninsttest/testprogs/progs/[binary]/main.go:[line]"
                       }
                     }
                   },
@@ -851,7 +851,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadogagent]pkg/dyninst/dyninsttest/testprogs/progs/[binary]/main.go:[line]"
                       }
                     }
                   },

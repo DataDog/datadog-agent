@@ -46,12 +46,12 @@ func TestInitFromBinaries(t *testing.T) {
 		{
 			name: "only overlapping binaries",
 			layout: map[string][]string{
-				"pkg/dyninst/testprogs/binaries/arch=amd64,toolchain=go1.22.5": {
+				"pkg/dyninst/dyninsttest/testprogs/binaries/arch=amd64,toolchain=go1.22.5": {
 					"foo",
 					"bar",
 					".flock",
 				},
-				"pkg/dyninst/testprogs/binaries/arch=arm64,toolchain=go1.22.5": {
+				"pkg/dyninst/dyninsttest/testprogs/binaries/arch=arm64,toolchain=go1.22.5": {
 					"foo",
 					".flock",
 				},

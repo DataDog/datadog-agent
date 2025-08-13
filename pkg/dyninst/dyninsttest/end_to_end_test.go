@@ -719,7 +719,7 @@ func waitForLogMessages(
 				"/debugger/snapshot/captures/",
 				"/pat/fields/loc/value",
 			},
-			newRegexpReplacer(`(?P<datadogagent>.*)pkg/dyninst/testprogs/progs/(?P<binary>[^/]+)/.*:(?P<line>[[:digit:]]+)`),
+			newRegexpReplacer(`(?P<datadogagent>.*)pkg/dyninst/dyninsttest/testprogs/progs/(?P<binary>[^/]+)/.*:(?P<line>[[:digit:]]+)`),
 		))
 		var allRedacted []json.RawMessage
 		for _, log := range processedLogs {
