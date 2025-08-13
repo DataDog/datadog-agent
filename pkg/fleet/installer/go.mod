@@ -4,7 +4,6 @@ go 1.24.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.7.0
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.68.3
 	github.com/DataDog/datadog-agent/pkg/template v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
@@ -28,25 +27,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.68.3 // indirect
-	github.com/DataDog/viper v1.14.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -54,37 +35,25 @@ require (
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/gofrs/flock v0.12.1 // indirect
-	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
-	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
-	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
-	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/spf13/afero v1.14.0 // indirect
-	github.com/spf13/cast v1.9.2 // indirect
-	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/vbatts/tar-split v0.11.6 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
@@ -100,3 +69,55 @@ replace (
 )
 
 replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
+
+replace github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
+
+replace github.com/DataDog/datadog-agent/comp/core/status => ../../../comp/core/status
+
+replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+
+replace github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
+
+replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
+
+replace github.com/DataDog/datadog-agent/pkg/config/create => ../../config/create
+
+replace github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
+
+replace github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
+
+replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../config/nodetreemodel
+
+replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
+
+replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../config/structure
+
+replace github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../config/teeconfig
+
+replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../config/viperconfig
+
+replace github.com/DataDog/datadog-agent/pkg/fips => ../../fips
+
+replace github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
+
+replace github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
+
+replace github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
+
+replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
+
+replace github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
+
+replace github.com/DataDog/datadog-agent/pkg/util/option => ../../util/option
+
+replace github.com/DataDog/datadog-agent/pkg/util/pointer => ../../util/pointer
+
+replace github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
+
+replace github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
+
+replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
