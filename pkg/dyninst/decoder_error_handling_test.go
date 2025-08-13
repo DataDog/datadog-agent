@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
@@ -81,6 +82,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 		&failOnceDecoderFactory{
 			underlying: module.DefaultDecoderFactory{},
 		},
+		irgen.NewGenerator(),
 	)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

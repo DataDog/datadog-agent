@@ -388,7 +388,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
 		suite.Contains(stdout, "Collector")
 		suite.Contains(stdout, "Running Checks")
-		suite.Contains(stdout, "kubernetes_state_core")
+		suite.Contains(stdout, "kubernetes_apiserver")
 		if suite.Env().Agent.FIPSEnabled {
 			// Verify FIPS mode is reported as enabled
 			suite.Contains(stdout, "FIPS Mode: enabled", "Cluster agent should report FIPS Mode as enabled")
@@ -434,8 +434,8 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
-		suite.Contains(stdout, "=== kubernetes_state_core check ===")
-		suite.Contains(stdout, "Config for instance ID: kubernetes_state_core:")
+		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
+		suite.Contains(stdout, "Config for instance ID: kubernetes_apiserver:")
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
@@ -448,6 +448,7 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Contains(stdout, "agents reporting ===")
 		suite.Contains(stdout, "===== Checks on ")
 		suite.Contains(stdout, "=== helm check ===")
+		suite.Contains(stdout, "=== kubernetes_state_core check ===")
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
@@ -582,6 +583,7 @@ func (suite *k8sSuite) TestNginx() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:`,
+				`^cluster_name:`,
 				`^orch_cluster_id:`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
@@ -687,6 +689,7 @@ func (suite *k8sSuite) TestRedis() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:`,
+				`^cluster_name:`,
 				`^orch_cluster_id:`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
@@ -900,6 +903,7 @@ func (suite *k8sSuite) TestKSM() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-nginx$`,
 				`^org:agent-org$`,
@@ -926,6 +930,7 @@ func (suite *k8sSuite) TestKSM() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
@@ -945,6 +950,7 @@ func (suite *k8sSuite) TestKSM() {
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^customresource_group:datadoghq.com$`,
 				`^customresource_version:v1alpha1$`,
