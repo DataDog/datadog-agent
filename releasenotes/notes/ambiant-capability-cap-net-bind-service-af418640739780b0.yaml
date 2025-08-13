@@ -1,10 +1,10 @@
 ---
 enhancements:
   - |
-    **Agent**: The systemd units for the Datadog Agent now includes
+    The systemd units for the Datadog Agent now includes
     `AmbientCapabilities=CAP_NET_BIND_SERVICE` to simplify binding to ports below
-    1024 without running as root. If you do not require this capability, you can
-    disable it by creating a systemd drop-in file
+    1024 without running as root (common need for logs, SNMP traps and various integrations).
+    If you do not require this capability, you can disable it by creating a systemd drop-in file
     (e.g., `/etc/systemd/system/datadog-agent.service.d/disable-capability.conf`)
     with:
     ```
