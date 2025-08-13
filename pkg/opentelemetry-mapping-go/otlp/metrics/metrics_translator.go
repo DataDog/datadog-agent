@@ -169,7 +169,7 @@ func (t *Translator) mapNumberMetrics(
 			continue
 		}
 
-		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), val)
+		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), 0, val)
 	}
 }
 
@@ -239,7 +239,7 @@ func (t *Translator) mapNumberMonotonicMetrics(
 			if shouldDropPoint {
 				t.logger.Debug("Dropping point: timestamp is older or equal to timestamp of previous point received", zap.String(metricName, pointDims.name))
 			} else if !isFirstPoint {
-				consumer.ConsumeTimeSeries(ctx, pointDims, Gauge, ts, dx)
+				consumer.ConsumeTimeSeries(ctx, pointDims, Gauge, ts, 0, dx)
 			}
 			continue
 		}
@@ -251,11 +251,11 @@ func (t *Translator) mapNumberMonotonicMetrics(
 		}
 
 		if !isFirstPoint {
-			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, dx)
+			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, dx)
 		} else if i == 0 && t.shouldConsumeInitialValue(startTs, ts) {
 			// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
 			// Todo: Investigate why we don't compute first val if i > 0 and add reason as comment.
-			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, val)
+			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, val)
 		}
 	}
 }
@@ -411,7 +411,7 @@ func (t *Translator) getSketchBuckets(
 			sketch.Basic.Max = math.Min(p.Max(), sketch.Basic.Max)
 		}
 
-		consumer.ConsumeSketch(ctx, pointDims, ts, sketch)
+		consumer.ConsumeSketch(ctx, pointDims, ts, 0, sketch)
 	}
 }
 
@@ -436,9 +436,9 @@ func (t *Translator) getLegacyBuckets(
 
 		count := float64(p.BucketCounts().At(idx))
 		if delta {
-			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, count)
+			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, 0, count)
 		} else if dx, ok := t.prevPts.Diff(bucketDims, startTs, ts, count); ok {
-			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, dx)
+			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, 0, dx)
 		}
 	}
 }
@@ -510,8 +510,8 @@ func (t *Translator) mapHistogramMetrics(
 
 		if t.cfg.SendHistogramAggregations && histInfo.ok {
 			// We only send the sum and count if both values were ok.
-			consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, float64(histInfo.count))
-			consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, histInfo.sum)
+			consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, float64(histInfo.count))
+			consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, 0, histInfo.sum)
 
 			if delta {
 				// We could check is[Min/Max]FromLastTimeWindow here, and report the minimum/maximum
@@ -520,10 +520,10 @@ func (t *Translator) mapHistogramMetrics(
 				// where the min/max is (pressumably) available in either all or none of the points.
 
 				if p.HasMin() {
-					consumer.ConsumeTimeSeries(ctx, minDims, Gauge, ts, p.Min())
+					consumer.ConsumeTimeSeries(ctx, minDims, Gauge, ts, 0, p.Min())
 				}
 				if p.HasMax() {
-					consumer.ConsumeTimeSeries(ctx, maxDims, Gauge, ts, p.Max())
+					consumer.ConsumeTimeSeries(ctx, maxDims, Gauge, ts, 0, p.Max())
 				}
 			}
 		}
@@ -592,10 +592,10 @@ func (t *Translator) mapSummaryMetrics(
 			dx, isFirstPoint, shouldDropPoint := t.prevPts.MonotonicDiff(countDims, startTs, ts, val)
 			if !shouldDropPoint && !t.isSkippable(countDims.name, dx) {
 				if !isFirstPoint {
-					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, dx)
+					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, dx)
 				} else if i == 0 && t.shouldConsumeInitialValue(startTs, ts) {
 					// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
-					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, val)
+					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, val)
 				}
 			}
 		}
@@ -604,7 +604,7 @@ func (t *Translator) mapSummaryMetrics(
 			sumDims := pointDims.WithSuffix("sum")
 			if !t.isSkippable(sumDims.name, p.Sum()) {
 				if dx, ok := t.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
-					consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, dx)
+					consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, 0, dx)
 				}
 			}
 		}
@@ -620,7 +620,7 @@ func (t *Translator) mapSummaryMetrics(
 				}
 
 				quantileDims := baseQuantileDims.AddTags(getQuantileTag(q.Quantile()))
-				consumer.ConsumeTimeSeries(ctx, quantileDims, Gauge, ts, q.Value())
+				consumer.ConsumeTimeSeries(ctx, quantileDims, Gauge, ts, 0, q.Value())
 			}
 		}
 	}

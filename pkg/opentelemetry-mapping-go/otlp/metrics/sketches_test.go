@@ -44,6 +44,7 @@ func (c *sketchConsumer) ConsumeSketch(
 	_ context.Context,
 	_ *Dimensions,
 	_ uint64,
+	_ int64,
 	sketch *quantile.Sketch,
 ) {
 	c.sk = sketch
