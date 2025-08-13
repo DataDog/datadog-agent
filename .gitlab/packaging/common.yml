@@ -63,6 +63,3 @@
       else
         echo "ℹ️  Skipping package measurement (no GATE_NAME defined)"
       fi
-  artifacts:
-    paths:
-      - ./**/*_size_report_*.yml
