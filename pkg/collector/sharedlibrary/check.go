@@ -27,23 +27,23 @@ static const submit_callbacks_t submit_callbacks = {
 	SubmitEventPlatformEventSo,
 };
 
-void run_shared_library(char *instance, run_function_t *run_function, free_function_t *free_function, const char **error) {
+void run_shared_library(char *instance, shared_library_handles_t lib_handles, const char **error) {
 	// verify pointers
-    if (!run_function) {
+    if (!lib_handles.run) {
         *error = strdup("pointer to shared library run function is null");
 		return;
     }
 
-	if (!free_function) {
+	if (!lib_handles.free) {
         *error = strdup("pointer to shared library free function is null");
 		return;
     }
 
     // run the shared library check and verify if an error has occurred
-    char *run_error = run_function(instance, &submit_callbacks);
+    char *run_error = (lib_handles.run)(instance, &submit_callbacks);
 	if (run_error) {
 		*error = strdup(run_error);
-		free_function(run_error);
+		(lib_handles.free)(run_error);
 	}
 }
 */
@@ -70,14 +70,17 @@ import (
 //
 //nolint:revive
 type SharedLibraryCheck struct {
-	senderManager sender.SenderManager
-	id            checkid.ID
-	instance      map[string]any
-	interval      time.Duration
-	libName       string
-	libHandle     unsafe.Pointer     // pointer to the shared library
-	runCb         *C.run_function_t  // run function callback
-	freeCb        *C.free_function_t // free function callback
+	senderManager  sender.SenderManager
+	id             checkid.ID
+	version        string
+	instance       map[string]any
+	interval       time.Duration
+	libName        string
+	libHandles     C.shared_library_handles_t // store library file and symbols pointers
+	source         string
+	telemetry      bool // whether or not the telemetry is enabled for this check
+	initConfig     string
+	instanceConfig string
 }
 
 // NewSharedLibraryCheck conveniently creates a SharedLibraryCheck instance
@@ -86,9 +89,7 @@ func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libH
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
 		libName:       name,
-		libHandle:     libHandles.lib,
-		runCb:         libHandles.run,
-		freeCb:        libHandles.free,
+		libHandles:    libHandles,
 	}
 
 	return check, nil
@@ -108,7 +109,7 @@ func (c *SharedLibraryCheck) Run() error {
 	defer C.free(unsafe.Pointer(cInstance))
 
 	// execute the check with the symbol retrieved earlier
-	C.run_shared_library(cInstance, c.runCb, c.freeCb, &cErr)
+	C.run_shared_library(cInstance, c.libHandles, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
 		return fmt.Errorf("Failed to run shared library check %s: %s", c.libName, C.GoString(cErr))
@@ -123,22 +124,54 @@ func (c *SharedLibraryCheck) Run() error {
 	return nil
 }
 
+// Stop does nothing
+func (c *SharedLibraryCheck) Stop() {}
+
+// Cancel does nothing
+func (c *SharedLibraryCheck) Cancel() {}
+
 // String representation (for debug and logging)
 func (c *SharedLibraryCheck) String() string {
 	return c.libName
 }
 
-// Cancel is not implemented yet
-func (c *SharedLibraryCheck) Cancel() {
+// Version is always an empty string
+func (c *SharedLibraryCheck) Version() string {
+	return c.version
 }
 
-// ConfigSource is not implemented yet
+// IsTelemetryEnabled is not enabled
+func (c *SharedLibraryCheck) IsTelemetryEnabled() bool {
+	return c.telemetry
+}
+
+// ConfigSource returns the source of the configuration for this check
 func (c *SharedLibraryCheck) ConfigSource() string {
-	return ""
+	return c.source
+}
+
+// Loader returns the check loader
+func (c *SharedLibraryCheck) Loader() string {
+	return SharedLibraryCheckLoaderName
+}
+
+// InitConfig returns the init_config configuration for the check
+func (c *SharedLibraryCheck) InitConfig() string {
+	return c.initConfig
+}
+
+// InstanceConfig returns the instance configuration for the check.
+func (c *SharedLibraryCheck) InstanceConfig() string {
+	return c.instanceConfig
+}
+
+// GetWarnings returns nothing
+func (c *SharedLibraryCheck) GetWarnings() []error {
+	return []error{}
 }
 
 // Configure the shared library check from YAML data
-func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, instance integration.Data, initConfig integration.Data, _source string) error {
+func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, instance integration.Data, initConfig integration.Data, source string) error {
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, instance, initConfig)
 
 	commonOptions := integration.CommonInstanceConfig{}
@@ -164,47 +197,21 @@ func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, inte
 		c.instance["tags"] = make([]string, 0)
 	}
 
+	// configuration info
+	c.source = source
+	c.initConfig = string(initConfig)
+	c.instanceConfig = string(instance)
+
 	return nil
 }
 
-// GetDiagnoses is not implemented yet
-func (c *SharedLibraryCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
-	return nil, nil
-}
-
-// GetSenderStats is not implemented yet
+// GetSenderStats returns the stats from the last run of the check
 func (c *SharedLibraryCheck) GetSenderStats() (stats.SenderStats, error) {
-	return stats.SenderStats{}, nil
-}
-
-// ID returns the ID of the check
-func (c *SharedLibraryCheck) ID() checkid.ID {
-	return checkid.ID(c.id)
-}
-
-// InitConfig is not implemented yet
-func (c *SharedLibraryCheck) InitConfig() string {
-	return ""
-}
-
-// InstanceConfig is not implemented yet
-func (c *SharedLibraryCheck) InstanceConfig() string {
-	return ""
-}
-
-// IsHASupported is not implemented yet
-func (c *SharedLibraryCheck) IsHASupported() bool {
-	return false
-}
-
-// IsTelemetryEnabled is not implemented yet
-func (c *SharedLibraryCheck) IsTelemetryEnabled() bool {
-	return false
-}
-
-// Loader returns the name of the loader
-func (c *SharedLibraryCheck) Loader() string {
-	return SharedLibraryCheckLoaderName
+	sender, err := c.senderManager.GetSender(c.ID())
+	if err != nil {
+		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+	}
+	return sender.GetSenderStats(), nil
 }
 
 // Interval returns the interval between each check execution
@@ -212,16 +219,17 @@ func (c *SharedLibraryCheck) Interval() time.Duration {
 	return c.interval
 }
 
-// Version is not implemented yet
-func (c *SharedLibraryCheck) Version() string {
-	return ""
+// ID returns the ID of the check
+func (c *SharedLibraryCheck) ID() checkid.ID {
+	return checkid.ID(c.id)
 }
 
-// GetWarnings is not implemented yet
-func (c *SharedLibraryCheck) GetWarnings() []error {
-	return nil
+// GetDiagnoses returns nothing
+func (c *SharedLibraryCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
+	return nil, nil
 }
 
-// Stop is not implemented yet
-func (c *SharedLibraryCheck) Stop() {
+// IsHASupported does not apply to shared library checks
+func (c *SharedLibraryCheck) IsHASupported() bool {
+	return false
 }

@@ -17,8 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// add the shared library loader to the scheduler
-// the loader needs to be registered in this function otherwise it won't be listed when we load a check using the CLI
+// init adds the shared library loader to the scheduler
 func init() {
 	if pkgconfigsetup.Datadog().GetBool("shared_libraries_check") {
 		factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, int, error) {
