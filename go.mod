@@ -37,7 +37,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	// TODO: pin to an operator released version once there is a release that includes the api module
@@ -428,8 +428,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.67.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.67.0
-	github.com/DataDog/datadog-agent/pkg/fips v0.67.0
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.68.3
+	github.com/DataDog/datadog-agent/pkg/fips v0.68.3
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel
@@ -600,13 +600,13 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.67.0
 	github.com/DataDog/datadog-agent/pkg/api v0.67.0
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.67.0
-	github.com/DataDog/datadog-agent/pkg/config/create v0.67.0
-	github.com/DataDog/datadog-agent/pkg/config/env v0.67.0
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.68.3
+	github.com/DataDog/datadog-agent/pkg/config/create v0.68.3
+	github.com/DataDog/datadog-agent/pkg/config/env v0.68.3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.67.0
-	github.com/DataDog/datadog-agent/pkg/config/model v0.67.0
+	github.com/DataDog/datadog-agent/pkg/config/model v0.68.3
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.67.0
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.68.3
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.67.0
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.12
@@ -635,19 +635,19 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/common v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.2
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.67.0
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.68.3
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/http v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/json v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/system v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/system v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
@@ -760,13 +760,13 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.64.0-rc.12 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.68.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.68.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.68.3 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.42.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect

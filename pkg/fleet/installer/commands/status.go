@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
@@ -139,18 +141,16 @@ func getRCStatus() (remoteConfigState, error) {
 	var response remoteConfigState
 
 	// The simplest thing here is to call ourselves with the daemon command
-	installerBinary, err := os.Executable()
-	if err != nil {
-		return response, fmt.Errorf("could not get installer binary path: %w", err)
-	}
+	installerBinary := filepath.Join(setup.InstallPath, "bin/agent/agent")
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	cmd := exec.Command(installerBinary, "daemon", "rc-status")
+	cmd.Env = append(os.Environ(), "DD_BUNDLED_AGENT=installer")
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
-	err = cmd.Run()
+	err := cmd.Run()
 	if err != nil {
-		return response, fmt.Errorf("error running \"datadog-installer daemon rc-status\" (is the daemon running?): %s", stderr.String())
+		return response, fmt.Errorf("error getting RC status (is the daemon running?): %s", stderr.String())
 	}
 
 	err = json.Unmarshal(stdout.Bytes(), &response)
