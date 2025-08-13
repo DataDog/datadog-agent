@@ -123,14 +123,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
@@ -632,22 +624,8 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 }
 
 func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg config.Component) {
-	// Required checks
-	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
-	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
-	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
-	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
-	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
-
-	// Flavor specific checks
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
-	if cfg.GetBool("use_diskv2_check") {
-		corecheckLoader.RegisterCheck(disk.CheckName, diskv2.Factory())
-	} else {
-		corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
-	}
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
-	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 }
