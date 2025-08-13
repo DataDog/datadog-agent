@@ -57,7 +57,6 @@ agent_deb-arm64-a7:
   needs: ["datadog-agent-7-arm64"]
   variables:
     DD_PROJECT: "agent"
-    GATE_NAME: "static_quality_gate_agent_deb_arm64"
 
 agent_deb-x64-a7-fips:
   extends: [.package_deb_common, .package_deb_x86]
@@ -79,7 +78,6 @@ agent_deb-arm64-a7-fips:
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
-    GATE_NAME: "static_quality_gate_agent_deb_arm64_fips"
 
 ddot_deb-x64:
   extends: [.package_deb_common, .package_deb_x86]
@@ -90,7 +88,6 @@ ddot_deb-x64:
   variables:
     DD_PROJECT: "ddot"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
-    GATE_NAME: "static_quality_gate_ddot_deb_amd64"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_DISABLE_VPA: true
 
@@ -103,7 +100,6 @@ ddot_deb-arm64:
   variables:
     DD_PROJECT: "ddot"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
-    GATE_NAME: "static_quality_gate_ddot_deb_arm64"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_DISABLE_VPA: true
 
