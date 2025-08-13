@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build go1.23
+// This file contains the unique.Handle-based string interner implementation.
 
 package server
 
@@ -12,39 +12,35 @@ import (
 	"unique"
 )
 
-// stringInterner is a string cache providing a longer life for strings,
-// helping to avoid GC runs because they're re-used many times instead of
-// created every time.
-//
-// This implementation uses Go's unique.Handle for automatic string interning,
-// which provides:
-// - Automatic deduplication
-// - Fast pointer-based comparisons
-// - Automatic memory management by the garbage collector
-// - No manual cache size management needed
-type stringInterner struct {
-	id        string
-	telemetry *stringInternerInstanceTelemetry
+// uniqueStringInterner uses Go's unique.Handle for string interning.
+// It provides automatic deduplication and memory management via garbage collection.
+type uniqueStringInterner struct {
+	id string
 }
 
-func newStringInterner(_ int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
+func newUniqueStringInterner(_ int, internerID int, _ *stringInternerTelemetry) *uniqueStringInterner {
 	id := fmt.Sprintf("interner_%d", internerID)
-	i := &stringInterner{
-		id:        id,
-		telemetry: siTelemetry.PrepareForID(id),
+	i := &uniqueStringInterner{
+		id: id,
 	}
 
 	return i
 }
 
-// LoadOrStore always returns the string from the cache, adding it into the
-// cache if needed. With unique.Handle, the cache is managed automatically
-// by the Go runtime and will be garbage collected when no longer referenced.
-func (i *stringInterner) LoadOrStore(key []byte) string {
+// LoadOrStore always returns the interned string. With unique.Handle, the cache 
+// is managed automatically by the Go runtime and will be garbage collected when 
+// no longer referenced.
+func (i *uniqueStringInterner) LoadOrStore(key []byte) string {
 	// Create a handle for the string. unique.Make will automatically
 	// deduplicate and intern the string.
 	handle := unique.Make(string(key))
 
 	// Return the canonical string value
 	return handle.Value()
+}
+
+// cacheSize returns 0 since the actual cache size is managed by the Go runtime
+// and is not accessible. This is primarily for testing purposes.
+func (i *uniqueStringInterner) cacheSize() int {
+	return 0 // Cannot track size with unique.Handle
 }

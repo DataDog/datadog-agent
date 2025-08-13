@@ -21,7 +21,7 @@ func BenchmarkLoadOrStoreReset(b *testing.B) {
 	// benchmark with the internal telemetry enabled
 	stringInternerTelemetry := newSiTelemetry(true, telemetryComp)
 
-	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
+	sInterner := newLegacyStringInterner(4, 1, stringInternerTelemetry)
 
 	list := []string{}
 	for i := 0; i < 512; i++ {
@@ -38,7 +38,7 @@ func TestInternLoadOrStoreValue(t *testing.T) {
 	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	assert := assert.New(t)
 	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
-	sInterner := newStringInterner(3, 1, stringInternerTelemetry)
+	sInterner := newLegacyStringInterner(3, 1, stringInternerTelemetry)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -61,7 +61,7 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	assert := assert.New(t)
 	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
-	sInterner := newStringInterner(4, 1, stringInternerTelemetry)
+	sInterner := newLegacyStringInterner(4, 1, stringInternerTelemetry)
 
 	foo := []byte("foo")
 	bar := []byte("bar")

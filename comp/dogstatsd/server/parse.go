@@ -29,6 +29,12 @@ const (
 	cacheValidity = 2 * time.Second
 )
 
+// stringInternerInterface defines the common interface for string interners
+type stringInternerInterface interface {
+	LoadOrStore(key []byte) string
+	cacheSize() int
+}
+
 var (
 	eventPrefix        = []byte("_e{")
 	serviceCheckPrefix = []byte("_sc")
@@ -56,7 +62,7 @@ var (
 // parser parses dogstatsd messages
 // not safe for concurent use
 type parser struct {
-	interner    *stringInterner
+	interner    stringInternerInterface
 	float64List *float64ListPool
 
 	// dsdOriginEnabled controls whether the server should honor the container id sent by the
@@ -75,8 +81,15 @@ func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wm
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
+	var interner stringInternerInterface
+	if cfg.GetBool("dogstatsd_string_interner_use_unique") {
+		interner = newUniqueStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry)
+	} else {
+		interner = newLegacyStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry)
+	}
+
 	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry),
+		interner:         interner,
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
