@@ -123,7 +123,7 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         )
         mock_check_call.assert_called()
         self.assertEqual(mock_check_call.call_count, 29)
-        tmp_dir_vars = ("TEMP", "TMP", "TMPDIR")
+        tmp_dir_vars = ("HOME", "TEMP", "TMP", "TMPDIR")
         seen_tmp_dirs = set()
         for _, kwargs in mock_check_call.call_args_list:
             env = kwargs["env"]

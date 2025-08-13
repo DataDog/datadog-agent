@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -128,8 +127,7 @@ func testEmitAgentTelemetry(t *testing.T) {
 
 func testObfuscaterConfig(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
-	conf := pkgconfigmock.New(t)
-	pkgconfigsetup.InitConfig(conf)
+	_ = pkgconfigmock.New(t)
 	o := lazyInitObfuscator()
 	o.Stop()
 	expected := obfuscate.Config{
