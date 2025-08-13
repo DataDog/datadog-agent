@@ -1,0 +1,33 @@
+{
+  "Sketches": [
+    {
+      "Name": "double.exponential.delta.histogram",
+      "Tags": [
+        "custom_attribute:custom_value",
+        "deployment.environment:dev"
+      ],
+      "Host": "res-hostname",
+      "OriginID": "",
+      "OriginProduct": 10,
+      "OriginSubProduct": 17,
+      "OriginProductDetail": 0,
+      "Timestamp": 1667560641226420924,
+      "Summary": {
+        "Min": 100,
+        "Max": 100,
+        "Sum": 100,
+        "Avg": 100,
+        "Cnt": 1
+      },
+      "Keys": [
+        0,
+        1625
+      ],
+      "Counts": [
+        0,
+        1
+      ]
+    }
+  ],
+  "TimeSeries": null
+}
