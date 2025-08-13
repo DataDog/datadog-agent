@@ -178,24 +178,24 @@ func newDims(name string) *Dimensions {
 	return &Dimensions{name: name, tags: []string{}}
 }
 
-func newGauge(dims *Dimensions, ts uint64, val float64) metric {
-	return newGaugeWithHost(dims, ts, val, "")
+func newGauge(dims *Dimensions, ts uint64, interval int64, val float64) metric {
+	return newGaugeWithHost(dims, ts, interval, val, "")
 }
 
-func newGaugeWithHost(dims *Dimensions, ts uint64, val float64, host string) metric {
-	return metric{name: dims.name, typ: Gauge, timestamp: ts, value: val, tags: dims.tags, host: host}
+func newGaugeWithHost(dims *Dimensions, ts uint64, interval int64, val float64, host string) metric {
+	return metric{name: dims.name, typ: Gauge, timestamp: ts, interval: interval, value: val, tags: dims.tags, host: host}
 }
 
-func newCount(dims *Dimensions, ts uint64, val float64) metric {
-	return newCountWithHost(dims, ts, val, "")
+func newCount(dims *Dimensions, ts uint64, interval int64, val float64) metric {
+	return newCountWithHost(dims, ts, interval, val, "")
 }
 
-func newCountWithHost(dims *Dimensions, ts uint64, val float64, host string) metric {
-	return metric{name: dims.name, typ: Count, timestamp: ts, value: val, tags: dims.tags, host: host}
+func newCountWithHost(dims *Dimensions, ts uint64, interval int64, val float64, host string) metric {
+	return metric{name: dims.name, typ: Count, timestamp: ts, interval: interval, value: val, tags: dims.tags, host: host}
 }
 
-func newSketch(dims *Dimensions, ts uint64, s summary.Summary) sketch {
-	return sketch{name: dims.name, basic: s, timestamp: ts, tags: dims.tags}
+func newSketch(dims *Dimensions, ts uint64, interval int64, s summary.Summary) sketch {
+	return sketch{name: dims.name, basic: s, timestamp: ts, interval: interval, tags: dims.tags}
 }
 
 func TestMapIntMetrics(t *testing.T) {
@@ -212,7 +212,7 @@ func TestMapIntMetrics(t *testing.T) {
 	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
-		[]metric{newGauge(dims, uint64(ts), 17)},
+		[]metric{newGauge(dims, uint64(ts), 0, 17)},
 	)
 
 	consumer = &mockTimeSeriesConsumer{}
@@ -220,7 +220,7 @@ func TestMapIntMetrics(t *testing.T) {
 	tr.mapNumberMetrics(ctx, consumer, dims, Count, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
-		[]metric{newCount(dims, uint64(ts), 17)},
+		[]metric{newCount(dims, uint64(ts), 0, 17)},
 	)
 
 	// With attribute tags
@@ -229,7 +229,7 @@ func TestMapIntMetrics(t *testing.T) {
 	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
-		[]metric{newGauge(dims, uint64(ts), 17)},
+		[]metric{newGauge(dims, uint64(ts), 0, 17)},
 	)
 }
 
@@ -247,7 +247,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
-		[]metric{newGauge(dims, uint64(ts), math.Pi)},
+		[]metric{newGauge(dims, uint64(ts), 0, math.Pi)},
 	)
 
 	consumer = &mockTimeSeriesConsumer{}
@@ -255,7 +255,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 	tr.mapNumberMetrics(ctx, consumer, dims, Count, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
-		[]metric{newCount(dims, uint64(ts), math.Pi)},
+		[]metric{newCount(dims, uint64(ts), 0, math.Pi)},
 	)
 
 	// With attribute tags
@@ -264,7 +264,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
-		[]metric{newGauge(dims, uint64(ts), math.Pi)},
+		[]metric{newGauge(dims, uint64(ts), 0, math.Pi)},
 	)
 }
 
@@ -301,7 +301,7 @@ func TestMapIntMonotonicMetrics(t *testing.T) {
 
 		expected := make([]metric, len(deltas))
 		for i, val := range deltas {
-			expected[i] = newCount(exampleDims, uint64(seconds((i+1)*10)), float64(val))
+			expected[i] = newCount(exampleDims, uint64(seconds((i+1)*10)), 0, float64(val))
 		}
 
 		ctx := context.Background()
@@ -318,7 +318,7 @@ func TestMapIntMonotonicMetrics(t *testing.T) {
 		expected := make([]metric, len(deltas))
 		for i, val := range deltas {
 			// divide val by submission interval (10s)
-			expected[i] = newGauge(rateAsGaugeDims, uint64(seconds((i+1)*10)), float64(val)/10.0)
+			expected[i] = newGauge(rateAsGaugeDims, uint64(seconds((i+1)*10)), 0, float64(val)/10.0)
 		}
 
 		ctx := context.Background()
@@ -369,9 +369,9 @@ func TestMapIntMonotonicDifferentDimensions(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCount(exampleDims, uint64(seconds(1)), 20),
-			newCount(exampleDims.AddTags("key1:valA"), uint64(seconds(1)), 30),
-			newCount(exampleDims.AddTags("key1:valB"), uint64(seconds(1)), 40),
+			newCount(exampleDims, uint64(seconds(1)), 0, 20),
+			newCount(exampleDims.AddTags("key1:valA"), uint64(seconds(1)), 0, 30),
+			newCount(exampleDims.AddTags("key1:valB"), uint64(seconds(1)), 0, 40),
 		},
 	)
 }
@@ -402,8 +402,8 @@ func TestMapIntMonotonicWithRebootWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCount(exampleDims, uint64(seconds(10)), 30),
-				newCount(exampleDims, uint64(seconds(30)), 20),
+				newCount(exampleDims, uint64(seconds(10)), 0, 30),
+				newCount(exampleDims, uint64(seconds(30)), 0, 20),
 			},
 		)
 	})
@@ -417,8 +417,8 @@ func TestMapIntMonotonicWithRebootWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGauge(rateAsGaugeDims, uint64(seconds(10)), 3),
-				newGauge(rateAsGaugeDims, uint64(seconds(30)), 2),
+				newGauge(rateAsGaugeDims, uint64(seconds(10)), 0, 3),
+				newGauge(rateAsGaugeDims, uint64(seconds(30)), 0, 2),
 			},
 		)
 	})
@@ -452,8 +452,8 @@ func TestMapIntMonotonicWithNoRecordedValueWithinSlice(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCount(exampleDims, uint64(seconds(10)), 30),
-			newCount(exampleDims, uint64(seconds(30)), 10),
+			newCount(exampleDims, uint64(seconds(10)), 0, 30),
+			newCount(exampleDims, uint64(seconds(30)), 0, 10),
 		},
 	)
 }
@@ -496,8 +496,8 @@ func TestMapIntMonotonicWithRebootBeginningOfSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 25, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 25, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -537,7 +537,7 @@ func TestMapIntMonotonicWithRebootBeginningOfSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 25, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 0, 25, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -582,8 +582,8 @@ func TestMapIntMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 10, fallbackHostname),
-				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 30, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 0, 10, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 30, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -625,7 +625,7 @@ func TestMapIntMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 15, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 0, 15, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -666,8 +666,8 @@ func TestMapIntMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 10, fallbackHostname),
-				newCountWithHost(exampleDims, uint64(seconds(startTs+5)), 30, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 0, 10, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+5)), 0, 30, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -709,7 +709,7 @@ func TestMapIntMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+5)), 15, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+5)), 0, 15, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -753,7 +753,7 @@ func TestMapIntMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 30, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 30, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -793,7 +793,7 @@ func TestMapIntMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 15, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 0, 15, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -833,7 +833,7 @@ func TestMapIntMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCountWithHost(exampleDims, uint64(seconds(startTs+5)), 30, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+5)), 0, 30, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -873,7 +873,7 @@ func TestMapIntMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+5)), 15, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+5)), 0, 15, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -890,9 +890,9 @@ func TestMapIntMonotonicReportFirstValue(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 10, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 0, 10, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
 		},
 	)
 	assert.Empty(t, rmt.Languages)
@@ -907,8 +907,8 @@ func TestMapIntMonotonicRateDontReportFirstValue(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
+			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
 		},
 	)
 	assert.Empty(t, rmt.Languages)
@@ -944,9 +944,9 @@ func TestMapIntMonotonicReportDiffForFirstValue(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 9, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 0, 9, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
 		},
 	)
 	assert.Empty(t, rmt.Languages)
@@ -964,9 +964,9 @@ func TestMapIntMonotonicReportRateForFirstValue(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+2)), 9, fallbackHostname),
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
+			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+2)), 0, 9, fallbackHostname),
+			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
 		},
 	)
 	assert.Empty(t, rmt.Languages)
@@ -1003,7 +1003,7 @@ func TestInitialCumulMonoValueMode(t *testing.T) {
 
 	var keepOutput []metric
 	for i, delta := range deltas {
-		keepOutput = append(keepOutput, newCount(exampleDims, uint64(secondsAfterStart(i+1)), float64(delta)))
+		keepOutput = append(keepOutput, newCount(exampleDims, uint64(secondsAfterStart(i+1)), 0, float64(delta)))
 	}
 	dropOutput := keepOutput[1:]
 
@@ -1046,12 +1046,12 @@ func TestMapRuntimeMetricsHasMapping(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 10, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
-			newCountWithHost(mappedDims, uint64(seconds(startTs+2)), 10, fallbackHostname),
-			newCountWithHost(mappedDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newCountWithHost(mappedDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 0, 10, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
+			newCountWithHost(mappedDims, uint64(seconds(startTs+2)), 0, 10, fallbackHostname),
+			newCountWithHost(mappedDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newCountWithHost(mappedDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
 		},
 	)
 	assert.Equal(t, []string{"go"}, rmt.Languages)
@@ -1072,12 +1072,12 @@ func TestMapRuntimeMetricsHasMappingCollector(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCount(exampleOtelDims, uint64(seconds(startTs+2)), 10),
-			newCount(exampleOtelDims, uint64(seconds(startTs+3)), 5),
-			newCount(exampleOtelDims, uint64(seconds(startTs+4)), 5),
-			newCount(mappedDims, uint64(seconds(startTs+2)), 10),
-			newCount(mappedDims, uint64(seconds(startTs+3)), 5),
-			newCount(mappedDims, uint64(seconds(startTs+4)), 5),
+			newCount(exampleOtelDims, uint64(seconds(startTs+2)), 0, 10),
+			newCount(exampleOtelDims, uint64(seconds(startTs+3)), 0, 5),
+			newCount(exampleOtelDims, uint64(seconds(startTs+4)), 0, 5),
+			newCount(mappedDims, uint64(seconds(startTs+2)), 0, 10),
+			newCount(mappedDims, uint64(seconds(startTs+3)), 0, 5),
+			newCount(mappedDims, uint64(seconds(startTs+4)), 0, 5),
 		},
 	)
 	assert.Equal(t, []string{"go"}, rmt.Languages)
@@ -1107,18 +1107,18 @@ func TestMapSystemMetricsRenamedWithOTelPrefix(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCount(expectedSystemDims, uint64(seconds(startTs+2)), 10),
-			newCount(expectedSystemDims, uint64(seconds(startTs+3)), 5),
-			newCount(expectedSystemDims, uint64(seconds(startTs+4)), 5),
-			newCount(expectedProcessDims, uint64(seconds(startTs+2)), 10),
-			newCount(expectedProcessDims, uint64(seconds(startTs+3)), 5),
-			newCount(expectedProcessDims, uint64(seconds(startTs+4)), 5),
-			newCount(expectedRuntimeDims, uint64(seconds(startTs+2)), 10),
-			newCount(expectedRuntimeDims, uint64(seconds(startTs+3)), 5),
-			newCount(expectedRuntimeDims, uint64(seconds(startTs+4)), 5),
-			newCount(jvmDims, uint64(seconds(startTs+2)), 10),
-			newCount(jvmDims, uint64(seconds(startTs+3)), 5),
-			newCount(jvmDims, uint64(seconds(startTs+4)), 5),
+			newCount(expectedSystemDims, uint64(seconds(startTs+2)), 0, 10),
+			newCount(expectedSystemDims, uint64(seconds(startTs+3)), 0, 5),
+			newCount(expectedSystemDims, uint64(seconds(startTs+4)), 0, 5),
+			newCount(expectedProcessDims, uint64(seconds(startTs+2)), 0, 10),
+			newCount(expectedProcessDims, uint64(seconds(startTs+3)), 0, 5),
+			newCount(expectedProcessDims, uint64(seconds(startTs+4)), 0, 5),
+			newCount(expectedRuntimeDims, uint64(seconds(startTs+2)), 0, 10),
+			newCount(expectedRuntimeDims, uint64(seconds(startTs+3)), 0, 5),
+			newCount(expectedRuntimeDims, uint64(seconds(startTs+4)), 0, 5),
+			newCount(jvmDims, uint64(seconds(startTs+2)), 0, 10),
+			newCount(jvmDims, uint64(seconds(startTs+3)), 0, 5),
+			newCount(jvmDims, uint64(seconds(startTs+4)), 0, 5),
 		},
 	)
 }
@@ -1139,8 +1139,8 @@ func TestMapSumRuntimeMetricWithAttributesHasMapping(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCountWithHost(newDims("process.runtime.dotnet.gc.collections.count").AddTags("generation:gen0"), uint64(seconds(startTs+1)), 10, fallbackHostname),
-			newCountWithHost(newDims("runtime.dotnet.gc.count.gen0"), uint64(seconds(startTs+1)), 10, fallbackHostname),
+			newCountWithHost(newDims("process.runtime.dotnet.gc.collections.count").AddTags("generation:gen0"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
+			newCountWithHost(newDims("runtime.dotnet.gc.count.gen0"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
 		},
 	)
 	assert.Equal(t, []string{"dotnet"}, rmt.Languages)
@@ -1162,8 +1162,8 @@ func TestMapSumRuntimeMetricWithAttributesHasMappingCollector(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCount(newDims("otel.process.runtime.dotnet.gc.collections.count").AddTags("generation:gen0"), uint64(seconds(startTs+1)), 10),
-			newCount(newDims("runtime.dotnet.gc.count.gen0"), uint64(seconds(startTs+1)), 10),
+			newCount(newDims("otel.process.runtime.dotnet.gc.collections.count").AddTags("generation:gen0"), uint64(seconds(startTs+1)), 0, 10),
+			newCount(newDims("runtime.dotnet.gc.count.gen0"), uint64(seconds(startTs+1)), 0, 10),
 		},
 	)
 	assert.Equal(t, []string{"dotnet"}, rmt.Languages)
@@ -1185,8 +1185,8 @@ func TestMapGaugeRuntimeMetricWithAttributesHasMapping(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newGaugeWithHost(newDims("process.runtime.dotnet.gc.heap.size").AddTags("generation:gen1"), uint64(seconds(startTs+1)), 10, fallbackHostname),
-			newGaugeWithHost(newDims("runtime.dotnet.gc.size.gen1"), uint64(seconds(startTs+1)), 10, fallbackHostname),
+			newGaugeWithHost(newDims("process.runtime.dotnet.gc.heap.size").AddTags("generation:gen1"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
+			newGaugeWithHost(newDims("runtime.dotnet.gc.size.gen1"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
 		},
 	)
 	assert.Equal(t, []string{"dotnet"}, rmt.Languages)
@@ -1205,14 +1205,14 @@ func TestMapHistogramRuntimeMetricHasMapping(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCountWithHost(newDims("process.runtime.jvm.threads.count.count"), uint64(seconds(startTs+1)), 100, fallbackHostname),
-			newCountWithHost(newDims("process.runtime.jvm.threads.count.sum"), uint64(seconds(startTs+1)), 0, fallbackHostname),
-			newGaugeWithHost(newDims("process.runtime.jvm.threads.count.min"), uint64(seconds(startTs+1)), -100, fallbackHostname),
-			newGaugeWithHost(newDims("process.runtime.jvm.threads.count.max"), uint64(seconds(startTs+1)), 100, fallbackHostname),
-			newCountWithHost(newDims("jvm.thread_count.count"), uint64(seconds(startTs+1)), 100, fallbackHostname),
-			newCountWithHost(newDims("jvm.thread_count.sum"), uint64(seconds(startTs+1)), 0, fallbackHostname),
-			newGaugeWithHost(newDims("jvm.thread_count.min"), uint64(seconds(startTs+1)), -100, fallbackHostname),
-			newGaugeWithHost(newDims("jvm.thread_count.max"), uint64(seconds(startTs+1)), 100, fallbackHostname),
+			newCountWithHost(newDims("process.runtime.jvm.threads.count.count"), uint64(seconds(startTs+1)), 0, 100, fallbackHostname),
+			newCountWithHost(newDims("process.runtime.jvm.threads.count.sum"), uint64(seconds(startTs+1)), 0, 0, fallbackHostname),
+			newGaugeWithHost(newDims("process.runtime.jvm.threads.count.min"), uint64(seconds(startTs+1)), 0, -100, fallbackHostname),
+			newGaugeWithHost(newDims("process.runtime.jvm.threads.count.max"), uint64(seconds(startTs+1)), 0, 100, fallbackHostname),
+			newCountWithHost(newDims("jvm.thread_count.count"), uint64(seconds(startTs+1)), 0, 100, fallbackHostname),
+			newCountWithHost(newDims("jvm.thread_count.sum"), uint64(seconds(startTs+1)), 0, 0, fallbackHostname),
+			newGaugeWithHost(newDims("jvm.thread_count.min"), uint64(seconds(startTs+1)), 0, -100, fallbackHostname),
+			newGaugeWithHost(newDims("jvm.thread_count.max"), uint64(seconds(startTs+1)), 0, 100, fallbackHostname),
 		},
 	)
 	assert.Equal(t, []string{"jvm"}, rmt.Languages)
@@ -1234,14 +1234,14 @@ func TestMapHistogramRuntimeMetricWithAttributesHasMapping(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCountWithHost(newDims("process.runtime.dotnet.gc.heap.size.count").AddTags("generation:gen1"), uint64(seconds(startTs+1)), 100, fallbackHostname),
-			newCountWithHost(newDims("process.runtime.dotnet.gc.heap.size.sum").AddTags("generation:gen1"), uint64(seconds(startTs+1)), 0, fallbackHostname),
-			newGaugeWithHost(newDims("process.runtime.dotnet.gc.heap.size.min").AddTags("generation:gen1"), uint64(seconds(startTs+1)), -100, fallbackHostname),
-			newGaugeWithHost(newDims("process.runtime.dotnet.gc.heap.size.max").AddTags("generation:gen1"), uint64(seconds(startTs+1)), 100, fallbackHostname),
-			newCountWithHost(newDims("runtime.dotnet.gc.size.gen1.count"), uint64(seconds(startTs+1)), 100, fallbackHostname),
-			newCountWithHost(newDims("runtime.dotnet.gc.size.gen1.sum"), uint64(seconds(startTs+1)), 0, fallbackHostname),
-			newGaugeWithHost(newDims("runtime.dotnet.gc.size.gen1.min"), uint64(seconds(startTs+1)), -100, fallbackHostname),
-			newGaugeWithHost(newDims("runtime.dotnet.gc.size.gen1.max"), uint64(seconds(startTs+1)), 100, fallbackHostname),
+			newCountWithHost(newDims("process.runtime.dotnet.gc.heap.size.count").AddTags("generation:gen1"), uint64(seconds(startTs+1)), 0, 100, fallbackHostname),
+			newCountWithHost(newDims("process.runtime.dotnet.gc.heap.size.sum").AddTags("generation:gen1"), uint64(seconds(startTs+1)), 0, 0, fallbackHostname),
+			newGaugeWithHost(newDims("process.runtime.dotnet.gc.heap.size.min").AddTags("generation:gen1"), uint64(seconds(startTs+1)), 0, -100, fallbackHostname),
+			newGaugeWithHost(newDims("process.runtime.dotnet.gc.heap.size.max").AddTags("generation:gen1"), uint64(seconds(startTs+1)), 0, 100, fallbackHostname),
+			newCountWithHost(newDims("runtime.dotnet.gc.size.gen1.count"), uint64(seconds(startTs+1)), 0, 100, fallbackHostname),
+			newCountWithHost(newDims("runtime.dotnet.gc.size.gen1.sum"), uint64(seconds(startTs+1)), 0, 0, fallbackHostname),
+			newGaugeWithHost(newDims("runtime.dotnet.gc.size.gen1.min"), uint64(seconds(startTs+1)), 0, -100, fallbackHostname),
+			newGaugeWithHost(newDims("runtime.dotnet.gc.size.gen1.max"), uint64(seconds(startTs+1)), 0, 100, fallbackHostname),
 		},
 	)
 	assert.Equal(t, []string{"dotnet"}, rmt.Languages)
@@ -1266,9 +1266,9 @@ func TestMapRuntimeMetricWithTwoAttributesHasMapping(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newGaugeWithHost(newDims("process.runtime.jvm.memory.usage").AddTags("pool:G1 Old Gen", "type:heap"), uint64(seconds(startTs+1)), 10, fallbackHostname),
-			newGaugeWithHost(newDims("jvm.heap_memory").AddTags("pool:G1 Old Gen"), uint64(seconds(startTs+1)), 10, fallbackHostname),
-			newGaugeWithHost(newDims("jvm.gc.old_gen_size"), uint64(seconds(startTs+1)), 10, fallbackHostname),
+			newGaugeWithHost(newDims("process.runtime.jvm.memory.usage").AddTags("pool:G1 Old Gen", "type:heap"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
+			newGaugeWithHost(newDims("jvm.heap_memory").AddTags("pool:G1 Old Gen"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
+			newGaugeWithHost(newDims("jvm.gc.old_gen_size"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
 		},
 	)
 	assert.Equal(t, []string{"jvm"}, rmt.Languages)
@@ -1293,15 +1293,15 @@ func TestMapRuntimeMetricWithTwoAttributesMultipleDataPointsHasMapping(t *testin
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newGaugeWithHost(newDims("process.runtime.jvm.memory.usage").AddTags("pool:G1 Old Gen", "type:heap"), uint64(seconds(startTs+1)), 10, fallbackHostname),
-			newGaugeWithHost(newDims("process.runtime.jvm.memory.usage").AddTags("pool:G1 Survivor Space", "type:heap"), uint64(seconds(startTs+2)), 20, fallbackHostname),
-			newGaugeWithHost(newDims("process.runtime.jvm.memory.usage").AddTags("pool:G1 Eden Space", "type:heap"), uint64(seconds(startTs+3)), 30, fallbackHostname),
-			newGaugeWithHost(newDims("jvm.heap_memory").AddTags("pool:G1 Old Gen"), uint64(seconds(startTs+1)), 10, fallbackHostname),
-			newGaugeWithHost(newDims("jvm.heap_memory").AddTags("pool:G1 Survivor Space"), uint64(seconds(startTs+2)), 20, fallbackHostname),
-			newGaugeWithHost(newDims("jvm.heap_memory").AddTags("pool:G1 Eden Space"), uint64(seconds(startTs+3)), 30, fallbackHostname),
-			newGaugeWithHost(newDims("jvm.gc.old_gen_size"), uint64(seconds(startTs+1)), 10, fallbackHostname),
-			newGaugeWithHost(newDims("jvm.gc.survivor_size"), uint64(seconds(startTs+2)), 20, fallbackHostname),
-			newGaugeWithHost(newDims("jvm.gc.eden_size"), uint64(seconds(startTs+3)), 30, fallbackHostname),
+			newGaugeWithHost(newDims("process.runtime.jvm.memory.usage").AddTags("pool:G1 Old Gen", "type:heap"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
+			newGaugeWithHost(newDims("process.runtime.jvm.memory.usage").AddTags("pool:G1 Survivor Space", "type:heap"), uint64(seconds(startTs+2)), 0, 20, fallbackHostname),
+			newGaugeWithHost(newDims("process.runtime.jvm.memory.usage").AddTags("pool:G1 Eden Space", "type:heap"), uint64(seconds(startTs+3)), 0, 30, fallbackHostname),
+			newGaugeWithHost(newDims("jvm.heap_memory").AddTags("pool:G1 Old Gen"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
+			newGaugeWithHost(newDims("jvm.heap_memory").AddTags("pool:G1 Survivor Space"), uint64(seconds(startTs+2)), 0, 20, fallbackHostname),
+			newGaugeWithHost(newDims("jvm.heap_memory").AddTags("pool:G1 Eden Space"), uint64(seconds(startTs+3)), 0, 30, fallbackHostname),
+			newGaugeWithHost(newDims("jvm.gc.old_gen_size"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
+			newGaugeWithHost(newDims("jvm.gc.survivor_size"), uint64(seconds(startTs+2)), 0, 20, fallbackHostname),
+			newGaugeWithHost(newDims("jvm.gc.eden_size"), uint64(seconds(startTs+3)), 0, 30, fallbackHostname),
 		},
 	)
 	assert.Equal(t, []string{"jvm"}, rmt.Languages)
@@ -1363,7 +1363,7 @@ func TestMapGaugeRuntimeMetricWithInvalidAttributes(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newGaugeWithHost(newDims("process.runtime.jvm.memory.usage").AddTags("type:heap2"), uint64(seconds(startTs+1)), 10, fallbackHostname),
+			newGaugeWithHost(newDims("process.runtime.jvm.memory.usage").AddTags("type:heap2"), uint64(seconds(startTs+1)), 0, 10, fallbackHostname),
 		},
 	)
 	assert.Equal(t, []string{"jvm"}, rmt.Languages)
@@ -1382,9 +1382,9 @@ func TestMapRuntimeMetricsNoMapping(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 10, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 0, 10, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
 		},
 	)
 	assert.Empty(t, rmt.Languages)
@@ -1402,8 +1402,8 @@ func TestMapSystemMetrics(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newGaugeWithHost(newDims("otel.system.filesystem.utilization"), uint64(seconds(startTs+1)), 10, ""),
-			newGaugeWithHost(newDims("system.disk.in_use"), uint64(seconds(startTs+1)), 10, ""),
+			newGaugeWithHost(newDims("otel.system.filesystem.utilization"), uint64(seconds(startTs+1)), 0, 10, ""),
+			newGaugeWithHost(newDims("system.disk.in_use"), uint64(seconds(startTs+1)), 0, 10, ""),
 		},
 	)
 	assert.Empty(t, rmt.Languages)
@@ -1429,8 +1429,8 @@ func TestMapIntMonotonicOutOfOrder(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCount(exampleDims, uint64(seconds(2)), 2),
-			newCount(exampleDims, uint64(seconds(3)), 1),
+			newCount(exampleDims, uint64(seconds(2)), 0, 2),
+			newCount(exampleDims, uint64(seconds(3)), 0, 1),
 		},
 	)
 }
@@ -1460,7 +1460,7 @@ func TestMapDoubleMonotonicMetrics(t *testing.T) {
 
 		expected := make([]metric, len(deltas))
 		for i, val := range deltas {
-			expected[i] = newCount(exampleDims, uint64(seconds(i+1)*10), val)
+			expected[i] = newCount(exampleDims, uint64(seconds(i+1)*10), 0, val)
 		}
 
 		ctx := context.Background()
@@ -1477,7 +1477,7 @@ func TestMapDoubleMonotonicMetrics(t *testing.T) {
 		expected := make([]metric, len(deltas))
 		for i, val := range deltas {
 			// divide val by submission interval (10s)
-			expected[i] = newGauge(rateAsGaugeDims, uint64(seconds((i+1)*10)), val/10.0)
+			expected[i] = newGauge(rateAsGaugeDims, uint64(seconds((i+1)*10)), 0, val/10.0)
 		}
 
 		ctx := context.Background()
@@ -1529,9 +1529,9 @@ func TestMapDoubleMonotonicDifferentDimensions(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCount(exampleDims, uint64(seconds(1)), 20),
-			newCount(exampleDims.AddTags("key1:valA"), uint64(seconds(1)), 30),
-			newCount(exampleDims.AddTags("key1:valB"), uint64(seconds(1)), 40),
+			newCount(exampleDims, uint64(seconds(1)), 0, 20),
+			newCount(exampleDims.AddTags("key1:valA"), uint64(seconds(1)), 0, 30),
+			newCount(exampleDims.AddTags("key1:valB"), uint64(seconds(1)), 0, 40),
 		},
 	)
 }
@@ -1563,8 +1563,8 @@ func TestMapDoubleMonotonicWithRebootWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCount(exampleDims, uint64(seconds(10)), 30),
-				newCount(exampleDims, uint64(seconds(30)), 20),
+				newCount(exampleDims, uint64(seconds(10)), 0, 30),
+				newCount(exampleDims, uint64(seconds(30)), 0, 20),
 			},
 		)
 	})
@@ -1579,8 +1579,8 @@ func TestMapDoubleMonotonicWithRebootWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGauge(rateAsGaugeDims, uint64(seconds(10)), 3),
-				newGauge(rateAsGaugeDims, uint64(seconds(30)), 2),
+				newGauge(rateAsGaugeDims, uint64(seconds(10)), 0, 3),
+				newGauge(rateAsGaugeDims, uint64(seconds(30)), 0, 2),
 			},
 		)
 	})
@@ -1624,8 +1624,8 @@ func TestMapDoubleMonotonicWithRebootBeginningOfSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 25, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 25, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -1665,7 +1665,7 @@ func TestMapDoubleMonotonicWithRebootBeginningOfSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 25, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 0, 25, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -1711,8 +1711,8 @@ func TestMapDoubleMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 10, fallbackHostname),
-				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 30, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 0, 10, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 30, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -1754,7 +1754,7 @@ func TestMapDoubleMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 15, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 0, 15, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -1795,8 +1795,8 @@ func TestMapDoubleMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 10, fallbackHostname),
-				newCountWithHost(exampleDims, uint64(seconds(startTs+5)), 30, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 0, 10, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+5)), 0, 30, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -1838,7 +1838,7 @@ func TestMapDoubleMonotonicDropPointPointWithinSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+5)), 15, fallbackHostname),
+				newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+5)), 0, 15, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -1882,7 +1882,7 @@ func TestMapDoubleMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 30, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 30, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -1922,7 +1922,7 @@ func TestMapDoubleMonotonicDropPointPointBeginningOfSlice(t *testing.T) {
 		assert.ElementsMatch(t,
 			consumer.metrics,
 			[]metric{
-				newCountWithHost(exampleDims, uint64(seconds(startTs+5)), 30, fallbackHostname),
+				newCountWithHost(exampleDims, uint64(seconds(startTs+5)), 0, 30, fallbackHostname),
 			},
 		)
 		assert.Empty(t, rmt.Languages)
@@ -1938,9 +1938,9 @@ func TestMapDoubleMonotonicReportFirstValue(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 10, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 0, 10, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
 		},
 	)
 }
@@ -1954,8 +1954,8 @@ func TestMapDoubleMonotonicRateDontReportFirstValue(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
+			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
 		},
 	)
 	assert.Empty(t, rmt.Languages)
@@ -2003,9 +2003,9 @@ func TestMapDoubleMonotonicReportDiffForFirstValue(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 9, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 0, 9, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
 		},
 	)
 }
@@ -2022,9 +2022,9 @@ func TestMapDoubleMonotonicReportRateForFirstValue(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+2)), 9, fallbackHostname),
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
-			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 5, fallbackHostname),
+			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+2)), 0, 9, fallbackHostname),
+			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+3)), 0, 5, fallbackHostname),
+			newGaugeWithHost(rateAsGaugeDims, uint64(seconds(startTs+4)), 0, 5, fallbackHostname),
 		},
 	)
 	assert.Empty(t, rmt.Languages)
@@ -2050,8 +2050,8 @@ func TestMapDoubleMonotonicOutOfOrder(t *testing.T) {
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{
-			newCount(exampleDims, uint64(seconds(2)), 2),
-			newCount(exampleDims, uint64(seconds(3)), 1),
+			newCount(exampleDims, uint64(seconds(2)), 0, 2),
+			newCount(exampleDims, uint64(seconds(3)), 0, 1),
 		},
 	)
 }
@@ -2264,14 +2264,14 @@ func createTestMetricWithAttributes(metricName string, metricType pmetric.Metric
 
 func newCountWithHostname(name string, val float64, seconds uint64, tags []string) metric {
 	dims := newDims(name)
-	m := newCount(dims.AddTags(tags...), seconds*1e9, val)
+	m := newCount(dims.AddTags(tags...), seconds*1e9, 0, val)
 	m.host = testHostname
 	return m
 }
 
 func newSketchWithHostname(name string, summary summary.Summary, tags []string) sketch {
 	dims := newDims(name)
-	s := newSketch(dims.AddTags(tags...), 0, summary)
+	s := newSketch(dims.AddTags(tags...), 0, 0, summary)
 	s.host = testHostname
 	return s
 }
