@@ -167,19 +167,8 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 // GlobalFingerprintConfig returns the global fingerprint configuration to apply to all logs.
 func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConfig, error) {
 	var err error
-	// Get the complete fingerprint config map without applying defaults immediately
-	raw := coreConfig.Get("logs_config.fingerprint_config")
-	// Let the config system handle defaults
-	config := &FingerprintConfig{}
-
-	if s, ok := raw.(string); ok && s != "" {
-		log.Debugf("GlobalFingerprintConfig: unmarshaling from string: %s", s)
-		err = json.Unmarshal([]byte(s), &config)
-	} else {
-		log.Debugf("GlobalFingerprintConfig: using structure.UnmarshalKey")
-		// Fallback to structure.UnmarshalKey
-		err = structure.UnmarshalKey(coreConfig, "logs_config.fingerprint_config", &config, structure.ConvertEmptyStringToNil)
-	}
+	config := FingerprintConfig{}
+	err = structure.UnmarshalKey(coreConfig, "logs_config.fingerprint_config", &config)
 	if err != nil {
 		return nil, err
 	}
@@ -187,11 +176,11 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConf
 		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
 
 	//Return the config and validate the fingerprintConfig as well
-	err = ValidateFingerprintConfig(config)
+	err = ValidateFingerprintConfig(&config)
 	if err != nil {
 		return nil, err
 	}
-	return config, err
+	return &config, err
 }
 
 // ValidateFingerprintConfig validates the fingerprint config and returns an error if the config is invalid

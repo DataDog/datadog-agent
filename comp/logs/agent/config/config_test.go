@@ -189,28 +189,6 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithV
 	suite.Equal(1024, config.MaxBytes)
 }
 
-func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidJSONString() {
-	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
-	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"fingerprint_strategy": "byte_checksum", "count": 5, "count_to_skip": 2, "max_bytes": 512}`)
-
-	config, err := GlobalFingerprintConfig(suite.config)
-	suite.Nil(err)
-	suite.NotNil(config)
-	suite.Equal(FingerprintStrategyByteChecksum, config.FingerprintStrategy)
-	suite.Equal(5, config.Count)
-	suite.Equal(2, config.CountToSkip)
-	suite.Equal(512, config.MaxBytes)
-}
-
-func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidJSON() {
-	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
-	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"fingerprint_strategy": "line_checksum", "count": 5, "count_to_skip": 2, "max_bytes": 512`)
-
-	config, err := GlobalFingerprintConfig(suite.config)
-	suite.NotNil(err)
-	suite.Nil(config)
-}
-
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
 	suite.config.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
