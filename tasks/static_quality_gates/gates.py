@@ -518,20 +518,6 @@ class StaticQualityGate:
             )
         )
 
-        if violations:
-            violation_messages = []
-            for violation in violations:
-                current_mb = violation.current_size / (1024 * 1024)
-                max_mb = violation.max_size / (1024 * 1024)
-                excess_mb = violation.excess_bytes / (1024 * 1024)
-                violation_messages.append(
-                    f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
-                    f"exceeds limit of {max_mb:.1f} MB by {excess_mb:.1f} MB"
-                )
-
-            error_message = f"{self.config.gate_name} failed!\n" + "\n".join(violation_messages)
-            print(color_message(error_message, "red"))
-            raise StaticQualityGateError(error_message)
         # To outline the end of the gate execution
         print("+" * 40)
         return result

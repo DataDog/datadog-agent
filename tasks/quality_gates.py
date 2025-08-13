@@ -154,6 +154,19 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         result = None
         try:
             result = gate.execute_gate(ctx)
+            if not result.success:
+                violation_messages = []
+                for violation in result.violations:
+                    current_mb = violation.current_size / (1024 * 1024)
+                    max_mb = violation.max_size / (1024 * 1024)
+                    excess_mb = violation.excess_bytes / (1024 * 1024)
+                    violation_messages.append(
+                        f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
+                        f"exceeds limit of {max_mb:.1f} MB by {excess_mb:.1f} MB"
+                    )
+                error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
+                print(color_message(error_message, "red"))
+                raise StaticQualityGateError(error_message)
             gate_states.append({"name": result.config.gate_name, "state": True, "error_type": None, "message": None})
         except StaticQualityGateError as e:
             final_state = "failure"

@@ -464,39 +464,21 @@ class TestStaticQualityGate(unittest.TestCase):
         measurement = ArtifactMeasurement("/path", 120 * 1024 * 1024, 150 * 1024 * 1024)
         self.mock_measurer.measure.return_value = measurement
 
-        with self.assertRaises(StaticQualityGateError) as cm:
-            self.gate.execute_gate(self.mock_ctx)
-
-        error_msg = str(cm.exception)
-        self.assertIn("Wire size", error_msg)
-        self.assertIn("120.0 MB", error_msg)  # Current size
-        self.assertIn("100.0 MB", error_msg)  # Limit
-        self.assertIn("test_gate failed", error_msg)
+        self.assertFalse(self.gate.execute_gate(self.mock_ctx).success)
 
     def test_execute_gate_on_disk_violation(self):
         # Mock measurement exceeding disk limit (250MB > 200MB limit)
         measurement = ArtifactMeasurement("/path", 80 * 1024 * 1024, 250 * 1024 * 1024)
         self.mock_measurer.measure.return_value = measurement
 
-        with self.assertRaises(StaticQualityGateError) as cm:
-            self.gate.execute_gate(self.mock_ctx)
-
-        error_msg = str(cm.exception)
-        self.assertIn("Disk size", error_msg)
-        self.assertIn("250.0 MB", error_msg)  # Current size
-        self.assertIn("200.0 MB", error_msg)  # Limit
+        self.assertFalse(self.gate.execute_gate(self.mock_ctx).success)
 
     def test_execute_gate_both_violations(self):
         # Mock measurement exceeding both limits (120MB wire, 250MB disk)
         measurement = ArtifactMeasurement("/path", 120 * 1024 * 1024, 250 * 1024 * 1024)
         self.mock_measurer.measure.return_value = measurement
 
-        with self.assertRaises(StaticQualityGateError) as cm:
-            self.gate.execute_gate(self.mock_ctx)
-
-        error_message = str(cm.exception)
-        self.assertIn("Wire size", error_message)
-        self.assertIn("Disk size", error_message)
+        self.assertFalse(self.gate.execute_gate(self.mock_ctx).success)
 
     def test_check_size_limits_success(self):
         measurement = ArtifactMeasurement("/path", 80 * 1024 * 1024, 150 * 1024 * 1024)
