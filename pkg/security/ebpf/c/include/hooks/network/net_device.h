@@ -152,7 +152,7 @@ int rethook_register_netdevice(ctx_t *ctx) {
         };
 
         struct proc_cache_t *entry = fill_process_context(&evt.process);
-        fill_container_context(entry, &evt.container);
+        fill_cgroup_context(entry, &evt.cgroup);
         fill_span_context(&evt.span);
 
         send_event(ctx, EVENT_NET_DEVICE, evt);
@@ -201,7 +201,7 @@ int rethook_register_netdevice(ctx_t *ctx) {
             };
 
             struct proc_cache_t *proc_entry = fill_process_context(&evt.process);
-            fill_container_context(proc_entry, &evt.container);
+            fill_cgroup_context(proc_entry, &evt.cgroup);
             fill_span_context(&evt.span);
 
             send_event(ctx, EVENT_VETH_PAIR, evt);
@@ -248,7 +248,7 @@ __attribute__((always_inline)) int trace_dev_change_net_namespace(ctx_t *ctx) {
     };
 
     struct proc_cache_t *entry = fill_process_context(&evt.process);
-    fill_container_context(entry, &evt.container);
+    fill_cgroup_context(entry, &evt.cgroup);
     fill_span_context(&evt.span);
 
     send_event(ctx, EVENT_VETH_PAIR, evt);

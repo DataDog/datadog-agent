@@ -111,6 +111,11 @@ func (c *CloudRunJobs) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
 }
 
+// ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
+func (c *CloudRunJobs) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return true
+}
+
 func isCloudRunJob() bool {
 	_, exists := os.LookupEnv(cloudRunJobNameEnvVar)
 	return exists

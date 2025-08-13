@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -43,7 +44,10 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	defer os.RemoveAll(tmpDir)
 	cmd, err := downloadInstaller(ctx, env, url, tmpDir)
 	if err != nil {
-		return err
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			err,
+		)
 	}
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)
@@ -53,6 +57,36 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.
 func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
+	downloader := oci.NewDownloader(env, env.HTTPClient())
+	downloadedPackage, err := downloader.Download(ctx, url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download installer package: %w", err)
+	}
+	if downloadedPackage.Name != AgentPackage {
+		// Only the Agent package uses the new installer each update, others use
+		// the currently installed datadog-installer.exe
+		return getLocalInstaller(env)
+	}
+
+	// Download just datadog-installer.exe from its own layer
+	installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
+	err = downloadedPackage.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract layers: %w", err)
+	}
+	if _, err := os.Stat(installerBinPath); err != nil {
+		// Fallback to the old method if the file/layer doesn't exist
+		// this is expected for versions earlier than 7.70
+		return downloadInstallerOld(ctx, env, url, tmpDir)
+	}
+	return newInstallerExecFromSystemTemp(env, installerBinPath)
+}
+
+// downloadInstallerOld downloads the installer package from the registry and returns the path to the executable.
+//
+// Should only be called for versions earlier than 7.70. This downloads the layer containing the MSI and then
+// uses MSI admin install to extract `datadog-installer.exe` from the MSI.
+func downloadInstallerOld(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
@@ -82,7 +116,7 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("failed to get installer path: %w", err)
 	}
 
-	return iexec.NewInstallerExec(env, installPath), nil
+	return newInstallerExecFromSystemTemp(env, installPath)
 }
 
 func getInstallerPath(ctx context.Context, tmpDir string) (string, error) {
@@ -153,4 +187,39 @@ func getInstallerOCI(_ context.Context, env *env.Env) (string, error) {
 		agentVersion = env.DefaultPackagesVersionOverride[AgentPackage]
 	}
 	return oci.PackageURL(env, AgentPackage, agentVersion), nil
+}
+
+func moveInstallerToSystemTemp(installPath string) (string, error) {
+
+	// Check that there is a system temp directory to move the installer to
+	// Create one if there is none
+	systemTempPath, err := paths.CreateSystemTempDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to create system temp directory: %w", err)
+	}
+
+	tempInstallerPath, err := os.MkdirTemp(systemTempPath, "datadog-installer")
+	if err != nil {
+		return "", fmt.Errorf("failed to create system temp directory: %w", err)
+	}
+
+	tempInstallerPath = filepath.Join(tempInstallerPath, "datadog-installer.exe")
+
+	err = os.Rename(installPath, tempInstallerPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to move installer to system temp: %w", err)
+	}
+	return tempInstallerPath, nil
+}
+
+// newInstallerExecFromSystemTemp moves the installer to the system temp directory and returns a new InstallerExec.
+//
+// This executable will stay running after we return and on Windows we can't delete files that are in use,
+// so we move it to the system temporary directory so it gets cleaned up by the OS.
+func newInstallerExecFromSystemTemp(env *env.Env, installPath string) (*iexec.InstallerExec, error) {
+	installPath, err := moveInstallerToSystemTemp(installPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to move installer to system temp: %w", err)
+	}
+	return iexec.NewInstallerExec(env, installPath), nil
 }

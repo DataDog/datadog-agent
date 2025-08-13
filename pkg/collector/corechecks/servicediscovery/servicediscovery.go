@@ -71,7 +71,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 	if newOSImpl == nil {
 		return errors.New("service_discovery check not implemented on " + runtime.GOOS)
 	}
-	if !pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") {
+	// we want to disable the old discovery check when the new one is enabled via the temporary config process_config.process_collection.use_wlm
+	// discovery False + use_wlm True = true = disabled
+	// discovery False + use_wlm false = true = disabled
+	// discovery true + use_wlm True = true = disabled (new check running)
+	// discovery true + use_wlm false = false = enabled (old check running)
+	if !pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") || pkgconfigsetup.Datadog().GetBool("process_config.process_collection.use_wlm") {
 		return errors.New("service discovery is disabled")
 	}
 	if err := c.CommonConfigure(senderManager, initConfig, instanceConfig, source); err != nil {

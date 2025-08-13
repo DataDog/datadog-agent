@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -24,7 +24,7 @@ func TestStatusCommand(t *testing.T) {
 		[]string{"status", "-j"},
 		statusCmd,
 		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, []string{}, cliParams.args)
+			require.Empty(t, cliParams.args)
 			require.Equal(t, true, cliParams.jsonStatus)
 			require.Equal(t, false, secretParams.Enabled)
 		})

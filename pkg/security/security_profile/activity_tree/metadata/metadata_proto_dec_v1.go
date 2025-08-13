@@ -39,8 +39,7 @@ func ProtoMetadataToMetadata(meta *adproto.Metadata) Metadata {
 		Serialization:     meta.GetSerialization(),
 
 		CGroupContext: model.CGroupContext{
-			CGroupID:      containerutils.CGroupID(meta.CgroupId),
-			CGroupManager: meta.CgroupManager,
+			CGroupID: containerutils.CGroupID(meta.CgroupId),
 		},
 	}
 }
