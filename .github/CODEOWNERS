@@ -678,9 +678,8 @@
 /test/                                  @DataDog/agent-devx
 /test/benchmarks/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
-/test/integration/                      @DataDog/container-integrations
-/test/integration/docker/otel_agent_build_tests.py @DataDog/opentelemetry-agent
-/test/integration/serverless            @DataDog/serverless @Datadog/serverless-aws
+/test/integration/                      @DataDog/serverless @Datadog/serverless-aws
+/test/integration/docker/               @DataDog/opentelemetry-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/ndm-core
 /test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/ndm-core
