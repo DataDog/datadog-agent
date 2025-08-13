@@ -107,7 +107,7 @@
 
 .package_dependencies:
   stage: kernel_matrix_testing_prepare
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   before_script:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
@@ -305,7 +305,7 @@
 
 .notify_ebpf_complexity_changes:
   extends: .notify-job
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   timeout: 15m
   needs:

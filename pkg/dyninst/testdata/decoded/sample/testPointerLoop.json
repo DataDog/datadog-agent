@@ -60,7 +60,8 @@
                   },
                   "b": {
                     "type": "*main.node",
-                    "address": "[addr]"
+                    "address": "[addr]",
+                    "notCapturedReason": "circular reference"
                   }
                 }
               }
