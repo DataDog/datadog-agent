@@ -26,6 +26,7 @@
       exit 1
     fi
   - export DDA_DIR="$TMPDIR/dda-${CI_JOB_ID}"
+  - export PATH="$DDA_DIR:$PATH"
   - export DDA_NO_DYNAMIC_DEPS=1
   - |
     # Perform installation only if the directory does not exist
@@ -44,7 +45,6 @@
       mkdir -p "$DDA_DIR"
       sudo mv dda $DDA_DIR
       rm -f dda.tar.gz
-      export PATH="$DDA_DIR:$PATH"
       dda self dep sync -f legacy-tasks
       dda self pip install awscli==1.29.45
     fi
