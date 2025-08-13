@@ -159,6 +159,13 @@ func (t *Translator) mapExponentialHistogramMetrics(
 			agentSketch.Basic.Cnt = int64(histInfo.count)
 			agentSketch.Basic.Sum = histInfo.sum
 			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
+
+			if histInfo.count == 1 {
+				// We know the exact value of this one point: it is the sum.
+				// Override approximate min and max in that special case.
+				agentSketch.Basic.Min = histInfo.sum
+				agentSketch.Basic.Max = histInfo.sum
+			}
 		}
 		if delta && p.HasMin() {
 			agentSketch.Basic.Min = p.Min()
