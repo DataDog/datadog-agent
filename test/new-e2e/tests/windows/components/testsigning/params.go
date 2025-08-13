@@ -5,9 +5,21 @@
 
 package testsigning
 
+import "github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 // Configuration represents the Windows NewDefender configuration
 type Configuration struct {
-	Enabled bool
+	Enabled         bool
+	ResourceOptions []pulumi.ResourceOption
+}
+
+// WithPulumiResourceOptions sets some pulumi resource option, like which resource
+// to depend on.
+func WithPulumiResourceOptions(resources ...pulumi.ResourceOption) Option {
+	return func(p *Configuration) error {
+		p.ResourceOptions = resources
+		return nil
+	}
 }
 
 // Option is an optional function parameter type for Configuration options
