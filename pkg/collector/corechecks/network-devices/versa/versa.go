@@ -69,6 +69,9 @@ type checkCfg struct {
 	CollectLinkMetrics                    *bool    `yaml:"collect_link_metrics"`
 	CollectApplicationsByApplianceMetrics *bool    `yaml:"collect_applications_by_appliance_metrics"`
 	CollectTopUserMetrics                 *bool    `yaml:"collect_top_user_metrics"`
+	CollectQoSMetrics                     *bool    `yaml:"collect_qos_metrics"`
+	CollectDIAMetrics                     *bool    `yaml:"collect_dia_metrics"`
+	CollectSiteMetrics                    *bool    `yaml:"collect_site_metrics"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -281,6 +284,16 @@ func (v *VersaCheck) Run() error {
 			}
 		}
 
+		// Collect site metrics if enabled
+		if *v.config.CollectSiteMetrics {
+			siteMetrics, err := c.GetSiteMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting site metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendSiteMetrics(siteMetrics, deviceNameToIDMap)
+			}
+		}
+
 		// Collect applications by appliance metrics if enabled
 		if *v.config.CollectApplicationsByApplianceMetrics {
 			appsByApplianceMetrics, err := c.GetApplicationsByAppliance(org.Name)
@@ -309,6 +322,26 @@ func (v *VersaCheck) Run() error {
 				continue
 			}
 			v.metricsSender.SendTunnelMetrics(tunnelMetrics, deviceNameToIDMap)
+		}
+
+		// Collect QoS metrics if enabled
+		if *v.config.CollectQoSMetrics {
+			qosMetrics, err := c.GetPathQoSMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting QoS metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendPathQoSMetrics(qosMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect DIA metrics if enabled
+		if *v.config.CollectDIAMetrics {
+			diaMetrics, err := c.GetDIAMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting DIA metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendDIAMetrics(diaMetrics, deviceNameToIDMap)
+			}
 		}
 	}
 
@@ -354,6 +387,9 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectLinkMetrics = boolPointer(false)
 	instanceConfig.CollectApplicationsByApplianceMetrics = boolPointer(false)
 	instanceConfig.CollectTopUserMetrics = boolPointer(false)
+	instanceConfig.CollectQoSMetrics = boolPointer(false)
+	instanceConfig.CollectDIAMetrics = boolPointer(false)
+	instanceConfig.CollectSiteMetrics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {

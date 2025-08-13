@@ -13,8 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"regexp"
 	"runtime/debug"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -363,6 +363,10 @@ type abstractVariable struct {
 }
 
 type typesCollection struct {
+	scopeFilter         ExtractScope
+	mainModule          string
+	firstPartyPkgPrefix string
+
 	// typesCache will accumulate types as we look them up to resolve variables
 	// and functions. The cache is indexed by DWARF offset.
 	typesCache *dwarfutils.TypeFinder
@@ -377,23 +381,17 @@ type typesCollection struct {
 	packages map[string][]*Type
 }
 
-var (
-	// The parsing goes as follows:
-	// - optionally one or more starting '*', for pointer types. We discard these.
-	// - consume eagerly up to the last slash, if any. This is part of the
-	// package path.
-	// - after the last slash, consume up to the next dot. This completes the
-	// package name.
-	parsePkgFromTypeNameRE = regexp.MustCompile(`^(\*)*(?P<pkg>(.*\/)?[^.]*)\.`)
-	typePkgIdx             = parsePkgFromTypeNameRE.SubexpIndex("pkg")
-)
-
 func (c *typesCollection) resolveType(offset dwarf.Offset) (typeInfo, error) {
 	typ, err := c.typesCache.FindTypeByOffset(offset)
 	if err != nil {
 		return typeInfo{}, err
 	}
-	typeName := typ.Common().Name
+	// The package import path in the type name might be escaped. We want
+	// unescaped paths for SymDB.
+	typeName, err := unescapeSymbol(typ.Common().Name)
+	if err != nil {
+		return typeInfo{}, fmt.Errorf("failed to unescape type name %q: %w", typ.Common().Name, err)
+	}
 	size := typ.Common().Size()
 
 	// Unwrap pointer types and typedefs.
@@ -409,7 +407,7 @@ func (c *typesCollection) resolveType(offset dwarf.Offset) (typeInfo, error) {
 		break
 	}
 
-	if err := c.addType(typ); err != nil {
+	if err := c.maybeAddType(typ); err != nil {
 		return typeInfo{}, err
 	}
 
@@ -423,26 +421,28 @@ func (c *typesCollection) getType(name string) *Type {
 	return c.types[name]
 }
 
-// addType adds a type to the collection if it is not already present.
-// Unsupported types are ignored and no error is returned.
-func (c *typesCollection) addType(t godwarf.Type) error {
-	name := t.Common().Name
-	{
-		// If the last element of the package's import path contains dots, they
-		// are replaced with %2e in DWARF to differentiate them from the dot
-		// that separates the package path from the type name. Undo this
-		// escaping so that our cache key matches the actual package name.
-		escapedDot := "%2e"
-		i := strings.LastIndex(name, escapedDot)
-		if i >= 0 {
-			// Replace %2e with '.' in the type name. This is how DWARF encodes
-			// dots in package names.
-			name = name[:i] + "." + name[i+len(escapedDot):]
-		}
+// maybeAddType adds a type to the collection if it is not already present and
+// if it's from a package that's not filtered. Unsupported types are ignored and
+// no error is returned.
+func (c *typesCollection) maybeAddType(t godwarf.Type) error {
+	pkg, sym, wasEscaped, err := parseLinkFuncName(t.Common().Name)
+	if err != nil {
+		return fmt.Errorf("failed to split package for %s : %w", t.Common().Name, err)
+	}
+
+	if !interestingPackage(pkg, c.mainModule, c.firstPartyPkgPrefix, c.scopeFilter) {
+		return nil
+	}
+
+	var unescapedName string
+	if wasEscaped {
+		unescapedName = pkg + "." + sym
+	} else {
+		unescapedName = t.Common().Name
 	}
 
 	// Check if the type is already present.
-	if _, ok := c.types[name]; ok {
+	if _, ok := c.types[unescapedName]; ok {
 		return nil
 	}
 
@@ -453,31 +453,20 @@ func (c *typesCollection) addType(t godwarf.Type) error {
 
 	// Assert that we were not given a pointer type.
 	if _, ok := t.(*godwarf.PtrType); ok {
-		return fmt.Errorf("ptr type expected to have been unwrapped: %s", name)
+		return fmt.Errorf("ptr type expected to have been unwrapped: %s", unescapedName)
 	}
-	if strings.HasPrefix(name, "*") {
-		return fmt.Errorf("type name for non-pointer unexpectedly starting with '*': %s", name)
+	if strings.HasPrefix(unescapedName, "*") {
+		return fmt.Errorf("type unescapedName for non-pointer unexpectedly starting with '*': %s", unescapedName)
 	}
 
 	// Skip anonymous types, generic types, array types and structs
 	// corresponding to slices.
-	if strings.ContainsAny(name, "{<[") {
+	if strings.ContainsAny(unescapedName, "{<[") {
 		return nil
 	}
 
-	// Figure out the type's package.
-	groups := parsePkgFromTypeNameRE.FindStringSubmatch(name)
-	if groups == nil {
-		// Base types like "int" don't have a package. We don't care about these
-		// types anyway.
-		return nil
-	}
-	pkg := groups[typePkgIdx]
-	if pkg == "" {
-		return fmt.Errorf("failed to parse package from type %s (type: %s)", name, t)
-	}
 	typ := &Type{
-		Name:   name,
+		Name:   unescapedName,
 		Fields: nil,
 		// Methods will be populated later, as we discover them in DWARF.
 		Methods: nil,
@@ -491,7 +480,7 @@ func (c *typesCollection) addType(t godwarf.Type) error {
 		}
 	}
 
-	c.types[name] = typ
+	c.types[unescapedName] = typ
 	c.packages[pkg] = append(c.packages[pkg], typ)
 	return nil
 }
@@ -672,9 +661,12 @@ func NewSymDBBuilder(binaryPath string, opt ExtractScope) (*SymDBBuilder, error)
 		filesFilter:         filesFilter,
 		abstractFunctions:   make(map[dwarf.Offset]*abstractFunction),
 		types: typesCollection{
-			typesCache: dwarfutils.NewTypeFinder(obj.DwarfData()),
-			types:      make(map[string]*Type),
-			packages:   make(map[string][]*Type),
+			scopeFilter:         opt,
+			mainModule:          mainModule,
+			firstPartyPkgPrefix: firstPartyPkgPrefix,
+			typesCache:          dwarfutils.NewTypeFinder(obj.DwarfData()),
+			types:               make(map[string]*Type),
+			packages:            make(map[string][]*Type),
 		},
 		cleanupFuncs: []func(){func() { _ = goDebugSections.Close() }, func() { _ = obj.Close() }},
 	}
@@ -728,11 +720,28 @@ func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
 		Packages:   nil,
 	}
 	for pkgName, types := range b.types.packages {
-		pkg := packages[pkgName]
-		if pkg != nil {
-			for _, t := range types {
-				pkg.Types = append(pkg.Types, *t)
+		anyNonEmpty := slices.ContainsFunc(types, func(t *Type) bool {
+			return len(t.Fields) > 0 || len(t.Methods) > 0
+		})
+		if !anyNonEmpty {
+			continue
+		}
+
+		pkg, ok := packages[pkgName]
+		if !ok {
+			pkg = &Package{
+				Name:      pkgName,
+				Functions: nil,
+				Types:     nil,
 			}
+			packages[pkgName] = pkg
+		}
+		for _, t := range types {
+			// Don't add empty types to the output.
+			if len(t.Fields) == 0 && len(t.Methods) == 0 {
+				continue
+			}
+			pkg.Types = append(pkg.Types, *t)
 		}
 	}
 	for _, pkg := range packages {
@@ -747,23 +756,23 @@ func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
 	return res, nil
 }
 
-func (b *SymDBBuilder) interestingPackage(pkgName string) bool {
+func interestingPackage(pkgName string, mainModule string, firstPartyPkgPrefix string, scopeFilter ExtractScope) bool {
 	// We don't know what the main module is, so we can't filter out
 	// anything.
-	if b.mainModule == "" || b.scopeFilter == ExtractScopeAllSymbols {
+	if mainModule == "" || scopeFilter == ExtractScopeAllSymbols {
 		return true
 	}
 	// The "main" package is always included.
 	if pkgName == mainPackageName {
 		return true
 	}
-	switch b.scopeFilter {
+	switch scopeFilter {
 	case ExtractScopeMainModuleOnly:
-		return strings.HasPrefix(pkgName, b.mainModule)
+		return strings.HasPrefix(pkgName, mainModule)
 	case ExtractScopeModulesFromSameOrg:
-		return strings.HasPrefix(pkgName, b.firstPartyPkgPrefix)
+		return strings.HasPrefix(pkgName, firstPartyPkgPrefix)
 	default:
-		panic(fmt.Sprintf("unsupported extract scope: %d", b.scopeFilter))
+		panic(fmt.Sprintf("unsupported extract scope: %d", scopeFilter))
 	}
 }
 
@@ -858,7 +867,7 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 	if !ok {
 		return Package{}, errors.New("compile unit without name")
 	}
-	if !b.interestingPackage(name) {
+	if !interestingPackage(name, b.mainModule, b.firstPartyPkgPrefix, b.scopeFilter) {
 		reader.SkipChildren()
 		return Package{}, nil
 	}
@@ -1359,7 +1368,7 @@ func (b *SymDBBuilder) parseAbstractFunction(reader *dwarf.Reader, offset dwarf.
 	if err != nil {
 		return nil, err
 	}
-	if !recognized || !b.interestingPackage(funcName.Package) {
+	if !recognized || !interestingPackage(funcName.Package, b.mainModule, b.firstPartyPkgPrefix, b.scopeFilter) {
 		return &abstractFunction{
 			interesting: false,
 		}, nil

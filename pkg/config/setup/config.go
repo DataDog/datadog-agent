@@ -24,7 +24,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -233,6 +233,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	setupAPM,
 	OTLP,
 	setupMultiRegionFailover,
+	setupPreaggregation,
 	telemetry,
 	autoconfig,
 	remoteconfig,
@@ -289,6 +290,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
+	config.BindEnvAndSetDefault("collect_ccrid", true)
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
@@ -493,6 +495,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
 	config.BindEnvAndSetDefault("network_path.collector.source_excludes", map[string][]string{})
 	config.BindEnvAndSetDefault("network_path.collector.dest_excludes", map[string][]string{})
+	config.BindEnvAndSetDefault("network_path.collector.tcp_method", "")
+	config.BindEnvAndSetDefault("network_path.collector.icmp_mode", "")
 	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
@@ -903,10 +907,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
+	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_disable_cache", false)
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
 	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
+	config.BindEnvAndSetDefault("sbom.container_image.additional_directories", []string{})
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)
@@ -914,6 +920,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Host SBOM configuration
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("sbom.host.additional_directories", []string{})
 
 	// Service discovery configuration
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
@@ -1183,7 +1190,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
-	config.BindEnvAndSetDefault("infrastructure_mode", "pro")
+	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

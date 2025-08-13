@@ -2,12 +2,11 @@
 # Unit test of internal python code
 invoke_unit_tests:
   stage: source_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: []
   rules:
     - !reference [.on_invoke_tasks_changes]
   script:
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-    - python3 -m dda self dep sync -f legacy-tasks
+    - dda self dep sync -f legacy-tasks
     - dda inv -- -e invoke-unit-tests.run
