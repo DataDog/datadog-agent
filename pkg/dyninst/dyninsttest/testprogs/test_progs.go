@@ -25,7 +25,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime"
 	"slices"
@@ -41,6 +40,7 @@ const helpMsg = "consider running `dda inv system-probe.build-dyninst-test-progr
 // MustGetCommonConfigs calls GetCommonConfigs and checks for an error..
 func MustGetCommonConfigs(t testing.TB) []Config {
 	cfgs, err := GetCommonConfigs()
+	log.Printf("cfgs: %v, len: %d", cfgs, len(cfgs))
 	require.NoError(t, err)
 	return cfgs
 }
@@ -121,18 +121,18 @@ var (
 func getState() (*state, error) {
 	globalStateOnce.Do(func() {
 		var haveSources bool
-		var progsSrcDir string
+		var srcPathDir string
 		if _, srcPath, _, ok := runtime.Caller(0); ok {
 			srcDir := path.Dir(srcPath)
 			s, err := os.Stat(srcDir)
 			haveSources = err == nil && s.IsDir()
 			if haveSources {
-				progsSrcDir = path.Join(srcDir, "progs")
+				srcPathDir = path.Dir(srcDir)
 			}
 		}
 		globalState, globalStateErr = initStateFromBinaries(
 			haveSources,
-			progsSrcDir,
+			srcPathDir,
 		)
 	})
 	return &globalState, globalStateErr
@@ -142,23 +142,12 @@ func initStateFromBinaries(
 	haveSources bool,
 	progsSrcDir string,
 ) (state, error) {
-	pkgPath := strings.TrimPrefix(
-		reflect.TypeOf(Config{}).PkgPath(),
-		"github.com/DataDog/datadog-agent/",
-	)
-	const maxDirectoryDepth = 10
-	binariesDir := path.Join(".", pkgPath, "binaries")
-	for range maxDirectoryDepth {
-		if _, err := os.Stat(binariesDir); err == nil {
-			goto found
-		}
-		binariesDir = path.Join("..", binariesDir)
-	}
-	return state{}, fmt.Errorf("binaries directory not found; %s", helpMsg)
-found:
-	binariesDir, err := filepath.Abs(binariesDir)
+	binariesDir, err := filepath.Abs(path.Join(progsSrcDir, "testprogs", "binaries"))
 	if err != nil {
 		return state{}, fmt.Errorf("failed to get absolute path for binaries directory: %w", err)
+	}
+	if _, err := os.Stat(binariesDir); err != nil {
+		return state{}, fmt.Errorf("binaries directory not found; %s, %s, %v", binariesDir, helpMsg, err)
 	}
 	probesCfgsDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/probes"))
 	if err != nil {
@@ -244,7 +233,7 @@ func getBinary(
 	progsSrcDir := state.progsSrcDir
 	binaryDir := path.Join(binariesDir, cfg.String())
 	binaryPath := path.Join(binaryDir, name)
-	progDir := path.Join(progsSrcDir, name)
+	progDir := path.Join(progsSrcDir, "testprogs", "progs", name)
 	binInfo, err := os.Stat(binaryPath)
 	if errors.Is(err, os.ErrNotExist) {
 		log.Printf(

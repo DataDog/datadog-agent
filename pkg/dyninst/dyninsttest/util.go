@@ -463,7 +463,8 @@ func waitForAttachmentAndCollectEvents(
 
 	// Trigger the function calls
 	t.Logf("Triggering function calls")
-	processInfo.Stdin.Write([]byte("\n"))
+	_, err := processInfo.Stdin.Write([]byte("\n"))
+	require.NoError(t, err)
 
 	// Calculate expected events
 	var totalExpectedEvents int

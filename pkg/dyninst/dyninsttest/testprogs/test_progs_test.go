@@ -10,6 +10,7 @@ package testprogs
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,10 +38,10 @@ func TestInitFromBinaries(t *testing.T) {
 		return
 	}
 
+	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
 	var cases = []struct {
-		name     string
-		layout   map[string][]string
-		expected configAndPrograms
+		name   string
+		layout map[string][]string
 	}{
 		{
 			name: "only overlapping binaries",
@@ -55,25 +56,10 @@ func TestInitFromBinaries(t *testing.T) {
 					".flock",
 				},
 			},
-			expected: configAndPrograms{
-				Configs: []Config{
-					{
-						GOARCH:      "amd64",
-						GOTOOLCHAIN: "go1.22.5",
-					},
-					{
-						GOARCH:      "arm64",
-						GOTOOLCHAIN: "go1.22.5",
-					},
-				},
-				Programs: []string{
-					"foo",
-				},
-			},
 		},
 	}
 	outerTestName := t.Name()
-	runCase := func(t *testing.T, expected configAndPrograms, layout map[string][]string) {
+	runCase := func(t *testing.T, subtestName string, layout map[string][]string) {
 		tmpDir, err := os.MkdirTemp("", "test_progs_test")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
@@ -107,13 +93,38 @@ func TestInitFromBinaries(t *testing.T) {
 			var actual configAndPrograms
 			err := json.Unmarshal(stderr.Bytes(), &actual)
 			require.NoError(t, err, "stdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+			expectationsPath := filepath.Join("testdata", "TestInitFromBinaries.json")
+			if rewrite {
+				goldenSuite := make(map[string]configAndPrograms)
+				if content, err := os.ReadFile(expectationsPath); err == nil {
+					_ = json.Unmarshal(content, &goldenSuite)
+				}
+				goldenSuite[subtestName] = actual
+				content, err := json.MarshalIndent(goldenSuite, "", "  ")
+				require.NoError(t, err)
+				require.NoError(t, os.MkdirAll(filepath.Dir(expectationsPath), 0755))
+				tmpFile, err := os.CreateTemp(filepath.Dir(expectationsPath), ".tmp.init_from_binaries.*.json")
+				require.NoError(t, err)
+				defer func() { _ = os.Remove(tmpFile.Name()) }()
+				_, err = io.Copy(tmpFile, bytes.NewReader(content))
+				require.NoError(t, err)
+				require.NoError(t, tmpFile.Close())
+				require.NoError(t, os.Rename(tmpFile.Name(), expectationsPath))
+				return
+			}
+			var goldenSuite map[string]configAndPrograms
+			content, err := os.ReadFile(expectationsPath)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(content, &goldenSuite))
+			expected, ok := goldenSuite[subtestName]
+			require.True(t, ok, "missing golden for subtest %q", subtestName)
 			require.Equal(t, expected, actual)
 		}
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			runCase(t, c.expected, c.layout)
+			runCase(t, c.name, c.layout)
 		})
 	}
 }
