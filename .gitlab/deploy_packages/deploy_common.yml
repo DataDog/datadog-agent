@@ -3,6 +3,8 @@
   resource_group: deb_bucket
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
+  variables:
+    DD_PKG_ARCH: x86_64
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -42,6 +44,7 @@
   tags: ["arch:amd64"]
   variables:
     ARTIFACTS_PREFIX: ""
+    DD_PKG_ARCH: x86_64
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
