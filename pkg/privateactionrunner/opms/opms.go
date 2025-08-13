@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/helpers"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -95,7 +95,6 @@ type Client interface {
 
 type client struct {
 	config *config.Config
-	log    log.Component
 
 	httpClient *http.Client
 }
@@ -341,7 +340,7 @@ func (c *client) makeRequest(
 	defer func() {
 		err = res.Body.Close()
 		if err != nil {
-			c.log.Errorf("error closing request body: %v", err)
+			log.Errorf("error closing request body: %v", err)
 		}
 	}()
 

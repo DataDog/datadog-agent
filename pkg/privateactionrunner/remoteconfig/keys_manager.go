@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"sync"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type KeysManager interface {
@@ -33,22 +33,20 @@ type keysManager struct {
 	mu                     sync.RWMutex
 	ready                  chan struct{}
 	firstCallbackCompleted bool
-	log                    log.Component
 	rcClient               RcClient
 }
 
-func New(rcClient RcClient, log log.Component) KeysManager {
+func New(rcClient RcClient) KeysManager {
 	return &keysManager{
 		stopChan: make(chan bool),
 		keys:     make(map[string]types.DecodedKey),
 		ready:    make(chan struct{}),
 		rcClient: rcClient,
-		log:      log,
 	}
 }
 
 func (k *keysManager) Start(ctx context.Context) {
-	k.log.Info("Subscribing to remote config updates")
+	log.Info("Subscribing to remote config updates")
 	k.rcClient.Subscribe(state.ProductActionPlatformRunnerKeys, k.AgentConfigUpdateCallback)
 }
 
@@ -71,7 +69,7 @@ func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfi
 	for configId, rawConfig := range update {
 		decodedKey, err := k.decode(rawConfig)
 		if err != nil {
-			k.log.Errorf("Failed to decode remote config %v")
+			log.Errorf("Failed to decode remote config %v")
 			callback(configId, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
@@ -83,7 +81,7 @@ func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfi
 			State: state.ApplyStateAcknowledged,
 		})
 	}
-	k.log.Info("Successfully updated keys", k.keys)
+	log.Info("Successfully updated keys", k.keys)
 	if !k.firstCallbackCompleted {
 		k.firstCallbackCompleted = true
 		close(k.ready)
@@ -97,7 +95,7 @@ func (k *keysManager) decode(rawConfig state.RawConfig) (types.DecodedKey, error
 		return nil, fmt.Errorf("json decoding error: %w", err)
 	}
 
-	k.log.Infof("decoding key %s of type %s", rawConfig.Metadata.ID, rawKey.KeyType)
+	log.Infof("decoding key %s of type %s", rawConfig.Metadata.ID, rawKey.KeyType)
 	switch rawKey.KeyType {
 	case types.KeyTypeX509RSA:
 		return decodeX509RSA(rawKey)

@@ -58,7 +58,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 	opmsClient := opms.NewClient(cfg)
-	keysManager := remoteconfig.New(reqs.RcClient, reqs.Logger)
+	keysManager := remoteconfig.New(reqs.RcClient)
 	verifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 
 	runner := &runnerImpl{
@@ -66,7 +66,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		config:         reqs.Config,
 		keysManager:    keysManager,
 		TaskVerifier:   verifier,
-		WorkflowRunner: runners.NewWorkflowRunner(cfg, reqs.Logger, keysManager, verifier, opmsClient),
+		WorkflowRunner: runners.NewWorkflowRunner(cfg, keysManager, verifier, opmsClient),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{

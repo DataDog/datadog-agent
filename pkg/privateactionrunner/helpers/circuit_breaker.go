@@ -5,12 +5,11 @@ import (
 	"math"
 	"time"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CircuitBreaker is a rudimentary circuit breaker that performs retries using exponential backoff.
 type CircuitBreaker struct {
-	log             log.Component
 	name            string
 	minBackoff      time.Duration
 	maxBackoff      time.Duration
@@ -18,9 +17,8 @@ type CircuitBreaker struct {
 	maxAttempts     int32
 }
 
-func NewCircuitBreaker(log log.Component, name string, minBackoff, maxBackoff, waitBeforeRetry time.Duration, maxAttempts int32) *CircuitBreaker {
+func NewCircuitBreaker(name string, minBackoff, maxBackoff, waitBeforeRetry time.Duration, maxAttempts int32) *CircuitBreaker {
 	return &CircuitBreaker{
-		log:             log,
 		name:            name,
 		minBackoff:      minBackoff,
 		maxBackoff:      maxBackoff,
@@ -40,7 +38,7 @@ func (breaker *CircuitBreaker) Do(ctx context.Context, fn func() error) {
 		}
 
 		if attempt > breaker.maxAttempts {
-			breaker.log.Warnf("%s circuit breaker tripped! waiting %v before continuing...", breaker.name, breaker.waitBeforeRetry)
+			log.Warnf("%s circuit breaker tripped! waiting %v before continuing...", breaker.name, breaker.waitBeforeRetry)
 			sleepWithCtx(ctx, breaker.waitBeforeRetry)
 			attempt = 1
 			continue
