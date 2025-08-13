@@ -19,7 +19,7 @@ void SubmitEventSo(char *, event_t *);
 void SubmitHistogramBucketSo(char *, char *, long long, float, float, int, char *, char **, bool);
 void SubmitEventPlatformEventSo(char *, char *, int, char *);
 
-static const submit_callbacks_t aggregator = {
+static const submit_callbacks_t submit_callbacks = {
 	SubmitMetricSo,
 	SubmitServiceCheckSo,
 	SubmitEventSo,
@@ -28,7 +28,7 @@ static const submit_callbacks_t aggregator = {
 };
 
 void run_shared_library(char *instance, run_function_t *run_function, free_function_t *free_function, const char **error) {
-	// verify the run function pointer
+	// verify pointers
     if (!run_function) {
         *error = strdup("pointer to shared library run function is null");
 		return;
@@ -39,9 +39,8 @@ void run_shared_library(char *instance, run_function_t *run_function, free_funct
 		return;
     }
 
-    // run the shared library check and check the returned payload`
-    char *run_error = run_function(instance, &aggregator);
-
+    // run the shared library check and verify if an error has occurred
+    char *run_error = run_function(instance, &submit_callbacks);
 	if (run_error) {
 		*error = strdup(run_error);
 		free_function(run_error);
@@ -112,12 +111,12 @@ func (c *SharedLibraryCheck) Run() error {
 	C.run_shared_library(cInstance, c.runCb, c.freeCb, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return fmt.Errorf("failed to run shared library check %s: %s", c.libName, C.GoString(cErr))
+		return fmt.Errorf("Failed to run shared library check %s: %s", c.libName, C.GoString(cErr))
 	}
 
 	s, err := c.senderManager.GetSender(c.ID())
 	if err != nil {
-		return fmt.Errorf("failed to retrieve a Sender instance: %v", err)
+		return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 	}
 	s.Commit()
 
@@ -180,7 +179,7 @@ func (c *SharedLibraryCheck) GetSenderStats() (stats.SenderStats, error) {
 
 // ID returns the ID of the check
 func (c *SharedLibraryCheck) ID() checkid.ID {
-	return checkid.ID(c.libName)
+	return checkid.ID(c.id)
 }
 
 // InitConfig is not implemented yet

@@ -50,7 +50,7 @@ shared_library_handles_t load_shared_library(const char *lib_name, const char **
 		goto done;
     }
 
-    // dlsym run_check function to get the metric run the custom check and get the payload
+    // get symbol pointers of 'Run' and 'Free' functions
     run_function_t *run_callback = (run_function_t *)GetProcAddress(lib_handle, "Run");
     if (!run_callback) {
 		FreeLibrary(lib_handle);
@@ -65,10 +65,10 @@ shared_library_handles_t load_shared_library(const char *lib_name, const char **
 		goto done;
     }
 
-	// set up handles if loading was successful
+	// setup handles if loading was successful
 	lib_handles.lib = lib_handle;
 	lib_handles.run = run_callback;
-	lib_handles.run = free_callback;
+	lib_handles.free = free_callback;
 
 done:
 	free(lib_full_name);
@@ -97,7 +97,7 @@ shared_library_handles_t load_shared_library(const char *lib_name, const char **
 
     const char *dlsym_error = NULL;
 
-    // dlsym run_check function to get the metric run the custom check and get the payload
+    // get symbol pointers of 'Run' and 'Free' functions
     run_function_t *run_callback = (run_function_t *)dlsym(lib_handle, "Run");
     dlsym_error = dlerror();
     if (dlsym_error) {
@@ -114,7 +114,7 @@ shared_library_handles_t load_shared_library(const char *lib_name, const char **
 		goto done;
     }
 
-	// set up handles if loading was successful
+	// setup handles if loading was successful
 	lib_handles.lib = lib_handle;
 	lib_handles.run = run_callback;
 	lib_handles.free = free_callback;

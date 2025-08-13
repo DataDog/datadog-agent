@@ -54,11 +54,11 @@ typedef char *(run_function_t)(char *, const submit_callbacks_t *);
 // (string to free)
 typedef void(free_function_t)(char *);
 
-// library and symbols pointers
+// library file and symbols pointers
 typedef struct shared_library_handles_s {
     void *lib; // handle to the shared library
-    run_function_t *run; // handle to the run function
-    free_function_t *free; // handle to the free function
+    run_function_t *run; // handle to the run function symbol
+    free_function_t *free; // handle to the free function symbol
 } shared_library_handles_t;
 
 #endif
