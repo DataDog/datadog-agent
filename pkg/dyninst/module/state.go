@@ -21,11 +21,12 @@ import (
 
 type processState struct {
 	procRuntimeID
-	executable       actuator.Executable
-	symbolicator     symbol.Symbolicator
-	symbolicatorFile io.Closer
-	symbolicatorErr  error
-	gitInfo          procmon.GitInfo
+	executable         actuator.Executable
+	symbolicator       symbol.Symbolicator
+	symbolicatorFile   io.Closer
+	symbolicatorErr    error
+	gitInfo            procmon.GitInfo
+	symdbUploadStarted bool
 }
 
 type processStore struct {
@@ -63,9 +64,11 @@ func (ps *processStore) ensureExists(update *rcscrape.ProcessUpdate) procRuntime
 	if !ok {
 		proc = &processState{
 			procRuntimeID: procRuntimeID{
-				ProcessID: update.ProcessID,
-				runtimeID: update.RuntimeID,
-				service:   update.Service,
+				ProcessID:   update.ProcessID,
+				runtimeID:   update.RuntimeID,
+				service:     update.Service,
+				version:     update.Version,
+				environment: update.Environment,
 			},
 			executable: update.Executable,
 			gitInfo:    update.GitInfo,
@@ -141,4 +144,17 @@ func (ps *processStore) getRuntimeID(procID actuator.ProcessID) (procRuntimeID, 
 		return procRuntimeID{}, false
 	}
 	return p.procRuntimeID, true
+}
+
+func (ps *processStore) markSymdbUploadStarted(pid actuator.ProcessID) bool {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	proc, ok := ps.processes[pid]
+	if !ok || proc.symdbUploadStarted {
+		return false // Process gone or already started
+	}
+
+	proc.symdbUploadStarted = true
+	return true
 }
