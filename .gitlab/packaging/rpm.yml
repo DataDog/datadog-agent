@@ -8,8 +8,16 @@
       if [[ -n "$GATE_NAME" ]]; then
         echo "📊 Starting package measurement..."
 
+        # Remap architecture names for package pattern matching
+        MAPPED_ARCH="$DD_PKG_ARCH"
+        if [[ "$DD_PKG_ARCH" == "amd64" ]]; then
+          MAPPED_ARCH="x86_64"
+        elif [[ "$DD_PKG_ARCH" == "arm64" ]] || [[ "$DD_PKG_ARCH" == "armhf" ]]; then
+          MAPPED_ARCH="aarch64"
+        fi
+
         # Use BASE_PACKAGE_DIR to build pattern dynamically
-        PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${DD_PROJECT}-7*${DD_PKG_ARCH}.rpm"
+        PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${DD_PROJECT}-7*${MAPPED_ARCH}.rpm"
         echo "🔍 Looking for package with pattern: $PACKAGE_PATTERN"
 
         # Extract report prefix from gate name (e.g. static_quality_gate_agent_rpm_amd64 -> agent_rpm_amd64)
@@ -37,7 +45,7 @@
       fi
   artifacts:
     paths:
-      - "*_size_report_*.yml"
+      - "static_quality_gate_*_report.yml"
 
 .package_rpm_common:
   extends: .static_quality_gate_report_common
@@ -295,7 +303,6 @@ iot_agent_suse-x64:
     # Don't simply redefine OMNIBUS_PACKAGE_DIR since it also defines where the input
     # artifact is expected to be found. Since the build job is distribution agnostic
     # it shouldn't store its artifact in a suse/ subfolder
-    # Note: after_script (package measurement) is inherited from .package_iot_rpm_common
     - !reference [.package_iot_rpm_common, script]
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && mv $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE/
   artifacts:
