@@ -222,6 +222,15 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 		md.Tags.OTel = tags
 	}
 
+	// Host Aliases
+	hostAliases := getHostAliases(res.Attributes())
+	old := md.Meta.HostAliases
+	changed = changed || !equalSlices[[]string](old, hostAliases)
+	md.Meta.HostAliases = hostAliases
+
+	// If a tag was present in a previous resource but is not present
+	// in the current one, it will be removed from the host metadata payload.
+
 	// InstanceID field
 	if iid, ok, err2 := instanceID(res.Attributes()); err2 != nil {
 		err = errors.Join(err, err2)
