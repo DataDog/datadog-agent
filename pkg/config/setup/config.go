@@ -255,6 +255,7 @@ func init() {
 
 	datadog = create.NewConfig("datadog")
 	systemProbe = create.NewConfig("system-probe")
+	fmt.Printf("Creating config!\n")
 
 	// Configuration defaults
 	initConfig()
