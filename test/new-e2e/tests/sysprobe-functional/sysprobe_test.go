@@ -34,7 +34,10 @@ var (
 )
 
 func TestVMSuite(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
+	suiteParams := []e2e.SuiteOption{
+		e2e.WithSkipDeleteOnFailure(), // we want to keep the vm around for debugging
+		e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake()),
+	}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
