@@ -8,13 +8,14 @@ package metrics
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 )
 
 func TestDeltaHistogramTranslatorOptions(t *testing.T) {
@@ -332,8 +333,8 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 		},
 		{
 			name:     "single-point-no-min-max",
-			otlpfile: "test/otlp/hist/single-point-exponential-no-min-max.json",
-			ddogfile: "test/datadog/hist/single-point-exponential-no-min-max.json",
+			otlpfile: "test/otlp/hist/single-point-exp-no-min-max.json",
+			ddogfile: "test/datadog/hist/single-point-exp-no-min-max.json",
 		},
 	}
 

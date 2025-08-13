@@ -2,11 +2,12 @@
   "Metrics": {
     "Sketches": [
       {
-        "Name": "doubleHist.singlebucket.minmax.test",
+        "Name": "double.exponential.delta.histogram",
         "Tags": [
-          "attribute_tag:attribute_value"
+          "custom_attribute:custom_value",
+          "deployment.environment:dev"
         ],
-        "Host": "hostname",
+        "Host": "res-hostname",
         "OriginID": "",
         "OriginProduct": 10,
         "OriginSubProduct": 17,
@@ -14,22 +15,22 @@
         "Timestamp": 1667560641226420924,
         "Summary": {
           "Min": 100,
-          "Max": 101,
-          "Sum": 3.141592653589793,
-          "Avg": 0.15707963267948966,
-          "Cnt": 20
+          "Max": 100,
+          "Sum": 100,
+          "Avg": 100,
+          "Cnt": 1
         },
         "Keys": [
-          -1
+          1625
         ],
         "Counts": [
-          20
+          1
         ]
       }
     ],
     "TimeSeries": null
   },
   "Hosts": {
-    "hostname": {}
+    "res-hostname": {}
   }
 }
