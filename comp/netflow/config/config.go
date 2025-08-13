@@ -41,6 +41,7 @@ type NetflowConfig struct {
 	DropFlowsBeforeBuildingPayload bool `mapstructure:"drop_flows_before_building_payload"`
 	DropFlowsBeforeEPForwarder     bool `mapstructure:"drop_flows_before_ep_forwarder"`
 	SkipHashCollisionDetection     bool `mapstructure:"skip_hash_collision_detection"`
+	InlineHashCollisionDetection   bool `mapstructure:"inline_hash_collision_detection"`
 	AggregationHashUseSyncPool     bool `mapstructure:"aggregation_hash_use_sync_pool"`
 	PortRollupUseFixedSizeKey      bool `mapstructure:"portrollup_use_fixed_size_key"`
 	GetMemoryStats                 bool `mapstructure:"get_memory_stats"`

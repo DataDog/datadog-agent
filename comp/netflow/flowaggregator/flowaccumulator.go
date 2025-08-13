@@ -62,10 +62,11 @@ type flowAccumulator struct {
 	logger      log.Component
 	rdnsQuerier rdnsquerier.Component
 
-	skipHashCollisionDetection bool
-	aggregationHashUseSyncPool bool
-	getMemoryStats             bool
-	getCodeTimings             bool
+	skipHashCollisionDetection   bool
+	inlineHashCollisionDetection bool
+	aggregationHashUseSyncPool   bool
+	getMemoryStats               bool
+	getCodeTimings               bool
 
 	// Logging configuration and counter
 	logMapSizesEveryN int
@@ -81,25 +82,26 @@ func (f *flowAccumulator) newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, portRollupUseSingleStore bool, getMemoryStats bool, getCodeTimings bool, logMapSizesEveryN int, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, inlineHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, portRollupUseSingleStore bool, getMemoryStats bool, getCodeTimings bool, logMapSizesEveryN int, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
-		flows:                      make(map[uint64]flowContext),
-		aggregationInterval:        aggregatorFlushInterval,
-		flowContextTTL:             aggregatorFlowContextTTL,
-		portRollup:                 portrollup.NewEndpointPairPortRollupStore(portRollupThreshold, portRollupUseFixedSizeKey, portRollupUseSingleStore, logMapSizesEveryN, logger),
-		portRollupThreshold:        portRollupThreshold,
-		portRollupDisabled:         portRollupDisabled,
-		hashCollisionFlowCount:     atomic.NewUint64(0),
-		memoryStatsSampleCount:     atomic.NewUint64(0),
-		logger:                     logger,
-		rdnsQuerier:                rdnsQuerier,
-		skipHashCollisionDetection: skipHashCollisionDetection,
-		aggregationHashUseSyncPool: aggregationHashUseSyncPool,
-		getMemoryStats:             getMemoryStats,
-		getCodeTimings:             getCodeTimings,
-		logMapSizesEveryN:          logMapSizesEveryN,
-		callCounter:                0,
-		flowAccStats:               &flowAccStats{},
+		flows:                        make(map[uint64]flowContext),
+		aggregationInterval:          aggregatorFlushInterval,
+		flowContextTTL:               aggregatorFlowContextTTL,
+		portRollup:                   portrollup.NewEndpointPairPortRollupStore(portRollupThreshold, portRollupUseFixedSizeKey, portRollupUseSingleStore, logMapSizesEveryN, logger),
+		portRollupThreshold:          portRollupThreshold,
+		portRollupDisabled:           portRollupDisabled,
+		hashCollisionFlowCount:       atomic.NewUint64(0),
+		memoryStatsSampleCount:       atomic.NewUint64(0),
+		logger:                       logger,
+		rdnsQuerier:                  rdnsQuerier,
+		skipHashCollisionDetection:   skipHashCollisionDetection,
+		inlineHashCollisionDetection: inlineHashCollisionDetection,
+		aggregationHashUseSyncPool:   aggregationHashUseSyncPool,
+		getMemoryStats:               getMemoryStats,
+		getCodeTimings:               getCodeTimings,
+		logMapSizesEveryN:            logMapSizesEveryN,
+		callCounter:                  0,
+		flowAccStats:                 &flowAccStats{},
 	}
 }
 
@@ -253,9 +255,15 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		aggFlow.flow = flowToAdd
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
-		// use go routine for hash collision detection to avoid blocking critical path
+		// hash collision detection
 		if !f.skipHashCollisionDetection {
-			go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
+			if f.inlineHashCollisionDetection {
+				// run detection inline when configured
+				f.detectHashCollisionInline(aggHash, aggFlow.flow, flowToAdd)
+			} else {
+				// use go routine for hash collision detection to avoid blocking critical path
+				go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
+			}
 		}
 
 		// accumulate flowToAdd with existing flow(s) with same hash
@@ -364,6 +372,13 @@ func (f *flowAccumulator) getFlowContextCount() int {
 
 func (f *flowAccumulator) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {
 	if !common.IsEqualFlowContext(existingFlow, flowToAdd) {
+		f.logger.Warnf("Hash collision for flows with hash `%d`: existingFlow=`%+v` flowToAdd=`%+v`", hash, existingFlow, flowToAdd)
+		f.hashCollisionFlowCount.Inc()
+	}
+}
+
+func (f *flowAccumulator) detectHashCollisionInline(hash uint64, existingFlow *common.Flow, flowToAdd *common.Flow) {
+	if !common.IsEqualFlowContextInline(existingFlow, flowToAdd) {
 		f.logger.Warnf("Hash collision for flows with hash `%d`: existingFlow=`%+v` flowToAdd=`%+v`", hash, existingFlow, flowToAdd)
 		f.hashCollisionFlowCount.Inc()
 	}

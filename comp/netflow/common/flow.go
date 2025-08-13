@@ -192,3 +192,19 @@ func IsEqualFlowContext(a Flow, b Flow) bool {
 	}
 	return false
 }
+
+// IsEqualFlowContextInline is a version of IsEqualFlowContext that uses pointers and is intended to run inline vs as separate goroutines.
+func IsEqualFlowContextInline(a *Flow, b *Flow) bool {
+	if a.Namespace == b.Namespace &&
+		bytes.Equal(a.ExporterAddr, b.ExporterAddr) &&
+		bytes.Equal(a.SrcAddr, b.SrcAddr) &&
+		bytes.Equal(a.DstAddr, b.DstAddr) &&
+		a.SrcPort == b.SrcPort &&
+		a.DstPort == b.DstPort &&
+		a.IPProtocol == b.IPProtocol &&
+		a.Tos == b.Tos &&
+		a.InputInterface == b.InputInterface {
+		return true
+	}
+	return false
+}
