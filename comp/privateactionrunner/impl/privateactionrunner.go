@@ -18,11 +18,11 @@ import (
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/config"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/helpers"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/remoteconfig"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -103,7 +103,7 @@ func getParConfig(component config.Component) (*parconfig.Config, error) {
 	encodedPrivateKey := component.GetString("privateactionrunner.private_key")
 	urn := component.GetString("privateactionrunner.urn")
 
-	privateKey, err := helpers.Base64ToJWK(encodedPrivateKey)
+	privateKey, err := utils.Base64ToJWK(encodedPrivateKey)
 	if err != nil {
 		return nil, err
 	}

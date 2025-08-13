@@ -7,12 +7,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/helpers"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/remoteconfig"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -64,17 +64,17 @@ func (n *WorkflowRunner) RunTask(
 	credential interface{},
 ) (interface{}, error) {
 	fqn := task.GetFQN()
-	bundleName, actionName := helpers.SplitFQN(fqn)
+	bundleName, actionName := utils.SplitFQN(fqn)
 	bundle := n.registry.GetBundle(bundleName)
 	if bundle == nil {
-		return nil, helpers.NewPARError(
+		return nil, utils.NewPARError(
 			errorcode.ActionPlatformErrorCode_INTERNAL_ERROR,
 			fmt.Errorf("could not find bundle for %s", bundleName),
 		)
 	}
 	action := bundle.GetAction(actionName)
 	if action == nil {
-		return nil, helpers.NewPARError(
+		return nil, utils.NewPARError(
 			errorcode.ActionPlatformErrorCode_INTERNAL_ERROR,
 			fmt.Errorf("could not find action for %s", actionName),
 		)
@@ -88,7 +88,7 @@ func (n *WorkflowRunner) RunTask(
 	output, err := action.Run(ctx, task, credential)
 
 	if err != nil {
-		return nil, helpers.DefaultActionError(err)
+		return nil, utils.DefaultActionError(err)
 	}
 
 	return output, nil

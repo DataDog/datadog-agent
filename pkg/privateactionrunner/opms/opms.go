@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/config"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/helpers"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -326,13 +326,13 @@ func (c *client) makeRequest(
 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
-	signedJWT, err := helpers.GeneratePARJWT(c.config.OrgId, c.config.RunnerId, c.config.PrivateKey, extraJwtClaims)
+	signedJWT, err := utils.GeneratePARJWT(c.config.OrgId, c.config.RunnerId, c.config.PrivateKey, extraJwtClaims)
 	if err != nil {
 		return nil, fmt.Errorf("error signing JWT for request: %w", err)
 	}
-	req.Header.Set(helpers.JwtHeaderName, signedJWT)
-	req.Header.Set(helpers.VersionHeaderName, c.config.Version)
-	req.Header.Set(helpers.ModeHeaderName, strings.Join(c.config.Modes, ","))
+	req.Header.Set(utils.JwtHeaderName, signedJWT)
+	req.Header.Set(utils.VersionHeaderName, c.config.Version)
+	req.Header.Set(utils.ModeHeaderName, strings.Join(c.config.Modes, ","))
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error making HTTP request: %w", err)
