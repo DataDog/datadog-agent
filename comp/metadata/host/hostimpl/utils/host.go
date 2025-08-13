@@ -205,7 +205,7 @@ func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterfa
 		OtlpMeta:      &OtlpMeta{Enabled: otlpIsEnabled(conf)},
 		FipsMode:      getFipsMode(),
 	}
-
+	log.Infof("gce ccrid: %s", meta.CanonicalCloudResourceID)
 	// Cache the metadata for use in other payloads
 	cache.Cache.Set(hostCacheKey, p, cache.NoExpiration)
 	return p
