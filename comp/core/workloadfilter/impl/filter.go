@@ -7,6 +7,8 @@
 package workloadfilterimpl
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -16,19 +18,25 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
+// filterFactory holds a factory function and ensures it's called only once
+type filterFactory struct {
+	once    sync.Once
+	program program.FilterProgram
+	factory func(cfg config.Component, logger log.Component) program.FilterProgram
+}
+
 // filter is the implementation of the filter component.
 type filter struct {
-	config    config.Component
-	log       log.Component
-	telemetry coretelemetry.Component
-	prgs      map[workloadfilter.ResourceType]map[int]program.FilterProgram
+	config              config.Component
+	log                 log.Component
+	telemetry           coretelemetry.Component
+	programFactoryStore map[workloadfilter.ResourceType]map[int]*filterFactory
 }
 
 // Requires defines the dependencies of the filter component.
 type Requires struct {
 	compdef.In
 
-	Lc        compdef.Lifecycle
 	Config    config.Component
 	Log       log.Component
 	Telemetry coretelemetry.Component
@@ -55,64 +63,81 @@ func NewComponent(req Requires) (Provides, error) {
 
 var _ workloadfilter.Component = (*filter)(nil)
 
-func (f *filter) registerProgram(resourceType workloadfilter.ResourceType, programType int, prg program.FilterProgram) {
-	if f.prgs[resourceType] == nil {
-		f.prgs[resourceType] = make(map[int]program.FilterProgram)
+func (f *filter) registerFactory(resourceType workloadfilter.ResourceType, programType int, factory func(cfg config.Component, logger log.Component) program.FilterProgram) {
+	if f.programFactoryStore[resourceType] == nil {
+		f.programFactoryStore[resourceType] = make(map[int]*filterFactory)
 	}
-	f.prgs[resourceType][programType] = prg
+	f.programFactoryStore[resourceType][programType] = &filterFactory{
+		factory: factory,
+	}
 }
 
 func (f *filter) getProgram(resourceType workloadfilter.ResourceType, programType int) program.FilterProgram {
-	if f.prgs == nil {
+	if f.programFactoryStore == nil {
 		return nil
 	}
-	if programs, ok := f.prgs[resourceType]; ok {
-		return programs[programType]
+
+	programFactories, ok := f.programFactoryStore[resourceType]
+	if !ok {
+		return nil
 	}
-	return nil
+
+	factory, ok := programFactories[programType]
+	if !ok {
+		return nil
+	}
+
+	factory.once.Do(func() {
+		factory.program = factory.factory(f.config, f.log)
+	})
+
+	return factory.program
 }
 
-func newFilter(config config.Component, logger log.Component, telemetry coretelemetry.Component) (workloadfilter.Component, error) {
+func newFilter(cfg config.Component, logger log.Component, telemetry coretelemetry.Component) (workloadfilter.Component, error) {
 	filter := &filter{
-		config:    config,
-		log:       logger,
-		telemetry: telemetry,
-		prgs:      make(map[workloadfilter.ResourceType]map[int]program.FilterProgram),
+		config:              cfg,
+		log:                 logger,
+		telemetry:           telemetry,
+		programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
 	}
 
 	genericADProgram := catalog.AutodiscoveryAnnotations()
 	genericADMetricsProgram := catalog.AutodiscoveryMetricsAnnotations()
 	genericADLogsProgram := catalog.AutodiscoveryLogsAnnotations()
+	genericADProgramFactory := func(_ config.Component, _ log.Component) program.FilterProgram { return genericADProgram }
+	genericADMetricsProgramFactory := func(_ config.Component, _ log.Component) program.FilterProgram { return genericADMetricsProgram }
+	genericADLogsProgramFactory := func(_ config.Component, _ log.Component) program.FilterProgram { return genericADLogsProgram }
 
 	// Container Filters
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics), catalog.LegacyContainerMetricsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerLogs), catalog.LegacyContainerLogsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACInclude), catalog.LegacyContainerACIncludeProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACExclude), catalog.LegacyContainerACExcludeProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerGlobal), catalog.LegacyContainerGlobalProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerSBOM), catalog.LegacyContainerSBOMProgram(config, logger))
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics), catalog.LegacyContainerMetricsProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerLogs), catalog.LegacyContainerLogsProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACInclude), catalog.LegacyContainerACIncludeProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACExclude), catalog.LegacyContainerACExcludeProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerGlobal), catalog.LegacyContainerGlobalProgram)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerSBOM), catalog.LegacyContainerSBOMProgram)
 
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotations), genericADProgram)
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsMetrics), genericADMetricsProgram)
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsLogs), genericADLogsProgram)
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerPaused), catalog.ContainerPausedProgram(config, logger))
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotations), genericADProgramFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsMetrics), genericADMetricsProgramFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsLogs), genericADLogsProgramFactory)
+	filter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.ContainerPaused), catalog.ContainerPausedProgram)
 
 	// Service Filters
-	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceGlobal), catalog.LegacyServiceGlobalProgram(config, logger))
-	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceMetrics), catalog.LegacyServiceMetricsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotations), genericADProgram)
-	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotationsMetrics), genericADMetricsProgram)
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceGlobal), catalog.LegacyServiceGlobalProgram)
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceMetrics), catalog.LegacyServiceMetricsProgram)
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotations), genericADProgramFactory)
+	filter.registerFactory(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotationsMetrics), genericADMetricsProgramFactory)
 
 	// Endpoints Filters
-	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram(config, logger))
-	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointMetrics), catalog.LegacyEndpointsMetricsProgram(config, logger))
-	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotations), genericADProgram)
-	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotationsMetrics), genericADMetricsProgram)
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram)
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointMetrics), catalog.LegacyEndpointsMetricsProgram)
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotations), genericADProgramFactory)
+	filter.registerFactory(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotationsMetrics), genericADMetricsProgramFactory)
 
 	// Pod Filters
-	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.LegacyPod), catalog.LegacyPodProgram(config, logger))
-	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.PodADAnnotations), genericADProgram)
-	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgram)
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.LegacyPod), catalog.LegacyPodProgram)
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotations), genericADProgramFactory)
+	filter.registerFactory(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgramFactory)
 
 	return filter, nil
 }

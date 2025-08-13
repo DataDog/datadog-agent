@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"math"
 	"runtime/debug"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -362,6 +363,10 @@ type abstractVariable struct {
 }
 
 type typesCollection struct {
+	scopeFilter         ExtractScope
+	mainModule          string
+	firstPartyPkgPrefix string
+
 	// typesCache will accumulate types as we look them up to resolve variables
 	// and functions. The cache is indexed by DWARF offset.
 	typesCache *dwarfutils.TypeFinder
@@ -402,7 +407,7 @@ func (c *typesCollection) resolveType(offset dwarf.Offset) (typeInfo, error) {
 		break
 	}
 
-	if err := c.addType(typ); err != nil {
+	if err := c.maybeAddType(typ); err != nil {
 		return typeInfo{}, err
 	}
 
@@ -416,13 +421,19 @@ func (c *typesCollection) getType(name string) *Type {
 	return c.types[name]
 }
 
-// addType adds a type to the collection if it is not already present.
-// Unsupported types are ignored and no error is returned.
-func (c *typesCollection) addType(t godwarf.Type) error {
+// maybeAddType adds a type to the collection if it is not already present and
+// if it's from a package that's not filtered. Unsupported types are ignored and
+// no error is returned.
+func (c *typesCollection) maybeAddType(t godwarf.Type) error {
 	pkg, sym, wasEscaped, err := parseLinkFuncName(t.Common().Name)
 	if err != nil {
 		return fmt.Errorf("failed to split package for %s : %w", t.Common().Name, err)
 	}
+
+	if !interestingPackage(pkg, c.mainModule, c.firstPartyPkgPrefix, c.scopeFilter) {
+		return nil
+	}
+
 	var unescapedName string
 	if wasEscaped {
 		unescapedName = pkg + "." + sym
@@ -650,9 +661,12 @@ func NewSymDBBuilder(binaryPath string, opt ExtractScope) (*SymDBBuilder, error)
 		filesFilter:         filesFilter,
 		abstractFunctions:   make(map[dwarf.Offset]*abstractFunction),
 		types: typesCollection{
-			typesCache: dwarfutils.NewTypeFinder(obj.DwarfData()),
-			types:      make(map[string]*Type),
-			packages:   make(map[string][]*Type),
+			scopeFilter:         opt,
+			mainModule:          mainModule,
+			firstPartyPkgPrefix: firstPartyPkgPrefix,
+			typesCache:          dwarfutils.NewTypeFinder(obj.DwarfData()),
+			types:               make(map[string]*Type),
+			packages:            make(map[string][]*Type),
 		},
 		cleanupFuncs: []func(){func() { _ = goDebugSections.Close() }, func() { _ = obj.Close() }},
 	}
@@ -706,11 +720,28 @@ func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
 		Packages:   nil,
 	}
 	for pkgName, types := range b.types.packages {
-		pkg := packages[pkgName]
-		if pkg != nil {
-			for _, t := range types {
-				pkg.Types = append(pkg.Types, *t)
+		anyNonEmpty := slices.ContainsFunc(types, func(t *Type) bool {
+			return len(t.Fields) > 0 || len(t.Methods) > 0
+		})
+		if !anyNonEmpty {
+			continue
+		}
+
+		pkg, ok := packages[pkgName]
+		if !ok {
+			pkg = &Package{
+				Name:      pkgName,
+				Functions: nil,
+				Types:     nil,
 			}
+			packages[pkgName] = pkg
+		}
+		for _, t := range types {
+			// Don't add empty types to the output.
+			if len(t.Fields) == 0 && len(t.Methods) == 0 {
+				continue
+			}
+			pkg.Types = append(pkg.Types, *t)
 		}
 	}
 	for _, pkg := range packages {
@@ -725,23 +756,23 @@ func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
 	return res, nil
 }
 
-func (b *SymDBBuilder) interestingPackage(pkgName string) bool {
+func interestingPackage(pkgName string, mainModule string, firstPartyPkgPrefix string, scopeFilter ExtractScope) bool {
 	// We don't know what the main module is, so we can't filter out
 	// anything.
-	if b.mainModule == "" || b.scopeFilter == ExtractScopeAllSymbols {
+	if mainModule == "" || scopeFilter == ExtractScopeAllSymbols {
 		return true
 	}
 	// The "main" package is always included.
 	if pkgName == mainPackageName {
 		return true
 	}
-	switch b.scopeFilter {
+	switch scopeFilter {
 	case ExtractScopeMainModuleOnly:
-		return strings.HasPrefix(pkgName, b.mainModule)
+		return strings.HasPrefix(pkgName, mainModule)
 	case ExtractScopeModulesFromSameOrg:
-		return strings.HasPrefix(pkgName, b.firstPartyPkgPrefix)
+		return strings.HasPrefix(pkgName, firstPartyPkgPrefix)
 	default:
-		panic(fmt.Sprintf("unsupported extract scope: %d", b.scopeFilter))
+		panic(fmt.Sprintf("unsupported extract scope: %d", scopeFilter))
 	}
 }
 
@@ -836,7 +867,7 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 	if !ok {
 		return Package{}, errors.New("compile unit without name")
 	}
-	if !b.interestingPackage(name) {
+	if !interestingPackage(name, b.mainModule, b.firstPartyPkgPrefix, b.scopeFilter) {
 		reader.SkipChildren()
 		return Package{}, nil
 	}
@@ -1337,7 +1368,7 @@ func (b *SymDBBuilder) parseAbstractFunction(reader *dwarf.Reader, offset dwarf.
 	if err != nil {
 		return nil, err
 	}
-	if !recognized || !b.interestingPackage(funcName.Package) {
+	if !recognized || !interestingPackage(funcName.Package, b.mainModule, b.firstPartyPkgPrefix, b.scopeFilter) {
 		return &abstractFunction{
 			interesting: false,
 		}, nil

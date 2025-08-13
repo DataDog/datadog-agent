@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    Adds service based filtering for logs to multi-region-failover
-    destinations.
+    Remove the call to the API server resource type cache when the kubernetes_state_core check is running on the node Agent, as the cache is not initialized.
