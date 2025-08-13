@@ -12,7 +12,7 @@
         # Handle FIPS packages by adjusting project name
         PROJECT_NAME="$DD_PROJECT"
         if [[ "$GATE_NAME" == *"fips"* ]]; then
-          PROJECT_NAME="${DD_PROJECT}-fips"
+          PROJECT_NAME="fips-${DD_PROJECT}"
         fi
 
         if [[ "$GATE_NAME" == *"rpm"* ]] || [[ "$GATE_NAME" == *"suse"* ]]; then
