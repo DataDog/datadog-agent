@@ -2688,7 +2688,7 @@ func TestSecurityProfileSystemd(t *testing.T) {
 		enableSecurityProfile:               true,
 		securityProfileDir:                  outputDir,
 		securityProfileWatchDir:             true,
-		cgroupManagers:                      []string{"systemd"},
+		traceSystemdCgroups:                 true,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -2816,7 +2816,7 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 		anomalyDetectionEventTypes:              []string{"exec"},
 		anomalyDetectionMinimumStablePeriodExec: time.Second,
 		anomalyDetectionWarmupPeriod:            time.Second,
-		cgroupManagers:                          []string{"systemd"},
+		traceSystemdCgroups:                     true,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -2932,7 +2932,7 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionWarmupPeriod:            1 * time.Second,
 		tagger:                                  fakeManualTagger,
-		cgroupManagers:                          []string{"systemd"},
+		traceSystemdCgroups:                     true,
 	}))
 	if err != nil {
 		t.Fatal(err)

@@ -146,9 +146,7 @@ runtime_security_config:
     {{if .ActivityDumpLoadControllerTimeout }}
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
-    cgroup_managers: {{range .CgroupManagers}}
-    - {{. -}}
-    {{- end}}
+    trace_systemd_cgroups: {{ .TraceSystemdCgroups }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
     auto_suppression:

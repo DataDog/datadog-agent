@@ -350,9 +350,9 @@ func (m *Manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Work
 	}
 
 	if err := m.securityProfileMap.Delete(workload.CGroupFile); err != nil {
-		seclog.Errorf("couldn't unlink %s %s (selector: %s) with profile %s: %v", workload.Type(), workload.Selector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't unlink %s %s (selector: %s) with profile %s: %v", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name, err)
 	}
-	seclog.Infof("%s %s (selector: %s) successfully unlinked from profile %s", workload.Type(), workload.Selector.String(), profile.Metadata.Name)
+	seclog.Infof("%s %s (selector: %s) successfully unlinked from profile %s", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name)
 }
 
 // unlinkProfile removes the link between a workload and a profile
