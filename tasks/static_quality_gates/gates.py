@@ -255,7 +255,7 @@ class PackageArtifactMeasurer:
         except (StaticQualityGateError, InfraError):
             raise
         except Exception as e:
-            raise StaticQualityGateError(f"Failed to measure package {config.gate_name}: {str(e)}") from e
+            raise StaticQualityGateError(f"Failed to measure in {config.gate_name}: {str(e)}") from e
 
     def _find_package_paths(self, config: QualityGateConfig) -> dict:
         """
@@ -360,10 +360,10 @@ class DockerArtifactMeasurer:
             disk_size = self._calculate_image_disk_size(ctx, image_url)
 
             return ArtifactMeasurement(artifact_path=image_url, on_wire_size=wire_size, on_disk_size=disk_size)
+        except (StaticQualityGateError, InfraError):
+            raise
         except Exception as e:
-            if isinstance(e, StaticQualityGateError | InfraError):
-                raise
-            raise StaticQualityGateError(f"Failed to measure Docker image {config.gate_name}: {e}") from e
+            raise StaticQualityGateError(f"Failed to measure in {config.gate_name}: {str(e)}") from e
 
     def _get_image_url(self, config: QualityGateConfig) -> str:
         """
