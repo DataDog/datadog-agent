@@ -933,7 +933,7 @@ func TestMultipleProtocols(t *testing.T) {
 						tcpCloseReady <- struct{}{} // Synchro on close ready
 					}
 				}
-				_ = cmd.Wait()
+				defer cmd.Wait()
 			}()
 			return nil
 		}, func(_ *model.Event, _ *rules.Rule) {
@@ -994,7 +994,7 @@ func TestMultipleProtocols(t *testing.T) {
 						udpCloseReady <- struct{}{} // Synchro on close ready
 					}
 				}
-				_ = cmd.Wait()
+				defer cmd.Wait()
 			}()
 			return nil
 		}, func(_ *model.Event, _ *rules.Rule) {
