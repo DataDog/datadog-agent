@@ -101,6 +101,9 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 		}
 		headers[key] = value
 	}
+	for _, keyVal := range u.cfg.headers {
+		addHeader(keyVal[0], keyVal[1])
+	}
 	var logsURL, name string
 	if metadata.Tags == "" {
 		logsURL = u.cfg.url.String()

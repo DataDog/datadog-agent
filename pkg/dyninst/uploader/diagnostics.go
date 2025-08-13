@@ -113,8 +113,8 @@ func (u *DiagnosticsUploader) Enqueue(diag *DiagnosticMessage) error {
 }
 
 // Stop gracefully stops the uploader.
-func (u *DiagnosticsUploader) Stop() {
-	u.stop()
+func (u *DiagnosticsUploader) Stop() error {
+	return u.stop()
 }
 
 // Stats returns the uploader's metrics.

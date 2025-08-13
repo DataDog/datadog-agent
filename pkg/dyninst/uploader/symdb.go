@@ -72,14 +72,13 @@ type LineRange struct {
 	End   int `json:"end"`
 }
 
+// SymDBUploader uploads SymDB data to the SymDB backend, through a logs intake.
 type SymDBUploader struct {
-	service string
-	env     string
-	version string
-
 	*batcher
 }
 
+// NewSymDBUploader creates a new SymDB uploader. Stop() must be called block
+// until all queued uploads are finished.
 func NewSymDBUploader(
 	service string,
 	env string,
@@ -94,11 +93,9 @@ func NewSymDBUploader(
 	sender := newSymDBSender(
 		cfg.client, cfg.url.String(),
 		service, env, version, runtimeID,
+		cfg.headers,
 	)
 	return &SymDBUploader{
-		service: service,
-		env:     env,
-		version: version,
 		batcher: newBatcher("symdb", sender, cfg.batcherConfig),
 	}
 }
@@ -115,10 +112,14 @@ func (u *SymDBUploader) Enqueue(pkg symdb.Package) error {
 	return nil
 }
 
-func (u *SymDBUploader) Stop() {
-	u.stop()
+// Stop blocks for all the data to be uploaded and returns any error encountered
+// during upload.
+func (u *SymDBUploader) Stop() error {
+	return u.stop()
 }
 
+// symdbSender is a sender that uploads SymDB data. As a sender, it is used
+// underneath a batcher.
 type symdbSender struct {
 	client    *http.Client
 	url       string
@@ -126,7 +127,11 @@ type symdbSender struct {
 	env       string
 	version   string
 	runtimeID string
+	// A list of headers (key, value) to add to each request.
+	headers [][2]string
 }
+
+var _ sender = (*symdbSender)(nil)
 
 func newSymDBSender(
 	client *http.Client,
@@ -135,6 +140,7 @@ func newSymDBSender(
 	env string,
 	version string,
 	runtimeID string,
+	headers [][2]string,
 ) *symdbSender {
 	return &symdbSender{
 		client:    client,
@@ -143,9 +149,11 @@ func newSymDBSender(
 		env:       env,
 		version:   version,
 		runtimeID: runtimeID,
+		headers:   headers,
 	}
 }
 
+// send implements the sender interface.
 func (s *symdbSender) send(batch []json.RawMessage) error {
 	// Wrap the data in an envelope expected by the debugger backend.
 	var buf bytes.Buffer
@@ -222,6 +230,9 @@ func (s *symdbSender) upload(symdbData []byte) error {
 		return fmt.Errorf("failed to build request: %w", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	for _, keyVal := range s.headers {
+		req.Header.Set(keyVal[0], keyVal[1])
+	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {
