@@ -6,6 +6,7 @@
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
+    - !reference [.setup_dd_pkg]
     - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}"
 
 .deploy_packages_deb-6:
@@ -44,6 +45,7 @@
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
+    - !reference [.setup_dd_pkg]
     - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}"
 
 .deploy_packages_rpm-6:
@@ -98,7 +100,6 @@
     - ls $OMNIBUS_PACKAGE_DIR
   script:
     - !reference [.setup_dd_pkg]
-    # --signed is used here since Omnibus is still signing the packages when building, this should be dropped when we stop signing in Omnibus
     - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" --project-name "datadog-installer"
 
 .deploy_installer_rpm:
@@ -114,7 +115,6 @@
     - ls $OMNIBUS_PACKAGE_DIR
   script:
     - !reference [.setup_dd_pkg]
-    # --signed is used here since Omnibus is still signing the packages when building, this should be dropped when we stop signing in Omnibus
     - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" --project-name "datadog-installer" "${DD_PKG_EXTRA_ARGS}"
 
 .deploy_installer_suse_rpm:
