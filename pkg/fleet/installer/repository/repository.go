@@ -230,7 +230,7 @@ func (r *Repository) CopyStable(ctx context.Context, destPath string) (err error
 		return fmt.Errorf("stable link does not exist, invalid state")
 	}
 
-	err = copyDirectory(repository.stable.linkPath, destPath)
+	err = copyDirectory(*repository.stable.packagePath, destPath)
 	if err != nil {
 		return fmt.Errorf("could not copy directory: %w", err)
 	}
