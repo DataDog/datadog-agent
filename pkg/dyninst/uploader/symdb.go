@@ -25,7 +25,7 @@ import (
 type ScopeType string
 
 const (
-	ScopeTypePackage ScopeType = "module"
+	ScopeTypePackage ScopeType = "package"
 	ScopeTypeStruct  ScopeType = "struct"
 	ScopeTypeMethod  ScopeType = "method"
 	ScopeTypeClosure ScopeType = "closure"
@@ -149,12 +149,11 @@ func newSymDBSender(
 func (s *symdbSender) send(batch []json.RawMessage) error {
 	// Wrap the data in an envelope expected by the debugger backend.
 	var buf bytes.Buffer
-	// !!! switch language to go
 	buf.WriteString(`
 service: "` + s.service + `",
 env: "` + s.env + `",
 version: "` + s.version + `",
-language: "python",
+language: "go",
 scopes: [`)
 	for i, msgData := range batch {
 		if i > 0 {
