@@ -1,5 +1,9 @@
 ---
+include:
+  - .gitlab/packaging/common.yml
+
 .package_deb_common:
+  extends: .static_quality_gate_report_common
   stage: packaging
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
@@ -16,6 +20,7 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-deb.txt"
+    BASE_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -41,6 +46,7 @@ agent_deb-x64-a7:
   needs: ["datadog-agent-7-x64"]
   variables:
     DD_PROJECT: "agent"
+    GATE_NAME: "static_quality_gate_agent_deb_amd64"
 
 agent_deb-arm64-a7:
   extends: [.package_deb_common, .package_deb_arm64]
@@ -50,6 +56,7 @@ agent_deb-arm64-a7:
   needs: ["datadog-agent-7-arm64"]
   variables:
     DD_PROJECT: "agent"
+    GATE_NAME: "static_quality_gate_agent_deb_arm64"
 
 agent_deb-x64-a7-fips:
   extends: [.package_deb_common, .package_deb_x86]
@@ -60,6 +67,7 @@ agent_deb-x64-a7-fips:
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
+    GATE_NAME: "static_quality_gate_agent_deb_amd64_fips"
 
 agent_deb-arm64-a7-fips:
   extends: [.package_deb_common, .package_deb_arm64]
@@ -70,6 +78,7 @@ agent_deb-arm64-a7-fips:
   variables:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
+    GATE_NAME: "static_quality_gate_agent_deb_arm64_fips"
 
 ddot_deb-x64:
   extends: [.package_deb_common, .package_deb_x86]
@@ -80,6 +89,7 @@ ddot_deb-x64:
   variables:
     DD_PROJECT: "ddot"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    GATE_NAME: "static_quality_gate_ddot_deb_amd64"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_DISABLE_VPA: true
 
@@ -92,6 +102,7 @@ ddot_deb-arm64:
   variables:
     DD_PROJECT: "ddot"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    GATE_NAME: "static_quality_gate_ddot_deb_arm64"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_DISABLE_VPA: true
 
@@ -118,6 +129,7 @@ installer_deb-arm64:
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_deb_common:
+  extends: .static_quality_gate_report_common
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -137,16 +149,22 @@ installer_deb-arm64:
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-deb.txt"
+    BASE_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR
+    DD_PROJECT: iot-agent
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
 iot_agent_deb-x64:
   extends: [.package_iot_deb_common, .package_deb_x86]
   needs: ["iot-agent-x64"]
+  variables:
+    GATE_NAME: "static_quality_gate_iot_agent_deb_amd64"
 
 iot_agent_deb-arm64:
   extends: [.package_iot_deb_common, .package_deb_arm64]
   needs: ["iot-agent-arm64"]
+  variables:
+    GATE_NAME: "static_quality_gate_iot_agent_deb_arm64"
 
 iot_agent_deb-armhf:
   extends: .package_iot_deb_common
@@ -157,6 +175,7 @@ iot_agent_deb-armhf:
     PACKAGE_ARCH: armhf
     DD_PKG_ARCH: "arm64"
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
+    GATE_NAME: "static_quality_gate_iot_agent_deb_armhf"
 
 dogstatsd_deb-x64:
   extends: [.package_deb_common, .package_deb_x86]
@@ -167,6 +186,7 @@ dogstatsd_deb-x64:
   variables:
     DD_PROJECT: dogstatsd
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
+    GATE_NAME: "static_quality_gate_dogstatsd_deb_amd64"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_ENABLE_VPA: false
 
@@ -179,5 +199,6 @@ dogstatsd_deb-arm64:
   variables:
     DD_PROJECT: dogstatsd
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
+    GATE_NAME: "static_quality_gate_dogstatsd_deb_arm64"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_ENABLE_VPA: false
