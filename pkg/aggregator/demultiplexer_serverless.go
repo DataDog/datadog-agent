@@ -14,6 +14,7 @@ import (
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -39,7 +40,7 @@ type ServerlessDemultiplexer struct {
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
-	hostTagProvider *HostTagProvider
+	hostTagProvider *hosttags.HostTagProvider
 
 	// used by some serveless environments to force flush all metrics.
 	shouldForceFlushAllOnForceFlushToSerializer bool
@@ -74,7 +75,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKey
 		serializer:                  serializer,
 		metricSamplePool:            metricSamplePool,
 		flushLock:                   &sync.Mutex{},
-		hostTagProvider:             NewHostTagProvider(),
+		hostTagProvider:             hosttags.NewHostTagProvider(),
 		flushAndSerializeInParallel: flushAndSerializeInParallel,
 
 		shouldForceFlushAllOnForceFlushToSerializer: shouldForceFlushAllOnForceFlushToSerializer,

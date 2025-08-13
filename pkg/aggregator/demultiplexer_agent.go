@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -67,7 +68,7 @@ type AgentDemultiplexer struct {
 
 	senders *senders
 
-	hostTagProvider *HostTagProvider
+	hostTagProvider *hosttags.HostTagProvider
 
 	// sharded statsd time samplers
 	statsd
@@ -216,7 +217,7 @@ func initAgentDemultiplexer(log log.Component,
 			noAggSerializer:  noAggSerializer,
 		},
 
-		hostTagProvider: NewHostTagProvider(),
+		hostTagProvider: hosttags.NewHostTagProvider(),
 		senders:         newSenders(agg),
 
 		// statsd time samplers
