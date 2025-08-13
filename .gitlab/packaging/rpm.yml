@@ -247,7 +247,6 @@ iot_agent_rpm-armhf:
   variables:
     PACKAGE_ARCH: armhf
     DD_PKG_ARCH: "arm64"
-    GATE_NAME: "static_quality_gate_iot_agent_rpm_armhf"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_ENABLE_VPA: false
   before_script:
