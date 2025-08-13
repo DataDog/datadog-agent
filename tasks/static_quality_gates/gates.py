@@ -255,7 +255,7 @@ class PackageArtifactMeasurer:
         except (StaticQualityGateError, InfraError):
             raise
         except Exception as e:
-            raise StaticQualityGateError(f"Failed to measure package {config.gate_name}") from e
+            raise StaticQualityGateError(f"Failed to measure package {config.gate_name}: {str(e)}") from e
 
     def _find_package_paths(self, config: QualityGateConfig) -> dict:
         """
