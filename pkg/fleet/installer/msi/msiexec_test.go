@@ -186,7 +186,7 @@ func TestMsiexec_Run_RetryThenSuccess(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = cmd.Run(t.Context())
+	err = cmd.Run(t.Context())
 	assert.NoError(t, err)
 
 	// Verify mock was called the expected number of times
@@ -216,7 +216,7 @@ func TestMsiexec_Run_RetryableErrorInLog(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = cmd.Run(t.Context())
+	err = cmd.Run(t.Context())
 	assert.NoError(t, err)
 
 	// Verify mock was called the expected number of times
@@ -236,7 +236,7 @@ func TestMsiexec_Run_NonRetryableError(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = cmd.Run(t.Context())
+	err = cmd.Run(t.Context())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "exit status 1603")
 
@@ -266,7 +266,7 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = cmd.Run(t.Context())
+		err = cmd.Run(t.Context())
 		assert.NoError(t, err)
 		mockRunner.AssertExpectations(t)
 	})
@@ -284,7 +284,7 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = cmd.Run(t.Context())
+		err = cmd.Run(t.Context())
 		assert.NoError(t, err)
 		mockRunner.AssertExpectations(t)
 	})
@@ -302,7 +302,7 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = cmd.Run(t.Context())
+		err = cmd.Run(t.Context())
 		assert.NoError(t, err)
 		mockRunner.AssertExpectations(t)
 	})
@@ -380,6 +380,42 @@ func TestCmd_MissingRequiredArgs(t *testing.T) {
 			assert.Nil(t, cmd)
 		})
 	}
+}
+
+// TestMsiexecError_ErrorHandling tests that Run returns an MsiexecError that contains the processed log and exit code.
+func TestMsiexecError_ErrorHandling(t *testing.T) {
+	mockRunner := &mockCmdRunner{}
+	mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&mockExitError{code: 1603}).Once()
+
+	// Create a temporary log file with some test content
+	testLogContent := "CA: Test error occurred\nDatadog.CustomActions error\nSystem.Exception details"
+	logFile := createTestLogFile(t, "test.log", []byte(testLogContent))
+
+	cmd, err := Cmd(
+		Install(),
+		WithMsi("test.msi"),
+		WithLogFile(logFile),
+		withCmdRunner(mockRunner),
+	)
+	require.NoError(t, err)
+
+	err = cmd.Run(t.Context())
+	assert.Error(t, err)
+
+	// Check that the error is of type MsiexecError
+	var msiErr *MsiexecError
+	assert.ErrorAs(t, err, &msiErr)
+	// Check that the log file bytes are included
+	assert.NotEmpty(t, msiErr.ProcessedLog)
+	assert.Contains(t, msiErr.ProcessedLog, "Datadog.CustomActions")
+
+	// Check that the error message is preserved
+	assert.Contains(t, msiErr.Error(), "exit status 1603", "error message should be preserved")
+	var exitError exitCodeError
+	assert.ErrorAs(t, msiErr, &exitError)
+	assert.Equal(t, 1603, exitError.ExitCode())
+
+	mockRunner.AssertExpectations(t)
 }
 
 // createTestLogFile creates a test log file with the given filename and log data and returns the path.

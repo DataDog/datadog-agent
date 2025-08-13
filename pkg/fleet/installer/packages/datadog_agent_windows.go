@@ -7,6 +7,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -384,13 +385,17 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	opts = append(opts, msi.WithAdditionalArgs(args))
 
 	cmd, err := msi.Cmd(opts...)
-
-	var output []byte
-	if err == nil {
-		output, err = cmd.Run(ctx)
-	}
 	if err != nil {
-		return fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s\n%s", target, err, logFile, string(output))
+		return fmt.Errorf("failed to create MSI command: %w", err)
+	}
+	err = cmd.Run(ctx)
+	if err != nil {
+		err = fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s", target, err, logFile)
+		var msiErr *msi.MsiexecError
+		if errors.As(err, &msiErr) {
+			err = fmt.Errorf("%w\n%s", err, msiErr.ProcessedLog)
+		}
+		return err
 	}
 	return nil
 }
