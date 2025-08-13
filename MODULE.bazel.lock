@@ -48,8 +48,6 @@
     "https://bcr.bazel.build/modules/libyaml/0.2.5/source.json": "7183dcdb9afe15dceaa545865f13d2ce1f6f9571e40138eeb5dc7daad5feb56e",
     "https://bcr.bazel.build/modules/lua/5.4.6/MODULE.bazel": "b6466b9b8d8266618953d9111ad0b7bb3d38eb428a1e30be5af92f3ca16b69c4",
     "https://bcr.bazel.build/modules/lua/5.4.6/source.json": "deddf0286bd6089101ec0d6bb29911b2f86331285a840e86ad49b616596c301d",
-    "https://bcr.bazel.build/modules/ncurses/6.4.20221231.bcr.2/MODULE.bazel": "fb044841f9840a032a34cb1069d6cb8943300d917fdbcd4e5f860c159e782238",
-    "https://bcr.bazel.build/modules/ncurses/6.4.20221231.bcr.2/source.json": "ed10d42a46c47e233b751dfc860f65814254cf9c0efcb4e7f181cd6e12560db2",
     "https://bcr.bazel.build/modules/platforms/0.0.10/MODULE.bazel": "8cb8efaf200bdeb2150d93e162c40f388529a25852b332cec879373771e48ed5",
     "https://bcr.bazel.build/modules/platforms/0.0.4/MODULE.bazel": "9b328e31ee156f53f3c416a64f8491f7eb731742655a47c9eec4703a71644aee",
     "https://bcr.bazel.build/modules/platforms/0.0.5/MODULE.bazel": "5733b54ea419d5eaf7997054bb55f6a1d0b5ff8aedf0176fef9eea44f3acda37",

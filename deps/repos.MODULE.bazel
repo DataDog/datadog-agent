@@ -9,10 +9,6 @@ bazel_dep(name = "libyaml", version = "0.2.5")
 # Defies a "liblua" target for the lib
 bazel_dep(name = "lua", version = "5.4.6")
 
-# Defines a "ncurses" target for the lib.
-# There are also "form", "menu", "panel" lib targets and "make_hash" binary
-bazel_dep(name = "ncurses", version = "6.4.20221231.bcr.2")
-
 # Defines a "sqlite3" target for the lib
 bazel_dep(name = "sqlite3", version = "3.46.1")
 
