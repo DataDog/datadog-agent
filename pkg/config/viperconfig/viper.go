@@ -64,6 +64,8 @@ type safeConfig struct {
 
 	// warnings contains the warnings that were logged during the configuration loading
 	warnings []error
+
+	existingTransformers map[string]bool
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -236,6 +238,10 @@ func (c *safeConfig) setEnvTransformer(key string, fn func(string) interface{}) 
 	//
 	// This is yet another edge case of working with Viper, this edge cases is already handled by the nodetremodel
 	// replacement.
+	if _, exists := c.existingTransformers[key]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
+	c.existingTransformers[key] = true
 	c.configSources[model.SourceEnvVar].SetEnvKeyTransformer(key, fn)
 	c.Viper.SetEnvKeyTransformer(key, fn)
 }
@@ -514,6 +520,7 @@ func (c *safeConfig) SetEnvPrefix(in string) {
 	if c.isReady() {
 		panic("cannot SetEnvPrefix() once the config has been marked as ready for use")
 	}
+	c.existingTransformers = make(map[string]bool)
 	c.configSources[model.SourceEnvVar].SetEnvPrefix(in)
 	c.Viper.SetEnvPrefix(in)
 	c.envPrefix = in
@@ -826,13 +833,14 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 // NewViperConfig returns a new Config object.
 func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
 	config := safeConfig{
-		Viper:               viper.New(),
-		configSources:       map[model.Source]*viper.Viper{},
-		sequenceID:          0,
-		ready:               atomic.NewBool(false),
-		configEnvVars:       map[string]struct{}{},
-		unknownKeys:         map[string]struct{}{},
-		notificationChannel: make(chan model.ConfigChangeNotification, 1000),
+		Viper:                viper.New(),
+		configSources:        map[model.Source]*viper.Viper{},
+		sequenceID:           0,
+		ready:                atomic.NewBool(false),
+		configEnvVars:        map[string]struct{}{},
+		unknownKeys:          map[string]struct{}{},
+		notificationChannel:  make(chan model.ConfigChangeNotification, 1000),
+		existingTransformers: make(map[string]bool),
 	}
 
 	// load one Viper instance per source of setting change
