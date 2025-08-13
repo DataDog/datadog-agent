@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/helpers"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
@@ -29,7 +29,7 @@ type Attributes struct {
 }
 
 func (task *Task) GetFQN() string {
-	return helpers.QualifyName(task.Data.Attributes.BundleID, task.Data.Attributes.Name)
+	return utils.QualifyName(task.Data.Attributes.BundleID, task.Data.Attributes.Name)
 }
 
 func (task *Task) Validate() error {

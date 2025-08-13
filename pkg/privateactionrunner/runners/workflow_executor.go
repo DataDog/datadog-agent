@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/helpers"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +30,7 @@ func (l *Loop) Run(ctx context.Context) {
 
 	log.Info("Starting loop")
 
-	breaker := helpers.NewCircuitBreaker(
+	breaker := utils.NewCircuitBreaker(
 		"wf-par-polling",
 		l.runner.config.MinBackoff,
 		l.runner.config.MaxBackoff,
@@ -135,7 +135,7 @@ func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
 		log.Error("publish failure error: no job id was provided")
 		return
 	}
-	inputError := helpers.DefaultPARError(e)
+	inputError := utils.DefaultPARError(e)
 	err := l.runner.opmsClient.PublishFailure(
 		ctx,
 		task.Data.ID,

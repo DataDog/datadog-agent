@@ -1,4 +1,4 @@
-package helpers
+package utils
 
 const (
 	JwtHeaderName     = "X-Datadog-OnPrem-JWT"
