@@ -121,17 +121,17 @@ func (t *Translator) mapExponentialHistogramMetrics(
 
 		if t.cfg.SendHistogramAggregations && histInfo.ok {
 			// We only send the sum and count if both values were ok.
-			consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, float64(histInfo.count))
-			consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, histInfo.sum)
+			consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, float64(histInfo.count))
+			consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, 0, histInfo.sum)
 
 			if delta {
 				if p.HasMin() {
 					minDims := pointDims.WithSuffix("min")
-					consumer.ConsumeTimeSeries(ctx, minDims, Gauge, ts, p.Min())
+					consumer.ConsumeTimeSeries(ctx, minDims, Gauge, ts, 0, p.Min())
 				}
 				if p.HasMax() {
 					maxDims := pointDims.WithSuffix("max")
-					consumer.ConsumeTimeSeries(ctx, maxDims, Gauge, ts, p.Max())
+					consumer.ConsumeTimeSeries(ctx, maxDims, Gauge, ts, 0, p.Max())
 				}
 			}
 		}
@@ -174,6 +174,6 @@ func (t *Translator) mapExponentialHistogramMetrics(
 			agentSketch.Basic.Max = p.Max()
 		}
 
-		consumer.ConsumeSketch(ctx, pointDims, ts, agentSketch)
+		consumer.ConsumeSketch(ctx, pointDims, ts, 0, agentSketch)
 	}
 }

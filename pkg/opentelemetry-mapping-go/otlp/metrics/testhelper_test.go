@@ -64,6 +64,7 @@ type TestDimensions struct {
 type TestSketch struct {
 	TestDimensions
 	Timestamp uint64
+	Interval  int64
 	Summary   summary.Summary
 	Keys      []int32
 	Counts    []uint32
@@ -73,6 +74,7 @@ type TestTimeSeries struct {
 	TestDimensions
 	Type      DataType
 	Timestamp uint64
+	Interval  int64
 	Value     float64
 }
 
@@ -154,6 +156,7 @@ func (t *testConsumer) ConsumeTimeSeries(
 	dimensions *Dimensions,
 	typ DataType,
 	timestamp uint64,
+	interval int64,
 	value float64,
 ) {
 	t.data.Metrics.TimeSeries = append(t.data.Metrics.TimeSeries,
@@ -169,6 +172,7 @@ func (t *testConsumer) ConsumeTimeSeries(
 			},
 			Type:      typ,
 			Timestamp: timestamp,
+			Interval:  interval,
 			Value:     value,
 		})
 }
@@ -177,6 +181,7 @@ func (t *testConsumer) ConsumeSketch(
 	_ context.Context,
 	dimensions *Dimensions,
 	timestamp uint64,
+	interval int64,
 	sketch *quantile.Sketch,
 ) {
 	k, n := sketch.Cols()
@@ -192,6 +197,7 @@ func (t *testConsumer) ConsumeSketch(
 				OriginProductDetail: dimensions.OriginProductDetail(),
 			},
 			Timestamp: timestamp,
+			Interval:  interval,
 			Summary:   sketch.Basic,
 			Keys:      k,
 			Counts:    n,
