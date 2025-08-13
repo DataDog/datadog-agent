@@ -16,8 +16,8 @@ import (
 	"fmt"
 	"io"
 
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"k8s.io/client-go/kubernetes"
 )
@@ -39,7 +40,7 @@ type stats struct {
 }
 
 // GetStatus returns status info for the orchestrator explorer.
-func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]interface{} {
+func GetStatus(ctx context.Context, apiCl kubernetes.Interface, clusterChecksHandler option.Option[clusterchecks.Component]) map[string]interface{} {
 	status := make(map[string]interface{})
 	if !pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") {
 		status["Disabled"] = "The orchestrator explorer is not enabled on the Cluster Agent"
@@ -83,21 +84,25 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	// rewriting DCA Mode in case we are running in cluster check mode.
 	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") {
 		// we need to check first whether we have dispatched checks to CLC
-		stats, err := clusterchecks.GetStats()
-		if err != nil {
-			status["CLCError"] = err.Error()
-		} else {
-			// this and the cache section will only be shown on the DCA leader
-			if !stats.Active {
-				status["CLCEnabled"] = true
-				status["CollectionWorking"] = "Clusterchecks are activated but still warming up, the collection could be running on CLC Runners. To verify that we need the clusterchecks to be warmed up."
+		if handler, ok := clusterChecksHandler.Get(); ok {
+			stats, err := handler.GetStats()
+			if err != nil {
+				status["CLCError"] = err.Error()
 			} else {
-				if _, ok := stats.CheckNames[orchestrator.CheckName]; ok {
+				// this and the cache section will only be shown on the DCA leader
+				if !stats.Active {
 					status["CLCEnabled"] = true
-					status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
-					status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
+					status["CollectionWorking"] = "Clusterchecks are activated but still warming up, the collection could be running on CLC Runners. To verify that we need the clusterchecks to be warmed up."
+				} else {
+					if _, ok := stats.CheckNames[orchestrator.CheckName]; ok {
+						status["CLCEnabled"] = true
+						status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
+						status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
+					}
 				}
 			}
+		} else {
+			status["CLCError"] = "Cluster checks handler not available"
 		}
 	}
 
@@ -217,55 +222,64 @@ func setSkippedResourcesInformationDCAMode(status map[string]interface{}) {
 }
 
 // Provider provides the functionality to populate the status output
-type Provider struct{}
+type Provider struct {
+	ClusterChecksHandler option.Option[clusterchecks.Component]
+}
+
+// NewProvider creates a new Provider with optional cluster checks handler
+func NewProvider(clusterChecksHandler option.Option[clusterchecks.Component]) Provider {
+	return Provider{
+		ClusterChecksHandler: clusterChecksHandler,
+	}
+}
 
 //go:embed status_templates
 var templatesFS embed.FS
 
 // Name returns the name
-func (Provider) Name() string {
+func (p Provider) Name() string {
 	return "Orchestrator Explorer"
 }
 
 // Section return the section
-func (Provider) Section() string {
+func (p Provider) Section() string {
 	return "Orchestrator Explorer"
 }
 
 // JSON populates the status map
-func (Provider) JSON(_ bool, stats map[string]interface{}) error {
-	populateStatus(stats)
+func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
+	p.populateStatus(stats)
 
 	return nil
 }
 
 // Text renders the text output
-func (Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "orchestrator.tmpl", buffer, getStatusInfo())
+func (p Provider) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "orchestrator.tmpl", buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output
-func (Provider) HTML(_ bool, _ io.Writer) error {
+func (p Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 
-func populateStatus(stats map[string]interface{}) {
+func (p Provider) populateStatus(stats map[string]interface{}) {
 	apiCl, apiErr := apiserver.GetAPIClient()
 
 	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") {
 		if apiErr != nil {
 			stats["orchestrator"] = map[string]string{"Error": apiErr.Error()}
 		} else {
-			orchestratorStats := GetStatus(context.TODO(), apiCl.Cl)
+			orchestratorStats := GetStatus(context.TODO(), apiCl.Cl, p.ClusterChecksHandler)
 			stats["orchestrator"] = orchestratorStats
 		}
 	}
 }
 
-func getStatusInfo() map[string]interface{} {
+func (p Provider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	populateStatus(stats)
+	p.populateStatus(stats)
 
 	return stats
 }

@@ -21,10 +21,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
-
-const handlerCacheKey = "clusterChecksHandler"
 
 // handlerImpl wraps the existing Handler implementation
 // This thin wrapper provides component lifecycle management while
@@ -66,10 +63,6 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
-	// Cache a pointer to the handler for the agent status command (maintain existing behavior)
-	key := cache.BuildAgentKey(handlerCacheKey)
-	cache.Cache.Set(key, handler, cache.NoExpiration)
-
 	impl := &handlerImpl{
 		handler: handler,
 		log:     deps.Log,
@@ -84,46 +77,84 @@ func NewComponent(deps Requires) (Provides, error) {
 
 // Run delegates to the embedded Handler's Run method
 func (h *handlerImpl) Run(ctx context.Context) {
-	h.log.Info("Starting cluster checks handler")
-	h.handler.Run(ctx)
+	if h.handler != nil {
+		if h.log != nil {
+			h.log.Info("Starting cluster checks handler")
+		}
+		h.handler.Run(ctx)
+	}
 }
 
 // RejectOrForwardLeaderQuery delegates to the handler
 func (h *handlerImpl) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.Request) bool {
+	if h.handler == nil {
+		return false
+	}
 	return h.handler.RejectOrForwardLeaderQuery(rw, req)
 }
 
 // GetState delegates to the handler
 func (h *handlerImpl) GetState() (types.StateResponse, error) {
+	if h.handler == nil {
+		return types.StateResponse{}, errors.New("cluster checks handler not initialized")
+	}
 	return h.handler.GetState()
 }
 
 // GetConfigs delegates to the handler
 func (h *handlerImpl) GetConfigs(identifier string) (types.ConfigResponse, error) {
+	if h.handler == nil {
+		return types.ConfigResponse{}, errors.New("cluster checks handler not initialized")
+	}
 	return h.handler.GetConfigs(identifier)
 }
 
 // PostStatus delegates to the handler
 func (h *handlerImpl) PostStatus(identifier, clientIP string, status types.NodeStatus) types.StatusResponse {
+	if h.handler == nil {
+		return types.StatusResponse{}
+	}
 	return h.handler.PostStatus(identifier, clientIP, status)
 }
 
 // GetEndpointsConfigs delegates to the handler
 func (h *handlerImpl) GetEndpointsConfigs(nodeName string) (types.ConfigResponse, error) {
+	if h.handler == nil {
+		return types.ConfigResponse{}, errors.New("cluster checks handler not initialized")
+	}
 	return h.handler.GetEndpointsConfigs(nodeName)
 }
 
 // GetAllEndpointsCheckConfigs delegates to the handler
 func (h *handlerImpl) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
+	if h.handler == nil {
+		return types.ConfigResponse{}, errors.New("cluster checks handler not initialized")
+	}
 	return h.handler.GetAllEndpointsCheckConfigs()
 }
 
 // RebalanceClusterChecks delegates to the handler
 func (h *handlerImpl) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse, error) {
+	if h.handler == nil {
+		return nil, errors.New("cluster checks handler not initialized")
+	}
 	return h.handler.RebalanceClusterChecks(force)
 }
 
 // IsolateCheck delegates to the handler
 func (h *handlerImpl) IsolateCheck(isolateCheckID string) types.IsolateResponse {
+	if h.handler == nil {
+		return types.IsolateResponse{}
+	}
 	return h.handler.IsolateCheck(isolateCheckID)
+}
+
+// GetStats delegates to the handler
+func (h *handlerImpl) GetStats() (*types.Stats, error) {
+	return h.handler.GetStats()
+}
+
+// GetNodeTypeCounts delegates to the handler
+func (h *handlerImpl) GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
+	return h.handler.GetNodeTypeCounts()
 }

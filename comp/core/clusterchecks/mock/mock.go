@@ -80,3 +80,13 @@ func (m *Handler) RebalanceClusterChecks(_ bool) ([]types.RebalanceResponse, err
 func (m *Handler) IsolateCheck(_ string) types.IsolateResponse {
 	return types.IsolateResponse{}
 }
+
+// GetStats returns the configured state and error
+func (m *Handler) GetStats() (*types.Stats, error) {
+	return &types.Stats{}, m.Err
+}
+
+// GetNodeTypeCounts returns zero counts
+func (m *Handler) GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
+	return 0, 0, m.Err
+}

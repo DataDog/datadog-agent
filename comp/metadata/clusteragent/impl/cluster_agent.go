@@ -18,13 +18,13 @@ import (
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -64,20 +65,22 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 
 // Requires defines the dependencies for the clusteragent metadata component
 type Requires struct {
-	Log        log.Component
-	Config     config.Component
-	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Log                  log.Component
+	Config               config.Component
+	Serializer           serializer.MetricSerializer
+	Hostname             hostnameinterface.Component
+	ClusterChecksHandler option.Option[clusterchecks.Component]
 }
 
 type datadogclusteragent struct {
 	util.InventoryPayload
-	log          log.Component
-	conf         config.Component
-	clustername  string
-	clusterid    string
-	clusteridErr string
-	metadata     map[string]interface{}
+	log                  log.Component
+	conf                 config.Component
+	clusterChecksHandler option.Option[clusterchecks.Component]
+	clustername          string
+	clusterid            string
+	clusteridErr         string
+	metadata             map[string]interface{}
 }
 
 // Provides defines the output of the clusteragent metadata component
@@ -95,12 +98,13 @@ func NewComponent(deps Requires) Provides {
 	clname := clustername.GetClusterName(context.Background(), hname)
 	clid, clidErr := getClusterID()
 	dca := &datadogclusteragent{
-		log:          deps.Log,
-		conf:         deps.Config,
-		clustername:  clname,
-		clusterid:    clid,
-		clusteridErr: "",
-		metadata:     make(map[string]interface{}),
+		log:                  deps.Log,
+		conf:                 deps.Config,
+		clusterChecksHandler: deps.ClusterChecksHandler,
+		clustername:          clname,
+		clusterid:            clid,
+		clusteridErr:         "",
+		metadata:             make(map[string]interface{}),
 	}
 	if clidErr != nil {
 		dca.clusteridErr = clidErr.Error()
@@ -214,10 +218,11 @@ func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 	}
 
 	// Add cluster check runner and node agent counts
-	// Import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
-	if clcRunnerCount, nodeAgentCount, err := clusterchecks.GetNodeTypeCounts(); err == nil {
-		dca.metadata["cluster_check_runner_count"] = clcRunnerCount
-		dca.metadata["cluster_check_node_agent_count"] = nodeAgentCount
+	if handler, ok := dca.clusterChecksHandler.Get(); ok {
+		if clcRunnerCount, nodeAgentCount, err := handler.GetNodeTypeCounts(); err == nil {
+			dca.metadata["cluster_check_runner_count"] = clcRunnerCount
+			dca.metadata["cluster_check_node_agent_count"] = nodeAgentCount
+		}
 	}
 
 	//Sending dca configuration can be disabled using `inventories_configuration_enabled`.
