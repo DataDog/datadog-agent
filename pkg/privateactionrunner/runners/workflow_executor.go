@@ -5,22 +5,20 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/helpers"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type Loop struct {
-	log             log.Component
 	runner          *WorkflowRunner
 	sem             chan struct{}
 	shutdownChannel chan struct{}
 	wg              sync.WaitGroup
 }
 
-func NewLoop(runner *WorkflowRunner, log log.Component) *Loop {
+func NewLoop(runner *WorkflowRunner) *Loop {
 	return &Loop{
-		log:             log,
 		runner:          runner,
 		sem:             make(chan struct{}, runner.config.RunnerPoolSize), // todo: we may consider moving to the semaphore before release.
 		shutdownChannel: make(chan struct{}),
@@ -30,10 +28,9 @@ func NewLoop(runner *WorkflowRunner, log log.Component) *Loop {
 func (l *Loop) Run(ctx context.Context) {
 	l.wg.Add(1) // Increment the WaitGroup counter
 
-	l.log.Info("Starting loop")
+	log.Info("Starting loop")
 
 	breaker := helpers.NewCircuitBreaker(
-		l.log,
 		"wf-par-polling",
 		l.runner.config.MinBackoff,
 		l.runner.config.MaxBackoff,
@@ -45,7 +42,7 @@ func (l *Loop) Run(ctx context.Context) {
 	for {
 		select {
 		case <-l.shutdownChannel:
-			l.log.Info("Stopping loop")
+			log.Info("Stopping loop")
 			return
 		default:
 		}
@@ -56,7 +53,7 @@ func (l *Loop) Run(ctx context.Context) {
 			func() error {
 				dequeuedTask, err := l.runner.opmsClient.DequeueTask(ctx)
 				if err != nil {
-					l.log.Errorf("failed to dequeue task %v", err)
+					log.Errorf("failed to dequeue task %v", err)
 					return err
 				}
 
@@ -71,17 +68,17 @@ func (l *Loop) Run(ctx context.Context) {
 		}
 
 		if err := task.Validate(); err != nil {
-			l.log.Errorf("could not validate workflow task %v", err)
+			log.Errorf("could not validate workflow task %v", err)
 			l.publishFailure(ctx, task, err)
 			continue
 		}
 		unwrappedTask, err := l.runner.taskVerifier.UnwrapTaskFromSignedEnvelope(task.Data.Attributes.SignedEnvelope)
 		if err != nil {
-			l.log.Errorf("could not verify workflow task %v", err)
+			log.Errorf("could not verify workflow task %v", err)
 			l.publishFailure(ctx, task, err)
 			continue
 		}
-		l.log.Infof("task verified successfully %s", unwrappedTask.Data.ID)
+		log.Infof("task verified successfully %s", unwrappedTask.Data.ID)
 
 		// JobId is generated on dequeue so its not part of the signature, it will be checked by the backend when publishing the result
 		unwrappedTask.Data.Attributes.JobId = task.Data.Attributes.JobId
@@ -89,7 +86,7 @@ func (l *Loop) Run(ctx context.Context) {
 
 		credential, err := l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)
 		if err != nil {
-			l.log.Errorf("could not resolve connection %v", err)
+			log.Errorf("could not resolve connection %v", err)
 			l.publishFailure(ctx, task, err)
 			continue
 		}
@@ -127,15 +124,15 @@ func (l *Loop) Close(ctx context.Context) {
 	}()
 	select {
 	case <-done:
-		l.log.Info("Worker stopped gracefully.")
+		log.Info("Worker stopped gracefully.")
 	case <-ctx.Done():
-		l.log.Warn("Workflow loop timeout reached. Forcing shutdown.")
+		log.Warn("Workflow loop timeout reached. Forcing shutdown.")
 	}
 }
 
 func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
 	if task.Data.Attributes.JobId == "" {
-		l.log.Error("publish failure error: no job id was provided")
+		log.Error("publish failure error: no job id was provided")
 		return
 	}
 	inputError := helpers.DefaultPARError(e)
@@ -149,13 +146,13 @@ func (l *Loop) publishFailure(ctx context.Context, task *types.Task, e error) {
 		inputError.ExternalMessage,
 	)
 	if err != nil {
-		l.log.Errorf("publish failure error: unable to publish workflow task failure %v", err)
+		log.Errorf("publish failure error: unable to publish workflow task failure %v", err)
 	}
 }
 
 func (l *Loop) publishSuccess(ctx context.Context, task *types.Task, output interface{}) {
 	if task.Data.Attributes.JobId == "" {
-		l.log.Error("publish success error: no job id was provided")
+		log.Error("publish success error: no job id was provided")
 		return
 	}
 	err := l.runner.opmsClient.PublishSuccess(
@@ -167,6 +164,6 @@ func (l *Loop) publishSuccess(ctx context.Context, task *types.Task, output inte
 		"",
 	)
 	if err != nil {
-		l.log.Errorf("publish success error: unable to publish workflow task success %v", err)
+		log.Errorf("publish success error: unable to publish workflow task success %v", err)
 	}
 }

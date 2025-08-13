@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/helpers"
@@ -15,6 +14,7 @@ import (
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type WorkflowRunner struct {
@@ -25,10 +25,9 @@ type WorkflowRunner struct {
 	taskVerifier *taskverifier.TaskVerifier
 	keysManager  remoteconfig.KeysManager
 	taskLoop     *Loop
-	log          log.Component
 }
 
-func NewWorkflowRunner(configuration *config.Config, log log.Component, keysManager remoteconfig.KeysManager, verifier *taskverifier.TaskVerifier, opmsClient opms.Client) *WorkflowRunner {
+func NewWorkflowRunner(configuration *config.Config, keysManager remoteconfig.KeysManager, verifier *taskverifier.TaskVerifier, opmsClient opms.Client) *WorkflowRunner {
 
 	return &WorkflowRunner{
 		registry:     privatebundles.NewRegistry(configuration),
@@ -37,18 +36,17 @@ func NewWorkflowRunner(configuration *config.Config, log log.Component, keysMana
 		config:       configuration,
 		keysManager:  keysManager,
 		taskVerifier: verifier,
-		log:          log,
 	}
 }
 
 func (n *WorkflowRunner) Start(ctx context.Context) {
 	if n.taskLoop != nil {
-		n.log.Warn("WorkflowRunner already started")
+		log.Warn("WorkflowRunner already started")
 		return
 	}
-	n.taskLoop = NewLoop(n, n.log)
+	n.taskLoop = NewLoop(n)
 	go func() {
-		n.log.Info("Waiting for KeysManager to be ready")
+		log.Info("Waiting for KeysManager to be ready")
 		n.keysManager.WaitForReady()
 		n.taskLoop.Run(ctx)
 	}()
@@ -103,15 +101,15 @@ func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task) {
 	for {
 		select {
 		case <-ctx.Done():
-			n.log.Infof("Heartbeat stopped for task %s", task.Data.ID)
+			log.Infof("Heartbeat stopped for task %s", task.Data.ID)
 			return
 		case <-ticker.C:
 			err := n.opmsClient.Heartbeat(ctx, task.Data.ID, task.GetFQN(), task.Data.Attributes.JobId)
 
 			if err != nil {
-				n.log.Errorf("Failed to send heartbeat %v", err)
+				log.Errorf("Failed to send heartbeat %v", err)
 			} else {
-				n.log.Info("Heartbeat sent successfully")
+				log.Info("Heartbeat sent successfully")
 			}
 		}
 	}
