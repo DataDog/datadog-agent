@@ -416,6 +416,8 @@ func batchConnections(
 
 		connectionsTagsEncoder := model.NewV2TagEncoder()
 		tagsEncoder := model.NewV2TagEncoder()
+		// Adding a dummy tag to ensure the indices we get are always >= 0.
+		_ = tagsEncoder.Encode([]string{"-"})
 
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
