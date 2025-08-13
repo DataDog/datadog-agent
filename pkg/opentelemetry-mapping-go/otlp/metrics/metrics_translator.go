@@ -298,7 +298,7 @@ func (t *Translator) getSketchBuckets(
 	p pmetric.HistogramDataPoint,
 	histInfo histogramInfo,
 	delta bool,
-) {
+) error {
 	startTs := uint64(p.StartTimestamp())
 	ts := uint64(p.Timestamp())
 	as := &quantile.Agent{}
@@ -360,10 +360,16 @@ func (t *Translator) getSketchBuckets(
 		var nonZeroBucket bool
 		if delta {
 			nonZeroBucket = count > 0
-			as.InsertInterpolate(lowerBound, upperBound, uint(count))
+			err := as.InsertInterpolate(lowerBound, upperBound, uint(count))
+			if err != nil {
+				return err
+			}
 		} else if dx, ok := t.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
 			nonZeroBucket = dx > 0
-			as.InsertInterpolate(lowerBound, upperBound, uint(dx))
+			err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
+			if err != nil {
+				return err
+			}
 		}
 
 		if nonZeroBucket {
@@ -413,6 +419,7 @@ func (t *Translator) getSketchBuckets(
 
 		consumer.ConsumeSketch(ctx, pointDims, ts, 0, sketch)
 	}
+	return nil
 }
 
 func (t *Translator) getLegacyBuckets(
@@ -462,7 +469,7 @@ func (t *Translator) mapHistogramMetrics(
 	dims *Dimensions,
 	slice pmetric.HistogramDataPointSlice,
 	delta bool,
-) {
+) error {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {
@@ -532,9 +539,13 @@ func (t *Translator) mapHistogramMetrics(
 		case HistogramModeCounters:
 			t.getLegacyBuckets(ctx, consumer, pointDims, p, delta)
 		case HistogramModeDistributions:
-			t.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta)
+			err := t.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta)
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // formatFloat formats a float number as close as possible to what
@@ -825,12 +836,18 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 					renameMetrics(md)
 				}
 
-				t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
+				err := t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
+				if err != nil {
+					return metadata, err
+				}
 			}
 
 			for k := 0; k < newMetrics.Len(); k++ {
 				md := newMetrics.At(k)
-				t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
+				err := t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
+				if err != nil {
+					return metadata, err
+				}
 			}
 		}
 
@@ -851,7 +868,7 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 	return metadata, nil
 }
 
-func (t *Translator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) {
+func (t *Translator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
 	baseDims := &Dimensions{
 		name:                md.Name(),
 		tags:                additionalTags,
@@ -889,7 +906,10 @@ func (t *Translator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consu
 		switch md.Histogram().AggregationTemporality() {
 		case pmetric.AggregationTemporalityCumulative, pmetric.AggregationTemporalityDelta:
 			delta := md.Histogram().AggregationTemporality() == pmetric.AggregationTemporalityDelta
-			t.mapHistogramMetrics(ctx, consumer, baseDims, md.Histogram().DataPoints(), delta)
+			err := t.mapHistogramMetrics(ctx, consumer, baseDims, md.Histogram().DataPoints(), delta)
+			if err != nil {
+				return err
+			}
 		default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
 			t.logger.Debug("Unknown or unsupported aggregation temporality",
 				zap.String("metric name", md.Name()),
@@ -912,4 +932,5 @@ func (t *Translator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consu
 	default: // pmetric.MetricDataTypeNone or any other not supported type
 		t.logger.Debug("Unknown or unsupported metric type", zap.String(metricName, md.Name()), zap.Any("data type", md.Type()))
 	}
+	return nil
 }
