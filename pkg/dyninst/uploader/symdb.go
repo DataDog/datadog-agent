@@ -149,18 +149,19 @@ func newSymDBSender(
 func (s *symdbSender) send(batch []json.RawMessage) error {
 	// Wrap the data in an envelope expected by the debugger backend.
 	var buf bytes.Buffer
-	buf.WriteString(`
-service: "` + s.service + `",
-env: "` + s.env + `",
-version: "` + s.version + `",
-language: "go",
-scopes: [`)
+	buf.WriteString(`{
+"service": "` + s.service + `",
+"env": "` + s.env + `",
+"version": "` + s.version + `",
+"language": "go",
+"scopes": [`)
 	for i, msgData := range batch {
 		if i > 0 {
 			buf.WriteString(",")
 		}
 		buf.Write(msgData)
 	}
+	buf.WriteString("]}")
 
 	if err := s.upload(buf.Bytes()); err != nil {
 		return fmt.Errorf("failed to send individual SymDB: %w", err)
