@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -43,7 +44,10 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	defer os.RemoveAll(tmpDir)
 	cmd, err := downloadInstaller(ctx, env, url, tmpDir)
 	if err != nil {
-		return err
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			err,
+		)
 	}
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)

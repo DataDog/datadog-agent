@@ -157,6 +157,8 @@ func (c *Check) Cancel() {
 
 // Run executes the check
 func (c *Check) Run() error {
+	currentExecutionTime := time.Now()
+
 	snd, err := c.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %w", err)
@@ -180,7 +182,7 @@ func (c *Check) Run() error {
 	// metrics with the tags of containers that are using them
 	gpuToContainersMap := c.getGPUToContainersMap()
 
-	if err := c.emitMetrics(snd, gpuToContainersMap); err != nil && logLimitCheck.ShouldLog() {
+	if err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error while sending gpu metrics: %s", err)
 	}
 
@@ -218,7 +220,7 @@ type deviceMetricsCollection struct {
 	totalCount       int                                      // total number of metrics across all collectors
 }
 
-func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container) error {
+func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container, currentExecutionTime time.Time) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
@@ -290,14 +292,20 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 			metricName := gpuMetricsNs + metric.Name
 			allTags := append(append(c.deviceTags[deviceUUID], containerTags...), metric.Tags...)
 
+			// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
+			// We need this to ensure weighted metrics are calibrated correctly.
 			switch metric.Type {
 			case ddmetrics.CountType:
-				snd.Count(metricName, metric.Value, "", allTags)
+				err = snd.CountWithTimestamp(metricName, metric.Value, "", allTags, float64(currentExecutionTime.UnixNano())/float64(time.Second))
 			case ddmetrics.GaugeType:
-				snd.Gauge(metricName, metric.Value, "", allTags)
+				err = snd.GaugeWithTimestamp(metricName, metric.Value, "", allTags, float64(currentExecutionTime.UnixNano())/float64(time.Second))
 			default:
 				multiErr = multierror.Append(multiErr, fmt.Errorf("unsupported metric type %s for metric %s", metric.Type, metricName))
 				continue
+			}
+
+			if err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("error sending metric %s: %w", metricName, err))
 			}
 		}
 	}
