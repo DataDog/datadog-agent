@@ -59,14 +59,14 @@
     ["setup_agent_version", "windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-agent-7*-x86_64.zip"
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg BASE_IMAGE_OS='windows nanoserver' --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
   retry: 2
 
 .docker_build_agent7_windows_servercore_common:
   extends:
     - .docker_build_agent7_windows_common
   variables:
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=core-${VARIANT}"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg BASE_IMAGE_OS='windows server core' --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=core-${VARIANT}"
     SERVERCORE: "-servercore"
 
 .docker_build_fips_agent7_windows_common:
@@ -76,13 +76,13 @@
     ["windows_msi_and_bosh_zip_x64-a7-fips", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-fips-agent-7*-x86_64.zip"
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg WITH_FIPS=true --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}-fips"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg BASE_IMAGE_OS='windows nanoserver' --build-arg WITH_JMX=${WITH_JMX} --build-arg WITH_FIPS=true --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}-fips"
 
 .docker_build_fips_agent7_windows_servercore_common:
   extends:
     - .docker_build_fips_agent7_windows_common
   variables:
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg WITH_FIPS=true --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=core-${VARIANT}-fips"
+    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg BASE_IMAGE_OS='windows server core' --build-arg WITH_JMX=${WITH_JMX} --build-arg WITH_FIPS=true --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=core-${VARIANT}-fips"
     SERVERCORE: "-servercore"
 
 include:
