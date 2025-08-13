@@ -2,7 +2,6 @@ package credentials
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/google/uuid"
@@ -20,5 +19,6 @@ func NewPrivateCredentialResolver() PrivateCredentialResolver {
 }
 
 func (p privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactions.ConnectionInfo, userUUID *uuid.UUID) (interface{}, error) {
-	return nil, fmt.Errorf("private connection resolution is not supported yet")
+	// TODO: Implement the logic to resolve the connection info to a credential.
+	return nil, nil
 }
