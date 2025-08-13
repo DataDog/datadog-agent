@@ -205,7 +205,7 @@ func TestUpdate(t *testing.T) {
 				"datadog.host.tag.foo":                       "baz",                                                 // changed
 				string(conventions.DeploymentEnvironmentKey): "prod",
 			},
-			expectedChanged: false,
+			expectedChanged: true,
 			expectedErrs:    []string{"\"os.description\" has type \"Bool\", expected type \"Str\" instead"},
 		},
 		{
