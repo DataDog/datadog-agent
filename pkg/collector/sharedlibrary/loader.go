@@ -59,8 +59,7 @@ shared_library_handles_t load_shared_library(const char *lib_name, const char **
     }
 
 	free_function_t *free_callback = (free_function_t *)GetProcAddress(lib_handle, "Free");
-    dlsym_error = dlerror();
-    if (dlsym_error) {
+    if (!free_callback) {
 		FreeLibrary(lib_handle);
 		*error = strdup("unable to get shared library 'Free' symbol");
 		goto done;
