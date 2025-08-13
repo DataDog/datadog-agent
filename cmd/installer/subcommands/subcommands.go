@@ -14,15 +14,6 @@ import (
 	installer "github.com/DataDog/datadog-agent/pkg/fleet/installer/commands"
 )
 
-// InstallerSubcommands returns SubcommandFactories for the subcommands
-// supported with the current build flags.
-func InstallerSubcommands() []command.SubcommandFactory {
-	return []command.SubcommandFactory{
-		withRoot(installerCommands),
-		installerUnprivilegedCommands,
-	}
-}
-
 // installerCommands returns the installer subcommands.
 func installerCommands(_ *command.GlobalParams) []*cobra.Command {
 	return installer.RootCommands()
