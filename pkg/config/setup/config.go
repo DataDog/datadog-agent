@@ -124,6 +124,11 @@ const (
 
 var (
 	// datadog is the global configuration object
+	// NOTE: The constructor `create.New` returns a `model.BuildableConfig`, which is the
+	// most general interface for the methods implemented by these types. However, we store
+	// them as `model.Config` because that is what the global `Datadog()` accessor returns.
+	// Keeping these types aligned signficantly reduces the compiled size of this binary.
+	// See https://datadoghq.atlassian.net/wiki/spaces/ACFG/pages/5386798973/Datadog+global+accessor+PR+size+increase
 	datadog     pkgconfigmodel.Config
 	systemProbe pkgconfigmodel.Config
 
@@ -134,7 +139,7 @@ var (
 // SetDatadog sets the the reference to the agent configuration.
 // This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
 // legacy converter and mock have been migrated we will remove this function.
-func SetDatadog(cfg pkgconfigmodel.Config) {
+func SetDatadog(cfg pkgconfigmodel.BuildableConfig) {
 	datadogMutex.Lock()
 	defer datadogMutex.Unlock()
 	datadog = cfg
@@ -143,7 +148,7 @@ func SetDatadog(cfg pkgconfigmodel.Config) {
 // SetSystemProbe sets the the reference to the systemProbe configuration.
 // This is currently used by the config mocks and should not be user anywhere else. Once the mocks have been migrated we
 // will remove this function.
-func SetSystemProbe(cfg pkgconfigmodel.Config) {
+func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 	systemProbeMutex.Lock()
 	defer systemProbeMutex.Unlock()
 	systemProbe = cfg
@@ -259,7 +264,7 @@ func init() {
 	// Configuration defaults
 	initConfig()
 
-	datadog.BuildSchema()
+	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
