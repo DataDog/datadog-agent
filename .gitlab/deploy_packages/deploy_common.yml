@@ -4,6 +4,8 @@
   tags: ["arch:amd64"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+    # Make job fail if there no files to upload are found
+    - ls ${OMNIBUS_PACKAGE_DIR}/${ARTIFACT_NAME_PATTERN}
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "$ARTIFACT_NAME_PATTERN" "$OMNIBUS_PACKAGE_DIR" "${S3_RELEASE_ARTIFACTS_URI}/${PACKAGE_TYPE}/${PACKAGE_ARCH}/"
 
