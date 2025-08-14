@@ -12,10 +12,11 @@ import (
 	"strconv"
 	"strings"
 
+	"google.golang.org/genproto/googleapis/rpc/code"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"google.golang.org/genproto/googleapis/rpc/code"
 )
 
 const (
@@ -163,9 +164,14 @@ var grpcStatusMap = map[string]string{
 	"DATALOSS":           "15",
 }
 
-func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
+func getGRPCStatusCode(name string, meta map[string]string, metrics map[string]float64) string {
 	// List of possible keys to check in order
 	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
+
+	// If the span's name is a gRPC client or server, we also check the status code field
+	if name == "grpc.client" || name == "grpc.server" {
+		statusCodeFields = append(statusCodeFields, "status.code")
+	}
 
 	for _, key := range statusCodeFields {
 		if strC, exists := meta[key]; exists && strC != "" {
