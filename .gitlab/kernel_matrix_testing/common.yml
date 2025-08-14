@@ -49,7 +49,7 @@
 # needs variables: INSTANCE_IP, AWS_EC2_SSH_KEY_FILE
 .setup_ssh_config:
   - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-  - echo -e "Host metal_instance\nHostname $INSTANCE_IP\nUser ubuntu\nStrictHostKeyChecking no\nIdentityFile $AWS_EC2_SSH_KEY_FILE\n" | tee -a ~/.ssh/config
+  - echo -e "Host metal_instance\nHostname $INSTANCE_IP\nUser ubuntu\nStrictHostKeyChecking no\nIdentityFile $AWS_EC2_SSH_KEY_FILE\nServerAliveInterval 10\nServerAliveCountMax 180\n" | tee -a ~/.ssh/config
   - chmod 600 ~/.ssh/config
 
 .kmt_new_profile:
