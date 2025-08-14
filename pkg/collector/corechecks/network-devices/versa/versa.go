@@ -134,8 +134,9 @@ func (v *VersaCheck) Run() error {
 			}
 		}
 
-		// Grab interfaces if we need interface metadata or interface metrics
-		if *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics {
+		// Grab interfaces if we need interface metadata
+		// Note: collect_interface_metrics depends on this data, but requires explicit send_interface_metadata enablement
+		if *v.config.SendInterfaceMetadata {
 			orgInterfaces, err := c.GetInterfaces(org.Name)
 			if err != nil {
 				// not getting interfaces shouldn't stop the rest of the check
@@ -216,38 +217,46 @@ func (v *VersaCheck) Run() error {
 	}
 
 	if *v.config.CollectInterfaceMetrics {
-		type deviceID struct {
-			ApplianceName string
-			TenantName    string
-		}
-		deviceWithInterfaceMap := make(map[string]deviceID)
-		for _, iface := range interfaces {
-			deviceWithInterfaceMap[iface.TenantName+":"+iface.DeviceName] = deviceID{
-				ApplianceName: iface.DeviceName,
-				TenantName:    iface.TenantName,
+		// Validate that interface metadata collection is enabled since we depend on interface data
+		if !*v.config.SendInterfaceMetadata {
+			log.Errorf("collect_interface_metrics requires send_interface_metadata to be enabled. " +
+				"Interface metrics collection depends on interface data from the GetInterfaces API call, " +
+				"which is only made when send_interface_metadata is enabled. Skipping interface metrics collection.")
+		} else {
+
+			type deviceID struct {
+				ApplianceName string
+				TenantName    string
 			}
-		}
-
-		// Collect interface metrics for each device
-		interfaceMetricsByDevice := make(map[string][]client.InterfaceMetrics)
-
-		for _, id := range deviceWithInterfaceMap {
-			interfaceMetrics, err := c.GetInterfaceMetrics(id.ApplianceName, id.TenantName)
-			if err != nil {
-				log.Errorf("error getting interface metrics for device %s in tenant %s: %v", id.ApplianceName, id.TenantName, err)
-				continue
+			deviceWithInterfaceMap := make(map[string]deviceID)
+			for _, iface := range interfaces {
+				deviceWithInterfaceMap[iface.TenantName+":"+iface.DeviceName] = deviceID{
+					ApplianceName: iface.DeviceName,
+					TenantName:    iface.TenantName,
+				}
 			}
 
-			// Get device IP from the deviceNameToIDMap
-			if deviceIP, ok := deviceNameToIDMap[id.ApplianceName]; ok {
-				interfaceMetricsByDevice[deviceIP] = interfaceMetrics
-			} else {
-				log.Errorf("device IP not found for device %s, skipping interface metrics", id.ApplianceName)
-			}
-		}
+			// Collect interface metrics for each device
+			interfaceMetricsByDevice := make(map[string][]client.InterfaceMetrics)
 
-		// Send interface metrics
-		v.metricsSender.SendInterfaceMetrics(interfaceMetricsByDevice)
+			for _, id := range deviceWithInterfaceMap {
+				interfaceMetrics, err := c.GetInterfaceMetrics(id.ApplianceName, id.TenantName)
+				if err != nil {
+					log.Errorf("error getting interface metrics for device %s in tenant %s: %v", id.ApplianceName, id.TenantName, err)
+					continue
+				}
+
+				// Get device IP from the deviceNameToIDMap
+				if deviceIP, ok := deviceNameToIDMap[id.ApplianceName]; ok {
+					interfaceMetricsByDevice[deviceIP] = interfaceMetrics
+				} else {
+					log.Errorf("device IP not found for device %s, skipping interface metrics", id.ApplianceName)
+				}
+			}
+
+			// Send interface metrics
+			v.metricsSender.SendInterfaceMetrics(interfaceMetricsByDevice)
+		}
 	}
 
 	// Now collect organization-specific metrics that need deviceNameToIDMap
