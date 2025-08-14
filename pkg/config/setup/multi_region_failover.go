@@ -16,7 +16,6 @@ func setupMultiRegionFailover(config pkgconfigmodel.Setup) {
 	config.BindEnv("multi_region_failover.site")
 	config.BindEnv("multi_region_failover.dd_url")
 	config.BindEnv("multi_region_failover.metric_allowlist")
-	config.BindEnv("multi_region_failover.logs_service_allowlist")
 	config.BindEnvAndSetDefault("multi_region_failover.enabled", false)
 	config.BindEnvAndSetDefault("multi_region_failover.failover_metrics", false)
 	config.BindEnvAndSetDefault("multi_region_failover.failover_logs", false)
