@@ -126,7 +126,7 @@ class InPlacePackageMeasurer:
         package_path: str,
         gate_name: str,
         build_job_name: str,
-        max_files: int = 10000,
+        max_files: int = 20000,
         generate_checksums: bool = True,
         debug: bool = False,
     ) -> InPlaceArtifactReport:

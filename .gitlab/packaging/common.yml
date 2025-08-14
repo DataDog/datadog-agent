@@ -68,6 +68,13 @@
               --debug || echo "⚠️  Package measurement failed for $package_file"
 
             echo "✅ Package measurement completed"
+
+            # Upload the report to S3
+            BUCKET_BASE_PATH="s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/${CI_COMMIT_SHA:0:8}"
+            echo "Uploading report to ${BUCKET_BASE_PATH}"
+            aws s3 cp --only-show-errors --region us-east-1 --sse AES256 \
+              "${REPORT_PREFIX}_size_report_${CI_PIPELINE_ID}_${CI_COMMIT_SHA:0:8}.yml" \
+              "${BUCKET_BASE_PATH}/${REPORT_PREFIX}_size_report_${CI_PIPELINE_ID}_${CI_COMMIT_SHA:0:8}.yml"
           else
             echo "⚠️  No package found matching pattern: $PACKAGE_PATTERN"
           fi
