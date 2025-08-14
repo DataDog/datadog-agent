@@ -9,5 +9,4 @@
 enhancements:
   - |
     Add the new metric `kubernetes.pod.terminating.duration` to kubelet check to track pods
-    that are stuck in the termination phase. The metric will be emitted after resource `deletionTimestamp`
-    is in the past relative to now.
+    that are stuck in the termination phase. If `deletionTimestamp` is set to a time in the future,`kubernetes.pod.terminating.duration` is only emitted when the current time reaches the time set in `deletionTimestamp`.
