@@ -291,7 +291,7 @@ bool Three::getClass(const char *module, RtLoaderPyObject *&pyModule, RtLoaderPy
 
 bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                      const char *check_id_str, const char *check_name, const char *agent_config_str,
-                     RtLoaderPyObject *&check)
+                     const char *source, RtLoaderPyObject *&check)
 {
 
     PyObject *klass = reinterpret_cast<PyObject *>(py_class);
@@ -395,6 +395,21 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
             setError("error 'agentConfig' key can't be set: " + _fetchPythonError());
             goto done;
         }
+    }
+
+    // Add source parameter if provided
+    if (source != NULL) {
+        PyObject *py_source = PyUnicode_FromString(source);
+        if (py_source == NULL) {
+            setError("error 'source' can't be initialized: " + _fetchPythonError());
+            goto done;
+        }
+        if (PyDict_SetItemString(kwargs, "source", py_source) == -1) {
+            setError("error 'source' key can't be set: " + _fetchPythonError());
+            Py_XDECREF(py_source);
+            goto done;
+        }
+        Py_XDECREF(py_source);
     }
 
     // call `AgentCheck` constructor

@@ -247,22 +247,22 @@ int get_attr_bool(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const cha
 }
 
 int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
-              const char *check_id, const char *check_name, rtloader_pyobject_t **check)
+              const char *check_id, const char *check_name, const char *source, rtloader_pyobject_t **check)
 {
     return AS_TYPE(RtLoader, rtloader)
                ->getCheck(AS_TYPE(RtLoaderPyObject, py_class), init_config, instance, check_id, check_name, NULL,
-                          *AS_PTYPE(RtLoaderPyObject, check))
+                          source, *AS_PTYPE(RtLoaderPyObject, check))
         ? 1
         : 0;
 }
 
 int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
                          const char *instance, const char *agent_config, const char *check_id, const char *check_name,
-                         rtloader_pyobject_t **check)
+                         const char *source, rtloader_pyobject_t **check)
 {
     return AS_TYPE(RtLoader, rtloader)
                ->getCheck(AS_TYPE(RtLoaderPyObject, py_class), init_config, instance, check_id, check_name,
-                          agent_config, *AS_PTYPE(RtLoaderPyObject, check))
+                          agent_config, source, *AS_PTYPE(RtLoaderPyObject, check))
         ? 1
         : 0;
 }
