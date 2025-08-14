@@ -19,32 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-// rebalanceTestClcRunnerClient mocks the clcRunnersClient for rebalance tests
-type rebalanceTestClcRunnerClient struct {
-	testStats map[string]types.CLCRunnersStats
-}
-
-func (d *rebalanceTestClcRunnerClient) GetVersion(_ip string) (version.Version, error) {
-	return version.Version{}, nil
-}
-
-func (d *rebalanceTestClcRunnerClient) GetRunnerStats(ip string) (types.CLCRunnersStats, error) {
-	// Return the stored test stats for this IP, or empty if not found
-	if d.testStats != nil {
-		if stats, found := d.testStats[ip]; found {
-			return stats, nil
-		}
-	}
-	return types.CLCRunnersStats{}, nil
-}
-
-func (d *rebalanceTestClcRunnerClient) GetRunnerWorkers(_ip string) (types.Workers, error) {
-	// Return default worker count
-	return types.Workers{Count: pkgconfigsetup.DefaultNumWorkers}, nil
-}
 
 func TestRebalance(t *testing.T) {
 	for i, tc := range []struct {
@@ -1406,27 +1381,17 @@ func TestRebalance(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			dispatcher := newDispatcher(fakeTagger)
 
-			// Create a mock CLC runner client to avoid nil pointer errors
-			mockClient := &rebalanceTestClcRunnerClient{
-				testStats: make(map[string]types.CLCRunnersStats),
-			}
-			dispatcher.clcRunnersClient = mockClient
-
 			// prepare store
 			dispatcher.store.active = true
 			for node, store := range tc.in {
-				// Give each node a unique IP so the mock can distinguish them
-				nodeIP := fmt.Sprintf("10.0.0.%d", len(mockClient.testStats)+1)
-				dispatcher.store.nodes[node] = newNodeStore(node, nodeIP)
+				// init nodeStore
+				dispatcher.store.nodes[node] = newNodeStore(node, "") // no need to setup the clientIP in this test
 				// setup input
 				dispatcher.store.nodes[node].clcRunnerStats = store.clcRunnerStats
-				// Store the test data in the mock so it can return it
-				mockClient.testStats[nodeIP] = store.clcRunnerStats
 			}
 
-			// Use busyness-based rebalancing directly for these legacy tests
-			// (preserves test coverage for busyness algorithm while allowing utilization as default)
-			dispatcher.rebalanceUsingBusyness()
+			// rebalance checks
+			dispatcher.rebalance(false)
 
 			// assert runner stats repartition is updated correctly
 			for node, store := range tc.out {
@@ -1560,20 +1525,14 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
-	// Create a mock CLC runner client to avoid nil pointer errors
-	mockClient := &rebalanceTestClcRunnerClient{
-		testStats: make(map[string]types.CLCRunnersStats),
-	}
-	testDispatcher.clcRunnersClient = mockClient
-	testDispatcher.advancedDispatching = true // Enable advanced dispatching for utilization tests
 
 	testDispatcher.store.active = true
-	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
+	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "")
 	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
-	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
+	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "")
 	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
 
-	node1Stats := map[string]types.CLCRunnerStats{
+	testDispatcher.store.nodes["node1"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		// This is the check with the highest utilization. The code will try to
 		// place this one first, but it'll give precedence to the node where the
 		// check is already running, so the check won't move.
@@ -1593,10 +1552,6 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 		},
 	}
 
-	// Assign the stats to node1 and store in mock
-	testDispatcher.store.nodes["node1"].clcRunnerStats = node1Stats
-	mockClient.testStats["10.0.0.1"] = node1Stats
-	mockClient.testStats["10.0.0.2"] = types.CLCRunnersStats{} // node2 has no initial stats
 
 	// check3 not included because it's a cluster check.
 	testDispatcher.store.idToDigest = map[checkid.ID]string{
