@@ -23,8 +23,10 @@ rc_kubernetes_deploy:
     - job: k8s-e2e-main # Currently only require container Argo workflow
       artifacts: false
       optional: true
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
+  # TODO: @agent-delivery to update this job when concuctor changes are properly verified
+  allow_failure: true
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
     SKIP_PLAN_CHECK: "true"

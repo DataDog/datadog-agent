@@ -73,6 +73,11 @@ const (
 	certChainPolicyIgnoreCaRevUnknownFlag            = 0x00000400
 	certChainPolicyIgnoreRootRevUnknownFlag          = 0x00000800
 	certChainPolicyIgnoreAllRevUnknownFlags          = certChainPolicyIgnoreEndRevUnknownFlag | certChainPolicyIgnoreCtlSignerRevUnknownFlag | certChainPolicyIgnoreCaRevUnknownFlag | certChainPolicyIgnoreRootRevUnknownFlag
+
+	// CERT_HASH_PROP_ID is the property ID for the SHA-1 hash of the CRL
+	//
+	// https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certgetcrlcontextproperty
+	certHashPropID = 3
 )
 
 type certChainValidation struct {
@@ -104,12 +109,14 @@ type WinCertChk struct {
 type crlInfoCopy struct {
 	Issuer     string
 	NextUpdate time.Time
+	Thumbprint string
 }
 
 type certInfo struct {
 	Certificate      *x509.Certificate
 	TrustStatusError uint32 // windows.TrustStatus.ErrorStatus
 	ChainPolicyError uint32 // windows.CertChainPolicyStatus.Error
+	Thumbprint       string
 }
 
 // Factory creates a new check factory
@@ -237,6 +244,9 @@ func (w *WinCertChk) Run() error {
 		tags := getSubjectTags(cert.Certificate)
 		tags = append(tags, "certificate_store:"+w.config.CertificateStore)
 		tags = append(tags, serverTag)
+		tags = append(tags, "certificate_thumbprint:"+cert.Thumbprint)
+		// Need to use hex format for serial numbers as they are typically displayed in hex format in the UI
+		tags = append(tags, "certificate_serial_number:"+cert.Certificate.SerialNumber.Text(16))
 		sender.Gauge("windows_certificate.days_remaining", daysRemaining, "", tags)
 
 		if daysRemaining <= 0 {
@@ -316,6 +326,7 @@ func (w *WinCertChk) Run() error {
 		crlTags := getCrlIssuerTags(crlIssuer)
 		crlTags = append(crlTags, "certificate_store:"+w.config.CertificateStore)
 		crlTags = append(crlTags, serverTag)
+		crlTags = append(crlTags, "crl_thumbprint:"+crl.Thumbprint)
 		sender.Gauge("windows_certificate.crl_days_remaining", crlDaysRemaining, "", crlTags)
 
 		if crlDaysRemaining <= 0 {
@@ -529,10 +540,17 @@ func getEnumCertificatesInStore(storeHandle windows.Handle, certChainValidation 
 			}
 		}
 
+		certThumbprint, err := getCertThumbprint(certContext)
+		if err != nil {
+			log.Errorf("Error getting certificate thumbprint: %v", err)
+			continue
+		}
+
 		certificates = append(certificates, certInfo{
 			Certificate:      cert,
 			TrustStatusError: trustStatusError,
 			ChainPolicyError: chainPolicyError,
+			Thumbprint:       certThumbprint,
 		})
 	}
 
@@ -645,9 +663,17 @@ func getCrlInfo(storeHandle windows.Handle) ([]crlInfoCopy, error) {
 			log.Errorf("Error converting CRL issuer to string: %v", err)
 			continue
 		}
+
+		crlThumbprint, err := getCrlThumbprint(crlContext)
+		if err != nil {
+			log.Errorf("Error getting CRL thumbprint: %v", err)
+			continue
+		}
+
 		crl := crlInfoCopy{
 			Issuer:     issuerStr,
 			NextUpdate: time.Unix(0, pCrlInfo.NextUpdate.Nanoseconds()),
+			Thumbprint: crlThumbprint,
 		}
 
 		crlInfo = append(crlInfo, crl)

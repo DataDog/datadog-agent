@@ -218,7 +218,7 @@ def _upload_junitxmls(team_dirs: list[Path], executor: ThreadPoolExecutor):
     futures = []
     for team_dir in team_dirs:
         for args, env in _generate_junitxmls(team_dir):
-            futures.append(executor.submit(check_call, args=datadog_ci_command + args, env=env))
+            futures.append(executor.submit(_execute_with_partial_isolation, args=datadog_ci_command + args, env=env))
     exceptions = []
     for future in futures:
         try:
@@ -242,6 +242,18 @@ def _generate_junitxmls(team_dir: Path) -> Iterator[tuple[list[str], dict[str, s
         args = set_tags(owner, flavor, flags, additional_tags, files[0])
         args.extend(files)
         yield args, process_env
+
+
+def _execute_with_partial_isolation(args, env):
+    """
+    Execute the given command in a temporary environment meant to provide partial isolation.
+
+    This sets the HOME, TEMP, TMP, and TMPDIR environment variables to point to a fresh temporary directory that is
+    automatically deleted after execution. This prevents access denials to user-level configuration files (particularly
+    $HOME/.gitconfig) and ensures temporary files remain specific to the execution.
+    """
+    with tempfile.TemporaryDirectory(prefix="junit-upload-") as tmp_dir:
+        return check_call(args, env=env | {"HOME": tmp_dir, "TEMP": tmp_dir, "TMP": tmp_dir, "TMPDIR": tmp_dir})
 
 
 def group_per_tags(team_dir: Path, additional_tags: list):

@@ -152,9 +152,6 @@ issues:
     - path: comp/core/autodiscovery/providers/etcd_nop.go
       linters:
         - pkgconfigusage
-    - path: comp/core/autodiscovery/providers/gpu.go
-      linters:
-        - pkgconfigusage
     - path: comp/core/autodiscovery/providers/kube_endpoints.go
       linters:
         - pkgconfigusage
