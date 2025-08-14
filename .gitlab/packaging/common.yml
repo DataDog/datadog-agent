@@ -1,9 +1,10 @@
 ---
-
 .static_quality_gate_report_common:
   after_script:
     # Measure package size and generate in-place report
-    # This runs after the main script and won't fail the job if there are issues
+    # This runs after the main script and won't fail the job if there are issues.
+    # Only run if the job status is success.
+    # This is common for both rpm and deb packages
     - |
       if [[ "$CI_JOB_STATUS" != "success" ]]; then
         echo "ℹ️  Skipping package measurement (job status is not success)"
@@ -74,3 +75,6 @@
       else
         echo "ℹ️  Skipping package measurement (no GATE_NAME defined)"
       fi
+
+.report_path:
+  - "**/*_size_report_*.yml"

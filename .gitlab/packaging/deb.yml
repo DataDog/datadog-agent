@@ -14,7 +14,7 @@ include:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-      - "**/*_size_report_*.yml"
+      - !reference [.report_path]
   variables:
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     KUBERNETES_CPU_REQUEST: 16
@@ -140,7 +140,7 @@ installer_deb-arm64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-      - "**/*_size_report_*.yml"
+      - !reference [.report_path]
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"

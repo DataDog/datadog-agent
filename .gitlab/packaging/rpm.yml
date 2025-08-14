@@ -21,7 +21,7 @@ include:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-      - "**/*_size_report_*.yml"
+      - !reference [.report_path]
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
@@ -55,7 +55,7 @@ include:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
-      - "**/*_size_report_*.yml"
+      - !reference [.report_path]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
     BASE_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
@@ -213,7 +213,7 @@ installer_suse_rpm-arm64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-      - "**/*_size_report_*.yml"
+      - !reference [.report_path]
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
@@ -266,7 +266,7 @@ iot_agent_suse-x64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
-      - "**/*_size_report_*.yml"
+      - !reference [.report_path]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
     BASE_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
