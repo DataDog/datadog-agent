@@ -64,20 +64,20 @@ New Features
 
 - Data Streams Monitoring: Adds new feature allowing users to retrieve messages from Kafka topics.
 
-- Change `collect_gpu_tags` config flag to be enabled by default. Now the Agent collects an additional `gpu_host` host tag for all hosts that have Nvidia GPUs.
+- Change ``collect_gpu_tags`` config flag to be enabled by default. Now the Agent collects an additional ``gpu_host`` host tag for all hosts that have Nvidia GPUs.
 
 - Added new processing rule to omit truncated logs from being sent to ingest
 
 - GPU: Add GPM collector for Hopper and newer NVIDIA GPUs
 
-- Adds VPN tunnels and route table data collection to SNMP. This can be enabled/disabled using the `collect_vpn` config.
+- Adds VPN tunnels and route table data collection to SNMP. This can be enabled/disabled using the ``collect_vpn`` config.
 
-- The NTP check on Windows now discovers the primary domain controller (PDC) on domain-joined hosts when `use_local_defined_servers` is enabled. If the PDC is unavailable, it automatically falls back to registry-defined servers. Check now performs order-insensitive server list comparisons, reduces log noise, and avoids using itself as a time source when running on a domain controller.
+- The NTP check on Windows now discovers the primary domain controller (PDC) on domain-joined hosts when ``use_local_defined_servers`` is enabled. If the PDC is unavailable, it automatically falls back to registry-defined servers. Check now performs order-insensitive server list comparisons, reduces log noise, and avoids using itself as a time source when running on a domain controller.
 
-- [Preview] The agent can now connect to the AWS SSM, AWS Secrets, Hashicorp Vault and Azure Keyvault secret management solutions to resolve secrets without requiring a user provided binary. For this, two new settings are introduced: `secret_backend_type` and `secret_backend_config`.
+- [Preview] The agent can now connect to the AWS SSM, AWS Secrets, Hashicorp Vault and Azure Keyvault secret management solutions to resolve secrets without requiring a user provided binary. For this, two new settings are introduced: ``secret_backend_type`` and ``secret_backend_config``.
   For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 
-- Added support in DDOT for the `datadogexporter.proxy_url` configuration option. This allows users to specify proxy settings for DDOT with the collector configuration.
+- Added support in DDOT for the ``datadogexporter.proxy_url`` configuration option. This allows users to specify proxy settings for DDOT with the collector configuration.
 
 - Windows: Add CRL monitoring to the Windows Certificate Store integration.
 
@@ -88,7 +88,7 @@ Enhancement Notes
 -----------------
 
 - The serverless-init build uses the new TracerPayloadModifier to add
-  Function Tags to the `_dd.tags.function` tag of the Tracer Payload to
+  Function Tags to the ``_dd.tags.function`` tag of the Tracer Payload to
   support serverless trace tagging.
 
 - Agents are now built with Go ``1.24.5``.
@@ -99,7 +99,7 @@ Enhancement Notes
 
 - If a check has both a Go and a Python version, the Go version now has priority by default.
   This change should not have any visible impact, but if needed, you can
-  disable this configuration by setting `prioritize_go_check_loader` to `false`.
+  disable this configuration by setting ``prioritize_go_check_loader`` to ``false``.
 
 - GPUM: the "status" command now returns status of the system-probe part of GPU monitoring
 
@@ -111,16 +111,16 @@ Enhancement Notes
 
 - Allow users to configure the HTTP timeout for the Logs Agent.
 
-- No longer have the Logs Agent fall back to TCP when configuring `logs_config.logs_dd_url` with a http(s):// prefix.
+- No longer have the Logs Agent fall back to TCP when configuring ``logs_config.logs_dd_url`` with a http(s):// prefix.
 
-- If the Oracle `can_connect` check is critical, also set the
-  `can_query` check to critical.
+- If the Oracle ``can_connect`` check is critical, also set the
+  ``can_query`` check to critical.
 
 - Display the number of times each log processor has been used in the Logs Agent status endpoint.
 
 - Reduce binary size by removing the Sensitive Data Scanner (SDS) from the logs agent.
 
-- OTLP spans support `db.namespace` semantic and map to `db.name` for DBM support.
+- OTLP spans support ``db.namespace`` semantic and map to ``db.name`` for DBM support.
 
 - Generate a more detailed warning when the Logs Agent tailer limit is reached.
 
@@ -138,7 +138,7 @@ Enhancement Notes
 Bug Fixes
 ---------
 
-- Correctly respect the `ecs_collect_resource_tags_ec2` variable when calling
+- Correctly respect the ``ecs_collect_resource_tags_ec2`` variable when calling
   the ECS Agent.  Start caching tags to reduce burden on the ECS Agent.
   Start logging error responses from the ECS agent.
 
@@ -163,12 +163,12 @@ Bug Fixes
 
 - Fix Jetson check to correctly parse the output of tegrastats for Orin boards.
 
-- Fix incorrect `container.memory.kernel` value when running with Kernel >= 5.19 and cgroupv2
+- Fix incorrect ``container.memory.kernel`` value when running with Kernel >= 5.19 and cgroupv2
 
-- Breaking change - Fixes the Oracle service name tag to be `service_name` instead of
-  `service`. This corrects the conflict with the APM `service` tag.
+- Breaking change - Fixes the Oracle service name tag to be ``service_name`` instead of
+  ``service``. This corrects the conflict with the APM ``service`` tag.
   This is a breaking change for any users who had been relying on
-  the `service` tag to be set to the Oracle service name. The `service`
+  the ``service`` tag to be set to the Oracle service name. The ``service``
   tag can still be set explicitly in the tags configuration if needed.
 
 - Metrics sent from the process check on the core agent now have the host tag.
@@ -202,8 +202,8 @@ Other Notes
 
 - Transparent Huge Pages (THP) usage is now disabled by default
   in the System Probe and Security Agent. To re-enable their usage,
-  set the `system_probe_config.disable_thp` or `security_agent.disable_thp`
-  configuration options to `false`.
+  set the ``system_probe_config.disable_thp`` or ``security_agent.disable_thp``
+  configuration options to ``false``.
 
 
 .. _Release Notes_7.68.3:
@@ -887,7 +887,7 @@ Bug Fixes
   span instead of discarding the whole trace when using OTLP ingestion.
 
 - When using OTLP ingest with metrics, the instrumentation_scope_metadata_as_tags option now
-  outputs the `instrumentation_scope` tag instead of the deprecated `instrumentation_library` tag.
+  outputs the ``instrumentation_scope`` tag instead of the deprecated ``instrumentation_library`` tag.
 
 - Prevents the index out of range error caused when trying to match
   inspect layer digests to history layers on some images.
