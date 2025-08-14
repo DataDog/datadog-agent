@@ -49,6 +49,8 @@ type Provider struct {
 	config      *common.KubeletConfig
 	podUtils    *common.PodUtils
 	tagger      tagger.Component
+	// now timer func is used to mock time in tests
+	now func() time.Time
 }
 
 // NewProvider returns a new Provider
@@ -58,6 +60,7 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 		config:      config,
 		podUtils:    podUtils,
 		tagger:      tagger,
+		now:         time.Now,
 	}
 }
 
@@ -187,7 +190,7 @@ func (p *Provider) generatePodTerminationMetric(sender sender.Sender, pod *kubel
 		return
 	}
 
-	dur := time.Since(*pod.Metadata.DeletionTimestamp)
+	dur := p.now().Sub(*pod.Metadata.DeletionTimestamp)
 
 	// While DeletionTimestamp is in the future metric is not emitted.
 	if dur < 0 {
