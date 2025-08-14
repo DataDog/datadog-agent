@@ -54,7 +54,7 @@ type checkCfg struct {
 	SendInterfaceMetadata                 *bool    `yaml:"send_interface_metadata"`
 	MinCollectionInterval                 int      `yaml:"min_collection_interval"`
 	CollectHardwareMetrics                *bool    `yaml:"collect_hardware_metrics"`
-	CollectInterfaceMetrics               *bool    `yaml:"collect_interface_metrics"`
+	CollectDirectorInterfaceMetrics       *bool    `yaml:"collect_director_interface_metrics"`
 	CollectTunnelMetrics                  *bool    `yaml:"collect_tunnel_metrics"`
 	CollectSLAMetrics                     *bool    `yaml:"collect_sla_metrics"`
 	CollectLinkMetrics                    *bool    `yaml:"collect_link_metrics"`
@@ -63,7 +63,7 @@ type checkCfg struct {
 	CollectQoSMetrics                     *bool    `yaml:"collect_qos_metrics"`
 	CollectDIAMetrics                     *bool    `yaml:"collect_dia_metrics"`
 	CollectSiteMetrics                    *bool    `yaml:"collect_site_metrics"`
-	CollectAnalyticsInterfaceMetrics      *bool    `yaml:"collect_analytics_interface_metrics"`
+	CollectInterfaceMetrics               *bool    `yaml:"collect_interface_metrics"`
 	SendInterfaceMetadataFromAnalytics    *bool    `yaml:"send_interface_metadata_from_analytics"`
 }
 
@@ -112,11 +112,11 @@ func (v *VersaCheck) Run() error {
 	var interfaces []client.Interface
 
 	// Determine if we need appliances for device mapping
-	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics ||
+	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectDirectorInterfaceMetrics ||
 		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics || *v.config.CollectSiteMetrics ||
 		*v.config.CollectApplicationsByApplianceMetrics || *v.config.CollectTopUserMetrics ||
 		*v.config.CollectTunnelMetrics || *v.config.CollectQoSMetrics || *v.config.CollectDIAMetrics ||
-		*v.config.CollectAnalyticsInterfaceMetrics
+		*v.config.CollectInterfaceMetrics
 
 	for _, org := range organizations {
 		log.Tracef("Processing organization: %s", org.Name)
@@ -216,12 +216,12 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendDirectorStatus(directorStatus)
 	}
 
-	if *v.config.CollectInterfaceMetrics {
+	if *v.config.CollectDirectorInterfaceMetrics {
 		// Validate that interface metadata collection is enabled since we depend on interface data
 		if !*v.config.SendInterfaceMetadata {
-			log.Errorf("collect_interface_metrics requires send_interface_metadata to be enabled. " +
-				"Interface metrics collection depends on interface data from the GetInterfaces API call, " +
-				"which is only made when send_interface_metadata is enabled. Skipping interface metrics collection.")
+			log.Errorf("collect_director_interface_metrics requires send_interface_metadata to be enabled. " +
+				"Director interface metrics collection depends on interface data from the GetInterfaces API call, " +
+				"which is only made when send_interface_metadata is enabled. Skipping director interface metrics collection.")
 		} else {
 
 			type deviceID struct {
@@ -348,8 +348,8 @@ func (v *VersaCheck) Run() error {
 			}
 		}
 
-		// Collect analytics interface metrics if enabled
-		if *v.config.CollectAnalyticsInterfaceMetrics {
+		// Collect interface metrics if enabled (from analytics)
+		if *v.config.CollectInterfaceMetrics {
 			analyticsInterfaceMetrics, err := c.GetAnalyticsInterfaces(org.Name)
 			if err != nil {
 				log.Errorf("error getting analytics interface metrics from organization %s: %v", org.Name, err)
@@ -404,7 +404,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 
 	// Set defaults before unmarshalling
 	instanceConfig.CollectHardwareMetrics = boolPointer(true)
-	instanceConfig.CollectInterfaceMetrics = boolPointer(true)
+	instanceConfig.CollectDirectorInterfaceMetrics = boolPointer(true)
 	instanceConfig.CollectTunnelMetrics = boolPointer(true)
 	instanceConfig.SendDeviceMetadata = boolPointer(true)
 	instanceConfig.SendInterfaceMetadata = boolPointer(false)
@@ -416,7 +416,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectQoSMetrics = boolPointer(false)
 	instanceConfig.CollectDIAMetrics = boolPointer(false)
 	instanceConfig.CollectSiteMetrics = boolPointer(false)
-	instanceConfig.CollectAnalyticsInterfaceMetrics = boolPointer(false)
+	instanceConfig.CollectInterfaceMetrics = boolPointer(false)
 	instanceConfig.SendInterfaceMetadataFromAnalytics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
