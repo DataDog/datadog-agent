@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,28 +35,6 @@ const (
 	// SHIFTJIS for Shift JIS (Japanese) encoding
 	SHIFTJIS string = "shift-jis"
 )
-
-// FingerprintStrategy defines the strategy used for fingerprinting (line_checksum or byte_checksum)
-type FingerprintStrategy string
-
-// Fingerprint strategy options
-const (
-	FingerprintStrategyLineChecksum FingerprintStrategy = "line_checksum"
-	FingerprintStrategyByteChecksum FingerprintStrategy = "byte_checksum"
-)
-
-func (s FingerprintStrategy) String() string {
-	return string(s)
-}
-
-// Validate checks if the fingerprint strategy is valid (either line_checksum or byte_checksum)
-func (s FingerprintStrategy) Validate() error {
-	switch s {
-	case FingerprintStrategyLineChecksum, FingerprintStrategyByteChecksum:
-		return nil
-	}
-	return fmt.Errorf("invalid fingerprint strategy: %s", s)
-}
 
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
@@ -159,7 +138,7 @@ type FingerprintConfig struct {
 	// FingerprintStrategy defines the strategy used for fingerprinting. Options are:
 	// - "line_checksum": compute checksum based on line content (default)
 	// - "byte_checksum": compute checksum based on byte content
-	FingerprintStrategy FingerprintStrategy `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
+	FingerprintStrategy types.FingerprintStrategy `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
 
 	// Count is the number of lines or bytes to use for fingerprinting, depending on the strategy
 	Count int `json:"count" mapstructure:"count" yaml:"count"`

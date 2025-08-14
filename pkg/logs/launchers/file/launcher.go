@@ -75,7 +75,7 @@ type Launcher struct {
 	tagger                 tagger.Component
 	//Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
 	oldInfoMap    map[string]*oldTailerInfo
-	fingerprinter types.Fingerprinter
+	fingerprinter *tailer.Fingerprinter
 }
 
 type oldTailerInfo struct {
@@ -209,60 +209,31 @@ func (s *Launcher) scan() {
 
 		// If the file is currently being tailed, check for rotation and handle it appropriately.
 		if isTailed {
-			var didRotate bool
-			var err error
-
-			if s.fingerprinter.IsFingerprintingEnabled() {
-				// Use type assertion with error handling
-				if concreteFingerprinter, ok := s.fingerprinter.(*tailer.Fingerprinter); ok {
-					// Check if this specific file should be fingerprinted
-					if concreteFingerprinter.ShouldFileFingerprint(file) {
-						didRotate, err = tailered.DidRotateViaFingerprint(concreteFingerprinter)
-						if err != nil {
-							didRotate = false
-						}
-					} else {
-						// File shouldn't be fingerprinted, fall back to regular rotation detection
-						didRotate, err = tailered.DidRotate()
-						if err != nil {
-							log.Debugf("failed to detect log rotation: %v", err)
-							continue
-						}
-					}
-				} else {
-					// Fallback to regular rotation detection if type assertion fails
-					didRotate, err = tailered.DidRotate()
-					if err != nil {
-						log.Debugf("failed to detect log rotation: %v", err)
-						continue
-					}
-				}
-
-				if didRotate {
+			if s.fingerprinter.ShouldFileFingerprint(file) {
+				didRotate, err := tailered.DidRotateViaFingerprint(s.fingerprinter)
+				if err == nil && didRotate {
 					s.rotateTailerWithoutRestart(tailered, file)
 					continue
 				}
 			} else {
-				didRotate, err = tailered.DidRotate()
-
+				// File shouldn't be fingerprinted, fall back to regular rotation detection
+				didRotate, err := tailered.DidRotate()
 				if err != nil {
 					log.Debugf("failed to detect log rotation: %v", err)
 					continue
 				}
+
 				if didRotate {
 					// restart tailer because of file-rotation on file
 					succeeded := s.restartTailerAfterFileRotation(tailered, file)
 					if !succeeded {
-						// the setup failed, let's try to tail this file in the next scan
 						continue
 					}
 				}
 			}
 		} else {
-			// Defer any files that are not tailed for the 2nd pass
 			continue
 		}
-
 		filesTailed[scanKey] = true
 	}
 
@@ -279,6 +250,9 @@ func (s *Launcher) scan() {
 	tailersLen := s.tailers.Count()
 	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
 
+	lastIterationOldInfo := s.oldInfoMap
+	s.oldInfoMap = make(map[string]*oldTailerInfo)
+
 	// Pass 2 - Create new tailers for files that need to be tailed
 	for _, file := range files {
 		scanKey := file.GetScanKey()
@@ -289,37 +263,27 @@ func (s *Launcher) scan() {
 		}
 
 		// Check if we have stored info for this file from a previous rotation
-		oldInfo, hasOldInfo := s.oldInfoMap[scanKey]
+		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
+		if hasOldInfo {
+			s.oldInfoMap[scanKey] = oldInfo
+		}
+
+		var fingerprint *types.Fingerprint
+		if s.fingerprinter.ShouldFileFingerprint(file) {
+			fingerprint = s.fingerprinter.ComputeFingerprint(file)
+			// Skip files with invalid fingerprints (Value == 0)
+			if fingerprint != nil && !fingerprint.ValidFingerprint() {
+				continue
+			}
+		}
+
 		if hasOldInfo {
 			// Use stored info for rotation detection
-			var fingerprint *types.Fingerprint
-			if s.fingerprinter.IsFingerprintingEnabled() {
-				// Check if this specific file should be fingerprinted
-				if concreteFingerprinter, ok := s.fingerprinter.(*tailer.Fingerprinter); ok && concreteFingerprinter.ShouldFileFingerprint(file) {
-					fingerprint = concreteFingerprinter.ComputeFingerprint(file)
-					// Skip files with invalid fingerprints (Value == 0)
-					if fingerprint != nil && !fingerprint.ValidFingerprint() {
-						continue
-					}
-				}
-			}
 			if s.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo, fingerprint) {
 				filesTailed[scanKey] = true
+				delete(s.oldInfoMap, scanKey)
 			}
-			delete(s.oldInfoMap, scanKey)
 		} else {
-			// Normal case - no stored info
-			var fingerprint *types.Fingerprint
-			if s.fingerprinter.IsFingerprintingEnabled() {
-				// Check if this specific file should be fingerprinted
-				if concreteFingerprinter, ok := s.fingerprinter.(*tailer.Fingerprinter); ok && concreteFingerprinter.ShouldFileFingerprint(file) {
-					fingerprint = concreteFingerprinter.ComputeFingerprint(file)
-					// Skip files with invalid fingerprints (Value == 0)
-					if fingerprint != nil && !fingerprint.ValidFingerprint() {
-						continue
-					}
-				}
-			}
 			if s.startNewTailer(file, config.Beginning, fingerprint) {
 				filesTailed[scanKey] = true
 			}
@@ -392,13 +356,11 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		}
 
 		var fingerprint *types.Fingerprint
-		if s.fingerprinter.IsFingerprintingEnabled() {
-			// Check if this specific file should be fingerprinted
-			if concreteFingerprinter, ok := s.fingerprinter.(*tailer.Fingerprinter); ok && concreteFingerprinter.ShouldFileFingerprint(file) {
-				fingerprint = concreteFingerprinter.ComputeFingerprint(file)
-				if !fingerprint.ValidFingerprint() {
-					continue
-				}
+		if s.fingerprinter.ShouldFileFingerprint(file) {
+			fingerprint = s.fingerprinter.ComputeFingerprint(file)
+			// Skip files with invalid fingerprints (Value == 0)
+			if fingerprint != nil && !fingerprint.ValidFingerprint() {
+				continue
 			}
 		}
 
@@ -572,9 +534,6 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	// We will keep track of the rotated tailer until it is finished.
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 	s.tailers.Add(newTailer)
-
-	// Clean up any stale old info for this file path
-	delete(s.oldInfoMap, file.Path)
 
 	return true
 }

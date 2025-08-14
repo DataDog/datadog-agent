@@ -27,12 +27,12 @@ func (f *Fingerprint) String() string {
 
 // Equals compares two fingerprints and returns true if they are equal
 func (f *Fingerprint) Equals(other *Fingerprint) bool {
-	return f.Value == other.Value
+	return f != nil && other != nil && f.Value == other.Value
 }
 
 // ValidFingerprint returns true if the fingerprint is valid (non-zero value and non-nil config)
 func (f *Fingerprint) ValidFingerprint() bool {
-	return f.Value != InvalidFingerprintValue && f.Config != nil
+	return f != nil && f.Value != InvalidFingerprintValue && f.Config != nil
 }
 
 // FingerprintConfig defines the options for the fingerprint configuration.
@@ -63,11 +63,12 @@ const (
 	FingerprintStrategyByteChecksum FingerprintStrategy = "byte_checksum"
 )
 
-// Fingerprinter interface defines the methods for fingerprinting files
-type Fingerprinter interface {
-	// IsFingerprintingEnabled returns whether or not fingerprinting is enabled
-	IsFingerprintingEnabled() bool
-
-	// ComputeFingerprintFromConfig computes a fingerprint for a file path using a specific config
-	ComputeFingerprintFromConfig(filepath string, fingerprintConfig *FingerprintConfig) *Fingerprint
+// Validate checks if the fingerprint strategy is valid (either line_checksum or byte_checksum)
+func (s FingerprintStrategy) Validate() error {
+	switch s {
+	case FingerprintStrategyLineChecksum, FingerprintStrategyByteChecksum:
+		return nil
+	default:
+		return fmt.Errorf("invalid fingerprint strategy: %s", s)
+	}
 }
