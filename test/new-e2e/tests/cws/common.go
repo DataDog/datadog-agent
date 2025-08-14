@@ -299,8 +299,14 @@ func testRuleEvent(t assert.TestingT, ts testSuite, ruleID string, extraValidati
 	}
 }
 
+// escapeSQLString escapes single quotes in SQL string literals to prevent injection
+func escapeSQLString(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
+}
+
 func testCwsEnabled(t assert.TestingT, ts testSuite) {
-	query := fmt.Sprintf("SELECT h.hostname, a.feature_cws_enabled FROM host h JOIN datadog_agent a USING (datadog_agent_key) WHERE h.hostname = '%s'", ts.Hostname())
+	hostname := escapeSQLString(ts.Hostname())
+	query := fmt.Sprintf("SELECT h.hostname, a.feature_cws_enabled FROM host h JOIN datadog_agent a USING (datadog_agent_key) WHERE h.hostname = '%s'", hostname)
 	resp, err := ts.Client().TableQuery(query)
 	if !assert.NoErrorf(t, err, "ddsql query failed") {
 		return
