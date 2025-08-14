@@ -6,16 +6,19 @@
 package listeners
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"net"
 	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSNMPListener(t *testing.T) {
@@ -411,6 +414,114 @@ func TestExtraConfigPingEmpty(t *testing.T) {
 	info, err := svc.GetExtraConfig("ping")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"linux":{"use_raw_socket":null},"enabled":null,"interval":null,"timeout":null,"count":null}`, info)
+}
+
+func TestCache(t *testing.T) {
+	tests := []struct {
+		name                  string
+		devices               map[string]deviceCache
+		expectedCacheContents []string
+	}{
+		{
+			name:                  "empty",
+			devices:               map[string]deviceCache{},
+			expectedCacheContents: []string{},
+		},
+		{
+			name: "single device",
+			devices: map[string]deviceCache{
+				"device0": {
+					IP:        net.ParseIP("192.168.0.2"),
+					AuthIndex: 0,
+					Failures:  2,
+				},
+			},
+			expectedCacheContents: []string{
+				`{"ip":"192.168.0.2", "auth_index":0, "failures":2}`,
+			},
+		},
+		{
+			name: "multiple devices",
+			devices: map[string]deviceCache{
+				"device0": {
+					IP:        net.ParseIP("192.168.0.2"),
+					AuthIndex: 0,
+					Failures:  2,
+				},
+				"device1": {
+					IP:        net.ParseIP("192.168.0.8"),
+					AuthIndex: 2,
+					Failures:  1,
+				},
+				"device2": {
+					IP:        net.ParseIP("192.168.0.6"),
+					AuthIndex: 1,
+					Failures:  0,
+				},
+			},
+			expectedCacheContents: []string{
+				`{"ip":"192.168.0.2", "auth_index":0, "failures":2}`,
+				`{"ip":"192.168.0.8", "auth_index":2, "failures":1}`,
+				`{"ip":"192.168.0.6", "auth_index":1, "failures":0}`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testDir := t.TempDir()
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("run_path", testDir)
+
+			_, ipNet, err := net.ParseCIDR("192.168.0.0/24")
+			assert.NoError(t, err)
+
+			listenerConfig := map[string]interface{}{
+				"configs": []interface{}{
+					map[string]interface{}{
+						"network":   ipNet.String(),
+						"port":      1161,
+						"community": "public",
+					},
+				},
+			}
+
+			mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
+
+			listener, err := NewSNMPListener(ServiceListernerDeps{})
+			assert.NoError(t, err)
+
+			l, ok := listener.(*SNMPListener)
+			assert.True(t, ok)
+
+			cacheKey := "snmp:abc123456abc"
+
+			subnet := &snmpSubnet{
+				network:  *ipNet,
+				cacheKey: cacheKey,
+				devices:  tt.devices,
+			}
+
+			l.writeCache(subnet)
+
+			cacheContent, err := persistentcache.Read(cacheKey)
+			assert.NoError(t, err)
+
+			var devices []deviceCache
+			err = json.Unmarshal([]byte(cacheContent), &devices)
+			assert.NoError(t, err)
+
+			assert.Equal(t, len(tt.expectedCacheContents), len(devices))
+
+			for _, expectedCacheContent := range tt.expectedCacheContents {
+				var compact bytes.Buffer
+				err = json.Compact(&compact, []byte(expectedCacheContent))
+				assert.NoError(t, err)
+
+				assert.Contains(t, cacheContent, compact.String())
+			}
+		})
+	}
 }
 
 func TestSubnetIndex(t *testing.T) {
