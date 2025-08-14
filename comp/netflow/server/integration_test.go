@@ -51,13 +51,7 @@ func singleListenerConfig(flowType common.FlowType, port uint16) *nfconfig.Netfl
 	}
 }
 
-var flushTime, _ = time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
-
-var setTimeNow = fx.Invoke(func(c Component) {
-	c.(*Server).FlowAgg.TimeNowFunction = func() time.Time {
-		return flushTime
-	}
-})
+// TimeNowFunction has been removed - timestamps are now dynamic
 
 func assertFlowEventsCount(t *testing.T, port uint16, srv *Server, packetData []byte, expectedEvents uint64) bool {
 	return assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -74,6 +68,7 @@ func assertFlowEventsCount(t *testing.T, port uint16, srv *Server, packetData []
 }
 
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
+	testStartTime := time.Now()
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
@@ -83,11 +78,10 @@ func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 		fx.Replace(
 			singleListenerConfig("netflow5", port),
 		),
-		setTimeNow,
 	)).(*Server)
 
 	// Set expectations
-	testutil.ExpectNetflow5Payloads(t, epForwarder)
+	testutil.ExpectNetflow5Payloads(t, epForwarder, testStartTime)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).MinTimes(1)
 
 	// Send netflowV5Data twice to test aggregator
@@ -108,7 +102,6 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 		fx.Replace(
 			singleListenerConfig("netflow9", port),
 		),
-		setTimeNow,
 	)).(*Server)
 
 	// Test later content of payloads if needed for more precise test.
@@ -131,7 +124,6 @@ func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 		fx.Replace(
 			singleListenerConfig("sflow5", port),
 		),
-		setTimeNow,
 	)).(*Server)
 
 	// Test later content of payloads if needed for more precise test.
@@ -145,6 +137,7 @@ func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 }
 
 func TestNetFlow_IntegrationTest_AdditionalFields(t *testing.T) {
+	testStartTime := time.Now()
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
@@ -178,14 +171,13 @@ func TestNetFlow_IntegrationTest_AdditionalFields(t *testing.T) {
 				}},
 			},
 		),
-		setTimeNow,
 	)).(*Server)
 
 	flowData, err := testutil.GetNetFlow9Packet()
 	require.NoError(t, err, "error getting packet")
 
 	// Set expectations
-	testutil.ExpectPayloadWithAdditionalFields(t, epForwarder)
+	testutil.ExpectPayloadWithAdditionalFields(t, epForwarder, testStartTime)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).MinTimes(1)
 
 	assertFlowEventsCount(t, port, srv, flowData, 29)

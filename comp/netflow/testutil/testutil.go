@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/gopacket"
@@ -26,8 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
 //go:embed pcap_recordings/netflow5.pcapng
@@ -50,13 +51,70 @@ func SendUDPPacket(port uint16, data []byte) error {
 	return err
 }
 
+// SetupEventCapture sets up mock expectations to capture events sent to the event platform forwarder
+func SetupEventCapture(epForwarder *eventplatformimpl.MockEventPlatformForwarder, netflowEventCount, metadataEventCount int) (*[][]byte, *[][]byte) {
+	var capturedNetflowEvents [][]byte
+	var capturedMetadataEvents [][]byte
+
+	if netflowEventCount > 0 {
+		epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-netflow").DoAndReturn( // JMW
+			func(msg *message.Message, _ string) error {
+				capturedNetflowEvents = append(capturedNetflowEvents, msg.GetContent())
+				return nil
+			}).Times(netflowEventCount)
+	}
+
+	if metadataEventCount > 0 {
+		epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").DoAndReturn(
+			func(msg *message.Message, _ string) error {
+				capturedMetadataEvents = append(capturedMetadataEvents, msg.GetContent())
+				return nil
+			}).Times(metadataEventCount)
+	}
+
+	return &capturedNetflowEvents, &capturedMetadataEvents
+}
+
+// ValidateAndRemoveTimestamps validates that timestamp fields are within reasonable bounds
+// and removes them from JSON for comparison. Both flush_timestamp and collect_timestamp
+// are removed if they exist.
+func ValidateAndRemoveTimestamps(t *testing.T, jsonBytes []byte, testStartTime time.Time) ([]byte, error) {
+	var data map[string]any
+	if err := json.Unmarshal(jsonBytes, &data); err != nil {
+		return nil, err
+	}
+
+	testEndTime := time.Now()
+
+	// Validate and remove flush_timestamp if it exists (in milliseconds)
+	if flushTimestamp, ok := data["flush_timestamp"].(float64); ok {
+		flushTime := time.UnixMilli(int64(flushTimestamp))
+		assert.True(t, flushTime.After(testStartTime) || flushTime.Equal(testStartTime),
+			"flush_timestamp %v should be >= test start time %v", flushTime, testStartTime)
+		assert.True(t, flushTime.Before(testEndTime) || flushTime.Equal(testEndTime),
+			"flush_timestamp %v should be <= test end time %v", flushTime, testEndTime)
+		delete(data, "flush_timestamp")
+	}
+
+	// Validate and remove collect_timestamp if it exists (in seconds)
+	if collectTimestamp, ok := data["collect_timestamp"].(float64); ok {
+		collectTime := time.Unix(int64(collectTimestamp), 0)
+		assert.True(t, collectTime.After(testStartTime) || collectTime.Equal(testStartTime),
+			"collect_timestamp %v should be >= test start time %v", collectTime, testStartTime)
+		assert.True(t, collectTime.Before(testEndTime) || collectTime.Equal(testEndTime),
+			"collect_timestamp %v should be <= test end time %v", collectTime, testEndTime)
+		delete(data, "collect_timestamp")
+	}
+
+	return json.Marshal(data)
+}
+
 // ExpectNetflow5Payloads expects the payloads that should result from our
-// recorded pcap files.
-func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponent) {
-	events := [][]byte{
+// recorded pcap files, using dynamic timestamp validation.
+func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponent, testStartTime time.Time) {
+	expectedEvents := [][]byte{
 		[]byte(`
 {
-    "flush_timestamp": 1550505606000,
     "type": "netflow5",
     "sampling_rate": 0,
     "direction": "ingress",
@@ -103,7 +161,6 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponen
 `),
 		[]byte(`
 {
-    "flush_timestamp": 1550505606000,
     "type": "netflow5",
     "sampling_rate": 0,
     "direction": "ingress",
@@ -149,26 +206,59 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponen
 }
 `),
 	}
-	for _, event := range events {
-		compactEvent := new(bytes.Buffer)
-		err := json.Compact(compactEvent, event)
-		assert.NoError(t, err)
 
-		var p payload.FlowPayload
-		err = json.Unmarshal(event, &p)
-		assert.NoError(t, err)
-		payloadBytes, _ := json.Marshal(p)
-		m := message.NewMessage(payloadBytes, nil, "", 0)
-
-		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow).Return(nil)
+	// JMW use setupEventCapture to capture the events?
+	// Capture events using DoAndReturn
+	var capturedEvents [][]byte
+	for range expectedEvents {
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), eventplatform.EventTypeNetworkDevicesNetFlow).DoAndReturn( // JMW
+			func(msg *message.Message, _ string) error {
+				capturedEvents = append(capturedEvents, msg.GetContent())
+				return nil
+			})
 	}
+
+	// Validate captured events after they're collected
+	t.Cleanup(func() {
+		assert.Len(t, capturedEvents, len(expectedEvents), "Expected exactly %d netflow events", len(expectedEvents))
+
+		// Compact expected events for comparison
+		expectedEventStrings := make([]string, len(expectedEvents))
+		for i, expectedEvent := range expectedEvents {
+			compactExpectedEvent := new(bytes.Buffer)
+			err := json.Compact(compactExpectedEvent, expectedEvent)
+			assert.NoError(t, err)
+			expectedEventStrings[i] = compactExpectedEvent.String()
+		}
+
+		// Validate and remove timestamps from captured events
+		capturedEventStrings := make([]string, len(capturedEvents))
+		for i, capturedEvent := range capturedEvents {
+			capturedEventWithoutTimestamp, err := ValidateAndRemoveTimestamps(t, capturedEvent, testStartTime)
+			assert.NoError(t, err)
+			capturedEventStrings[i] = string(capturedEventWithoutTimestamp)
+		}
+
+		// Verify that each expected event has a corresponding captured event (order-independent)
+		for _, expectedEventStr := range expectedEventStrings {
+			found := false
+			for _, capturedEventStr := range capturedEventStrings {
+				// Use a temporary test to check JSON equality without failing the main test
+				tempT := &testing.T{}
+				if assert.JSONEq(tempT, expectedEventStr, capturedEventStr) {
+					found = true
+					break
+				}
+			}
+			assert.True(t, found, "Expected event not found in captured events: %s", expectedEventStr)
+		}
+	})
 }
 
 // ExpectPayloadWithAdditionalFields expects the payloads that should result from our
 // recorded Netflow9 pcap file with inverted source and destination ports and icmp_type custom field.
-func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwarder.MockComponent) {
-	events := [][]byte{
-		[]byte(`
+func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwarder.MockComponent, testStartTime time.Time) {
+	expectedEvent := []byte(`
 {
   "bytes": 114702,
   "destination": {
@@ -191,7 +281,6 @@ func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwarder.M
   "exporter": {
     "ip": "127.0.0.1"
   },
-  "flush_timestamp": 1550505606000,
   "host": "my-hostname",
   "icmp_type": "1200",
   "ingress": {
@@ -214,18 +303,45 @@ func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwarder.M
   "start": 1675307019,
   "type": "netflow9"
 }
-`),
-	}
-	for _, event := range events {
-		compactEvent := new(bytes.Buffer)
-		err := json.Compact(compactEvent, event)
+`)
+
+	// JMWSAME
+	// Capture all 29 events
+	var capturedEvents [][]byte
+	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), eventplatform.EventTypeNetworkDevicesNetFlow).DoAndReturn(
+		func(msg *message.Message, _ string) error {
+			capturedEvents = append(capturedEvents, msg.GetContent())
+			return nil
+		}).Times(29)
+
+	// Validate that at least one captured event matches the expected payload
+	t.Cleanup(func() {
+		assert.Len(t, capturedEvents, 29, "Expected exactly 29 netflow events")
+
+		// Compact expected event for comparison
+		compactExpectedEvent := new(bytes.Buffer)
+		err := json.Compact(compactExpectedEvent, expectedEvent)
 		assert.NoError(t, err)
+		expectedEventStr := compactExpectedEvent.String()
 
-		m := message.NewMessage(compactEvent.Bytes(), nil, "", 0)
+		// Check if at least one captured event matches the expected payload
+		found := false
+		for _, capturedEvent := range capturedEvents {
+			// Validate and remove timestamps from captured event
+			capturedEventWithoutTimestamp, err := ValidateAndRemoveTimestamps(t, capturedEvent, testStartTime)
+			if err != nil {
+				continue // Skip events that fail timestamp validation
+			}
 
-		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow).Return(nil)
-		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), eventplatform.EventTypeNetworkDevicesNetFlow).Return(nil).Times(28)
-	}
+			// Use a temporary test to check JSON equality without failing the main test
+			tempT := &testing.T{}
+			if assert.JSONEq(tempT, expectedEventStr, string(capturedEventWithoutTimestamp)) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Expected event not found in any of the captured events: %s", expectedEventStr)
+	})
 }
 
 // GetPacketFromPCAP parses PCAP data into an actual packet.

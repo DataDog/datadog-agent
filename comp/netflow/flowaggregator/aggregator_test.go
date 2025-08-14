@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -47,8 +46,7 @@ import (
 )
 
 func TestAggregator(t *testing.T) {
-	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
-	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
+	testStartTime := time.Now()
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -113,7 +111,6 @@ func TestAggregator(t *testing.T) {
   "exporter": {
     "ip": "127.0.0.1"
   },
-  "flush_timestamp": 1550505606000,
   "host": "my-hostname",
   "ingress": {
     "interface": {
@@ -157,38 +154,47 @@ func TestAggregator(t *testing.T) {
       "ip_address":"127.0.0.1",
       "flow_type":"netflow9"
     }
-  ],
-  "collect_timestamp": 1550505606
+  ]
 }
 `)
 	compactMetadataEvent := new(bytes.Buffer)
 	err = json.Compact(compactMetadataEvent, metadataEvent)
 	assert.NoError(t, err)
 
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactEvent.Bytes(), nil, "", 0), "network-devices-netflow").Return(nil).Times(1)
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactMetadataEvent.Bytes(), nil, "", 0), "network-devices-metadata").Return(nil).Times(1)
+	// Setup event capture
+	capturedNetflowEvents, capturedMetadataEvents := testutil.SetupEventCapture(epForwarder, 1, 1)
+
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
 	aggregator.FlushFlowsToSendInterval = 1 * time.Second
-	aggregator.TimeNowFunction = func() time.Time {
-		return flushTime
-	}
 	inChan := aggregator.GetFlowInChan()
 
-	expectStartExisted := false
+	startReturned := make(chan struct{})
 	go func() {
 		aggregator.Start()
-		stoppedMu.Lock()
-		expectStartExisted = true
-		stoppedMu.Unlock()
+		close(startReturned)
 	}()
 	inChan <- flow
 
 	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), netflowEvents)
+
+	// Validate captured events
+	require.Len(t, *capturedNetflowEvents, 1, "Expected exactly one netflow event")
+	require.Len(t, *capturedMetadataEvents, 1, "Expected exactly one metadata event")
+
+	// Validate and remove flush_timestamp from captured netflow event
+	capturedEventWithoutTimestamp, err := testutil.ValidateAndRemoveTimestamps(t, (*capturedNetflowEvents)[0], testStartTime)
+	require.NoError(t, err)
+	assert.JSONEq(t, compactEvent.String(), string(capturedEventWithoutTimestamp))
+
+	// Validate and remove collect_timestamp from captured metadata event
+	capturedMetadataWithoutTimestamp, err := testutil.ValidateAndRemoveTimestamps(t, (*capturedMetadataEvents)[0], testStartTime)
+	require.NoError(t, err)
+	assert.JSONEq(t, compactMetadataEvent.String(), string(capturedMetadataWithoutTimestamp))
 
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 1, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 1, "", nil)
@@ -199,31 +205,20 @@ func TestAggregator(t *testing.T) {
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.length", 0, "", nil)
 
 	// Test aggregator Stop
-	assert.False(t, expectStartExisted)
 	aggregator.Stop()
 
-	waitStopTimeout := time.After(2 * time.Second)
-	waitStopTick := time.Tick(100 * time.Millisecond)
-stopLoop:
-	for {
-		select {
-		case <-waitStopTimeout:
-			assert.Fail(t, "timeout waiting for aggregator to be stopped")
-		case <-waitStopTick:
-			stoppedMu.Lock()
-			startExited := expectStartExisted
-			stoppedMu.Unlock()
-			if startExited {
-				break stopLoop
-			}
-		}
+	// Wait for Start() to return
+	select {
+	case <-startReturned:
+	case <-time.After(2 * time.Second):
+		assert.Fail(t, "timeout waiting for aggregator to be stopped")
 	}
 }
 
 func TestAggregator_withMockPayload(t *testing.T) {
+	testStartTime := time.Now()
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
-	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -248,7 +243,104 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 
-	testutil.ExpectNetflow5Payloads(t, epForwarder)
+	// Setup event capture
+	capturedNetflowEvents, capturedMetadataEvents := testutil.SetupEventCapture(epForwarder, 2, 1)
+
+	// Expected netflow events (without flush_timestamp since it's now dynamic)
+	expectedNetflowEvents := [][]byte{
+		[]byte(`
+{
+    "type": "netflow5",
+    "sampling_rate": 0,
+    "direction": "ingress",
+    "start": 1683712725,
+    "end": 1683712725,
+    "bytes": 10,
+    "packets": 1,
+    "ether_type": "IPv4",
+    "ip_protocol": "TCP",
+    "device": {
+        "namespace": "default"
+    },
+    "exporter": {
+        "ip": "127.0.0.1"
+    },
+    "source": {
+        "ip": "10.154.20.12",
+        "port": "22",
+        "mac": "00:00:00:00:00:00",
+        "mask": "0.0.0.0/0",
+        "reverse_dns_hostname": "hostname-10.154.20.12"
+    },
+    "destination": {
+        "ip": "0.0.0.92",
+        "port": "81",
+        "mac": "00:00:00:00:00:00",
+        "mask": "0.0.0.0/0"
+    },
+    "ingress": {
+        "interface": {
+            "index": 0
+        }
+    },
+    "egress": {
+        "interface": {
+            "index": 0
+        }
+    },
+    "host": "my-hostname",
+    "next_hop": {
+        "ip": "0.0.0.0"
+    }
+}
+`),
+		[]byte(`
+{
+    "type": "netflow5",
+    "sampling_rate": 0,
+    "direction": "ingress",
+    "start": 1683712725,
+    "end": 1683712725,
+    "bytes": 10,
+    "packets": 1,
+    "ether_type": "IPv4",
+    "ip_protocol": "TCP",
+    "device": {
+        "namespace": "default"
+    },
+    "exporter": {
+        "ip": "127.0.0.1"
+    },
+    "source": {
+        "ip": "10.154.20.12",
+        "port": "22",
+        "mac": "00:00:00:00:00:00",
+        "mask": "0.0.0.0/0",
+        "reverse_dns_hostname": "hostname-10.154.20.12"
+    },
+    "destination": {
+        "ip": "0.0.0.93",
+        "port": "81",
+        "mac": "00:00:00:00:00:00",
+        "mask": "0.0.0.0/0"
+    },
+    "ingress": {
+        "interface": {
+            "index": 0
+        }
+    },
+    "egress": {
+        "interface": {
+            "index": 0
+        }
+    },
+    "host": "my-hostname",
+    "next_hop": {
+        "ip": "0.0.0.0"
+    }
+}
+`),
+	}
 
 	// language=json
 	metadataEvent := []byte(`
@@ -261,23 +353,17 @@ func TestAggregator_withMockPayload(t *testing.T) {
       "ip_address":"127.0.0.1",
       "flow_type":"netflow5"
     }
-  ],
-  "collect_timestamp": 1550505606
+  ]
 }
 `)
 	compactMetadataEvent := new(bytes.Buffer)
 	err = json.Compact(compactMetadataEvent, metadataEvent)
 	require.NoError(t, err)
 
-	epForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactMetadataEvent.Bytes(), nil, "", 0), "network-devices-metadata").Return(nil).Times(1)
-
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
 	aggregator.FlushFlowsToSendInterval = 1 * time.Second
-	aggregator.TimeNowFunction = func() time.Time {
-		return flushTime
-	}
 
 	stoppedFlushLoop := make(chan struct{})
 	stoppedRun := make(chan struct{})
@@ -307,6 +393,46 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 3*time.Second, 2)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), netflowEvents)
+
+	// Validate captured events
+	require.Len(t, *capturedNetflowEvents, 2, "Expected exactly two netflow events")
+	require.Len(t, *capturedMetadataEvents, 1, "Expected exactly one metadata event")
+
+	// Validate netflow events by removing flush_timestamp and comparing (order-independent)
+	// Since events can arrive in any order due to concurrent processing, we need to match them properly
+	expectedEventStrings := make([]string, len(expectedNetflowEvents))
+	for i, expectedEvent := range expectedNetflowEvents {
+		compactExpectedEvent := new(bytes.Buffer)
+		err := json.Compact(compactExpectedEvent, expectedEvent)
+		require.NoError(t, err)
+		expectedEventStrings[i] = compactExpectedEvent.String()
+	}
+
+	capturedEventStrings := make([]string, len(*capturedNetflowEvents))
+	for i, capturedEvent := range *capturedNetflowEvents {
+		capturedEventWithoutTimestamp, err := testutil.ValidateAndRemoveTimestamps(t, capturedEvent, testStartTime)
+		require.NoError(t, err)
+		capturedEventStrings[i] = string(capturedEventWithoutTimestamp)
+	}
+
+	// Verify that each expected event has a corresponding captured event
+	for _, expectedEventStr := range expectedEventStrings {
+		found := false
+		for _, capturedEventStr := range capturedEventStrings {
+			// Use a temporary test to check JSON equality without failing the main test
+			tempT := &testing.T{}
+			if assert.JSONEq(tempT, expectedEventStr, capturedEventStr) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Expected event not found in captured events: %s", expectedEventStr)
+	}
+
+	// Validate and remove collect_timestamp from captured metadata event
+	capturedMetadataWithoutTimestamp, err := testutil.ValidateAndRemoveTimestamps(t, (*capturedMetadataEvents)[0], testStartTime)
+	require.NoError(t, err)
+	assert.JSONEq(t, compactMetadataEvent.String(), string(capturedMetadataWithoutTimestamp))
 
 	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 2, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 2, "", nil)

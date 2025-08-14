@@ -51,7 +51,6 @@ type FlowAggregator struct {
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
-	TimeNowFunction              func() time.Time // Allows to mock time in tests
 
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
@@ -98,7 +97,6 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
-		TimeNowFunction:              time.Now,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
 	}
@@ -253,7 +251,7 @@ func (agg *FlowAggregator) flushLoop() {
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
-	flushTime := agg.TimeNowFunction()
+	flushTime := time.Now()
 	flowsToFlush := agg.flowAcc.flush()
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
