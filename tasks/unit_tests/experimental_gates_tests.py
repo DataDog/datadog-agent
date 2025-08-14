@@ -92,7 +92,6 @@ class TestInPlaceArtifactReport(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             InPlaceArtifactReport(
                 artifact_path="",
-                artifact_type="package",
                 gate_name="test_gate",
                 on_wire_size=100000,
                 on_disk_size=500000,
@@ -113,7 +112,6 @@ class TestInPlaceArtifactReport(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             InPlaceArtifactReport(
                 artifact_path="/path/to/package.deb",
-                artifact_type="package",
                 gate_name="test_gate",
                 on_wire_size=-1,
                 on_disk_size=500000,
@@ -211,7 +209,6 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
 
         # Verify the report
         self.assertEqual(report.artifact_path, "/path/to/package.deb")
-        self.assertEqual(report.artifact_type, "package")
         self.assertEqual(report.gate_name, "static_quality_gate_agent_deb_amd64")
         self.assertEqual(report.on_wire_size, 100000)
         self.assertEqual(report.on_disk_size, 500000)
@@ -225,7 +222,7 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
         # Verify key methods were called
         mock_exists.assert_called_once_with("/path/to/package.deb")
         mock_extract_analyze.assert_called_once_with(
-            mock_ctx, "/path/to/package.deb", unittest.mock.ANY, 10000, True, False
+            mock_ctx, "/path/to/package.deb", unittest.mock.ANY, 20000, True, False
         )
 
     def test_measure_package_missing_file(self):
@@ -331,7 +328,6 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
         """Test handling of YAML save failures."""
         report = InPlaceArtifactReport(
             artifact_path="/path/to/package.deb",
-            artifact_type="package",
             gate_name="test_gate",
             on_wire_size=100000,
             on_disk_size=500000,

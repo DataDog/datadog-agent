@@ -144,22 +144,18 @@ class InPlacePackageMeasurer:
             ValueError: If configuration is invalid or package not found
             RuntimeError: If measurement fails
         """
-        # Validate inputs
         if not os.path.exists(package_path):
             raise ValueError(f"Package file not found: {package_path}")
 
         if gate_name not in self.config:
             raise ValueError(f"Gate configuration not found: {gate_name}")
 
-        # Create quality gate config
         gate_config = create_quality_gate_config(gate_name, self.config[gate_name])
 
-        # Single extraction and analysis (optimization 1A)
         measurement, file_inventory = self._extract_and_analyze_package(
             ctx, package_path, gate_config, max_files, generate_checksums, debug
         )
 
-        # Create report
         return InPlaceArtifactReport(
             artifact_path=package_path,
             gate_name=gate_name,
@@ -186,10 +182,7 @@ class InPlacePackageMeasurer:
         debug: bool = False,
     ) -> tuple[ArtifactMeasurement, list[FileInfo]]:
         """
-        Extract package once and perform both size measurement and file inventory.
-
-        This optimization (1A) eliminates duplicate package extraction by combining
-        size measurement and file inventory generation into a single extraction operation.
+        Extract package and perform size measurement and file inventory.
 
         Args:
             ctx: Invoke context for running commands
@@ -206,25 +199,20 @@ class InPlacePackageMeasurer:
             RuntimeError: If extraction or analysis fails
         """
         try:
-            # Measure wire size (compressed package file size)
             wire_size = file_size(package_path)
 
             with tempfile.TemporaryDirectory() as extract_dir:
                 if debug:
                     print(f"📁 Extracting package to: {extract_dir}")
 
-                # Extract package once for both measurements
                 extract_package(ctx, config.os, package_path, extract_dir)
 
-                # Measure disk size from extracted content
                 disk_size = directory_size(extract_dir)
 
-                # Create measurement object
                 measurement = ArtifactMeasurement(
                     artifact_path=package_path, on_wire_size=wire_size, on_disk_size=disk_size
                 )
 
-                # Generate file inventory from the same extracted content
                 file_inventory = self._walk_extracted_files(extract_dir, max_files, generate_checksums, debug)
 
                 if debug:
@@ -243,9 +231,6 @@ class InPlacePackageMeasurer:
     ) -> list[FileInfo]:
         """
         Walk through extracted files and create file inventory.
-
-        This method is extracted from _generate_file_inventory to be reused
-        by the optimized _extract_and_analyze_package method.
 
         Args:
             extract_dir: Directory containing extracted package files
@@ -274,7 +259,6 @@ class InPlacePackageMeasurer:
         files_processed = 0
         total_size = 0
 
-        # Walk through all files in the extracted package
         for file_path in extract_path.rglob('*'):
             if file_path.is_file():
                 # Respect max_files limit
@@ -288,10 +272,7 @@ class InPlacePackageMeasurer:
                     file_stat = file_path.stat()
                     size_bytes = file_stat.st_size
 
-                    # Generate checksum for larger files to help track changes
-                    checksum = None
-                    if generate_checksums and size_bytes > 1024:
-                        checksum = self._generate_checksum(file_path)
+                    checksum = self._generate_checksum(file_path)
 
                     file_inventory.append(
                         FileInfo(
@@ -392,7 +373,7 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    max_files=10000,
+    max_files=20000,
     no_checksums=False,
     debug=False,
 ):
@@ -408,7 +389,7 @@ def measure_package_local(
         config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
-        max_files: Maximum number of files to process in inventory (default: 10000)
+        max_files: Maximum number of files to process in inventory (default: 20000)
         no_checksums: Skip checksum generation for faster processing (default: false)
         debug: Enable debug logging for troubleshooting (default: false)
 
@@ -417,7 +398,6 @@ def measure_package_local(
     """
     from tasks.libs.common.color import color_message
 
-    # Validate inputs
     if not os.path.exists(package_path):
         print(color_message(f"❌ Package file not found: {package_path}", "red"))
         return
@@ -426,7 +406,6 @@ def measure_package_local(
         print(color_message(f"❌ Configuration file not found: {config_path}", "red"))
         return
 
-    # Set default output path if not provided
     if output_path is None:
         output_path = f"{gate_name}_report.yml"
 
@@ -438,23 +417,20 @@ def measure_package_local(
     print("=" * 50)
 
     try:
-        # Initialize the measurer
         measurer = InPlacePackageMeasurer(config_path=config_path)
 
-        # Set mock environment variables if not present
-        original_env = {}
-        mock_env_vars = {
-            "CI_PIPELINE_ID": "local_12345",
-            "CI_COMMIT_SHA": "local_abc123def456789",
-        }
+        # Set dummy values in case of local execution
+        os.environ["CI_PIPELINE_ID"] = os.environ.get("CI_PIPELINE_ID", "LOCAL")
+        os.environ["CI_COMMIT_SHA"] = os.environ.get("CI_COMMIT_SHA", "LOCAL")
 
-        for var, value in mock_env_vars.items():
-            if var not in os.environ:
-                original_env[var] = os.environ.get(var, None)
-                os.environ[var] = value
-                print(color_message(f"🏷️  Set mock env var: {var}={value}", "yellow"))
+        if os.environ.get("CI_PIPELINE_ID") == "LOCAL" or os.environ.get("CI_COMMIT_SHA") == "LOCAL":
+            print(
+                color_message(
+                    "🏷️  Warning! Running in local mode, using dummy values for CI_PIPELINE_ID and CI_COMMIT_SHA",
+                    "yellow",
+                )
+            )
 
-        # Measure the package
         print(color_message("📏 Measuring package...", "cyan"))
         report = measurer.measure_package(
             ctx=ctx,
@@ -500,18 +476,4 @@ def measure_package_local(
 
     except Exception as e:
         print(color_message(f"❌ Measurement failed: {e}", "red"))
-        # Restore original environment variables
-        for var, value in original_env.items():
-            if value is None:
-                os.environ.pop(var, None)
-            else:
-                os.environ[var] = value
         raise
-
-    finally:
-        # Restore original environment variables
-        for var, value in original_env.items():
-            if value is None:
-                os.environ.pop(var, None)
-            else:
-                os.environ[var] = value
