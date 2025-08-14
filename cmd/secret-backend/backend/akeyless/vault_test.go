@@ -13,56 +13,55 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-secret-backend/secret"
-	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 )
 
 const testToken = "token"
 
-func mockAkeylessServer(secrets map[string]interface{}) *httptest.Server {
-	router := chi.NewRouter()
-	router.Post("/get-secret-value", func(w http.ResponseWriter, req *http.Request) {
-		secretRequest := secretRequest{}
-		err := json.NewDecoder(req.Body).Decode(&secretRequest)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// check token
-		if secretRequest.Token != testToken {
-			http.Error(w, "invalid token", http.StatusUnauthorized)
-		}
-
-		resp := secretResponse{}
-		for _, name := range secretRequest.Names {
-			if val, ok := secrets[name]; ok {
-				resp[name] = val.(string)
+func mockAkeylessServer(t *testing.T, secrets map[string]interface{}) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch path := r.URL.Path; path {
+		case "/get-secret-value":
+			secretRequest := secretRequest{}
+			err := json.NewDecoder(r.Body).Decode(&secretRequest)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
 			}
-		}
-		w.WriteHeader(http.StatusOK)
-		err = json.NewEncoder(w).Encode(resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
-	router.Post("/auth", func(w http.ResponseWriter, _ *http.Request) {
-		response := authResponse{
-			Token: testToken,
-		}
-		w.WriteHeader(http.StatusOK)
-		err := json.NewEncoder(w).Encode(response)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
 
-	ts := httptest.NewServer(router)
-	return ts
+			// check token
+			if secretRequest.Token != testToken {
+				http.Error(w, "invalid token", http.StatusUnauthorized)
+			}
+
+			resp := secretResponse{}
+			for _, name := range secretRequest.Names {
+				if val, ok := secrets[name]; ok {
+					resp[name] = val.(string)
+				}
+			}
+			w.WriteHeader(http.StatusOK)
+			err = json.NewEncoder(w).Encode(resp)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		case "/auth":
+			response := authResponse{
+				Token: testToken,
+			}
+			w.WriteHeader(http.StatusOK)
+			err := json.NewEncoder(w).Encode(response)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		default:
+			t.Fatalf("Unknown URL requested: %s", path)
+		}
+	}))
 }
 
 func TestAkeylessBackend(t *testing.T) {
-	ts := mockAkeylessServer(map[string]interface{}{
+	ts := mockAkeylessServer(t, map[string]interface{}{
 		"key1": "value1",
 		"key2": "value2",
 	})
