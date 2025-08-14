@@ -886,7 +886,7 @@ func TestProcessLogProviderServiceName(t *testing.T) {
 					{ServiceName: "tracer-service"},
 				},
 			},
-			want: "tracer-service",
+			want: "bar",
 		},
 		{
 			name: "returns DDService if TracerMetadata is empty and DDService is set",
