@@ -1525,7 +1525,6 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
-
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "")
 	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
@@ -1551,7 +1550,6 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 			IsClusterCheck:       false,
 		},
 	}
-
 
 	// check3 not included because it's a cluster check.
 	testDispatcher.store.idToDigest = map[checkid.ID]string{
