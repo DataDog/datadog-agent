@@ -30,11 +30,11 @@ from tasks.libs.releasing.version import get_version, load_dependencies
 
 def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
     with ctx.cd("omnibus"):
-        overrides_cmd = ""
+        overrides = []
         if base_dir:
-            overrides_cmd = f"--override=base_dir:{base_dir}"
+            overrides.append(f"--override=base_dir:{base_dir}")
         if host_distribution:
-            overrides_cmd += f" --override=host_distribution:{host_distribution}"
+            overrides.append(f"--override=host_distribution:{host_distribution}")
 
         omnibus = f"bundle exec {"omnibus.bat" if sys.platform == "win32" else "omnibus"}"
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
@@ -43,7 +43,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
             "task": task,
             "project_name": target_project,
             "log_level": log_level,
-            "overrides": overrides_cmd,
+            "overrides": " ".join(overrides),
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):

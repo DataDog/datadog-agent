@@ -2,6 +2,7 @@ import functools
 import os
 import re
 import unittest
+from pprint import pformat
 from unittest import mock
 
 from invoke.context import MockContext
@@ -61,6 +62,7 @@ class TestOmnibusCache(unittest.TestCase):
                     mock.patch("sys.platform", platform),
                     mock.patch.dict(os.environ, get_dd_api_key_env),
                 ):
+                    self.setUp()  # because `unittest` doesn't offer a subtest setup hook yet
                     test_func(self, *args, **kwargs)
 
         return wrapper
@@ -81,15 +83,15 @@ class TestOmnibusCache(unittest.TestCase):
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)
 
-    def assertRunLines(self, line_patterns):
+    def assertRunLines(self, *line_patterns):
         """Assert the given line patterns appear in the given order in `msg`."""
         commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
-
-        pattern = '(\n|.)*'.join(line_patterns)
-        return self.assertIsNotNone(
-            re.search(pattern, commands, re.MULTILINE),
-            f'Failed to match pattern {line_patterns}.',
-        )
+        # Match patterns independently to avoid pitfalls of regex merging while enabling precise mismatch reporting
+        for pattern in line_patterns:
+            self.assertIsNotNone(
+                re.search(pattern, commands, re.MULTILINE),
+                f'Failed to match pattern `{pattern}` among {pformat(commands)}',
+            )
 
     @_for_each_platform
     def test_successful_cache_hit(self):
@@ -103,16 +105,14 @@ class TestOmnibusCache(unittest.TestCase):
 
         # Assert main actions were taken in the expected order
         self.assertRunLines(
-            [
-                # We copied the cache from remote cache
-                r'aws s3 cp (\S* )?s3://omnibus-cache/\w+/slug \S+/omnibus-git-cache-bundle',
-                # We cloned the repo
-                r'git clone --mirror /\S+/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
-                # We listed the tags to get current cache state
-                r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
-                # We ran omnibus
-                r'bundle exec omnibus build agent',
-            ],
+            # We copied the cache from remote cache
+            r'aws(\.exe)? s3 cp (\S* )?s3://omnibus-cache/\w+/slug \S+/omnibus-git-cache-bundle',
+            # We cloned the repo
+            r'git clone --mirror /\S+/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
+            # We listed the tags to get current cache state
+            r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
+            # We ran omnibus
+            r'bundle exec omnibus(\.bat)? build agent',
         )
 
         # By the way the mocks are set up, we expect the `cache state` to not have changed and thus the cache
@@ -120,7 +120,7 @@ class TestOmnibusCache(unittest.TestCase):
         commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
         lines = [
             r'git -C omnibus-git-cache/opt/datadog-agent bundle create /\S+/omnibus-git-cache-bundle --tags',
-            r'aws s3 cp (\S* )?/\S+/omnibus-git-cache-bundle s3://omnibus-cache/\w+/slug',
+            r'aws(\.exe)? s3 cp (\S* )?/\S+/omnibus-git-cache-bundle s3://omnibus-cache/\w+/slug',
         ]
         for line in lines:
             self.assertIsNone(re.search(line, commands))
@@ -157,13 +157,11 @@ class TestOmnibusCache(unittest.TestCase):
         self.assertIn("omnibus cache miss", str(post_mock.mock_calls[0].kwargs['json']))
         # Assert we bundled and uploaded the cache (should always happen on cache misses)
         self.assertRunLines(
-            [
-                # We ran omnibus
-                r'bundle exec omnibus build agent',
-                # And we created and uploaded the new cache
-                r'git -C omnibus-git-cache/opt/datadog-agent bundle create /\S+/omnibus-git-cache-bundle --tags',
-                r'aws s3 cp (\S* )?/\S+/omnibus-git-cache-bundle s3://omnibus-cache/\w+/slug',
-            ],
+            # We ran omnibus
+            r'bundle exec omnibus(\.bat)? build agent',
+            # And we created and uploaded the new cache
+            r'git -C omnibus-git-cache/opt/datadog-agent bundle create /\S+/omnibus-git-cache-bundle --tags',
+            r'aws(\.exe)? s3 cp (\S* )?/\S+/omnibus-git-cache-bundle s3://omnibus-cache/\w+/slug',
         )
 
     @_for_each_platform
@@ -181,7 +179,7 @@ class TestOmnibusCache(unittest.TestCase):
         omnibus.build(self.mock_ctx)
 
         # We're satisfied if we ran the build despite that failure
-        self.assertRunLines([r'bundle exec omnibus build agent'])
+        self.assertRunLines(r'bundle exec omnibus(\.bat)? build agent')
 
     @_for_each_platform
     def test_cache_is_disabled_by_unsetting_env_var(self):
@@ -192,7 +190,7 @@ class TestOmnibusCache(unittest.TestCase):
             omnibus.build(self.mock_ctx)
 
         # We ran the build but no command related to the cache
-        self.assertRunLines(['bundle exec omnibus build agent'])
+        self.assertRunLines(r'bundle exec omnibus(\.bat)? build agent')
         commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
         self.assertNotIn('omnibus-git-cache', commands)
 
@@ -213,16 +211,14 @@ class TestOmnibusCache(unittest.TestCase):
         self.assertIn("omnibus cache mutated", str(post_mock.mock_calls[0].kwargs['json']))
         # Assert we bundled and uploaded the cache (should always happen on cache misses)
         self.assertRunLines(
-            [
-                # We copied the cache from remote cache
-                r'aws s3 cp (\S* )?s3://omnibus-cache/\w+/slug \S+/omnibus-git-cache-bundle',
-                # We cloned the repo
-                r'git clone --mirror /\S+/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
-                # We listed the tags to get current cache state
-                r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
-                # We ran omnibus
-                r'bundle exec omnibus build agent',
-            ],
+            # We copied the cache from remote cache
+            r'aws(\.exe)? s3 cp (\S* )?s3://omnibus-cache/\w+/slug \S+/omnibus-git-cache-bundle',
+            # We cloned the repo
+            r'git clone --mirror /\S+/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
+            # We listed the tags to get current cache state
+            r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
+            # We ran omnibus
+            r'bundle exec omnibus(\.bat)? build agent',
         )
 
 
