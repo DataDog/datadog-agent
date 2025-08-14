@@ -67,6 +67,8 @@ func (s *service) GetServiceID() string {
 		return containers.BuildEntityName(string(e.Runtime), e.ID)
 	case *workloadmeta.KubernetesPod:
 		return kubelet.PodUIDToEntityName(e.ID)
+	case *workloadmeta.Process:
+		return e.GetID().ID
 	default:
 		entityID := s.entity.GetID()
 		log.Errorf("cannot build AD entity ID for kind %q, ID %q", entityID.Kind, entityID.ID)
