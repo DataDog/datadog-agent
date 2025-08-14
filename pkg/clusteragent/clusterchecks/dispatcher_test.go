@@ -525,11 +525,12 @@ func TestPatchConfiguration(t *testing.T) {
 	initialDigest := checkConfig.Digest()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
-	dispatcher := newDispatcher(fakeTagger)
 
+	dispatcher := newDispatcher(fakeTagger)
 	out, err := dispatcher.patchConfiguration(checkConfig)
 	assert.NoError(t, err)
 
@@ -563,11 +564,12 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 	}
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
-	dispatcher := newDispatcher(fakeTagger)
 
+	dispatcher := newDispatcher(fakeTagger)
 	out, err := dispatcher.patchEndpointsConfiguration(checkConfig)
 	assert.NoError(t, err)
 

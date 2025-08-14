@@ -97,8 +97,6 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:3,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
-		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
-		"DD_SBOM_HOST_ENABLED=true",
 		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",
@@ -122,7 +120,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	}
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
 		"DD_API_KEY":               s.getAPIKey(),
-		"TESTING_KEYS_URL":         "keys.datadoghq.com",
+		"TESTING_KEYS_URL":         "apttesting.datad0g.com/test-keys-vault",
 		"TESTING_APT_URL":          fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID")),
 		"TESTING_APT_REPO_VERSION": fmt.Sprintf("stable-%s 7", s.arch),
 		"TESTING_YUM_URL":          "s3.amazonaws.com/yumtesting.datad0g.com",

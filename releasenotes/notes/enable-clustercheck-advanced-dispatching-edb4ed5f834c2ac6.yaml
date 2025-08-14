@@ -1,0 +1,14 @@
+---
+enhancements:
+  - |
+    The Cluster Agent now enables both `DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED`
+    and `DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION` by default.
+
+    These options are now set to `true` in both the configuration template and the code,
+    improving cluster check dispatching and balancing based on node utilization out-of-the-box.
+
+    To disable these features, a user must now explicitly set them to `false` with the following config options:
+      - name: DD_CLUSTER_CHECKS_ADVANCED_DISPATCHING_ENABLED
+        value: "false"
+      - name: DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION
+        value: "false"

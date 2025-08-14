@@ -33,12 +33,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-json-experiment/json/jsontext"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	di_module "github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
@@ -56,6 +58,7 @@ type testState struct {
 
 	module     *di_module.Module
 	subscriber *mockSubscriber
+	actuator   *interceptingActuator
 	serviceCmd *exec.Cmd
 	servicePID uint32
 
@@ -84,6 +87,10 @@ const e2eTmpDirEnv = "E2E_TMP_DIR"
 var expectations embed.FS
 
 func TestEndToEnd(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping end-to-end test in short mode")
+	}
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	idx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
@@ -94,26 +101,57 @@ func TestEndToEnd(t *testing.T) {
 
 	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
 	useDocker := dockerIsEnabled(t)
-	t.Run("docker", func(t *testing.T) {
-		if rewrite {
-			t.Skip("rewrite is enabled, skipping docker test")
-		}
-		if !useDocker {
-			t.Skip("docker is not enabled")
-		}
-		t.Parallel()
-		runE2ETest(t, useDocker, cfg, rewrite)
-	})
-	t.Run("direct", func(t *testing.T) {
-		t.Parallel()
-		runE2ETest(t, false /* useDocker */, cfg, rewrite)
-	})
+	for _, binary := range []string{
+		"rc_tester",
+		"rc_tester_v1",
+	} {
+		t.Run(binary, func(t *testing.T) {
+			t.Parallel()
+			t.Run("docker", func(t *testing.T) {
+				if rewrite {
+					t.Skip("rewrite is enabled, skipping docker test")
+				}
+				if !useDocker {
+					t.Skip("docker is not enabled")
+				}
+				t.Parallel()
+				runE2ETest(t, e2eTestConfig{
+					cfg:       cfg,
+					binary:    binary,
+					rewrite:   rewrite,
+					useDocker: true,
+					addSymdb:  binary == "rc_tester",
+				})
+			})
+			t.Run("direct", func(t *testing.T) {
+				t.Parallel()
+				runE2ETest(t, e2eTestConfig{
+					cfg:       cfg,
+					binary:    binary,
+					rewrite:   rewrite,
+					useDocker: false,
+					addSymdb:  binary == "rc_tester",
+				})
+			})
+		})
+	}
 }
 
-func runE2ETest(t *testing.T, useDocker bool, cfg testprogs.Config, rewrite bool) {
+type e2eTestConfig struct {
+	cfg       testprogs.Config
+	binary    string
+	useDocker bool
+	rewrite   bool
+
+	// This binary supports subscribing to the symdb rc product, and we should
+	// test that.
+	addSymdb bool
+}
+
+func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	tmpDir, cleanup := dyninsttest.PrepTmpDir(t, strings.ReplaceAll(t.Name(), "/", "_"))
 	defer cleanup()
-	ts := &testState{tmpDir: tmpDir, useDocker: useDocker}
+	ts := &testState{tmpDir: tmpDir, useDocker: cfg.useDocker}
 
 	diagCh := make(chan []byte, 10)
 	ts.backend = &mockBackend{diagPayloadCh: diagCh}
@@ -125,8 +163,10 @@ func runE2ETest(t *testing.T, useDocker bool, cfg testprogs.Config, rewrite bool
 	t.Cleanup(ts.rcServer.Close)
 	t.Cleanup(ts.rc.Close)
 
-	sampleServicePath := testprogs.MustGetBinary(t, "rc_tester", cfg)
-	ts.setupRemoteConfig(t)
+	probes := testprogs.MustGetProbeDefinitions(t, cfg.binary)
+	rcs := makeRemoteConfigUpdate(t, probes, cfg.addSymdb)
+	ts.rc.UpdateRemoteConfig(rcs)
+	sampleServicePath := testprogs.MustGetBinary(t, cfg.binary, cfg.cfg)
 	serverPort := ts.startSampleService(t, sampleServicePath)
 
 	ts.initializeModule(t)
@@ -139,24 +179,64 @@ func runE2ETest(t *testing.T, useDocker bool, cfg testprogs.Config, rewrite bool
 		makeTargetStatus(uploader.StatusInstalled, expectedProbeIDs...),
 	)
 
+	// If we added symdb, make sure we detect that it's enabled.
+	if cfg.addSymdb {
+		updates := ts.takeProcessesUpdates()
+		require.True(t, updates[len(updates)-1].Processes[0].ShouldUploadSymDB)
+	}
+
 	const numRequests = 3
 	sendTestRequests(t, serverPort, numRequests)
-	waitForLogMessages(t, ts.backend, numRequests*len(expectedProbeIDs), expectationsPath, rewrite)
+	waitForLogMessages(
+		t, ts.backend, numRequests*len(expectedProbeIDs),
+		expectationsPath, cfg.rewrite,
+	)
 	waitForProbeStatus(
 		t, ts.backend.diagPayloadCh,
 		makeTargetStatus(uploader.StatusEmitting, expectedProbeIDs...),
 	)
+	// Clear the remote config and make sure that we detect that we no longer
+	// are supposed to upload the symbol database.
+	ts.rc.UpdateRemoteConfig(nil)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		updates := ts.takeProcessesUpdates()
+		if !assert.NotEmpty(c, updates) {
+			return
+		}
+		// Assert that we've removed the probes regardless of whether we're
+		// adding the symdb.
+		assert.Empty(c, updates[len(updates)-1].Processes[0].Probes)
+		// If we added symdb, make sure we detect that it's gone.
+		if cfg.addSymdb {
+			assert.False(c, updates[len(updates)-1].Processes[0].ShouldUploadSymDB)
+		}
+	}, 10*time.Second, 100*time.Millisecond, "probes should be removed")
 }
 
-func (ts *testState) setupRemoteConfig(t *testing.T) {
-	probes := testprogs.MustGetProbeDefinitions(t, "rc_tester")
+func makeRemoteConfigUpdate(t *testing.T, probes []ir.ProbeDefinition, addSymdb bool) map[string][]byte {
 	rcs := make(map[string][]byte)
 	for _, probe := range probes {
 		rcProbe := setSnapshotsPerSecond(t, probe, 100)
 		path, content := createProbeEntry(t, rcProbe)
 		rcs[path] = content
 	}
-	ts.rc.UpdateRemoteConfig(rcs)
+	if addSymdb {
+		payload := []byte(`{"uploadSymbols": true}`)
+		p := createRemoteConfigPath("LIVE_DEBUGGING_SYMBOL_DB", "symDb", payload)
+		rcs[p] = payload
+	}
+	return rcs
+}
+
+func (ts *testState) takeProcessesUpdates() []actuator.ProcessesUpdate {
+	ts.actuator.mu.Lock()
+	defer ts.actuator.mu.Unlock()
+	tenant := ts.actuator.mu.tenants["dyninst"]
+	tenant.mu.Lock()
+	defer tenant.mu.Unlock()
+	var updates []actuator.ProcessesUpdate
+	updates, tenant.mu.updates = tenant.mu.updates, nil
+	return updates
 }
 
 func setSnapshotsPerSecond(
@@ -171,18 +251,22 @@ func setSnapshotsPerSecond(
 }
 
 func createProbeEntry(t *testing.T, probe rcjson.Probe) (string, []byte) {
-	const fakeOrgID = 1234
 	encoded, err := json.Marshal(probe)
 	require.NoError(t, err)
-	hash := sha256.Sum256(encoded)
-	path := fmt.Sprintf(
+	path := createRemoteConfigPath(data.ProductLiveDebugging, probe.GetID(), encoded)
+	return path, encoded
+}
+
+func createRemoteConfigPath(product data.Product, id string, data []byte) string {
+	const fakeOrgID = 1234
+	hash := sha256.Sum256(data)
+	return fmt.Sprintf(
 		"datadog/%d/%s/%s/%s",
 		fakeOrgID,
-		data.ProductLiveDebugging,
-		probe.GetID(),
+		product,
+		id,
 		hex.EncodeToString(hash[:]),
 	)
-	return path, encoded
 }
 
 func getRcTesterEnv(rcHost string, rcPort int, tmpDir string) []string {
@@ -295,7 +379,14 @@ func newDirectCommand(cfg sampleServiceConfig) *exec.Cmd {
 	return cmd
 }
 
-func startSampleService(t *testing.T, cfg sampleServiceConfig) (sampleServiceCmd *exec.Cmd, sampleServicePID uint32, serverPort int, err error) {
+func startSampleService(
+	t *testing.T, cfg sampleServiceConfig,
+) (
+	sampleServiceCmd *exec.Cmd,
+	sampleServicePID uint32,
+	serverPort int,
+	err error,
+) {
 	var cmd *exec.Cmd
 	if cfg.useDocker {
 		cmd = startSampleServiceWithDocker(t, cfg)
@@ -418,9 +509,65 @@ func waitForServicePort(t *testing.T, stdoutPath string) int {
 	}
 }
 
+type interceptingActuator struct {
+	inner *actuator.Actuator
+	mu    struct {
+		sync.Mutex
+		tenants map[string]*interceptingTenant
+	}
+}
+
+func (a *interceptingActuator) Shutdown() error {
+	return a.inner.Shutdown()
+}
+
+type interceptingTenant struct {
+	inner *actuator.Tenant
+	mu    struct {
+		sync.Mutex
+		updates []actuator.ProcessesUpdate
+	}
+}
+
+func (a *interceptingActuator) NewTenant(
+	name string,
+	reporter actuator.Reporter,
+	irGenerator actuator.IRGenerator,
+) di_module.ActuatorTenant {
+	t := a.inner.NewTenant(name, reporter, irGenerator)
+	it := &interceptingTenant{inner: t}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mu.tenants[name] = it
+	return it
+}
+
+func (it *interceptingTenant) HandleUpdate(update actuator.ProcessesUpdate) {
+	it.mu.Lock()
+	defer it.mu.Unlock()
+	it.mu.updates = append(it.mu.updates, cloneUpdate(update))
+	it.inner.HandleUpdate(update)
+}
+
+func cloneUpdate(update actuator.ProcessesUpdate) actuator.ProcessesUpdate {
+	clone := update
+	clone.Processes = make([]actuator.ProcessUpdate, len(update.Processes))
+	copy(clone.Processes, update.Processes)
+	clone.Removals = make([]actuator.ProcessID, len(update.Removals))
+	copy(clone.Removals, update.Removals)
+	return clone
+}
+
 func (ts *testState) initializeModule(t *testing.T) {
 	ts.subscriber = &mockSubscriber{}
-	cfg, err := di_module.NewConfig(nil)
+	cfg, err := di_module.NewConfig(nil, di_module.WithActuatorConstructor(
+		func(t *loader.Loader) *interceptingActuator {
+			actuator := actuator.NewActuator(t)
+			ts.actuator = &interceptingActuator{inner: actuator}
+			ts.actuator.mu.tenants = make(map[string]*interceptingTenant)
+			return ts.actuator
+		},
+	))
 	require.NoError(t, err)
 
 	cfg.LogUploaderURL = ts.backendServer.URL + "/logs"
@@ -549,6 +696,10 @@ func waitForLogMessages(
 	{
 		redactors := append(make([]jsonRedactor, 0, len(defaultRedactors)), defaultRedactors...)
 		redactors = append(redactors, redactor(
+			prefixMatcher("/debugger/snapshot/stack"),
+			replacement(`"[stack]"`),
+		))
+		redactors = append(redactors, redactor(
 			prefixSuffixMatcher{
 				"/debugger/snapshot/captures/",
 				"/RemoteAddr/value",
@@ -569,25 +720,11 @@ func waitForLogMessages(
 				"/debugger/snapshot/captures/",
 				"/pat/fields/loc/value",
 			},
-			replacerFunc(func(v jsontext.Value) jsontext.Value {
-				t, err := jsontext.NewDecoder(bytes.NewReader(v)).ReadToken()
-				if err != nil {
-					return v
-				}
-				s := t.String()
-				idx := strings.Index(s, "pkg/dyninst")
-				if idx == -1 {
-					return v
-				}
-				s = "[datadog-agent]/" + s[idx:]
-				var buf bytes.Buffer
-				_ = jsontext.NewEncoder(&buf).WriteToken(jsontext.String(s))
-				return jsontext.Value(buf.Bytes())
-			}),
+			newRegexpReplacer(`(?P<datadogagent>.*)pkg/dyninst/testprogs/progs/(?P<binary>[^/]+)/.*:(?P<line>[[:digit:]]+)`),
 		))
 		var allRedacted []json.RawMessage
 		for _, log := range processedLogs {
-			allRedacted = append(allRedacted, redactJSON(t, log, redactors))
+			allRedacted = append(allRedacted, redactJSON(t, "", log, redactors))
 		}
 		var err error
 		content, err = json.MarshalIndent(allRedacted, "", "  ")

@@ -118,6 +118,12 @@ type telemetryConfigFields struct {
 	Site   string `yaml:"site"`
 }
 
+// configAction represents a configuration action with action_type and files
+type configAction struct {
+	ActionType string        `json:"action_type"`
+	Files      []interface{} `json:"files"`
+}
+
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
 func telemetryConfig() telemetryConfigFields {
 	configPath := "/etc/datadog-agent/datadog.yaml"
@@ -384,13 +390,36 @@ func installConfigExperimentCommand() *cobra.Command {
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
 
-			// Start with the main config
 			configs := make([][]byte, len(args)-2)
-			for i, config := range args[2:] {
-				configs[i] = []byte(config)
+			// Case for backward compatibility with the previous version of the config
+			// where the config was {"id":"config-1","files":[{"path": "path/to/config", "contents": "contents"}]}
+			if len(args) == 3 {
+				var configMap configAction
+				err := json.Unmarshal([]byte(args[2]), &configMap)
+				if err != nil {
+					return err
+				}
+				if configMap.ActionType == "" {
+					// Old configs
+					configMap = configAction{
+						ActionType: "write",
+						Files:      configMap.Files,
+					}
+					actionBytes, err := json.Marshal(configMap)
+					if err != nil {
+						return err
+					}
+					configs = [][]byte{actionBytes}
+				} else {
+					configs = [][]byte{[]byte(args[2])}
+				}
+			} else {
+				for i, config := range args[2:] {
+					configs[i] = []byte(config)
+				}
 			}
 
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs)
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs, []string{})
 		},
 	}
 	return cmd

@@ -8,6 +8,7 @@
 package ir
 
 import (
+	"iter"
 	"reflect"
 )
 
@@ -134,13 +135,28 @@ type StructureType struct {
 	TypeCommon
 	GoTypeAttributes
 
-	// Fields contains the fields of the structure.
-	Fields []Field
+	// RawFields contains all the fields of the structure.
+	// Use Fields() method to filter out uninteresting fields.
+	RawFields []Field
 }
 
 var _ Type = &StructureType{}
 
 func (t *StructureType) irType() {}
+
+// Fields returns interesting fields of the structure.
+func (t *StructureType) Fields() iter.Seq[Field] {
+	return func(yield func(Field) bool) {
+		for _, f := range t.RawFields {
+			if f.Name == "_" {
+				continue
+			}
+			if !yield(f) {
+				return
+			}
+		}
+	}
+}
 
 // Field is a field in a structure.
 type Field struct {
@@ -274,10 +290,12 @@ func (GoHMapBucketType) irType() {}
 // GoSwissMapHeaderType is the type of the header of a SwissMap.
 type GoSwissMapHeaderType struct {
 	*StructureType
-	// TablePtrSliceType is the slide data type stored conditionally under
-	// `dirPtr`.
+
+	// TablePtrSliceType is the slice data type stored conditionally under
+	// `dirPtr` in the case when dirlen > 0.
 	TablePtrSliceType *GoSliceDataType
-	// GroupType is the slice type stored conditionally under `dirPtr`.
+	// GroupType is the type stored conditionally under `dirPtr` in the case
+	// where dirlen == 0.
 	GroupType *StructureType
 }
 

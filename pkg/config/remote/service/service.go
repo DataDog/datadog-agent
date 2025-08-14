@@ -1013,8 +1013,8 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	return filteredList, nil
 }
 
-func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any, uint64) {
-	return func(setting string, _, newvalue any, _ uint64) {
+func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any, any, uint64) {
+	return func(setting string, _ model.Source, _, newvalue any, _ uint64) {
 		if setting != "api_key" {
 			return
 		}

@@ -156,8 +156,10 @@
 .windows_docker_2019:
   tags: ["windows-v2:2019"]
   variables:
-    # Windows runners don't support the s3 strategy and benefit from persisting the repository
-    OVERRIDE_GIT_STRATEGY: "fetch"
+    # Windows runners don't support the s3 strategy
+    # Clone is required since cancelled Windows jobs with fetch strategy
+    # can cause CIEXE-1152 which makes the runner unusable.
+    OVERRIDE_GIT_STRATEGY: "clone"
 
 # windows_docker_2022 configures the job to use the Windows Server 2022 runners.
 # Use in jobs that need to run on Windows Server 2022 runners.
@@ -173,8 +175,10 @@
   variables:
     # Full image name for Agent windows build image, for use in docker run command
     WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
-    # Windows runners don't support the s3 strategy and benefit from persisting the repository
-    OVERRIDE_GIT_STRATEGY: "fetch"
+    # Windows runners don't support the s3 strategy
+    # Clone is required since cancelled Windows jobs with fetch strategy
+    # can cause CIEXE-1152 which makes the runner unusable.
+    OVERRIDE_GIT_STRATEGY: "clone"
 
 # windows_docker_default configures the job to use the default Windows Server runners
 # Use in jobs that may need to have their version updated in the future.

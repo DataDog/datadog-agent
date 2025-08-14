@@ -15,23 +15,10 @@ import (
 var maxPayloadSizeCompressed = 2 * 1024 * 1024
 var maxPayloadSizeUnCompressed = 64 * 1024 * 1024
 
-// MarshalFct marshal m. Must be either JSONMarshalFct or ProtoMarshalFct.
-type MarshalFct func(m marshaler.AbstractMarshaler) ([]byte, error)
-
-// JSONMarshalFct marshal with MarshalJSON method.
-func JSONMarshalFct(m marshaler.AbstractMarshaler) ([]byte, error) {
-	return (m.(marshaler.JSONMarshaler)).MarshalJSON()
-}
-
-// ProtoMarshalFct marshal with Marshal method.
-func ProtoMarshalFct(m marshaler.AbstractMarshaler) ([]byte, error) {
-	return (m.(marshaler.ProtoMarshaler)).Marshal()
-}
-
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)
 // The dual role makes sense as you will never serialize without checking the size of the payload
-func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy compression.Component) (bool, []byte, []byte, error) {
-	compressedPayload, payload, err := serializeMarshaller(m, compress, marshalFct, strategy)
+func CheckSizeAndSerialize(m marshaler.JSONMarshaler, compress bool, strategy compression.Component) (bool, []byte, []byte, error) {
+	compressedPayload, payload, err := serializeMarshaller(m, compress, strategy)
 	if err != nil {
 		return false, nil, nil, err
 	}
@@ -42,11 +29,11 @@ func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshal
 }
 
 // serializeMarshaller serializes the marshaller and returns both the compressed and uncompressed payloads
-func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy compression.Component) ([]byte, []byte, error) {
+func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, strategy compression.Component) ([]byte, []byte, error) {
 	var payload []byte
 	var compressedPayload []byte
 	var err error
-	payload, err = marshalFct(m)
+	payload, err = m.MarshalJSON()
 	compressedPayload = payload
 	if err != nil {
 		return nil, nil, err

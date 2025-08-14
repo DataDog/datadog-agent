@@ -10,6 +10,8 @@ package run
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -17,6 +19,7 @@ import (
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -28,7 +31,7 @@ import (
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -121,7 +124,9 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		fmt.Println("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
 		return nil
 	}
-	uris := append(params.ConfPaths, params.Sets...)
+
+	uris := buildConfigURIs(params)
+
 	if err == agentConfig.ErrNoDDExporter {
 		return fxutil.Run(
 			fx.Supply(uris),
@@ -249,6 +254,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			DisableInternalProfiling: true,
 		}),
 		traceagentfx.Module(),
+		agenttelemetryfx.Module(),
 	)
 }
 
@@ -263,4 +269,48 @@ func ForwarderBundle() fx.Option {
 		fx.Provide(func(_ configsync.Component) defaultforwarder.Params {
 			return defaultforwarder.NewParams()
 		}))
+}
+
+func buildConfigURIs(params *cliParams) []string {
+	// Apply overrides
+	uris := append([]string{}, params.ConfPaths...)
+
+	// Add fleet policy config if DD_FLEET_POLICIES_DIR is set
+	if fleetPoliciesDir := os.Getenv("DD_FLEET_POLICIES_DIR"); fleetPoliciesDir != "" {
+		resolvedFleetPoliciesDir, err := filepath.EvalSymlinks(fleetPoliciesDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				// Expected behavior
+				fmt.Printf("Fleet policies directory does not exist: %s\n", fleetPoliciesDir)
+			} else {
+				fmt.Printf("Warning: failed to resolve symlinks for fleet policies dir %s: %v\n", fleetPoliciesDir, err)
+			}
+			resolvedFleetPoliciesDir = fleetPoliciesDir
+		}
+
+		// Make it absolute
+		absFleetPoliciesDir, err := filepath.Abs(resolvedFleetPoliciesDir)
+		if err != nil {
+			fmt.Printf("Warning: failed to get absolute path for fleet policies dir %s: %v\n", resolvedFleetPoliciesDir, err)
+			uris = append(uris, params.Sets...)
+			return uris
+		}
+
+		fleetConfigPath := filepath.Join(absFleetPoliciesDir, "otel-config.yaml")
+
+		_, err = os.Stat(fleetConfigPath)
+		if err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Warning: failed to access fleet policy config %s: %v\n", fleetConfigPath, err)
+		}
+
+		if err == nil {
+			uris = append(uris, "file:"+fleetConfigPath)
+			fmt.Printf("Using fleet policy config: %s\n", fleetConfigPath)
+		}
+
+	}
+
+	uris = append(uris, params.Sets...)
+
+	return uris
 }

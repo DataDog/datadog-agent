@@ -7,8 +7,6 @@
 package catalog
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -17,7 +15,7 @@ import (
 )
 
 // LegacyContainerMetricsProgram creates a program for filtering container metrics
-func LegacyContainerMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerMetricsProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerMetricsProgram"
 	var initErrors []error
 
@@ -42,7 +40,7 @@ func LegacyContainerMetricsProgram(config config.Component, logger log.Component
 }
 
 // LegacyContainerLogsProgram creates a program for filtering container logs
-func LegacyContainerLogsProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerLogsProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerLogsProgram"
 	var initErrors []error
 
@@ -67,7 +65,7 @@ func LegacyContainerLogsProgram(config config.Component, logger log.Component) p
 }
 
 // LegacyContainerACExcludeProgram creates a program for excluding containers via legacy `AC` filters
-func LegacyContainerACExcludeProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerACExcludeProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerACExcludeProgram"
 	var initErrors []error
 
@@ -85,7 +83,7 @@ func LegacyContainerACExcludeProgram(config config.Component, logger log.Compone
 }
 
 // LegacyContainerACIncludeProgram creates a program for including containers via legacy `AC` filters
-func LegacyContainerACIncludeProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerACIncludeProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerACIncludeProgram"
 	var initErrors []error
 
@@ -103,7 +101,7 @@ func LegacyContainerACIncludeProgram(config config.Component, logger log.Compone
 }
 
 // LegacyContainerGlobalProgram creates a program for filtering container globally
-func LegacyContainerGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerGlobalProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerGlobalProgram"
 	var initErrors []error
 
@@ -128,9 +126,15 @@ func LegacyContainerGlobalProgram(config config.Component, logger log.Component)
 }
 
 // LegacyContainerSBOMProgram creates a program for filtering container SBOMs
-func LegacyContainerSBOMProgram(config config.Component, logger log.Component) program.CELProgram {
+func LegacyContainerSBOMProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "LegacyContainerSBOMProgram"
 	var initErrors []error
+
+	if !config.GetBool("sbom.enabled") && !config.GetBool("sbom.container_image.enabled") && !config.GetBool("sbom.container.enabled") {
+		return program.CELProgram{
+			Name: programName,
+		}
+	}
 
 	excludeList := config.GetStringSlice("sbom.container_image.container_exclude")
 	if config.GetBool("sbom.container_image.exclude_pause_container") {
@@ -157,49 +161,8 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 	}
 }
 
-// createContainerADAnnotationsProgram creates a program for filtering
-// container annotations based on the annotation key.
-func createContainerADAnnotationsProgram(programName, annotationKey string, logger log.Component) program.CELProgram {
-	var initErrors []error
-
-	// Use 'in' operator to safely check if annotation exists before accessing it
-	excludeFilter := fmt.Sprintf(`
-		(("ad.datadoghq.com/" + container.name + ".%s") in container.pod.annotations && 
-		 container.pod.annotations["ad.datadoghq.com/" + container.name + ".%s"] in ["1", "t", "T", "true", "TRUE", "True"]) ||
-		(("ad.datadoghq.com/%s") in container.pod.annotations && 
-		 container.pod.annotations["ad.datadoghq.com/%s"] in ["1", "t", "T", "true", "TRUE", "True"])
-	`, annotationKey, annotationKey, annotationKey, annotationKey)
-
-	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.ContainerType)
-	if err != nil {
-		initErrors = append(initErrors, err)
-		logger.Warnf("Error creating CEL filtering program for %s: %v", programName, err)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// ContainerADAnnotationsProgram creates a program for filtering container annotations
-func ContainerADAnnotationsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	return createContainerADAnnotationsProgram("ContainerADAnnotationsProgram", "exclude", logger)
-}
-
-// ContainerADAnnotationsMetricsProgram creates a program for filtering container annotations for metrics
-func ContainerADAnnotationsMetricsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	return createContainerADAnnotationsProgram("ContainerADAnnotationsMetricsProgram", "metrics_exclude", logger)
-}
-
-// ContainerADAnnotationsLogsProgram creates a program for filtering container annotations for logs
-func ContainerADAnnotationsLogsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	return createContainerADAnnotationsProgram("ContainerADAnnotationsLogsProgram", "logs_exclude", logger)
-}
-
 // ContainerPausedProgram creates a program for filtering paused containers
-func ContainerPausedProgram(config config.Component, logger log.Component) program.CELProgram {
+func ContainerPausedProgram(config config.Component, logger log.Component) program.FilterProgram {
 	programName := "ContainerPausedProgram"
 	var initErrors []error
 	var excludeList []string

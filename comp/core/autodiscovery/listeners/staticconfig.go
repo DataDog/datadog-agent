@@ -45,6 +45,7 @@ func (l *StaticConfigListener) createServices() {
 		"container_image",
 		"container_lifecycle",
 		"sbom",
+		"gpu",
 	} {
 		if enabled := pkgconfigsetup.Datadog().GetBool(staticCheck + ".enabled"); enabled {
 			l.newService <- &StaticConfigService{adIdentifier: "_" + staticCheck}

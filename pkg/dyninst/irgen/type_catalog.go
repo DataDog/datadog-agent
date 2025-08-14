@@ -274,7 +274,7 @@ func (c *typeCatalog) buildType(
 		return &ir.StructureType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
-			Fields:           fields,
+			RawFields:        fields,
 		}, nil
 	case dwarf.TagTypedef:
 		getUnderlyingType := func() (ir.Type, error) {
@@ -328,6 +328,7 @@ func (c *typeCatalog) buildType(
 			if err != nil {
 				return nil, err
 			}
+			common.ByteSize = underlyingType.GetByteSize()
 			headerPtrType, ok := underlyingType.(*ir.PointerType)
 			if !ok {
 				return nil, fmt.Errorf(

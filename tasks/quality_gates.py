@@ -14,9 +14,16 @@ from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
-from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
+from tasks.libs.common.utils import running_in_ci
 from tasks.libs.package.size import InfraError
-from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
+from tasks.static_quality_gates.gates import (
+    GateMetricHandler,
+    QualityGateFactory,
+    StaticQualityGate,
+    StaticQualityGateError,
+    byte_to_string,
+)
+from tasks.static_quality_gates.gates_reporter import QualityGateOutputFormatter
 
 BUFFER_SIZE = 1000000
 FAIL_CHAR = "❌"
@@ -35,36 +42,6 @@ body_error_footer_pattern = """<details>
 |Quality gate|Error type|Error message|
 |----|---|--------|
 """
-
-footer_error_debug_advice = """
-To understand the size increase caused by this PR, feel free to use the [debug_static_quality_gates]({}) manual gitlab job to compare what this PR introduced for a specific gate.
-Usage:
-- Run the manual job with the following Key / Value pair as CI/CD variable on the gitlab UI. Example for amd64 deb packages
-Key: `GATE_NAME`, Value: `static_quality_gate_agent_deb_amd64`
-"""
-
-
-def get_debug_job_url():
-    commit_sha = os.environ.get("CI_COMMIT_SHA")
-    if not commit_sha:
-        return ""
-    try:
-        repo = get_gitlab_repo("DataDog/datadog-agent")
-        pipeline_list = repo.pipelines.list(sha=commit_sha)
-        if not len(pipeline_list):
-            raise Exit(code=1, message="The current commit has no pipeline attached.")
-        current_pipeline = pipeline_list[0]
-        debug_job = next(
-            job for job in current_pipeline.jobs.list(iterator=True) if job.name == "debug_static_quality_gates"
-        )
-    except StopIteration:
-        print("Job debug_static_quality_gates wasn't found in the current pipeline!")
-        return ""
-    except Exception as e:
-        print(f"Failed to fetch debug_static_quality_gates url!\n{traceback.format_exc()}\n{str(e)}")
-        return ""
-
-    return f"{debug_job._attrs['web_url']}"
 
 
 def display_pr_comment(
@@ -119,8 +96,7 @@ def display_pr_comment(
             body_error_footer += f"|{gate_name}|{gate['error_type']}|{error_message}|\n"
             with_error = True
     if with_error:
-        debug_info_footer = footer_error_debug_advice.format(get_debug_job_url())
-        body_error_footer += f"\n</details>\n\nStatic quality gates prevent the PR to merge! {debug_info_footer}\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+        body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge!\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
         final_error_body = body_error + body_error_footer
     else:
         final_error_body = ""
@@ -152,64 +128,108 @@ def _print_quality_gates_report(gate_states: list[dict[str, typing.Any]]):
 
 
 @task
-def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
+def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[StaticQualityGate]:
     """
-    Parse and executes static quality gates
+    Parse and executes static quality gates using composition pattern
     :param ctx: Invoke context
     :param config_path: Static quality gates configuration file path
-    :return:
+    :return: List of quality gates
     """
-    with open(config_path) as file:
-        config = yaml.safe_load(file)
-
-    gate_list = list(config.keys())
-    quality_gates_mod = __import__("tasks.static_quality_gates", fromlist=gate_list)
-    print(f"{config_path} correctly parsed !")
+    final_state = "success"
+    gate_states = []
     metric_handler = GateMetricHandler(
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
-    newline_tab = "\n\t"
-    print(f"The following gates are going to run:{newline_tab}- {(newline_tab + '- ').join(gate_list)}")
-    final_state = "success"
-    gate_states = []
+    gate_list = QualityGateFactory.create_gates_from_config(config_path)
 
-    nightly_run = False
+    # python 3.11< does not allow to use \n in f-strings
+    delimiter = '\n'
+    print(color_message(f"Starting {len(gate_list)} quality gates...", "cyan"))
+    print(color_message(f"Gates to run: {delimiter.join(gate.config.gate_name for gate in gate_list)}", "cyan"))
+
+    nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
     branch = os.environ["CI_COMMIT_BRANCH"]
 
-    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
-    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
-        nightly_run = True
-
     for gate in gate_list:
-        gate_inputs = config[gate]
-        gate_inputs["ctx"] = ctx
-        gate_inputs["metricHandler"] = metric_handler
-        gate_inputs["nightly"] = nightly_run
+        result = None
         try:
-            gate_mod = getattr(quality_gates_mod, gate)
-            gate_mod.entrypoint(**gate_inputs)
-            print(f"Gate {gate} succeeded !")
-            gate_states.append({"name": gate, "state": True, "error_type": None, "message": None})
-        except AssertionError as e:
-            print(f"Gate {gate} failed ! (AssertionError)")
+            result = gate.execute_gate(ctx)
+            if not result.success:
+                violation_messages = []
+                for violation in result.violations:
+                    current_mb = violation.current_size / (1024 * 1024)
+                    max_mb = violation.max_size / (1024 * 1024)
+                    excess_mb = violation.excess_bytes / (1024 * 1024)
+                    violation_messages.append(
+                        f"{violation.measurement_type.title()} size {current_mb:.1f} MB "
+                        f"exceeds limit of {max_mb:.1f} MB by {excess_mb:.1f} MB"
+                    )
+                error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
+                print(color_message(error_message, "red"))
+                raise StaticQualityGateError(error_message)
+            gate_states.append({"name": result.config.gate_name, "state": True, "error_type": None, "message": None})
+        except StaticQualityGateError as e:
             final_state = "failure"
-            gate_states.append({"name": gate, "state": False, "error_type": "AssertionError", "message": str(e)})
+            gate_states.append(
+                {
+                    "name": gate.config.gate_name,
+                    "state": False,
+                    "error_type": "StaticQualityGateFailed",
+                    "message": str(e),
+                }
+            )
         except InfraError as e:
-            print(f"Gate {gate} flaked ! (InfraError)\n Restarting the job...")
-            traceback.print_exception(e)
+            print(color_message(f"Gate {gate.config.gate_name} flaked ! (InfraError)\n Restarting the job...", "red"))
+            for line in traceback.format_exception(e):
+                print(color_message(line, "red"))
             ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
             raise Exit(code=42) from e
         except Exception:
-            print(f"Gate {gate} failed ! (StackTrace)")
             final_state = "failure"
             gate_states.append(
-                {"name": gate, "state": False, "error_type": "StackTrace", "message": traceback.format_exc()}
+                {
+                    "name": gate.config.gate_name,
+                    "state": False,
+                    "error_type": "StackTrace",
+                    "message": traceback.format_exc(),
+                }
             )
+        finally:
+            metric_handler.register_gate_tags(
+                gate.config.gate_name,
+                gate_name=gate.config.gate_name,
+                arch=gate.config.arch,
+                os=gate.config.os,
+                pipeline_id=os.environ["CI_PIPELINE_ID"],
+                ci_commit_ref_slug=os.environ["CI_COMMIT_REF_SLUG"],
+                ci_commit_sha=os.environ["CI_COMMIT_SHA"],
+            )
+            metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
+            metric_handler.register_metric(gate.config.gate_name, "max_on_disk_size", gate.config.max_on_disk_size)
+
+            # Only register current sizes if gate executed successfully and we have a result
+            if result is not None:
+                metric_handler.register_metric(
+                    gate.config.gate_name, "current_on_wire_size", result.measurement.on_wire_size
+                )
+                metric_handler.register_metric(
+                    gate.config.gate_name, "current_on_disk_size", result.measurement.on_disk_size
+                )
+
     ctx.run(f"datadog-ci tag --level job --tags static_quality_gates:\"{final_state}\"")
 
-    _print_quality_gates_report(gate_states)
-
+    # Reporting part
+    # Send metrics to Datadog
+    # and then print the summary table
+    # in the job's log
     metric_handler.send_metrics_to_datadog()
+
+    # Print summary table directly with composition-based gates and metric handler
+    QualityGateOutputFormatter.print_summary_table(gate_list, gate_states, metric_handler)
+
+    # Then print the traditional report for any failures
+    if final_state != "success":
+        _print_quality_gates_report(gate_states)
 
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
@@ -227,6 +247,8 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
             raise Exit(code=1)
     # We are generating our metric reports at the end to include relative size metrics
     metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
+
+    return gate_list
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, exception_bump=False):
@@ -331,48 +353,6 @@ def manual_threshold_update(self, filename="static_gate_report.json"):
     github = GithubAPI()
     pr_url = update_quality_gates_threshold(self, metric_handler, github)
     notify_threshold_update(pr_url)
-
-
-@task
-def debug_specific_quality_gate(ctx, gate_name):
-    """
-    Executes a single static quality gate to compare it to its ancestor and run debug on it
-
-    :param ctx: Invoke context
-    :param gate_name: Static quality gates to debug
-    :return:
-    """
-    if not gate_name:
-        raise Exit(
-            code=0,
-            message="Please ensure to set the GATE_NAME variable inside of the manual job execution gitlab page when executing this debug job.",
-        )
-    nightly_run = False
-    branch = os.environ["CI_COMMIT_BRANCH"]
-
-    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
-    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
-        nightly_run = True
-
-    quality_gates_module = __import__("tasks.static_quality_gates", fromlist=[gate_name])
-    gate_inputs = {"ctx": ctx, "nightly": nightly_run}
-    try:
-        gate_module = getattr(quality_gates_module, gate_name)
-    except AttributeError as e:
-        raise Exit(
-            code=0,
-            message=f"The provided quality gate to debug ({gate_name}) is invalid and wasn't found as part of tasks.static_quality_gates.",
-        ) from e
-
-    # As it is a debug job we do not want the job to actually fail on failures.
-    try:
-        gate_module.debug_entrypoint(**gate_inputs)
-    except NotImplementedError:
-        print(f"The {gate_name} static quality gate doesn't support debugging yet.")
-    except Exception as e:
-        print(
-            f"The {gate_name} debugging failed with the following trace:\n{traceback.format_exc()}\nError message:\n{str(e)}"
-        )
 
 
 @task()
