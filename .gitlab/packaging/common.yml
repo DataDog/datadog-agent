@@ -83,5 +83,4 @@
         echo "ℹ️  Skipping package measurement (no GATE_NAME defined)"
       fi
 
-.report_path:
-  - "**/*_size_report_*.yml"
+.report_path: "**/*_size_report_*.yml"
