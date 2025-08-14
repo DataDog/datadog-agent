@@ -56,6 +56,7 @@ type FlowAggregator struct {
 	dropFlowsBeforeBuildingPayload bool             // config option to drop flows before building payload for performance testing
 	dropFlowsBeforeEPForwarder     bool             // config option to drop flows before sending to EP forwarder for performance testing
 	getMemoryStats                 bool             // config option to enable memory statistics collection and metrics
+	getCodeTimings                 bool             // config option to enable code timings collection and metrics
 
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
@@ -107,6 +108,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		dropFlowsBeforeBuildingPayload: config.DropFlowsBeforeBuildingPayload,
 		dropFlowsBeforeEPForwarder:     config.DropFlowsBeforeEPForwarder,
 		getMemoryStats:                 config.GetMemoryStats,
+		getCodeTimings:                 config.GetCodeTimings,
 		lastSequencePerExporter:        make(map[sequenceDeltaKey]uint32),
 		logger:                         logger,
 	}
@@ -300,7 +302,7 @@ func (agg *FlowAggregator) flush() int {
 	flushTime := agg.TimeNowFunction()
 
 	flowsToFlush, flowAccStats := agg.flowAcc.flush()
-	agg.sender.Gauge("datadog.netflow.aggregator.perf_flowacc_flush_duration", time.Since(flushTime).Seconds(), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.flowacc_flush_duration", time.Since(flushTime).Seconds(), "", nil)
 
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
@@ -341,7 +343,6 @@ func (agg *FlowAggregator) flush() int {
 	}
 	if flowAccStats.getAggregationHashCount > 0 {
 		agg.sender.Count("datadog.netflow.aggregator.perf_get_aggregation_hash_count", float64(flowAccStats.getAggregationHashCount), "", nil)
-		agg.sender.Count("datadog.netflow.aggregator.perf_get_aggregation_hash_duration_nanonow", float64(flowAccStats.getAggregationHashDurationSecNanoNow), "", nil)
 		agg.sender.Count("datadog.netflow.aggregator.perf_get_aggregation_hash_duration_unixnano", float64(flowAccStats.getAggregationHashDurationSecUnixNano), "", nil)
 	}
 	if flowAccStats.portRollupAddCount > 0 {
@@ -410,9 +411,14 @@ func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[seq
 
 func (agg *FlowAggregator) rollupTrackersRefresh() {
 	agg.logger.Debugf("Rollup tracker refresh: use new store as current store")
-	start := timeNow()
+	var start time.Time
+	if agg.getCodeTimings {
+		start = timeNow()
+	}
 	agg.flowAcc.portRollup.UseNewStoreAsCurrentStore()
-	agg.sender.Count("datadog.netflow.aggregator.perf_rollup_tracker_refresh_duration", float64(time.Since(start).Seconds()), "", nil)
+	if agg.getCodeTimings {
+		agg.sender.Count("datadog.netflow.aggregator.perf_rollup_tracker_refresh_duration", float64(time.Since(start).Seconds()), "", nil)
+	}
 }
 
 func (agg *FlowAggregator) submitCollectorMetrics() error {

@@ -25,7 +25,6 @@ type flowAccStats struct {
 	flowAccAddDurationSec float64 // duration of flowAccumulator add() calls in seconds
 
 	getAggregationHashCount               int     // Number of getAggregationHash() calls
-	getAggregationHashDurationSecNanoNow  float64 // duration of getAggregationHash() calls in seconds (using nanoNow)
 	getAggregationHashDurationSecUnixNano float64 // duration of getAggregationHash() calls in seconds (using time.Now().UnixNano())
 
 	portRollupAddCount       int     // Number of port rollup add() calls
@@ -200,15 +199,12 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		}
 	}()
 
-	var startNanoNow int64
 	var startUnixNano int64
 	if f.getCodeTimings {
-		startNanoNow = nanoNow()
 		startUnixNano = timeNow().UnixNano()
 	}
 	aggHash := f.getAggregationHash(flowToAdd)
 	if f.getCodeTimings {
-		f.flowAccStats.getAggregationHashDurationSecNanoNow += float64(nanoSince(startNanoNow)) / 1e9              // convert to seconds
 		f.flowAccStats.getAggregationHashDurationSecUnixNano += float64(time.Now().UnixNano()-startUnixNano) / 1e9 // convert to seconds
 		f.flowAccStats.getAggregationHashCount++
 	}
