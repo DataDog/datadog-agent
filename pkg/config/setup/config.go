@@ -24,7 +24,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -124,6 +124,11 @@ const (
 
 var (
 	// datadog is the global configuration object
+	// NOTE: The constructor `create.New` returns a `model.BuildableConfig`, which is the
+	// most general interface for the methods implemented by these types. However, we store
+	// them as `model.Config` because that is what the global `Datadog()` accessor returns.
+	// Keeping these types aligned signficantly reduces the compiled size of this binary.
+	// See https://datadoghq.atlassian.net/wiki/spaces/ACFG/pages/5386798973/Datadog+global+accessor+PR+size+increase
 	datadog     pkgconfigmodel.Config
 	systemProbe pkgconfigmodel.Config
 
@@ -134,7 +139,7 @@ var (
 // SetDatadog sets the the reference to the agent configuration.
 // This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
 // legacy converter and mock have been migrated we will remove this function.
-func SetDatadog(cfg pkgconfigmodel.Config) {
+func SetDatadog(cfg pkgconfigmodel.BuildableConfig) {
 	datadogMutex.Lock()
 	defer datadogMutex.Unlock()
 	datadog = cfg
@@ -143,7 +148,7 @@ func SetDatadog(cfg pkgconfigmodel.Config) {
 // SetSystemProbe sets the the reference to the systemProbe configuration.
 // This is currently used by the config mocks and should not be user anywhere else. Once the mocks have been migrated we
 // will remove this function.
-func SetSystemProbe(cfg pkgconfigmodel.Config) {
+func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 	systemProbeMutex.Lock()
 	defer systemProbeMutex.Unlock()
 	systemProbe = cfg
@@ -233,6 +238,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	setupAPM,
 	OTLP,
 	setupMultiRegionFailover,
+	setupPreaggregation,
 	telemetry,
 	autoconfig,
 	remoteconfig,
@@ -258,7 +264,7 @@ func init() {
 	// Configuration defaults
 	initConfig()
 
-	datadog.BuildSchema()
+	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
@@ -289,6 +295,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
+	config.BindEnvAndSetDefault("collect_ccrid", true)
 
 	// overridden in IoT Agent main
 	config.BindEnvAndSetDefault("iot_host", false)
@@ -493,6 +500,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
 	config.BindEnvAndSetDefault("network_path.collector.source_excludes", map[string][]string{})
 	config.BindEnvAndSetDefault("network_path.collector.dest_excludes", map[string][]string{})
+	config.BindEnvAndSetDefault("network_path.collector.tcp_method", "")
+	config.BindEnvAndSetDefault("network_path.collector.icmp_mode", "")
 	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
@@ -903,6 +912,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
+	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_disable_cache", false)
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
@@ -1185,7 +1195,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
-	config.BindEnvAndSetDefault("infrastructure_mode", "pro")
+	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

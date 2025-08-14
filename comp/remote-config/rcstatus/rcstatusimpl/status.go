@@ -105,6 +105,13 @@ func (rc statusProvider) populateStatus(stats map[string]interface{}) {
 	}
 
 	stats["remoteConfiguration"] = status
+
+	if expvar.Get("remoteConfigStartup") != nil {
+		remoteConfigStartupJSON := expvar.Get("remoteConfigStartup").String()
+		startupMap := make(map[string]interface{})
+		json.Unmarshal([]byte(remoteConfigStartupJSON), &startupMap) //nolint:errcheck
+		stats["remoteConfigStartup"] = startupMap
+	}
 }
 
 func isRemoteConfigEnabled(conf config.Component) bool {

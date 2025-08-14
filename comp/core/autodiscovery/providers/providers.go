@@ -59,6 +59,5 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProviderWithComponents(names.PrometheusPodsRegisterName, NewPrometheusPodsConfigProvider, providerCatalog)
 	RegisterProvider(names.PrometheusServicesRegisterName, NewPrometheusServicesConfigProvider, providerCatalog)
 	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider, providerCatalog)
-	RegisterProviderWithComponents(names.GPU, NewGPUConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.ProcessLog, NewProcessLogConfigProvider, providerCatalog)
 }

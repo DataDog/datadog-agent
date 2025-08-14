@@ -3,7 +3,7 @@
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   before_script:
     - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
@@ -16,11 +16,7 @@
     - !reference [.retrieve_linux_go_tools_deps]
     - rm -f $OMNIBUS_PACKAGE_DIR/*-dbg-*.tar.xz
     - ls -l $OMNIBUS_PACKAGE_DIR
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
-    - python3 -m dda self dep sync -f legacy-tasks
+    - dda self dep sync -f legacy-tasks
     - set +x
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"

@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/viper"
 	"github.com/mitchellh/mapstructure"
 	"github.com/mohae/deepcopy"
@@ -43,6 +45,9 @@ type safeConfig struct {
 	notificationChannel   chan model.ConfigChangeNotification
 	sequenceID            uint64
 
+	// ready is whether the schema has been built, which marks the config as ready for use
+	ready *atomic.Bool
+
 	// Proxy settings
 	proxies *model.Proxy
 
@@ -59,6 +64,8 @@ type safeConfig struct {
 
 	// warnings contains the warnings that were logged during the configuration loading
 	warnings []error
+
+	existingTransformers map[string]bool
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -219,7 +226,7 @@ func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 
 // BuildSchema is a no-op for the viper based config
 func (c *safeConfig) BuildSchema() {
-	// pass
+	c.ready.Store(true)
 }
 
 func (c *safeConfig) setEnvTransformer(key string, fn func(string) interface{}) {
@@ -231,6 +238,10 @@ func (c *safeConfig) setEnvTransformer(key string, fn func(string) interface{}) 
 	//
 	// This is yet another edge case of working with Viper, this edge cases is already handled by the nodetremodel
 	// replacement.
+	if _, exists := c.existingTransformers[key]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
+	c.existingTransformers[key] = true
 	c.configSources[model.SourceEnvVar].SetEnvKeyTransformer(key, fn)
 	c.Viper.SetEnvKeyTransformer(key, fn)
 }
@@ -489,11 +500,27 @@ func (c *safeConfig) GetSource(key string) model.Source {
 	return source
 }
 
+func (c *safeConfig) isReady() bool {
+	return c.ready.Load()
+}
+
+// RevertFinishedBackToBuilder returns an interface that can build more on
+// the current config, instead of treating it as sealed
+// NOTE: Only used by OTel, no new uses please!
+func (c *safeConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
+	c.ready.Store(false)
+	return c
+}
+
 // SetEnvPrefix wraps Viper for concurrent access, and keeps the envPrefix for
 // future reference
 func (c *safeConfig) SetEnvPrefix(in string) {
 	c.Lock()
 	defer c.Unlock()
+	if c.isReady() {
+		panic("cannot SetEnvPrefix() once the config has been marked as ready for use")
+	}
+	c.existingTransformers = make(map[string]bool)
 	c.configSources[model.SourceEnvVar].SetEnvPrefix(in)
 	c.Viper.SetEnvPrefix(in)
 	c.envPrefix = in
@@ -536,6 +563,9 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.Lock()
 	defer c.Unlock()
+	if c.isReady() {
+		panic("cannot SetEnvPrefix() once the config has been marked as ready for use")
+	}
 	c.configSources[model.SourceEnvVar].SetEnvKeyReplacer(r)
 	c.Viper.SetEnvKeyReplacer(r)
 	c.envKeyReplacer = r
@@ -796,19 +826,21 @@ func (c *safeConfig) Object() model.Reader {
 
 // NewConfig returns a new viper config
 // Deprecated: instead use pkg/config/create.NewConfig or NewViperConfig
-func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
 	return NewViperConfig(name, envPrefix, envKeyReplacer)
 }
 
 // NewViperConfig returns a new Config object.
-func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
 	config := safeConfig{
-		Viper:               viper.New(),
-		configSources:       map[model.Source]*viper.Viper{},
-		sequenceID:          0,
-		configEnvVars:       map[string]struct{}{},
-		unknownKeys:         map[string]struct{}{},
-		notificationChannel: make(chan model.ConfigChangeNotification, 1000),
+		Viper:                viper.New(),
+		configSources:        map[model.Source]*viper.Viper{},
+		sequenceID:           0,
+		ready:                atomic.NewBool(false),
+		configEnvVars:        map[string]struct{}{},
+		unknownKeys:          map[string]struct{}{},
+		notificationChannel:  make(chan model.ConfigChangeNotification, 1000),
+		existingTransformers: make(map[string]bool),
 	}
 
 	// load one Viper instance per source of setting change
