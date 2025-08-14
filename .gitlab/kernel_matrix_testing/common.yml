@@ -217,7 +217,7 @@
     # and Gitlab thinks it can simplify the dependency graph. This leads to a problem where, if any other dependency of the run test
     # jobs fail (e.g., building the system probe tests), the run tests will be skipped, and the cleanup job will run even though the
     # setup_env job hasn't finished. This causes instances to be leftover for more time than necessary.
-    - dda inv -- kmt.wait-for-setup-job --pipeline-id $CI_PIPELINE_ID --arch $ARCH --component $TEST_COMPONENT
+    - [[ -z "${FORCE_CLEANUP}" ]] && dda inv -- kmt.wait-for-setup-job --pipeline-id $CI_PIPELINE_ID --arch $ARCH --component $TEST_COMPONENT
     - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE $FILTER_TEST_COMPONENT --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
     - cat instance.json | jq -r 'map(.[]) | .[]' | grep -v "null" | xargs --no-run-if-empty -n 1 -t aws ec2 terminate-instances --instance-ids
   after_script:
@@ -232,6 +232,8 @@
   when: manual
   allow_failure: true # Don't fail the full pipeline, these can fail if the instances are already cleaned up
   needs: []
+  variables:
+    FORCE_CLEANUP: 1
 
 # -- Test runners
 .kmt_run_tests:
