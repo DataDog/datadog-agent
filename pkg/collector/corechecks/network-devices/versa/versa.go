@@ -35,8 +35,6 @@ const (
 
 // Configuration for the Versa check
 type checkCfg struct {
-	// add versa specific fields
-	Name                                  string   `yaml:"name"` // TODO: remove this field, only added it for testing
 	DirectorEndpoint                      string   `yaml:"director_endpoint"`
 	DirectorPort                          int      `yaml:"director_port"`
 	AnalyticsEndpoint                     string   `yaml:"analytics_endpoint"`
@@ -58,13 +56,6 @@ type checkCfg struct {
 	CollectHardwareMetrics                *bool    `yaml:"collect_hardware_metrics"`
 	CollectInterfaceMetrics               *bool    `yaml:"collect_interface_metrics"`
 	CollectTunnelMetrics                  *bool    `yaml:"collect_tunnel_metrics"`
-	CollectControlConnectionMetrics       *bool    `yaml:"collect_control_connection_metrics"`
-	CollectOMPPeerMetrics                 *bool    `yaml:"collect_omp_peer_metrics"`
-	CollectDeviceCountersMetrics          *bool    `yaml:"collect_device_counters_metrics"`
-	CollectBFDSessionStatus               *bool    `yaml:"collect_bfd_session_status"`
-	CollectHardwareStatus                 *bool    `yaml:"collect_hardware_status"`
-	CollectCloudApplicationsMetrics       *bool    `yaml:"collect_cloud_applications_metrics"`
-	CollectBGPNeighborStates              *bool    `yaml:"collect_bgp_neighbor_states"`
 	CollectSLAMetrics                     *bool    `yaml:"collect_sla_metrics"`
 	CollectLinkMetrics                    *bool    `yaml:"collect_link_metrics"`
 	CollectApplicationsByApplianceMetrics *bool    `yaml:"collect_applications_by_appliance_metrics"`
@@ -86,7 +77,7 @@ type VersaCheck struct {
 
 // Run executes the check
 func (v *VersaCheck) Run() error {
-	log.Infof("Running Versa check for instance: %s", v.config.Name)
+	log.Infof("Running Versa check")
 
 	clientOptions, err := v.buildClientOptions()
 	if err != nil {
@@ -406,16 +397,9 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectHardwareMetrics = boolPointer(true)
 	instanceConfig.CollectInterfaceMetrics = boolPointer(true)
 	instanceConfig.CollectTunnelMetrics = boolPointer(true)
-	instanceConfig.CollectControlConnectionMetrics = boolPointer(true)
-	instanceConfig.CollectOMPPeerMetrics = boolPointer(true)
-	instanceConfig.CollectDeviceCountersMetrics = boolPointer(true)
 	instanceConfig.SendDeviceMetadata = boolPointer(true)
 	instanceConfig.SendInterfaceMetadata = boolPointer(true)
 
-	instanceConfig.CollectBFDSessionStatus = boolPointer(false)
-	instanceConfig.CollectHardwareStatus = boolPointer(false)
-	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
-	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
 	instanceConfig.CollectLinkMetrics = boolPointer(false)
 	instanceConfig.CollectApplicationsByApplianceMetrics = boolPointer(false)
