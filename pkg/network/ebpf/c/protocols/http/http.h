@@ -44,7 +44,14 @@ static __always_inline void http_batch_enqueue_wrapper(conn_tuple_t *tuple, http
 
     bpf_memcpy(&event->tuple, tuple, sizeof(conn_tuple_t));
     bpf_memcpy(&event->http, http, sizeof(http_transaction_t));
-    http_batch_enqueue(event);
+
+    // http_batch_enqueue(event);
+
+    long perf_ret = bpf_ringbuf_output(&http_batch_events, event, sizeof(http_event_t), 0);
+    if (perf_ret < 0) {
+        log_debug("http flush error: %ld", perf_ret);
+        return;
+    }
 }
 
 static __always_inline void http_parse_data(char const *p, http_packet_t *packet_type, http_method_t *method) {

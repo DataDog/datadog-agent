@@ -30,11 +30,12 @@ import (
 )
 
 type protocol struct {
-	cfg            *config.Config
-	telemetry      *Telemetry
-	statkeeper     *StatKeeper
-	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
-	eventsConsumer *events.Consumer[EbpfEvent]
+	cfg        *config.Config
+	telemetry  *Telemetry
+	statkeeper *StatKeeper
+	mapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
+	//eventsConsumer events.Consumer[EbpfEvent]
+	directConsumer *events.DirectConsumer[EbpfEvent]
 	mgr            *manager.Manager
 }
 
@@ -125,11 +126,23 @@ func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protoc
 
 	telemetry := NewTelemetry("http")
 
-	return &protocol{
+	p := &protocol{
 		cfg:       cfg,
 		telemetry: telemetry,
 		mgr:       mgr,
-	}, nil
+	}
+	directConsumer, err := events.NewDirectConsumer("http", p.processHTTPDirect)
+	if err != nil {
+		return nil, err
+	}
+	p.directConsumer = directConsumer
+
+	return p, nil
+}
+
+// implement interface
+func (p *protocol) Modifiers() []ddebpf.Modifier {
+	return []ddebpf.Modifier{&p.directConsumer.EventHandler}
 }
 
 // Name return the program's name.
@@ -161,7 +174,8 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 }
 
 func (p *protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewConsumer(
+	// TODO: Remove this, it's only needed for the batching mechanism to work
+	_, err = events.NewBatchConsumer(
 		"http",
 		p.mgr,
 		p.processHTTP,
@@ -171,7 +185,7 @@ func (p *protocol) PreStart() (err error) {
 	}
 
 	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg, p.telemetry))
-	p.eventsConsumer.Start()
+	//p.eventsConsumer.Start()
 
 	return
 }
@@ -187,9 +201,9 @@ func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
-	if p.eventsConsumer != nil {
-		p.eventsConsumer.Stop()
-	}
+	//if p.eventsConsumer != nil {
+	//	p.eventsConsumer.Stop()
+	//}
 
 	if p.statkeeper != nil {
 		p.statkeeper.Close()
@@ -214,6 +228,11 @@ func (p *protocol) processHTTP(events []EbpfEvent) {
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
 	}
+}
+
+func (p *protocol) processHTTPDirect(event EbpfEvent) {
+	p.telemetry.Count(&event)
+	p.statkeeper.Process(&event)
 }
 
 func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
@@ -245,7 +264,8 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 // The format of HTTP stats:
 // [source, dest tuple, request path] -> RequestStats object
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
-	p.eventsConsumer.Sync()
+	//p.eventsConsumer.Sync()
+	p.directConsumer.Sync()
 	p.telemetry.Log()
 	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{

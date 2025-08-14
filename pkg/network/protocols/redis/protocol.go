@@ -39,7 +39,7 @@ const (
 
 type protocol struct {
 	cfg            *config.Config
-	eventsConsumer *events.Consumer[EbpfEvent]
+	eventsConsumer *events.BatchConsumer[EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper    *StatsKeeper
 	mgr            *manager.Manager
@@ -130,7 +130,7 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 }
 
 func (p *protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewConsumer(
+	p.eventsConsumer, err = events.NewBatchConsumer(
 		eventStream,
 		p.mgr,
 		p.processRedis,
