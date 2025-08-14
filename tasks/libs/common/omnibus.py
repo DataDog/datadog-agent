@@ -23,6 +23,7 @@ ENV_PASSHTROUGH = {
     'DD_CMAKE_TOOLCHAIN': 'Points at cmake toolchain',
     'DDA_NO_DYNAMIC_DEPS': 'Variable affecting dda behavior',
     'DEPLOY_AGENT': 'Used to apply higher compression level for deployed artifacts',
+    'FORCED_PACKAGE_COMPRESSION_LEVEL': 'Used as an override for the compression level of artifacts',
     'GEM_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'GEM_PATH': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'HOME': 'Home directory might be used by invoked programs such as git',
@@ -160,7 +161,7 @@ def get_dd_api_key(ctx):
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:
-        cmd = f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
+        cmd = f'vault kv get -field=token kv/k8s/{os.environ.get('POD_NAMESPACE', 'gitlab-runner')}/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     return ctx.run(cmd, hide=True).stdout.strip()
 
 

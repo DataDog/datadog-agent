@@ -1,18 +1,18 @@
 {
     "base_branch": "main",
-    "current_milestone": "7.70.0",
+    "current_milestone": "7.71.0",
     "dependencies": {
-        "OMNIBUS_RUBY_VERSION": "dd14a4b9f3221d5c74c343c24f4585810d5cd068",
+        "OMNIBUS_RUBY_VERSION": "c760785c93689c06da59e5f38875cdeda39438c4",
         "JMXFETCH_VERSION": "0.49.9",
         "JMXFETCH_HASH": "0f33f0f0d95ba9286bb1c02ee39955ab6709c5b7f923d318a796a71ef2e6b706",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.9.0",
         "WINDOWS_DDNPM_SHASUM": "5830a4618b8aaa6b07f337801a21c48e63dd0341d860f13007b702f759e6e097",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.69.0",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.70.0",
         "WINDOWS_DDPROCMON_DRIVER": "release-signed",
         "WINDOWS_DDPROCMON_VERSION": "1.3.0",
         "WINDOWS_DDPROCMON_SHASUM": "649f1c83283a019a3f7bf822e6f025aacd7bd8de8d90485efe089f1dfb553813",
-        "INTEGRATIONS_CORE_VERSION": "f23c824d4ac526bf8e9deff989b39268280bcb89"
+        "INTEGRATIONS_CORE_VERSION": "dc03c525c7568958d277cdfc11b9741d94e6e883"
     },
     "last_stable": {
         "6": "6.53.1",
