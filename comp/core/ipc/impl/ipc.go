@@ -11,14 +11,20 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	configsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -54,6 +60,15 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, fmt.Errorf("unable to fetch auth token (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
+
+	// initClusterTLSConfig is used to initialize the cluster TLS configuration.
+	// Since we are not creating the IPC certificate, we don't need to pass the certificate fetcher options.
+	// This function will only load and set the cluster CA to the global variable.
+	_, err = initClusterTLSConfig(reqs)
+	if err != nil {
+		return Provides{}, fmt.Errorf("error while setting up cluster TLS config: %w", err)
+	}
+
 	ipccert, ipckey, err := cert.FetchIPCCert(reqs.Conf)
 	if err != nil {
 		return Provides{}, fmt.Errorf("unable to fetch IPC certificate (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
@@ -76,7 +91,16 @@ func NewReadWriteComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, fmt.Errorf("error while creating or fetching auth token: %w", err)
 	}
-	ipccert, ipckey, err := cert.FetchOrCreateIPCCert(ctx, reqs.Conf)
+
+	// initClusterTLSConfig is used to initialize the cluster TLS configuration and returns certificate fetcher options.
+	// The cluster CA is used to sign the IPC certificate.
+	// This way either client from localhost or from the cluster can authenticate server.
+	certificateFetcherOptions, err := initClusterTLSConfig(reqs)
+	if err != nil {
+		return Provides{}, fmt.Errorf("error while setting up cluster TLS config: %w", err)
+	}
+
+	ipccert, ipckey, err := cert.FetchOrCreateIPCCert(ctx, reqs.Conf, certificateFetcherOptions...)
 	if err != nil {
 		return Provides{}, fmt.Errorf("error while creating or fetching IPC cert: %w", err)
 	}
@@ -159,17 +183,6 @@ func buildIPCComponent(reqs Requires, token string, ipccert, ipckey []byte) (Pro
 
 	httpClient := ipchttp.NewClient(token, tlsClientConfig, reqs.Conf)
 
-	// Enable cross-node TLS verification if configured
-	var crossNodeClientTLSConfig *tls.Config
-	if reqs.Conf.GetBool("cluster_agent.enable_tls_verification") {
-		crossNodeClientTLSConfig = tlsClientConfig
-	} else {
-		crossNodeClientTLSConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
-	}
-	pkgapiutil.SetCrossNodeClientTLSConfig(crossNodeClientTLSConfig)
-
 	return Provides{
 		Comp: &ipcComp{
 			logger:          reqs.Log,
@@ -181,6 +194,105 @@ func buildIPCComponent(reqs Requires, token string, ipccert, ipckey []byte) (Pro
 		},
 		HTTPClient: httpClient,
 	}, nil
+}
+
+// initClusterTLSConfig initializes the cluster TLS configuration and returns certificate fetcher options.
+// This function performs the following steps:
+//
+// 1. Retrieves configuration values for TLS verification and cluster CA file path
+// 2. Validates the configuration - returns early if both TLS verification is disabled and no CA path is set
+// 3. Ensures TLS verification cannot be enabled without a cluster CA file path
+// 4. If a cluster CA path is provided:
+//   - Reads the cluster CA certificate and private key from the specified path
+//   - Configures certificate fetcher options with the CA and external IP
+//   - If TLS verification is enabled, creates a secure TLS config with the CA as root certificate
+//
+// 5. Sets the client TLS configuration globally for cross-node communication
+func initClusterTLSConfig(reqs Requires) ([]cert.CertificateFetcherOption, error) {
+	// Validate configuration early
+	enableTLSVerification := reqs.Conf.GetBool("cluster_trust_chain.enable_tls_verification")
+	clusterCAPath := reqs.Conf.GetString("cluster_trust_chain.ca_cert_file_path")
+	clusterCAKeyPath := reqs.Conf.GetString("cluster_trust_chain.ca_key_file_path")
+
+	var certificateFetcherOptions []cert.CertificateFetcherOption
+	clusterClientTLSConfig := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	// early return if TLS verification is disabled and no cluster CA is provided
+	if !enableTLSVerification && clusterCAPath == "" && clusterCAKeyPath == "" {
+		pkgapiutil.SetCrossNodeClientTLSConfig(clusterClientTLSConfig)
+		return certificateFetcherOptions, nil
+	}
+
+	// It's not possible to enable TLS verification without a cluster CA
+	if enableTLSVerification && (clusterCAPath == "" || clusterCAKeyPath == "") {
+		return certificateFetcherOptions, fmt.Errorf("cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path or cluster_trust_chain.ca_key_file_path is not set")
+	}
+
+	if clusterCAPath != "" {
+		caCertPEM, caCert, caPrivKey, err := cert.ReadClusterCA(clusterCAPath, clusterCAKeyPath)
+		if err != nil {
+			return certificateFetcherOptions, fmt.Errorf("unable to read cluster CA cert and key: %w", err)
+		}
+
+		// Setting certificate signing by Cluster CA only if the flavor is ClusterAgent or CLC Runner
+		if flavor.GetFlavor() == flavor.ClusterAgent || configsetup.IsCLCRunner(reqs.Conf) {
+			// Getting the right IP address
+			sanIP, err := retrieveExternalIPs(reqs.Conf)
+			if err != nil {
+				return certificateFetcherOptions, fmt.Errorf("unable to retrieve external IPs: %w", err)
+			}
+
+			certificateFetcherOptions = append(certificateFetcherOptions,
+				cert.WithClusterCA(caCert, caPrivKey),
+				cert.WithExternalIPs(sanIP),
+			)
+		}
+
+		// if TLS verification is enabled, we need to add the cluster CA to the client TLS config
+		if enableTLSVerification {
+			certPool := x509.NewCertPool()
+			if ok := certPool.AppendCertsFromPEM(caCertPEM); !ok {
+				return certificateFetcherOptions, fmt.Errorf("unable to generate certPool from cluster CA cert")
+			}
+			clusterClientTLSConfig = &tls.Config{
+				RootCAs: certPool,
+			}
+		}
+	}
+
+	// set the client TLS config to the global variable
+	pkgapiutil.SetCrossNodeClientTLSConfig(clusterClientTLSConfig)
+
+	return certificateFetcherOptions, nil
+}
+
+// retrieveExternalIPs retrieves the IP used by clients to contact DCA and CLCRunner servers
+// This function support only CLC Runner and Cluster Agent
+func retrieveExternalIPs(config config.Component) (net.IP, error) {
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		clusterAgentEndpoint, err := configutils.GetClusterAgentEndpoint()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get cluster agent endpoint: %w", err)
+		}
+		parsedURL, err := url.Parse(clusterAgentEndpoint)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse cluster agent endpoint URL: %w", err)
+		}
+		podIP, _, err := net.SplitHostPort(parsedURL.Host)
+		if err != nil {
+			return nil, fmt.Errorf("unable to get pod IP from cluster agent endpoint: %w", err)
+		}
+
+		return net.ParseIP(podIP), nil
+	}
+
+	if host := config.GetString("clc_runner_host"); host != "" {
+		return net.ParseIP(host), nil
+	}
+
+	return nil, fmt.Errorf("unable to retrieve external IP")
 }
 
 // printAuthSignature computes and logs the authentication signature for the given token and IPC certificate/key.

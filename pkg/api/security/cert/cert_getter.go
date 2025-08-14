@@ -9,10 +9,13 @@ package cert
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"net"
+	"os"
 	"path/filepath"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -39,10 +42,13 @@ func getCertFilepath(config configModel.Reader) string {
 }
 
 type certificateFactory struct {
+	caCert      *x509.Certificate
+	caPrivKey   crypto.Signer
+	externalIPs []net.IP
 }
 
-func (certificateFactory) Generate() (Certificate, []byte, error) {
-	cert, err := generateCertKeyPair()
+func (f certificateFactory) Generate() (Certificate, []byte, error) {
+	cert, err := generateCertKeyPair(f.caCert, f.caPrivKey, f.externalIPs...)
 	return cert, bytes.Join([][]byte{cert.cert, cert.key}, []byte{}), err
 }
 
@@ -71,11 +77,83 @@ func FetchIPCCert(config configModel.Reader) ([]byte, []byte, error) {
 	return cert.cert, cert.key, err
 }
 
+// CertificateFetcherOption allows to configure the certificate factory
+type CertificateFetcherOption func(certificateFactory *certificateFactory)
+
 // FetchOrCreateIPCCert loads or creates certificate file used to authenticate IPC communicates
 // It takes a context to allow for cancellation or timeout of the operation
-func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) ([]byte, []byte, error) {
-	cert, err := filesystem.FetchOrCreateArtifact(ctx, getCertFilepath(config), &certificateFactory{})
+func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader, options ...CertificateFetcherOption) ([]byte, []byte, error) {
+
+	certificateFactory := certificateFactory{}
+
+	for _, option := range options {
+		option(&certificateFactory)
+	}
+
+	cert, err := filesystem.FetchOrCreateArtifact(ctx, getCertFilepath(config), certificateFactory)
 	return cert.cert, cert.key, err
+}
+
+// WithClusterCA sets the cluster CA certificate and key to be used for for signing the IPC certificate
+func WithClusterCA(caCert *x509.Certificate, caPrivKey crypto.Signer) CertificateFetcherOption {
+	return func(certificateFactory *certificateFactory) {
+		certificateFactory.caCert = caCert
+		certificateFactory.caPrivKey = caPrivKey
+	}
+}
+
+// WithExternalIPs sets the external IPs to be added to the IPC certificate SANs
+func WithExternalIPs(externalIPs ...net.IP) CertificateFetcherOption {
+	return func(certificateFactory *certificateFactory) {
+		certificateFactory.externalIPs = externalIPs
+	}
+}
+
+// ReadClusterCA reads the cluster CA certificate and key from the given path
+func ReadClusterCA(caCertPath, caKeyPath string) ([]byte, *x509.Certificate, crypto.Signer, error) {
+	var caCert *x509.Certificate
+	var caPrivKey crypto.Signer
+
+	// Read the cluster CA cert and key
+	caCertPEM, err := os.ReadFile(caCertPath)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("unable to read cluster CA cert file: %w", err)
+	}
+	caKeyPEM, err := os.ReadFile(caKeyPath)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("unable to read cluster CA key file: %w", err)
+	}
+
+	// Parse the cluster CA cert
+	block, _ := pem.Decode(caCertPEM)
+	if block == nil {
+		return nil, nil, nil, fmt.Errorf("unable to decode cluster CA cert PEM")
+	}
+	caCert, err = x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("unable to parse cluster CA cert file: %w", err)
+	}
+
+	// Parse the cluster CA key
+	block, _ = pem.Decode(caKeyPEM)
+	if block == nil {
+		return nil, nil, nil, fmt.Errorf("unable to decode cluster CA key PEM")
+	}
+
+	switch block.Type {
+	case "EC PRIVATE KEY":
+		caPrivKey, err = x509.ParseECPrivateKey(block.Bytes)
+	case "RSA PRIVATE KEY":
+		caPrivKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+	default:
+		return nil, nil, nil, fmt.Errorf("unsupported cluster CA key type: %s", block.Type)
+	}
+
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("unable to parse cluster CA key file: %w", err)
+	}
+
+	return caCertPEM, caCert, caPrivKey, nil
 }
 
 // GetTLSConfigFromCert returns the TLS configs for the client and server using the provided IPC certificate and key.
