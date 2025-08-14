@@ -126,12 +126,12 @@ func NewListenerConfig() (ListenerConfig, error) {
 	snmpConfig.CollectTopology = true
 
 	ddcfg := pkgconfigsetup.Datadog()
-	if ddcfg.IsSet("network_devices.autodiscovery") {
+	if ddcfg.IsConfigured("network_devices.autodiscovery") {
 		err := structure.UnmarshalKey(ddcfg, "network_devices.autodiscovery", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
 			return snmpConfig, err
 		}
-	} else if ddcfg.IsSet("snmp_listener") {
+	} else if ddcfg.IsConfigured("snmp_listener") {
 		err := structure.UnmarshalKey(ddcfg, "snmp_listener", &snmpConfig, structure.ImplicitlyConvertArrayToMapSet)
 		if err != nil {
 			return snmpConfig, err
