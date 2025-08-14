@@ -87,11 +87,20 @@ class TestOmnibusCache(unittest.TestCase):
         """Assert the given line patterns appear in the given order in `msg`."""
         commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
         # Match patterns independently to avoid pitfalls of regex merging while enabling precise mismatch reporting
+        unmatched_patterns = []
+        pos = 0
         for pattern in line_patterns:
-            self.assertIsNotNone(
-                re.search(pattern, commands, re.MULTILINE),
-                f'Failed to match pattern `{pattern}` among {pformat(commands)}',
-            )
+            match = re.search(pattern, commands[pos:], re.MULTILINE)
+            if match:
+                pos += match.end()
+            else:
+                unmatched_patterns.append(pattern)
+        if unmatched_patterns:
+            self.fail(f"""Failed to match patterns in order:
+{pformat(unmatched_patterns)}
+... among commands:
+{pformat(commands)}
+""")
 
     @_for_each_platform
     def test_successful_cache_hit(self):
