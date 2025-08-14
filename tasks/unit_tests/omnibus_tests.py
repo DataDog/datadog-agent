@@ -2,7 +2,6 @@ import functools
 import os
 import re
 import unittest
-from contextlib import nullcontext
 from unittest import mock
 
 from invoke.context import MockContext
@@ -49,25 +48,22 @@ class TestOmnibusCache(unittest.TestCase):
         self.mock_ctx = MockContextRaising(run={})
 
     @staticmethod
-    def _for_each_platform(calls_get_dd_api_key: bool = False):
-        def decorator(test_func):
-            @functools.wraps(test_func)
-            def wrapper(self, *args, **kwargs):
-                for platform, get_dd_api_key_env in {
-                    "darwin": {"AGENT_API_KEY_ORG2": "agent-api-key"},
-                    "linux": {"AGENT_API_KEY_ORG2": "agent-api-key", "POD_NAMESPACE": "pod-ns"},
-                    "win32": {"API_KEY_ORG2": "api-key"},
-                }.items():
-                    with (
-                        self.subTest(platform=platform),
-                        mock.patch("sys.platform", platform),
-                        mock.patch.dict(os.environ, get_dd_api_key_env) if calls_get_dd_api_key else nullcontext(),
-                    ):
-                        test_func(self, *args, **kwargs)
+    def _for_each_platform(test_func):
+        @functools.wraps(test_func)
+        def wrapper(self, *args, **kwargs):
+            for platform, get_dd_api_key_env in {
+                "darwin": {"AGENT_API_KEY_ORG2": "agent-api-key"},
+                "linux": {"AGENT_API_KEY_ORG2": "agent-api-key", "POD_NAMESPACE": "pod-ns"},
+                "win32": {"API_KEY_ORG2": "api-key"},
+            }.items():
+                with (
+                    self.subTest(platform=platform),
+                    mock.patch("sys.platform", platform),
+                    mock.patch.dict(os.environ, get_dd_api_key_env),
+                ):
+                    test_func(self, *args, **kwargs)
 
-            return wrapper
-
-        return decorator
+        return wrapper
 
     def _set_up_default_command_mocks(self):
         # This should allow to postpone the setting up of these broadly catching patterns
@@ -95,7 +91,7 @@ class TestOmnibusCache(unittest.TestCase):
             f'Failed to match pattern {line_patterns}.',
         )
 
-    @_for_each_platform()
+    @_for_each_platform
     def test_successful_cache_hit(self):
         self.mock_ctx.set_result_for(
             'run',
@@ -129,7 +125,7 @@ class TestOmnibusCache(unittest.TestCase):
         for line in lines:
             self.assertIsNone(re.search(line, commands))
 
-    @_for_each_platform(calls_get_dd_api_key=True)
+    @_for_each_platform
     def test_cache_miss(self):
         self.mock_ctx.set_result_for(
             'run',
@@ -170,7 +166,7 @@ class TestOmnibusCache(unittest.TestCase):
             ],
         )
 
-    @_for_each_platform()
+    @_for_each_platform
     def test_cache_hit_with_corruption(self):
         # Case where we get a bundle from S3 but git finds it to be corrupted
 
@@ -187,7 +183,7 @@ class TestOmnibusCache(unittest.TestCase):
         # We're satisfied if we ran the build despite that failure
         self.assertRunLines([r'bundle exec omnibus build agent'])
 
-    @_for_each_platform()
+    @_for_each_platform
     def test_cache_is_disabled_by_unsetting_env_var(self):
         self._set_up_default_command_mocks()
 
@@ -200,7 +196,7 @@ class TestOmnibusCache(unittest.TestCase):
         commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
         self.assertNotIn('omnibus-git-cache', commands)
 
-    @_for_each_platform(calls_get_dd_api_key=True)
+    @_for_each_platform
     def test_mutated_cache(self):
         self.mock_ctx.set_result_for(
             'run',
