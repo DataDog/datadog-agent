@@ -8,5 +8,6 @@
 ---
 fixes:
   - |
-    Checks configured from Docker labels or k8s annotations are no
-    longer overridden in the scheduler.
+    Fix bug causing integrations configured via docker labels or K8s
+    annotations to be overwritten in the agent so logs from integrations
+    now work when configured using via docker labels or K8s annotations.
