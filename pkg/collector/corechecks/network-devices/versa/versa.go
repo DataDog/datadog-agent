@@ -72,6 +72,8 @@ type checkCfg struct {
 	CollectQoSMetrics                     *bool    `yaml:"collect_qos_metrics"`
 	CollectDIAMetrics                     *bool    `yaml:"collect_dia_metrics"`
 	CollectSiteMetrics                    *bool    `yaml:"collect_site_metrics"`
+	CollectAnalyticsInterfaceMetrics      *bool    `yaml:"collect_analytics_interface_metrics"`
+	SendInterfaceMetadataFromAnalytics    *bool    `yaml:"send_interface_metadata_from_analytics"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -120,8 +122,10 @@ func (v *VersaCheck) Run() error {
 
 	// Determine if we need appliances for device mapping
 	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics ||
-		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics || *v.config.CollectApplicationsByApplianceMetrics ||
-		*v.config.CollectTopUserMetrics
+		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics || *v.config.CollectSiteMetrics ||
+		*v.config.CollectApplicationsByApplianceMetrics || *v.config.CollectTopUserMetrics ||
+		*v.config.CollectTunnelMetrics || *v.config.CollectQoSMetrics || *v.config.CollectDIAMetrics ||
+		*v.config.CollectAnalyticsInterfaceMetrics
 
 	for _, org := range organizations {
 		log.Tracef("Processing organization: %s", org.Name)
@@ -343,6 +347,35 @@ func (v *VersaCheck) Run() error {
 				v.metricsSender.SendDIAMetrics(diaMetrics, deviceNameToIDMap)
 			}
 		}
+
+		// Collect analytics interface metrics if enabled
+		if *v.config.CollectAnalyticsInterfaceMetrics {
+			analyticsInterfaceMetrics, err := c.GetAnalyticsInterfaces(org.Name)
+			if err != nil {
+				log.Errorf("error getting analytics interface metrics from organization %s: %v", org.Name, err)
+				continue
+			}
+
+			if len(analyticsInterfaceMetrics) > 0 {
+				// Send metrics
+				v.metricsSender.SendAnalyticsInterfaceMetrics(analyticsInterfaceMetrics, deviceNameToIDMap)
+
+				// TODO: I'd really like to do something like this for larger customers where the director
+				// call is too large, but we need to find or agree on something to use for interface status
+				// today, nothing exists
+				// If explicitly configured to send interface metadata from analytics and we haven't
+				// already sent interface metadata, create and send it from analytics data
+				// if *v.config.SendInterfaceMetadataFromAnalytics && !(*v.config.SendInterfaceMetadata) && !(*v.config.CollectInterfaceMetrics) {
+				// 	orgInterfaceMetadata, err := payload.GetInterfaceMetadataFromAnalytics(v.config.Namespace, deviceNameToIDMap, analyticsInterfaceMetrics)
+				// 	if err != nil {
+				// 		log.Errorf("error creating interface metadata from analytics for organization %s: %v", org.Name, err)
+				// 	} else if len(orgInterfaceMetadata) > 0 {
+				// 		log.Tracef("sending interface metadata from analytics for organization %s: %+v", org.Name, orgInterfaceMetadata)
+				// 		v.metricsSender.SendMetadata(nil, orgInterfaceMetadata, nil)
+				// 	}
+				// }
+			}
+		}
 	}
 
 	// Commit
@@ -390,6 +423,8 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectQoSMetrics = boolPointer(false)
 	instanceConfig.CollectDIAMetrics = boolPointer(false)
 	instanceConfig.CollectSiteMetrics = boolPointer(false)
+	instanceConfig.CollectAnalyticsInterfaceMetrics = boolPointer(false)
+	instanceConfig.SendInterfaceMetadataFromAnalytics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
