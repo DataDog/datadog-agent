@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Checks configured from docker labels / k8s annotations are no
+    Checks configured from Docker labels or k8s annotations are no
     longer overridden in the scheduler.
