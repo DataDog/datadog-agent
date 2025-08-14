@@ -12,6 +12,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -49,7 +50,7 @@ type noAggregationStreamWorker struct {
 	samplesChan chan metrics.MetricSampleBatch
 	stopChan    chan trigger
 
-	hostTagProvider *HostTagProvider
+	hostTagProvider *hosttags.HostTagProvider
 	tagger          tagger.Component
 
 	logThrottling util.SimpleThrottler
@@ -99,7 +100,7 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSam
 		stopChan:    make(chan trigger),
 		samplesChan: make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size")),
 
-		hostTagProvider: NewHostTagProvider(),
+		hostTagProvider: hosttags.NewHostTagProvider(),
 		// warning for the unsupported metric types should appear maximum 200 times
 		// every 5 minutes.
 		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),

@@ -46,6 +46,8 @@ jobs:
 
       - name: Determine the release active branches
         id: branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
             echo "value=[\"6.53.x\"]" >> $GITHUB_OUTPUT
