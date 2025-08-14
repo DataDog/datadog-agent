@@ -68,7 +68,6 @@ class TestInPlaceArtifactReport(unittest.TestCase):
         """Test creating a valid InPlaceArtifactReport."""
         report = InPlaceArtifactReport(
             artifact_path="/path/to/package.deb",
-            artifact_type="package",
             gate_name="static_quality_gate_agent_deb_amd64",
             on_wire_size=100000,
             on_disk_size=500000,
@@ -81,14 +80,12 @@ class TestInPlaceArtifactReport(unittest.TestCase):
             arch="amd64",
             os="debian",
             build_job_name="agent_deb-x64-a7",
-            artifact_flavors=["agent"],
         )
 
         self.assertEqual(report.artifact_path, "/path/to/package.deb")
         self.assertEqual(report.on_wire_size, 100000)
         self.assertEqual(report.on_disk_size, 500000)
         self.assertEqual(len(report.file_inventory), 2)
-        self.assertEqual(report.artifact_flavors, ["agent"])
 
     def test_report_validation_empty_path(self):
         """Test report validation with empty artifact_path."""
@@ -259,32 +256,6 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
                 )
             self.assertIn("Gate configuration not found", str(cm.exception))
 
-    def test_extract_artifact_flavors_agent(self):
-        """Test extracting artifact flavors for agent packages."""
-        self.assertEqual(self.measurer._extract_artifact_flavors("static_quality_gate_agent_deb_amd64"), ["agent"])
-
-    def test_extract_artifact_flavors_fips(self):
-        """Test extracting artifact flavors for FIPS packages."""
-        self.assertEqual(self.measurer._extract_artifact_flavors("static_quality_gate_agent_deb_amd64_fips"), ["fips"])
-
-    def test_extract_artifact_flavors_iot(self):
-        """Test extracting artifact flavors for IoT packages."""
-        self.assertEqual(self.measurer._extract_artifact_flavors("static_quality_gate_iot_agent_deb_amd64"), ["iot"])
-
-    def test_extract_artifact_flavors_dogstatsd(self):
-        """Test extracting artifact flavors for DogStatsD packages."""
-        self.assertEqual(
-            self.measurer._extract_artifact_flavors("static_quality_gate_dogstatsd_deb_amd64"), ["dogstatsd"]
-        )
-
-    def test_extract_artifact_flavors_heroku(self):
-        """Test extracting artifact flavors for Heroku packages."""
-        self.assertEqual(self.measurer._extract_artifact_flavors("static_quality_gate_agent_heroku_amd64"), ["heroku"])
-
-    def test_extract_artifact_flavors_unknown(self):
-        """Test extracting artifact flavors for unknown packages."""
-        self.assertEqual(self.measurer._extract_artifact_flavors("static_quality_gate_unknown_package"), ["unknown"])
-
     @patch('builtins.open', new_callable=mock_open)
     @patch('hashlib.sha256')
     def test_generate_checksum_success(self, mock_sha256, mock_file):
@@ -314,7 +285,6 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
         # Create a sample report
         report = InPlaceArtifactReport(
             artifact_path="/path/to/package.deb",
-            artifact_type="package",
             gate_name="static_quality_gate_agent_deb_amd64",
             on_wire_size=100000,
             on_disk_size=500000,
@@ -330,7 +300,6 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
             arch="amd64",
             os="debian",
             build_job_name="test_job",
-            artifact_flavors=["agent"],
         )
 
         # Save to temporary file
@@ -353,7 +322,6 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
             self.assertEqual(len(saved_data['file_inventory']), 2)
             self.assertEqual(saved_data['file_inventory'][0]['relative_path'], "opt/agent/bin/agent")
             self.assertEqual(saved_data['file_inventory'][0]['checksum'], "sha256:abc123")
-            self.assertEqual(saved_data['artifact_flavors'], ["agent"])
 
         finally:
             os.unlink(output_path)

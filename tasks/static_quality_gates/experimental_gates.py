@@ -7,7 +7,7 @@ in build jobs, generating detailed reports with file inventories for comparison.
 
 import os
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -54,7 +54,6 @@ class InPlaceArtifactReport:
 
     # Core identification
     artifact_path: str
-    artifact_type: str
     gate_name: str
 
     # Size measurements
@@ -73,7 +72,6 @@ class InPlaceArtifactReport:
     arch: str
     os: str
     build_job_name: str
-    artifact_flavors: list[str] = field(default_factory=list)
 
     def __post_init__(self):
         """Validate report data"""
@@ -161,13 +159,9 @@ class InPlacePackageMeasurer:
             ctx, package_path, gate_config, max_files, generate_checksums, debug
         )
 
-        # Extract artifact flavors from gate name
-        artifact_flavors = self._extract_artifact_flavors(gate_name)
-
         # Create report
         return InPlaceArtifactReport(
             artifact_path=package_path,
-            artifact_type="package",
             gate_name=gate_name,
             on_wire_size=measurement.on_wire_size,
             on_disk_size=measurement.on_disk_size,
@@ -180,7 +174,6 @@ class InPlacePackageMeasurer:
             arch=gate_config.arch,
             os=gate_config.os,
             build_job_name=build_job_name,
-            artifact_flavors=artifact_flavors,
         )
 
     def _extract_and_analyze_package(
@@ -352,33 +345,6 @@ class InPlacePackageMeasurer:
             # If checksum generation fails, return None rather than failing the whole measurement
             return None
 
-    def _extract_artifact_flavors(self, gate_name: str) -> list[str]:
-        """
-        Extract artifact flavors from gate name.
-
-        Args:
-            gate_name: Quality gate name
-
-        Returns:
-            List of flavor strings
-        """
-        flavors = []
-
-        # Check for specific flavors first (most specific to least specific)
-        if "fips" in gate_name:
-            flavors.append("fips")
-            # Don't add "agent" if "fips" is already present
-        elif "iot" in gate_name:
-            flavors.append("iot")
-        elif "dogstatsd" in gate_name:
-            flavors.append("dogstatsd")
-        elif "heroku" in gate_name:
-            flavors.append("heroku")
-        elif "agent" in gate_name:
-            flavors.append("agent")
-
-        return flavors if flavors else ["unknown"]
-
     def save_report_to_yaml(self, report: InPlaceArtifactReport, output_path: str) -> None:
         """
         Save the measurement report to a YAML file.
@@ -391,7 +357,6 @@ class InPlacePackageMeasurer:
             # Convert dataclass to dictionary
             report_dict = {
                 "artifact_path": report.artifact_path,
-                "artifact_type": report.artifact_type,
                 "gate_name": report.gate_name,
                 "on_wire_size": report.on_wire_size,
                 "on_disk_size": report.on_disk_size,
@@ -403,7 +368,6 @@ class InPlacePackageMeasurer:
                 "arch": report.arch,
                 "os": report.os,
                 "build_job_name": report.build_job_name,
-                "artifact_flavors": report.artifact_flavors,
                 "file_inventory": [
                     {
                         "relative_path": file_info.relative_path,
