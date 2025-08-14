@@ -138,7 +138,6 @@ func run(binaryPath string) (retErr error) {
 		defer trace.Stop()
 	}
 
-	var symbols symdb.Symbols
 	opt := symdb.ExtractOptions{
 		Scope:                   scope,
 		IncludeInlinedFunctions: !*stream,
@@ -162,9 +161,9 @@ func run(binaryPath string) (retErr error) {
 		)
 	}
 
+	out := symdbutil.MakePanickingWriter(os.Stdout)
 	if !*stream {
-		var err error
-		symbols, err = symdb.ExtractSymbols(binaryPath, opt)
+		symbols, err := symdb.ExtractSymbols(binaryPath, opt)
 		if err != nil {
 			return err
 		}
@@ -177,7 +176,16 @@ func run(binaryPath string) (retErr error) {
 				log.Errorf("Failed to upload symbols: %v", err)
 			}
 		}
+
+		trace.Stop()
+		log.Infof("Symbol extraction completed in %s.", time.Since(start))
+		stats := statsFromSymbols(symbols)
+		log.Infof("Symbol statistics for %s: %s", binaryPath, stats)
+		if !*silent && !*stream {
+			symbols.Serialize(symdbutil.MakePanickingWriter(os.Stdout))
+		}
 	} else {
+		var stats symbolStats
 		it, err := symdb.PackagesIterator(binaryPath, opt)
 		if err != nil {
 			return err
@@ -207,6 +215,8 @@ func run(binaryPath string) (retErr error) {
 				return err
 			}
 
+			stats.addPackage(pkg)
+
 			scope := uploader.ConvertPackageToScope(pkg)
 			uploadBuffer = append(uploadBuffer, scope)
 			bufferFuncs += pkg.Stats().NumFunctions
@@ -214,16 +224,16 @@ func run(binaryPath string) (retErr error) {
 				return err
 			}
 
-			symbols.Packages = append(symbols.Packages, pkg)
+			if !*silent {
+				pkg.Serialize(out)
+			}
 		}
+		trace.Stop()
+		log.Infof("Symbol extraction completed in %s.", time.Since(start))
+		log.Infof("Symbol statistics for %s: %s", binaryPath, stats)
 	}
-	trace.Stop()
-	log.Infof("Symbol extraction completed in %s.", time.Since(start))
-	stats := statsFromSymbols(symbols)
-	log.Infof("Symbol statistics for %s: %+v", binaryPath, stats)
-	if !*silent {
-		symbols.Serialize(symdbutil.MakePanickingWriter(os.Stdout))
-	} else {
+
+	if *silent && !*upload {
 		log.Infof("--silent specified; symbols not serialized.")
 	}
 
@@ -234,6 +244,13 @@ type symbolStats struct {
 	numPackages  int
 	numTypes     int
 	numFunctions int
+}
+
+func (stats *symbolStats) addPackage(pkg symdb.Package) {
+	stats.numPackages++
+	s := pkg.Stats()
+	stats.numTypes += s.NumTypes
+	stats.numFunctions += s.NumFunctions
 }
 
 func statsFromSymbols(s symdb.Symbols) symbolStats {
@@ -248,4 +265,9 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 		stats.numFunctions += s.NumFunctions
 	}
 	return stats
+}
+
+func (stats symbolStats) String() string {
+	return fmt.Sprintf("Packages: %d, Types: %d, Functions: %d",
+		stats.numPackages, stats.numTypes, stats.numFunctions)
 }
