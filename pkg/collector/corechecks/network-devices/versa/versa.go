@@ -398,7 +398,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectInterfaceMetrics = boolPointer(true)
 	instanceConfig.CollectTunnelMetrics = boolPointer(true)
 	instanceConfig.SendDeviceMetadata = boolPointer(true)
-	instanceConfig.SendInterfaceMetadata = boolPointer(true)
+	instanceConfig.SendInterfaceMetadata = boolPointer(false)
 
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
 	instanceConfig.CollectLinkMetrics = boolPointer(false)
