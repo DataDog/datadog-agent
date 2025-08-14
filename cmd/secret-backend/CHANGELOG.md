@@ -1,5 +1,9 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.1.1 / 2025-08-14
+
+* Use go 1.24.6 to build release.
+
 ## 1.1.0 / 2025-08-05
 
 * Removing the `zerolog` library.
