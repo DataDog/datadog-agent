@@ -702,7 +702,7 @@ func TestProcessMetrics(t *testing.T) {
 	}
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
-		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger)
+		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
 		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
@@ -899,7 +899,7 @@ func TestProcessTelemetry(t *testing.T) {
 	}
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger)
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
 		kubeStateMetricsSCheck.processTelemetry(test.metrics)
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.expected.getTotal(), kubeStateMetricsSCheck.telemetry.getTotal())
@@ -958,7 +958,7 @@ func TestSendTelemetry(t *testing.T) {
 	}
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger)
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
 		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
@@ -1270,7 +1270,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
-			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), tt.config, fakeTagger)
+			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), tt.config, fakeTagger, nil)
 			kubeStateMetricsSCheck.clusterNameRFC1123 = tt.args.clusterName
 			labelJoiner := newLabelJoiner(tt.config.labelJoins)
 			for _, metricFam := range tt.args.metricsToGet {
@@ -1563,7 +1563,7 @@ var metadataMetrics = []string{
 
 func TestMetadataMetricsRegex(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	check := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger)
+	check := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
 	for _, m := range metadataMetrics {
 		assert.True(t, check.metadataMetricsRegex.MatchString(m))
 	}
