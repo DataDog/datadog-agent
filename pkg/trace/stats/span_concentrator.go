@@ -42,6 +42,9 @@ type StatSpan struct {
 	isTopLevel       bool
 	matchingPeerTags []string
 	grpcStatusCode   string
+
+	httpMethod string
+	endpoint   string
 }
 
 func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
@@ -111,7 +114,7 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 
 // NewStatSpanFromPB is a helper version of NewStatSpan that builds a StatSpan from a pb.Span.
 func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string) (statSpan *StatSpan, ok bool) {
-	return sc.NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags)
+	return sc.NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags, "", "")
 }
 
 // NewStatSpan builds a StatSpan from the required fields for stats calculation
@@ -126,6 +129,8 @@ func (sc *SpanConcentrator) NewStatSpan(
 	meta map[string]string,
 	metrics map[string]float64,
 	peerTags []string,
+	httpMethod string,
+	endpoint string,
 ) (statSpan *StatSpan, ok bool) {
 	if meta == nil {
 		meta = make(map[string]string)
@@ -156,6 +161,9 @@ func (sc *SpanConcentrator) NewStatSpan(
 		matchingPeerTags: matchingPeerTags(meta, peerTags),
 
 		grpcStatusCode: getGRPCStatusCode(meta, metrics),
+
+		httpMethod: httpMethod,
+		endpoint:   endpoint,
 	}, true
 }
 
