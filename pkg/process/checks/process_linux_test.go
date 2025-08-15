@@ -122,35 +122,58 @@ func TestProcessesByPIDWLM(t *testing.T) {
 	}
 }
 
-// TODO: service discovery does not yet distinguish between tcp and udp, so everything is sent as TCP
 func TestFormatPorts(t *testing.T) {
 	for _, tc := range []struct {
 		description      string
-		ports            []uint16
+		tcpPorts         []uint16
+		udpPorts         []uint16
 		expectedPortInfo *model.PortInfo
 	}{
 		{
-			description: "normal ports",
-			ports:       []uint16{80, 443},
+			description: "normal tcp and udp ports",
+			tcpPorts:    []uint16{80, 443},
+			udpPorts:    []uint16{53, 123},
 			expectedPortInfo: &model.PortInfo{
 				Tcp: []int32{80, 443},
+				Udp: []int32{53, 123},
+			},
+		},
+		{
+			description: "tcp only ports",
+			tcpPorts:    []uint16{80, 443},
+			udpPorts:    nil,
+			expectedPortInfo: &model.PortInfo{
+				Tcp: []int32{80, 443},
+				Udp: nil,
+			},
+		},
+		{
+			description: "udp only ports",
+			tcpPorts:    nil,
+			udpPorts:    []uint16{53, 123},
+			expectedPortInfo: &model.PortInfo{
+				Tcp: nil,
+				Udp: []int32{53, 123},
 			},
 		},
 		{
 			description: "empty ports",
-			ports:       []uint16{},
+			tcpPorts:    []uint16{},
+			udpPorts:    []uint16{},
 			expectedPortInfo: &model.PortInfo{
 				Tcp: []int32{},
+				Udp: []int32{},
 			},
 		},
 		{
 			description:      "ports not collected",
-			ports:            nil,
+			tcpPorts:         nil,
+			udpPorts:         nil,
 			expectedPortInfo: nil,
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			actual := formatPorts(tc.ports)
+			actual := formatPorts(tc.tcpPorts, tc.udpPorts)
 			assert.Equal(t, tc.expectedPortInfo, actual)
 		})
 	}
@@ -423,7 +446,7 @@ func wlmProcessWithServiceDiscovery(pid int32, spaceSeparatedCmdline string, cre
 			},
 		},
 		DDService:          "dd service name",
-		Ports:              []uint16{6400, 5200},
+		TCPPorts:           []uint16{6400, 5200},
 		APMInstrumentation: string(apm.Provided),
 	}
 	return proc
