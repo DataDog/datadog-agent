@@ -14,6 +14,7 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
@@ -50,13 +51,14 @@ const (
 
 // kubernetesVersionOverride wraps an Environment to override the KubernetesVersion method
 type kubernetesVersionOverride struct {
-	aws.Environment
+	config.Env
 	overrideVersion string
 }
 
 func (k *kubernetesVersionOverride) KubernetesVersion() string {
 	return k.overrideVersion
 }
+
 
 // KindDiagnoseFunc is the diagnose function for the Kind provisioner
 func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
@@ -96,16 +98,20 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	}
 
 	// Resolve "latest" to actual version early to prevent semver parsing errors in components
-	kubeVersion := awsEnv.KubernetesVersion()
-	if kubeVersion == "latest" {
+	resolvedKubeVersion := awsEnv.KubernetesVersion()
+	var envForComponents config.Env = &awsEnv
+	if resolvedKubeVersion == "latest" {
 		kindConfig, err := kubeComp.GetKindVersionConfig("latest")
 		if err != nil {
 			return fmt.Errorf("failed to resolve latest Kubernetes version: %v", err)
 		}
-		// Create a wrapper that returns the resolved version
-		awsEnv = &kubernetesVersionOverride{
-			Environment: awsEnv,
-			overrideVersion: kindConfig.KubeVersion,
+		resolvedKubeVersion = kindConfig.KubeVersion
+		
+		// Create wrapper that returns resolved version for components
+		ctx.Log.Info(fmt.Sprintf("Resolving kubernetesVersion=latest to %s for components", resolvedKubeVersion), nil)
+		envForComponents = &kubernetesVersionOverride{
+			Env:             &awsEnv,
+			overrideVersion: resolvedKubeVersion,
 		}
 	}
 
@@ -121,9 +127,9 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	var kindCluster *kubeComp.Cluster
 	if len(params.ciliumOptions) > 0 {
-		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.name, resolvedKubeVersion, params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	} else {
-		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.name, resolvedKubeVersion, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	}
 
 	if err != nil {
@@ -270,11 +276,11 @@ agents:
 
 		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
 		if params.agentOptions != nil {
-			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+			if _, err := nginx.K8sAppDefinition(envForComponents, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 
-			if _, err := redis.K8sAppDefinition(&awsEnv, kubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+			if _, err := redis.K8sAppDefinition(envForComponents, kubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 
