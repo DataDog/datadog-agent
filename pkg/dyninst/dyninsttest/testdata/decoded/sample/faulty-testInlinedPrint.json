@@ -1,0 +1,197 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testInlinedPrint",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [],
+        "probe": {
+          "id": "testInlinedPrint",
+          "location": {
+            "method": "main.testInlinedPrint"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "int",
+                "value": "25"
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
+      ]
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testInlinedPrint",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [],
+        "probe": {
+          "id": "testInlinedPrint",
+          "location": {
+            "method": "main.testInlinedPrint"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "int",
+                "value": "3"
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
+      ]
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testInlinedPrint",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [],
+        "probe": {
+          "id": "testInlinedPrint",
+          "location": {
+            "method": "main.testInlinedPrint"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "int",
+                "value": "150"
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
+      ]
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testInlinedPrint",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [],
+        "probe": {
+          "id": "testInlinedPrint",
+          "location": {
+            "method": "main.testInlinedPrint"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "int",
+                "value": "150"
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
+      ]
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testInlinedPrint",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [],
+        "probe": {
+          "id": "testInlinedPrint",
+          "location": {
+            "method": "main.testInlinedPrint"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "int",
+                "value": "1"
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
+      ]
+    },
+    "timestamp": "[ts]"
+  }
+]

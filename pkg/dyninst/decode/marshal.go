@@ -8,6 +8,8 @@
 package decode
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/go-json-experiment/json"
@@ -28,7 +30,8 @@ type logger struct {
 }
 
 type debuggerData struct {
-	Snapshot snapshotData `json:"snapshot"`
+	Snapshot         snapshotData `json:"snapshot"`
+	EvaluationErrors []string     `json:"evaluationErrors"`
 }
 
 type snapshotData struct {
@@ -66,10 +69,11 @@ type capturePointData struct {
 }
 
 type argumentsData struct {
-	rootData []byte
-	rootType *ir.EventRootType
-	event    Event
-	decoder  *Decoder
+	rootData     []byte
+	rootType     *ir.EventRootType
+	event        Event
+	decoder      *Decoder
+	debuggerData *debuggerData
 }
 
 // In the root data item, before the expressions, there is a bitset
@@ -82,12 +86,38 @@ func expressionIsPresent(bitset []byte, expressionIndex int) bool {
 	return idx < len(bitset) && bitset[idx]&(1<<byte(bit)) != 0
 }
 
-func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
-	var err error
-	if err = writeTokens(enc, jsontext.BeginObject); err != nil {
+func (c *captureData) MarshalJSONTo(enc *jsontext.Encoder) error {
+	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
+	b, err := c.Entry.Arguments.MarshalText()
+	if err != nil {
+		return writeTokens(enc, jsontext.EndObject)
+	}
+	if err := writeTokens(enc,
+		jsontext.String("entry"),
+		jsontext.BeginObject,
+		jsontext.String("arguments"),
+	); err != nil {
+		return err
+	}
+	err = enc.WriteValue(b)
+	if err != nil {
+		return err
+	}
+	return writeTokens(enc, jsontext.EndObject, jsontext.EndObject)
+}
 
+func (ad *argumentsData) MarshalText() ([]byte, error) {
+	var (
+		err error
+		buf = bytes.NewBuffer([]byte{})
+		enc = jsontext.NewEncoder(buf)
+	)
+	if err = writeTokens(enc, jsontext.BeginObject); err != nil {
+		ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+		return nil, err
+	}
 	presenceBitSet := ad.rootData[:ad.rootType.PresenceBitsetSize]
 	// We iterate over the 'Expressions' of the EventRoot which contains
 	// metadata and raw bytes of the parameters of this function.
@@ -96,7 +126,8 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 		parameterData := ad.rootData[expr.Offset : expr.Offset+parameterType.GetByteSize()]
 
 		if err = writeTokens(enc, jsontext.String(expr.Name)); err != nil {
-			return err
+			ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+			return nil, err
 		}
 		if !expressionIsPresent(presenceBitSet, i) && parameterType.GetByteSize() != 0 {
 			// Set not capture reason
@@ -108,7 +139,8 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 				tokenNotCapturedReasonUnavailable,
 				jsontext.EndObject,
 			); err != nil {
-				return err
+				ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+				return nil, err
 			}
 			continue
 		}
@@ -118,13 +150,15 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			parameterType.GetName(),
 		)
 		if err != nil {
-			return fmt.Errorf("error parsing data for field %s: %w", ad.rootType.Name, err)
+			ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+			return nil, fmt.Errorf("error parsing data for field %s: %w", ad.rootType.Name, err)
 		}
 	}
 	if err = writeTokens(enc, jsontext.EndObject); err != nil {
-		return err
+		ad.debuggerData.EvaluationErrors = append(ad.debuggerData.EvaluationErrors, err.Error())
+		return nil, err
 	}
-	return nil
+	return buf.Bytes(), nil
 }
 
 type stackData struct {
@@ -185,7 +219,7 @@ func (d *Decoder) encodeValue(
 	}
 	decoderType, ok := d.decoderTypes[typeID]
 	if !ok {
-		return fmt.Errorf("no decoder type found for type %s", decoderType.irType().GetName())
+		return errors.New("no decoder type found")
 	}
 	if err := decoderType.encodeValueFields(d, enc, data); err != nil {
 		return err

@@ -10,7 +10,6 @@ package module_test
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"maps"
 	"slices"
 	"testing"
@@ -90,16 +89,12 @@ type fakeDecoder struct {
 type decodeCall struct {
 	event        decode.Event
 	symbolicator symbol.Symbolicator
-	out          io.Writer
+	out          []byte
 }
 
-func (f *fakeDecoder) Decode(event decode.Event, symbolicator symbol.Symbolicator, out io.Writer) (ir.ProbeDefinition, error) {
+func (f *fakeDecoder) Decode(event decode.Event, symbolicator symbol.Symbolicator, out []byte) ([]byte, ir.ProbeDefinition, error) {
 	f.decodeCalls = append(f.decodeCalls, decodeCall{event, symbolicator, out})
-	if f.output != "" {
-		_, err := io.WriteString(out, f.output)
-		return f.probe, err
-	}
-	return f.probe, f.err
+	return []byte(f.output), f.probe, f.err
 }
 
 type fakeDiagnosticsUploader struct {

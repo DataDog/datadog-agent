@@ -1,0 +1,41 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testUnitializedString",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": [],
+        "probe": {
+          "id": "testUnitializedString",
+          "location": {
+            "method": "main.testUnitializedString"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "string",
+                "value": ""
+              }
+            }
+          }
+        }
+      },
+      "evaluationErrors": [
+        "error symbolicating stack: error symbolicating stack error symbolicating stack"
+      ]
+    },
+    "timestamp": "[ts]"
+  }
+]

@@ -101,7 +101,8 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": []
     },
     "timestamp": "[ts]"
   }
