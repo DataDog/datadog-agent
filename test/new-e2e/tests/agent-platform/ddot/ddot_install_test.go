@@ -178,7 +178,7 @@ func (is *ddotInstallSuite) CheckDDOTInstallation(VMclient *common.TestClient) {
 		fmt.Println("CHECK ETC DIRECTORY")
 		out, _ := VMclient.Host.Execute("sudo stat /etc/datadog-agent")
 		fmt.Println(out)
-		require.Contains(is.T(), out, "dd-agent")
+		require.Contains(tt, out, "dd-agent")
 	})
 }
 
