@@ -3895,6 +3895,7 @@ core,k8s.io/kube-openapi/pkg/handler,Apache-2.0,Copyright 2014 The Kubernetes Au
 core,k8s.io/kube-openapi/pkg/handler3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/internal,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/internal/third_party/go-json-experiment/json,BSD-3-Clause,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-openapi/pkg/internal/third_party/govalidator,MIT,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/schemaconv,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/schemamutation,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/spec3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3973,6 +3974,8 @@ core,sigs.k8s.io/custom-metrics-apiserver/pkg/registry/custom_metrics,Apache-2.0
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/registry/external_metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/json,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/json/internal/golang/encoding/json,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/randfill,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/randfill/bytesource,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/structured-merge-diff/v4/fieldpath,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/structured-merge-diff/v4/merge,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/structured-merge-diff/v4/schema,Apache-2.0,Copyright 2017 The Kubernetes Authors.
