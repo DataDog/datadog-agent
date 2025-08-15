@@ -49,6 +49,8 @@ type batcher struct {
 	sender        sender
 	stopOnce      sync.Once
 	errLogLimiter *rate.Limiter
+	// uploadErr is the first error encountered when uploading batches.
+	uploadErr error
 }
 
 func newBatcher(name string, sender sender, batcherConfig batcherConfig) *batcher {
@@ -86,7 +88,9 @@ func (b *batcher) enqueue(data json.RawMessage) {
 	}
 }
 
-func (b *batcher) stop() {
+// stop blocks for all the in-flight batches (corresponding to previous calls to
+// enqueue()) to complete uploading. Further calls to enqueue will be dropped.
+func (b *batcher) stop() error {
 	b.stopOnce.Do(func() {
 		log.Debugf("stopping batcher %s", b.name)
 		defer log.Debugf("batcher %s stopped", b.name)
@@ -96,6 +100,7 @@ func (b *batcher) stop() {
 		// Wait for the run loop and any in-flight sender goroutines to finish.
 		b.wg.Wait()
 	})
+	return b.uploadErr
 }
 
 func (b *batcher) run() {
@@ -133,6 +138,11 @@ func (b *batcher) run() {
 						"uploader %s: batch outcome id=%d: err=%v",
 						name, result.id, result.err,
 					)
+				}
+				// If this is the first upload error, store it to return it on
+				// stop().
+				if b.uploadErr == nil {
+					b.uploadErr = result.err
 				}
 			} else if log.ShouldLog(log.TraceLvl) {
 				log.Tracef(
