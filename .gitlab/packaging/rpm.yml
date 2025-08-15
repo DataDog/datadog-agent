@@ -38,7 +38,6 @@ include:
   variables:
     DD_PKG_ARCH: x86_64
     PACKAGE_ARCH: amd64
-    # This is the architecture that will be used to find the package in the artifact path for static quality gate
     STATIC_QUALITY_GATE_ARCH: x86_64
 
 .package_rpm_arm64:
@@ -47,7 +46,6 @@ include:
   variables:
     PACKAGE_ARCH: arm64
     DD_PKG_ARCH: arm64
-    # This is the architecture that will be used to find the package in the artifact path for static quality gate
     STATIC_QUALITY_GATE_ARCH: aarch64
 
 .package_suse_rpm_common:
@@ -234,12 +232,14 @@ iot_agent_rpm-x64:
   needs: ["iot-agent-x64"]
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_rpm_amd64"
+    STATIC_QUALITY_GATE_ARCH: x86_64
 
 iot_agent_rpm-arm64:
   extends: [.package_iot_rpm_common, .package_rpm_arm64]
   needs: ["iot-agent-arm64"]
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_rpm_arm64"
+    STATIC_QUALITY_GATE_ARCH: aarch64
 
 iot_agent_rpm-armhf:
   extends: .package_iot_rpm_common
