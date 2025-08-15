@@ -92,7 +92,7 @@ func resourceDDName(resource string, allowedResources map[string]struct{}) (ddna
 // These metrics require more than a name translation to generate Datadog metrics, as opposed to the metrics in defaultMetricNamesMapper
 // For reference see METRIC_TRANSFORMERS in KSM check V1
 func defaultMetricTransformers() map[string]metricTransformerFunc {
-	return map[string]metricTransformerFunc{
+	transformers := map[string]metricTransformerFunc{
 		"kube_pod_created":                              podCreationTransformer,
 		"kube_pod_start_time":                           podStartTimeTransformer,
 		"kube_pod_status_phase":                         podPhaseTransformer,
@@ -122,7 +122,11 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_persistentvolume_status_phase":            pvPhaseTransformer,
 		"kube_service_spec_type":                        serviceTypeTransformer,
 		"kube_ingress_tls":                              removeSecretTransformer,
+		"kube_deployment_ongoing_rollout_duration":      deploymentRolloutDurationTransformer,
+		"kube_statefulset_ongoing_rollout_duration":     statefulsetRolloutDurationTransformer,
 	}
+
+	return transformers
 }
 
 // nodeConditionTransformer generates service checks based on the metric kube_node_status_condition
@@ -572,4 +576,32 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 		tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "secret:") })
 	}
 	s.Gauge(ksmMetricPrefix+"ingress.tls", metric.Val, hostname, tags)
+}
+
+// deploymentRolloutDurationTransformer processes deployment rollout duration metrics from the factory
+func deploymentRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+
+	// The factory passes the ReplicaSet creation timestamp, we calculate duration here
+	if metric.Val > 0 {
+		startTime := time.Unix(int64(metric.Val), 0)
+		duration := currentTime.Sub(startTime).Seconds()
+
+		if duration > 0 {
+			s.Gauge(ksmMetricPrefix+"deployment.ongoing_rollout.duration", duration, hostname, tags)
+		}
+	}
+}
+
+// statefulsetRolloutDurationTransformer processes statefulset rollout duration metrics from the factory
+func statefulsetRolloutDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+
+	// The factory passes the ControllerRevision creation timestamp, we calculate duration here
+	if metric.Val > 0 {
+		startTime := time.Unix(int64(metric.Val), 0)
+		duration := currentTime.Sub(startTime).Seconds()
+
+		if duration > 0 {
+			s.Gauge(ksmMetricPrefix+"statefulset.ongoing_rollout.duration", duration, hostname, tags)
+		}
+	}
 }

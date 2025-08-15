@@ -72,9 +72,11 @@ const (
 )
 
 var extendedCollectors = map[string]string{
-	"jobs":  "batch/v1, Resource=jobs_extended",
-	"nodes": "core/v1, Resource=nodes_extended",
-	"pods":  "core/v1, Resource=pods_extended",
+	"jobs":         "batch/v1, Resource=jobs_extended",
+	"nodes":        "core/v1, Resource=nodes_extended",
+	"pods":         "core/v1, Resource=pods_extended",
+	"deployments":  "apps/v1, Resource=deployments_extended",
+	"statefulsets": "apps/v1, Resource=statefulsets_extended",
 }
 
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
@@ -419,7 +421,9 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 			// compatibility across deprecated/removed versions of APIs
 			cr := k.discoverCustomResources(apiServerClient, collectors, resources)
 			builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
+
 			builder.WithCustomResourceStoreFactories(cr.factories...)
+
 			builder.WithCustomResourceClients(cr.clients)
 
 			// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
@@ -537,6 +541,8 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewExtendedNodeFactory(c),
 		customresources.NewExtendedPodFactory(c),
 		customresources.NewVerticalPodAutoscalerFactory(c),
+		customresources.NewExtendedDeploymentFactory(c),
+		customresources.NewExtendedStatefulSetFactory(c),
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)
@@ -602,6 +608,7 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
+
 	if err := k.initRetry.TriggerRetry(); err != nil {
 		return err.LastTryError
 	}
@@ -687,14 +694,16 @@ func (k *KSMCheck) Cancel() {
 func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner, now time.Time) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
+
 			// First check for aggregator, because the check use _labels metrics to aggregate values.
 			if aggregator, found := k.metricAggregators[metricFamily.Name]; found {
 				for _, m := range metricFamily.ListMetrics {
 					aggregator.accumulate(m)
 				}
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
-				// So, let’s continue the processing.
+				// So, let's continue the processing.
 			}
+
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
