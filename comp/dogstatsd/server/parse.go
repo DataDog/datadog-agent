@@ -32,7 +32,6 @@ const (
 // stringInternerInterface defines the common interface for string interners
 type stringInternerInterface interface {
 	LoadOrStore(key []byte) string
-	cacheSize() int
 }
 
 var (

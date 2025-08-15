@@ -26,10 +26,9 @@ import (
 // take advantage of the new "Unique" api that is proposed below.
 // ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
-	strings  map[string]string
-	maxSize  int
-	id       string
-	curBytes int // current bytes stored
+	strings map[string]string
+	maxSize int
+	id      string
 
 	telemetry *stringInternerInstanceTelemetry
 }
@@ -59,19 +58,12 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	// for this string.
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
 	if s, found := i.strings[string(key)]; found {
-		if i.telemetry.enabled {
-			i.telemetry.hits.Inc()
-		}
+		i.telemetry.Hit()
 		return s
 	}
 
 	if len(i.strings) >= i.maxSize {
-		if i.telemetry.enabled {
-			i.telemetry.resets.Inc()
-			i.telemetry.bytes.Sub(float64(i.curBytes))
-			i.telemetry.size.Sub(float64(len(i.strings)))
-			i.curBytes = 0
-		}
+		i.telemetry.Reset(len(i.strings))
 
 		i.strings = make(map[string]string)
 	}
@@ -79,19 +71,8 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	s := string(key)
 	i.strings[s] = s
 
-	if i.telemetry.enabled {
-		i.telemetry.miss.Inc()
-		i.telemetry.size.Inc()
-		i.telemetry.bytes.Add(float64(len(s)))
-		i.telemetry.globaltlmSIRStrBytes.Observe(float64(len(s)))
-		i.curBytes += len(s)
-	}
+	i.telemetry.Miss(len(s))
 
 	return s
 }
 
-// cacheSize returns the current number of strings in the cache.
-// This is primarily for testing purposes.
-func (i *stringInterner) cacheSize() int {
-	return len(i.strings)
-}
