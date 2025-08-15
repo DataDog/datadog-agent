@@ -50,7 +50,7 @@
 ## Shared `dd-pkg` steps:
 # - Install `dd-pkg`, logging the version in use for the job
 .setup_dd_pkg:
-  - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
+  - curl --retry 5 -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
   - dd-pkg version
 
 # - Lint packages produced by Omnibus (supports only deb and rpm packages)
