@@ -169,10 +169,6 @@ func computeFingerprint(filePath string, fingerprintConfig *types.FingerprintCon
 func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConfig *types.FingerprintConfig) *types.Fingerprint {
 	bytesToSkip := fingerprintConfig.CountToSkip
 	maxBytes := fingerprintConfig.Count
-	if fingerprintConfig.FingerprintStrategy == "line_checksum" {
-		bytesToSkip = 0
-		maxBytes = fingerprintConfig.MaxBytes
-	}
 	// Skip the configured number of bytes
 	if bytesToSkip > 0 {
 		_, err := fpFile.Seek(int64(bytesToSkip), io.SeekStart)
