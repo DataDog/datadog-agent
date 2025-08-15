@@ -362,10 +362,16 @@ func TestContainerSBOMFilter(t *testing.T) {
 			mockConfig.SetWithoutSource("sbom.container_image.container_include", tt.include)
 			mockConfig.SetWithoutSource("sbom.container_image.container_exclude", tt.exclude)
 			mockConfig.SetWithoutSource("sbom.container_image.exclude_pause_container", tt.pauseCtn)
+			mockConfig.SetWithoutSource("exclude_pause_container", !tt.pauseCtn) // ensure sbom setting doesn't conflict with general setting
 
 			f := newFilterObject(t, mockConfig)
 
-			res := f.IsContainerExcluded(tt.container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}})
+			selectedFilters := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerSBOM}
+			if tt.pauseCtn {
+				selectedFilters = append(selectedFilters, workloadfilter.ContainerPaused)
+			}
+
+			res := f.IsContainerExcluded(tt.container, [][]workloadfilter.ContainerFilter{selectedFilters})
 			assert.Equal(t, tt.expected, res, "Container exclusion result mismatch")
 		})
 	}
