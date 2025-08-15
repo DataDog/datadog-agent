@@ -34,7 +34,7 @@ func TestPosition(t *testing.T) {
 	}
 
 	// Create a mock fingerprinter
-	mockFingerprinter := file.NewFingerprinter(true, fingerprintConfig)
+	mockFingerprinter := file.NewFingerprinter(true, *fingerprintConfig)
 
 	// Set a fingerprint in the registry
 	fingerprint := &types.Fingerprint{
@@ -43,48 +43,48 @@ func TestPosition(t *testing.T) {
 	}
 	registry.SetFingerprint(fingerprint)
 
-	offset, whence, err = Position(registry, "", config.End, mockFingerprinter)
+	offset, whence, err = Position(registry, "", config.End, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 
-	offset, whence, err = Position(registry, "", config.Beginning, mockFingerprinter)
+	offset, whence, err = Position(registry, "", config.Beginning, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("test", "123456789")
-	offset, whence, err = Position(registry, "test", config.End, mockFingerprinter)
+	offset, whence, err = Position(registry, "test", config.End, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(123456789), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("test", "987654321")
-	offset, whence, err = Position(registry, "test", config.Beginning, mockFingerprinter)
+	offset, whence, err = Position(registry, "test", config.Beginning, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(987654321), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("test", "foo")
-	offset, whence, err = Position(registry, "test", config.End, mockFingerprinter)
+	offset, whence, err = Position(registry, "test", config.End, *mockFingerprinter)
 	assert.NotNil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
 
 	registry.SetOffset("test", "bar")
-	offset, whence, err = Position(registry, "test", config.Beginning, mockFingerprinter)
+	offset, whence, err = Position(registry, "test", config.Beginning, *mockFingerprinter)
 	assert.NotNil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("test", "123456789")
-	offset, whence, err = Position(registry, "test", config.ForceBeginning, mockFingerprinter)
+	offset, whence, err = Position(registry, "test", config.ForceBeginning, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekStart, whence)
 
 	registry.SetOffset("test", "987654321")
-	offset, whence, err = Position(registry, "test", config.ForceEnd, mockFingerprinter)
+	offset, whence, err = Position(registry, "test", config.ForceEnd, *mockFingerprinter)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)

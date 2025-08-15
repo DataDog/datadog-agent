@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,28 +35,6 @@ const (
 	// SHIFTJIS for Shift JIS (Japanese) encoding
 	SHIFTJIS string = "shift-jis"
 )
-
-// FingerprintStrategy defines the strategy used for fingerprinting (line_checksum or byte_checksum)
-type FingerprintStrategy string
-
-// Fingerprint strategy options
-const (
-	FingerprintStrategyLineChecksum FingerprintStrategy = "line_checksum"
-	FingerprintStrategyByteChecksum FingerprintStrategy = "byte_checksum"
-)
-
-func (s FingerprintStrategy) String() string {
-	return string(s)
-}
-
-// Validate checks if the fingerprint strategy is valid (either line_checksum or byte_checksum)
-func (s FingerprintStrategy) Validate() error {
-	switch s {
-	case FingerprintStrategyLineChecksum, FingerprintStrategyByteChecksum:
-		return nil
-	}
-	return fmt.Errorf("invalid fingerprint strategy: %s", s)
-}
 
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
@@ -120,9 +99,9 @@ type LogsConfig struct {
 	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
-	AutoMultiLineSamples           []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
-	FingerprintConfig              *FingerprintConfig     `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
-	ExperimentalFingerprintEnabled bool                   `mapstructure:"fingerprint_enabled_experimental" json:"fingerprint_enabled_experimental" yaml:"fingerprint_enabled_experimental"`
+	AutoMultiLineSamples           []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
+	FingerprintConfig              *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
+	ExperimentalFingerprintEnabled bool                     `mapstructure:"fingerprint_enabled_experimental" json:"fingerprint_enabled_experimental" yaml:"fingerprint_enabled_experimental"`
 }
 
 // SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.
@@ -152,24 +131,6 @@ type SourceAutoMultiLineOptions struct {
 
 	// TagAggregatedJSON allows to enable or disable the tagging of aggregated JSON logs for this source.
 	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
-}
-
-// FingerprintConfig defines the options for the fingerprint configuration.
-type FingerprintConfig struct {
-	// FingerprintStrategy defines the strategy used for fingerprinting. Options are:
-	// - "line_checksum": compute checksum based on line content (default)
-	// - "byte_checksum": compute checksum based on byte content
-	FingerprintStrategy FingerprintStrategy `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
-
-	// Count is the number of lines or bytes to use for fingerprinting, depending on the strategy
-	Count int `json:"count" mapstructure:"count" yaml:"count"`
-
-	// CountToSkip is the number of lines or bytes to skip before starting fingerprinting
-	CountToSkip int `json:"count_to_skip" mapstructure:"count_to_skip" yaml:"count_to_skip"`
-
-	// MaxBytes is only used for line-based fingerprinting to prevent overloading
-	// when reading large files. It's ignored for byte-based fingerprinting.
-	MaxBytes int `json:"max_bytes" mapstructure:"max_bytes" yaml:"max_bytes"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection
@@ -293,19 +254,19 @@ func (c *LogsConfig) Dump(multiline bool) string {
 func (c *LogsConfig) PublicJSON() ([]byte, error) {
 	// Export only fields that are explicitly documented in the public documentation
 	return json.Marshal(&struct {
-		Type              string             `json:"type,omitempty"`
-		Port              int                `json:"port,omitempty"`           // Network
-		Path              string             `json:"path,omitempty"`           // File, Journald
-		Encoding          string             `json:"encoding,omitempty"`       // File
-		ExcludePaths      []string           `json:"exclude_paths,omitempty"`  // File
-		TailingMode       string             `json:"start_position,omitempty"` // File
-		ChannelPath       string             `json:"channel_path,omitempty"`   // Windows Event
-		Service           string             `json:"service,omitempty"`
-		Source            string             `json:"source,omitempty"`
-		Tags              []string           `json:"tags,omitempty"`
-		ProcessingRules   []*ProcessingRule  `json:"log_processing_rules,omitempty"`
-		AutoMultiLine     *bool              `json:"auto_multi_line_detection,omitempty"`
-		FingerprintConfig *FingerprintConfig `json:"fingerprint_config,omitempty"`
+		Type              string                   `json:"type,omitempty"`
+		Port              int                      `json:"port,omitempty"`           // Network
+		Path              string                   `json:"path,omitempty"`           // File, Journald
+		Encoding          string                   `json:"encoding,omitempty"`       // File
+		ExcludePaths      []string                 `json:"exclude_paths,omitempty"`  // File
+		TailingMode       string                   `json:"start_position,omitempty"` // File
+		ChannelPath       string                   `json:"channel_path,omitempty"`   // Windows Event
+		Service           string                   `json:"service,omitempty"`
+		Source            string                   `json:"source,omitempty"`
+		Tags              []string                 `json:"tags,omitempty"`
+		ProcessingRules   []*ProcessingRule        `json:"log_processing_rules,omitempty"`
+		AutoMultiLine     *bool                    `json:"auto_multi_line_detection,omitempty"`
+		FingerprintConfig *types.FingerprintConfig `json:"fingerprint_config,omitempty"`
 	}{
 		Type:              c.Type,
 		Port:              c.Port,

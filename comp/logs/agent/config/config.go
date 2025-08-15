@@ -19,6 +19,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -165,9 +166,9 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 }
 
 // GlobalFingerprintConfig returns the global fingerprint configuration to apply to all logs.
-func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConfig, error) {
+func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.FingerprintConfig, error) {
 	var err error
-	config := FingerprintConfig{}
+	config := types.FingerprintConfig{}
 	err = structure.UnmarshalKey(coreConfig, "logs_config.fingerprint_config", &config)
 	if err != nil {
 		return nil, err
@@ -184,7 +185,7 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConf
 }
 
 // ValidateFingerprintConfig validates the fingerprint config and returns an error if the config is invalid
-func ValidateFingerprintConfig(config *FingerprintConfig) error {
+func ValidateFingerprintConfig(config *types.FingerprintConfig) error {
 	if config == nil {
 		return nil
 	}

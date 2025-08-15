@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type ConfigTestSuite struct {
@@ -183,7 +184,7 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithV
 	config, err := GlobalFingerprintConfig(suite.config)
 	suite.Nil(err)
 	suite.NotNil(config)
-	suite.Equal(FingerprintStrategyLineChecksum, config.FingerprintStrategy)
+	suite.Equal(types.FingerprintStrategyLineChecksum, config.FingerprintStrategy)
 	suite.Equal(10, config.Count)
 	suite.Equal(5, config.CountToSkip)
 	suite.Equal(1024, config.MaxBytes)

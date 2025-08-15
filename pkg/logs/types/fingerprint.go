@@ -63,11 +63,15 @@ const (
 	FingerprintStrategyByteChecksum FingerprintStrategy = "byte_checksum"
 )
 
-// Fingerprinter interface defines the methods for fingerprinting files
-type Fingerprinter interface {
-	// IsFingerprintingEnabled returns whether or not fingerprinting is enabled
-	IsFingerprintingEnabled() bool
+func (s FingerprintStrategy) String() string {
+	return string(s)
+}
 
-	// ComputeFingerprintFromConfig computes a fingerprint for a file path using a specific config
-	ComputeFingerprintFromConfig(filepath string, fingerprintConfig *FingerprintConfig) *Fingerprint
+// Validate checks if the fingerprint strategy is valid (either line_checksum or byte_checksum)
+func (s FingerprintStrategy) Validate() error {
+	switch s {
+	case FingerprintStrategyLineChecksum, FingerprintStrategyByteChecksum:
+		return nil
+	}
+	return fmt.Errorf("invalid fingerprint strategy: %s", s)
 }

@@ -12,14 +12,9 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Fingerprinter is a struct that contains the fingerprinting configuration
-type Fingerprinter struct {
-	fingerprintingEnabled    bool
-	defaultFingerprintConfig *types.FingerprintConfig
-}
 
 // Fallback fingerprint configs used when requested fingerprint
 // strategy (bytes or line-based) can not be used.
@@ -37,6 +32,21 @@ var defaultLinesConfig = &types.FingerprintConfig{
 	MaxBytes:            10000,
 }
 
+// Fingerprinter is a struct that contains the fingerprinting configuration
+type Fingerprinter struct {
+	fingerprintingEnabled bool
+	FingerprintConfig     types.FingerprintConfig
+}
+
+// NewFingerprinter creates a new Fingerprinter with the given configuration
+func NewFingerprinter(fingerprintEnabled bool, fingerprintConfig types.FingerprintConfig) *Fingerprinter {
+	log.Debugf("Creating new fingerprinter: enabled=%t, defaultConfig=%+v", fingerprintEnabled, fingerprintConfig)
+	return &Fingerprinter{
+		fingerprintingEnabled: fingerprintEnabled,
+		FingerprintConfig:     fingerprintConfig,
+	}
+}
+
 // newInvalidFingerprint returns a fingerprint with Value=0 to represent an invalid/empty fingerprint
 func newInvalidFingerprint(config *types.FingerprintConfig) *types.Fingerprint {
 	return &types.Fingerprint{Value: types.InvalidFingerprintValue, Config: config}
@@ -46,32 +56,18 @@ func newInvalidFingerprint(config *types.FingerprintConfig) *types.Fingerprint {
 // to avoid recreating it on every fingerprint computation
 var crc64Table = crc64.MakeTable(crc64.ISO)
 
-// NewFingerprinter creates a new Fingerprinter with the given configuration
-func NewFingerprinter(fingerprintEnabled bool, defaultFingerprintConfig *types.FingerprintConfig) *Fingerprinter {
-	log.Debugf("Creating new fingerprinter: enabled=%t, defaultConfig=%+v", fingerprintEnabled, defaultFingerprintConfig)
-	return &Fingerprinter{
-		fingerprintingEnabled:    fingerprintEnabled,
-		defaultFingerprintConfig: defaultFingerprintConfig,
-	}
-}
-
-// IsFingerprintingEnabled returns whether or not our configuration has checksum fingerprinting enabled
-func (f *Fingerprinter) IsFingerprintingEnabled() bool {
-	return f.fingerprintingEnabled
-}
-
 // ShouldFileFingerprint returns whether or not a given file should be fingerprinted to detect rotation and truncation
 func (f *Fingerprinter) ShouldFileFingerprint(file *File) bool {
-	if !f.fingerprintingEnabled {
+	if !f.IsFingerprintingEnabled() {
 		log.Debugf("Fingerprinting disabled globally, skipping file %s", file.Path)
 		return false
 	}
 
-	if file.Source.Config().FingerprintConfig == nil && f.defaultFingerprintConfig == nil {
+	if file.Source.Config().FingerprintConfig == nil && f.GetFingerprintConfig() == nil {
 		log.Debugf("No fingerprint config available for file %s (source config: %+v, default config: %+v)",
 			file.Path,
 			file.Source.Config().FingerprintConfig,
-			f.defaultFingerprintConfig)
+			f.GetFingerprintConfig())
 		return false
 	}
 
@@ -81,7 +77,7 @@ func (f *Fingerprinter) ShouldFileFingerprint(file *File) bool {
 
 // ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config
 func (f *Fingerprinter) ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) *types.Fingerprint {
-	if !f.fingerprintingEnabled {
+	if !f.IsFingerprintingEnabled() {
 		return newInvalidFingerprint(nil)
 	}
 	return computeFingerprint(filepath, fingerprintConfig)
@@ -89,7 +85,7 @@ func (f *Fingerprinter) ComputeFingerprintFromConfig(filepath string, fingerprin
 
 // ComputeFingerprint computes the fingerprint for the given file path
 func (f *Fingerprinter) ComputeFingerprint(file *File) *types.Fingerprint {
-	if !f.fingerprintingEnabled {
+	if !f.IsFingerprintingEnabled() {
 		log.Debugf("Fingerprinting disabled, returning invalid fingerprint")
 		return newInvalidFingerprint(nil)
 	}
@@ -100,17 +96,18 @@ func (f *Fingerprinter) ComputeFingerprint(file *File) *types.Fingerprint {
 
 	configFingerprintConfig := file.Source.Config().FingerprintConfig
 	if configFingerprintConfig == nil {
-		if f.defaultFingerprintConfig == nil {
+		fingerprintConfig := f.GetFingerprintConfig()
+		if fingerprintConfig == nil {
 			log.Debugf("No fingerprint config found in file source or defaults, returning invalid fingerprint")
 			return newInvalidFingerprint(nil)
 		}
 		// Use the default config directly since it's already the right type
 		log.Debugf("Using default fingerprint config: strategy=%s, count=%d, countToSkip=%d, maxBytes=%d",
-			f.defaultFingerprintConfig.FingerprintStrategy,
-			f.defaultFingerprintConfig.Count,
-			f.defaultFingerprintConfig.CountToSkip,
-			f.defaultFingerprintConfig.MaxBytes)
-		return computeFingerprint(file.Path, f.defaultFingerprintConfig)
+			fingerprintConfig.FingerprintStrategy,
+			fingerprintConfig.Count,
+			fingerprintConfig.CountToSkip,
+			fingerprintConfig.MaxBytes)
+		return computeFingerprint(file.Path, fingerprintConfig)
 	}
 
 	// Convert from config.FingerprintConfig to types.FingerprintConfig
@@ -144,7 +141,7 @@ func computeFingerprint(filePath string, fingerprintConfig *types.FingerprintCon
 		fingerprintConfig.CountToSkip,
 		fingerprintConfig.MaxBytes)
 
-	fpFile, err := os.Open(filePath)
+	fpFile, err := filesystem.OpenShared(filePath)
 	if err != nil {
 		log.Warnf("could not open file for fingerprinting %s: %v", filePath, err)
 		return newInvalidFingerprint(fingerprintConfig)
@@ -194,9 +191,6 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 		return newInvalidFingerprint(fingerprintConfig)
 	}
 
-	// Trim buffer to actual bytes read
-	buffer = buffer[:bytesRead]
-
 	// Check if we have enough bytes to create a meaningful fingerprint
 	if bytesRead == 0 || bytesRead < maxBytes {
 		log.Debugf("No bytes available for fingerprinting file %q", filePath)
@@ -222,65 +216,57 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	// Create scanner for line-by-line reading
 	scanner := bufio.NewScanner(limitedReader)
 
-	// Skip the configured number of lines
-	for i := 0; i < linesToSkip; i++ {
-		if !scanner.Scan() {
-			if scanner.Err() != nil {
-				log.Warnf("Failed to skip line while computing fingerprint for %q: %v", filePath, scanner.Err())
-			}
-			if scanner.Err() == nil && limitedReader.(*io.LimitedReader).N == 0 {
-				// Scanner stopped normally + no bytes remaining = fall back
-				log.Warnf("Scanner stopped with no bytes remaining, falling back to bytes fingerprint for %q", filePath)
-				pos, err := fpFile.Seek(0, io.SeekStart)
-				if pos != 0 || err != nil {
-					log.Warnf("Error %s occurred while trying to reset file offset", err)
-				}
-				return computeFingerPrintByBytes(fpFile, filePath, defaultBytesConfig)
-			}
+	// Single loop that handles both skipping and reading
+	var buffer []byte
+	linesRead := 0
+	totalLinesProcessed := 0
+
+	for totalLinesProcessed < linesToSkip+maxLines && scanner.Scan() {
+		totalLinesProcessed++
+
+		if totalLinesProcessed > linesToSkip {
+			line := scanner.Bytes()
+			buffer = append(buffer, line...)
+			linesRead++
 		}
 	}
 
-	// Read lines for hashing
-	var buffer []byte
-	linesRead := 0
-	bytesRead := 0
-	for linesRead < maxLines && scanner.Scan() {
-		//TODO: Check for error here
-		line := scanner.Bytes()
-		buffer = append(buffer, line...)
-		linesRead++
-		bytesRead += maxBytes - int(limitedReader.(*io.LimitedReader).N)
-
-		// Note: scanner.Bytes() strips newline characters, so bytesRead only includes
-		// the actual line content, not the newline characters. This is a limitation
-		// of using bufio.Scanner for line-based reading.
-	}
-
-	// Check for scanner errors
+	// Handle scanner errors
 	if err := scanner.Err(); err != nil {
 		log.Warnf("Error while reading file for fingerprint %q: %v", filePath, err)
 		return newInvalidFingerprint(fingerprintConfig)
 	}
 
-	// Check if we have enough lines to create a meaningful fingerprint
-	if linesRead == 0 {
-		if scanner.Err() == nil && limitedReader.(*io.LimitedReader).N == 0 {
-			// Scanner stopped normally + no bytes remaining = fall back
-			log.Warnf("Scanner stopped with no bytes remaining, falling back to byte-based fingerprint for %q", filePath)
-			pos, err := fpFile.Seek(0, io.SeekStart)
-			if pos != 0 || err != nil {
-				log.Warnf("Error %s occurred while trying to reset file offset", err)
-			}
-			return computeFingerPrintByBytes(fpFile, filePath, defaultBytesConfig)
+	// Check if we need to fall back due to byte limits
+	if linesRead == 0 && limitedReader.(*io.LimitedReader).N == 0 {
+		log.Warnf("Scanner stopped with no bytes remaining, falling back to byte-based fingerprint for %q", filePath)
+		pos, err := fpFile.Seek(0, io.SeekStart)
+		if pos != 0 || err != nil {
+			log.Warnf("Error %s occurred while trying to reset file offset", err)
 		}
+		return computeFingerPrintByBytes(fpFile, filePath, defaultBytesConfig)
 	}
 
+	// Check if we have enough data for fingerprinting
+	// We need either enough lines OR enough bytes to create a meaningful fingerprint
+	bytesRead := maxBytes - int(limitedReader.(*io.LimitedReader).N)
 	if linesRead < maxLines && bytesRead < maxBytes {
 		log.Debugf("Not enough data for fingerprinting file %q (lines=%d, bytes=%d)", filePath, linesRead, bytesRead)
 		return newInvalidFingerprint(fingerprintConfig)
 	}
+
 	// Compute fingerprint
 	checksum := crc64.Checksum(buffer, crc64Table)
 	log.Debugf("Computed line-based fingerprint 0x%x for file %q (bytes=%d, lines=%d)", checksum, filePath, len(buffer), linesRead)
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}
+}
+
+// IsFingerprintingEnabled returns whether or not our configuration has checksum fingerprinting enabled
+func (f *Fingerprinter) IsFingerprintingEnabled() bool {
+	return f.fingerprintingEnabled
+}
+
+// GetFingerprintConfig returns the fingerprint configuration
+func (f *Fingerprinter) GetFingerprintConfig() *types.FingerprintConfig {
+	return &f.FingerprintConfig
 }

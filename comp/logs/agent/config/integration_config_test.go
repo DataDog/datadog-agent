@@ -14,15 +14,16 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 	validConfigs := []*LogsConfig{
-		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: &FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: TCPType, Port: 1234, FingerprintConfig: &FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: UDPType, Port: 5678, FingerprintConfig: &FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: DockerType, FingerprintConfig: &FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
-		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: &FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: TCPType, Port: 1234, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: UDPType, Port: 5678, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: DockerType, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
+		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: &types.FingerprintConfig{MaxBytes: 256, Count: 1, CountToSkip: 0, FingerprintStrategy: "line_checksum"}},
 	}
 
 	for _, config := range validConfigs {
@@ -158,7 +159,7 @@ func TestPublicJSON(t *testing.T) {
 }
 
 func TestFingerprintConfig(t *testing.T) {
-	validConfigs := []*FingerprintConfig{
+	validConfigs := []*types.FingerprintConfig{
 		{Count: 30, CountToSkip: 0, FingerprintStrategy: "byte_checksum"},
 		{MaxBytes: 1024, Count: 10, CountToSkip: 2, FingerprintStrategy: "line_checksum"},
 		{Count: 50, CountToSkip: 0, FingerprintStrategy: "byte_checksum"},
@@ -169,7 +170,7 @@ func TestFingerprintConfig(t *testing.T) {
 		assert.Nil(t, err)
 	}
 
-	invalidConfigs := []*FingerprintConfig{
+	invalidConfigs := []*types.FingerprintConfig{
 		{MaxBytes: 0, Count: 0, CountToSkip: 0},
 		{MaxBytes: -1, Count: 0, CountToSkip: 0},
 		{MaxBytes: 256, Count: -1, CountToSkip: 0},

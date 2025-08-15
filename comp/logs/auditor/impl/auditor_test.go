@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 var testpath = "testpath"
@@ -64,11 +65,16 @@ func (suite *AuditorTestSuite) TestAuditorStartStop() {
 func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.Equal(0, len(suite.a.registry))
-	suite.a.updateRegistry(suite.source.Config.Path, "42", "end", 0, 0, nil)
+
+	// Create a fingerprint with nil config for testing
+	fingerprint := types.Fingerprint{Value: 0, Config: nil}
+	suite.a.updateRegistry(suite.source.Config.Path, "42", "end", 0, fingerprint)
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("42", suite.a.registry[suite.source.Config.Path].Offset)
 	suite.Equal("end", suite.a.registry[suite.source.Config.Path].TailingMode)
-	suite.a.updateRegistry(suite.source.Config.Path, "43", "beginning", 1, 0, nil)
+
+	fingerprint = types.Fingerprint{Value: 0, Config: nil}
+	suite.a.updateRegistry(suite.source.Config.Path, "43", "beginning", 1, fingerprint)
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("43", suite.a.registry[suite.source.Config.Path].Offset)
 	suite.Equal("beginning", suite.a.registry[suite.source.Config.Path].TailingMode)
@@ -77,15 +83,15 @@ func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
 func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
-		LastUpdated:       time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
-		Offset:            "42",
-		TailingMode:       "end",
-		FingerprintConfig: nil,
+		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
+		Offset:      "42",
+		TailingMode: "end",
+		Fingerprint: types.Fingerprint{Value: 0, Config: nil},
 	}
 	suite.NoError(suite.a.flushRegistry())
 	r, err := os.ReadFile(suite.testRegistryPath)
 	suite.NoError(err)
-	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0,\"Fingerprint\":0,\"FingerprintConfig\":null}}}", string(r))
+	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0,\"Fingerprint\":{\"Value\":0,\"Config\":null}}}}", string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry = suite.a.recoverRegistry()
@@ -97,38 +103,51 @@ func (suite *AuditorTestSuite) TestAuditorUpdatesRegistryWithFingerprint() {
 	suite.Equal(0, len(suite.a.registry))
 
 	identifier := "file:/var/log/test.log"
-	fingerprint := uint64(12345)
+	fingerprintConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            1000,
+	}
+	fingerprint := types.Fingerprint{Value: 12345, Config: fingerprintConfig}
 
-	suite.a.updateRegistry(identifier, "100", "end", 1, fingerprint, nil)
+	suite.a.updateRegistry(identifier, "100", "end", 1, fingerprint)
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("100", suite.a.registry[identifier].Offset)
 	suite.Equal("end", suite.a.registry[identifier].TailingMode)
-	suite.Equal(fingerprint, suite.a.registry[identifier].Fingerprint)
+	suite.Equal(uint64(12345), suite.a.registry[identifier].Fingerprint.Value)
+	suite.Equal(fingerprintConfig, suite.a.registry[identifier].Fingerprint.Config)
 }
 
 func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistryWithFingerprint() {
 	identifier := "file:/var/log/test.log"
-	fingerprint := uint64(12345)
+	fingerprintConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            1000,
+	}
+	fingerprint := types.Fingerprint{Value: 12345, Config: fingerprintConfig}
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry[identifier] = &RegistryEntry{
-		LastUpdated:       time.Date(2024, time.July, 18, 1, 1, 1, 1, time.UTC),
-		Offset:            "150",
-		TailingMode:       "end",
-		Fingerprint:       fingerprint,
-		FingerprintConfig: nil,
+		LastUpdated: time.Date(2024, time.July, 18, 1, 1, 1, 1, time.UTC),
+		Offset:      "150",
+		TailingMode: "end",
+		Fingerprint: fingerprint,
 	}
 	suite.NoError(suite.a.flushRegistry())
 
 	r, err := os.ReadFile(suite.testRegistryPath)
 	suite.NoError(err)
-	expectedJSON := `{"Version":2,"Registry":{"file:/var/log/test.log":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"Fingerprint":12345,"FingerprintConfig":null}}}`
+	expectedJSON := `{"Version":2,"Registry":{"file:/var/log/test.log":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"Fingerprint":{"Value":12345,"Config":{"fingerprint_strategy":"line_checksum","count":1,"count_to_skip":0,"max_bytes":1000}}}}}`
 	suite.Equal(expectedJSON, string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry = suite.a.recoverRegistry()
 	suite.Equal("150", suite.a.registry[identifier].Offset)
-	suite.Equal(fingerprint, suite.a.registry[identifier].Fingerprint)
+	suite.Equal(uint64(12345), suite.a.registry[identifier].Fingerprint.Value)
+	suite.Equal(fingerprintConfig.FingerprintStrategy, suite.a.registry[identifier].Fingerprint.Config.FingerprintStrategy)
 }
 
 func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
@@ -144,11 +163,12 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
 	offset = suite.a.GetOffset(othersource.Config.Path)
 	suite.Equal("", offset)
 }
+
 func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForFingerprint() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
 		Offset:      "42",
-		Fingerprint: uint64(12345),
+		Fingerprint: types.Fingerprint{Value: 12345, Config: nil},
 	}
 
 	fingerprint := suite.a.GetFingerprint(suite.source.Config.Path)

@@ -11,11 +11,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 )
 
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter types.Fingerprinter) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error

@@ -39,8 +39,7 @@ type RegistryEntry struct {
 	Offset             string
 	TailingMode        string
 	IngestionTimestamp int64
-	Fingerprint        uint64
-	FingerprintConfig  *types.FingerprintConfig
+	Fingerprint        types.Fingerprint
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -165,10 +164,7 @@ func (a *registryAuditor) GetFingerprint(identifier string) *types.Fingerprint {
 	if !exists {
 		return nil
 	}
-	return &types.Fingerprint{
-		Value:  entry.Fingerprint,
-		Config: entry.FingerprintConfig,
-	}
+	return &entry.Fingerprint
 }
 
 // Channel returns the channel to use to communicate with the auditor or nil
@@ -267,27 +263,11 @@ func (a *registryAuditor) run() {
 			}
 			// update the registry with the new entry
 			for _, msg := range payload.MessageMetas {
-				var fingerprintConfig *types.FingerprintConfig
-				if msg.Origin.LogSource.Config.FingerprintConfig != nil {
-					// Use the source config first since it takes precedence
-					fingerprintConfig = &types.FingerprintConfig{
-						FingerprintStrategy: types.FingerprintStrategy(msg.Origin.LogSource.Config.FingerprintConfig.FingerprintStrategy),
-						Count:               msg.Origin.LogSource.Config.FingerprintConfig.Count,
-						CountToSkip:         msg.Origin.LogSource.Config.FingerprintConfig.CountToSkip,
-						MaxBytes:            msg.Origin.LogSource.Config.FingerprintConfig.MaxBytes,
-					}
-				} else if msg.Origin.Fingerprint != nil && msg.Origin.Fingerprint.Config != nil {
-					// Fallback to fingerprint config from the message origin
-					fingerprintConfig = msg.Origin.Fingerprint.Config
-				}
-
-				// Get fingerprint value safely, defaulting to 0 if Fingerprint is nil
-				var fingerprintValue uint64
+				var fingerprint types.Fingerprint
 				if msg.Origin.Fingerprint != nil {
-					fingerprintValue = msg.Origin.Fingerprint.Value
+					fingerprint = *msg.Origin.Fingerprint
 				}
-
-				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, fingerprintValue, fingerprintConfig)
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, fingerprint)
 			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from the registry
@@ -346,7 +326,7 @@ func (a *registryAuditor) cleanupRegistry() {
 }
 
 // updateRegistry updates the registry with a new entry
-func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, fingerprint uint64, config *types.FingerprintConfig) {
+func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, fingerprint types.Fingerprint) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -369,7 +349,6 @@ func (a *registryAuditor) updateRegistry(identifier string, offset string, taili
 		TailingMode:        tailingMode,
 		IngestionTimestamp: ingestionTimestamp,
 		Fingerprint:        fingerprint,
-		FingerprintConfig:  config,
 	}
 }
 
