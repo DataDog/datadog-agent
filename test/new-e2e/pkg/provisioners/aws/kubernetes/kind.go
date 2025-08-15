@@ -48,6 +48,16 @@ const (
 	defaultVMName     = "kind"
 )
 
+// kubernetesVersionOverride wraps an Environment to override the KubernetesVersion method
+type kubernetesVersionOverride struct {
+	aws.Environment
+	overrideVersion string
+}
+
+func (k *kubernetesVersionOverride) KubernetesVersion() string {
+	return k.overrideVersion
+}
+
 // KindDiagnoseFunc is the diagnose function for the Kind provisioner
 func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	dumpResult, err := dumpKindClusterState(ctx, stackName)
@@ -83,6 +93,20 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err
+	}
+
+	// Resolve "latest" to actual version early to prevent semver parsing errors in components
+	kubeVersion := awsEnv.KubernetesVersion()
+	if kubeVersion == "latest" {
+		kindConfig, err := kubeComp.GetKindVersionConfig("latest")
+		if err != nil {
+			return fmt.Errorf("failed to resolve latest Kubernetes version: %v", err)
+		}
+		// Create a wrapper that returns the resolved version
+		awsEnv = &kubernetesVersionOverride{
+			Environment: awsEnv,
+			overrideVersion: kindConfig.KubeVersion,
+		}
 	}
 
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
