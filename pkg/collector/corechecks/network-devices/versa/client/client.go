@@ -64,20 +64,16 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, authMethodString string, options ...ClientOptions) (*Client, error) {
-	err := validateParams(directorEndpoint, directorPort, analyticsEndpoint, username, password)
+func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, useHTTP bool, authConfig AuthConfig, options ...ClientOptions) (*Client, error) {
+	err := validateParams(directorEndpoint, directorPort, analyticsEndpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse auth method from string
-	authMethod := authMethodBasic // default to basic auth
-	if authMethodString != "" {
-		parsedAuthMethod, err := parseAuthMethod(authMethodString)
-		if err != nil {
-			return nil, fmt.Errorf("invalid auth_method: %w", err)
-		}
-		authMethod = parsedAuthMethod
+	// Process authentication configuration (validate and parse)
+	authMethod, err := processAuthConfig(authConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	// Set default port based on authentication method if not provided
@@ -119,9 +115,11 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		directorEndpoint:    directorEndpointURL.String(),
 		directorAPIPort:     directorPort,
 		analyticsEndpoint:   analyticsEndpointURL.String(),
-		username:            username,
-		password:            password,
 		authMethod:          authMethod,
+		username:            authConfig.Username,
+		password:            authConfig.Password,
+		clientID:            authConfig.ClientID,
+		clientSecret:        authConfig.ClientSecret,
 		authenticationMutex: &sync.Mutex{},
 		maxAttempts:         defaultMaxAttempts,
 		maxPages:            defaultMaxPages,
@@ -136,7 +134,7 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 	return client, nil
 }
 
-func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint, username, password string) error {
+func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint string) error {
 	if directorEndpoint == "" {
 		return fmt.Errorf("invalid director endpoint")
 	}
@@ -146,28 +144,7 @@ func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint
 	if analyticsEndpoint == "" {
 		return fmt.Errorf("invalid analytics endpoint")
 	}
-	if username == "" {
-		return fmt.Errorf("invalid username")
-	}
-	if password == "" {
-		return fmt.Errorf("invalid password")
-	}
 	return nil
-}
-
-// WithOAuthConfig is a functional option to use OAuth for director calls
-func WithOAuthConfig(clientID, clientSecret string) (ClientOptions, error) {
-	if clientID == "" {
-		return nil, errors.New("invalid client ID")
-	}
-	if clientSecret == "" {
-		return nil, errors.New("invalid client secret")
-	}
-
-	return func(c *Client) {
-		c.clientID = clientID
-		c.clientSecret = clientSecret
-	}, nil
 }
 
 // WithTLSConfig is a functional option to set the HTTP Client TLS Config

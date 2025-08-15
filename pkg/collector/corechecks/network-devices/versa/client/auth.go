@@ -24,6 +24,15 @@ type (
 	// the Versa integration
 	authMethod string
 
+	// AuthConfig encapsulates authentication configuration for the Versa client
+	AuthConfig struct {
+		Method       string
+		Username     string
+		Password     string
+		ClientID     string
+		ClientSecret string
+	}
+
 	// OAuthRequest encapsulates data for performing OAuth
 	OAuthRequest struct {
 		ClientID     string `json:"client_id"`
@@ -62,6 +71,35 @@ func parseAuthMethod(authString string) (authMethod, error) {
 	default:
 		return "", fmt.Errorf("invalid auth method %q, valid auth methods: %q, %q", authString, authMethodBasic, authMethodOAuth)
 	}
+}
+
+// processAuthConfig validates and parses the authentication configuration
+func processAuthConfig(config AuthConfig) (authMethod, error) {
+	if config.Username == "" {
+		return "", fmt.Errorf("username is required")
+	}
+	if config.Password == "" {
+		return "", fmt.Errorf("password is required")
+	}
+
+	// Parse and validate the auth method (if provided)
+	authMethod := authMethodBasic // default
+	if config.Method != "" {
+		var err error
+		authMethod, err = parseAuthMethod(config.Method)
+		if err != nil {
+			return "", fmt.Errorf("invalid auth_method: %w", err)
+		}
+	}
+
+	// Validate OAuth specific requirements
+	if authMethod == authMethodOAuth {
+		if config.ClientID == "" || config.ClientSecret == "" {
+			return "", fmt.Errorf("client_id and client_secret are required for OAuth authentication")
+		}
+	}
+
+	return authMethod, nil
 }
 
 // loginSession logs in to the Versa Director API using session-based authentication

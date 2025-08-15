@@ -75,3 +75,102 @@ func TestParseAuthMethod(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessAuthConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      AuthConfig
+		expected    authMethod
+		expectError bool
+	}{
+		{
+			name: "Valid basic auth config",
+			config: AuthConfig{
+				Method:   "basic",
+				Username: "testuser",
+				Password: "testpass",
+			},
+			expected:    authMethodBasic,
+			expectError: false,
+		},
+		{
+			name: "Valid OAuth config with credentials",
+			config: AuthConfig{
+				Method:       "oauth",
+				Username:     "testuser",
+				Password:     "testpass",
+				ClientID:     "test-client-id",
+				ClientSecret: "test-client-secret",
+			},
+			expected:    authMethodOAuth,
+			expectError: false,
+		},
+		{
+			name: "Empty method defaults to basic",
+			config: AuthConfig{
+				Method:   "", // Empty should default to basic
+				Username: "testuser",
+				Password: "testpass",
+			},
+			expected:    authMethodBasic,
+			expectError: false,
+		},
+		{
+			name: "Invalid OAuth config - missing client ID",
+			config: AuthConfig{
+				Method:       "oauth",
+				Username:     "testuser",
+				Password:     "testpass",
+				ClientSecret: "test-client-secret",
+			},
+			expectError: true,
+		},
+		{
+			name: "Invalid OAuth config - missing client secret",
+			config: AuthConfig{
+				Method:   "oauth",
+				Username: "testuser",
+				Password: "testpass",
+				ClientID: "test-client-id",
+			},
+			expectError: true,
+		},
+		{
+			name: "Invalid config - missing username",
+			config: AuthConfig{
+				Method:   "basic",
+				Password: "testpass",
+			},
+			expectError: true,
+		},
+		{
+			name: "Invalid config - missing password",
+			config: AuthConfig{
+				Method:   "basic",
+				Username: "testuser",
+			},
+			expectError: true,
+		},
+		{
+			name: "Invalid auth method",
+			config: AuthConfig{
+				Method:   "invalid",
+				Username: "testuser",
+				Password: "testpass",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := processAuthConfig(tt.config)
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}

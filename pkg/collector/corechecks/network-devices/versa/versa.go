@@ -94,7 +94,15 @@ func (v *VersaCheck) Run() error {
 		return err
 	}
 
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP, v.config.AuthMethod, clientOptions...)
+	authConfig := client.AuthConfig{
+		Method:       v.config.AuthMethod,
+		Username:     v.config.Username,
+		Password:     v.config.Password,
+		ClientID:     v.config.ClientID,
+		ClientSecret: v.config.ClientSecret,
+	}
+
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.UseHTTP, authConfig, clientOptions...)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
@@ -445,18 +453,6 @@ func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 
 	if v.config.LookbackTimeWindowMinutes > 0 {
 		clientOptions = append(clientOptions, client.WithLookback(v.config.LookbackTimeWindowMinutes))
-	}
-
-	// Add OAuth configuration if using OAuth authentication
-	if strings.ToLower(v.config.AuthMethod) == "oauth" {
-		if v.config.ClientID == "" || v.config.ClientSecret == "" {
-			return nil, fmt.Errorf("client_id and client_secret are required for OAuth authentication")
-		}
-		option, err := client.WithOAuthConfig(v.config.ClientID, v.config.ClientSecret)
-		if err != nil {
-			return nil, err
-		}
-		clientOptions = append(clientOptions, option)
 	}
 
 	return clientOptions, nil
