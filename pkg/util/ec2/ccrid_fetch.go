@@ -8,11 +8,9 @@ package ec2
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
 const (
