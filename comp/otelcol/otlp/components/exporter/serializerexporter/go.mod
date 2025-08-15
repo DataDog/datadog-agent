@@ -214,6 +214,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.67.0 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
@@ -332,6 +333,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../../../pkg/network/payload

@@ -20,10 +20,8 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
@@ -31,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	logstypes "github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
@@ -120,8 +120,9 @@ type Tailer struct {
 	info            *status.InfoRegistry
 	bytesRead       *status.CountInfo
 	movingSum       *util.MovingSum
-	CapacityMonitor *metrics.CapacityMonitor
+	fingerprint     *logstypes.Fingerprint
 	registry        auditor.Registry
+	CapacityMonitor *metrics.CapacityMonitor
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -133,8 +134,9 @@ type TailerOptions struct {
 	Info            *status.InfoRegistry     // Required
 	Rotated         bool                     // Optional
 	TagAdder        tag.EntityTagAdder       // Required
+	Fingerprint     *logstypes.Fingerprint   //Optional
+	Registry        auditor.Registry         //Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
-	Registry        auditor.Registry         // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -187,6 +189,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
+		fingerprint:            opts.Fingerprint,
 		CapacityMonitor:        opts.CapacityMonitor,
 		registry:               opts.Registry,
 	}
@@ -194,7 +197,6 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	if fileRotated {
 		addToTailerInfo("Last Rotation Date", getFormattedTime(), t.info)
 	}
-
 	return t
 }
 
@@ -214,6 +216,7 @@ func (t *Tailer) NewRotatedTailer(
 	decoder *decoder.Decoder,
 	info *status.InfoRegistry,
 	tagAdder tag.EntityTagAdder,
+	fingerprint *logstypes.Fingerprint,
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{
@@ -225,6 +228,7 @@ func (t *Tailer) NewRotatedTailer(
 		Rotated:         true,
 		TagAdder:        tagAdder,
 		CapacityMonitor: capacityMonitor,
+		Fingerprint:     fingerprint,
 		Registry:        registry,
 	}
 
@@ -312,15 +316,14 @@ func (t *Tailer) readForever() {
 		t.decoder.Stop()
 		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
-
 	for {
 		n, err := t.read()
 		if err != nil {
 			return
 		}
+
 		t.recordBytes(int64(n))
 		t.movingSum.Add(int64(n))
-
 		select {
 		case <-t.stop:
 			if n != 0 && t.didFileRotate.Load() {
@@ -371,6 +374,8 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
+		origin.FilePath = t.file.Path
+		origin.Fingerprint = t.fingerprint
 
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
