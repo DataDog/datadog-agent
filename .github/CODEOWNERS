@@ -439,6 +439,7 @@
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/container-experiences
 /pkg/collector/corechecks/gpu/                     @DataDog/ebpf-platform
+/pkg/collector/corechecks/networkconfigmanagement/ @DataDog/network-device-monitoring
 /pkg/collector/corechecks/network-devices/         @DataDog/ndm-integrations
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/net/          @DataDog/agent-runtimes
@@ -599,6 +600,7 @@
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-products
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
 /pkg/network/usm/tests/*_windows*.go    @DataDog/windows-products
+/pkg/networkconfigmanagement/           @DataDog/network-device-monitoring
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
