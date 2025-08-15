@@ -48,30 +48,30 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 #### Building
 ```bash
 # Install development tools
-uvx dda inv install-tools
+dda inv install-tools
 
 # Build the main agent
-uvx dda inv agent.build --build-exclude=systemd
+dda inv agent.build --build-exclude=systemd
 
 # Build specific components
-uvx dda inv dogstatsd.build
-uvx dda inv trace-agent.build
-uvx dda inv system-probe.build
+dda inv dogstatsd.build
+dda inv trace-agent.build
+dda inv system-probe.build
 ```
 
 #### Testing
 ```bash
 # Run all tests
-uvx dda inv test
+dda inv test
 
 # Test specific package
-uvx dda inv test --targets=./pkg/aggregator
+dda inv test --targets=./pkg/aggregator
 
 # Run Go linters
-uvx dda inv linter.go
+dda inv linter.go
 
 # Run all linters
-uvx dda inv linter.all
+dda inv linter.all
 ```
 
 #### Running Locally
@@ -103,18 +103,18 @@ The development configuration file should be placed at `dev/dist/datadog.yaml`. 
 ### Unit Tests
 - Go tests using standard `go test`
 - Python tests using pytest
-- Run with `uvx dda inv test --targets=<package>`
+- Run with `dda inv test --targets=<package>`
 
 ### Integration Tests
 - Located in `test/integration/`
-- Run with `uvx dda inv integration-tests`
+- Run with `dda inv integration-tests`
 
 ### End-to-End Tests
 - New E2E framework in `test/new-e2e/`
 
 ### Linting
-- Go: golangci-lint via `uvx dda inv linter.go`
-- Python: various linters via `uvx dda inv linter.python`
+- Go: golangci-lint via `dda inv linter.go`
+- Python: various linters via `dda inv linter.python`
 - YAML: yamllint
 - Shell: shellcheck
 
@@ -185,7 +185,7 @@ Go build tags control feature inclusion:
 The project uses Go modules with multiple sub-modules. Key modules:
 - Main module: `github.com/DataDog/datadog-agent`
 - Sub-modules defined in `modules.yml`
-- Use `uvx dda inv modules.show` to list all modules
+- Use `dda inv modules.show` to list all modules
 
 ## Platform Support
 - **Linux**: Full support (amd64, arm64)
@@ -196,8 +196,8 @@ The project uses Go modules with multiple sub-modules. Key modules:
 
 ## Best Practices
 
-1. **Always run linters before committing**: `uvx dda inv linter.go`
-2. **Test your changes**: `uvx dda inv test --targets=<your_package>`
+1. **Always run linters before committing**: `dda inv linter.go`
+2. **Test your changes**: `dda inv test --targets=<your_package>`
 3. **Follow Go conventions**: Use gofmt, follow project structure
 4. **Update documentation**: Keep docs in sync with code changes
 5. **Use meaningful commit messages**: Follow conventional commits
@@ -206,8 +206,8 @@ The project uses Go modules with multiple sub-modules. Key modules:
 ## Troubleshooting Development Issues
 
 ### Common Build Issues
-- **Missing tools**: Run `uvx dda inv install-tools`
-- **CMake errors**: Remove `uvx dda inv rtloader.clean`
+- **Missing tools**: Run `dda inv install-tools`
+- **CMake errors**: Remove `dda inv rtloader.clean`
 
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues
