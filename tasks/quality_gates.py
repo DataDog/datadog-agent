@@ -423,7 +423,7 @@ def measure_package_local(
     config_path="test/static/static_quality_gates.yml",
     output_path=None,
     build_job_name="local_test",
-    max_files=10000,
+    max_files=20000,
     no_checksums=False,
     debug=False,
 ):
