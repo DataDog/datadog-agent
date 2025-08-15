@@ -48,6 +48,7 @@ type NetflowConfig struct {
 	GetCodeTimings                 bool `mapstructure:"get_code_timings"`
 	LogMapSizesEveryN              int  `mapstructure:"log_map_sizes_every_n"`
 	PortRollupUseSingleStore       bool `mapstructure:"portrollup_use_single_store"`
+	AggregatorFlushInitialInterval int  `mapstructure:"aggregator_flush_initial_interval"`
 }
 
 // ListenerConfig contains configuration for a single flow listener

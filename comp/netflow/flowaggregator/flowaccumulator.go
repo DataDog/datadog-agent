@@ -48,8 +48,9 @@ type flowAccumulator struct {
 	// are called by different routines.
 	flowsMutex sync.Mutex
 
-	aggregationInterval time.Duration
-	flowContextTTL      time.Duration
+	aggregationInterval        time.Duration
+	flowContextTTL             time.Duration
+	aggregationInitialInterval time.Duration
 
 	portRollup          *portrollup.EndpointPairPortRollupStore
 	portRollupThreshold int
@@ -77,15 +78,16 @@ type flowAccumulator struct {
 func (f *flowAccumulator) newFlowContext(flow *common.Flow) flowContext {
 	return flowContext{
 		flow:      flow,
-		nextFlush: timeNow().Add(f.aggregationInterval),
+		nextFlush: timeNow().Add(f.aggregationInitialInterval),
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, inlineHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, portRollupUseSingleStore bool, getMemoryStats bool, getCodeTimings bool, logMapSizesEveryN int, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(aggregationInterval time.Duration, aggregatorFlowContextTTL time.Duration, aggregationInitialInterval time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, inlineHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, portRollupUseSingleStore bool, getMemoryStats bool, getCodeTimings bool, logMapSizesEveryN int, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                        make(map[uint64]flowContext),
-		aggregationInterval:          aggregatorFlushInterval,
+		aggregationInterval:          aggregationInterval,
 		flowContextTTL:               aggregatorFlowContextTTL,
+		aggregationInitialInterval:   aggregationInitialInterval,
 		portRollup:                   portrollup.NewEndpointPairPortRollupStore(portRollupThreshold, portRollupUseFixedSizeKey, portRollupUseSingleStore, logMapSizesEveryN, logger),
 		portRollupThreshold:          portRollupThreshold,
 		portRollupDisabled:           portRollupDisabled,

@@ -88,10 +88,11 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
+	flushInitialInterval := time.Duration(config.AggregatorFlushInitialInterval) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                         make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                        newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, config.SkipHashCollisionDetection, config.InlineHashCollisionDetection, config.AggregationHashUseSyncPool, config.PortRollupUseFixedSizeKey, config.PortRollupUseSingleStore, config.GetMemoryStats, config.GetCodeTimings, config.LogMapSizesEveryN, logger, rdnsQuerier),
+		flowAcc:                        newFlowAccumulator(flushInterval, flowContextTTL, flushInitialInterval, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, config.SkipHashCollisionDetection, config.InlineHashCollisionDetection, config.AggregationHashUseSyncPool, config.PortRollupUseFixedSizeKey, config.PortRollupUseSingleStore, config.GetMemoryStats, config.GetCodeTimings, config.LogMapSizesEveryN, logger, rdnsQuerier),
 		FlushFlowsToSendInterval:       flushFlowsToSendInterval,
 		rollupTrackerRefreshInterval:   rollupTrackerRefreshInterval,
 		sender:                         sender,
