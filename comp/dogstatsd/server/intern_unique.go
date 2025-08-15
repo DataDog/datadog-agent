@@ -39,8 +39,3 @@ func (i *uniqueStringInterner) LoadOrStore(key []byte) string {
 	return handle.Value()
 }
 
-// cacheSize returns 0 since the actual cache size is managed by the Go runtime
-// and is not accessible. This is primarily for testing purposes.
-func (i *uniqueStringInterner) cacheSize() int {
-	return 0 // Cannot track size with unique.Handle
-}
