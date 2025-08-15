@@ -55,7 +55,12 @@ func testClient(server *httptest.Server) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := NewClient(host, port, "https://10.0.0.1:8443", "testuser", "testpass", true)
+	authConfig := AuthConfig{
+		Method:   "basic",
+		Username: "testuser",
+		Password: "testpass",
+	}
+	client, err := NewClient(host, port, "https://10.0.0.1:8443", true, authConfig)
 	if err != nil {
 		return nil, err
 	}
