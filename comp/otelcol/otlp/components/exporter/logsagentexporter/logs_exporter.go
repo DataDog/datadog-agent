@@ -8,6 +8,7 @@ package logsagentexporter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -16,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
+	logsmapping "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	logsmapping "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs"
 	"github.com/stormcat24/protodep/pkg/logger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -52,7 +53,7 @@ func NewExporterWithGatewayUsage(
 	attributesTranslator *attributes.Translator,
 	gatewaysUsage otel.GatewayUsage,
 ) (*Exporter, error) {
-	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
+	translator, err := logsmapping.NewTranslatorWithHTTPClient(set, attributesTranslator, cfg.OtelSource, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +80,11 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		}
 	}()
 
-	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
+	fmt.Println("ConsumeLogs ConsumeLogs ConsumeLogs ConsumeLogs")
+	payloads, err := e.translator.MapLogsAndRouteRUMEvents(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler(), true, "https://browser-intake-datadoghq.com/")
+	if err != nil {
+		return err
+	}
 	for _, ddLog := range payloads {
 		tags := strings.Split(ddLog.GetDdtags(), ",")
 		// Tags are set in the message origin instead
