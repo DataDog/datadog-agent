@@ -23,11 +23,8 @@ import (
 )
 
 const (
-	// DefaultBasicPort is the default port for Director Basic auth
-	DefaultBasicPort = 9182
-	// DefaultOAuthPort is the default port for Director OAuth
-	DefaultOAuthPort = 9183
-
+	defaultBasicPort   = 9182
+	defaultOAuthPort   = 9183
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
 	defaultMaxCount    = "2000"
@@ -83,6 +80,15 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		authMethod = parsedAuthMethod
 	}
 
+	// Set default port based on authentication method if not provided
+	if directorPort == 0 {
+		if authMethod == authMethodOAuth {
+			directorPort = defaultOAuthPort
+		} else {
+			directorPort = defaultBasicPort
+		}
+	}
+
 	cookieJar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
@@ -134,8 +140,8 @@ func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint
 	if directorEndpoint == "" {
 		return fmt.Errorf("invalid director endpoint")
 	}
-	if directorPort == 0 {
-		return fmt.Errorf("invalid director port")
+	if directorPort < 0 {
+		return fmt.Errorf("invalid director port: %d", directorPort)
 	}
 	if analyticsEndpoint == "" {
 		return fmt.Errorf("invalid analytics endpoint")

@@ -414,15 +414,6 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 		v.interval = time.Second * time.Duration(v.config.MinCollectionInterval)
 	}
 
-	// Set default port based on authentication method
-	if v.config.DirectorPort == 0 {
-		if strings.ToLower(v.config.AuthMethod) == "oauth" {
-			v.config.DirectorPort = client.DefaultOAuthPort
-		} else {
-			v.config.DirectorPort = client.DefaultBasicPort
-		}
-	}
-
 	v.metricsSender = report.NewSender(sender, v.config.Namespace)
 
 	return nil
