@@ -23,14 +23,15 @@
     # If STATIC_QUALITY_GATE_ARCH is set (which is the case for RPM packages), use it, 
     # otherwise use PACKAGE_ARCH (which is the architecture of the package)
     ARCH_VAR="${STATIC_QUALITY_GATE_ARCH:-${PACKAGE_ARCH}}"
-    if [[ "$STATIC_QUALITY_GATE_NAME" == *"rpm"* ]] || [[ "$STATIC_QUALITY_GATE_NAME" == *"suse"* ]]; then
-      PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${PROJECT_NAME}-7*${ARCH_VAR}.rpm"
-    elif [[ "$STATIC_QUALITY_GATE_NAME" == *"deb"* ]]; then      
-      PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${PROJECT_NAME}_*_${ARCH_VAR}.deb"
-    else
-      echo "⚠️  Unknown package type for gate: $STATIC_QUALITY_GATE_NAME"
-      exit 0
-    fi
+
+    # Determine format based on package type
+    case "$STATIC_QUALITY_GATE_NAME" in
+      *deb*) SEP="_*_"; EXT="deb" ;;
+      *rpm*|*suse*) SEP="-7*"; EXT="rpm" ;;
+      *) echo "⚠️  Unknown package type for gate: $STATIC_QUALITY_GATE_NAME"; exit 1 ;;
+    esac
+
+    PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${PROJECT_NAME}${SEP}${ARCH_VAR}.${EXT}"
 
     echo "🔍 Looking for package with pattern: $PACKAGE_PATTERN"
 
@@ -47,7 +48,7 @@
           --gate-name "$STATIC_QUALITY_GATE_NAME" \
           --build-job-name "$CI_JOB_NAME" \
           --output-path "${REPORT_PREFIX}_size_report_${CI_PIPELINE_ID}_${CI_COMMIT_SHA:0:8}.yml" \
-          --debug || echo "⚠️  Package measurement failed for $package_file"
+          --debug || { echo "⚠️  Package measurement failed for $package_file"; exit 1; }
 
         echo "✅ Package measurement completed"
 
@@ -58,7 +59,7 @@
           "${REPORT_PREFIX}_size_report_${CI_PIPELINE_ID}_${CI_COMMIT_SHA:0:8}.yml" \
           "${BUCKET_BASE_PATH}/${REPORT_PREFIX}_size_report_${CI_PIPELINE_ID}_${CI_COMMIT_SHA:0:8}.yml"
       else
-        echo "⚠️  No package found matching pattern: $PACKAGE_PATTERN"
+        echo "⚠️  No package found matching pattern: $PACKAGE_PATTERN"; exit 1;
       fi
     done
   else
