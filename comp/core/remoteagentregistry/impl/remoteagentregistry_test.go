@@ -313,22 +313,6 @@ type testRemoteAgentServer struct {
 	pbgo.UnimplementedRemoteAgentServer
 }
 
-func (t *testRemoteAgentServer) StreamConfigEvents(stream pbgo.RemoteAgent_StreamConfigEventsServer) error {
-	if t.ConfigEvents != nil {
-		defer close(t.ConfigEvents)
-		for {
-			event, err := stream.Recv()
-			if err != nil {
-				return err
-			}
-			t.ConfigEvents <- event
-		}
-	}
-
-	<-stream.Context().Done()
-	return nil
-}
-
 func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetStatusDetailsResponse, error) {
 	namedSections := make(map[string]*pbgo.StatusSection)
 	for name, fields := range t.StatusNamed {
