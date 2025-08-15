@@ -1050,8 +1050,8 @@ api_key:
   ## can be used to override this fallback behavior. It is recommended, but not the default, to
   ## maintain compatibility with previous Agent versions.
   ##
-  ## Note, the logs are forwarded via HTTPS default. Please use `logs_no_ssl` if you need
-  ## unencrypted HTTP rather than HTTPS.
+  ## Note, the logs are forwarded via HTTPS (encrypted) by default. Please use `logs_no_ssl` if you
+  ## need unencrypted HTTP instead.
   #
   # force_use_http: true
 
