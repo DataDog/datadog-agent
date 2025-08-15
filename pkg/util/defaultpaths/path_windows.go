@@ -8,7 +8,6 @@ package defaultpaths
 import (
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
@@ -16,10 +15,15 @@ import (
 )
 
 var (
-	// utility variables
-	_here, _ = executable.Folder()
+	// NOTE: Do NOT calculate paths relative to the executable.
+	//       The agent executables are not all installed in the same path and this can
+	//       lead to incorrect path calculations when this package is imported by
+	//       other executables.
+	// installPath is the default install path for the Agent. The install path is
+	// customizable at install time, so we update it from the registry in init().
+	installPath = `C:\Program Files\Datadog\Datadog Agent`
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	PyChecksPath = filepath.Join(_here, "..", "checks.d")
+	PyChecksPath = filepath.Join(installPath, "checks.d")
 	distPath     string
 )
 
@@ -51,29 +55,35 @@ func init() {
 		DogstatsDLogFile = filepath.Join(pd, "logs", "dogstatsd_info", "dogstatsd-stats.log")
 		StreamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
 	}
+	installPath = getInstallPath()
+	PyChecksPath = filepath.Join(installPath, "checks.d")
 }
 
-// GetInstallPath returns the fully qualified path to the datadog-agent executable
+// GetInstallPath returns the fully qualified path to the datadog-agent installation directory
+//
+// default: `C:\Program Files\Datadog\Datadog Agent`
 func GetInstallPath() string {
+	return installPath
+}
+
+func getInstallPath() string {
 	// fetch the installation path from the registry
-	installpath := filepath.Join(_here, "..")
-	var s string
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
 	if err != nil {
-		log.Warnf("Failed to open registry key: %s", err)
+		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
+		log.Debugf("Failed to open registry key: %s", err)
 	} else {
 		defer k.Close()
-		s, _, err = k.GetStringValue("InstallPath")
+		s, _, err := k.GetStringValue("InstallPath")
 		if err != nil {
 			log.Warnf("Installpath not found in registry: %s", err)
 		}
+		if s != "" {
+			return s
+		}
 	}
-	// if unable to figure out the install path from the registry,
-	// just compute it relative to the executable.
-	if s == "" {
-		s = installpath
-	}
-	return s
+	// return default path
+	return installPath
 }
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
