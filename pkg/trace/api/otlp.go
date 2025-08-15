@@ -6,9 +6,13 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"net/http"
@@ -19,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -227,6 +232,100 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)), hostFromAttributesHandler)
 }
 
+type ParamValue struct {
+	ParamKey string
+	SpanAttr string
+	Fallback string
+}
+
+func getParamValue(rattrs pcommon.Map, lattrs pcommon.Map, param ParamValue) string {
+	if param.SpanAttr != "" {
+		parts := strings.Split(param.SpanAttr, ".")
+		m := lattrs
+		for i, part := range parts {
+			if v, ok := m.Get(part); ok {
+				if i == len(parts)-1 {
+					return v.AsString()
+				}
+				if v.Type() == pcommon.ValueTypeMap {
+					m = v.Map()
+				}
+			}
+		}
+	}
+	if v, ok := rattrs.Get(param.ParamKey); ok {
+		return v.AsString()
+	}
+	return param.Fallback
+}
+
+func buildDDTags(rattrs pcommon.Map, lattrs pcommon.Map) string {
+	requiredTags := []ParamValue{
+		{ParamKey: "service", SpanAttr: "service.name", Fallback: "otlpresourcenoservicename"},
+		{ParamKey: "version", SpanAttr: "service.version", Fallback: ""},
+		{ParamKey: "sdk_version", SpanAttr: "_dd.sdk_version", Fallback: ""},
+		{ParamKey: "env", Fallback: "default"},
+	}
+
+	tagMap := make(map[string]string)
+
+	if v, ok := rattrs.Get("ddtags"); ok && v.Type() == pcommon.ValueTypeMap {
+		v.Map().Range(func(k string, val pcommon.Value) bool {
+			tagMap[k] = val.AsString()
+			return true
+		})
+	}
+
+	for _, tag := range requiredTags {
+		val := getParamValue(rattrs, lattrs, tag)
+		if val != tag.Fallback {
+			tagMap[tag.ParamKey] = val
+		}
+	}
+
+	var tagParts []string
+	for k, v := range tagMap {
+		tagParts = append(tagParts, k+":"+v)
+	}
+
+	return strings.Join(tagParts, ",")
+}
+
+func randomID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func buildIntakeUrlPathAndParameters(rattrs pcommon.Map, lattrs pcommon.Map) string {
+	var parts []string
+
+	batchTimeParam := ParamValue{ParamKey: "batch_time", Fallback: strconv.FormatInt(time.Now().UnixMilli(), 10)}
+	parts = append(parts, batchTimeParam.ParamKey+"="+getParamValue(rattrs, lattrs, batchTimeParam))
+
+	parts = append(parts, "ddtags="+buildDDTags(rattrs, lattrs))
+
+	ddsourceParam := ParamValue{ParamKey: "ddsource", SpanAttr: "source", Fallback: "browser"}
+	parts = append(parts, ddsourceParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddsourceParam))
+
+	ddEvpOriginParam := ParamValue{ParamKey: "dd-evp-origin", SpanAttr: "source", Fallback: "browser"}
+	parts = append(parts, ddEvpOriginParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddEvpOriginParam))
+
+	ddRequestId, err := randomID()
+	if err != nil {
+		return ""
+	}
+	ddRequestIdParam := ParamValue{ParamKey: "dd-request-id", SpanAttr: "", Fallback: ddRequestId}
+	parts = append(parts, ddRequestIdParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddRequestIdParam))
+
+	ddApiKeyParam := ParamValue{ParamKey: "dd-api-key", SpanAttr: "", Fallback: ""}
+	parts = append(parts, ddApiKeyParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddApiKeyParam))
+
+	return "/api/v2/rum?" + strings.Join(parts, "&")
+}
+
 func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
 	otelres := rspans.Resource()
 	resourceAttributes := otelres.Attributes()
@@ -238,6 +337,67 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
+			// TODO(otel-2752): add a config option for "forward_otlp_rum_to_dd_rum"
+			if o.conf.HasFeature("forward_otlp_rum_to_dd_rum") {
+				if _, isRum := otelspan.Attributes().Get("session.id"); isRum {
+					client := &http.Client{
+						Timeout: 10 * time.Second,
+					}
+
+					rattr := otelres.Attributes()
+					sattr := otelspan.Attributes()
+
+					// build the Datadog intake URL
+					ddforward, _ := rattr.Get("request_ddforward")
+					outUrlString := "https://browser-intake-datadoghq.com" +
+						ddforward.AsString()
+
+					rumPayload := rum.ConstructRumPayloadFromOTLP(sattr)
+					byts, err := json.Marshal(rumPayload)
+					if err != nil {
+						log.Error("failed to marshal RUM payload: %v", err)
+						return source.Source{}
+					}
+					req, err := http.NewRequest("POST", outUrlString, bytes.NewBuffer(byts))
+					if err != nil {
+						log.Error("failed to create request: %v", err)
+						return source.Source{}
+					}
+
+					// add X-Forwarded-For header containing the request client IP address
+					ip, ok := sattr.Get("client.address")
+					if ok {
+						req.Header.Add("X-Forwarded-For", ip.AsString())
+					}
+					req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
+					// send the request to the Datadog intake URL
+					resp, err := client.Do(req)
+					if err != nil {
+						log.Error("failed to send request: %v", err)
+						return source.Source{}
+					}
+					defer func(Body io.ReadCloser) {
+						err := Body.Close()
+						if err != nil {
+						}
+					}(resp.Body)
+
+					// read the response body
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						log.Error("failed to read response: %v", err)
+						return source.Source{}
+					}
+
+					// check the status code of the response
+					if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+						log.Error("received non-OK response: status: %s, body: %s", resp.Status, body)
+						return source.Source{}
+					}
+					fmt.Println("Response:", string(body))
+					continue
+				}
+			}
 			spancount++
 			traceID := traceutil.OTelTraceIDToUint64(otelspan.TraceID())
 			if tracesByID[traceID] == nil {
