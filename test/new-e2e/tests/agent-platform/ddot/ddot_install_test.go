@@ -122,6 +122,10 @@ func (is *ddotInstallSuite) TestDDOTInstall() {
 		is.ddotDebianTest(VMclient)
 	} else if *platform == "centos" || *platform == "amazonlinux" || *platform == "fedora" || *platform == "redhat" {
 		is.ddotRhelTest(VMclient)
+		fmt.Println("CHECK ETC DIRECTORY")
+		out, _ := VMclient.Host.Execute("sudo stat /etc/datadog-agent")
+		fmt.Println(out)
+		require.Contains(is.T(), out, "dd-agent")
 	} else {
 		require.Equal(is.T(), *platform, "suse", "NonSupportedPlatformError : %s isn't supported !", *platform)
 		is.ddotSuseTest(VMclient)
@@ -168,6 +172,13 @@ func (is *ddotInstallSuite) CheckDDOTInstallation(VMclient *common.TestClient) {
 	is.T().Run("check otel-agent example config exists", func(tt *testing.T) {
 		_, err := VMclient.FileManager.FileExists("/etc/datadog-agent/otel-config.yaml.example")
 		require.NoError(tt, err, "otel-agent example config file should be present")
+	})
+
+	is.T().Run("check etc directory permissions", func(tt *testing.T) {
+		fmt.Println("CHECK ETC DIRECTORY")
+		out, _ := VMclient.Host.Execute("sudo stat /etc/datadog-agent")
+		fmt.Println(out)
+		require.Contains(is.T(), out, "dd-agent")
 	})
 }
 
