@@ -13,10 +13,6 @@ import (
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
 
-const (
-	imdsBaseURL = "http://169.254.169.254/latest/meta-data/"
-)
-
 var (
 	getInstanceID = GetInstanceID
 	getRegion     = GetRegion
