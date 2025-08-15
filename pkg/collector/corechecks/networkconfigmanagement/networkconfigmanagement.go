@@ -8,6 +8,7 @@ package networkconfigmanagement
 
 import (
 	"fmt"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
@@ -29,11 +30,13 @@ import (
 
 // CheckName is the name of the check
 const CheckName = "network_config_management"
+const defaultCheckInterval = 15 * time.Minute
 
 // Check is the main struct for the network configuration management check
 type Check struct {
 	core.CheckBase
 	deviceConfig *ncmconfig.DeviceConfig
+	initConfig   *ncmconfig.InitConfig
 	sender       *ncmsender.NCMSender
 	agentConfig  config.Component
 	remoteClient ncmremote.Client
@@ -102,9 +105,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	}
 
 	var deviceConfig ncmconfig.DeviceConfig
+	var initConfig ncmconfig.InitConfig
+
 	err = yaml.Unmarshal(rawInstance, &deviceConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal device config: %s", err)
 	}
 	err = deviceConfig.ValidateConfig()
 	if err != nil {
@@ -112,17 +117,25 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	}
 	c.deviceConfig = &deviceConfig
 
-	if c.deviceConfig.Namespace == "" {
-		c.deviceConfig.Namespace = "default"
-	} else {
-		namespace, err := utils.NormalizeNamespace(c.deviceConfig.Namespace)
-		if err != nil {
-			return err
-		}
-		c.deviceConfig.Namespace = namespace
+	err = yaml.Unmarshal(rawInitConfig, &initConfig)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal init config: %s", err)
 	}
+	c.initConfig = &initConfig
 
-	// TODO: set up init config (namespace?)
+	var namespace string
+	if c.deviceConfig.Namespace != "" {
+		namespace = c.deviceConfig.Namespace
+	} else if c.initConfig.Namespace != "" {
+		namespace = c.initConfig.Namespace
+	} else {
+		namespace = pkgconfigsetup.Datadog().GetString("network_devices.namespace")
+	}
+	namespace, err = utils.NormalizeNamespace(namespace)
+	if err != nil {
+		return err
+	}
+	c.deviceConfig.Namespace = namespace
 
 	s, err := c.GetSender()
 	if err != nil {
@@ -139,7 +152,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 // Interval returns the interval at which the check should run (default 15 minutes for now)
 func (c *Check) Interval() time.Duration {
-	return time.Minute * 15
+	if c.initConfig != nil && c.initConfig.CheckInterval > 0 {
+		return time.Duration(c.initConfig.CheckInterval)
+	}
+	return defaultCheckInterval
 }
 
 // Factory creates a new check factory

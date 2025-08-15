@@ -27,6 +27,7 @@ type AuthCredentials struct { // auth_credentials
 	Port     string `yaml:"port"`
 	Protocol string `yaml:"remote"`
 	// SSH-specific configurations
+	// TODO: Move to separate struct if needed (e.g., SSHConfig)
 	SSHCiphers      []string `yaml:"ssh_ciphers,omitempty"`
 	SSHKeyExchanges []string `yaml:"ssh_key_exchanges,omitempty"`
 	SSHHostKeyAlgos []string `yaml:"ssh_host_key_algorithms,omitempty"`
@@ -49,6 +50,12 @@ type DeviceConfig struct {
 type NcmConfig struct {
 	Namespace string
 	Devices   map[string]DeviceConfig // map of device IP addresses to DeviceConfig
+}
+
+// InitConfig holds the initial configuration for the NCM component, including the namespace and check interval.
+type InitConfig struct {
+	Namespace     string `yaml:"namespace"`      // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
+	CheckInterval int    `yaml:"check_interval"` // Interval in seconds to check for config changes
 }
 
 // GetNCMConfigsFromAgent retrieves the NCM configurations from the agent's config check endpoint (from core check)
@@ -139,7 +146,7 @@ func (dc *DeviceConfig) ValidateConfig() error {
 	return nil
 }
 
-// applyDefaults sets default values for any optional fields that are not set + not required
+// applyDefaults set default values for any optional fields that are not set + not required
 func (dc *DeviceConfig) applyDefaults() {
 	if dc.Auth.Port == "" {
 		log.Debugf("Applying default port for device %s: %s", dc.IPAddress, "22")

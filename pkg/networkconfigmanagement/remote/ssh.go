@@ -44,6 +44,7 @@ func NewSSHClient(device *ncmconfig.DeviceConfig) *SSHClient {
 	}
 }
 
+// redial attempts to re-establish the SSH connection to the device
 func (c *SSHClient) redial() error {
 	if c.client != nil {
 		_ = c.client.Close()
@@ -67,6 +68,7 @@ func (c *SSHClient) Connect() error {
 }
 
 // DefaultSSHClientConfig returns a default SSH client configuration
+// TODO: To accept custom SSH configurations, we can pass the config as an argument to connectToHost
 func DefaultSSHClientConfig() *SSHClientConfig {
 	return &SSHClientConfig{
 		Timeout:         30 * time.Second,
@@ -88,6 +90,7 @@ func (c *SSHClient) NewSession() (Session, error) {
 	return &SSHSession{session: sess}, nil
 }
 
+// isTransientSSH checks if the error is transient and can be retried (devices that may only accept a limited number of connections)
 func isTransientSSH(err error) bool {
 	if err == io.EOF {
 		return true
