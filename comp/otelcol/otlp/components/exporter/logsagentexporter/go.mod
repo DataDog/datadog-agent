@@ -9,8 +9,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.29.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.31.0
 	github.com/stormcat24/protodep v0.1.8
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v1.37.0
@@ -86,8 +86,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.42.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.29.1 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.43.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.31.0 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
