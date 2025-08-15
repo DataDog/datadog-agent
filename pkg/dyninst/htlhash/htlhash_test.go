@@ -16,8 +16,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/htlhash"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
 func TestCompute(t *testing.T) {

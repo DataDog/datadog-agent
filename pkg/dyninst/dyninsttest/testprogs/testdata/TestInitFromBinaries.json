@@ -1,0 +1,17 @@
+{
+  "only overlapping binaries": {
+    "Configs": [
+      {
+        "GOARCH": "amd64",
+        "GOTOOLCHAIN": "go1.22.5"
+      },
+      {
+        "GOARCH": "arm64",
+        "GOTOOLCHAIN": "go1.22.5"
+      }
+    ],
+    "Programs": [
+      "foo"
+    ]
+  }
+}
