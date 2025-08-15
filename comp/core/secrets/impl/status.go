@@ -44,10 +44,12 @@ func (s secretsStatus) populateStatus(stats map[string]interface{}) {
 
 	correctPermission := true
 	permissionMsg := "OK, the executable has the correct permissions"
-	err := checkRights(r.backendCommand, r.commandAllowGroupExec)
-	if err != nil {
-		correctPermission = false
-		permissionMsg = fmt.Sprintf("error: %s", err)
+	if !r.embeddedBackendPermissiveRights {
+		err := checkRights(r.backendCommand, r.commandAllowGroupExec)
+		if err != nil {
+			correctPermission = false
+			permissionMsg = fmt.Sprintf("error: %s", err)
+		}
 	}
 	stats["executable_correct_permissions"] = correctPermission
 	stats["executable_permissions_message"] = permissionMsg
