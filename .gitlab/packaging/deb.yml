@@ -22,7 +22,6 @@ include:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-deb.txt"
-    BASE_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -149,7 +148,6 @@ installer_deb-arm64:
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-deb.txt"
-    BASE_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR
     DD_PROJECT: iot-agent
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
