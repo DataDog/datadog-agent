@@ -27,8 +27,8 @@ func newUniqueStringInterner(_ int, internerID int, _ *stringInternerTelemetry) 
 	return i
 }
 
-// LoadOrStore always returns the interned string. With unique.Handle, the cache 
-// is managed automatically by the Go runtime and will be garbage collected when 
+// LoadOrStore always returns the interned string. With unique.Handle, the cache
+// is managed automatically by the Go runtime and will be garbage collected when
 // no longer referenced.
 func (i *uniqueStringInterner) LoadOrStore(key []byte) string {
 	// Create a handle for the string. unique.Make will automatically
