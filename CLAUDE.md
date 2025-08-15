@@ -38,11 +38,6 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 
 ## Development Workflow
 
-### Prerequisites
-1. Go 1.24+ with `$GOPATH` set and `$GOPATH/bin` in PATH
-2. Python 3.12 with `pip install dda`
-3. CMake 3.15+ and C++ compiler
-
 ### Common Commands
 
 #### Building
