@@ -54,7 +54,7 @@ const (
 	// DefaultFingerprintingMaxLines is the default maximum number of lines to read before computing the fingerprint.
 	DefaultFingerprintingMaxLines = 1
 
-	//DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
+	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
 	// Options are:
 	// - "line_checksum": compute the fingerprint by lines
 	// - "byte_checksum": compute the fingerprint by bytes

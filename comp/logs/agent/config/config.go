@@ -176,7 +176,7 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.Fingerpri
 	log.Debugf("GlobalFingerprintConfig: after unmarshaling - FingerprintStrategy: %s, Count: %d, CountToSkip: %d, MaxBytes: %d",
 		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
 
-	//Return the config and validate the fingerprintConfig as well
+	// Return the config and validate the fingerprintConfig as well
 	err = ValidateFingerprintConfig(&config)
 	if err != nil {
 		return nil, err

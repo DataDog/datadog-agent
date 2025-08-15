@@ -21,6 +21,7 @@ type Fingerprint struct {
 	Config *FingerprintConfig
 }
 
+// String converts the fingerprint to a string
 func (f *Fingerprint) String() string {
 	return fmt.Sprintf("Fingerprint{Value: %d, Config: %v}", f.Value, f.Config)
 }

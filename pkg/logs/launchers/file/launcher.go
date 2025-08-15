@@ -73,7 +73,7 @@ type Launcher struct {
 	scanPeriod             time.Duration
 	flarecontroller        *flareController.FlareController
 	tagger                 tagger.Component
-	//Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
+	// Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
 	oldInfoMap    map[string]*oldTailerInfo
 	fingerprinter *tailer.Fingerprinter
 }
