@@ -172,7 +172,11 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
+	enableJSONParsingFromEnv(config, "process_config.additional_endpoints")
+
 	procBindEnvAndSetDefault(config, "process_config.events_additional_endpoints", make(map[string][]string))
+	enableJSONParsingFromEnv(config, "process_config.events_additional_endpoints")
+
 	procBindEnv(config, "process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
