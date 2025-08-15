@@ -39,9 +39,8 @@ type configStream struct {
 	config config.Component
 	log    log.Component
 
-	m              sync.Mutex
-	subscribers    map[string]chan *pb.ConfigEvent
-	lastSequenceID uint64
+	m           sync.Mutex
+	subscribers map[string]*subscription
 
 	subscribeChan   chan *subscription
 	unsubscribeChan chan string
@@ -49,8 +48,9 @@ type configStream struct {
 }
 
 type subscription struct {
-	id string
-	ch chan *pb.ConfigEvent
+	id             string
+	ch             chan *pb.ConfigEvent
+	lastSequenceID uint64
 }
 
 // NewComponent creates a new configstream component.
@@ -58,7 +58,7 @@ func NewComponent(reqs Requires) Provides {
 	cs := &configStream{
 		config:          reqs.Config,
 		log:             reqs.Log,
-		subscribers:     make(map[string]chan *pb.ConfigEvent),
+		subscribers:     make(map[string]*subscription),
 		subscribeChan:   make(chan *subscription),
 		unsubscribeChan: make(chan string),
 		stopChan:        make(chan struct{}),
@@ -139,17 +139,13 @@ func (cs *configStream) run() {
 		case id := <-cs.unsubscribeChan:
 			cs.removeSubscriber(id)
 		case update := <-updatesChan:
-			if uint64(update.GetUpdate().SequenceId) <= cs.lastSequenceID {
-				continue
-			}
-			cs.lastSequenceID = uint64(update.GetUpdate().SequenceId)
 			cs.handleConfigUpdate(update)
 		case <-cs.stopChan:
 			cs.m.Lock()
-			for _, ch := range cs.subscribers {
-				close(ch)
+			for _, sub := range cs.subscribers {
+				close(sub.ch)
 			}
-			cs.subscribers = make(map[string]chan *pb.ConfigEvent)
+			cs.subscribers = make(map[string]*subscription)
 			cs.m.Unlock()
 			return
 		}
@@ -168,8 +164,8 @@ func (cs *configStream) addSubscriber(sub *subscription) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 
-	cs.lastSequenceID = seqID
-	cs.subscribers[sub.id] = sub.ch
+	sub.lastSequenceID = seqID
+	cs.subscribers[sub.id] = sub
 
 	// Send snapshot to the new subscriber
 	sub.ch <- snapshot
@@ -179,8 +175,8 @@ func (cs *configStream) removeSubscriber(id string) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 
-	if subChan, ok := cs.subscribers[id]; ok {
-		close(subChan)
+	if sub, ok := cs.subscribers[id]; ok {
+		close(sub.ch)
 		delete(cs.subscribers, id)
 		cs.log.Infof("Subscriber '%s' removed from config stream", id)
 	}
@@ -190,9 +186,40 @@ func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 
-	for id, subChan := range cs.subscribers {
+	var snapshot *pb.ConfigEvent
+	var snapshotSeqID uint64
+	var snapshotErr error
+
+	currentSequenceID := uint64(event.GetUpdate().SequenceId)
+
+	for id, sub := range cs.subscribers {
+		// Skip updates that are older than the last one we sent to this subscriber.
+		if currentSequenceID <= sub.lastSequenceID {
+			continue
+		}
+
+		eventToSend := event
+
+		// Discontinuity detected for this subscriber: resync with a fresh snapshot.
+		if currentSequenceID > sub.lastSequenceID+1 {
+			// Lazily create the snapshot, only if it's needed for the first time in this update cycle.
+			if snapshot == nil {
+				snapshot, snapshotSeqID, snapshotErr = cs.createConfigSnapshot()
+				if snapshotErr != nil {
+					cs.log.Errorf("Failed to create resynchronization snapshot, all out-of-sync subscribers will remain so until the next update: %v", snapshotErr)
+					continue // A snapshot could not be created, but other subscribers may still be able to process the incremental update.
+				}
+			}
+			cs.log.Infof("Discontinuity detected for subscriber '%s'. Last seen ID: %d, current ID: %d. Resynchronizing with a snapshot.", id, sub.lastSequenceID, currentSequenceID)
+			sub.lastSequenceID = snapshotSeqID
+			eventToSend = snapshot
+		} else {
+			// Contiguous update: update the sequence ID.
+			sub.lastSequenceID = currentSequenceID
+		}
+
 		select {
-		case subChan <- event:
+		case sub.ch <- eventToSend:
 		default:
 			cs.log.Warnf("Dropping config update for subscriber '%s' because their channel is full", id)
 		}
