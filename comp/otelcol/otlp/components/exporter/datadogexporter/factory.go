@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
@@ -39,6 +40,10 @@ import (
 type factory struct {
 	setupErr               error
 	onceSetupTraceAgentCmp sync.Once
+
+	onceReporter sync.Once
+	reporter     *inframetadata.Reporter
+	reporterErr  error
 
 	registry       *featuregate.Registry
 	s              serializer.MetricSerializer
@@ -127,7 +132,6 @@ func CreateDefaultConfig() component.Config {
 	ddcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
 	ddcfg.Traces.TracesConfig.ComputeTopLevelBySpanKind = true
 	ddcfg.Logs.Endpoint = "https://agent-http-intake.logs.datadoghq.com"
-	ddcfg.HostMetadata.Enabled = false
 	return ddcfg
 }
 
@@ -147,9 +151,6 @@ func logWarnings(cfg *datadogconfig.Config, logger *zap.Logger) {
 	cfg.LogWarnings(logger)
 	if cfg.Hostname != "" {
 		logger.Warn(fmt.Sprintf("hostname \"%s\" is ignored in the embedded collector", cfg.Hostname))
-	}
-	if cfg.HostMetadata.Enabled {
-		logger.Warn("host_metadata should not be enabled and is ignored in the embedded collector")
 	}
 	if cfg.OnlyMetadata {
 		logger.Warn("only_metadata should not be enabled and is ignored in the embedded collector")
@@ -178,11 +179,18 @@ func (f *factory) createTracesExporter(
 	}
 	f.mclientwrapper.SetDelegate(otelmclient)
 
+	if cfg.HostMetadata.Enabled {
+		_, err = f.Reporter(set, cfg.HostMetadata.ReporterPeriod)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build host metadata reporter: %w", err)
+		}
+	}
+
 	if cfg.OnlyMetadata {
 		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
 	}
 
-	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces)
+	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces, f.reporter)
 
 	return exporterhelper.NewTraces(
 		ctx,
@@ -212,12 +220,21 @@ func (f *factory) createMetricsExporter(
 		return nil, err
 	}
 	f.mclientwrapper.SetDelegate(otelmclient)
+
+	if cfg.HostMetadata.Enabled {
+		_, err = f.Reporter(set, cfg.HostMetadata.ReporterPeriod)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build host metadata reporter: %w", err)
+		}
+	}
+
 	var wg sync.WaitGroup // waits for consumeStatsPayload to exit
 	statsIn := make(chan []byte, 1000)
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage, f.store)
+
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: serializerexporter.MetricsConfig{
 			Metrics: cfg.Metrics,
@@ -278,11 +295,30 @@ func (f *factory) createLogsExporter(
 	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
 		logch = provider.NextPipelineChan()
 	}
-	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage)
+
+	if cfg.HostMetadata.Enabled {
+		_, err := f.Reporter(set, cfg.HostMetadata.ReporterPeriod)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build host metadata reporter: %w", err)
+		}
+	}
+
+	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.reporter)
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,
 		QueueSettings: cfg.QueueSettings,
+		HostMetadata:  cfg.HostMetadata,
 	}
 	return lf.CreateLogs(ctx, set, lc)
+}
+
+// Reporter builds and returns an *inframetadata.Reporter.
+func (f *factory) Reporter(params exporter.Settings, reporterPeriod time.Duration) (*inframetadata.Reporter, error) {
+	f.onceReporter.Do(func() {
+		f.reporter, f.reporterErr = inframetadata.NewReporter(params.Logger, serializerexporter.NewPusher(f.s), reporterPeriod)
+		// No need to do f.reporter.Run() in DDOT because DDOT only *pushes* host metadata from OTel resource attributes.
+		// DDOT should never periodically report host metadata from source providers, unlike in OSS.
+	})
+	return f.reporter, f.reporterErr
 }
