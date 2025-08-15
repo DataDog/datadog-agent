@@ -11,7 +11,13 @@
 
   if [[ -n "$STATIC_QUALITY_GATE_NAME" ]]; then
     echo "📊 Starting package measurement..."
-    BASE_PACKAGE_DIR="${OMNIBUS_PACKAGE_DIR_SUSE:-${OMNIBUS_PACKAGE_DIR}}"
+
+    # If the gate name contains "suse", use the SUSE package directory, 
+    # otherwise use the default package directory
+    [[ "$STATIC_QUALITY_GATE_NAME" == *"suse"* ]] && \
+    BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR_SUSE" || \
+    BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR"
+
     # Determine package type and set appropriate variables
     # Handle FIPS packages by adjusting project name
     PROJECT_NAME="$DD_PROJECT"
@@ -26,7 +32,7 @@
 
     # Determine format based on package type
     case "$STATIC_QUALITY_GATE_NAME" in
-      *deb*) SEP="_*_"; EXT="deb"; ARCH="${PACKAGE_ARCH}" ;;
+      *deb*) SEP="_7*"; EXT="deb"; ARCH="${PACKAGE_ARCH}" ;;
       *rpm*|*suse*) SEP="-7*"; EXT="rpm" ;;
       *) echo "⚠️  Unknown package type for gate: $STATIC_QUALITY_GATE_NAME"; exit 1 ;;
     esac
