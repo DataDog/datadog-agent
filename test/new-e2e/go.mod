@@ -179,7 +179,7 @@ require (
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.16.8 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
-	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
+	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
