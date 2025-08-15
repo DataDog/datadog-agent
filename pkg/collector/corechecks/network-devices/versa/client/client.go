@@ -23,6 +23,11 @@ import (
 )
 
 const (
+	// DefaultBasicPort is the default port for Director Basic auth
+	DefaultBasicPort = 9182
+	// DefaultOAuthPort is the default port for Director OAuth
+	DefaultOAuthPort = 9183
+
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
 	defaultMaxCount    = "2000"
@@ -40,15 +45,17 @@ type Client struct {
 	directorEndpoint  string
 	directorAPIPort   int
 	analyticsEndpoint string
-	// TODO: replace with OAuth
-	token               string
-	tokenExpiry         time.Time
+	// OAuth token for Director API endpoints
+	directorToken       string
+	directorTokenExpiry time.Time
+	// Session token for Analytics endpoints (always uses session auth)
+	sessionToken        string
+	sessionTokenExpiry  time.Time
 	username            string
 	password            string
 	clientID            string
 	clientSecret        string
-	useDirectorOAuth    bool
-	useAnalyticsOAuth   bool
+	authMethod          AuthMethod
 	authenticationMutex *sync.Mutex
 	maxAttempts         int
 	maxPages            int
@@ -60,7 +67,7 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
+func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, authMethod AuthMethod, options ...ClientOptions) (*Client, error) {
 	err := validateParams(directorEndpoint, directorPort, analyticsEndpoint, username, password)
 	if err != nil {
 		return nil, err
@@ -98,6 +105,7 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		analyticsEndpoint:   analyticsEndpointURL.String(),
 		username:            username,
 		password:            password,
+		authMethod:          authMethod,
 		authenticationMutex: &sync.Mutex{},
 		maxAttempts:         defaultMaxAttempts,
 		maxPages:            defaultMaxPages,
@@ -141,8 +149,6 @@ func WithOAuthConfig(clientID, clientSecret string) (ClientOptions, error) {
 	}
 
 	return func(c *Client) {
-		c.useDirectorOAuth = true
-		c.useAnalyticsOAuth = false // TODO: separate this out
 		c.clientID = clientID
 		c.clientSecret = clientSecret
 	}, nil

@@ -19,25 +19,54 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type OAuthRequest struct {
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	GrantType    string `json:"grant_type"`
+type (
+	// AuthMethod enumerates authentication method options for
+	// the Versa integration
+	AuthMethod string
+
+	// OAuthRequest encapsulates data for performing OAuth
+	OAuthRequest struct {
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+		Username     string `json:"username"`
+		Password     string `json:"password"`
+		GrantType    string `json:"grant_type"`
+	}
+
+	// OAuthResponse encapsulates Versa OAuth responses
+	OAuthResponse struct {
+		AccessToken  string `json:"access_token"`
+		IssuedAt     string `json:"issued_at"`
+		ExpiresIn    string `json:"expires_in"`
+		TokenType    string `json:"token_type"`
+		RefreshToken string `json:"refresh_token"`
+	}
+)
+
+const (
+	// AuthMethodBasic specifies that Basic Auth should be used
+	// for Director API calls
+	AuthMethodBasic AuthMethod = "basic"
+	// AuthMethodOAuth specifies that OAuth should be used for
+	// Director API calls
+	AuthMethodOAuth AuthMethod = "oauth"
+)
+
+// ParseAuthMethod takes a string and attempts to return the associated
+// AuthMethod or an error
+func ParseAuthMethod(authString string) (AuthMethod, error) {
+	authMethod := AuthMethod(strings.ToLower(authString))
+	switch authMethod {
+	case AuthMethodBasic, AuthMethodOAuth:
+		return authMethod, nil
+	default:
+		return "", fmt.Errorf("invalid auth method %q, valid auth methods: %q, %q", authString, AuthMethodBasic, AuthMethodOAuth)
+	}
 }
 
-type OAuthResponse struct {
-	AccessToken  string `json:"access_token"`
-	IssuedAt     string `json:"issued_at"`
-	ExpiresIn    string `json:"expires_in"`
-	TokenType    string `json:"token_type"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-// Login logs in to the Versa Director API, Versa Analytics API, gets CSRF
-// tokens, and a session cookie
-func (client *Client) login() error {
+// loginSession logs in to the Versa Director API using session-based authentication
+// This allows Analytics calls to be proxied through the director
+func (client *Client) loginSession() error {
 	authPayload := url.Values{}
 	authPayload.Set("j_username", client.username)
 	authPayload.Set("j_password", client.password)
@@ -64,11 +93,6 @@ func (client *Client) login() error {
 	}
 
 	return nil
-}
-
-// TODO: remove, for testing only
-func (client *Client) OAuth() error {
-	return client.loginOAuth()
 }
 
 // loginOAuth logs in to the Director API using OAuth
@@ -116,40 +140,57 @@ func (client *Client) loginOAuth() error {
 		return fmt.Errorf("failed to parse OAuth response as JSON: %v, response: %s", err, string(bodyBytes))
 	}
 
-	// Set token and expiration on the client
-	client.token = oauthResp.AccessToken
-	// Convert expires_in (seconds) to expiration time
+	// Set director token and expiration on the client
+	client.directorToken = oauthResp.AccessToken
+
+	// Handle expiry
 	expiresInSeconds, err := strconv.ParseInt(oauthResp.ExpiresIn, 10, 64)
 	if err != nil {
 		return fmt.Errorf("failed to parse expires_in as integer: %v, value: %s", err, oauthResp.ExpiresIn)
 	}
 	expirationDuration := time.Duration(expiresInSeconds) * time.Second
-	client.tokenExpiry = timeNow().Add(expirationDuration)
-
-	// TODO: remove, for testing only
-	log.Tracef("OAuth Response: %+v", oauthResp)
+	client.directorTokenExpiry = timeNow().Add(expirationDuration)
 
 	log.Trace("OAuth authentication successful")
 	return nil
 }
 
-// authenticate logins if no token or token is expired
-func (client *Client) authenticate() error {
-	now := timeNow()
+// authenticateDirector handles Director API authentication (OAuth or Basic - Basic doesn't need pre-auth)
+func (client *Client) authenticateDirector() error {
+	switch client.authMethod {
+	case AuthMethodBasic:
+		return nil
+	case AuthMethodOAuth:
+		now := timeNow()
+		client.authenticationMutex.Lock()
+		defer client.authenticationMutex.Unlock()
 
+		if client.directorToken == "" || client.directorTokenExpiry.Before(now) {
+			return client.loginOAuth()
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported authentication method: %s", client.authMethod)
+	}
+}
+
+// authenticateSession handles session authentication for Analytics endpoints
+func (client *Client) authenticateSession() error {
+	now := timeNow()
 	client.authenticationMutex.Lock()
 	defer client.authenticationMutex.Unlock()
 
-	if client.token == "" || client.tokenExpiry.Before(now) {
-		return client.login()
+	if client.sessionToken == "" || client.sessionTokenExpiry.Before(now) {
+		return client.loginSession()
 	}
 	return nil
 }
 
-// clearAuth clears auth state
+// clearAuth clears both director and session auth state
 func (client *Client) clearAuth() {
 	client.authenticationMutex.Lock()
-	client.token = ""
+	client.directorToken = ""
+	client.sessionToken = ""
 	client.authenticationMutex.Unlock()
 }
 
@@ -185,8 +226,8 @@ func (client *Client) runGetCSRFToken() error {
 	cookies := client.httpClient.Jar.Cookies(endpointURL)
 	for _, cookie := range cookies {
 		if cookie.Name == "VD-CSRF-TOKEN" {
-			client.token = cookie.Value
-			client.tokenExpiry = timeNow().Add(time.Minute * 15)
+			client.sessionToken = cookie.Value
+			client.sessionTokenExpiry = timeNow().Add(time.Minute * 15)
 		}
 	}
 
@@ -205,9 +246,8 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 		return err
 	}
 
-	// if we have a CSRF token, add it to the request
-	if client.token != "" {
-		req.Header.Add("X-CSRF-TOKEN", client.token)
+	if client.sessionToken != "" {
+		req.Header.Add("X-CSRF-TOKEN", client.sessionToken)
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	sessionRes, err := client.httpClient.Do(req)
@@ -229,8 +269,8 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 	cookies := client.httpClient.Jar.Cookies(endpointURL)
 	for _, cookie := range cookies {
 		if cookie.Name == "VD-CSRF-TOKEN" {
-			client.token = cookie.Value
-			client.tokenExpiry = timeNow().Add(time.Minute * 15)
+			client.sessionToken = cookie.Value
+			client.sessionTokenExpiry = timeNow().Add(time.Minute * 15)
 		}
 	}
 
@@ -248,7 +288,7 @@ func (client *Client) runAnalyticsLogin(analyticsPayload *url.Values) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Add("X-CSRF-TOKEN", client.token)
+	req.Header.Add("X-CSRF-TOKEN", client.sessionToken)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	loginRes, err := client.httpClient.Do(req)
