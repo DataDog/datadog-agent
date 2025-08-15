@@ -58,7 +58,7 @@ func buildRumPayload(k string, v pcommon.Value, rumPayload map[string]any) {
 func ConstructRumPayloadFromOTLP(attr pcommon.Map) map[string]any {
 	rumPayload := make(map[string]any)
 	attr.Range(func(k string, v pcommon.Value) bool {
-		if rumAttributeName, exists := OTLPToRUMAttributeMap[k]; exists {
+		if rumAttributeName, exists := OTLPAttributeToRUMPayloadKeyMapping[k]; exists {
 			buildRumPayload(rumAttributeName, v, rumPayload)
 		} else {
 			buildRumPayload(strings.TrimPrefix(k, "datadog."), v, rumPayload)
