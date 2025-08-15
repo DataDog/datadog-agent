@@ -39,15 +39,14 @@ func newLegacyStringInterner(maxSize int, internerID int, siTelemetry *stringInt
 
 	id := fmt.Sprintf("interner_%d", internerID)
 	i := &stringInterner{
-		strings:  make(map[string]string),
-		id:       id,
-		maxSize:  maxSize,
+		strings:   make(map[string]string),
+		id:        id,
+		maxSize:   maxSize,
 		telemetry: siTelemetry.PrepareForID(id),
 	}
 
 	return i
 }
-
 
 // LoadOrStore always returns the string from the cache, adding it into the
 // cache if needed.
