@@ -66,7 +66,6 @@ List of the available variables:
 | -------- | ------------- |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
-| [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
@@ -79,6 +78,7 @@ List of the available variables:
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`process.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
@@ -93,6 +93,7 @@ List of the available variables:
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`process.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.file.path`](#common-fileevent-path-doc) | File's path |
@@ -102,6 +103,7 @@ List of the available variables:
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`process.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`process.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`process.parent.file.path`](#common-fileevent-path-doc) | File's path |
@@ -136,6 +138,7 @@ A file was created
 | -------- | ------------- |
 | [`create.file.device_path`](#common-fimfileevent-device_path-doc) | File's path |
 | [`create.file.device_path.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`create.file.extension`](#common-fimfileevent-extension-doc) | File's extension |
 | [`create.file.name`](#common-fimfileevent-name-doc) | File's basename |
 | [`create.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`create.file.path`](#common-fimfileevent-path-doc) | File's path |
@@ -164,6 +167,7 @@ A file was deleted
 | -------- | ------------- |
 | [`delete.file.device_path`](#common-fimfileevent-device_path-doc) | File's path |
 | [`delete.file.device_path.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`delete.file.extension`](#common-fimfileevent-extension-doc) | File's extension |
 | [`delete.file.name`](#common-fimfileevent-name-doc) | File's basename |
 | [`delete.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`delete.file.path`](#common-fimfileevent-path-doc) | File's path |
@@ -195,6 +199,7 @@ A process was executed or forked
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`exec.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`exec.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exec.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exec.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exec.file.path`](#common-fileevent-path-doc) | File's path |
@@ -217,6 +222,7 @@ A process was terminated
 | [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exit.envp`](#common-process-envp-doc) | Environment variables of the process |
 | [`exit.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`exit.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exit.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exit.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`exit.file.path`](#common-fileevent-path-doc) | File's path |
@@ -249,12 +255,14 @@ A file was renamed
 | -------- | ------------- |
 | [`rename.file.destination.device_path`](#common-fimfileevent-device_path-doc) | File's path |
 | [`rename.file.destination.device_path.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`rename.file.destination.extension`](#common-fimfileevent-extension-doc) | File's extension |
 | [`rename.file.destination.name`](#common-fimfileevent-name-doc) | File's basename |
 | [`rename.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.destination.path`](#common-fimfileevent-path-doc) | File's path |
 | [`rename.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.device_path`](#common-fimfileevent-device_path-doc) | File's path |
 | [`rename.file.device_path.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`rename.file.extension`](#common-fimfileevent-extension-doc) | File's extension |
 | [`rename.file.name`](#common-fimfileevent-name-doc) | File's basename |
 | [`rename.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`rename.file.path`](#common-fimfileevent-path-doc) | File's path |
@@ -289,6 +297,7 @@ A file was written
 | -------- | ------------- |
 | [`write.file.device_path`](#common-fimfileevent-device_path-doc) | File's path |
 | [`write.file.device_path.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`write.file.extension`](#common-fimfileevent-extension-doc) | File's extension |
 | [`write.file.name`](#common-fimfileevent-name-doc) | File's basename |
 | [`write.file.name.length`](#common-string-length-doc) | Length of the corresponding element |
 | [`write.file.path`](#common-fimfileevent-path-doc) | File's path |
@@ -376,6 +385,24 @@ Definition: Environment variable names of the process
 
 `*.envs` has 5 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent`
+
+
+### `*.extension` {#common-fileevent-extension-doc}
+Type: string
+
+Definition: File's extension
+
+`*.extension` has 5 possible prefixes:
+`exec.file` `exit.file` `process.ancestors.file` `process.file` `process.parent.file`
+
+
+### `*.extension` {#common-fimfileevent-extension-doc}
+Type: string
+
+Definition: File's extension
+
+`*.extension` has 5 possible prefixes:
+`create.file` `delete.file` `rename.file` `rename.file.destination` `write.file`
 
 
 ### `*.key_name` {#common-registryevent-key_name-doc}
@@ -587,13 +614,6 @@ Definition: ID of the container
 
 
 
-### `container.runtime` {#container-runtime-doc}
-Type: string
-
-Definition: Runtime managing the container
-
-
-
 ### `container.tags` {#container-tags-doc}
 Type: string
 
@@ -661,6 +681,26 @@ Definition: Exit code of the process or number of the signal that caused the pro
 
 Constants are used to improve the readability of your rules. Some constants are common to all architectures, others are specific to some architectures.
 
+### `ABI` {#abi}
+ABI used for binary compilation.
+
+| Name | Architectures |
+| ---- |---------------|
+| `BIT32` | all |
+| `BIT64` | all |
+| `UNKNOWN_ABI` | all |
+
+### `Architecture` {#architecture}
+Architecture of the binary.
+
+| Name | Architectures |
+| ---- |---------------|
+| `X86` | all |
+| `X86_64` | all |
+| `ARM` | all |
+| `ARM64` | all |
+| `UNKNOWN_ARCHITECTURE` | all |
+
 ### `Boolean constants` {#boolean-constants}
 Boolean constants are the supported boolean constants.
 
@@ -668,6 +708,19 @@ Boolean constants are the supported boolean constants.
 | ---- |---------------|
 | `true` | all |
 | `false` | all |
+
+### `CompressionType` {#compressiontype}
+Compression algorithm.
+
+| Name | Architectures |
+| ---- |---------------|
+| `NONE` | all |
+| `GZIP` | all |
+| `ZIP` | all |
+| `ZSTD` | all |
+| `7Z` | all |
+| `BZIP2` | all |
+| `XZ` | all |
 
 ### `DNS Responses` {#dns-responses}
 DNS Responses are the supported response codes
@@ -794,6 +847,22 @@ DNS qtypes are the supported DNS query types.
 | `TA` | all |
 | `DLV` | all |
 | `Reserved` | all |
+
+### `FileType` {#filetype}
+File types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `EMPTY` | all |
+| `SHELL_SCRIPT` | all |
+| `TEXT` | all |
+| `COMPRESSED` | all |
+| `ENCRYPTED` | all |
+| `BINARY` | all |
+| `LINUX_EXECUTABLE` | all |
+| `WINDOWS_EXECUTABLE` | all |
+| `MACOS_EXECUTABLE` | all |
+| `FILE_LESS` | all |
 
 ### `L3 protocols` {#l3-protocols}
 L3 protocols are the supported Layer 3 protocols.
@@ -923,6 +992,15 @@ L4 protocols are the supported Layer 4 protocols.
 | `IP_PROTO_UDPLITE` | all |
 | `IP_PROTO_MPLS` | all |
 | `IP_PROTO_RAW` | all |
+
+### `LinkageType` {#linkagetype}
+Linkage types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `NONE` | all |
+| `STATIC` | all |
+| `DYNAMIC` | all |
 
 ### `Network directions` {#network-directions}
 Network directions are the supported directions of network packets.

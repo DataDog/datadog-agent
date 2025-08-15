@@ -1,7 +1,0 @@
-stages:
-  - deploy_containers
-  - deploy_mutable_image_tags
-
-include:
-  - .gitlab/deploy_containers/deploy_containers_a7.yml
-  - .gitlab/deploy_containers/deploy_mutable_image_tags.yml

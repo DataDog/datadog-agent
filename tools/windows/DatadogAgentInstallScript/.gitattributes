@@ -1,0 +1,5 @@
+# PowerShell test files should use UTF-16 encoding
+# NOTE: non-ascii encoding is incompatible with eol=crlf
+Test-Update-DatadogAgentConfig.ps1 text eol=lf working-tree-encoding=utf-16
+testlib.ps1 text eol=lf working-tree-encoding=utf-16
+Run-Tests.ps1 text eol=lf working-tree-encoding=utf-16

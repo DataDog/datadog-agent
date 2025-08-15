@@ -17,6 +17,7 @@ import (
 
 	"github.com/cenkalti/backoff"
 
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
@@ -53,10 +54,11 @@ type Tailer struct {
 	sub                 evtsubscribe.PullSubscription
 	bookmark            evtbookmark.Bookmark
 	systemRenderContext evtapi.EventRenderContextHandle
+	registry            auditor.Registry
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message) *Tailer {
+func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message, registry auditor.Registry) *Tailer {
 	if evtapi == nil {
 		evtapi = winevtapi.New()
 	}
@@ -71,6 +73,7 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		config:     config,
 		decoder:    decoder.NewNoopDecoder(),
 		outputChan: outputChan,
+		registry:   registry,
 	}
 }
 
@@ -95,6 +98,7 @@ func (t *Tailer) Start(bookmark string) {
 	t.done = make(chan struct{})
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.cancelTail = ctxCancel
+	t.registry.SetTailed(t.Identifier(), true)
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.tail(ctx, bookmark)
@@ -103,6 +107,7 @@ func (t *Tailer) Start(bookmark string) {
 // Stop stops the tailer
 func (t *Tailer) Stop() {
 	log.Info("Stop tailing windows event log")
+	t.registry.SetTailed(t.Identifier(), false)
 	t.cancelTail()
 	<-t.doneTail
 
@@ -121,7 +126,18 @@ func (t *Tailer) forwardMessages() {
 
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
-			t.outputChan <- decodedMessage
+			// Leverage the existing message instead of creating a new one
+			// This preserves all bookmark information and is more efficient
+			msg := decodedMessage
+
+			// Update tags to include source config tags
+			if msg.Origin != nil {
+				// Combine tags from multiple sources: parsing extra tags and source config tags
+				tags := append(msg.ParsingExtra.Tags, t.source.Config.Tags...)
+				msg.Origin.SetTags(tags)
+			}
+
+			t.outputChan <- msg
 		}
 	}
 }
@@ -156,12 +172,27 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		}
 	}
 	if t.bookmark == nil {
-		// new bookmark
-		t.bookmark, err = evtbookmark.New(
-			evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+		// Create initial bookmark from the most recent event in the log
+		// This ensures we have a valid starting position even if no events are processed
+		log.Debug("Creating initial bookmark from most recent event")
+		t.bookmark, err = evtbookmark.FromLatestEvent(t.evtapi, t.config.ChannelPath, t.config.Query)
 		if err != nil {
-			t.logErrorAndSetStatus(fmt.Errorf("error creating new bookmark: %w", err))
+			t.logErrorAndSetStatus(fmt.Errorf("error creating initial bookmark: %w", err))
 			return
+		}
+
+		// Save the initial bookmark to the registry immediately using direct SetOffset
+		// This ensures the bookmark is persisted even if no real events are processed
+		if t.bookmark != nil {
+			offset, err := t.bookmark.Render()
+			if err == nil {
+				log.Debugf("Saving initial bookmark to registry: %s", offset)
+				// Use direct SetOffset call for immediate persistence
+				t.registry.SetOffset(t.Identifier(), offset)
+				log.Debug("Initial bookmark saved to registry")
+			} else {
+				log.Warnf("Failed to render initial bookmark: %v", err)
+			}
 		}
 	}
 
@@ -296,18 +327,18 @@ func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle
 
 	vals, err := t.evtapi.EvtRenderEventValues(t.systemRenderContext, event)
 	if err != nil {
-		return fmt.Errorf("Error rendering event values: %v", err)
+		return fmt.Errorf("error rendering event values: %v", err)
 	}
 	defer vals.Close()
 
 	providerName, err := vals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
-		return fmt.Errorf("Failed to get provider name: %v", err)
+		return fmt.Errorf("failed to get provider name: %v", err)
 	}
 
 	pm, err := t.evtapi.EvtOpenPublisherMetadata(providerName, "")
 	if err != nil {
-		return fmt.Errorf("Failed to get publisher metadata for provider '%s': %v", providerName, err)
+		return fmt.Errorf("failed to get publisher metadata for provider '%s': %v", providerName, err)
 	}
 	defer evtapi.EvtClosePublisherMetadata(t.evtapi, pm)
 

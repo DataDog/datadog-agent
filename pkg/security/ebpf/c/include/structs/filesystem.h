@@ -20,6 +20,8 @@ struct mount_fields_t {
     dev_t device;
     u32 bind_src_mount_id;
     char fstype[FSTYPE_LEN];
+    u16   visible;   // Is mount visible in the VFS?
+    u16   detached;  // A detached mount is always not visible, but an invisible mount isn't always detached
 };
 
 #endif

@@ -61,6 +61,7 @@ func (h *PersistentVolumeHandlers) BuildMessageBody(ctx processors.ProcessorCont
 		GroupSize:         int32(groupSize),
 		PersistentVolumes: models,
 		Tags:              util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion:      ctx.GetAgentVersion(),
 	}
 }
 

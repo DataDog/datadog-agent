@@ -355,6 +355,9 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceLiteLLM,
 		metrics.MetricSourceLustre,
 		metrics.MetricSourceProxmox,
+		metrics.MetricSourceSupabase,
+		metrics.MetricSourceKeda,
+		metrics.MetricSourceDuckdb,
 		metrics.MetricSourceResilience4j:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
@@ -1059,12 +1062,18 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 418
 	case metrics.MetricSourceTibcoEMS:
 		return 419
+	case metrics.MetricSourceDuckdb:
+		return 423
+	case metrics.MetricSourceKeda:
+		return 424
 	case metrics.MetricSourceMilvus:
 		return 425
 	case metrics.MetricSourceNvidiaNim:
 		return 426
 	case metrics.MetricSourceQuarkus:
 		return 427
+	case metrics.MetricSourceSupabase:
+		return 428
 	case metrics.MetricSourceVelero:
 		return 458
 	case metrics.MetricSourceCelery:

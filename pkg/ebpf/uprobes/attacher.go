@@ -148,17 +148,20 @@ func (r *AttachRule) Validate(attacherConfig *AttacherConfig) error {
 			// so we do a simple check: either the regex matches a library name in the libset, or the regex contains
 			// a substring that matches a library name in the libset.
 			matchesAtLeastOneLib := false
-			suffixes := sharedlibraries.LibsetToLibSuffixes[attacherConfig.SharedLibsLibset]
-			for _, libSuffix := range suffixes {
-				libSuffixWithExt := libSuffix + ".so"
-				if r.LibraryNameRegex.MatchString(libSuffixWithExt) || strings.Contains(r.LibraryNameRegex.String(), libSuffix) {
-					matchesAtLeastOneLib = true
-					break
+		outer:
+			for _, libset := range attacherConfig.SharedLibsLibsets {
+				suffixes := sharedlibraries.LibsetToLibSuffixes[libset]
+				for _, libSuffix := range suffixes {
+					libSuffixWithExt := libSuffix + ".so"
+					if r.LibraryNameRegex.MatchString(libSuffixWithExt) || strings.Contains(r.LibraryNameRegex.String(), libSuffix) {
+						matchesAtLeastOneLib = true
+						break outer
+					}
 				}
 			}
 
 			if !matchesAtLeastOneLib {
-				result = multierror.Append(result, fmt.Errorf("library name regex %s does not match any library in libset %s (%s)", r.LibraryNameRegex, attacherConfig.SharedLibsLibset, suffixes))
+				result = multierror.Append(result, fmt.Errorf("library name regex %s does not match any library in libsets [%v]", r.LibraryNameRegex, attacherConfig.SharedLibsLibsets))
 			}
 		}
 	}
@@ -217,8 +220,9 @@ type AttacherConfig struct {
 	// This is useful for debugging purposes, do not enable in production.
 	EnableDetailedLogging bool
 
-	// If shared libraries tracing is enabled, this is the name of the library set used to filter the events
-	SharedLibsLibset sharedlibraries.Libset
+	// If shared libraries tracing is enabled, this is the list of library sets to use to filter the events
+	// from the shared libraries program.
+	SharedLibsLibsets []sharedlibraries.Libset
 
 	// OnSyncCallback is an optional function that gets called when the attacher performs a sync. Receives as an argument
 	// the set of alive PIDs in the system.
@@ -278,8 +282,12 @@ func (ac *AttacherConfig) Validate() error {
 		targetsSharedLibs = targetsSharedLibs || rule.canTarget(AttachToSharedLibraries)
 	}
 
-	if targetsSharedLibs && !sharedlibraries.IsLibsetValid(ac.SharedLibsLibset) {
-		err = multierror.Append(err, fmt.Errorf("invalid libset %s", ac.SharedLibsLibset))
+	if targetsSharedLibs {
+		for _, libset := range ac.SharedLibsLibsets {
+			if !sharedlibraries.IsLibsetValid(libset) {
+				err = multierror.Append(err, fmt.Errorf("invalid libset %s", libset))
+			}
+		}
 	}
 
 	return err
@@ -376,6 +384,9 @@ type UprobeAttacher struct {
 	// scansPerPid is a map of PIDs to the number of times we have scanned them, to avoid re-scanning them
 	// too many times when EnablePeriodicScanNewProcesses is true
 	scansPerPid map[uint32]int
+
+	// attachLimiter is used to limit the number of times we log warnings about attachment errors
+	attachLimiter *log.Limit
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
@@ -408,6 +419,7 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		inspector:              inspector,
 		processMonitor:         processMonitor,
 		scansPerPid:            make(map[uint32]int),
+		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
 	}
 
 	utils.AddAttacher(moduleName, name, ua)
@@ -469,12 +481,12 @@ func (ua *UprobeAttacher) Start() error {
 
 		ua.soWatcher = sharedlibraries.GetEBPFProgram(ua.config.EbpfConfig)
 
-		err := ua.soWatcher.InitWithLibsets(ua.config.SharedLibsLibset)
+		err := ua.soWatcher.InitWithLibsets(ua.config.SharedLibsLibsets...)
 		if err != nil {
 			return fmt.Errorf("error initializing shared library program: %w", err)
 		}
 
-		cleanupSharedLibs, err = ua.soWatcher.Subscribe(ua.handleLibraryOpen, ua.config.SharedLibsLibset)
+		cleanupSharedLibs, err = ua.soWatcher.Subscribe(ua.handleLibraryOpen, ua.config.SharedLibsLibsets...)
 		if err != nil {
 			return fmt.Errorf("error subscribing to shared libraries events: %w", err)
 		}
@@ -621,7 +633,10 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 	}
 
 	var unknownErr *utils.UnknownAttachmentError
-	return errors.As(err, &unknownErr)
+	if errors.As(err, &unknownErr) {
+		return ua.attachLimiter.ShouldLog()
+	}
+	return false
 }
 
 // handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error
@@ -835,23 +850,53 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 
 	inspectResult, err := ua.inspector.Inspect(fpath, symbolsToRequest)
 	if err != nil {
-		// Not wrapping this one in an UnknownAttachmentError as it can happen if we're trying to
-		// attach to a process that just doesn't have the symbols we're looking for.
-		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
+		return utils.NewUnknownAttachmentError(fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err))
 	}
 
 	uid := getUID(fpath.ID)
 
-	for _, rule := range matchingRules {
+	anyRuleAttached := false
+	var attachErrors error
+	for ruleID, rule := range matchingRules {
+		result, ok := inspectResult[ruleID]
+		if !ok {
+			// This should not happen, Inspect should always return a result for each rule if there was no global error
+			return utils.NewUnknownAttachmentError(fmt.Errorf("error inspecting %s, no result for rule %d", fpath.HostPath, ruleID))
+		}
+
+		if result.Error != nil {
+			// Do not wrap this in an UnknownAttachmentError as it can happen if we're trying to
+			// attach to a process that just doesn't have the symbols we're looking for in this rule.
+			attachErrors = errors.Join(attachErrors, result.Error)
+			if ua.shouldLogRegistryError(result.Error) {
+				log.Warnf("Error inspecting %s for rule %d: %v", fpath.HostPath, ruleID, result.Error)
+			}
+			continue
+		}
+
 		for _, selector := range rule.ProbesSelector {
-			err = ua.attachProbeSelector(selector, fpath, uid, rule, inspectResult)
+			err = ua.attachProbeSelector(selector, fpath, uid, rule, result.SymbolMap)
 			if err != nil {
 				// At this point we have done enough validation so that the
 				// probe attachment should work, if it doesn't it's an issue we
 				// don't expect and we want to know about it.
-				return utils.NewUnknownAttachmentError(err)
+				err = utils.NewUnknownAttachmentError(err)
+				attachErrors = errors.Join(attachErrors, err)
+				if ua.shouldLogRegistryError(err) {
+					log.Warnf("Error attaching probe selector %v to %s for rule %d: %v", selector, fpath.HostPath, ruleID, err)
+				}
+				continue
 			}
+			anyRuleAttached = true
 		}
+	}
+
+	// Return all the errors we found if no rule was attached.
+	// If a rule was attached, we consider the attachment was successful.
+	// If we returned an error here with partial attachment, the file registry would
+	// de-register the file and remove all attachments.
+	if !anyRuleAttached {
+		return attachErrors
 	}
 
 	return nil
@@ -947,9 +992,9 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 	return nil
 }
 
-func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) ([]SymbolRequest, error) {
-	var requests []SymbolRequest
-	for _, rule := range rules {
+func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) (map[int][]SymbolRequest, error) {
+	requests := make(map[int][]SymbolRequest)
+	for ruleID, rule := range rules {
 		for _, selector := range rule.ProbesSelector {
 			_, isBestEffort := selector.(*manager.BestEffort)
 			for _, selector := range selector.GetProbesIdentificationPairList() {
@@ -958,7 +1003,7 @@ func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) ([]Symbol
 					return nil, fmt.Errorf("error parsing probe name %s: %w", selector.EBPFFuncName, err)
 				}
 
-				requests = append(requests, SymbolRequest{
+				requests[ruleID] = append(requests[ruleID], SymbolRequest{
 					Name:                   opts.Symbol,
 					IncludeReturnLocations: opts.IsManualReturn,
 					BestEffort:             isBestEffort,

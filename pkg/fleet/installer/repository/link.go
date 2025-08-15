@@ -8,11 +8,10 @@ package repository
 import (
 	"errors"
 	"os"
-	"path/filepath"
 )
 
 func linkRead(linkPath string) (string, error) {
-	return filepath.EvalSymlinks(linkPath)
+	return os.Readlink(linkPath)
 }
 
 func linkExists(linkPath string) (bool, error) {

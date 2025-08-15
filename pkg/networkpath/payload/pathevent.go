@@ -22,6 +22,8 @@ const (
 	ProtocolTCP Protocol = "TCP"
 	// ProtocolUDP is the UDP protocol.
 	ProtocolUDP Protocol = "UDP"
+	// ProtocolICMP is the ICMP protocol.
+	ProtocolICMP Protocol = "ICMP"
 )
 
 // TCPMethod is the method used to run a TCP traceroute.
@@ -44,6 +46,49 @@ const TCPDefaultMethod TCPMethod = TCPConfigSYN
 // MakeTCPMethod converts a TCP traceroute method from config into a TCPMethod
 func MakeTCPMethod(method string) TCPMethod {
 	return TCPMethod(strings.ToLower(method))
+}
+
+// ICMPMode determines whether dynamic paths will run ICMP traceroutes for TCP/UDP traffic
+// (instead of TCP/UDP traceroutes)
+type ICMPMode string
+
+const (
+	// ICMPModeNone means to never use ICMP in dynamic path
+	ICMPModeNone ICMPMode = "none"
+	// ICMPModeTCP means to replace TCP traceroutes with ICMP
+	ICMPModeTCP ICMPMode = "tcp"
+	// ICMPModeUDP means to replace UDP traceroutes with ICMP
+	ICMPModeUDP ICMPMode = "udp"
+	// ICMPModeAll means to replace all traceroutes with ICMP
+	ICMPModeAll ICMPMode = "all"
+)
+
+// ICMPDefaultMode is what mode to use when nothing is specified
+const ICMPDefaultMode ICMPMode = ICMPModeNone
+
+// MakeICMPMode converts config strings into ICMPModes
+func MakeICMPMode(method string) ICMPMode {
+	return ICMPMode(strings.ToLower(method))
+}
+
+// ShouldUseICMP returns whether ICMP mode should overwrite the given protocol
+func (m ICMPMode) ShouldUseICMP(protocol Protocol) bool {
+	if protocol == ProtocolICMP {
+		return true
+	}
+	switch m {
+	case ICMPModeNone:
+		return false
+	case ICMPModeTCP:
+		return protocol == ProtocolTCP
+	case ICMPModeUDP:
+		return protocol == ProtocolUDP
+	case ICMPModeAll:
+		return true
+	default:
+		// should not get here
+		return false
+	}
 }
 
 // PathOrigin origin of the path e.g. network_traffic, network_path_integration

@@ -17,9 +17,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Test that a setting with a map value is seen as a leaf by the nodetreemodel config
@@ -917,10 +918,12 @@ func TestOnUpdate(t *testing.T) {
 
 	gotSetting := ""
 	var gotOldValue, gotNewValue interface{}
-	cfg.OnUpdate(func(setting string, oldValue, newValue any) {
+	var gotSource model.Source
+	cfg.OnUpdate(func(setting string, source model.Source, oldValue, newValue any, _ uint64) {
 		gotSetting = setting
 		gotOldValue = oldValue
 		gotNewValue = newValue
+		gotSource = source
 		wg.Done()
 	})
 
@@ -931,7 +934,7 @@ func TestOnUpdate(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 2, cfg.Get("a"))
-	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("a"))
+	assert.Equal(t, model.SourceAgentRuntime, gotSource)
 	assert.Equal(t, "a", gotSetting)
 	assert.Equal(t, 1, gotOldValue)
 	assert.Equal(t, 2, gotNewValue)
@@ -1124,4 +1127,49 @@ func TestWarningLogged(t *testing.T) {
 	cfg.BuildSchema()
 	// Check that the warning was logged
 	assert.Equal(t, &model.Warnings{Errors: []error{errors.New("empty key given to Set")}}, cfg.Warnings())
+}
+
+func TestSequenceID(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	assert.Equal(t, uint64(0), config.GetSequenceID())
+
+	config.Set("a", 1, model.SourceAgentRuntime)
+	assert.Equal(t, uint64(1), config.GetSequenceID())
+
+	config.Set("a", 2, model.SourceAgentRuntime)
+	assert.Equal(t, uint64(2), config.GetSequenceID())
+
+	// Setting the same value does not update the sequence ID
+	config.Set("a", 2, model.SourceAgentRuntime)
+	assert.Equal(t, uint64(2), config.GetSequenceID())
+
+	// Does not update the sequence ID since the source does not match
+	config.UnsetForSource("a", model.SourceEnvVar)
+	assert.Equal(t, uint64(2), config.GetSequenceID())
+
+	config.UnsetForSource("a", model.SourceAgentRuntime)
+	assert.Equal(t, uint64(3), config.GetSequenceID())
+}
+
+func TestMultipleTransformersRaisesError(t *testing.T) {
+	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.BindEnvAndSetDefault("list_of_nums", []float64{}, "TEST_LIST_OF_NUMS")
+
+	assert.NotPanics(t, func() {
+		config.ParseEnvAsStringSlice("list_of_nums", func(in string) []string {
+			return strings.Split(in, ",")
+		})
+	}, "env transform for list_of_nums works if set once")
+
+	assert.PanicsWithValue(t, "env transform for list_of_strings already exists", func() {
+		config.ParseEnvAsStringSlice("list_of_strings", func(_ string) []string {
+			return []string{"a", "b"}
+		})
+		config.ParseEnvAsStringSlice("list_of_strings", func(in string) []string {
+			return strings.Split(in, ",")
+		})
+	})
 }

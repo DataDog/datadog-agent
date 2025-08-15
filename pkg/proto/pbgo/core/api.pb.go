@@ -30,27 +30,29 @@ var File_datadog_api_v1_api_proto protoreflect.FileDescriptor
 
 const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\n" +
-	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto2q\n" +
-	"\x05Agent\x12h\n" +
-	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/grpc/host2\xd5\x0f\n" +
-	"\vAgentSecure\x12\x8f\x01\n" +
-	"\x14TaggerStreamEntities\x12#.datadog.model.v1.StreamTagsRequest\x1a$.datadog.model.v1.StreamTagsResponse\"*\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/grpc/tagger/stream_entities0\x01\x12\xe5\x01\n" +
-	"'TaggerGenerateContainerIDFromOriginInfo\x12:.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest\x1a;.datadog.model.v1.GenerateContainerIDFromOriginInfoResponse\"A\x82\xd3\xe4\x93\x02;:\x01*\"6/v1/grpc/tagger/generate_container_id_from_origin_info\x12\x89\x01\n" +
-	"\x11TaggerFetchEntity\x12$.datadog.model.v1.FetchEntityRequest\x1a%.datadog.model.v1.FetchEntityResponse\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/grpc/tagger/fetch_entity\x12\x9b\x01\n" +
-	"\x17DogstatsdCaptureTrigger\x12'.datadog.model.v1.CaptureTriggerRequest\x1a(.datadog.model.v1.CaptureTriggerResponse\"-\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/grpc/dogstatsd/capture/trigger\x12\x8c\x01\n" +
-	"\x17DogstatsdSetTaggerState\x12\x1d.datadog.model.v1.TaggerState\x1a%.datadog.model.v1.TaggerStateResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\" /v1/grpc/dogstatsd/capture/state\x12\x8f\x01\n" +
-	"\x10ClientGetConfigs\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\"(\x82\xd3\xe4\x93\x02\":\x01*\"\x1d/v1/grpc/remoteconfig/configs\x12x\n" +
-	"\x0eGetConfigState\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/grpc/remoteconfig/state\x12\x94\x01\n" +
-	"\x12ClientGetConfigsHA\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\" /v1/grpc/remoteconfig/configs_ha\x12}\n" +
-	"\x10GetConfigStateHA\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\")\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/grpc/remoteconfig/state_ha\x12\xb3\x01\n" +
-	"\x1aWorkloadmetaStreamEntities\x12/.datadog.workloadmeta.WorkloadmetaStreamRequest\x1a0.datadog.workloadmeta.WorkloadmetaStreamResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/grpc/workloadmeta/stream_entities0\x01\x12\xaf\x01\n" +
-	"\x13RegisterRemoteAgent\x12/.datadog.remoteagent.RegisterRemoteAgentRequest\x1a0.datadog.remoteagent.RegisterRemoteAgentResponse\"5\x82\xd3\xe4\x93\x02/:\x01*\"*/v1/grpc/remoteagent/register_remote_agent\x12\x9b\x01\n" +
-	"\x19AutodiscoveryStreamConfig\x12\x16.google.protobuf.Empty\x1a2.datadog.autodiscovery.AutodiscoveryStreamResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/grpc/autodiscovery/stream_configs0\x01\x12k\n" +
-	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/grpc/host_tags2\xcb\x02\n" +
+	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto2Z\n" +
+	"\x05Agent\x12Q\n" +
+	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\xce\v\n" +
+	"\vAgentSecure\x12c\n" +
+	"\x14TaggerStreamEntities\x12#.datadog.model.v1.StreamTagsRequest\x1a$.datadog.model.v1.StreamTagsResponse0\x01\x12\xa2\x01\n" +
+	"'TaggerGenerateContainerIDFromOriginInfo\x12:.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest\x1a;.datadog.model.v1.GenerateContainerIDFromOriginInfoResponse\x12`\n" +
+	"\x11TaggerFetchEntity\x12$.datadog.model.v1.FetchEntityRequest\x1a%.datadog.model.v1.FetchEntityResponse\x12l\n" +
+	"\x17DogstatsdCaptureTrigger\x12'.datadog.model.v1.CaptureTriggerRequest\x1a(.datadog.model.v1.CaptureTriggerResponse\x12_\n" +
+	"\x17DogstatsdSetTaggerState\x12\x1d.datadog.model.v1.TaggerState\x1a%.datadog.model.v1.TaggerStateResponse\x12e\n" +
+	"\x10ClientGetConfigs\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\x12P\n" +
+	"\x0eGetConfigState\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\x12g\n" +
+	"\x12ClientGetConfigsHA\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\x12R\n" +
+	"\x10GetConfigStateHA\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\x12T\n" +
+	"\x10ResetConfigState\x12\x16.google.protobuf.Empty\x1a(.datadog.config.ResetStateConfigResponse\x12\x81\x01\n" +
+	"\x1aWorkloadmetaStreamEntities\x12/.datadog.workloadmeta.WorkloadmetaStreamRequest\x1a0.datadog.workloadmeta.WorkloadmetaStreamResponse0\x01\x12x\n" +
+	"\x13RegisterRemoteAgent\x12/.datadog.remoteagent.RegisterRemoteAgentRequest\x1a0.datadog.remoteagent.RegisterRemoteAgentResponse\x12i\n" +
+	"\x19AutodiscoveryStreamConfig\x12\x16.google.protobuf.Empty\x1a2.datadog.autodiscovery.AutodiscoveryStreamResponse0\x01\x12O\n" +
+	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply2\x9d\x03\n" +
 	"\vRemoteAgent\x12o\n" +
 	"\x10GetStatusDetails\x12,.datadog.remoteagent.GetStatusDetailsRequest\x1a-.datadog.remoteagent.GetStatusDetailsResponse\x12f\n" +
 	"\rGetFlareFiles\x12).datadog.remoteagent.GetFlareFilesRequest\x1a*.datadog.remoteagent.GetFlareFilesResponse\x12c\n" +
-	"\fGetTelemetry\x12(.datadog.remoteagent.GetTelemetryRequest\x1a).datadog.remoteagent.GetTelemetryResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\fGetTelemetry\x12(.datadog.remoteagent.GetTelemetryRequest\x1a).datadog.remoteagent.GetTelemetryResponse\x12P\n" +
+	"\x12StreamConfigEvents\x12 .datadog.remoteagent.ConfigEvent\x1a\x16.google.protobuf.Empty(\x01B\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*HostnameRequest)(nil),                           // 0: datadog.model.v1.HostnameRequest
@@ -67,21 +69,23 @@ var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*GetStatusDetailsRequest)(nil),                   // 11: datadog.remoteagent.GetStatusDetailsRequest
 	(*GetFlareFilesRequest)(nil),                      // 12: datadog.remoteagent.GetFlareFilesRequest
 	(*GetTelemetryRequest)(nil),                       // 13: datadog.remoteagent.GetTelemetryRequest
-	(*HostnameReply)(nil),                             // 14: datadog.model.v1.HostnameReply
-	(*StreamTagsResponse)(nil),                        // 15: datadog.model.v1.StreamTagsResponse
-	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 16: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
-	(*FetchEntityResponse)(nil),                       // 17: datadog.model.v1.FetchEntityResponse
-	(*CaptureTriggerResponse)(nil),                    // 18: datadog.model.v1.CaptureTriggerResponse
-	(*TaggerStateResponse)(nil),                       // 19: datadog.model.v1.TaggerStateResponse
-	(*ClientGetConfigsResponse)(nil),                  // 20: datadog.config.ClientGetConfigsResponse
-	(*GetStateConfigResponse)(nil),                    // 21: datadog.config.GetStateConfigResponse
-	(*WorkloadmetaStreamResponse)(nil),                // 22: datadog.workloadmeta.WorkloadmetaStreamResponse
-	(*RegisterRemoteAgentResponse)(nil),               // 23: datadog.remoteagent.RegisterRemoteAgentResponse
-	(*AutodiscoveryStreamResponse)(nil),               // 24: datadog.autodiscovery.AutodiscoveryStreamResponse
-	(*HostTagReply)(nil),                              // 25: datadog.model.v1.HostTagReply
-	(*GetStatusDetailsResponse)(nil),                  // 26: datadog.remoteagent.GetStatusDetailsResponse
-	(*GetFlareFilesResponse)(nil),                     // 27: datadog.remoteagent.GetFlareFilesResponse
-	(*GetTelemetryResponse)(nil),                      // 28: datadog.remoteagent.GetTelemetryResponse
+	(*ConfigEvent)(nil),                               // 14: datadog.remoteagent.ConfigEvent
+	(*HostnameReply)(nil),                             // 15: datadog.model.v1.HostnameReply
+	(*StreamTagsResponse)(nil),                        // 16: datadog.model.v1.StreamTagsResponse
+	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 17: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
+	(*FetchEntityResponse)(nil),                       // 18: datadog.model.v1.FetchEntityResponse
+	(*CaptureTriggerResponse)(nil),                    // 19: datadog.model.v1.CaptureTriggerResponse
+	(*TaggerStateResponse)(nil),                       // 20: datadog.model.v1.TaggerStateResponse
+	(*ClientGetConfigsResponse)(nil),                  // 21: datadog.config.ClientGetConfigsResponse
+	(*GetStateConfigResponse)(nil),                    // 22: datadog.config.GetStateConfigResponse
+	(*ResetStateConfigResponse)(nil),                  // 23: datadog.config.ResetStateConfigResponse
+	(*WorkloadmetaStreamResponse)(nil),                // 24: datadog.workloadmeta.WorkloadmetaStreamResponse
+	(*RegisterRemoteAgentResponse)(nil),               // 25: datadog.remoteagent.RegisterRemoteAgentResponse
+	(*AutodiscoveryStreamResponse)(nil),               // 26: datadog.autodiscovery.AutodiscoveryStreamResponse
+	(*HostTagReply)(nil),                              // 27: datadog.model.v1.HostTagReply
+	(*GetStatusDetailsResponse)(nil),                  // 28: datadog.remoteagent.GetStatusDetailsResponse
+	(*GetFlareFilesResponse)(nil),                     // 29: datadog.remoteagent.GetFlareFilesResponse
+	(*GetTelemetryResponse)(nil),                      // 30: datadog.remoteagent.GetTelemetryResponse
 }
 var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	0,  // 0: datadog.api.v1.Agent.GetHostname:input_type -> datadog.model.v1.HostnameRequest
@@ -94,32 +98,36 @@ var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	7,  // 7: datadog.api.v1.AgentSecure.GetConfigState:input_type -> google.protobuf.Empty
 	6,  // 8: datadog.api.v1.AgentSecure.ClientGetConfigsHA:input_type -> datadog.config.ClientGetConfigsRequest
 	7,  // 9: datadog.api.v1.AgentSecure.GetConfigStateHA:input_type -> google.protobuf.Empty
-	8,  // 10: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:input_type -> datadog.workloadmeta.WorkloadmetaStreamRequest
-	9,  // 11: datadog.api.v1.AgentSecure.RegisterRemoteAgent:input_type -> datadog.remoteagent.RegisterRemoteAgentRequest
-	7,  // 12: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:input_type -> google.protobuf.Empty
-	10, // 13: datadog.api.v1.AgentSecure.GetHostTags:input_type -> datadog.model.v1.HostTagRequest
-	11, // 14: datadog.api.v1.RemoteAgent.GetStatusDetails:input_type -> datadog.remoteagent.GetStatusDetailsRequest
-	12, // 15: datadog.api.v1.RemoteAgent.GetFlareFiles:input_type -> datadog.remoteagent.GetFlareFilesRequest
-	13, // 16: datadog.api.v1.RemoteAgent.GetTelemetry:input_type -> datadog.remoteagent.GetTelemetryRequest
-	14, // 17: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
-	15, // 18: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
-	16, // 19: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
-	17, // 20: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
-	18, // 21: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
-	19, // 22: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
-	20, // 23: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
-	21, // 24: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
-	20, // 25: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
-	21, // 26: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
-	22, // 27: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
-	23, // 28: datadog.api.v1.AgentSecure.RegisterRemoteAgent:output_type -> datadog.remoteagent.RegisterRemoteAgentResponse
-	24, // 29: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
-	25, // 30: datadog.api.v1.AgentSecure.GetHostTags:output_type -> datadog.model.v1.HostTagReply
-	26, // 31: datadog.api.v1.RemoteAgent.GetStatusDetails:output_type -> datadog.remoteagent.GetStatusDetailsResponse
-	27, // 32: datadog.api.v1.RemoteAgent.GetFlareFiles:output_type -> datadog.remoteagent.GetFlareFilesResponse
-	28, // 33: datadog.api.v1.RemoteAgent.GetTelemetry:output_type -> datadog.remoteagent.GetTelemetryResponse
-	17, // [17:34] is the sub-list for method output_type
-	0,  // [0:17] is the sub-list for method input_type
+	7,  // 10: datadog.api.v1.AgentSecure.ResetConfigState:input_type -> google.protobuf.Empty
+	8,  // 11: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:input_type -> datadog.workloadmeta.WorkloadmetaStreamRequest
+	9,  // 12: datadog.api.v1.AgentSecure.RegisterRemoteAgent:input_type -> datadog.remoteagent.RegisterRemoteAgentRequest
+	7,  // 13: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:input_type -> google.protobuf.Empty
+	10, // 14: datadog.api.v1.AgentSecure.GetHostTags:input_type -> datadog.model.v1.HostTagRequest
+	11, // 15: datadog.api.v1.RemoteAgent.GetStatusDetails:input_type -> datadog.remoteagent.GetStatusDetailsRequest
+	12, // 16: datadog.api.v1.RemoteAgent.GetFlareFiles:input_type -> datadog.remoteagent.GetFlareFilesRequest
+	13, // 17: datadog.api.v1.RemoteAgent.GetTelemetry:input_type -> datadog.remoteagent.GetTelemetryRequest
+	14, // 18: datadog.api.v1.RemoteAgent.StreamConfigEvents:input_type -> datadog.remoteagent.ConfigEvent
+	15, // 19: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
+	16, // 20: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
+	17, // 21: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
+	18, // 22: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
+	19, // 23: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
+	20, // 24: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
+	21, // 25: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
+	22, // 26: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
+	21, // 27: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
+	22, // 28: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
+	23, // 29: datadog.api.v1.AgentSecure.ResetConfigState:output_type -> datadog.config.ResetStateConfigResponse
+	24, // 30: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
+	25, // 31: datadog.api.v1.AgentSecure.RegisterRemoteAgent:output_type -> datadog.remoteagent.RegisterRemoteAgentResponse
+	26, // 32: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
+	27, // 33: datadog.api.v1.AgentSecure.GetHostTags:output_type -> datadog.model.v1.HostTagReply
+	28, // 34: datadog.api.v1.RemoteAgent.GetStatusDetails:output_type -> datadog.remoteagent.GetStatusDetailsResponse
+	29, // 35: datadog.api.v1.RemoteAgent.GetFlareFiles:output_type -> datadog.remoteagent.GetFlareFilesResponse
+	30, // 36: datadog.api.v1.RemoteAgent.GetTelemetry:output_type -> datadog.remoteagent.GetTelemetryResponse
+	7,  // 37: datadog.api.v1.RemoteAgent.StreamConfigEvents:output_type -> google.protobuf.Empty
+	19, // [19:38] is the sub-list for method output_type
+	0,  // [0:19] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -241,92 +249,22 @@ var _Agent_serviceDesc = grpc.ServiceDesc{
 type AgentSecureClient interface {
 	// subscribes to added, removed, or changed entities in the Tagger
 	// and streams them to clients as events.
-	// can be called through the HTTP gateway, and events will be streamed as JSON:
-	//
-	//	  $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
-	//	  {
-	//	   "result": {
-	//	       "entity": {
-	//	           "id": {
-	//	               "prefix": "kubernetes_pod_uid",
-	//	               "uid": "4025461f832caf3fceb7fc2a32f879c6"
-	//	           },
-	//	           "hash": "cad4fc8fc409fcc1",
-	//	           "lowCardinalityTags": [
-	//	               "kube_namespace:kube-system",
-	//	               "pod_phase:running"
-	//	           ]
-	//	       }
-	//	   }
-	//	}
 	TaggerStreamEntities(ctx context.Context, in *StreamTagsRequest, opts ...grpc.CallOption) (AgentSecure_TaggerStreamEntitiesClient, error)
 	// Generates a container ID from Origin Info.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	$ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
-	//	   https://localhost:5001/v1/grpc/tagger/generate_container_id_from_origin_info
-	//	{
-	//	  "containerID":"c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
-	//	}
 	TaggerGenerateContainerIDFromOriginInfo(ctx context.Context, in *GenerateContainerIDFromOriginInfoRequest, opts ...grpc.CallOption) (*GenerateContainerIDFromOriginInfoResponse, error)
 	// fetches an entity from the Tagger with the desired cardinality tags.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	  $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k -H "Content-Type: application/json" \
-	//	     --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
-	//	     https://localhost:5001/v1/grpc/tagger/fetch_entity
-	//	  {
-	//	   "id": {
-	//	       "prefix": "kubernetes_pod_uid",
-	//	       "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
-	//	   },
-	//	   "tags": [
-	//	       "kube_namespace:kube-system",
-	//	       "pod_phase:running",
-	//	       "kube_deployment:coredns",
-	//	       "kube_service:kube-dns"
-	//	   ]
-	//	}
 	TaggerFetchEntity(ctx context.Context, in *FetchEntityRequest, opts ...grpc.CallOption) (*FetchEntityResponse, error)
 	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	TODO: add the curl code here
 	DogstatsdCaptureTrigger(ctx context.Context, in *CaptureTriggerRequest, opts ...grpc.CallOption) (*CaptureTriggerResponse, error)
-	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	TODO: add the curl code here
+	// Set the tagger state for dogstatsd.
 	DogstatsdSetTaggerState(ctx context.Context, in *TaggerState, opts ...grpc.CallOption) (*TaggerStateResponse, error)
 	ClientGetConfigs(ctx context.Context, in *ClientGetConfigsRequest, opts ...grpc.CallOption) (*ClientGetConfigsResponse, error)
 	GetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
 	ClientGetConfigsHA(ctx context.Context, in *ClientGetConfigsRequest, opts ...grpc.CallOption) (*ClientGetConfigsResponse, error)
 	GetConfigStateHA(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
+	ResetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ResetStateConfigResponse, error)
 	// Subscribes to added, removed, or changed entities in the Workloadmeta and
 	// streams them to clients as events.
-	// Can be called through the HTTP gateway, and events will be streamed as JSON.
-	// Example call that receives all the events:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
-	//
-	// Example call that receives only unset events:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"eventType":2}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
-	//
-	// Example call that receives only from the cluster orchestrator:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"source":3}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
 	WorkloadmetaStreamEntities(ctx context.Context, in *WorkloadmetaStreamRequest, opts ...grpc.CallOption) (AgentSecure_WorkloadmetaStreamEntitiesClient, error)
 	// Registers a remote agent.
 	RegisterRemoteAgent(ctx context.Context, in *RegisterRemoteAgentRequest, opts ...grpc.CallOption) (*RegisterRemoteAgentResponse, error)
@@ -448,6 +386,15 @@ func (c *agentSecureClient) GetConfigStateHA(ctx context.Context, in *empty.Empt
 	return out, nil
 }
 
+func (c *agentSecureClient) ResetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*ResetStateConfigResponse, error) {
+	out := new(ResetStateConfigResponse)
+	err := c.cc.Invoke(ctx, "/datadog.api.v1.AgentSecure/ResetConfigState", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentSecureClient) WorkloadmetaStreamEntities(ctx context.Context, in *WorkloadmetaStreamRequest, opts ...grpc.CallOption) (AgentSecure_WorkloadmetaStreamEntitiesClient, error) {
 	stream, err := c.cc.NewStream(ctx, &_AgentSecure_serviceDesc.Streams[1], "/datadog.api.v1.AgentSecure/WorkloadmetaStreamEntities", opts...)
 	if err != nil {
@@ -534,92 +481,22 @@ func (c *agentSecureClient) GetHostTags(ctx context.Context, in *HostTagRequest,
 type AgentSecureServer interface {
 	// subscribes to added, removed, or changed entities in the Tagger
 	// and streams them to clients as events.
-	// can be called through the HTTP gateway, and events will be streamed as JSON:
-	//
-	//	  $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
-	//	  {
-	//	   "result": {
-	//	       "entity": {
-	//	           "id": {
-	//	               "prefix": "kubernetes_pod_uid",
-	//	               "uid": "4025461f832caf3fceb7fc2a32f879c6"
-	//	           },
-	//	           "hash": "cad4fc8fc409fcc1",
-	//	           "lowCardinalityTags": [
-	//	               "kube_namespace:kube-system",
-	//	               "pod_phase:running"
-	//	           ]
-	//	       }
-	//	   }
-	//	}
 	TaggerStreamEntities(*StreamTagsRequest, AgentSecure_TaggerStreamEntitiesServer) error
 	// Generates a container ID from Origin Info.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	$ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
-	//	   https://localhost:5001/v1/grpc/tagger/generate_container_id_from_origin_info
-	//	{
-	//	  "containerID":"c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
-	//	}
 	TaggerGenerateContainerIDFromOriginInfo(context.Context, *GenerateContainerIDFromOriginInfoRequest) (*GenerateContainerIDFromOriginInfoResponse, error)
 	// fetches an entity from the Tagger with the desired cardinality tags.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	  $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k -H "Content-Type: application/json" \
-	//	     --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
-	//	     https://localhost:5001/v1/grpc/tagger/fetch_entity
-	//	  {
-	//	   "id": {
-	//	       "prefix": "kubernetes_pod_uid",
-	//	       "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
-	//	   },
-	//	   "tags": [
-	//	       "kube_namespace:kube-system",
-	//	       "pod_phase:running",
-	//	       "kube_deployment:coredns",
-	//	       "kube_service:kube-dns"
-	//	   ]
-	//	}
 	TaggerFetchEntity(context.Context, *FetchEntityRequest) (*FetchEntityResponse, error)
 	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	TODO: add the curl code here
 	DogstatsdCaptureTrigger(context.Context, *CaptureTriggerRequest) (*CaptureTriggerResponse, error)
-	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	TODO: add the curl code here
+	// Set the tagger state for dogstatsd.
 	DogstatsdSetTaggerState(context.Context, *TaggerState) (*TaggerStateResponse, error)
 	ClientGetConfigs(context.Context, *ClientGetConfigsRequest) (*ClientGetConfigsResponse, error)
 	GetConfigState(context.Context, *empty.Empty) (*GetStateConfigResponse, error)
 	ClientGetConfigsHA(context.Context, *ClientGetConfigsRequest) (*ClientGetConfigsResponse, error)
 	GetConfigStateHA(context.Context, *empty.Empty) (*GetStateConfigResponse, error)
+	ResetConfigState(context.Context, *empty.Empty) (*ResetStateConfigResponse, error)
 	// Subscribes to added, removed, or changed entities in the Workloadmeta and
 	// streams them to clients as events.
-	// Can be called through the HTTP gateway, and events will be streamed as JSON.
-	// Example call that receives all the events:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
-	//
-	// Example call that receives only unset events:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"eventType":2}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
-	//
-	// Example call that receives only from the cluster orchestrator:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"source":3}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
 	WorkloadmetaStreamEntities(*WorkloadmetaStreamRequest, AgentSecure_WorkloadmetaStreamEntitiesServer) error
 	// Registers a remote agent.
 	RegisterRemoteAgent(context.Context, *RegisterRemoteAgentRequest) (*RegisterRemoteAgentResponse, error)
@@ -659,6 +536,9 @@ func (*UnimplementedAgentSecureServer) ClientGetConfigsHA(context.Context, *Clie
 }
 func (*UnimplementedAgentSecureServer) GetConfigStateHA(context.Context, *empty.Empty) (*GetStateConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfigStateHA not implemented")
+}
+func (*UnimplementedAgentSecureServer) ResetConfigState(context.Context, *empty.Empty) (*ResetStateConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetConfigState not implemented")
 }
 func (*UnimplementedAgentSecureServer) WorkloadmetaStreamEntities(*WorkloadmetaStreamRequest, AgentSecure_WorkloadmetaStreamEntitiesServer) error {
 	return status.Errorf(codes.Unimplemented, "method WorkloadmetaStreamEntities not implemented")
@@ -842,6 +722,24 @@ func _AgentSecure_GetConfigStateHA_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentSecure_ResetConfigState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(empty.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentSecureServer).ResetConfigState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/datadog.api.v1.AgentSecure/ResetConfigState",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentSecureServer).ResetConfigState(ctx, req.(*empty.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentSecure_WorkloadmetaStreamEntities_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WorkloadmetaStreamRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -957,6 +855,10 @@ var _AgentSecure_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AgentSecure_GetConfigStateHA_Handler,
 		},
 		{
+			MethodName: "ResetConfigState",
+			Handler:    _AgentSecure_ResetConfigState_Handler,
+		},
+		{
 			MethodName: "RegisterRemoteAgent",
 			Handler:    _AgentSecure_RegisterRemoteAgent_Handler,
 		},
@@ -995,6 +897,8 @@ type RemoteAgentClient interface {
 	GetFlareFiles(ctx context.Context, in *GetFlareFilesRequest, opts ...grpc.CallOption) (*GetFlareFilesResponse, error)
 	// Gets the telemetry data of a remote agent.
 	GetTelemetry(ctx context.Context, in *GetTelemetryRequest, opts ...grpc.CallOption) (*GetTelemetryResponse, error)
+	// Streams config events to the remote agent.
+	StreamConfigEvents(ctx context.Context, opts ...grpc.CallOption) (RemoteAgent_StreamConfigEventsClient, error)
 }
 
 type remoteAgentClient struct {
@@ -1032,6 +936,40 @@ func (c *remoteAgentClient) GetTelemetry(ctx context.Context, in *GetTelemetryRe
 	return out, nil
 }
 
+func (c *remoteAgentClient) StreamConfigEvents(ctx context.Context, opts ...grpc.CallOption) (RemoteAgent_StreamConfigEventsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_RemoteAgent_serviceDesc.Streams[0], "/datadog.api.v1.RemoteAgent/StreamConfigEvents", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &remoteAgentStreamConfigEventsClient{stream}
+	return x, nil
+}
+
+type RemoteAgent_StreamConfigEventsClient interface {
+	Send(*ConfigEvent) error
+	CloseAndRecv() (*empty.Empty, error)
+	grpc.ClientStream
+}
+
+type remoteAgentStreamConfigEventsClient struct {
+	grpc.ClientStream
+}
+
+func (x *remoteAgentStreamConfigEventsClient) Send(m *ConfigEvent) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *remoteAgentStreamConfigEventsClient) CloseAndRecv() (*empty.Empty, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(empty.Empty)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // RemoteAgentServer is the server API for RemoteAgent service.
 type RemoteAgentServer interface {
 	// Gets the status details of a remote agent.
@@ -1040,6 +978,8 @@ type RemoteAgentServer interface {
 	GetFlareFiles(context.Context, *GetFlareFilesRequest) (*GetFlareFilesResponse, error)
 	// Gets the telemetry data of a remote agent.
 	GetTelemetry(context.Context, *GetTelemetryRequest) (*GetTelemetryResponse, error)
+	// Streams config events to the remote agent.
+	StreamConfigEvents(RemoteAgent_StreamConfigEventsServer) error
 }
 
 // UnimplementedRemoteAgentServer can be embedded to have forward compatible implementations.
@@ -1054,6 +994,9 @@ func (*UnimplementedRemoteAgentServer) GetFlareFiles(context.Context, *GetFlareF
 }
 func (*UnimplementedRemoteAgentServer) GetTelemetry(context.Context, *GetTelemetryRequest) (*GetTelemetryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTelemetry not implemented")
+}
+func (*UnimplementedRemoteAgentServer) StreamConfigEvents(RemoteAgent_StreamConfigEventsServer) error {
+	return status.Errorf(codes.Unimplemented, "method StreamConfigEvents not implemented")
 }
 
 func RegisterRemoteAgentServer(s *grpc.Server, srv RemoteAgentServer) {
@@ -1114,6 +1057,32 @@ func _RemoteAgent_GetTelemetry_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RemoteAgent_StreamConfigEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(RemoteAgentServer).StreamConfigEvents(&remoteAgentStreamConfigEventsServer{stream})
+}
+
+type RemoteAgent_StreamConfigEventsServer interface {
+	SendAndClose(*empty.Empty) error
+	Recv() (*ConfigEvent, error)
+	grpc.ServerStream
+}
+
+type remoteAgentStreamConfigEventsServer struct {
+	grpc.ServerStream
+}
+
+func (x *remoteAgentStreamConfigEventsServer) SendAndClose(m *empty.Empty) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *remoteAgentStreamConfigEventsServer) Recv() (*ConfigEvent, error) {
+	m := new(ConfigEvent)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 var _RemoteAgent_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "datadog.api.v1.RemoteAgent",
 	HandlerType: (*RemoteAgentServer)(nil),
@@ -1131,6 +1100,12 @@ var _RemoteAgent_serviceDesc = grpc.ServiceDesc{
 			Handler:    _RemoteAgent_GetTelemetry_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamConfigEvents",
+			Handler:       _RemoteAgent_StreamConfigEvents_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "datadog/api/v1/api.proto",
 }

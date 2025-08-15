@@ -27,7 +27,7 @@ The Agent expressions documentation is based on the following files:
 
 - `pkg/security/secl/model/model.go` - the source code of the SECL model containing the event types and fields documentation
 - `docs/cloud-workload-security/secl.json` - the JSON representing the SECL model extracted from the source code
-- `docs/cloud-workload-security/scripts/templates/agent_expressions.md` - the template used for the final generation
+- `tasks/libs/cws/templates/agent_expressions.md` - the template used for the final generation
 
 #### Editing files
 
@@ -71,7 +71,7 @@ The Cloud Workload Security (CWS) part of the Agent sends events to the backend.
 
 - `pkg/security/probe/serializers.go` - the serializers used to output events
 - `docs/cloud-workload-security/backend.schema.json` - the JSON schema of the event
-- `docs/cloud-workload-security/scripts/templates/backend.md` - the template used for the final generation
+- `tasks/libs/cws/templates/templates/backend.md` - the template used for the final generation
 
 ### Editing files
 
@@ -108,7 +108,6 @@ The templates are written in [Jinja2](https://jinja.palletsprojects.com/en/3.0.x
 - Golang (see `go.mod` for the minimal version supported)
 - Python, install dependencies with:
 	- `pip install dda`
-	- `pip install -r docs/cloud-workload-security/scripts/requirements-docs.txt`
 
 
 #### Steps

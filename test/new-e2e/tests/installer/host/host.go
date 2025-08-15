@@ -251,7 +251,12 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 func (h *Host) AssertPackageNotInstalledByInstaller(pkgs ...string) {
 	for _, pkg := range pkgs {
 		_, err := h.remote.ReadDir(fmt.Sprintf("/opt/datadog-packages/%s/stable/", pkg))
-		require.Error(h.t(), err, "package %s installed by the installer", pkg)
+		if err == nil {
+			installPath := strings.TrimSpace(h.remote.MustExecute(fmt.Sprintf("sudo readlink -f /opt/datadog-packages/%s/stable", pkg)))
+			if strings.HasPrefix(installPath, "/opt/datadog-packages/") {
+				h.t().Errorf("package %s installed by the installer", pkg)
+			}
+		}
 	}
 }
 

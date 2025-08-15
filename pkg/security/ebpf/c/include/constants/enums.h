@@ -58,6 +58,10 @@ enum event_type
     EVENT_NETWORK_FLOW_MONITOR,
     EVENT_STAT,
     EVENT_SYSCTL,
+    EVENT_SETRLIMIT,
+    EVENT_SETSOCKOPT,
+    EVENT_FSMOUNT,
+    EVENT_OPEN_TREE,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -231,6 +235,14 @@ enum sysctl_action_t
     SYSCTL_UNKNOWN,
     SYSCTL_READ,
     SYSCTL_WRITE,
+};
+
+enum mount_source_t
+{
+    SOURCE_INVALID = 0,
+    SOURCE_MOUNT,
+    SOURCE_FSMOUNT,
+    SOURCE_OPEN_TREE,
 };
 
 #endif

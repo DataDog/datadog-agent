@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
@@ -486,6 +487,7 @@ func TestStartExecutionSpan(t *testing.T) {
 }
 
 func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
+	configmock.SetDefaultConfigType(t, "yaml")
 	currentExecutionInfo := &ExecutionStartInfo{}
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
@@ -536,6 +538,7 @@ func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
 }
 
 func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
+	configmock.SetDefaultConfigType(t, "yaml")
 	currentExecutionInfo := &ExecutionStartInfo{}
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
@@ -593,6 +596,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 			triggerTags:   make(map[string]string),
 		},
 	}
+	configmock.SetDefaultConfigType(t, "yaml")
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
@@ -654,6 +658,7 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 			triggerTags:   make(map[string]string),
 		},
 	}
+	configmock.SetDefaultConfigType(t, "yaml")
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
@@ -704,6 +709,7 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 }
 
 func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
+	configmock.SetDefaultConfigType(t, "yaml")
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "INVALID_INPUT")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`

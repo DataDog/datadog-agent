@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Windows Agent installer now uses absolute path to msiexec.exe instead of PATH lookup, improving installation reliability

@@ -56,6 +56,7 @@ func (h *PodDisruptionBudgetHandlers) BuildMessageBody(ctx processors.ProcessorC
 		GroupSize:            int32(groupSize),
 		PodDisruptionBudgets: models,
 		Tags:                 util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion:         ctx.GetAgentVersion(),
 	}
 }
 

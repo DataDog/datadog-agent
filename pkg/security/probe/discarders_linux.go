@@ -293,7 +293,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		}
 
 		if len(basenameRules) > 0 {
-			if isDiscarder, _, _ := rules.IsDiscarder(id.evalCtx, basenameField, basenameRules); !isDiscarder {
+			if isDiscarder, _, _ := rs.IsDiscarder(id.evalCtx, basenameField, basenameRules); !isDiscarder {
 				return false, true, nil
 			}
 		}

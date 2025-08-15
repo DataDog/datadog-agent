@@ -60,7 +60,7 @@ build do
   configure_args = []
   if mac_os_x?
     configure_cmd = "./Configure"
-    configure_args << "darwin64-x86_64-cc"
+    configure_args << "darwin64-#{arm_target? ? "arm64" : "x86_64"}-cc"
   elsif windows?
     configure_cmd = "perl.exe ./Configure"
     configure_args << (windows_arch_i386? ? "mingw" : "mingw64")
@@ -82,6 +82,7 @@ build do
     configure_args << [
       "--prefix=#{python_3_embedded}",
       "no-zlib",
+      "no-uplink",
     ]
     if ENV["AGENT_FLAVOR"] == "fips"
       configure_args << '--openssldir="C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"'
@@ -115,6 +116,5 @@ build do
     delete "#{install_dir}/embedded/lib/libcrypto.a"
     delete "#{install_dir}/embedded/lib/libssl.a"
   else
-    copy "ms/applink.c", "#{install_dir}/embedded3/include/openssl"
   end
 end

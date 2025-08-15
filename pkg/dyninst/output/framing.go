@@ -14,5 +14,5 @@ package output
 // #include "../ebpf/framing.h"
 import "C"
 
-type EventHeader C.event_header_t
-type DataItemHeader C.data_item_header_t
+type EventHeader C.di_event_header_t
+type DataItemHeader C.di_data_item_header_t

@@ -38,7 +38,7 @@ func TestUnixTransparentParentProxy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Start the proxy server.
-			_, cancel := NewExternalUnixTransparentProxyServer(t, unixPath, remoteServerAddr, tt.useTLS)
+			_, cancel := NewExternalUnixTransparentProxyServer(t, unixPath, remoteServerAddr, tt.useTLS, false)
 			t.Cleanup(cancel)
 
 			// Start the remote server.

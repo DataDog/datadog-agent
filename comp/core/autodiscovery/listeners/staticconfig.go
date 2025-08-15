@@ -7,8 +7,8 @@ package listeners
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // StaticConfigListener implements a ServiceListener based on static configuration parameters
@@ -45,6 +45,7 @@ func (l *StaticConfigListener) createServices() {
 		"container_image",
 		"container_lifecycle",
 		"sbom",
+		"gpu",
 	} {
 		if enabled := pkgconfigsetup.Datadog().GetBool(staticCheck + ".enabled"); enabled {
 			l.newService <- &StaticConfigService{adIdentifier: "_" + staticCheck}
@@ -113,7 +114,7 @@ func (s *StaticConfigService) IsReady() bool {
 }
 
 // HasFilter is not supported
-func (s *StaticConfigService) HasFilter(_ containers.FilterType) bool {
+func (s *StaticConfigService) HasFilter(_ filter.Scope) bool {
 	return false
 }
 

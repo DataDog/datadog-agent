@@ -124,7 +124,17 @@ type Proxy struct {
 // NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
 // configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
 // 'NotificationReceiver' should not be blocking.
-type NotificationReceiver func(setting string, oldValue, newValue any)
+type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
+
+// ConfigChangeNotification stores the information about a change in the configuration and is sent to the listeners.
+type ConfigChangeNotification struct {
+	Key           string
+	Source        Source
+	PreviousValue interface{}
+	NewValue      interface{}
+	SequenceID    uint64
+	Receivers     []NotificationReceiver
+}
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
@@ -143,6 +153,7 @@ type Reader interface {
 	GetStringMapStringSlice(key string) map[string][]string
 	GetSizeInBytes(key string) uint
 	GetProxies() *Proxy
+	GetSequenceID() uint64
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
@@ -156,6 +167,7 @@ type Reader interface {
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
+	AllSettingsWithSequenceID() (map[string]interface{}, uint64)
 
 	// SetTestOnlyDynamicSchema is used by tests to disable validation of the config schema
 	// This lets tests use the config is more flexible ways (can add to the schema at any point,
@@ -264,15 +276,29 @@ type Compound interface {
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
 	MergeFleetPolicy(configPath string) error
+
+	// Revert a finished configuration so that more can be build on top of it.
+	// When building is completed, the caller should call BuildSchema.
+	// NOTE: This method should not be used by any new callsites, it is needed
+	// currently because of the unique requirements of OTel's configuration.
+	RevertFinishedBackToBuilder() BuildableConfig
 }
 
-// Config represents an object that can load and store configuration parameters
-// coming from different kind of sources:
-// - defaults
-// - files
-// - environment variables
-// - flags
+// Config is an interface that can read/write the config after it has been
+// build and initialized.
 type Config interface {
+	ReaderWriter
+	Compound
+	// TODO: This method shouldn't be here, but it is depended upon by an external repository
+	// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e7c3295769637e61558c6892be732398840dd5f5/pkg/datadog/agentcomponents/agentcomponents.go#L166
+	SetKnown(key string)
+}
+
+// BuildableConfig is the most-general interface for the Config, it can be
+// used both to build the config and also to read/write its values. It should
+// only be used when necessary, such as when constructing a new config object
+// from scratch.
+type BuildableConfig interface {
 	ReaderWriter
 	Setup
 	Compound

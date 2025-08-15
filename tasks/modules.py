@@ -171,6 +171,10 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
 
     # Backward check for go.mod (ensure there is a module for each go.mod)
     for go_mod in glob(str(base_dir / '**/go.mod'), recursive=True):
+        # Ignore bazel generated symlinks
+        if go_mod.startswith(str(base_dir / 'bazel')):
+            continue
+
         path = Path(go_mod).parent.relative_to(base_dir).as_posix()
         assert path in config.modules or path in config.ignored_modules, f"Configuration is missing a module for {path}"
 

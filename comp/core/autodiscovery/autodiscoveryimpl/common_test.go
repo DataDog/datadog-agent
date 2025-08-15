@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 type dummyService struct {
@@ -74,7 +74,7 @@ func (s *dummyService) IsReady() bool {
 }
 
 // HasFilter returns false
-func (s *dummyService) HasFilter(_ containers.FilterType) bool {
+func (s *dummyService) HasFilter(_ filter.Scope) bool {
 	return false
 }
 

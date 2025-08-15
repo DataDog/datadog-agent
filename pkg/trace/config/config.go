@@ -515,9 +515,14 @@ type AgentConfig struct {
 	// key-value pairs, starting with a comma
 	AzureContainerAppTags string
 
-	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
-	// Function will be nil if in an environment without an auth token
-	GetAgentAuthToken func() string `json:"-"`
+	// AuthToken is the auth token for the agent
+	AuthToken string `json:"-"`
+
+	// IPC TLS client config
+	IPCTLSClientConfig *tls.Config `json:"-"`
+
+	// IPC TLS server config
+	IPCTLSServerConfig *tls.Config `json:"-"`
 
 	MRFFailoverAPMDefault bool
 	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured

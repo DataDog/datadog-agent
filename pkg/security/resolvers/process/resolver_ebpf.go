@@ -19,6 +19,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -379,13 +380,18 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	}
 
 	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/[cgroup]
-	containerID, cgroup, cgroupSysFSPath, err := p.containerResolver.GetContainerContext(pid)
+	containerID, cgroup, cgroupPath, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
-		// log error instead of returning it to allow the process to be added to the cache and eBPF maps
-		seclog.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
+		errMsg := fmt.Sprintf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
+			// If the process is not found, it may have exited, so we log a warning
+			seclog.Warnf("%s", errMsg)
+		} else {
+			seclog.Errorf("%s", errMsg)
+		}
 	} else if cgroup.CGroupFile.Inode != 0 && cgroup.CGroupFile.MountID == 0 { // the mount id is unavailable through statx
 		// Get the file fields of the sysfs cgroup file
-		info, err := p.RetrieveFileFieldsFromProcfs(cgroupSysFSPath)
+		info, err := p.RetrieveFileFieldsFromProcfs(cgroupPath)
 		if err != nil {
 			seclog.Warnf("snapshot failed for %d: couldn't retrieve file info: %s", proc.Pid, err)
 		} else {
@@ -404,10 +410,15 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	// force mount from procfs/snapshot
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
+	entry.FileEvent.MountVisibilityResolved = true
 
 	if entry.FileEvent.IsFileless() {
+		entry.FileEvent.MountVisible = false
+		entry.FileEvent.MountDetached = true
 		entry.FileEvent.Filesystem = model.TmpFS
 	} else {
+		entry.FileEvent.MountVisible = true
+		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver
 		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.FileEvent.Device, entry.Process.Pid, containerID)
 		if err != nil {
@@ -766,6 +777,10 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	fileEvent.MountPath = mountPath
 	fileEvent.MountSource = source
 	fileEvent.MountOrigin = origin
+	err = p.pathResolver.ResolveMountAttributes(fileEvent, &pce.PIDContext, ctrCtx)
+	if err != nil {
+		seclog.Warnf("Failed to resolve mount attributes for mount id %d: %s", fileEvent.MountID, err)
+	}
 
 	return fileEvent.PathnameStr, nil
 }
@@ -894,18 +909,12 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid, ExecInode: inode})
 
-	var ctrCtx model.ContainerContext
-	read, err := ctrCtx.UnmarshalBinary(procCache)
-	if err != nil {
-		return nil
-	}
-
 	cgroupRead, err := entry.CGroup.UnmarshalBinary(procCache)
 	if err != nil {
 		return nil
 	}
 
-	if _, err := entry.UnmarshalProcEntryBinary(procCache[read+cgroupRead:]); err != nil {
+	if _, err := entry.UnmarshalProcEntryBinary(procCache[cgroupRead:]); err != nil {
 		return nil
 	}
 
@@ -918,19 +927,15 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
-	// If we fall back to the kernel maps for a process in a container that was already running when the agent
-	// started, the kernel space container ID will be empty even though the process is inside a container. Since there
-	// is no insurance that the parent of this process is still running, we can't use our user space cache to check if
-	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
-	// process.
-	if entry.CGroup.CGroupFile.Inode == 0 {
-		if containerID, cgroup, _, err := p.containerResolver.GetContainerContext(pid); err == nil {
-			entry.CGroup.Merge(&cgroup)
-			entry.ContainerID = containerID
-		}
+	if containerID, cgroup, _, err := p.containerResolver.GetContainerContext(pid); err == nil {
+		entry.CGroup.Merge(&cgroup)
+		entry.ContainerID = containerID
 	}
 
 	// resolve paths and other context fields
+	ctrCtx := model.ContainerContext{
+		ContainerID: entry.ContainerID, // only use to get workload pids (instead of resolve pid namespace :/)
+	}
 	if err = p.ResolveNewProcessCacheEntry(entry, &ctrCtx); err != nil {
 		if newEntryCb != nil {
 			newEntryCb(entry, err)
@@ -1305,7 +1310,7 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
-	procCacheEntryB := make([]byte, 248)
+	procCacheEntryB := make([]byte, 176)
 	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
@@ -1528,13 +1533,14 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 		return false
 	}
 
+	if cgroupContext.CGroupID != "" {
+		pce.Process.ContainerID = containerutils.FindContainerID(cgroupContext.CGroupID)
+		pce.ContainerID = pce.Process.ContainerID
+	}
+
 	pce.Process.CGroup = *cgroupContext
 	pce.CGroup = *cgroupContext
-	if cgroupContext.CGroupFlags.IsContainer() {
-		containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-		pce.ContainerID = containerID
-		pce.Process.ContainerID = containerID
-	}
+
 	return true
 }
 

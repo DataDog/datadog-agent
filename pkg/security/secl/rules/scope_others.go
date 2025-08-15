@@ -8,6 +8,13 @@
 // Package rules holds rules related files
 package rules
 
-func getStateScopes() map[Scope]VariableProviderFactory {
+// VariableScopes is the list of scopes for variables
+var VariableScopes = []string{
+	ScopeProcess,
+	ScopeContainer,
+}
+
+// DefaultStateScopes returns the default state scopes for variables
+func DefaultStateScopes() map[Scope]VariableProviderFactory {
 	return getCommonStateScopes()
 }

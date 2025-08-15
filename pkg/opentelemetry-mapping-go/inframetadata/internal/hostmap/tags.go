@@ -12,17 +12,20 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.21.0"
 )
 
-const hostTagPrefix = "datadog.host.tag."
+const (
+	hostTagPrefix      = "datadog.host.tag."
+	hostAliasAttribute = "datadog.host.aliases"
+)
 
 var hostTagMapping = map[string]string{
-	conventions.AttributeDeploymentEnvironment: "env",
-	conventions.AttributeK8SClusterName:        "cluster_name",
-	conventions.AttributeCloudProvider:         "cloud_provider",
-	conventions.AttributeCloudRegion:           "region",
-	conventions.AttributeCloudAvailabilityZone: "zone",
+	string(conventions.DeploymentEnvironmentKey): "env",
+	string(conventions.K8SClusterNameKey):        "cluster_name",
+	string(conventions.CloudProviderKey):         "cloud_provider",
+	string(conventions.CloudRegionKey):           "region",
+	string(conventions.CloudAvailabilityZoneKey): "zone",
 
 	// TODO(OTEL-1766): import of semconv 1.27.0 is blocked on Go1.22 support
 	"deployment.environment.name": "env",
@@ -62,4 +65,25 @@ func getHostTags(m pcommon.Map) ([]string, error) {
 	// Allow for comparison of tags
 	sort.Strings(tags)
 	return tags, err
+}
+
+// getHostAliases tries to get a host aliases from attribute datadog.host.aliases
+func getHostAliases(attrs pcommon.Map) []string {
+	var hostAliases []string
+	attrs.Range(func(k string, v pcommon.Value) bool {
+		if k == hostAliasAttribute {
+			if v.Type() != pcommon.ValueTypeSlice {
+				return false
+			}
+			hostAliasesAny := v.Slice().AsRaw()
+			for _, hostAlias := range hostAliasesAny {
+				if hostAliasStr, ok := hostAlias.(string); ok {
+					hostAliases = append(hostAliases, hostAliasStr)
+				}
+			}
+			return false
+		}
+		return true
+	})
+	return hostAliases
 }

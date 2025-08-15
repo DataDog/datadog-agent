@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"github.com/stretchr/testify/assert"
@@ -27,8 +26,10 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 )
 
 func TestTranslator(t *testing.T) {
@@ -72,6 +73,35 @@ func TestTranslator(t *testing.T) {
 			},
 		},
 		{
+			// different attribute types
+			name: "basic",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.Attributes().PutStr("app", "test")
+					l.Attributes().PutBool("test_bool", true)
+					l.Attributes().PutInt("test_int", 1234)
+					l.Attributes().PutDouble("test_double", 1.234)
+					l.SetSeverityNumber(5)
+					return l
+				}(),
+				res:   pcommon.NewResource(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString(""),
+				AdditionalProperties: map[string]interface{}{
+					"app":              "test",
+					"status":           "debug",
+					"test_bool":        true,
+					"test_int":         1234,
+					"test_double":      1.234,
+					otelSeverityNumber: "5",
+				},
+			},
+		},
+		{
 			// log & resource with attribute
 			name: "resource",
 			args: args{
@@ -83,7 +113,7 @@ func TestTranslator(t *testing.T) {
 				}(),
 				res: func() pcommon.Resource {
 					r := pcommon.NewResource()
-					r.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					r.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					return r
 				}(),
 				scope: pcommon.NewInstrumentationScope(),
@@ -113,7 +143,7 @@ func TestTranslator(t *testing.T) {
 				}(),
 				res: func() pcommon.Resource {
 					r := pcommon.NewResource()
-					r.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					r.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					return r
 				}(),
 				scope: pcommon.NewInstrumentationScope(),
@@ -137,7 +167,7 @@ func TestTranslator(t *testing.T) {
 				lr: func() plog.LogRecord {
 					l := plog.NewLogRecord()
 					l.Attributes().PutStr("app", "test")
-					l.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					l.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					l.SetSeverityNumber(5)
 					return l
 				}(),
@@ -164,7 +194,7 @@ func TestTranslator(t *testing.T) {
 					l.Attributes().PutStr("app", "test")
 					l.SetSpanID(spanID)
 					l.SetTraceID(traceID)
-					l.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					l.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					l.SetSeverityNumber(5)
 					return l
 				}(),
@@ -195,7 +225,7 @@ func TestTranslator(t *testing.T) {
 					l.Attributes().PutStr("app", "test")
 					l.Attributes().PutStr("spanid", "2e26da881214cd7c")
 					l.Attributes().PutStr("traceid", "437ab4d83468c540bb0f3398a39faa59")
-					l.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					l.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					l.SetSeverityNumber(5)
 					return l
 				}(),
@@ -226,7 +256,7 @@ func TestTranslator(t *testing.T) {
 					l.Attributes().PutStr("app", "test")
 					l.Attributes().PutStr("span_id", "2e26da881214cd7c")
 					l.Attributes().PutStr("trace_id", "740112b325075be8c80a48de336ebc67")
-					l.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					l.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					l.SetSeverityNumber(5)
 					return l
 				}(),
@@ -257,7 +287,7 @@ func TestTranslator(t *testing.T) {
 					l.Attributes().PutStr("app", "test")
 					l.Attributes().PutStr("spanid", "2e26da881214cd7c")
 					l.Attributes().PutStr("traceid", "invalidtraceid")
-					l.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					l.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					l.SetSeverityNumber(5)
 					return l
 				}(),
@@ -286,7 +316,7 @@ func TestTranslator(t *testing.T) {
 					l.Attributes().PutStr("app", "test")
 					l.Attributes().PutStr("spanid", "2023675201651514964")
 					l.Attributes().PutStr("traceid", "eb068afe5e53704f3b0dc3d3e1e397cb760549a7b58547db4f1dee845d9101f8db1ccf8fdd0976a9112f")
-					l.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					l.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					l.SetSeverityNumber(5)
 					return l
 				}(),
@@ -314,7 +344,7 @@ func TestTranslator(t *testing.T) {
 					l.Attributes().PutStr("app", "test")
 					l.SetSpanID(spanID)
 					l.SetTraceID(traceID)
-					l.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					l.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					l.SetSeverityText("alert")
 					l.SetSeverityNumber(5)
 					return l
@@ -347,7 +377,7 @@ func TestTranslator(t *testing.T) {
 					l.Attributes().PutStr("app", "test")
 					l.SetSpanID(spanID)
 					l.SetTraceID(traceID)
-					l.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					l.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					l.SetSeverityNumber(13)
 					l.Body().SetStr("This is log")
 					return l
@@ -380,7 +410,7 @@ func TestTranslator(t *testing.T) {
 					l.Attributes().PutStr("app", "test")
 					l.SetSpanID(spanID)
 					l.SetTraceID(traceID)
-					l.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					l.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					l.Attributes().PutStr("level", "error")
 					l.Body().SetStr("This is log")
 					return l
@@ -415,7 +445,7 @@ func TestTranslator(t *testing.T) {
 				}(),
 				res: func() pcommon.Resource {
 					r := pcommon.NewResource()
-					r.Attributes().PutStr(conventions.AttributeServiceName, "otlp_col")
+					r.Attributes().PutStr(string(conventions.ServiceNameKey), "otlp_col")
 					r.Attributes().PutStr("key", "val")
 					return r
 				}(),

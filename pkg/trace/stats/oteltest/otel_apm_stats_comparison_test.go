@@ -19,8 +19,8 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/metric/noop"
+	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
@@ -92,7 +92,7 @@ func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, enableOperationNam
 
 	obfuscator := newTestObfuscator(tcfg)
 	// fakeAgent2 calls the new API in Concentrator that directly calculates APM stats for OTLP traces
-	inputs := stats.OTLPTracesToConcentratorInputsWithObfuscation(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName}, peerTagKeys, obfuscator)
+	inputs := stats.OTLPTracesToConcentratorInputsWithObfuscation(traces, tcfg, []string{string(semconv.ContainerIDKey), string(semconv.K8SContainerNameKey)}, peerTagKeys, obfuscator)
 	for _, input := range inputs {
 		fakeAgent2.Concentrator.Add(input)
 	}
@@ -159,10 +159,10 @@ func getTestTraces() ptrace.Traces {
 	traces := ptrace.NewTraces()
 	rspan := traces.ResourceSpans().AppendEmpty()
 	rattrs := rspan.Resource().Attributes()
-	rattrs.PutStr(semconv.AttributeContainerID, "test_cid")
-	rattrs.PutStr(semconv.AttributeServiceName, "test_SerVIce!@#$%")
-	rattrs.PutStr(semconv.AttributeDeploymentEnvironment, "teSt_eNv^&*()")
-	rattrs.PutStr(semconv.AttributeK8SContainerName, "k8s_container")
+	rattrs.PutStr(string(semconv.ContainerIDKey), "test_cid")
+	rattrs.PutStr(string(semconv.ServiceNameKey), "test_SerVIce!@#$%")
+	rattrs.PutStr(string(semconv.DeploymentEnvironmentKey), "teSt_eNv^&*()")
+	rattrs.PutStr(string(semconv.K8SContainerNameKey), "k8s_container")
 
 	sspan := rspan.ScopeSpans().AppendEmpty()
 
@@ -175,10 +175,10 @@ func getTestTraces() ptrace.Traces {
 	rootattrs := root.Attributes()
 	rootattrs.PutStr("resource.name", "test_resource")
 	rootattrs.PutStr("operation.name", "test_opeR@aT^&*ion")
-	rootattrs.PutInt(semconv.AttributeHTTPStatusCode, 404)
-	rootattrs.PutStr(semconv.AttributePeerService, "test_peer_svc")
-	rootattrs.PutStr(semconv.AttributeDBSystem, "redis")
-	rootattrs.PutStr(semconv.AttributeDBStatement, "SET key value")
+	rootattrs.PutInt(string(semconv.HTTPStatusCodeKey), 404)
+	rootattrs.PutStr(string(semconv.PeerServiceKey), "test_peer_svc")
+	rootattrs.PutStr(string(semconv.DBSystemKey), "redis")
+	rootattrs.PutStr(string(semconv.DBStatementKey), "SET key value")
 	root.Status().SetCode(ptrace.StatusCodeError)
 
 	child1 := sspan.Spans().AppendEmpty()
@@ -189,9 +189,9 @@ func getTestTraces() ptrace.Traces {
 	child1.SetSpanID(spanID2)
 	child1.SetParentSpanID(spanID1)
 	child1attrs := child1.Attributes()
-	child1attrs.PutInt(semconv.AttributeHTTPStatusCode, 200)
-	child1attrs.PutStr(semconv.AttributeHTTPMethod, "GET")
-	child1attrs.PutStr(semconv.AttributeHTTPRoute, "/home")
+	child1attrs.PutInt(string(semconv.HTTPStatusCodeKey), 200)
+	child1attrs.PutStr(string(semconv.HTTPMethodKey), "GET")
+	child1attrs.PutStr(string(semconv.HTTPRouteKey), "/home")
 	child1.Status().SetCode(ptrace.StatusCodeError)
 	child1.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 
@@ -203,8 +203,8 @@ func getTestTraces() ptrace.Traces {
 	child2.SetSpanID(spanID3)
 	child2.SetParentSpanID(spanID1)
 	child2attrs := child2.Attributes()
-	child2attrs.PutStr(semconv.AttributeRPCMethod, "test_method")
-	child2attrs.PutStr(semconv.AttributeRPCService, "test_rpc_svc")
+	child2attrs.PutStr(string(semconv.RPCMethodKey), "test_method")
+	child2attrs.PutStr(string(semconv.RPCServiceKey), "test_rpc_svc")
 	child2.Status().SetCode(ptrace.StatusCodeError)
 	child2.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 

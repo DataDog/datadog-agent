@@ -185,35 +185,6 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	assert.Equal(t, strings.Count(b.String(), "this is a ****** password: hunter2"), 1)
 }
 
-func TestExtraLogging(t *testing.T) {
-	setupScrubbing(t)
-
-	var a, b bytes.Buffer
-	w := bufio.NewWriter(&a)
-	wA := bufio.NewWriter(&b)
-
-	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %Msg")
-	assert.NoError(t, err)
-	lA, err := LoggerFromWriterWithMinLevelAndFormat(wA, DebugLvl, "[%LEVEL] %Msg")
-	assert.NoError(t, err)
-
-	SetupLogger(l, "info")
-	assert.NotNil(t, logger.Load())
-
-	err = RegisterAdditionalLogger("extra", lA)
-	assert.NoError(t, err)
-
-	Info("don't tell anyone: ", "SECRET")
-	Infof("this is a SECRET password: %s", "hunter2")
-	w.Flush()
-	wA.Flush()
-
-	assert.Equal(t, strings.Count(a.String(), "SECRET"), 0)
-	assert.Equal(t, strings.Count(a.String(), "don't tell anyone:  ******"), 1)
-	assert.Equal(t, strings.Count(a.String(), "this is a ****** password: hunter2"), 1)
-	assert.Equal(t, b.String(), a.String())
-}
-
 func TestFormatErrorfScrubbing(t *testing.T) {
 	setupScrubbing(t)
 
@@ -613,4 +584,267 @@ func TestLoggerScrubbingCount(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLogNilLogger(t *testing.T) {
+	// reset buffer state
+	logsBuffer = []func(){}
+
+	logger.Store(nil)
+
+	Debug("message")
+
+	// should write to the logs buffer
+	assert.Equal(t, 1, len(logsBuffer))
+}
+
+func TestLogNilInnerLogger(t *testing.T) {
+	// reset buffer state
+	logsBuffer = []func(){}
+
+	SetupLogger(Default(), DebugStr)
+	logger.Load().inner = nil
+
+	Debug("message")
+
+	// should write to the logs buffer
+	assert.Equal(t, 1, len(logsBuffer))
+}
+
+func TestSetupLoggerWithUnknownLogLevel(t *testing.T) {
+	SetupLogger(Default(), "unknownLogLevel")
+
+	// providing an unknown log level sets the log level to InfoLvl
+	loggerLogLevel, _ := GetLogLevel()
+
+	assert.Equal(t, InfoLvl, loggerLogLevel)
+}
+
+func TestChangeLogLevel(t *testing.T) {
+	testCases := []struct {
+		logLevel    LogLevel
+		logLevelStr string
+	}{
+		{TraceLvl, TraceStr},
+		{DebugLvl, DebugStr},
+		{InfoLvl, InfoStr},
+		{WarnLvl, WarnStr},
+		{ErrorLvl, ErrorStr},
+		{CriticalLvl, CriticalStr},
+		{Off, OffStr},
+	}
+
+	for _, tc := range testCases {
+		t.Run("change log level to "+tc.logLevelStr, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "")
+
+			SetupLogger(Default(), DebugStr)
+
+			err := ChangeLogLevel(l, tc.logLevelStr)
+			assert.NoError(t, err)
+
+			// log level should have been updated
+			level, _ := GetLogLevel()
+			assert.Equal(t, tc.logLevel, level)
+
+			// inner logger should have been replaced
+			assert.Equal(t, l, logger.Load().inner)
+		})
+	}
+}
+
+func TestChangeLogLevelUnknownLevel(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "")
+
+	SetupLogger(Default(), InfoStr)
+
+	err := ChangeLogLevel(l, "unknownLogLevel")
+	assert.Error(t, err)
+	assert.Equal(t, "bad log level", err.Error())
+
+	// log level and inner logger should not have changed
+	level, _ := GetLogLevel()
+	assert.Equal(t, InfoLvl, level)
+	assert.NotEqual(t, l, logger.Load().inner)
+}
+
+func TestChangeLogLevelNilLogger(t *testing.T) {
+	logger.Store(nil)
+
+	err := logger.changeLogLevel(InfoStr)
+	assert.Error(t, err)
+	assert.Equal(t, "cannot change loglevel: logger not initialized", err.Error())
+}
+
+func TestChangeLogLevelNilInnerLogger(t *testing.T) {
+	SetupLogger(Default(), DebugStr)
+	logger.Load().inner = nil
+
+	err := logger.changeLogLevel(InfoStr)
+	assert.Error(t, err)
+	assert.Equal(t, "cannot change loglevel: logger is initialized however logger.inner is nil", err.Error())
+}
+
+func TestGetLogLevel(t *testing.T) {
+	SetupLogger(Default(), WarnStr)
+
+	level, err := GetLogLevel()
+	assert.NoError(t, err)
+	assert.Equal(t, WarnLvl, level)
+}
+
+func TestGetLogLevelNilLogger(t *testing.T) {
+	logger.Store(nil)
+
+	level, err := GetLogLevel()
+	assert.Error(t, err)
+	assert.Equal(t, InfoLvl, level)
+	assert.Equal(t, "cannot get loglevel: logger not initialized", err.Error())
+}
+
+func TestGetLogLevelNilInnerLogger(t *testing.T) {
+	SetupLogger(Default(), DebugStr)
+	logger.Load().inner = nil
+
+	level, err := GetLogLevel()
+	assert.Error(t, err)
+	assert.Equal(t, InfoLvl, level)
+	assert.Equal(t, "cannot get loglevel: logger not initialized", err.Error())
+}
+
+func TestShouldLog(t *testing.T) {
+	SetupLogger(Default(), TraceStr)
+
+	testCases := []struct {
+		logLevelStr string
+		// expected results for each log level in the order
+		// [TraceLvl, DebugLvl, InfoLvl, WarnLvl, ErrorLvl, CriticalLvl, Off]
+		expectedShouldLog []bool
+	}{
+		{
+			TraceStr,
+			[]bool{true, true, true, true, true, true, true},
+		},
+		{
+			DebugStr,
+			[]bool{false, true, true, true, true, true, true},
+		},
+		{
+			InfoStr,
+			[]bool{false, false, true, true, true, true, true},
+		},
+		{
+			WarnStr,
+			[]bool{false, false, false, true, true, true, true},
+		},
+		{
+			ErrorStr,
+			[]bool{false, false, false, false, true, true, true},
+		},
+		{
+			CriticalStr,
+			[]bool{false, false, false, false, false, true, true},
+		},
+		{
+			OffStr,
+			[]bool{false, false, false, false, false, false, true},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run("should log when log level is "+tc.logLevelStr, func(t *testing.T) {
+			changeLogLevel(tc.logLevelStr)
+
+			for i, logLevel := range []LogLevel{TraceLvl, DebugLvl, InfoLvl, WarnLvl, ErrorLvl, CriticalLvl, Off} {
+				shouldLog := ShouldLog(logLevel)
+				expected := tc.expectedShouldLog[i]
+				assert.Equal(t, expected, shouldLog, "expected ShouldLog(%s) to be %v when log level is %q", logLevel.String(), expected, tc.logLevelStr)
+			}
+		})
+	}
+}
+
+func TestShouldLogNilLogger(t *testing.T) {
+	logger.Store(nil)
+
+	assert.False(t, ShouldLog(InfoLvl))
+}
+
+func TestValidateLogLevel(t *testing.T) {
+	testCases := []struct {
+		logLevelStr string
+		expected    string
+	}{
+		// constant log levels
+		{TraceStr, TraceStr},
+		{DebugStr, DebugStr},
+		{InfoStr, InfoStr},
+		{WarnStr, WarnStr},
+		{ErrorStr, ErrorStr},
+		{CriticalStr, CriticalStr},
+		{OffStr, OffStr},
+
+		// uppercase versions
+		{"TRACE", "trace"},
+		{"Debug", "debug"},
+
+		// agent5 specific "Warning" log level
+		{"warning", "warn"},
+	}
+
+	for _, tc := range testCases {
+		t.Run("validate "+tc.logLevelStr, func(t *testing.T) {
+			valid, err := ValidateLogLevel(tc.logLevelStr)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, valid, "expected ValidateLogLevel(%s) to return %s", tc.logLevelStr, tc.expected)
+		})
+	}
+}
+
+func TestValidateLogLevelUnknownLevel(t *testing.T) {
+	logLevel, err := ValidateLogLevel("unknownLogLevel")
+	assert.Equal(t, "", logLevel)
+	assert.Error(t, err)
+	assert.Equal(t, "unknown log level: "+strings.ToLower("unknownLogLevel"), err.Error())
+}
+
+func TestTraceNilLogger(t *testing.T) {
+	// reset buffer state
+	logsBuffer = []func(){}
+	logger.Store(nil)
+
+	logger.trace("message")
+
+	// should not write to the logs buffer
+	assert.Equal(t, 0, len(logsBuffer))
+}
+
+func TestJMXLoggerSetup(t *testing.T) {
+	SetupJMXLogger(Default(), DebugStr)
+	assert.NotNil(t, jmxLogger.Load())
+}
+
+func TestJMXLog(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
+	SetupLogger(l, DebugStr)
+	SetupJMXLogger(l, DebugStr)
+
+	JMXError("jmx error message")
+	JMXInfo("jmx info message")
+
+	w.Flush()
+
+	assert.Subset(t, strings.Split(b.String(), "\n"), []string{
+		"[ERROR] TestJMXLog: jmx error message",
+		"[INFO] TestJMXLog: jmx info message",
+	})
 }

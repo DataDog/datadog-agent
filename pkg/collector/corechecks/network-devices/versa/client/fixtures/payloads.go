@@ -430,3 +430,254 @@ const GetSLAMetrics = `
         ]
     ]
 }`
+
+// GetLinkUsageMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetLinkUsageMetrics = `
+{
+    "qTime": 2,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,INET-1",
+            "test-branch-2B",
+            "INET-1",
+            "10000000000",
+            "10000000000",
+            "Unknown",
+            "Unknown",
+            "10.20.20.7",
+            "",
+            757144.0,
+            457032.0,
+            6730.168888888889,
+            4062.5066666666667
+        ]
+    ]
+}`
+
+// GetLinkStatusMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetLinkStatusMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,INET-1",
+            "test-branch-2B",
+            "INET-1",
+            98.5
+        ]
+    ]
+}`
+
+// GetSLAMetricsPage1 - First page of SLA metrics for pagination testing
+const GetSLAMetricsPage1 = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 4,
+    "iTotalRecords": 4,
+    "aaData": [
+        [
+            "test-branch-1,test-branch-2,INET,INET,best-effort",
+            "test-branch-1",
+            "test-branch-2",
+            "INET",
+            "INET",
+            "best-effort",
+            120.5,
+            1.2,
+            1.1,
+            0.001,
+            0.002,
+            0.0015
+        ],
+        [
+            "test-branch-1,test-branch-3,MPLS,MPLS,real-time",
+            "test-branch-1",
+            "test-branch-3",
+            "MPLS",
+            "MPLS",
+            "real-time",
+            95.3,
+            0.8,
+            0.9,
+            0.0005,
+            0.0008,
+            0.00065
+        ]
+    ]
+}`
+
+// GetSLAMetricsPage2 - Second page of SLA metrics for pagination testing
+const GetSLAMetricsPage2 = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 4,
+    "iTotalRecords": 4,
+    "aaData": [
+        [
+            "test-branch-2,test-branch-4,INET,MPLS,best-effort",
+            "test-branch-2",
+            "test-branch-4",
+            "INET",
+            "MPLS",
+            "best-effort",
+            110.7,
+            1.5,
+            1.3,
+            0.002,
+            0.003,
+            0.0025
+        ]
+    ]
+}`
+
+// GetApplicationsByApplianceMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetApplicationsByApplianceMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,HTTP",
+            "test-branch-2B",
+            "HTTP",
+            50.0,
+            1024000.0,
+            512000.0,
+            8192.0,
+            4096.0,
+            12288.0
+        ]
+    ]
+}`
+
+// GetTopUsers /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetTopUsers = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,testUser",
+            "test-branch-2B",
+            "testUser",
+            50.0,
+            2024000.0,
+            412000.0,
+            7192.0,
+            2096.0,
+            22288.0
+        ]
+    ]
+}`
+
+// GetTunnelMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SYSTEM
+const GetTunnelMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+			"test-branch-2B,10.1.1.1",
+            "test-branch-2B",
+            "10.1.1.1",
+            "10.2.2.2",
+            "vpn-profile-1",
+            67890.0,
+            12345.0
+        ]
+    ]
+}
+`
+
+// GetPathQoSMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetPathQoSMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,test-branch-2C",
+            "test-branch-2B",
+			"test-branch-2C",
+            1000.0,
+            50.0,
+            2000.0,
+            25.0,
+            1500.0,
+            75.0,
+            500.0,
+            10.0,
+            8000000.0,
+            16000000.0,
+            12000000.0,
+            4000000.0,
+            5000.0,
+            160.0,
+            3.2,
+            40000000.0
+        ]
+    ]
+}
+`
+
+// GetDIAMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetDIAMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,DIA-1,192.168.1.1",
+            "test-branch-2B",
+            "DIA-1",
+            "192.168.1.1",
+            15000.0,
+            12000.0,
+            150000.0,
+            120000.0
+        ]
+    ]
+}
+`
+
+// GetSiteMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetSiteMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B",
+            "123 Main St, Anytown, USA",
+            "40.7128",
+            "-74.0060",
+            "GPS",
+            15000.0,
+            12000.0,
+            150000.0,
+            120000.0,
+            99.5
+        ]
+    ]
+}
+`

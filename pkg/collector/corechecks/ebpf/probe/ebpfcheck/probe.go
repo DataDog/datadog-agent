@@ -55,9 +55,6 @@ var kernelAddresses = []string{
 
 const (
 	maxMapsTracked = 20
-
-	// ioctl trigger code
-	ioctlCollectKprobeMissedStatsCmd = 0x70C14
 )
 
 // Probe is the eBPF side of the eBPF check

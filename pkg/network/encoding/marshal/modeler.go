@@ -24,7 +24,7 @@ type ConnectionsModeler struct {
 	usmEncoders  []usmEncoder
 	dnsFormatter *dnsFormatter
 	ipc          ipCache
-	routeIndex   map[string]RouteIdx
+	routeIndex   map[network.Via]RouteIdx
 	tagsSet      *network.TagsSet
 }
 
@@ -39,7 +39,7 @@ func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 		usmEncoders:  initializeUSMEncoders(conns),
 		ipc:          ipc,
 		dnsFormatter: newDNSFormatter(conns, ipc),
-		routeIndex:   make(map[string]RouteIdx),
+		routeIndex:   make(map[network.Via]RouteIdx),
 		tagsSet:      network.NewTagsSet(),
 	}
 }
@@ -85,9 +85,16 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 
 	for _, route := range routes {
 		builder.AddRoutes(func(w *model.RouteBuilder) {
-			w.SetSubnet(func(w *model.SubnetBuilder) {
-				w.SetAlias(route.Subnet.Alias)
-			})
+			if route.Subnet != nil {
+				w.SetSubnet(func(w *model.SubnetBuilder) {
+					w.SetAlias(route.Subnet.Alias)
+				})
+			}
+			if route.Interface != nil {
+				w.SetInterface(func(w *model.InterfaceBuilder) {
+					w.SetHardwareAddr(route.Interface.HardwareAddr)
+				})
+			}
 		})
 	}
 

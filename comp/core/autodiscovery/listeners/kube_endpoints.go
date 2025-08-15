@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -47,7 +47,7 @@ type KubeEndpointsListener struct {
 	delService         chan<- Service
 	targetAllEndpoints bool
 	m                  sync.RWMutex
-	containerFilters   *containerFilters
+	filterStore        workloadfilter.Component
 	telemetryStore     *telemetry.Store
 }
 
@@ -82,8 +82,6 @@ func NewKubeEndpointsListener(options ServiceListernerDeps) (ServiceListener, er
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
-	containerFilters := newContainerFilters()
-
 	return &KubeEndpointsListener{
 		endpoints:          make(map[k8stypes.UID][]*KubeEndpointService),
 		endpointsInformer:  endpointsInformer,
@@ -92,7 +90,7 @@ func NewKubeEndpointsListener(options ServiceListernerDeps) (ServiceListener, er
 		serviceLister:      serviceInformer.Lister(),
 		promInclAnnot:      getPrometheusIncludeAnnotations(),
 		targetAllEndpoints: options.Config.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
-		containerFilters:   containerFilters,
+		filterStore:        options.Filter,
 		telemetryStore:     options.Telemetry,
 	}, nil
 }
@@ -309,29 +307,7 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 		tags = []string{}
 	}
 
-	eps := processEndpoints(kep, tags)
-
-	for i := 0; i < len(eps); i++ {
-		if l.containerFilters == nil {
-			eps[i].metricsExcluded = false
-			eps[i].globalExcluded = false
-			continue
-		}
-		eps[i].metricsExcluded = l.containerFilters.IsExcluded(
-			containers.MetricsFilter,
-			kep.GetAnnotations(),
-			kep.Name,
-			"",
-			kep.Namespace,
-		)
-		eps[i].globalExcluded = l.containerFilters.IsExcluded(
-			containers.GlobalFilter,
-			kep.GetAnnotations(),
-			kep.Name,
-			"",
-			kep.Namespace,
-		)
-	}
+	eps := processEndpoints(kep, tags, l.filterStore)
 
 	l.m.Lock()
 	l.endpoints[kep.UID] = eps
@@ -353,8 +329,22 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 
 // processEndpoints parses a kubernetes Endpoints object
 // and returns a slice of KubeEndpointService per endpoint
-func processEndpoints(kep *v1.Endpoints, tags []string) []*KubeEndpointService {
+func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
 	var eps []*KubeEndpointService
+
+	metricsExcluded := false
+	globalExcluded := false
+	if filterStore != nil {
+		metricsExcluded = filterStore.IsEndpointExcluded(
+			workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations()),
+			[][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotations, workloadfilter.EndpointADAnnotationsMetrics}, {workloadfilter.LegacyEndpointMetrics}},
+		)
+		globalExcluded = filterStore.IsEndpointExcluded(
+			workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations()),
+			[][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotations}, {workloadfilter.LegacyEndpointGlobal}},
+		)
+	}
+
 	for i := range kep.Subsets {
 		ports := []ContainerPort{}
 		// Ports
@@ -373,6 +363,8 @@ func processEndpoints(kep *v1.Endpoints, tags []string) []*KubeEndpointService {
 					fmt.Sprintf("kube_namespace:%s", kep.Namespace),
 					fmt.Sprintf("kube_endpoint_ip:%s", host.IP),
 				},
+				metricsExcluded: metricsExcluded,
+				globalExcluded:  globalExcluded,
 			}
 			ep.tags = append(ep.tags, tags...)
 			eps = append(eps, ep)
@@ -500,11 +492,11 @@ func (s *KubeEndpointService) IsReady() bool {
 
 // HasFilter returns whether the kube endpoint should not collect certain metrics
 // due to filtering applied.
-func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
-	switch filter {
-	case containers.MetricsFilter:
+func (s *KubeEndpointService) HasFilter(fs workloadfilter.Scope) bool {
+	switch fs {
+	case workloadfilter.MetricsFilter:
 		return s.metricsExcluded
-	case containers.GlobalFilter:
+	case workloadfilter.GlobalFilter:
 		return s.globalExcluded
 	default:
 		return false

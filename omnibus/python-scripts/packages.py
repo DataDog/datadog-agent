@@ -13,6 +13,43 @@ import packaging.version
 
 DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by installation process\n"
 
+# List of PyPi package that start with datadog- prefix but that are datadog integrations
+DEPS_STARTING_WITH_DATADOG = [
+    "datadog-a7",
+    "datadog-agent-dev",
+    "datadog-api-client",
+    "datadog-api-client-python",
+    "datadog-ariadne-graphql-server",
+    "datadog-cdk-constructs",
+    "datadog-cdk-constructs-v2",
+    "datadog-checks-base",
+    "datadog-checks-dev",
+    "datadog-checks-downloader",
+    "datadog-cli",
+    "datadog-custom-logger",
+    "datadog-dashboard-deployer",
+    "datadog-deployer",
+    "datadog-export",
+    "datadog-exporter",
+    "datadog-google-openid",
+    "datadog-healthcheck-deployer",
+    "datadog-http-handler",
+    "datadog-lambda-python",
+    "datadog-linter",
+    "datadog-log",
+    "datadog-logger",
+    "datadog-logs-python",
+    "datadog-metrics",
+    "datadog-monitor-deployer",
+    "datadog-monitors-linter",
+    "datadog-muted-alert-checker",
+    "datadog-pandas",
+    "datadog-serverless-compat",
+    "datadog-serverless-utils",
+    "datadog-sma",
+    "datadog-threadstats",
+]
+
 def run_command(args):
     """
     Execute a shell command and return its output and errors.
@@ -69,7 +106,7 @@ def check_file_owner_system_windows(filename):
     # check if file exists
     if not os.path.exists(filename):
         return True
-    
+
     # get NT System account SID
     system_sid = win32security.ConvertStringSidToSid("S-1-5-18")
 
@@ -104,7 +141,7 @@ def check_all_files_owner_system_windows(directory):
             print(f"{file} is not owned by SYSTEM or Administrators, it may have come from an untrusted source, aborting installation.")
             return False
     return True
-    
+
 
 def create_python_installed_packages_file(filename):
     """
@@ -115,8 +152,11 @@ def create_python_installed_packages_file(filename):
         f.write(DO_NOT_REMOVE_WARNING_HEADER)
         installed_packages = importlib.metadata.distributions()
         for dist in installed_packages:
+            if dist.metadata['Name'] is None or dist.version is None:
+                continue
             f.write(f"{dist.metadata['Name']}=={dist.version}\n")
     if not os.name == 'nt':
+        os.chmod(filename, 0o644)
         os.chown(filename, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
 
 def create_diff_installed_packages_file(directory, old_file, new_file):
@@ -143,6 +183,7 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
                 # Package is new in the new file; include it
                 f.write(f"{new_req_value}\n")
     if not os.name == 'nt':
+        os.chmod(diff_file, 0o644)
         os.chown(diff_file, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
 
 def install_datadog_package(package, install_directory):
@@ -154,7 +195,7 @@ def install_datadog_package(package, install_directory):
         args = [agent_cmd, 'integration', 'install', '-t', package, '-r']
     else:
         args = ['datadog-agent', 'integration', 'install', '-t', package, '-r']
-    
+
     run_command(args)
 
 def install_dependency_package(pip, package):
@@ -182,7 +223,9 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
         if install_package_name in exclude_packages:
             print(f"Skipping '{install_package_name}' as it's already included in '{exclude_filename}' file")
         else:
-            if install_package_line.startswith('datadog-'):
+            dep_name = packaging.requirements.Requirement(install_package_line).name
+
+            if install_package_line.startswith('datadog-') and dep_name not in DEPS_STARTING_WITH_DATADOG:
                 install_datadog_package(install_package_line, install_directory)
             else:
                 install_dependency_package(pip, install_package_line)

@@ -18,11 +18,6 @@
           "property_doc_link": "container-id-doc"
         },
         {
-          "name": "container.runtime",
-          "definition": "Runtime managing the container",
-          "property_doc_link": "container-runtime-doc"
-        },
-        {
           "name": "container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "container-tags-doc"
@@ -81,6 +76,11 @@
           "name": "process.ancestors.envs",
           "definition": "Environment variable names of the process",
           "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "process.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "process.ancestors.file.name",
@@ -153,6 +153,11 @@
           "property_doc_link": "common-process-envs-doc"
         },
         {
+          "name": "process.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.file.name",
           "definition": "File's basename",
           "property_doc_link": "common-fileevent-name-doc"
@@ -196,6 +201,11 @@
           "name": "process.parent.envs",
           "definition": "Environment variable names of the process",
           "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "process.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "process.parent.file.name",
@@ -316,6 +326,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "create.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
+        },
+        {
           "name": "create.file.name",
           "definition": "File's basename",
           "property_doc_link": "common-fimfileevent-name-doc"
@@ -402,6 +417,11 @@
           "name": "delete.file.device_path.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "delete.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
         },
         {
           "name": "delete.file.name",
@@ -507,6 +527,11 @@
           "property_doc_link": "common-process-envs-doc"
         },
         {
+          "name": "exec.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "exec.file.name",
           "definition": "File's basename",
           "property_doc_link": "common-fileevent-name-doc"
@@ -589,6 +614,11 @@
           "name": "exit.envs",
           "definition": "Environment variable names of the process",
           "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "exit.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "exit.file.name",
@@ -699,6 +729,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "rename.file.destination.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
+        },
+        {
           "name": "rename.file.destination.name",
           "definition": "File's basename",
           "property_doc_link": "common-fimfileevent-name-doc"
@@ -727,6 +762,11 @@
           "name": "rename.file.device_path.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
         },
         {
           "name": "rename.file.name",
@@ -845,6 +885,11 @@
           "name": "write.file.device_path.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "write.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
         },
         {
           "name": "write.file.name",
@@ -975,6 +1020,38 @@
         "process",
         "process.ancestors",
         "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.extension",
+      "link": "common-fileevent-extension-doc",
+      "type": "string",
+      "definition": "File's extension",
+      "prefixes": [
+        "exec.file",
+        "exit.file",
+        "process.ancestors.file",
+        "process.file",
+        "process.parent.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.extension",
+      "link": "common-fimfileevent-extension-doc",
+      "type": "string",
+      "definition": "File's extension",
+      "prefixes": [
+        "create.file",
+        "delete.file",
+        "rename.file",
+        "rename.file.destination",
+        "write.file"
       ],
       "constants": "",
       "constants_link": "",
@@ -1344,18 +1421,6 @@
       "examples": []
     },
     {
-      "name": "container.runtime",
-      "link": "container-runtime-doc",
-      "type": "string",
-      "definition": "Runtime managing the container",
-      "prefixes": [
-        "container"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "container.tags",
       "link": "container-tags-doc",
       "type": "string",
@@ -1466,6 +1531,52 @@
   ],
   "constants": [
     {
+      "name": "ABI",
+      "link": "abi",
+      "description": "ABI used for binary compilation.",
+      "all": [
+        {
+          "name": "BIT32",
+          "architecture": "all"
+        },
+        {
+          "name": "BIT64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ABI",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Architecture",
+      "link": "architecture",
+      "description": "Architecture of the binary.",
+      "all": [
+        {
+          "name": "X86",
+          "architecture": "all"
+        },
+        {
+          "name": "X86_64",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ARCHITECTURE",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Boolean constants",
       "link": "boolean-constants",
       "description": "Boolean constants are the supported boolean constants.",
@@ -1476,6 +1587,41 @@
         },
         {
           "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "CompressionType",
+      "link": "compressiontype",
+      "description": "Compression algorithm.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "GZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZSTD",
+          "architecture": "all"
+        },
+        {
+          "name": "7Z",
+          "architecture": "all"
+        },
+        {
+          "name": "BZIP2",
+          "architecture": "all"
+        },
+        {
+          "name": "XZ",
           "architecture": "all"
         }
       ]
@@ -1929,6 +2075,53 @@
         },
         {
           "name": "Reserved",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "FileType",
+      "link": "filetype",
+      "description": "File types.",
+      "all": [
+        {
+          "name": "EMPTY",
+          "architecture": "all"
+        },
+        {
+          "name": "SHELL_SCRIPT",
+          "architecture": "all"
+        },
+        {
+          "name": "TEXT",
+          "architecture": "all"
+        },
+        {
+          "name": "COMPRESSED",
+          "architecture": "all"
+        },
+        {
+          "name": "ENCRYPTED",
+          "architecture": "all"
+        },
+        {
+          "name": "BINARY",
+          "architecture": "all"
+        },
+        {
+          "name": "LINUX_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "WINDOWS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MACOS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "FILE_LESS",
           "architecture": "all"
         }
       ]
@@ -2411,6 +2604,25 @@
         },
         {
           "name": "IP_PROTO_RAW",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "LinkageType",
+      "link": "linkagetype",
+      "description": "Linkage types.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "STATIC",
+          "architecture": "all"
+        },
+        {
+          "name": "DYNAMIC",
           "architecture": "all"
         }
       ]

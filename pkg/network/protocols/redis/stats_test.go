@@ -45,7 +45,7 @@ func TestCombineWith(t *testing.T) {
 
 	stats2.AddRequest(false, 10, 1, 10.0)
 	stats3.AddRequest(false, 15, 2, 15.0)
-	stats4.AddRequest(false, 20, 3, 20.0)
+	stats4.AddRequest(false, 20, 4, 20.0)
 
 	stats.CombineWith(stats2)
 	stats.CombineWith(stats3)
@@ -59,6 +59,7 @@ func TestCombineWith(t *testing.T) {
 		assert.Equal(t, 45, s.Count)
 		assert.Equal(t, float64(45), s.Latencies.GetCount())
 		assert.Equal(t, 10.0, s.FirstLatencySample)
+		assert.Equal(t, uint64(1|2|4), s.StaticTags)
 
 		verifyQuantile(t, s.Latencies, 0.0, 10.0) // min item
 		verifyQuantile(t, s.Latencies, 0.5, 15.0) // median

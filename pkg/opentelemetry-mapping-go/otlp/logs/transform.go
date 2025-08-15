@@ -21,14 +21,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 )
 
 const (
@@ -182,11 +183,18 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 	return l
 }
 
-func flattenAttribute(key string, val pcommon.Value, depth int) map[string]string {
-	result := make(map[string]string)
+func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
+	result := make(map[string]any)
 
 	if val.Type() != pcommon.ValueTypeMap || depth == 10 {
-		result[key] = val.AsString()
+		if val.Type() == pcommon.ValueTypeStr ||
+			val.Type() == pcommon.ValueTypeInt ||
+			val.Type() == pcommon.ValueTypeBool ||
+			val.Type() == pcommon.ValueTypeDouble {
+			result[key] = val.AsRaw()
+		} else {
+			result[key] = val.AsString()
+		}
 		return result
 	}
 
@@ -213,13 +221,13 @@ func extractHostNameAndServiceName(resourceAttrs pcommon.Map, logAttrs pcommon.M
 			host = src.Identifier
 		}
 	}
-	if s, ok := resourceAttrs.Get(conventions.AttributeServiceName); ok {
+	if s, ok := resourceAttrs.Get(string(conventions.ServiceNameKey)); ok {
 		service = s.AsString()
 	}
 	// HACK: Check for service in log record attributes if not present in resource attributes.
 	// This is not aligned with the specification and will be removed in the future.
 	if service == "" {
-		if s, ok := logAttrs.Get(conventions.AttributeServiceName); ok {
+		if s, ok := logAttrs.Get(string(conventions.ServiceNameKey)); ok {
 			service = s.AsString()
 		}
 	}

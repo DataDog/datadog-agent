@@ -22,6 +22,9 @@ func (g *slsGauge) Dec(...string) {}
 // Delete deletes the value for the Gauge with the given tags.
 func (g *slsGauge) Delete(...string) {}
 
+// DeletePartialMatch deletes the values for the Gauges that match the subset of given tags
+func (g *slsGauge) DeletePartialMatch(map[string]string) {}
+
 // Add adds the value to the Gauge value.
 func (g *slsGauge) Add(float64, ...string) {}
 

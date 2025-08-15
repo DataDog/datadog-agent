@@ -4,7 +4,6 @@
 #include "macros.h"
 
 #define TTY_NAME_LEN 64
-#define CONTAINER_ID_LEN 64
 #define MAX_XATTR_NAME_LEN 200
 #define CHAR_TO_UINT32_BASE_10_MAX_LEN 11
 #define BASENAME_FILTER_SIZE 256
@@ -77,8 +76,6 @@ enum TC_RAWPACKET_KEYS {
 
 #define EGRESS 1
 #define INGRESS 2
-#define ACT_OK TC_ACT_UNSPEC
-#define ACT_SHOT TC_ACT_SHOT
 #define PACKET_KEY 0
 #define IMDS_EVENT_KEY 0
 #define IMDS_MAX_LENGTH 2048
@@ -191,15 +188,17 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
     return imds_ip;
 };
 
+#define CGROUP_MANAGER_UNDEFINED 0
 #define CGROUP_MANAGER_DOCKER 1
 #define CGROUP_MANAGER_CRIO 2
 #define CGROUP_MANAGER_PODMAN 3
 #define CGROUP_MANAGER_CRI 4
 #define CGROUP_MANAGER_SYSTEMD 5
 
-#define CGROUP_MANAGER_MASK 0b111
-#define CGROUP_SYSTEMD_SERVICE (0 << 8)
-#define CGROUP_SYSTEMD_SCOPE   (1 << 8)
+#define CGROUP_MANAGER_MASK 0xff
+
+#define CGROUP_SYSTEMD_SERVICE (1 << 8)
+#define CGROUP_SYSTEMD_SCOPE (1 << 8) + 1
 
 #define ACTIVE_FLOWS_MAX_SIZE 128
 
@@ -244,6 +243,8 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
 #define SYSCTL_NAME_TRUNCATED (1 << 0)
 #define SYSCTL_OLD_VALUE_TRUNCATED (1 << 1)
 #define SYSCTL_NEW_VALUE_TRUNCATED (1 << 2)
+#define MAX_BPF_FILTER_SIZE (511 * sizeof(struct sock_filter))
+
 
 static __attribute__((always_inline)) u64 has_tracing_helpers_in_cgroup_sysctl() {
     u64 tracing_helpers_in_cgroup_sysctl;
@@ -277,5 +278,7 @@ enum global_rate_limiter_type {
 #define TAIL_CALL_CLASSIFIER_TARGET(name) SEC("classifier/" name)
 #define TAIL_CALL_CLASSIFIER_FNC(name, ...) TAIL_CALL_CLASSIFIER_TARGET("\"" #name "\"") \
     int TAIL_CALL_CLASSIFIER_FNC_NAME(name, __VA_ARGS__)
+
+#define OPEN_TREE_CLONE 1
 
 #endif

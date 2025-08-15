@@ -5,15 +5,17 @@
 
 //go:build linux
 
+// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"slices"
+	"strings"
 	"testing"
 
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -46,16 +48,12 @@ type fakeNetworkStats struct {
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (n *fakeNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
+func (n *fakeNetworkStats) IOCounters(_ bool) ([]net.IOCountersStat, error) {
 	return n.counterStats, n.counterStatsError
 }
 
 // ProtoCounters returns the inner values of counterStats and counterStatsError
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (n *fakeNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
+func (n *fakeNetworkStats) ProtoCounters(_ []string) ([]net.ProtoCountersStat, error) {
 	return n.protoCountersStats, n.protoCountersStatsError
 }
 
@@ -114,6 +112,9 @@ func (f *MockEthtool) Stats(intf string) (map[string]uint64, error) {
 	return nil, unix.ENOTTY
 }
 
+func (f *MockEthtool) Close() {
+}
+
 type MockCommandRunner struct {
 	mock.Mock
 }
@@ -121,31 +122,70 @@ type MockCommandRunner struct {
 func (m *MockCommandRunner) FakeRunCommand(cmd []string, _ []string) (string, error) {
 	if slices.Contains(cmd, "netstat") {
 		return `Proto Recv-Q Send-Q Local Address           Foreign Address         State
-                tcp        0      0 46.105.75.4:80          79.220.227.193:2032     TIME_WAIT
-                tcp        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED`, nil
-	} else if slices.Contains(cmd, "ss") {
-		return `Netid   State     Recv-Q    Send-Q    Local Address           Foreign Address
-				tcp     ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153
-				tcp     TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342`, nil
+tcp         0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
+tcp         0      0 46.105.75.4:143         90.56.111.177:56867     SYN_SENT
+tcp         0      0 46.105.75.4:143         90.56.111.177:56867     SYN_RECV
+tcp         0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT1
+tcp         0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT2
+tcp         0      0 46.105.75.4:80          79.220.227.193:2032     TIME_WAIT
+tcp         0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE
+tcp         0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE_WAIT
+tcp         0      0 46.105.75.4:143         90.56.111.177:56867     LAST_ACK
+tcp         0      0 46.105.75.4:143         90.56.111.177:56867     LISTEN
+tcp         0      0 46.105.75.4:143         90.56.111.177:56867     CLOSING
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     SYN_SENT
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     SYN_RECV
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT1
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT2
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     TIME_WAIT
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE_WAIT
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     LAST_ACK
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     LISTEN
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSING
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     SYN_SENT
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     SYN_RECV
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT1
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     FIN_WAIT2
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     TIME_WAIT
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSE_WAIT
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     LAST_ACK
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     LISTEN
+tcp6        0      0 46.105.75.4:143         90.56.111.177:56867     CLOSING
+udp         0      0 46.105.75.4:143         90.56.111.177:56867
+udp6        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
+udp6        0      0 46.105.75.4:143         90.56.111.177:56867
+`, nil
+	} else if slices.ContainsFunc(cmd, func(s string) bool {
+		return strings.Contains(s, "ss")
+	}) {
+		return `State     Recv-Q    Send-Q    Local Address           Foreign Address
+ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153
+TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342
+`, nil
 	}
 	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
 	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
 }
 
-type MockSS struct {
-	mock.Mock
-}
-
-func (m *MockSS) SSCommand() error {
-	return nil
-}
-
-func (m *MockSS) NetstatCommand() error {
-	return errors.New("forced to use netstat")
+func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
+	return &NetworkCheck{
+		net: mockNetStats,
+		config: networkConfig{
+			instance: networkInstanceConfig{
+				CollectRateMetrics:        true,
+				WhitelistConntrackMetrics: []string{"max", "count"},
+				UseSudoConntrack:          true,
+			},
+		},
+	}
 }
 
 func TestDefaultConfiguration(t *testing.T) {
-	check := NetworkCheck{}
+	check := createTestNetworkCheck(nil)
 	check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
 	assert.Equal(t, false, check.config.instance.CollectConnectionState)
@@ -154,9 +194,10 @@ func TestDefaultConfiguration(t *testing.T) {
 }
 
 func TestConfiguration(t *testing.T) {
-	check := NetworkCheck{}
+	check := createTestNetworkCheck(nil)
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
+collect_count_metrics: true
 excluded_interfaces:
     - eth0
     - lo0
@@ -368,22 +409,25 @@ func TestNetworkCheck(t *testing.T) {
 	}
 
 	mockEthtool := new(MockEthtool)
-	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
+	mockEthtool.On("DriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
 	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getEthtoolDrvInfo = mockEthtool.DriverInfo
-	getEthtoolStats = mockEthtool.Stats
-
-	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.NetstatCommand
-
-	networkCheck := NetworkCheck{
-		net: net,
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
 	}
+
+	ssAvailableFunction = func() bool { return false }
+
+	mockCommandRunner := new(MockCommandRunner)
+	runCommandFunction = mockCommandRunner.FakeRunCommand
+	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
+
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
-collect_ethtool_stats: true
+collect_count_metrics: true
+collect_ethtool_metrics: true
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -535,9 +579,7 @@ func TestExcludedInterfaces(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 excluded_interfaces:
@@ -626,9 +668,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 excluded_interface_re: "eth[0-9]"
@@ -694,8 +734,9 @@ func TestFetchEthtoolStats(t *testing.T) {
 	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
 	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getEthtoolDrvInfo = mockEthtool.DriverInfo
-	getEthtoolStats = mockEthtool.Stats
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
 
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
@@ -713,12 +754,10 @@ func TestFetchEthtoolStats(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_stats: true`), []byte(``), "test")
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -728,12 +767,12 @@ func TestFetchEthtoolStats(t *testing.T) {
 	err := networkCheck.Run()
 	assert.Nil(t, err)
 
-	expectedTags := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
+	expectedTags := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.queue.tx_packets", float64(12345), "", expectedTags)
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.queue.rx_packets", float64(67890), "", expectedTags)
-	expectedTagsCPU := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
+	expectedTagsCPU := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.cpu.rx_xdp_tx", float64(123), "", expectedTagsCPU)
-	expectedTagsGlobal := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
+	expectedTagsGlobal := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
 }
 
@@ -743,8 +782,9 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
 	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
 
-	getEthtoolDrvInfo = mockEthtool.DriverInfo
-	getEthtoolStats = mockEthtool.Stats
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
 
 	net := &fakeNetworkStats{
 		counterStats: []net.IOCountersStat{
@@ -762,12 +802,10 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
-	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_stats: true`), []byte(``), "test")
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_metrics: true`), []byte(``), "test")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -777,20 +815,18 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 	err := networkCheck.Run()
 	assert.Nil(t, err)
 
-	expectedTagsIfNoError := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
+	expectedTagsIfNoError := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.queue.tx_packets", float64(12345), "", expectedTagsIfNoError)
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.queue.rx_packets", float64(67890), "", expectedTagsIfNoError)
-	expectedTagsCPUIfNoError := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
+	expectedTagsCPUIfNoError := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.cpu.rx_xdp_tx", float64(123), "", expectedTagsCPUIfNoError)
-	expectedTagsGlobal := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
+	expectedTagsGlobal := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
 }
 
 func TestNetstatAndSnmpCountersUsingCorrectMockedProcfsPath(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -826,9 +862,7 @@ IpExt: 801 439 120 439`),
 
 func TestNetstatAndSnmpCountersWrongConfiguredLocation(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/wrong_mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/wrong_mocked/procfs"
@@ -858,9 +892,7 @@ IpExt: 801 439 120 439`),
 
 func TestNetstatAndSnmpCountersNoColonFile(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -895,9 +927,7 @@ procfs_path: "/mocked/procfs"
 
 func TestNetstatAndSnmpCountersBadDataLine(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -931,9 +961,7 @@ procfs_path: "/mocked/procfs"
 
 func TestNetstatAndSnmpCountersMismatchedColumns(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -970,9 +998,7 @@ IpExt: 801 439 120 439`),
 
 func TestNetstatAndSnmpCountersLettersForNumbers(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -1008,14 +1034,12 @@ IpExt: 801 439 120 439`),
 
 func TestConntrackMonotonicCount(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: ""
+conntrack_path: "/usr/bin/conntrack"
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -1048,14 +1072,12 @@ conntrack_path: ""
 
 func TestConntrackGaugeBlacklist(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: ""
+conntrack_path: "/usr/bin/conntrack"
 whitelist_conntrack_metrics: ["max", "count"]
 blacklist_conntrack_metrics: ["count", "entries", "max"]
 `)
@@ -1092,14 +1114,12 @@ blacklist_conntrack_metrics: ["count", "entries", "max"]
 
 func TestConntrackGaugeWhitelist(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: ""
+conntrack_path: "/usr/bin/conntrack"
 whitelist_conntrack_metrics: ["max", "include"]
 `)
 
@@ -1150,17 +1170,15 @@ func TestFetchQueueStatsSS(t *testing.T) {
 		},
 	}
 
-	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.SSCommand
+	ssAvailableFunction = func() bool { return true }
 	mockCommandRunner := new(MockCommandRunner)
 	runCommandFunction = mockCommandRunner.FakeRunCommand
 
 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-	fakeInstanceConfig := []byte(`conntrack_path: "None"
+	networkCheck := createTestNetworkCheck(net)
+
+	fakeInstanceConfig := []byte(`conntrack_path: ""
 collect_connection_state: true
 collect_connection_queues: true`)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -1198,17 +1216,14 @@ func TestFetchQueueStatsNetstat(t *testing.T) {
 		},
 	}
 
-	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.NetstatCommand
+	ssAvailableFunction = func() bool { return false }
 	mockCommandRunner := new(MockCommandRunner)
 	runCommandFunction = mockCommandRunner.FakeRunCommand
 
 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
-	fakeInstanceConfig := []byte(`conntrack_path: "None"
+	networkCheck := createTestNetworkCheck(net)
+	fakeInstanceConfig := []byte(`conntrack_path: ""
 collect_connection_state: true
 collect_connection_queues: true`)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -1227,4 +1242,355 @@ collect_connection_queues: true`)
 	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:established"})
 	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:time_wait"})
 	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:established"})
+}
+
+func TestParseSocketStatMetrics(t *testing.T) {
+	testcases := []struct {
+		name     string
+		protocol string
+		input    string
+		want     map[string]*connectionStateEntry
+	}{
+		{
+			name:     "initializes tcp4 states",
+			protocol: "tcp4",
+			input: `
+State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+`,
+			want: map[string]*connectionStateEntry{
+				"established": emptyConnectionStateEntry(),
+				"opening":     emptyConnectionStateEntry(),
+				"closing":     emptyConnectionStateEntry(),
+				"time_wait":   emptyConnectionStateEntry(),
+				"listening":   emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes tcp6 states",
+			protocol: "tcp6",
+			input: `
+State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+`,
+			want: map[string]*connectionStateEntry{
+				"established": emptyConnectionStateEntry(),
+				"opening":     emptyConnectionStateEntry(),
+				"closing":     emptyConnectionStateEntry(),
+				"time_wait":   emptyConnectionStateEntry(),
+				"listening":   emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes udp4 states",
+			protocol: "udp4",
+			input: `
+State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes udp6 states",
+			protocol: "udp6",
+			input: `
+State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "collects tcp4 states correctly",
+			protocol: "tcp4",
+			input: `
+State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
+LISTEN         0           4096           127.0.0.53%lo:53             0.0.0.0:*
+LISTEN         1024        0                   0.0.0.0:27500          0.0.0.0:*
+LISTEN         0           4096              127.0.0.54:53             0.0.0.0:*
+ESTAB          0           0               192.168.64.6:38848    34.107.243.93:443
+TIME-WAIT      0           0        192.168.64.6%enp0s1:42804     38.145.32.21:80
+`,
+			want: map[string]*connectionStateEntry{
+				"established": {
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+				"opening": emptyConnectionStateEntry(),
+				"closing": emptyConnectionStateEntry(),
+				"time_wait": {
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+				"listening": {
+					count: 3,
+					recvQ: []uint64{0, 1024, 0},
+					sendQ: []uint64{4096, 0, 4096},
+				},
+			},
+		},
+		{
+			name:     "collects tcp6 states correctly",
+			protocol: "tcp6",
+			input: `
+State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
+LISTEN         0           4096           127.0.0.53%lo:53             0.0.0.0:*
+LISTEN         1024           0                   0.0.0.0:27500          0.0.0.0:*
+ESTAB          0           0               192.168.64.6:38848    34.107.243.93:443
+TIME-WAIT      0           0        192.168.64.6%enp0s1:42804     38.145.32.21:80
+`,
+			want: map[string]*connectionStateEntry{
+				"established": {
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+				"opening": emptyConnectionStateEntry(),
+				"closing": emptyConnectionStateEntry(),
+				"time_wait": {
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+				"listening": {
+					count: 2,
+					recvQ: []uint64{0, 1024},
+					sendQ: []uint64{4096, 0},
+				},
+			},
+		},
+		{
+			name:     "collects udp4 states correctly",
+			protocol: "udp4",
+			input: `
+State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
+UNCONN      0           0           127.0.0.53%lo:53             0.0.0.0:*
+UNCONN      0           0                   0.0.0.0:27500          0.0.0.0:*
+UNCONN      0           0              127.0.0.54:53             0.0.0.0:*
+UNCONN      0           0                 0.0.0.0:5355           0.0.0.0:*
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": {
+					count: 4,
+					recvQ: []uint64{0, 0, 0, 0},
+					sendQ: []uint64{0, 0, 0, 0},
+				},
+			},
+		},
+		{
+			name:     "collects udp6 states correctly",
+			protocol: "udp6",
+			input: `
+State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
+UNCONN      0           0           127.0.0.53%lo:53             0.0.0.0:*
+UNCONN      0           0                   0.0.0.0:27500          0.0.0.0:*
+UNCONN      0           0              127.0.0.54:53             0.0.0.0:*
+UNCONN      0           0                 0.0.0.0:5355           0.0.0.0:*
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": {
+					count: 4,
+					recvQ: []uint64{0, 0, 0, 0},
+					sendQ: []uint64{0, 0, 0, 0},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseSocketStatsMetrics(tc.protocol, tc.input)
+			assert.NoError(t, err)
+			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
+				t.Errorf("socket statistics result parsing diff (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestParseNetstatMetrics(t *testing.T) {
+	testcases := []struct {
+		name     string
+		protocol string
+		input    string
+		want     map[string]*connectionStateEntry
+	}{
+		{
+			name:     "initializes tcp4 states",
+			protocol: "tcp4",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+`,
+			want: map[string]*connectionStateEntry{
+				"established": emptyConnectionStateEntry(),
+				"opening":     emptyConnectionStateEntry(),
+				"closing":     emptyConnectionStateEntry(),
+				"time_wait":   emptyConnectionStateEntry(),
+				"listening":   emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes tcp6 states",
+			protocol: "tcp6",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+`,
+			want: map[string]*connectionStateEntry{
+				"established": emptyConnectionStateEntry(),
+				"opening":     emptyConnectionStateEntry(),
+				"closing":     emptyConnectionStateEntry(),
+				"time_wait":   emptyConnectionStateEntry(),
+				"listening":   emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes udp4 states",
+			protocol: "udp4",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes udp6 states",
+			protocol: "udp6",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "collects tcp4 states correctly",
+			protocol: "tcp4",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        1024      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
+tcp        0      1024 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
+tcp6       0      1024 :::5355                 :::*                    LISTEN
+tcp6       1024      0 ::1:631                 :::*                    LISTEN
+udp        0      0 127.0.0.53:53           0.0.0.0:*
+udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
+udp6       0      0 :::5353                 :::*
+`,
+			want: map[string]*connectionStateEntry{
+				"established": {
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{1024},
+				},
+				"opening": emptyConnectionStateEntry(),
+				"closing": emptyConnectionStateEntry(),
+				"time_wait": {
+					count: 1,
+					recvQ: []uint64{1024},
+					sendQ: []uint64{0},
+				},
+				"listening": emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "collects tcp6 states correctly",
+			protocol: "tcp6",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        1024      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
+tcp        0      1024 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
+tcp6       0      1024 :::5355                 :::*                    LISTEN
+tcp6       1024      0 ::1:631                 :::*                    LISTEN
+udp        0      0 127.0.0.53:53           0.0.0.0:*
+udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
+udp6       0      0 :::5353                 :::*
+`,
+			want: map[string]*connectionStateEntry{
+				"established": emptyConnectionStateEntry(),
+				"opening":     emptyConnectionStateEntry(),
+				"closing":     emptyConnectionStateEntry(),
+				"time_wait":   emptyConnectionStateEntry(),
+				"listening": {
+					count: 2,
+					recvQ: []uint64{0, 1024},
+					sendQ: []uint64{1024, 0},
+				},
+			},
+		},
+		{
+			name:     "collects udp4 states correctly",
+			protocol: "udp4",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
+tcp        0      0 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
+tcp6       0      0 :::5355                 :::*                    LISTEN
+tcp6       0      0 ::1:631                 :::*                    LISTEN
+udp        0      0 127.0.0.53:53           0.0.0.0:*
+udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
+udp6       0      0 :::5353                 :::*
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": {
+					count: 2,
+					recvQ: []uint64{0, 0},
+					sendQ: []uint64{0, 0},
+				},
+			},
+		},
+		{
+			name:     "collects udp6 states correctly",
+			protocol: "udp6",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
+tcp        0      0 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
+tcp6       0      0 :::5355                 :::*                    LISTEN
+tcp6       0      0 ::1:631                 :::*                    LISTEN
+udp        0      0 127.0.0.53:53           0.0.0.0:*
+udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
+udp6       0      0 :::5353                 :::*
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": {
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseNetstatMetrics(tc.protocol, tc.input)
+			assert.NoError(t, err)
+			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
+				t.Errorf("netstat result parsing diff (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func connectionStateEntryComparer(a, b *connectionStateEntry) bool {
+	return a.count == b.count &&
+		gocmp.Equal(a.recvQ, b.recvQ) &&
+		gocmp.Equal(a.sendQ, b.sendQ)
+}
+
+func emptyConnectionStateEntry() *connectionStateEntry {
+	return &connectionStateEntry{
+		count: 0,
+		recvQ: []uint64{},
+		sendQ: []uint64{},
+	}
 }

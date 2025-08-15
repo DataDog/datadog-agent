@@ -127,6 +127,15 @@ Invoke-BuildScript `
         exit $err
     }
 
+    # Run PowerShell install script unit tests
+    & powershell -ExecutionPolicy Bypass -File ".\tools\windows\DatadogAgentInstallScript\Run-Tests.ps1"
+    $err = $LASTEXITCODE
+    Write-Host PowerShell install script test result is $err
+    if($err -ne 0){
+        Write-Host -ForegroundColor Red "PowerShell install script test failed $err"
+        exit $err
+    }
+
     # Go unit tests
     $test_output_file = if ($Env:TEST_OUTPUT_FILE) { $Env:TEST_OUTPUT_FILE } else { "test_output.json" }
     $TEST_WASHER_FLAG=""
