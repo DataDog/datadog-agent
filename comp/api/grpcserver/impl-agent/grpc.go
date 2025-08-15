@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
+	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -57,6 +59,7 @@ type Requires struct {
 	RemoteAgentRegistry remoteagentregistry.Component
 	Telemetry           telemetry.Component
 	Hostname            hostnameinterface.Component
+	ConfigStream        configstream.Component
 }
 
 type server struct {
@@ -73,6 +76,7 @@ type server struct {
 	configComp          config.Component
 	telemetry           telemetry.Component
 	hostname            hostnameinterface.Component
+	configStream        configstream.Component
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -105,6 +109,7 @@ func (s *server) BuildServer() http.Handler {
 		remoteAgentRegistry: s.remoteAgentRegistry,
 		autodiscovery:       s.autodiscovery,
 		configComp:          s.configComp,
+		configStreamServer:  configstreamServer.NewServer(s.configStream),
 	})
 
 	return grpcServer
@@ -132,6 +137,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			configComp:          reqs.Cfg,
 			telemetry:           reqs.Telemetry,
 			hostname:            reqs.Hostname,
+			configStream:        reqs.ConfigStream,
 		},
 	}
 	return provides, nil

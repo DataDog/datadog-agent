@@ -7,6 +7,7 @@
 package core
 
 import (
+	_struct "github.com/golang/protobuf/ptypes/struct"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1151,6 +1152,313 @@ func (x *TaggerStateResponse) GetLoaded() bool {
 	return false
 }
 
+type ConfigStreamRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The name of the client subscribing to the config stream.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigStreamRequest) Reset() {
+	*x = ConfigStreamRequest{}
+	mi := &file_datadog_model_v1_model_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigStreamRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigStreamRequest) ProtoMessage() {}
+
+func (x *ConfigStreamRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_model_v1_model_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigStreamRequest.ProtoReflect.Descriptor instead.
+func (*ConfigStreamRequest) Descriptor() ([]byte, []int) {
+	return file_datadog_model_v1_model_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ConfigStreamRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type ConfigSetting struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Source        string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	Key           string                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
+	Value         *_struct.Value         `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigSetting) Reset() {
+	*x = ConfigSetting{}
+	mi := &file_datadog_model_v1_model_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigSetting) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigSetting) ProtoMessage() {}
+
+func (x *ConfigSetting) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_model_v1_model_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigSetting.ProtoReflect.Descriptor instead.
+func (*ConfigSetting) Descriptor() ([]byte, []int) {
+	return file_datadog_model_v1_model_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ConfigSetting) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *ConfigSetting) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *ConfigSetting) GetValue() *_struct.Value {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+type ConfigSnapshot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Origin        string                 `protobuf:"bytes,1,opt,name=origin,proto3" json:"origin,omitempty"`
+	SequenceId    int32                  `protobuf:"varint,2,opt,name=sequence_id,json=sequenceId,proto3" json:"sequence_id,omitempty"`
+	Settings      []*ConfigSetting       `protobuf:"bytes,3,rep,name=settings,proto3" json:"settings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigSnapshot) Reset() {
+	*x = ConfigSnapshot{}
+	mi := &file_datadog_model_v1_model_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigSnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigSnapshot) ProtoMessage() {}
+
+func (x *ConfigSnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_model_v1_model_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigSnapshot.ProtoReflect.Descriptor instead.
+func (*ConfigSnapshot) Descriptor() ([]byte, []int) {
+	return file_datadog_model_v1_model_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *ConfigSnapshot) GetOrigin() string {
+	if x != nil {
+		return x.Origin
+	}
+	return ""
+}
+
+func (x *ConfigSnapshot) GetSequenceId() int32 {
+	if x != nil {
+		return x.SequenceId
+	}
+	return 0
+}
+
+func (x *ConfigSnapshot) GetSettings() []*ConfigSetting {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
+type ConfigUpdate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Origin        string                 `protobuf:"bytes,1,opt,name=origin,proto3" json:"origin,omitempty"`
+	SequenceId    int32                  `protobuf:"varint,2,opt,name=sequence_id,json=sequenceId,proto3" json:"sequence_id,omitempty"`
+	Setting       *ConfigSetting         `protobuf:"bytes,3,opt,name=setting,proto3" json:"setting,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigUpdate) Reset() {
+	*x = ConfigUpdate{}
+	mi := &file_datadog_model_v1_model_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigUpdate) ProtoMessage() {}
+
+func (x *ConfigUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_model_v1_model_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigUpdate.ProtoReflect.Descriptor instead.
+func (*ConfigUpdate) Descriptor() ([]byte, []int) {
+	return file_datadog_model_v1_model_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ConfigUpdate) GetOrigin() string {
+	if x != nil {
+		return x.Origin
+	}
+	return ""
+}
+
+func (x *ConfigUpdate) GetSequenceId() int32 {
+	if x != nil {
+		return x.SequenceId
+	}
+	return 0
+}
+
+func (x *ConfigUpdate) GetSetting() *ConfigSetting {
+	if x != nil {
+		return x.Setting
+	}
+	return nil
+}
+
+type ConfigEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*ConfigEvent_Snapshot
+	//	*ConfigEvent_Update
+	Event         isConfigEvent_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigEvent) Reset() {
+	*x = ConfigEvent{}
+	mi := &file_datadog_model_v1_model_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigEvent) ProtoMessage() {}
+
+func (x *ConfigEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_model_v1_model_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigEvent.ProtoReflect.Descriptor instead.
+func (*ConfigEvent) Descriptor() ([]byte, []int) {
+	return file_datadog_model_v1_model_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ConfigEvent) GetEvent() isConfigEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *ConfigEvent) GetSnapshot() *ConfigSnapshot {
+	if x != nil {
+		if x, ok := x.Event.(*ConfigEvent_Snapshot); ok {
+			return x.Snapshot
+		}
+	}
+	return nil
+}
+
+func (x *ConfigEvent) GetUpdate() *ConfigUpdate {
+	if x != nil {
+		if x, ok := x.Event.(*ConfigEvent_Update); ok {
+			return x.Update
+		}
+	}
+	return nil
+}
+
+type isConfigEvent_Event interface {
+	isConfigEvent_Event()
+}
+
+type ConfigEvent_Snapshot struct {
+	Snapshot *ConfigSnapshot `protobuf:"bytes,1,opt,name=snapshot,proto3,oneof"`
+}
+
+type ConfigEvent_Update struct {
+	Update *ConfigUpdate `protobuf:"bytes,2,opt,name=update,proto3,oneof"`
+}
+
+func (*ConfigEvent_Snapshot) isConfigEvent_Event() {}
+
+func (*ConfigEvent_Update) isConfigEvent_Event() {}
+
 // Nested message for the local data
 type GenerateContainerIDFromOriginInfoRequest_LocalData struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1164,7 +1472,7 @@ type GenerateContainerIDFromOriginInfoRequest_LocalData struct {
 
 func (x *GenerateContainerIDFromOriginInfoRequest_LocalData) Reset() {
 	*x = GenerateContainerIDFromOriginInfoRequest_LocalData{}
-	mi := &file_datadog_model_v1_model_proto_msgTypes[19]
+	mi := &file_datadog_model_v1_model_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1176,7 +1484,7 @@ func (x *GenerateContainerIDFromOriginInfoRequest_LocalData) String() string {
 func (*GenerateContainerIDFromOriginInfoRequest_LocalData) ProtoMessage() {}
 
 func (x *GenerateContainerIDFromOriginInfoRequest_LocalData) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_model_v1_model_proto_msgTypes[19]
+	mi := &file_datadog_model_v1_model_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1232,7 +1540,7 @@ type GenerateContainerIDFromOriginInfoRequest_ExternalData struct {
 
 func (x *GenerateContainerIDFromOriginInfoRequest_ExternalData) Reset() {
 	*x = GenerateContainerIDFromOriginInfoRequest_ExternalData{}
-	mi := &file_datadog_model_v1_model_proto_msgTypes[20]
+	mi := &file_datadog_model_v1_model_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1244,7 +1552,7 @@ func (x *GenerateContainerIDFromOriginInfoRequest_ExternalData) String() string 
 func (*GenerateContainerIDFromOriginInfoRequest_ExternalData) ProtoMessage() {}
 
 func (x *GenerateContainerIDFromOriginInfoRequest_ExternalData) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_model_v1_model_proto_msgTypes[20]
+	mi := &file_datadog_model_v1_model_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1285,7 +1593,7 @@ var File_datadog_model_v1_model_proto protoreflect.FileDescriptor
 
 const file_datadog_model_v1_model_proto_rawDesc = "" +
 	"\n" +
-	"\x1cdatadog/model/v1/model.proto\x12\x10datadog.model.v1\"\x11\n" +
+	"\x1cdatadog/model/v1/model.proto\x12\x10datadog.model.v1\x1a\x1cgoogle/protobuf/struct.proto\"\x11\n" +
 	"\x0fHostnameRequest\"+\n" +
 	"\rHostnameReply\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\"\x10\n" +
@@ -1376,7 +1684,27 @@ const file_datadog_model_v1_model_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"-\n" +
 	"\x13TaggerStateResponse\x12\x16\n" +
-	"\x06loaded\x18\x01 \x01(\bR\x06loaded*1\n" +
+	"\x06loaded\x18\x01 \x01(\bR\x06loaded\")\n" +
+	"\x13ConfigStreamRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"g\n" +
+	"\rConfigSetting\x12\x16\n" +
+	"\x06source\x18\x01 \x01(\tR\x06source\x12\x10\n" +
+	"\x03key\x18\x02 \x01(\tR\x03key\x12,\n" +
+	"\x05value\x18\x03 \x01(\v2\x16.google.protobuf.ValueR\x05value\"\x86\x01\n" +
+	"\x0eConfigSnapshot\x12\x16\n" +
+	"\x06origin\x18\x01 \x01(\tR\x06origin\x12\x1f\n" +
+	"\vsequence_id\x18\x02 \x01(\x05R\n" +
+	"sequenceId\x12;\n" +
+	"\bsettings\x18\x03 \x03(\v2\x1f.datadog.model.v1.ConfigSettingR\bsettings\"\x82\x01\n" +
+	"\fConfigUpdate\x12\x16\n" +
+	"\x06origin\x18\x01 \x01(\tR\x06origin\x12\x1f\n" +
+	"\vsequence_id\x18\x02 \x01(\x05R\n" +
+	"sequenceId\x129\n" +
+	"\asetting\x18\x03 \x01(\v2\x1f.datadog.model.v1.ConfigSettingR\asetting\"\x90\x01\n" +
+	"\vConfigEvent\x12>\n" +
+	"\bsnapshot\x18\x01 \x01(\v2 .datadog.model.v1.ConfigSnapshotH\x00R\bsnapshot\x128\n" +
+	"\x06update\x18\x02 \x01(\v2\x1e.datadog.model.v1.ConfigUpdateH\x00R\x06updateB\a\n" +
+	"\x05event*1\n" +
 	"\tEventType\x12\t\n" +
 	"\x05ADDED\x10\x00\x12\f\n" +
 	"\bMODIFIED\x10\x01\x12\v\n" +
@@ -1399,33 +1727,39 @@ func file_datadog_model_v1_model_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_model_v1_model_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_datadog_model_v1_model_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_datadog_model_v1_model_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_datadog_model_v1_model_proto_goTypes = []any{
-	(EventType)(0),                                                // 0: datadog.model.v1.EventType
-	(TagCardinality)(0),                                           // 1: datadog.model.v1.TagCardinality
-	(*HostnameRequest)(nil),                                       // 2: datadog.model.v1.HostnameRequest
-	(*HostnameReply)(nil),                                         // 3: datadog.model.v1.HostnameReply
-	(*HostTagRequest)(nil),                                        // 4: datadog.model.v1.HostTagRequest
-	(*HostTagReply)(nil),                                          // 5: datadog.model.v1.HostTagReply
-	(*CaptureTriggerRequest)(nil),                                 // 6: datadog.model.v1.CaptureTriggerRequest
-	(*CaptureTriggerResponse)(nil),                                // 7: datadog.model.v1.CaptureTriggerResponse
-	(*StreamTagsRequest)(nil),                                     // 8: datadog.model.v1.StreamTagsRequest
-	(*StreamTagsResponse)(nil),                                    // 9: datadog.model.v1.StreamTagsResponse
-	(*StreamTagsEvent)(nil),                                       // 10: datadog.model.v1.StreamTagsEvent
-	(*DeprecatedFilter)(nil),                                      // 11: datadog.model.v1.DeprecatedFilter
-	(*Entity)(nil),                                                // 12: datadog.model.v1.Entity
-	(*GenerateContainerIDFromOriginInfoRequest)(nil),              // 13: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest
-	(*GenerateContainerIDFromOriginInfoResponse)(nil),             // 14: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
-	(*FetchEntityRequest)(nil),                                    // 15: datadog.model.v1.FetchEntityRequest
-	(*FetchEntityResponse)(nil),                                   // 16: datadog.model.v1.FetchEntityResponse
-	(*EntityId)(nil),                                              // 17: datadog.model.v1.EntityId
-	(*UnixDogstatsdMsg)(nil),                                      // 18: datadog.model.v1.UnixDogstatsdMsg
-	(*TaggerState)(nil),                                           // 19: datadog.model.v1.TaggerState
-	(*TaggerStateResponse)(nil),                                   // 20: datadog.model.v1.TaggerStateResponse
-	(*GenerateContainerIDFromOriginInfoRequest_LocalData)(nil),    // 21: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.LocalData
-	(*GenerateContainerIDFromOriginInfoRequest_ExternalData)(nil), // 22: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.ExternalData
-	nil, // 23: datadog.model.v1.TaggerState.StateEntry
-	nil, // 24: datadog.model.v1.TaggerState.PidMapEntry
+	(EventType)(0),                                             // 0: datadog.model.v1.EventType
+	(TagCardinality)(0),                                        // 1: datadog.model.v1.TagCardinality
+	(*HostnameRequest)(nil),                                    // 2: datadog.model.v1.HostnameRequest
+	(*HostnameReply)(nil),                                      // 3: datadog.model.v1.HostnameReply
+	(*HostTagRequest)(nil),                                     // 4: datadog.model.v1.HostTagRequest
+	(*HostTagReply)(nil),                                       // 5: datadog.model.v1.HostTagReply
+	(*CaptureTriggerRequest)(nil),                              // 6: datadog.model.v1.CaptureTriggerRequest
+	(*CaptureTriggerResponse)(nil),                             // 7: datadog.model.v1.CaptureTriggerResponse
+	(*StreamTagsRequest)(nil),                                  // 8: datadog.model.v1.StreamTagsRequest
+	(*StreamTagsResponse)(nil),                                 // 9: datadog.model.v1.StreamTagsResponse
+	(*StreamTagsEvent)(nil),                                    // 10: datadog.model.v1.StreamTagsEvent
+	(*DeprecatedFilter)(nil),                                   // 11: datadog.model.v1.DeprecatedFilter
+	(*Entity)(nil),                                             // 12: datadog.model.v1.Entity
+	(*GenerateContainerIDFromOriginInfoRequest)(nil),           // 13: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest
+	(*GenerateContainerIDFromOriginInfoResponse)(nil),          // 14: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
+	(*FetchEntityRequest)(nil),                                 // 15: datadog.model.v1.FetchEntityRequest
+	(*FetchEntityResponse)(nil),                                // 16: datadog.model.v1.FetchEntityResponse
+	(*EntityId)(nil),                                           // 17: datadog.model.v1.EntityId
+	(*UnixDogstatsdMsg)(nil),                                   // 18: datadog.model.v1.UnixDogstatsdMsg
+	(*TaggerState)(nil),                                        // 19: datadog.model.v1.TaggerState
+	(*TaggerStateResponse)(nil),                                // 20: datadog.model.v1.TaggerStateResponse
+	(*ConfigStreamRequest)(nil),                                // 21: datadog.model.v1.ConfigStreamRequest
+	(*ConfigSetting)(nil),                                      // 22: datadog.model.v1.ConfigSetting
+	(*ConfigSnapshot)(nil),                                     // 23: datadog.model.v1.ConfigSnapshot
+	(*ConfigUpdate)(nil),                                       // 24: datadog.model.v1.ConfigUpdate
+	(*ConfigEvent)(nil),                                        // 25: datadog.model.v1.ConfigEvent
+	(*GenerateContainerIDFromOriginInfoRequest_LocalData)(nil), // 26: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.LocalData
+	(*GenerateContainerIDFromOriginInfoRequest_ExternalData)(nil), // 27: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.ExternalData
+	nil,                   // 28: datadog.model.v1.TaggerState.StateEntry
+	nil,                   // 29: datadog.model.v1.TaggerState.PidMapEntry
+	(*_struct.Value)(nil), // 30: google.protobuf.Value
 }
 var file_datadog_model_v1_model_proto_depIdxs = []int32{
 	1,  // 0: datadog.model.v1.StreamTagsRequest.cardinality:type_name -> datadog.model.v1.TagCardinality
@@ -1435,20 +1769,25 @@ var file_datadog_model_v1_model_proto_depIdxs = []int32{
 	0,  // 4: datadog.model.v1.StreamTagsEvent.type:type_name -> datadog.model.v1.EventType
 	12, // 5: datadog.model.v1.StreamTagsEvent.entity:type_name -> datadog.model.v1.Entity
 	17, // 6: datadog.model.v1.Entity.id:type_name -> datadog.model.v1.EntityId
-	21, // 7: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.localData:type_name -> datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.LocalData
-	22, // 8: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.externalData:type_name -> datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.ExternalData
+	26, // 7: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.localData:type_name -> datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.LocalData
+	27, // 8: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.externalData:type_name -> datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.ExternalData
 	17, // 9: datadog.model.v1.FetchEntityRequest.id:type_name -> datadog.model.v1.EntityId
 	1,  // 10: datadog.model.v1.FetchEntityRequest.cardinality:type_name -> datadog.model.v1.TagCardinality
 	17, // 11: datadog.model.v1.FetchEntityResponse.id:type_name -> datadog.model.v1.EntityId
 	1,  // 12: datadog.model.v1.FetchEntityResponse.cardinality:type_name -> datadog.model.v1.TagCardinality
-	23, // 13: datadog.model.v1.TaggerState.state:type_name -> datadog.model.v1.TaggerState.StateEntry
-	24, // 14: datadog.model.v1.TaggerState.pidMap:type_name -> datadog.model.v1.TaggerState.PidMapEntry
-	12, // 15: datadog.model.v1.TaggerState.StateEntry.value:type_name -> datadog.model.v1.Entity
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	28, // 13: datadog.model.v1.TaggerState.state:type_name -> datadog.model.v1.TaggerState.StateEntry
+	29, // 14: datadog.model.v1.TaggerState.pidMap:type_name -> datadog.model.v1.TaggerState.PidMapEntry
+	30, // 15: datadog.model.v1.ConfigSetting.value:type_name -> google.protobuf.Value
+	22, // 16: datadog.model.v1.ConfigSnapshot.settings:type_name -> datadog.model.v1.ConfigSetting
+	22, // 17: datadog.model.v1.ConfigUpdate.setting:type_name -> datadog.model.v1.ConfigSetting
+	23, // 18: datadog.model.v1.ConfigEvent.snapshot:type_name -> datadog.model.v1.ConfigSnapshot
+	24, // 19: datadog.model.v1.ConfigEvent.update:type_name -> datadog.model.v1.ConfigUpdate
+	12, // 20: datadog.model.v1.TaggerState.StateEntry.value:type_name -> datadog.model.v1.Entity
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_datadog_model_v1_model_proto_init() }
@@ -1457,15 +1796,19 @@ func file_datadog_model_v1_model_proto_init() {
 		return
 	}
 	file_datadog_model_v1_model_proto_msgTypes[11].OneofWrappers = []any{}
-	file_datadog_model_v1_model_proto_msgTypes[19].OneofWrappers = []any{}
-	file_datadog_model_v1_model_proto_msgTypes[20].OneofWrappers = []any{}
+	file_datadog_model_v1_model_proto_msgTypes[23].OneofWrappers = []any{
+		(*ConfigEvent_Snapshot)(nil),
+		(*ConfigEvent_Update)(nil),
+	}
+	file_datadog_model_v1_model_proto_msgTypes[24].OneofWrappers = []any{}
+	file_datadog_model_v1_model_proto_msgTypes[25].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_model_v1_model_proto_rawDesc), len(file_datadog_model_v1_model_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   23,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
