@@ -55,7 +55,7 @@ type Client struct {
 	password            string
 	clientID            string
 	clientSecret        string
-	authMethod          AuthMethod
+	authMethod          authMethod
 	authenticationMutex *sync.Mutex
 	maxAttempts         int
 	maxPages            int
@@ -67,10 +67,20 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, authMethod AuthMethod, options ...ClientOptions) (*Client, error) {
+func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, authMethodString string, options ...ClientOptions) (*Client, error) {
 	err := validateParams(directorEndpoint, directorPort, analyticsEndpoint, username, password)
 	if err != nil {
 		return nil, err
+	}
+
+	// Parse auth method from string
+	authMethod := authMethodBasic // default to basic auth
+	if authMethodString != "" {
+		parsedAuthMethod, err := parseAuthMethod(authMethodString)
+		if err != nil {
+			return nil, fmt.Errorf("invalid auth_method: %w", err)
+		}
+		authMethod = parsedAuthMethod
 	}
 
 	cookieJar, err := cookiejar.New(nil)

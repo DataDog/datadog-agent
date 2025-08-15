@@ -20,9 +20,9 @@ import (
 )
 
 type (
-	// AuthMethod enumerates authentication method options for
+	// authMethod indicates the authentication method options for
 	// the Versa integration
-	AuthMethod string
+	authMethod string
 
 	// OAuthRequest encapsulates data for performing OAuth
 	OAuthRequest struct {
@@ -44,23 +44,23 @@ type (
 )
 
 const (
-	// AuthMethodBasic specifies that Basic Auth should be used
+	// authMethodBasic specifies that Basic Auth should be used
 	// for Director API calls
-	AuthMethodBasic AuthMethod = "basic"
-	// AuthMethodOAuth specifies that OAuth should be used for
+	authMethodBasic authMethod = "basic"
+	// authMethodOAuth specifies that OAuth should be used for
 	// Director API calls
-	AuthMethodOAuth AuthMethod = "oauth"
+	authMethodOAuth authMethod = "oauth"
 )
 
-// ParseAuthMethod takes a string and attempts to return the associated
-// AuthMethod or an error
-func ParseAuthMethod(authString string) (AuthMethod, error) {
-	authMethod := AuthMethod(strings.ToLower(authString))
-	switch authMethod {
-	case AuthMethodBasic, AuthMethodOAuth:
-		return authMethod, nil
+// parseAuthMethod takes a string and attempts to return the associated
+// authMethod or an error
+func parseAuthMethod(authString string) (authMethod, error) {
+	method := authMethod(strings.ToLower(authString))
+	switch method {
+	case authMethodBasic, authMethodOAuth:
+		return method, nil
 	default:
-		return "", fmt.Errorf("invalid auth method %q, valid auth methods: %q, %q", authString, AuthMethodBasic, AuthMethodOAuth)
+		return "", fmt.Errorf("invalid auth method %q, valid auth methods: %q, %q", authString, authMethodBasic, authMethodOAuth)
 	}
 }
 
@@ -158,9 +158,9 @@ func (client *Client) loginOAuth() error {
 // authenticateDirector handles Director API authentication (OAuth or Basic - Basic doesn't need pre-auth)
 func (client *Client) authenticateDirector() error {
 	switch client.authMethod {
-	case AuthMethodBasic:
+	case authMethodBasic:
 		return nil
-	case AuthMethodOAuth:
+	case authMethodOAuth:
 		now := timeNow()
 		client.authenticationMutex.Lock()
 		defer client.authenticationMutex.Unlock()

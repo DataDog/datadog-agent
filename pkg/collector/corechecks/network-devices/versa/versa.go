@@ -42,7 +42,7 @@ type checkCfg struct {
 	AnalyticsEndpoint                     string   `yaml:"analytics_endpoint"`
 	Username                              string   `yaml:"username"`
 	Password                              string   `yaml:"password"`
-	AuthMethodString                      string   `yaml:"auth_method"`
+	AuthMethod                            string   `yaml:"auth_method"`
 	MaxAttempts                           int      `yaml:"max_attempts"`
 	MaxPages                              int      `yaml:"max_pages"`
 	MaxCount                              int      `yaml:"max_count"`
@@ -75,9 +75,6 @@ type checkCfg struct {
 	CollectSiteMetrics                    *bool    `yaml:"collect_site_metrics"`
 	ClientID                              string   `yaml:"client_id"`
 	ClientSecret                          string   `yaml:"client_secret"`
-
-	// AuthMethod holds the parsed auth method in config
-	AuthMethod client.AuthMethod
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -417,19 +414,9 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 		v.interval = time.Second * time.Duration(v.config.MinCollectionInterval)
 	}
 
-	// Parse auth method for Versa requests
-	v.config.AuthMethod = client.AuthMethodBasic // default to BASIC auth
-	if v.config.AuthMethodString != "" {
-		authMethod, err := client.ParseAuthMethod(v.config.AuthMethodString)
-		if err != nil {
-			return fmt.Errorf("failed to parse auth_method: %w", err)
-		}
-		v.config.AuthMethod = authMethod
-	}
-
 	// Set default port based on authentication method
 	if v.config.DirectorPort == 0 {
-		if v.config.AuthMethod == client.AuthMethodOAuth {
+		if strings.ToLower(v.config.AuthMethod) == "oauth" {
 			v.config.DirectorPort = client.DefaultOAuthPort
 		} else {
 			v.config.DirectorPort = client.DefaultBasicPort
@@ -470,7 +457,7 @@ func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 	}
 
 	// Add OAuth configuration if using OAuth authentication
-	if v.config.AuthMethod == client.AuthMethodOAuth {
+	if strings.ToLower(v.config.AuthMethod) == "oauth" {
 		if v.config.ClientID == "" || v.config.ClientSecret == "" {
 			return nil, fmt.Errorf("client_id and client_secret are required for OAuth authentication")
 		}

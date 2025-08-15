@@ -90,10 +90,10 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 			req.Header.Add("X-CSRF-TOKEN", client.sessionToken)
 		} else {
 			switch client.authMethod {
-			case AuthMethodOAuth:
+			case authMethodOAuth:
 				// use OAuth Bearer token for Director API endpoints
 				req.Header.Add("Authorization", "Bearer "+client.directorToken)
-			case AuthMethodBasic:
+			case authMethodBasic:
 				// use HTTP Basic authentication for Director API endpoints
 				req.SetBasicAuth(client.username, client.password)
 			default:

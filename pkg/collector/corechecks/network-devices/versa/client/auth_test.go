@@ -16,31 +16,31 @@ func TestParseAuthMethod(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       string
-		expected    AuthMethod
+		expected    authMethod
 		expectError bool
 	}{
 		{
 			name:        "Valid basic auth method",
 			input:       "basic",
-			expected:    AuthMethodBasic,
+			expected:    authMethodBasic,
 			expectError: false,
 		},
 		{
 			name:        "Valid OAuth auth method",
 			input:       "oauth",
-			expected:    AuthMethodOAuth,
+			expected:    authMethodOAuth,
 			expectError: false,
 		},
 		{
 			name:        "Valid basic auth with capitalization",
 			input:       "BaSiC",
-			expected:    AuthMethodBasic,
+			expected:    authMethodBasic,
 			expectError: false,
 		},
 		{
 			name:        "Valid oauth with capitalization",
 			input:       "OAuth",
-			expected:    AuthMethodOAuth,
+			expected:    authMethodOAuth,
 			expectError: false,
 		},
 		{
@@ -62,7 +62,7 @@ func TestParseAuthMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := ParseAuthMethod(tt.input)
+			result, err := parseAuthMethod(tt.input)
 
 			if tt.expectError {
 				require.Error(t, err)
