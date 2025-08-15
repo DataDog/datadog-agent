@@ -8,6 +8,7 @@ package winawshost
 
 import (
 	"fmt"
+	sysos "os"
 
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/testsigning"
 )
 
 const (
@@ -45,6 +47,7 @@ type ProvisionerParams struct {
 	defenderoptions        []defender.Option
 	installerOptions       []installer.Option
 	fipsModeOptions        []fipsmode.Option
+	testsigningOptions     []testsigning.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -132,6 +135,14 @@ func WithFIPSModeOptions(opts ...fipsmode.Option) ProvisionerOption {
 	}
 }
 
+// WithTestSigningOptions configures TestSigning on an EC2 VM.
+func WithTestSigningOptions(opts ...testsigning.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.testsigningOptions = append(params.testsigningOptions, opts...)
+		return nil
+	}
+}
+
 // WithInstaller configures Datadog Installer on an EC2 VM.
 func WithInstaller(opts ...installer.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
@@ -142,12 +153,7 @@ func WithInstaller(opts ...installer.Option) ProvisionerOption {
 }
 
 // Run deploys a Windows environment given a pulumi.Context
-func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
-	awsEnv, err := aws.NewEnvironment(ctx)
-	if err != nil {
-		return err
-	}
-
+func Run(ctx *pulumi.Context, env *environments.WindowsHost, awsEnv aws.Environment, params *ProvisionerParams) error {
 	env.Environment = &awsEnv
 
 	// Make sure to override any OS other than Windows
@@ -168,10 +174,21 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		if err != nil {
 			return err
 		}
-		// Active Directory setup needs to happen after Windows Defender setup
+		// TestSigning setup needs to happen after Windows Defender setup
+		params.testsigningOptions = append(params.testsigningOptions,
+			testsigning.WithPulumiResourceOptions(
+				pulumi.DependsOn(defender.Resources)))
+	}
+
+	if params.testsigningOptions != nil {
+		testsigning, err := testsigning.NewTestSigning(awsEnv.CommonEnvironment, host, params.testsigningOptions...)
+		if err != nil {
+			return err
+		}
+		// Active Directory setup needs to happen after TestSigning setup
 		params.activeDirectoryOptions = append(params.activeDirectoryOptions,
 			activedirectory.WithPulumiResourceOptions(
-				pulumi.DependsOn(defender.Resources)))
+				pulumi.DependsOn(testsigning.Resources)))
 	}
 
 	if params.activeDirectoryOptions != nil {
@@ -260,7 +277,8 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	return nil
 }
 
-func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
+// GetProvisionerParams return ProvisionerParams from options opts setup
+func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
 		name:               defaultVMName,
 		instanceOptions:    []ec2.VMOption{},
@@ -268,9 +286,16 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 		agentClientOptions: []agentclientparams.Option{},
 		fakeintakeOptions:  []fakeintake.Option{},
 		// Disable Windows Defender on VMs by default
-		defenderoptions: []defender.Option{defender.WithDefenderDisabled()},
-		fipsModeOptions: []fipsmode.Option{},
+		defenderoptions:    []defender.Option{defender.WithDefenderDisabled()},
+		fipsModeOptions:    []fipsmode.Option{},
+		testsigningOptions: []testsigning.Option{},
 	}
+
+	// check env and enable test signing if we have a test signed driver
+	if sysos.Getenv("WINDOWS_DDNPM_DRIVER") == "testsigned" || sysos.Getenv("WINDOWS_DDPROCMON_DRIVER") == "testsigned" {
+		params.testsigningOptions = append(params.testsigningOptions, testsigning.WithTestSigningEnabled())
+	}
+
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
@@ -282,12 +307,17 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 // FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.WindowsHost] {
 	// We need to build params here to be able to use params.name in the provisioner name
-	params := getProvisionerParams(opts...)
+	params := GetProvisionerParams(opts...)
 	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.WindowsHost) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
-		params := getProvisionerParams(opts...)
-		return Run(ctx, env, params)
+		params := GetProvisionerParams(opts...)
+
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+		return Run(ctx, env, awsEnv, params)
 	}, nil)
 
 	return provisioner
