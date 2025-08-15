@@ -9,15 +9,24 @@
 package main
 
 import (
+	"archive/tar"
 	"flag"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
 	"os"
+	"path"
+	"path/filepath"
 	"runtime/trace"
+	"strings"
 	"time"
+
+	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/name"
+	container "github.com/google/go-containerregistry/pkg/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
@@ -26,12 +35,20 @@ import (
 )
 
 var (
-	binaryPath     = flag.String("binary-path", "", "Path to the binary to analyze.")
-	silent         = flag.Bool("silent", false, "If set, the collected symbols are not printed.")
+	binaryPathFlag = flag.String("binary-path", "",
+		"Path to the binary to analyze. If -image  is specified, the path is looked up "+
+			"inside the image. If -image is not specified, it defaults to /usr/local/bin/<base image name>.")
+	imageName = flag.String("image", "",
+		"Container image to extract and analyze. If not specified, the binary path must be a local file.")
+	platform = flag.String("platform", "",
+		"Platform for the container image (e.g. linux/amd64, linux/arm64).")
+
 	stream         = flag.Bool("stream", false, "Use the package streaming mode for parsing the debug info. This implies ignoring the inlined functions.")
 	onlyFirstParty = flag.Bool("only-1stparty", false,
 		"Only output symbols for \"1st party\" code (i.e. code from modules belonging "+
 			"to the same GitHub org as the main one).")
+
+	silent = flag.Bool("silent", false, "If set, the collected symbols are not printed.")
 
 	upload     = flag.Bool("upload", false, "If specified, the SymDB data will be uploaded through a trace-agent.")
 	uploadSite = flag.String("upload-site", "", "The site to which SymDB data will be uploaded. "+
@@ -51,13 +68,15 @@ var (
 
 func main() {
 	flag.Parse()
-	if *binaryPath == "" {
-		fmt.Print(`Usage: symdbcli --binary-path <path-to-binary> [--only-1stparty] [--silent]
-or
-symdbcli --binary-path <path-to-binary> [--only-1stparty] --upload --service <service> --env <env> --version <version> --api-key <api-key> [--upload-site <site>]
+	if *binaryPathFlag == "" && *imageName == "" {
+		fmt.Print(`Usage: symdbcli [-image <container image name>] -binary-path <path-to-binary> [-only-1stparty] [-silent]
 
-The symbols from the specified binary will be extracted and either printed to stdout
-(unless --silent is specified) or uploaded to the backend.
+The symbols from the specified binary will be extracted and either printed to
+stdout or uploaded to the backend.
+
+To upload the SymDB data rather than printing it, use:
+-upload -service <service> -env <env> -version <version> -api-key <api-key> [-upload-site <site>]
+
 `)
 		os.Exit(1)
 	}
@@ -74,15 +93,59 @@ The symbols from the specified binary will be extracted and either printed to st
 		_ = http.ListenAndServe(fmt.Sprintf("localhost:%d", *pprofPort), nil)
 	}()
 
-	if err := run(*binaryPath); err != nil {
+	if err := run(); err != nil {
 		log.Errorf("Error: %v", err)
 		log.Flush()
 		os.Exit(1)
 	}
 }
 
-func run(binaryPath string) (retErr error) {
-	log.Infof("Analyzing binary: %s", binaryPath)
+func run() (retErr error) {
+	var localBinPath string
+	if *imageName == "" {
+		// No image specified: treat binaryPathFlag as a local file
+		if *binaryPathFlag == "" {
+			return fmt.Errorf("-binary-path is required when -image is not specified")
+		}
+		info, err := os.Stat(*binaryPathFlag)
+		if err != nil {
+			return fmt.Errorf("binary path %q does not exist: %w", *binaryPathFlag, err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("-binary-path %q is a directory, expected a file", *binaryPathFlag)
+		}
+		localBinPath = *binaryPathFlag
+	} else {
+		imageRef := *imageName
+		if !strings.ContainsRune(imageRef, '/') {
+			imageRef = "registry.ddbuild.io/" + imageRef
+		}
+		binPath := *binaryPathFlag
+		// If no binary path is specified, default to /usr/local/bin/<image name>.
+		if binPath == "" {
+			// Parse out the image name, ignoring the registry and version.
+			ref, err := name.ParseReference(imageRef)
+			if err != nil {
+				return fmt.Errorf("could not parse image reference %q: %w", imageRef, err)
+			}
+			repo := ref.Context().RepositoryStr()
+			binPath = "/usr/local/bin/" + repo
+			log.Infof("No -binary-path specified, defaulting to %q", binPath)
+		}
+		var err error
+		localBinPath, err = extractBinaryFromImage(imageRef, binPath)
+		if err != nil {
+			msg := err.Error()
+			if *binaryPathFlag == "" {
+				msg += "\nFile not found at default location. Please specify -binary-path to override."
+			}
+			return fmt.Errorf(msg)
+		}
+		defer os.Remove(localBinPath)
+		log.Infof("Extracted binary: %s", localBinPath)
+	}
+
+	log.Infof("Analyzing binary: %s", localBinPath)
 	start := time.Now()
 	scope := symdb.ExtractScopeAllSymbols
 
@@ -165,7 +228,7 @@ func run(binaryPath string) (retErr error) {
 
 	out := symdbutil.MakePanickingWriter(os.Stdout)
 	if !*stream {
-		symbols, err := symdb.ExtractSymbols(binaryPath, opt)
+		symbols, err := symdb.ExtractSymbols(localBinPath, opt)
 		if err != nil {
 			return err
 		}
@@ -180,13 +243,13 @@ func run(binaryPath string) (retErr error) {
 		trace.Stop()
 		log.Infof("Symbol extraction completed in %s.", time.Since(start))
 		stats := statsFromSymbols(symbols)
-		log.Infof("Symbol statistics for %s: %s", binaryPath, stats)
+		log.Infof("Symbol statistics for %s: %s", localBinPath, stats)
 		if !*silent && !*stream {
 			symbols.Serialize(symdbutil.MakePanickingWriter(os.Stdout))
 		}
 	} else {
 		stats := makeSymbolStats()
-		it, err := symdb.PackagesIterator(binaryPath, opt)
+		it, err := symdb.PackagesIterator(localBinPath, opt)
 		if err != nil {
 			return err
 		}
@@ -209,7 +272,7 @@ func run(binaryPath string) (retErr error) {
 		}
 		trace.Stop()
 		log.Infof("Symbol extraction completed in %s.", time.Since(start))
-		log.Infof("Symbol statistics for %s: %s", binaryPath, stats)
+		log.Infof("Symbol statistics for %s: %s", localBinPath, stats)
 	}
 
 	if *silent && !*upload {
@@ -252,4 +315,93 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 		stats.addPackage(pkg)
 	}
 	return stats
+}
+
+// extractBinaryFromImage extracts a binary from an image and returns the path
+// to the extracted file.
+func extractBinaryFromImage(imageRef string, binaryPath string) (string, error) {
+	log.Infof("Pulling image: %s...", imageRef)
+
+	// Pull the image.
+	var opts []crane.Option
+	if *platform != "" {
+		p, err := container.ParsePlatform(*platform)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse platform: %w", err)
+		}
+		opts = append(opts, crane.WithPlatform(p))
+	}
+	img, err := crane.Pull(imageRef, opts...)
+	if err != nil {
+		return "", fmt.Errorf("failed to pull image %s: %w", imageRef, err)
+	}
+	log.Infof("Pulling image: %s... done", imageRef)
+
+	// Unpack the image into a temp dir as a tarball, then untar it.
+	tarFile, err := os.CreateTemp(
+		"",
+		fmt.Sprintf("img-%s-*.tar", strings.ReplaceAll(url.PathEscape(*imageName), "/", "-")),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp tar file: %w", err)
+	}
+	defer os.Remove(tarFile.Name())
+	defer tarFile.Close()
+
+	log.Infof("Extracting image: %s...", imageRef)
+	if err := crane.Export(img, tarFile); err != nil {
+		return "", fmt.Errorf("failed to export image to tar: %w", err)
+	}
+	log.Infof("Extracting image: %s... done", imageRef)
+	if _, err := tarFile.Seek(0, 0); err != nil {
+		return "", fmt.Errorf("failed to rewind tar file: %w", err)
+	}
+
+	binPath := filepath.Join(os.TempDir(), path.Base(binaryPath))
+	// Untar the requested binaryPathFlag from the image tar.
+	found, err := untarSingleFile(tarFile, binaryPath, binPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to untar image: %w", err)
+	}
+	if !found {
+		return "", fmt.Errorf("file %q does not exist in image %q", binaryPath, imageRef)
+	}
+	return binPath, nil
+}
+
+// untarSingleFile extracts one file from the tar archive r into outPath.
+// Returns false if the requested file does not exist in the archive.
+func untarSingleFile(r io.Reader, filePath, outPath string) (bool, error) {
+	log.Infof("Untarring %s from image...", filePath)
+	// Strip leading slash, if specified. Inside the tar archive, the paths
+	// don't start with a slash.
+	filePath = strings.TrimPrefix(filePath, "/")
+	tr := tar.NewReader(r)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return false, err
+		}
+		if hdr.Name != filePath {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
+			return false, err
+		}
+		f, err := os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode))
+		if err != nil {
+			return false, err
+		}
+		if _, err := io.Copy(f, tr); err != nil {
+			f.Close()
+			return false, err
+		}
+		f.Close()
+		log.Infof("Untarring %s from image... done", filePath)
+		return true, nil
+	}
+	return false, nil
 }
