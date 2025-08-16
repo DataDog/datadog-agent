@@ -32,6 +32,8 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	clustercheckhandler "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
+	clusterchecksfx "github.com/DataDog/datadog-agent/comp/core/clusterchecks/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
@@ -61,11 +63,13 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	dcametadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx"
+	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
+	clusterchecksmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/fx"
+
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -151,6 +155,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				metadatarunnerimpl.Module(),
 				dcametadatafx.Module(),
+
+				clusterchecksmetadatafx.Module(),
+				clusterchecksfx.Module(),
 				ipcfx.ModuleReadWrite(),
 			)
 		},
@@ -175,6 +182,8 @@ func run(
 	ipc ipc.Component,
 	diagonseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
+	clusterChecksMetadataComp clusterchecksmetadata.Component,
+	clusterCheckHandler option.Option[clustercheckhandler.Component],
 	telemetry telemetry.Component,
 ) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -218,18 +227,21 @@ func run(
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagonseComp, dcametadataComp, telemetry); err != nil {
+	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagonseComp, dcametadataComp, clusterChecksMetadataComp, telemetry); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
-	var clusterCheckHandler *clusterchecks.Handler
-	clusterCheckHandler, err = setupClusterCheck(mainCtx, ac, taggerComp)
-	if err == nil {
+	// Setup cluster checks if available
+	if handler, ok := clusterCheckHandler.Get(); ok {
+		// Run the cluster check handler
+		go handler.Run(mainCtx)
+
+		// Install API endpoints with the component
 		api.ModifyAPIRouter(func(r *mux.Router) {
-			dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
+			dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: handler})
 		})
 	} else {
-		log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
+		log.Debug("Cluster check handler component not available")
 	}
 
 	// Block here until we receive the interrupt signal
@@ -328,15 +340,4 @@ func initializeBBSCache(ctx context.Context) error {
 			return fmt.Errorf("BBS Cache failed to warm up. Misconfiguration error? Inspect logs")
 		}
 	}
-}
-
-func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*clusterchecks.Handler, error) {
-	handler, err := clusterchecks.NewHandler(ac, tagger)
-	if err != nil {
-		return nil, err
-	}
-	go handler.Run(ctx)
-
-	pkglog.Info("Started cluster check Autodiscovery")
-	return handler, nil
 }

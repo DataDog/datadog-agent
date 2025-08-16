@@ -326,6 +326,7 @@
 /comp/checks/windowseventlog @DataDog/windows-products
 /comp/checks/winregistry @DataDog/windows-products
 /comp/core/autodiscovery @DataDog/container-platform
+/comp/core/clusterchecks @DataDog/container-platform
 /comp/core/config @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
 /comp/core/flare @DataDog/agent-configuration
@@ -342,6 +343,7 @@
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/container-app
 /comp/metadata/clusteragent @DataDog/container-platform
+/comp/metadata/clusterchecks @DataDog/container-platform
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
