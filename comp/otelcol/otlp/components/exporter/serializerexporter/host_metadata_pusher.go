@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
-// HostMetadataPusher implements the inframetadata.Push interface
+// HostMetadataPusher implements the inframetadata.Pusher interface
 type HostMetadataPusher struct {
 	s serializer.MetricSerializer
 }
@@ -26,7 +26,7 @@ func NewPusher(s serializer.MetricSerializer) *HostMetadataPusher {
 
 var _ inframetadata.Pusher = (*HostMetadataPusher)(nil)
 
+// Push implements the Pusher.Push interface
 func (h *HostMetadataPusher) Push(_ context.Context, hm payload.HostMetadata) error {
-	fmt.Println("payload.HostMetadata", hm)
 	return h.s.SendHostMetadata(&hm)
 }
