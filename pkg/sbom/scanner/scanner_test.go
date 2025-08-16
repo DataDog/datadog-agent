@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
-	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
@@ -61,8 +61,8 @@ type mockReport struct {
 }
 
 // ToCycloneDX returns a mock BOM
-func (m mockReport) ToCycloneDX() (*cyclonedxgo.BOM, error) {
-	return &cyclonedxgo.BOM{}, nil
+func (m mockReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
+	return &cyclonedx_v1_4.Bom{}
 }
 
 // ID returns the report ID

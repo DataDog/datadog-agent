@@ -10,11 +10,11 @@ package util
 import (
 	"slices"
 
-	"github.com/CycloneDX/cyclonedx-go"
 	trivycore "github.com/aquasecurity/trivy/pkg/sbom/core"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/mohae/deepcopy"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -35,29 +35,29 @@ func UpdateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []str
 		return sbom
 	}
 
-	properties := *sbom.CycloneDXBOM.Metadata.Component.Properties
+	properties := sbom.CycloneDXBOM.Metadata.Component.Properties
 	mismatched := !propertiesEqualsValues(properties, repoTags, repoTagPropertyKey) || !propertiesEqualsValues(properties, repoDigests, repoDigestPropertyKey)
 
 	if mismatched {
 		sbom = deepcopy.Copy(sbom).(*workloadmeta.SBOM)
-		newProperties := *sbom.CycloneDXBOM.Metadata.Component.Properties
+		newProperties := sbom.CycloneDXBOM.Metadata.Component.Properties
 		newProperties = cleanProperties(newProperties)
 
 		newProperties = appendProperties(newProperties, repoTags, repoTagPropertyKey)
 		newProperties = appendProperties(newProperties, repoDigests, repoDigestPropertyKey)
 
-		sbom.CycloneDXBOM.Metadata.Component.Properties = &newProperties
+		sbom.CycloneDXBOM.Metadata.Component.Properties = newProperties
 	}
 
 	return sbom
 }
 
 // propertiesEqualsValues function compares the existing properties with the new values
-func propertiesEqualsValues(properties []cyclonedx.Property, newValues []string, propertyKeyType string) bool {
+func propertiesEqualsValues(properties []*cyclonedx_v1_4.Property, newValues []string, propertyKeyType string) bool {
 	existingValuesMap := make(map[string]struct{})
 	for _, prop := range properties {
 		if prop.Name == propertyKeyType {
-			existingValuesMap[prop.Value] = struct{}{}
+			existingValuesMap[unwrapStringPtr(prop.Value)] = struct{}{}
 		}
 	}
 
@@ -77,8 +77,8 @@ func propertiesEqualsValues(properties []cyclonedx.Property, newValues []string,
 }
 
 // Remove properties from the list that are present in the mismatched map
-func cleanProperties(properties []cyclonedx.Property) []cyclonedx.Property {
-	res := make([]cyclonedx.Property, 0, len(properties))
+func cleanProperties(properties []*cyclonedx_v1_4.Property) []*cyclonedx_v1_4.Property {
+	res := make([]*cyclonedx_v1_4.Property, 0, len(properties))
 
 	for _, prop := range properties {
 		if prop.Name == repoTagPropertyKey || prop.Name == repoDigestPropertyKey {
@@ -91,11 +91,11 @@ func cleanProperties(properties []cyclonedx.Property) []cyclonedx.Property {
 }
 
 // Append new values to the properties that were not already present
-func appendProperties(properties []cyclonedx.Property, newValues []string, propertyKeyType string) []cyclonedx.Property {
+func appendProperties(properties []*cyclonedx_v1_4.Property, newValues []string, propertyKeyType string) []*cyclonedx_v1_4.Property {
 	existingValues := make(map[string]struct{})
 	for _, prop := range properties {
 		if prop.Name == propertyKeyType {
-			existingValues[prop.Value] = struct{}{}
+			existingValues[unwrapStringPtr(prop.Value)] = struct{}{}
 		}
 	}
 
@@ -109,9 +109,16 @@ func appendProperties(properties []cyclonedx.Property, newValues []string, prope
 }
 
 // cdxProperty function generates a trivy-specific cycloneDX Property.
-func cdxProperty(key, value string) cyclonedx.Property {
-	return cyclonedx.Property{
+func cdxProperty(key, value string) *cyclonedx_v1_4.Property {
+	return &cyclonedx_v1_4.Property{
 		Name:  key,
-		Value: value,
+		Value: &value,
 	}
+}
+
+func unwrapStringPtr(ptr *string) string {
+	if ptr == nil {
+		return ""
+	}
+	return *ptr
 }
