@@ -38,9 +38,6 @@ type logger struct{}
 
 func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 	config := deps.Config
-	if deps.Params.disabled {
-		return logger{}, nil
-	}
 	if deps.Params.fromCLI {
 		err := pkglogsetup.SetupJMXLogger(deps.Params.logFile, "", false, true, false, pkgconfigsetup.Datadog())
 		if err != nil {
