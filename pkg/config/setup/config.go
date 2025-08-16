@@ -375,7 +375,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("disable_unsafe_yaml", true)
 
 	// flare configs
-	config.BindEnvAndSetDefault("flare_provider_timeout", 10*time.Second)
+	config.BindEnvAndSetDefault("flare_provider_timeout", 30*time.Second)
 	config.BindEnvAndSetDefault("flare.rc_profiling.profile_duration", 30*time.Second)
 	config.BindEnvAndSetDefault("flare.profile_overhead_runtime", 10*time.Second)
 	config.BindEnvAndSetDefault("flare.rc_profiling.blocking_rate", 0)
