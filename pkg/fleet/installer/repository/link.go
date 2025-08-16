@@ -15,7 +15,7 @@ func linkRead(linkPath string) (string, error) {
 }
 
 func linkExists(linkPath string) (bool, error) {
-	_, err := os.Stat(linkPath)
+	_, err := os.Lstat(linkPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	} else if err != nil {
