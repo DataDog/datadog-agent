@@ -16,10 +16,14 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/benbjohnson/clock"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -45,13 +49,14 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component, tagger tagger.Component) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
 		sysprobeYamlConfig: sysprobeYamlConfig,
 		wmeta:              wmeta,
 		npCollector:        npCollector,
+		tagger:             tagger,
 	}
 }
 
@@ -76,6 +81,10 @@ type ConnectionsCheck struct {
 	npCollector npcollector.Component
 
 	sysprobeClient *http.Client
+
+	hostTagProvider *hosttags.HostTagProvider
+	tagger          tagger.Component
+	clock           clock.Clock
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -105,13 +114,15 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
+	c.hostTagProvider = hosttags.NewHostTagProviderWithDuration(c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration"))
 
 	// LocalResolver is a singleton LocalResolver
 	sharedContainerProvider, err := proccontainers.GetSharedContainerProvider()
 	if err != nil {
 		return err
 	}
-	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
+	c.clock = clock.New()
+	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, c.clock, maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
 
 	return nil
@@ -175,13 +186,25 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, c.getContainerTags, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
 func (c *ConnectionsCheck) Cleanup() {
 	c.localresolver.Stop()
+}
+
+// getContainerTags returns container tags for `id`.
+func (c *ConnectionsCheck) getContainerTags(id string) ([]string, error) {
+	duration := c.sysprobeYamlConfig.GetDuration("system_probe_config.expected_tags_duration")
+	endTimeToSendTags := pkgconfigsetup.StartTime.Add(duration)
+	// Checking if `duration` has passed since the start time of the pkgconfigsetup. If so, returning nothing. Otherwise, we return the tags.
+	if endTimeToSendTags.Before(c.clock.Now()) {
+		return nil, nil
+	}
+	entityID := types.NewEntityID(types.ContainerID, id)
+	return c.tagger.Tag(entityID, types.HighCardinality)
 }
 
 func (c *ConnectionsCheck) register() error {
@@ -312,6 +335,8 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
 	hostInfo *HostInfo,
+	hostTagProvider *hosttags.HostTagProvider,
+	containerTagProvider func(string) ([]string, error),
 	maxConnsPerMessage int,
 	groupID int32,
 	cxs []*model.Connection,
@@ -352,7 +377,10 @@ func batchConnections(
 		namemap := make(map[string]int32)
 		namedb := make([]string, 0)
 
+		connectionsTagsEncoder := model.NewV2TagEncoder()
 		tagsEncoder := model.NewV2TagEncoder()
+		// Adding a dummy tag to ensure the indices we get are always >= 0.
+		_ = tagsEncoder.Encode([]string{"-"})
 
 		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
@@ -363,8 +391,16 @@ func batchConnections(
 				}
 			}
 
+			c.LocalContainerTagsIndex = -1
 			if c.Laddr.ContainerId != "" {
 				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+				if containerTagProvider != nil {
+					if entityTags, err := containerTagProvider(c.Laddr.ContainerId); err != nil {
+						log.Debugf("error getting tags for container %s: %v", c.Laddr.ContainerId, err)
+					} else if len(entityTags) > 0 {
+						c.LocalContainerTagsIndex = int32(tagsEncoder.Encode(entityTags))
+					}
+				}
 			}
 
 			// remap functions create a new map; the map is by string _index_ (not offset)
@@ -378,7 +414,7 @@ func batchConnections(
 
 			if len(tagsStr) > 0 {
 				c.Tags = nil
-				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
+				c.TagsIdx = int32(connectionsTagsEncoder.Encode(tagsStr))
 			} else {
 				c.TagsIdx = -1
 			}
@@ -430,6 +466,13 @@ func batchConnections(
 				remapDNSStatsByOffset(c, indexToOffset)
 			}
 		}
+
+		hostTagsIndex := -1
+		// Add host tags if needed
+		if hostTags := hostTagProvider.GetHostTags(); len(hostTags) > 0 {
+			hostTagsIndex = tagsEncoder.Encode(hostTags)
+		}
+
 		cc := &model.CollectorConnections{
 			AgentConfiguration:     agentCfg,
 			HostName:               hostInfo.HostName,
@@ -442,7 +485,9 @@ func batchConnections(
 			EncodedDnsLookups:      mappedDNSLookups,
 			ContainerHostType:      hostInfo.ContainerHostType,
 			Routes:                 batchRoutes,
-			EncodedConnectionsTags: tagsEncoder.Buffer(),
+			EncodedConnectionsTags: connectionsTagsEncoder.Buffer(),
+			EncodedTags:            tagsEncoder.Buffer(),
+			HostTagsIndex:          int32(hostTagsIndex),
 		}
 
 		// Add OS telemetry
