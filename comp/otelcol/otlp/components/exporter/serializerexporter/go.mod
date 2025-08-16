@@ -158,9 +158,9 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.67.0
 	github.com/DataDog/datadog-agent/pkg/config/create v0.67.0
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.29.1
 	github.com/google/go-cmp v0.7.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.131.0
 	go.opentelemetry.io/collector/component/componenttest v0.131.0
@@ -214,6 +214,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.67.0 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
