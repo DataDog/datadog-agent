@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil
 go 1.23.0
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.60.0
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
