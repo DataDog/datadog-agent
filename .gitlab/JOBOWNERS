@@ -75,7 +75,6 @@ ddot_oci*                            @DataDog/agent-build
 ddot_deb*                            @DataDog/agent-build
 ddot_rpm*                            @DataDog/agent-build
 ddot_suse_rpm*                       @DataDog/agent-build
-check_pkg_size                       @DataDog/agent-build
 
 # Testing package deploy
 deploy_deb_testing*                  @DataDog/agent-delivery
