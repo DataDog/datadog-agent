@@ -110,7 +110,6 @@ build do
             # have been setup by the installer, this way, on removal, we'll be able to delete only files
             # which have not been created by the package.
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
-            command "find . -path './embedded/lib/python*/site-packages/*' >> #{install_dir}/embedded/.installed_by_pkg.txt", cwd: install_dir
 
             # removing the doc from the embedded folder to reduce package size by ~3MB
             delete "#{install_dir}/embedded/share/doc"
@@ -141,6 +140,9 @@ build do
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/shared-libraries-debug.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/shared-libraries-debug.o"
+
+            # remove headers that are not needed in the final package
+            delete "#{install_dir}/embedded/include"
 
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
