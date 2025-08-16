@@ -46,8 +46,8 @@ var dockerImageLibrary = map[string][]string{
 		"public.ecr.aws/docker/library/alpine:3.18.2", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
 	},
 	"busybox": {
-		"busybox:1.36.1",
-		"docker.io/busybox:1.36.1", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
+		"busybox:1.36.1@sha256:303337d3d52898b33018796d760d3a01c2dcc87973dd66ec22fe78ae1e8429c9",
+		"docker.io/busybox:1.36.1@sha256:303337d3d52898b33018796d760d3a01c2dcc87973dd66ec22fe78ae1e8429c9", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
 	},
 }
 
