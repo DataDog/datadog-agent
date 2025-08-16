@@ -136,6 +136,8 @@ func SetupMockAPIServer() *httptest.Server {
 			fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
 		} else if strings.Contains(query, "usage(") {
 			fixtureHandler(fixtures.GetDIAMetrics)(w, r)
+		} else if strings.Contains(query, "intfUtil(") {
+			fixtureHandler(fixtures.GetAnalyticsInterfaceMetrics)(w, r)
 		} else {
 			http.Error(w, "Unknown query type", http.StatusBadRequest)
 		}
@@ -221,6 +223,8 @@ func SetupPaginationMockAPIServer() *httptest.Server {
 				fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
 			} else if strings.Contains(query, "usage(") {
 				fixtureHandler(fixtures.GetDIAMetrics)(w, r)
+			} else if strings.Contains(query, "intfUtil(") {
+				fixtureHandler(fixtures.GetAnalyticsInterfaceMetrics)(w, r)
 			} else {
 				http.Error(w, "Unknown query type", http.StatusBadRequest)
 			}
