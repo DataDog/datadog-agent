@@ -99,6 +99,8 @@ func systemdUnits(stableData, expData systemdTemplateData, includeInstaller bool
 		"datadog-agent-security-exp.service":  mustReadSystemdUnit("datadog-agent-security.service", expData),
 		"datadog-agent-sysprobe.service":      mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData),
 		"datadog-agent-sysprobe-exp.service":  mustReadSystemdUnit("datadog-agent-sysprobe.service", expData),
+		"datadog-agent-ddot.service":          mustReadSystemdUnit("datadog-agent-ddot.service", stableData),
+		"datadog-agent-ddot-exp.service":      mustReadSystemdUnit("datadog-agent-ddot.service", expData),
 	}
 	if includeInstaller {
 		units["datadog-installer.service"] = mustReadSystemdUnit("datadog-installer.service", stableData)
