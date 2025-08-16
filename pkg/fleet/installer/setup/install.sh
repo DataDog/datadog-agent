@@ -8,8 +8,8 @@ umask 0
 os=$(uname -s)
 arch=$(uname -m)
 
-if [[ "$os" != "Linux" || ("$arch" != "x86_64" && "$arch" != "aarch64") ]]; then
-  echo "This installer only supports Linux running on amd64 or arm64." >&2
+if ! { { [[ "$os" == "Linux" && ( "$arch" == "x86_64" || "$arch" == "aarch64" ) ]]; } || { [[ "$os" == "Darwin" && "$arch" == "arm64" ]]; }; }; then
+  echo "This installer only supports Linux (amd64/arm64) or macOS (arm64)." >&2
   exit 1
 fi
 
@@ -21,13 +21,24 @@ fi
 flavor="INSTALLER_FLAVOR"
 version="INSTALLER_VERSION"
 export DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER="$version"
-case "$arch" in
-x86_64)
-  installer_sha256="INSTALLER_AMD64_SHA256"
-  ;;
-aarch64)
-  installer_sha256="INSTALLER_ARM64_SHA256"
-  ;;
+case "$os" in
+  Linux)
+    case "$arch" in
+      x86_64)
+        installer_sha256="INSTALLER_AMD64_SHA256"
+        ;;
+      aarch64)
+        installer_sha256="INSTALLER_ARM64_SHA256"
+        ;;
+    esac
+    ;;
+  Darwin)
+    case "$arch" in
+      arm64)
+        installer_sha256="INSTALLER_DARWIN_ARM64_SHA256"
+        ;;
+    esac
+    ;;
 esac
 site=${DD_SITE:-datadoghq.com}
 installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$site" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
@@ -70,7 +81,11 @@ fi
 "${sudo_cmd[@]+"${sudo_cmd[@]}"}" chmod +x "$tmp_bin"
 
 echo "Verifying installer integrity..."
-sha256sum -c <<<"$installer_sha256  $tmp_bin" >/dev/null
+actual_sha256=$(shasum -a 256 "$tmp_bin" | awk '{print $1}')
+if [ "$installer_sha256" != "$actual_sha256" ]; then
+  echo "Checksum mismatch!"
+  exit 1
+fi
 echo "Installer integrity verified."
 
 echo "Starting the Datadog installer..."
