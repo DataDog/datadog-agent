@@ -195,7 +195,7 @@ func load() (*types.Config, error) {
 
 // SetupOptionalDatadogConfigWithDir loads the datadog.yaml config file from a given config directory but will not fail on a missing file
 func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
-	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
+	cfg := pkgconfigsetup.GlobalConfigBuilder()
 
 	cfg.AddConfigPath(configDir)
 	if configFile != "" {
