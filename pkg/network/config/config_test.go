@@ -1774,7 +1774,7 @@ func TestExpectedTagsDuration(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 
-		assert.Equal(t, 10*time.Minute, cfg.ExpectedTagsDuration)
+		assert.Equal(t, 5*time.Minute, cfg.ExpectedTagsDuration)
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
