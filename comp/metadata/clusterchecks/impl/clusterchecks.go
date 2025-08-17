@@ -16,16 +16,15 @@ import (
 	"sync"
 	"time"
 
-	clustercheckhandler "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
@@ -77,16 +76,15 @@ type clusterChecksImpl struct {
 	clustername string
 	clusterID   string
 
-	// Cluster checks handler component
-	clusterHandler option.Option[clustercheckhandler.Component]
+	// Cluster checks handler
+	clusterHandler *pkgclusterchecks.Handler
 }
 
 // Requires defines the dependencies for the clusterchecks metadata component
 type Requires struct {
-	Log            log.Component
-	Conf           config.Component
-	Serializer     serializer.MetricSerializer
-	ClusterHandler option.Option[clustercheckhandler.Component]
+	Log        log.Component
+	Conf       config.Component
+	Serializer serializer.MetricSerializer
 }
 
 // Provides defines the output of the clusterchecks metadata component
@@ -109,7 +107,7 @@ func NewComponent(deps Requires) Provides {
 		conf:           deps.Conf,
 		clustername:    clusterName,
 		clusterID:      clusterID,
-		clusterHandler: deps.ClusterHandler,
+		clusterHandler: nil, // Will be set later via SetClusterHandler
 	}
 
 	// Initialize inventory payload - we're always in cluster agent when this is compiled
@@ -168,14 +166,13 @@ func (cc *clusterChecksImpl) getPayload() *Payload {
 	cc.m.RLock()
 	defer cc.m.RUnlock()
 
-	handler, ok := cc.clusterHandler.Get()
-	if !ok {
+	if cc.clusterHandler == nil {
 		cc.log.Debug("Cluster checks handler not available, skipping clusterchecks payload generation")
 		return nil
 	}
 
 	// Only generate payload from leader
-	if !cc.isLeader(handler) {
+	if !cc.isLeader(cc.clusterHandler) {
 		cc.log.Debug("Not the leader cluster agent, skipping clusterchecks payload generation")
 		return nil
 	}
@@ -206,13 +203,26 @@ func (cc *clusterChecksImpl) MetadataProvider() runnerimpl.Provider {
 	return cc.InventoryPayload.MetadataProvider()
 }
 
+// SetClusterHandler sets the cluster handler for the metadata component
+func (cc *clusterChecksImpl) SetClusterHandler(handler interface{}) {
+	cc.m.Lock()
+	defer cc.m.Unlock()
+
+	if h, ok := handler.(*pkgclusterchecks.Handler); ok {
+		cc.clusterHandler = h
+		cc.log.Debug("Cluster handler set for metadata component")
+	} else {
+		cc.log.Warn("Failed to set cluster handler: invalid type")
+	}
+}
+
 // isLeader checks if the cluster agent is the leader using GetState.
 // The handler's GetState() returns:
 // - NotRunning == "" when state is leader
 // - NotRunning == "currently follower" when state is follower
 // - NotRunning == "Startup in progress" when state is unknown
 // Assumes the caller already holds a read lock on cc.m
-func (cc *clusterChecksImpl) isLeader(handler clustercheckhandler.Component) bool {
+func (cc *clusterChecksImpl) isLeader(handler *pkgclusterchecks.Handler) bool {
 	state, err := handler.GetState()
 	if err != nil {
 		return false
@@ -224,14 +234,13 @@ func (cc *clusterChecksImpl) isLeader(handler clustercheckhandler.Component) boo
 
 // collectClusterCheckMetadata populates the payload with cluster check metadata
 func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
-	handler, ok := cc.clusterHandler.Get()
-	if !ok {
+	if cc.clusterHandler == nil {
 		cc.log.Debugf("Cluster checks handler not available")
 		return
 	}
 
 	// Get full state with dispatch information
-	state, err := handler.GetState()
+	state, err := cc.clusterHandler.GetState()
 	if err != nil {
 		cc.log.Debugf("Error getting cluster check state: %s", err)
 		return

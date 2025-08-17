@@ -115,12 +115,6 @@ Package agenttelemetry implements a component to generate Agent telemetry
 
 Package autodiscovery provides the autodiscovery component for the Datadog Agent
 
-### [comp/core/clusterchecks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/clusterchecks)
-
-*Datadog Team*: container-platform
-
-Package clusterchecks provides the cluster checks handler component
-
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/config)
 
 *Datadog Team*: agent-configuration

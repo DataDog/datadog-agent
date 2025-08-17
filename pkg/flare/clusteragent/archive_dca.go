@@ -84,7 +84,6 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	getClusterAgentConfigCheck(fb, client) //nolint:errcheck
 	flarecommon.GetExpVar(fb)              //nolint:errcheck
 	getMetadataMap(fb)                     //nolint:errcheck
-	// Try to get cluster checks metadata, but don't fail if not available
 	if err := getClusterChecksMetadata(fb, client); err != nil {
 		log.Debugf("Could not collect cluster checks metadata for flare: %v", err)
 	}
@@ -160,13 +159,6 @@ func getClusterChecksMetadata(fb flaretypes.FlareBuilder, client ipc.HTTPClient)
 		}
 		// If completely failed to query, create error file
 		return fb.AddFile("cluster-checks-metadata.json", []byte(fmt.Sprintf(`{"error": "failed to query cluster checks metadata endpoint: %s"}`, err.Error())))
-	}
-
-	// Check if response is null or empty (happens when no cluster checks are configured or not leader)
-	if len(r) == 0 || string(r) == "null" || string(r) == "null\n" {
-		// Don't create a file when there's no meaningful data
-		log.Debugf("No cluster checks metadata available, skipping file creation")
-		return nil
 	}
 
 	return fb.AddFile("cluster-checks-metadata.json", r)
