@@ -40,3 +40,8 @@ func NewHandler(_ autodiscovery.Component, _ tagger.Component) (*Handler, error)
 func (h *Handler) Run(_ context.Context) error {
 	return ErrNotCompiled
 }
+
+// GetStats not implemented
+func GetStats() (*types.Stats, error) {
+	return nil, ErrNotCompiled
+}
