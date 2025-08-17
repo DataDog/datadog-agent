@@ -96,6 +96,68 @@ func TestLegacyIntervalOverride(t *testing.T) {
 	}
 }
 
+// TestConnectionsCheckInterval tests the connections check interval logic including dynamic interval behavior
+func TestConnectionsCheckInterval(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		customIntervalSeconds int
+		enableDynamicInterval bool
+		expectedInterval      time.Duration
+	}{
+		{
+			name:                  "default behavior - dynamic interval disabled",
+			customIntervalSeconds: 0,
+			enableDynamicInterval: false,
+			expectedInterval:      ConnectionsCheckDefaultInterval,
+		},
+		{
+			name:                  "dynamic interval enabled",
+			customIntervalSeconds: 0,
+			enableDynamicInterval: true,
+			expectedInterval:      ConnectionsCheckDynamicInterval,
+		},
+		{
+			name:                  "custom interval overrides dynamic setting (disabled)",
+			customIntervalSeconds: 10,
+			enableDynamicInterval: false,
+			expectedInterval:      10 * time.Second,
+		},
+		{
+			name:                  "custom interval overrides dynamic setting (enabled)",
+			customIntervalSeconds: 10,
+			enableDynamicInterval: true,
+			expectedInterval:      10 * time.Second,
+		},
+		{
+			name:                  "custom interval too low with dynamic disabled",
+			customIntervalSeconds: 5,
+			enableDynamicInterval: false,
+			expectedInterval:      ConnectionsCheckMinInterval,
+		},
+		{
+			name:                  "custom interval too low with dynamic enabled",
+			customIntervalSeconds: 5,
+			enableDynamicInterval: true,
+			expectedInterval:      ConnectionsCheckMinInterval,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+
+			// Set custom interval if specified
+			if tc.customIntervalSeconds > 0 {
+				cfg.SetWithoutSource("process_config.intervals.connections", tc.customIntervalSeconds)
+			}
+
+			// Set dynamic interval flag
+			cfg.SetWithoutSource("process_config.connections.enable_dynamic_interval", tc.enableDynamicInterval)
+
+			result := GetInterval(cfg, ConnectionsCheckName)
+			assert.Equal(t, tc.expectedInterval, result)
+		})
+	}
+}
+
 // TestProcessDiscoveryInterval tests to make sure that the process discovery interval validation works properly
 func TestProcessDiscoveryInterval(t *testing.T) {
 	for _, tc := range []struct {

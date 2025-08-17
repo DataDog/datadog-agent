@@ -7,6 +7,7 @@
 package connectionscheckimpl
 
 import (
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -38,6 +39,7 @@ type dependencies struct {
 	Config      config.Component
 	WMeta       workloadmeta.Component
 	NpCollector npcollector.Component
+	Statsd      statsd.ClientInterface
 }
 
 type result struct {
@@ -49,7 +51,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.NpCollector),
+		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.NpCollector, deps.Statsd),
 	}
 	return result{
 		Check: types.ProvidesCheck{

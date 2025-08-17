@@ -14,6 +14,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -45,13 +47,14 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component, statsd statsd.ClientInterface) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
 		sysprobeYamlConfig: sysprobeYamlConfig,
 		wmeta:              wmeta,
 		npCollector:        npCollector,
+		statsd:             statsd,
 	}
 }
 
@@ -65,6 +68,7 @@ type ConnectionsCheck struct {
 	maxConnsPerMessage     int
 	networkID              string
 	notInitializedLogLimit *log.Limit
+	lastRunTime            time.Time
 
 	dockerFilter     *parser.DockerProxy
 	serviceExtractor *parser.ServiceExtractor
@@ -75,7 +79,9 @@ type ConnectionsCheck struct {
 
 	npCollector npcollector.Component
 
-	sysprobeClient *http.Client
+	sysprobeClient     *http.Client
+	statsd             statsd.ClientInterface
+	useDynamicInterval bool
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -84,6 +90,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
 	c.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 	c.sysprobeClient = sysprobeclient.Get(syscfg.SystemProbeAddress)
+	c.useDynamicInterval = c.config.GetBool("process_config.connections.enable_dynamic_interval")
 
 	// Register process agent as a system probe's client
 	// This ensures we start recording data from now to the first call to `Run`
@@ -113,6 +120,19 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	}
 	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
+
+	// Initialize state for the capacity-based run logic only when dynamic interval is enabled
+	if c.useDynamicInterval {
+		c.lastRunTime = time.Time{} // Ensure the first run is a full run
+		// Guaranteed run interval is driven by the standard connections check interval (30s)
+		log.Infof(
+			"connections check dynamic interval enabled: Capacity check interval=%v, Guaranteed full run interval=%v",
+			ConnectionsCheckDynamicInterval,
+			ConnectionsCheckDefaultInterval,
+		)
+	} else {
+		log.Infof("connections check running with traditional fixed interval: %v", GetInterval(c.config, ConnectionsCheckName))
+	}
 
 	return nil
 }
@@ -155,8 +175,17 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
+	// Determine if we should run the check based on configuration and capacity
+	if !c.shouldRunCheck(start) {
+		return StandardRunResult(nil), nil
+	}
+
 	conns, err := c.getConnections()
 	if err != nil {
+		log.Errorf("failed to get connections: %v", err)
+		if c.statsd != nil {
+			_ = c.statsd.Count("datadog.process.connections.collection_errors", 1, []string{}, 1)
+		}
 		return nil, err
 	}
 
@@ -172,11 +201,72 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
+	if c.statsd != nil {
+		_ = c.statsd.Gauge("datadog.process.connections.count", float64(len(conns.Conns)), []string{}, 1)
+		_ = c.statsd.Histogram("datadog.process.connections.collection_time", time.Since(start).Seconds(), []string{}, 1)
+	}
+
 	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
 
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
+}
+
+// shouldRunCheck determines whether the connections check should run based on configuration and system capacity.
+// It handles both traditional (always run) and dynamic interval (capacity-aware) modes.
+// Returns true if the check should run, false if it should be skipped.
+func (c *ConnectionsCheck) shouldRunCheck(start time.Time) bool {
+	if !c.useDynamicInterval {
+		// Traditional behavior: always run the check
+		status.UpdateLastCollectTime(start)
+		log.Debugf("running connections check (dynamic interval disabled)")
+		return true
+	}
+
+	// Dynamic interval mode: use capacity-aware logic
+	timeSinceLastRun := start.Sub(c.lastRunTime)
+	// Add a small tolerance (250ms) to account for differences in the check interval and the guaranteed run interval
+	guaranteedIntervalWithTolerance := ConnectionsCheckDefaultInterval - (250 * time.Millisecond)
+	isTimeForGuaranteedRun := c.lastRunTime.IsZero() || timeSinceLastRun >= guaranteedIntervalWithTolerance
+
+	isNearCapacity := false
+	if c.sysprobeClient != nil {
+		var capacityErr error
+		isNearCapacity, capacityErr = c.checkCapacity()
+		if capacityErr != nil {
+			_ = log.Warnf("failed to check system-probe connection capacity: %v. Proceeding based on time interval.", capacityErr)
+			isNearCapacity = false
+			if c.statsd != nil {
+				_ = c.statsd.Count("datadog.process.connections.capacity_check_errors", 1, []string{}, 1)
+			}
+		}
+	} else {
+		log.Debug("system probe client not available, skipping capacity check.")
+	}
+
+	// Decide whether to run the full check
+	shouldRunCheck := isTimeForGuaranteedRun || isNearCapacity
+
+	if c.statsd != nil {
+		if shouldRunCheck {
+			_ = c.statsd.Count("datadog.process.connections.runs", 1, []string{fmt.Sprintf("guaranteed_run:%t", isTimeForGuaranteedRun), fmt.Sprintf("near_capacity:%t", isNearCapacity)}, 1)
+		} else {
+			_ = c.statsd.Count("datadog.process.connections.skipped_runs", 1, []string{}, 1)
+		}
+	}
+
+	if !shouldRunCheck {
+		log.Debugf("skipping connections check run (Capacity OK, not time for guaranteed run). Last full run: %v ago", timeSinceLastRun)
+		return false
+	}
+
+	// We're going to run the check, so update state and log
+	status.UpdateLastCollectTime(start)
+	log.Debugf("running connections check. Reason: TimeForGuaranteedRun=%v (last run %v ago), NearCapacity=%v", isTimeForGuaranteedRun, timeSinceLastRun, isNearCapacity)
+	c.lastRunTime = start
+
+	return true
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
@@ -532,4 +622,50 @@ func getNetworkID(sysProbeClient *http.Client) (string, error) {
 		}
 	}
 	return networkID, err
+}
+
+func (c *ConnectionsCheck) checkCapacity() (bool, error) {
+	if c.sysprobeClient == nil {
+		return false, fmt.Errorf("system probe client is nil")
+	}
+
+	capacityCheckStart := time.Now()
+	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections/check_capacity?client_id="+ProcessAgentClientID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return false, fmt.Errorf("error creating capacity check request %s: %w", url, err)
+	}
+
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("Checking connections capacity endpoint: %s", url)
+	}
+	resp, err := c.sysprobeClient.Do(req)
+	if err != nil {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		return false, fmt.Errorf("error calling capacity check endpoint %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	if c.statsd != nil {
+		_ = c.statsd.Histogram("datadog.process.connections.capacity_check_time", time.Since(capacityCheckStart).Seconds(), []string{}, 1)
+	}
+
+	switch resp.StatusCode {
+	case http.StatusOK: // 200 OK => Near capacity
+		log.Debugf("Capacity check returned 200 OK (Near Capacity) for client %s", ProcessAgentClientID)
+		if c.statsd != nil {
+			_ = c.statsd.Count("datadog.process.connections.capacity_near_limit", 1, []string{}, 1)
+		}
+		return true, nil
+	case http.StatusNoContent: // 204 No Content => Not near capacity
+		log.Tracef("Capacity check returned 204 No Content (OK) for client %s", ProcessAgentClientID)
+		if c.statsd != nil {
+			_ = c.statsd.Count("datadog.process.connections.capacity_ok", 1, []string{}, 1)
+		}
+		return false, nil
+	default:
+		return false, fmt.Errorf("unexpected status code %d from capacity check endpoint %s", resp.StatusCode, url)
+	}
 }

@@ -10,6 +10,10 @@ package connectionscheckimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -18,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestConnectionsCheckIsEnabled(t *testing.T) {
@@ -73,6 +75,9 @@ func TestConnectionsCheckIsEnabled(t *testing.T) {
 				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysprobeConfigs}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				npcollectorimpl.MockModule(),
+				fx.Provide(func() statsd.ClientInterface {
+					return &statsd.NoOpClient{}
+				}),
 				Module(),
 			))
 
