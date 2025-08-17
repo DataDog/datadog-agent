@@ -6,9 +6,9 @@
 // Package clusteragent contains the functionality of the Cluster Agent.
 package clusteragent
 
-import clustercheckhandler "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
+import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 
 // ServerContext holds business logic classes required to setup API endpoints
 type ServerContext struct {
-	ClusterCheckHandler clustercheckhandler.Component
+	ClusterCheckHandler *clusterchecks.Handler
 }

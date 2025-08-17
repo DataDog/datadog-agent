@@ -16,4 +16,7 @@ import (
 type Component interface {
 	// WritePayloadAsJSON writes the cluster checks payload as JSON to HTTP response
 	WritePayloadAsJSON(w http.ResponseWriter, r *http.Request)
+
+	// SetClusterHandler sets the cluster handler for collecting metadata
+	SetClusterHandler(handler interface{})
 }

@@ -161,6 +161,7 @@ func TestGetClusterChecksMetadata(t *testing.T) {
 			w.Write(out)
 		}
 	}))
+	defer s.Close()
 
 	setupClusterAgentIPCAddress(t, configmock.New(t), s.URL)
 

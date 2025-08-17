@@ -64,8 +64,6 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 
-	clustercheckhandler "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
-	clusterchecksfx "github.com/DataDog/datadog-agent/comp/core/clusterchecks/fx"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -174,13 +172,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
 					status.NewInformationProvider(admissionpkg.Provider{}),
 					status.NewInformationProvider(endpointsStatus.Provider{}),
+					status.NewInformationProvider(pkgclusterchecks.Provider{}),
+					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
-				fx.Provide(func(clusterChecksHandler option.Option[clustercheckhandler.Component]) []status.InformationProvider {
-					return []status.InformationProvider{
-						status.NewInformationProvider(pkgclusterchecks.NewProvider(clusterChecksHandler)),
-						status.NewInformationProvider(orchestratorStatus.NewProvider(clusterChecksHandler)),
-					}
-				}),
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
 				}),
@@ -239,7 +233,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dcametadatafx.Module(),
 
 				clusterchecksmetadatafx.Module(),
-				clusterchecksfx.Module(),
 				ipcfx.ModuleReadWrite(),
 			)
 		},
@@ -270,7 +263,6 @@ func start(log log.Component,
 	dcametadataComp dcametadata.Component,
 
 	clusterChecksMetadataComp clusterchecksmetadata.Component,
-	clusterCheckHandler option.Option[clustercheckhandler.Component],
 	_ metadatarunner.Component,
 ) error {
 	stopCh := make(chan struct{})
@@ -448,16 +440,16 @@ func start(log log.Component,
 
 	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
-		if handler, ok := clusterCheckHandler.Get(); ok {
-			// Run the cluster check handler
-			go handler.Run(mainCtx)
-
-			// Install API endpoints with the component
+		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac, taggerComp)
+		if err == nil {
 			api.ModifyAPIRouter(func(r *mux.Router) {
-				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: handler})
+				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
 			})
+
+			// Set cluster checks handler in clusterchecks component
+			clusterChecksMetadataComp.SetClusterHandler(clusterCheckHandler)
 		} else {
-			pkglog.Debug("Cluster check handler component not available")
+			pkglog.Errorf("Error while setting up cluster check Autodiscovery, CLC API endpoints won't be available, err: %v", err)
 		}
 	} else {
 		pkglog.Debug("Cluster check Autodiscovery disabled")
@@ -612,6 +604,17 @@ func start(log log.Component,
 	pkglog.Flush()
 
 	return nil
+}
+
+func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*pkgclusterchecks.Handler, error) {
+	handler, err := pkgclusterchecks.NewHandler(ac, tagger)
+	if err != nil {
+		return nil, err
+	}
+	go handler.Run(ctx)
+
+	pkglog.Info("Started cluster check Autodiscovery")
+	return handler, nil
 }
 
 func initializeRemoteConfigClient(rcService rccomp.Component, config config.Component, clusterName, clusterID string, products ...string) (*rcclient.Client, error) {

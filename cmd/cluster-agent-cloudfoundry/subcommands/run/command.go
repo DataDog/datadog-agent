@@ -32,8 +32,6 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	clustercheckhandler "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
-	clusterchecksfx "github.com/DataDog/datadog-agent/comp/core/clusterchecks/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
@@ -70,7 +68,9 @@ import (
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	clusterchecksHandler "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -157,7 +157,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dcametadatafx.Module(),
 
 				clusterchecksmetadatafx.Module(),
-				clusterchecksfx.Module(),
 				ipcfx.ModuleReadWrite(),
 			)
 		},
@@ -183,7 +182,6 @@ func run(
 	diagonseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
 	clusterChecksMetadataComp clusterchecksmetadata.Component,
-	clusterCheckHandler option.Option[clustercheckhandler.Component],
 	telemetry telemetry.Component,
 ) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -231,17 +229,17 @@ func run(
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
-	// Setup cluster checks if available
-	if handler, ok := clusterCheckHandler.Get(); ok {
-		// Run the cluster check handler
-		go handler.Run(mainCtx)
-
-		// Install API endpoints with the component
+	var clusterCheckHandler *clusterchecksHandler.Handler
+	clusterCheckHandler, err = setupClusterCheck(mainCtx, ac, taggerComp)
+	if err == nil {
 		api.ModifyAPIRouter(func(r *mux.Router) {
-			dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: handler})
+			dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
 		})
+
+		// Set cluster checks handler in clusterchecks component
+		clusterChecksMetadataComp.SetClusterHandler(clusterCheckHandler)
 	} else {
-		log.Debug("Cluster check handler component not available")
+		log.Errorf("Error while setting up cluster check Autodiscovery %v", err)
 	}
 
 	// Block here until we receive the interrupt signal
@@ -340,4 +338,15 @@ func initializeBBSCache(ctx context.Context) error {
 			return fmt.Errorf("BBS Cache failed to warm up. Misconfiguration error? Inspect logs")
 		}
 	}
+}
+
+func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*clusterchecksHandler.Handler, error) {
+	handler, err := clusterchecksHandler.NewHandler(ac, tagger)
+	if err != nil {
+		return nil, err
+	}
+	go handler.Run(ctx)
+
+	pkglog.Info("Started cluster check Autodiscovery")
+	return handler, nil
 }
