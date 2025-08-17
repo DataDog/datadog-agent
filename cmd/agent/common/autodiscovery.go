@@ -51,6 +51,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 
 	acTelemetryStore := ac.GetTelemetryStore()
 
+	log.Info("can poll files for autodiscovery config: ", pkgconfigsetup.Datadog().GetBool("autoconf_config_files_poll"))
 	ac.AddConfigProvider(
 		providers.NewFileConfigProvider(acTelemetryStore),
 		pkgconfigsetup.Datadog().GetBool("autoconf_config_files_poll"),
@@ -71,6 +72,8 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	var uniqueConfigProviders map[string]pkgconfigsetup.ConfigurationProviders
 	err := structure.UnmarshalKey(pkgconfigsetup.Datadog(), "config_providers", &configProviders)
 
+	log.Info("try to get config_providers: ", configProviders, "and error", err)
+
 	if err == nil {
 		uniqueConfigProviders = make(map[string]pkgconfigsetup.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
 		for _, provider := range configProviders {
@@ -89,6 +92,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 		var enableContainerProvider bool
 		for _, p := range legacyProviders {
 			if _, found := uniqueConfigProviders[p]; found {
+				log.Info("adding docker provider: ", p)
 				enableContainerProvider = true
 				delete(uniqueConfigProviders, p)
 			}
@@ -118,6 +122,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	for _, cp := range uniqueConfigProviders {
 		factory, found := ac.GetProviderCatalog()[cp.Name]
 		if found {
+			log.Info("adding provider", cp.Name)
 			configProvider, err := factory(&cp, wmeta, acTelemetryStore)
 			if err != nil {
 				log.Errorf("Error while adding config provider %v: %v", cp.Name, err)

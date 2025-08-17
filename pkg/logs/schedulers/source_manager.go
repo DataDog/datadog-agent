@@ -8,6 +8,7 @@ package schedulers
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // sourceManager implements the SourceManager interface.
@@ -23,6 +24,7 @@ var _ SourceManager = &sourceManager{}
 
 // AddSource implements SourceManager#AddSource.
 func (sm *sourceManager) AddSource(source *sources.LogSource) {
+	log.Info("source manager adding source")
 	sm.sources.AddSource(source)
 }
 

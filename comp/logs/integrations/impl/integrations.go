@@ -9,6 +9,7 @@ package integrationsimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Logsintegration is the integrations component implementation
@@ -30,6 +31,7 @@ func (li *Logsintegration) RegisterIntegration(id string, config integration.Con
 	if len(config.LogsConfig) == 0 {
 		return
 	}
+	log.Info("registering integration with ID: ", id, " and config: ", string(config.LogsConfig))
 
 	integrationConfig := integrations.IntegrationConfig{
 		IntegrationID: id,

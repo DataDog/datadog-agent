@@ -45,7 +45,7 @@ func NewLogSources() *LogSources {
 // All of the subscribers registered for this source's type (src.Config.Type) will be
 // notified.
 func (s *LogSources) AddSource(source *LogSource) {
-	log.Tracef("Adding %s", source.Dump(false))
+	log.Infof("Adding %s", source.Dump(false))
 	s.mu.Lock()
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
@@ -61,6 +61,7 @@ func (s *LogSources) AddSource(source *LogSource) {
 	}
 
 	for _, stream := range streamsForType {
+		log.Infof("adding config for type %s: %s", source.Config.Type, source.Name)
 		stream <- source
 	}
 }
@@ -144,6 +145,7 @@ func (s *LogSources) SubscribeForType(sourceType string) (added chan *LogSource,
 	existingSources := slices.Clone(s.sources) // clone for goroutine
 	go func() {
 		for _, source := range existingSources {
+			log.Info("new config source for type %s: %s", sourceType, source.Name)
 			if source.Config.Type == sourceType {
 				added <- source
 			}

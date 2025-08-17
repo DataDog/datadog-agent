@@ -81,6 +81,10 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
+	log.Info("BIG SCHEDULE CALLED", len(configs))
+	for _, config := range configs {
+		log.Info("config ", config.Dump(false))
+	}
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {

@@ -89,6 +89,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 // Start starts the Launcher
 func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	s.pipelineProvider = pipelineProvider
+	log.Info("Starting file launcher with tailing limit: ", s.tailingLimit)
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType)
 	s.registry = registry
 	tracker.Add(s.tailers)
@@ -249,6 +250,10 @@ func (s *Launcher) cleanUpRotatedTailers() {
 
 // addSource keeps track of the new source and launch new tailers for this source.
 func (s *Launcher) addSource(source *sources.LogSource) {
+	log.Info("add source in file launcher: ", source.Name)
+	if source.Config != nil {
+		log.Info("source type", source.Config.Type)
+	}
 	s.activeSources = append(s.activeSources, source)
 	s.launchTailers(source)
 }

@@ -5,6 +5,8 @@
 
 package sources
 
+import "github.com/DataDog/datadog-agent/pkg/util/log"
+
 // ConfigSources receives file paths to log configs and creates sources. The sources are added to a channel and read by the launcher.
 // This class implements the SourceProvider interface
 type ConfigSources struct {
@@ -33,6 +35,7 @@ func (s *ConfigSources) SubscribeForType(sourceType string) (added chan *LogSour
 	added = make(chan *LogSource)
 	go func() {
 		for _, logSource := range s.addedByType[sourceType] {
+			log.Info("new config source for type %s: %s", sourceType, logSource.Name)
 			added <- logSource
 		}
 	}()
