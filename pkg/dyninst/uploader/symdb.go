@@ -56,15 +56,15 @@ const (
 
 // Symbol represents a variable, parameter, or field in the SymDB schema
 type Symbol struct {
-	Name              string             `json:"name"`
-	Type              string             `json:"type"`
-	SymbolType        SymbolType         `json:"symbol_type"`
-	Line              *int               `json:"line,omitempty"`
-	LanguageSpecifics *LanguageSpecifics `json:"language_specifics,omitempty"`
-}
+	Name       string     `json:"name"`
+	Type       string     `json:"type"`
+	SymbolType SymbolType `json:"symbol_type"`
+	Line       *int       `json:"line,omitempty"`
+}x
 
 type LanguageSpecifics struct {
 	AvailableLineRanges []LineRange `json:"available_line_ranges,omitempty"`
+	GoQualifiedName     string      `json:"go_qualified_name,omitempty"`
 }
 
 type LineRange struct {
@@ -295,6 +295,9 @@ func convertFunctionToScope(fn symdb.Function, isMethod bool) Scope {
 		EndLine:    fn.EndLine,
 		Symbols:    make([]Symbol, 0, len(fn.Variables)),
 		Scopes:     make([]Scope, 0, len(fn.Scopes)),
+		LanguageSpecifics: &LanguageSpecifics{
+			GoQualifiedName: fn.QualifiedName,
+		},
 	}
 
 	for _, variable := range fn.Variables {
