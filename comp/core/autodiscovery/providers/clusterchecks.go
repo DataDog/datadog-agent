@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -39,7 +39,7 @@ type ClusterChecksConfigProvider struct {
 	lastChange       int64
 	identifier       string
 	flushedConfigs   bool
-	nodeType         types.NodeType
+	nodeType         clusterchecks.NodeType
 }
 
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
@@ -54,7 +54,7 @@ func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.Configuration
 		graceDuration:    defaultGraceDuration,
 		degradedDuration: defaultDegradedDeadline,
 		heartbeat:        atomic.NewTime(time.Now()),
-		nodeType:         types.NodeTypeCLCRunner,
+		nodeType:         clusterchecks.NodeTypeCLCRunner,
 	}
 
 	c.identifier = pkgconfigsetup.Datadog().GetString("clc_runner_id")
@@ -72,9 +72,9 @@ func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.Configuration
 
 	// Set nodeType based on config
 	if pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
-		c.nodeType = types.NodeTypeCLCRunner
+		c.nodeType = clusterchecks.NodeTypeCLCRunner
 	} else {
-		c.nodeType = types.NodeTypeNodeAgent
+		c.nodeType = clusterchecks.NodeTypeNodeAgent
 	}
 
 	if providerConfig.GraceTimeSeconds > 0 {
@@ -125,7 +125,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 		}
 	}
 
-	status := types.NodeStatus{
+	status := clusterchecks.NodeStatus{
 		LastChange: c.lastChange,
 		NodeType:   c.nodeType,
 	}
@@ -224,8 +224,8 @@ func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 		return errors.New("DCA Client not initialized by main provider yet, cannot post heartbeat, wait for init completion")
 	}
 
-	status := types.NodeStatus{
-		LastChange: types.ExtraHeartbeatLastChangeValue,
+	status := clusterchecks.NodeStatus{
+		LastChange: clusterchecks.ExtraHeartbeatLastChangeValue,
 		NodeType:   c.nodeType,
 	}
 

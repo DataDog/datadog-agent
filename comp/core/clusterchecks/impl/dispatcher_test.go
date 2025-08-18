@@ -5,7 +5,7 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"sort"
@@ -17,8 +17,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -217,11 +217,11 @@ func TestGetNodeTypeCounts(t *testing.T) {
 	dispatcher := newDispatcher(fakeTagger)
 
 	// Register 2 CLC runners and 3 node agents
-	dispatcher.processNodeStatus("runner1", "10.0.0.10", types.NodeStatus{LastChange: 1, NodeType: types.NodeTypeCLCRunner})
-	dispatcher.processNodeStatus("runner2", "10.0.0.11", types.NodeStatus{LastChange: 2, NodeType: types.NodeTypeCLCRunner})
-	dispatcher.processNodeStatus("agent1", "10.0.0.20", types.NodeStatus{LastChange: 3, NodeType: types.NodeTypeNodeAgent})
-	dispatcher.processNodeStatus("agent2", "10.0.0.21", types.NodeStatus{LastChange: 4, NodeType: types.NodeTypeNodeAgent})
-	dispatcher.processNodeStatus("agent3", "10.0.0.22", types.NodeStatus{LastChange: 5, NodeType: types.NodeTypeNodeAgent})
+	dispatcher.processNodeStatus("runner1", "10.0.0.10", clusterchecks.NodeStatus{LastChange: 1, NodeType: clusterchecks.NodeTypeCLCRunner})
+	dispatcher.processNodeStatus("runner2", "10.0.0.11", clusterchecks.NodeStatus{LastChange: 2, NodeType: clusterchecks.NodeTypeCLCRunner})
+	dispatcher.processNodeStatus("agent1", "10.0.0.20", clusterchecks.NodeStatus{LastChange: 3, NodeType: clusterchecks.NodeTypeNodeAgent})
+	dispatcher.processNodeStatus("agent2", "10.0.0.21", clusterchecks.NodeStatus{LastChange: 4, NodeType: clusterchecks.NodeTypeNodeAgent})
+	dispatcher.processNodeStatus("agent3", "10.0.0.22", clusterchecks.NodeStatus{LastChange: 5, NodeType: clusterchecks.NodeTypeNodeAgent})
 
 	clcRunnerCount, nodeAgentCount := dispatcher.store.CountNodeTypes()
 	assert.Equal(t, 2, clcRunnerCount)
@@ -231,7 +231,7 @@ func TestGetNodeTypeCounts(t *testing.T) {
 func TestProcessNodeStatus(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
-	status1 := types.NodeStatus{LastChange: 10}
+	status1 := clusterchecks.NodeStatus{LastChange: 10}
 
 	// Warmup phase, upToDate is unconditionally true
 	upToDate := dispatcher.processNodeStatus("node1", "10.0.0.1", status1)
@@ -249,14 +249,14 @@ func TestProcessNodeStatus(t *testing.T) {
 	// Give changes
 	node1.lastConfigChange = timestampNowNano()
 	node1.heartbeat = node1.heartbeat - 50
-	status2 := types.NodeStatus{LastChange: node1.lastConfigChange - 2}
+	status2 := clusterchecks.NodeStatus{LastChange: node1.lastConfigChange - 2}
 	upToDate = dispatcher.processNodeStatus("node1", "10.0.0.1", status2)
 	assert.False(t, upToDate)
 	assert.True(t, timestampNow() >= node1.heartbeat)
 	assert.True(t, timestampNow() <= node1.heartbeat+1)
 
 	// No change
-	status3 := types.NodeStatus{LastChange: node1.lastConfigChange}
+	status3 := clusterchecks.NodeStatus{LastChange: node1.lastConfigChange}
 	upToDate = dispatcher.processNodeStatus("node1", "10.0.0.1", status3)
 	assert.True(t, upToDate)
 
@@ -289,7 +289,7 @@ func TestGetNodeWithLessChecks(t *testing.T) {
 	assert.Equal(t, "node2", dispatcher.getNodeWithLessChecks())
 
 	// Add an empty node3
-	dispatcher.processNodeStatus("node3", "10.0.0.3", types.NodeStatus{})
+	dispatcher.processNodeStatus("node3", "10.0.0.3", clusterchecks.NodeStatus{})
 	assert.Equal(t, "node3", dispatcher.getNodeWithLessChecks())
 
 	requireNotLocked(t, dispatcher.store)
@@ -311,8 +311,8 @@ func TestExpireNodes(t *testing.T) {
 	dispatcher.addConfig(generateIntegration("A"), "nodeA")
 	dispatcher.addConfig(generateIntegration("B1"), "nodeB")
 	dispatcher.addConfig(generateIntegration("B2"), "nodeB")
-	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
-	dispatcher.processNodeStatus("nodeB", "10.0.0.2", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeA", "10.0.0.1", clusterchecks.NodeStatus{})
+	dispatcher.processNodeStatus("nodeB", "10.0.0.2", clusterchecks.NodeStatus{})
 	assert.Equal(t, 2, len(dispatcher.store.nodes))
 
 	// Fake the status report timestamps, nodeB should expire
@@ -333,7 +333,7 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	dispatcher := newDispatcher(fakeTagger)
 
 	// Register a node with a correct status & schedule a Check
-	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeA", "10.0.0.1", clusterchecks.NodeStatus{})
 	dispatcher.Schedule([]integration.Config{
 		generateIntegration("A"),
 	})
@@ -361,7 +361,7 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 
 	// Register new node as healthy
-	dispatcher.processNodeStatus("nodeB", "10.0.0.2", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeB", "10.0.0.2", clusterchecks.NodeStatus{})
 
 	// Ensure we have 1 dangling to schedule, as new available node is registered
 	assert.True(t, dispatcher.shouldDispatchDangling())
@@ -385,8 +385,8 @@ func TestDispatchFourConfigsTwoNodes(t *testing.T) {
 	dispatcher := newDispatcher(fakeTagger)
 
 	// Register two nodes
-	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
-	dispatcher.processNodeStatus("nodeB", "10.0.0.2", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeA", "10.0.0.1", clusterchecks.NodeStatus{})
+	dispatcher.processNodeStatus("nodeB", "10.0.0.2", clusterchecks.NodeStatus{})
 	assert.Equal(t, 2, len(dispatcher.store.nodes))
 
 	dispatcher.Schedule([]integration.Config{
@@ -447,7 +447,7 @@ func TestDanglingConfig(t *testing.T) {
 	}, 2*time.Second, 250*time.Millisecond)
 
 	// register a node, shouldDispatchDangling will become true
-	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
+	dispatcher.processNodeStatus("nodeA", "10.0.0.1", clusterchecks.NodeStatus{})
 	assert.True(t, dispatcher.shouldDispatchDangling())
 
 	// get the danglings and make sure they are removed from the store
@@ -647,8 +647,8 @@ func (d *dummyClientStruct) GetVersion(IP string) (version.Version, error) {
 	return version.Version{}, nil
 }
 
-func (d *dummyClientStruct) GetRunnerStats(IP string) (types.CLCRunnersStats, error) {
-	stats := map[string]types.CLCRunnersStats{
+func (d *dummyClientStruct) GetRunnerStats(IP string) (clusterchecks.CLCRunnersStats, error) {
+	stats := map[string]clusterchecks.CLCRunnersStats{
 		"10.0.0.1": {
 			"http_check:My Nginx Service:b0041608e66d20ba": {
 				AverageExecutionTime: 241,
@@ -665,11 +665,11 @@ func (d *dummyClientStruct) GetRunnerStats(IP string) (types.CLCRunnersStats, er
 	return stats[IP], nil
 }
 
-func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
-	workers := map[string]types.Workers{
+func (d *dummyClientStruct) GetRunnerWorkers(IP string) (clusterchecks.Workers, error) {
+	workers := map[string]clusterchecks.Workers{
 		"10.0.0.1": {
 			Count: 1,
-			Instances: map[string]types.WorkerInfo{
+			Instances: map[string]clusterchecks.WorkerInfo{
 				"worker_1": {
 					Utilization: 0.1,
 				},
@@ -677,7 +677,7 @@ func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
 		},
 		"10.0.0.2": {
 			Count: 2,
-			Instances: map[string]types.WorkerInfo{
+			Instances: map[string]clusterchecks.WorkerInfo{
 				"worker_1": {
 					Utilization: 0.1,
 				},
@@ -697,19 +697,19 @@ func TestUpdateRunnersStats(t *testing.T) {
 	mockConfig.SetWithoutSource("cluster_checks.rebalance_with_utilization", true)
 
 	dispatcher := newDispatcher(fakeTagger)
-	status := types.NodeStatus{LastChange: 10}
+	status := clusterchecks.NodeStatus{LastChange: 10}
 	dispatcher.store.active = true
 
 	dispatcher.clcRunnersClient = &dummyClcRunnerClient
 
-	stats1 := types.CLCRunnersStats{
+	stats1 := clusterchecks.CLCRunnersStats{
 		"http_check:My Nginx Service:b0041608e66d20ba": {
 			AverageExecutionTime: 241,
 			MetricSamples:        3,
 		},
 	}
 
-	stats2 := types.CLCRunnersStats{
+	stats2 := clusterchecks.CLCRunnersStats{
 		"kube_apiserver_metrics:c5d2d20ccb4bb880": {
 			AverageExecutionTime: 858,
 			MetricSamples:        1562,
@@ -722,13 +722,13 @@ func TestUpdateRunnersStats(t *testing.T) {
 	node1, found := dispatcher.store.getNodeStore("node1")
 	assert.True(t, found)
 	assert.EqualValues(t, "10.0.0.1", node1.clientIP)
-	assert.EqualValues(t, types.CLCRunnersStats{}, node1.clcRunnerStats)
+	assert.EqualValues(t, clusterchecks.CLCRunnersStats{}, node1.clcRunnerStats)
 	assert.Zero(t, node1.workers)
 
 	node2, found := dispatcher.store.getNodeStore("node2")
 	assert.True(t, found)
 	assert.EqualValues(t, "10.0.0.2", node2.clientIP)
-	assert.EqualValues(t, types.CLCRunnersStats{}, node2.clcRunnerStats)
+	assert.EqualValues(t, clusterchecks.CLCRunnersStats{}, node2.clcRunnerStats)
 	assert.Zero(t, node2.workers)
 
 	dispatcher.updateRunnersStats()

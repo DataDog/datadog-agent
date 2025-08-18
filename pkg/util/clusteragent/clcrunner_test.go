@@ -24,7 +24,7 @@ import (
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -151,7 +151,7 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerStats() {
 
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
-	expected := types.CLCRunnersStats{
+	expected := clusterchecks.CLCRunnersStats{
 		"http_check:My Nginx Service:b0041608e66d20ba": {
 			AverageExecutionTime: 241,
 			MetricSamples:        3,
@@ -223,9 +223,9 @@ func (suite *clcRunnerSuite) TestGetRunnerWorkers() {
 
 	c.(*CLCRunnerClient).clcRunnerPort = p
 
-	expected := types.Workers{
+	expected := clusterchecks.Workers{
 		Count: 2,
-		Instances: map[string]types.WorkerInfo{
+		Instances: map[string]clusterchecks.WorkerInfo{
 			"worker_1": {
 				Utilization: 0.1,
 			},

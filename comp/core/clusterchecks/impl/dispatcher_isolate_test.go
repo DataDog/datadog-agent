@@ -5,7 +5,7 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"testing"
@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -27,7 +27,7 @@ func TestIsolateCheckSuccessful(t *testing.T) {
 	testDispatcher.store.nodes["B"] = newNodeStore("B", "")
 	testDispatcher.store.nodes["B"].workers = pkgconfigsetup.DefaultNumWorkers
 
-	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
+	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]clusterchecks.CLCRunnerStats{
 		"checkA0": {
 			AverageExecutionTime: 50,
 			MetricSamples:        10,
@@ -45,7 +45,7 @@ func TestIsolateCheckSuccessful(t *testing.T) {
 		},
 	}
 
-	testDispatcher.store.nodes["B"].clcRunnerStats = map[string]types.CLCRunnerStats{
+	testDispatcher.store.nodes["B"].clcRunnerStats = map[string]clusterchecks.CLCRunnerStats{
 		"checkB0": {
 			AverageExecutionTime: 50,
 			MetricSamples:        10,
@@ -108,7 +108,7 @@ func TestIsolateNonExistentCheckFails(t *testing.T) {
 	testDispatcher.store.nodes["B"] = newNodeStore("B", "")
 	testDispatcher.store.nodes["B"].workers = pkgconfigsetup.DefaultNumWorkers
 
-	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
+	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]clusterchecks.CLCRunnerStats{
 		"checkA0": {
 			AverageExecutionTime: 50,
 			MetricSamples:        10,
@@ -126,7 +126,7 @@ func TestIsolateNonExistentCheckFails(t *testing.T) {
 		},
 	}
 
-	testDispatcher.store.nodes["B"].clcRunnerStats = map[string]types.CLCRunnerStats{
+	testDispatcher.store.nodes["B"].clcRunnerStats = map[string]clusterchecks.CLCRunnerStats{
 		"checkB0": {
 			AverageExecutionTime: 50,
 			MetricSamples:        10,
@@ -185,7 +185,7 @@ func TestIsolateCheckOnlyOneRunnerFails(t *testing.T) {
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
 	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
 
-	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
+	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]clusterchecks.CLCRunnerStats{
 		"checkA0": {
 			AverageExecutionTime: 50,
 			MetricSamples:        10,

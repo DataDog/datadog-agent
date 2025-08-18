@@ -5,14 +5,14 @@
 
 //go:build clusterchecks && kubeapiserver
 
-package clusterchecks
+package clustercheckimpl
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
 
-func getLeaderIPCallback() (types.LeaderIPCallback, error) {
+func getLeaderIPCallback() (clusterchecks.LeaderIPCallback, error) {
 	engine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		return nil, err

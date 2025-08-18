@@ -65,7 +65,7 @@ import (
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"

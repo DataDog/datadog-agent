@@ -5,11 +5,11 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
@@ -22,16 +22,16 @@ func (d *dispatcher) getAllConfigs() ([]integration.Config, error) {
 	return makeConfigArray(d.store.digestToConfig), nil
 }
 
-func (d *dispatcher) getState() (types.StateResponse, error) {
+func (d *dispatcher) getState() (clusterchecks.StateResponse, error) {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	response := types.StateResponse{
+	response := clusterchecks.StateResponse{
 		Warmup:   !d.store.active,
 		Dangling: makeConfigArrayFromDangling(d.store.danglingConfigs),
 	}
 	for _, node := range d.store.nodes {
-		n := types.StateNodeResponse{
+		n := clusterchecks.StateNodeResponse{
 			Name:    node.name,
 			Configs: makeConfigArray(node.digestToConfig),
 		}

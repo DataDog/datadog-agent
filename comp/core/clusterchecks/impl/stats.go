@@ -5,12 +5,12 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -18,7 +18,7 @@ const handlerCacheKey = "cluster_checks_handler"
 
 // GetStats retrieves the stats of the latest started handler.
 // It is used for the agent status command.
-func GetStats() (*types.Stats, error) {
+func GetStats() (*clusterchecks.Stats, error) {
 	key := cache.BuildAgentKey(handlerCacheKey)
 	x, found := cache.Cache.Get(key)
 	if !found {
@@ -50,7 +50,18 @@ func GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
 	return clcRunnerCount, nodeAgentCount, nil
 }
 
-func (h *Handler) getStats() *types.Stats {
+// GetNodeTypeCounts returns the number of CLC runners and node agents (method on Handler)
+func (h *Handler) GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
+	clcRunnerCount, nodeAgentCount = h.dispatcher.store.CountNodeTypes()
+	return clcRunnerCount, nodeAgentCount, nil
+}
+
+// GetStats returns the stats of the handler
+func (h *Handler) GetStats() (*clusterchecks.Stats, error) {
+	return h.getStats(), nil
+}
+
+func (h *Handler) getStats() *clusterchecks.Stats {
 	h.m.RLock()
 	defer h.m.RUnlock()
 
@@ -60,17 +71,17 @@ func (h *Handler) getStats() *types.Stats {
 		s.Leader = true
 		return s
 	case follower:
-		return &types.Stats{
+		return &clusterchecks.Stats{
 			Follower: true,
 			LeaderIP: h.leaderIP,
 		}
 	default:
 		// Unknown state, leave both Leader & Follower false
-		return &types.Stats{}
+		return &clusterchecks.Stats{}
 	}
 }
 
-func (d *dispatcher) getStats() *types.Stats {
+func (d *dispatcher) getStats() *clusterchecks.Stats {
 	d.store.RLock()
 	defer d.store.RUnlock()
 	checkNames := make(map[string]struct{})
@@ -83,7 +94,7 @@ func (d *dispatcher) getStats() *types.Stats {
 			unscheduledChecks++
 		}
 	}
-	return &types.Stats{
+	return &clusterchecks.Stats{
 		Active:            d.store.active,
 		NodeCount:         len(d.store.nodes),
 		ActiveConfigs:     len(d.store.digestToNode),

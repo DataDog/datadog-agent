@@ -9,8 +9,6 @@ package clusterchecks
 import (
 	"context"
 	"net/http"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
 // team: container-platform
@@ -27,30 +25,30 @@ type Component interface {
 	RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.Request) bool
 
 	// GetState returns the state of the cluster checks handler
-	GetState() (types.StateResponse, error)
+	GetState() (StateResponse, error)
 
 	// GetConfigs returns configurations for a specific identifier
-	GetConfigs(identifier string) (types.ConfigResponse, error)
+	GetConfigs(identifier string) (ConfigResponse, error)
 
 	// PostStatus updates the status for a specific identifier
-	PostStatus(identifier, clientIP string, status types.NodeStatus) types.StatusResponse
+	PostStatus(identifier, clientIP string, status NodeStatus) StatusResponse
 
 	// GetEndpointsConfigs returns endpoints configurations for a specific node
-	GetEndpointsConfigs(nodeName string) (types.ConfigResponse, error)
+	GetEndpointsConfigs(nodeName string) (ConfigResponse, error)
 
 	// GetAllEndpointsCheckConfigs returns all endpoints check configurations
-	GetAllEndpointsCheckConfigs() (types.ConfigResponse, error)
+	GetAllEndpointsCheckConfigs() (ConfigResponse, error)
 
 	// RebalanceClusterChecks triggers a rebalancing of cluster checks
-	RebalanceClusterChecks(force bool) ([]types.RebalanceResponse, error)
+	RebalanceClusterChecks(force bool) ([]RebalanceResponse, error)
 
 	// IsolateCheck isolates a specific check
-	IsolateCheck(isolateCheckID string) types.IsolateResponse
+	IsolateCheck(isolateCheckID string) IsolateResponse
 
 	// Stats Methods
 
 	// GetStats retrieves the stats of the handler
-	GetStats() (*types.Stats, error)
+	GetStats() (*Stats, error)
 
 	// GetNodeTypeCounts returns the number of CLC runners and node agents running cluster checks
 	GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error)

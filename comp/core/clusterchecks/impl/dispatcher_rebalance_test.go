@@ -5,7 +5,7 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"fmt"
@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -30,23 +30,23 @@ func TestRebalance(t *testing.T) {
 			in: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -55,18 +55,18 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -77,23 +77,23 @@ func TestRebalance(t *testing.T) {
 			out: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -102,18 +102,18 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -126,23 +126,23 @@ func TestRebalance(t *testing.T) {
 			in: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 200,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -151,18 +151,18 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -173,18 +173,18 @@ func TestRebalance(t *testing.T) {
 			out: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -193,23 +193,23 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA3": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 200,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB0": types.CLCRunnerStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -222,23 +222,23 @@ func TestRebalance(t *testing.T) {
 			in: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -247,18 +247,18 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -267,18 +267,18 @@ func TestRebalance(t *testing.T) {
 				},
 				"C": {
 					name: "C",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 5,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC1": types.CLCRunnerStats{
+						"checkC1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 90,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC2": types.CLCRunnerStats{
+						"checkC2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 110,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -287,8 +287,8 @@ func TestRebalance(t *testing.T) {
 				},
 				"D": {
 					name: "D",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkD0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -299,18 +299,18 @@ func TestRebalance(t *testing.T) {
 			out: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -319,18 +319,18 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -339,18 +339,18 @@ func TestRebalance(t *testing.T) {
 				},
 				"C": {
 					name: "C",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 5,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC1": types.CLCRunnerStats{
+						"checkC1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 90,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC2": types.CLCRunnerStats{
+						"checkC2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 110,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -359,13 +359,13 @@ func TestRebalance(t *testing.T) {
 				},
 				"D": {
 					name: "D",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkD0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -377,23 +377,23 @@ func TestRebalance(t *testing.T) {
 		{
 			in: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -401,28 +401,28 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB3": types.CLCRunnerStats{
+						"checkB3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 200,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB4": types.CLCRunnerStats{
+						"checkB4": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 500,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -430,18 +430,18 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC1": types.CLCRunnerStats{
+						"checkC1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC2": types.CLCRunnerStats{
+						"checkC2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -449,18 +449,18 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkD0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 5,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkD1": types.CLCRunnerStats{
+						"checkD1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 90,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkD2": types.CLCRunnerStats{
+						"checkD2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 110,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -468,8 +468,8 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkE0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -479,23 +479,23 @@ func TestRebalance(t *testing.T) {
 			},
 			out: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -503,18 +503,18 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -522,23 +522,23 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC1": types.CLCRunnerStats{
+						"checkC1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC2": types.CLCRunnerStats{
+						"checkC2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB3": types.CLCRunnerStats{
+						"checkB3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 200,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -546,18 +546,18 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkD0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 5,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkD1": types.CLCRunnerStats{
+						"checkD1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 90,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkD2": types.CLCRunnerStats{
+						"checkD2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 110,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -565,13 +565,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkE0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB4": types.CLCRunnerStats{
+						"checkB4": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 500,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -583,23 +583,23 @@ func TestRebalance(t *testing.T) {
 		{
 			in: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -607,33 +607,33 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB3": types.CLCRunnerStats{
+						"checkB3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 500,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB4": types.CLCRunnerStats{
+						"checkB4": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 40,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB5": types.CLCRunnerStats{
+						"checkB5": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 60,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -641,8 +641,8 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -652,23 +652,23 @@ func TestRebalance(t *testing.T) {
 			},
 			out: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -676,29 +676,29 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
 
-						"checkB4": types.CLCRunnerStats{
+						"checkB4": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 40,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB5": types.CLCRunnerStats{
+						"checkB5": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 60,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -706,13 +706,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB3": types.CLCRunnerStats{
+						"checkB3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 500,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -724,8 +724,8 @@ func TestRebalance(t *testing.T) {
 		{
 			in: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -733,13 +733,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{},
+					clcRunnerStats: clusterchecks.CLCRunnersStats{},
 				},
 			},
 			out: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -747,15 +747,15 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{},
+					clcRunnerStats: clusterchecks.CLCRunnersStats{},
 				},
 			},
 		},
 		{
 			in: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -763,8 +763,8 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -774,8 +774,8 @@ func TestRebalance(t *testing.T) {
 			},
 			out: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -783,8 +783,8 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -796,19 +796,19 @@ func TestRebalance(t *testing.T) {
 		{
 			in: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{},
+					clcRunnerStats: clusterchecks.CLCRunnersStats{},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{},
+					clcRunnerStats: clusterchecks.CLCRunnersStats{},
 				},
 				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC1": types.CLCRunnerStats{
+						"checkC1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 500,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -818,19 +818,19 @@ func TestRebalance(t *testing.T) {
 			},
 			out: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{},
+					clcRunnerStats: clusterchecks.CLCRunnersStats{},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{},
+					clcRunnerStats: clusterchecks.CLCRunnersStats{},
 				},
 				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC1": types.CLCRunnerStats{
+						"checkC1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 500,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -842,11 +842,11 @@ func TestRebalance(t *testing.T) {
 		{
 			in: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{},
+					clcRunnerStats: clusterchecks.CLCRunnersStats{},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -854,13 +854,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC1": types.CLCRunnerStats{
+						"checkC1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -868,18 +868,18 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkD0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkD1": types.CLCRunnerStats{
+						"checkD1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkD2": types.CLCRunnerStats{
+						"checkD2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -887,23 +887,23 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkE0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkE1": types.CLCRunnerStats{
+						"checkE1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkE2": types.CLCRunnerStats{
+						"checkE2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkE3": types.CLCRunnerStats{
+						"checkE3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 500,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -913,8 +913,8 @@ func TestRebalance(t *testing.T) {
 			},
 			out: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE3": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkE3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 500,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -922,13 +922,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkE2": types.CLCRunnerStats{
+						"checkE2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -936,13 +936,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkC1": types.CLCRunnerStats{
+						"checkC1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -950,18 +950,18 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkD0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkD1": types.CLCRunnerStats{
+						"checkD1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkD2": types.CLCRunnerStats{
+						"checkD2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -969,13 +969,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkE0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkE1": types.CLCRunnerStats{
+						"checkE1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -987,11 +987,11 @@ func TestRebalance(t *testing.T) {
 		{
 			in: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{},
+					clcRunnerStats: clusterchecks.CLCRunnersStats{},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -999,13 +999,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        5,
 							IsClusterCheck:       true,
 						},
-						"checkC1": types.CLCRunnerStats{
+						"checkC1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        20,
 							IsClusterCheck:       true,
@@ -1013,18 +1013,18 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkD0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        5,
 							IsClusterCheck:       true,
 						},
-						"checkD1": types.CLCRunnerStats{
+						"checkD1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        50,
 							IsClusterCheck:       true,
 						},
-						"checkD2": types.CLCRunnerStats{
+						"checkD2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        600,
 							IsClusterCheck:       true,
@@ -1032,23 +1032,23 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkE0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkE1": types.CLCRunnerStats{
+						"checkE1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        300,
 							IsClusterCheck:       true,
 						},
-						"checkE2": types.CLCRunnerStats{
+						"checkE2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkE3": types.CLCRunnerStats{
+						"checkE3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 500,
 							MetricSamples:        1000,
 							IsClusterCheck:       true,
@@ -1058,8 +1058,8 @@ func TestRebalance(t *testing.T) {
 			},
 			out: map[string]*nodeStore{
 				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE3": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkE3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 500,
 							MetricSamples:        1000,
 							IsClusterCheck:       true,
@@ -1067,13 +1067,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkE2": types.CLCRunnerStats{
+						"checkE2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -1081,13 +1081,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkC0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        5,
 							IsClusterCheck:       true,
 						},
-						"checkC1": types.CLCRunnerStats{
+						"checkC1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        20,
 							IsClusterCheck:       true,
@@ -1095,18 +1095,18 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkD0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        5,
 							IsClusterCheck:       true,
 						},
-						"checkD1": types.CLCRunnerStats{
+						"checkD1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        50,
 							IsClusterCheck:       true,
 						},
-						"checkD2": types.CLCRunnerStats{
+						"checkD2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        600,
 							IsClusterCheck:       true,
@@ -1114,13 +1114,13 @@ func TestRebalance(t *testing.T) {
 					},
 				},
 				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkE0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkE1": types.CLCRunnerStats{
+						"checkE1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        300,
 							IsClusterCheck:       true,
@@ -1133,23 +1133,23 @@ func TestRebalance(t *testing.T) {
 			in: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
@@ -1158,18 +1158,18 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
@@ -1180,18 +1180,18 @@ func TestRebalance(t *testing.T) {
 			out: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA1": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
@@ -1200,23 +1200,23 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA0": types.CLCRunnerStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       true,
@@ -1229,23 +1229,23 @@ func TestRebalance(t *testing.T) {
 			in: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
@@ -1254,18 +1254,18 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
@@ -1276,23 +1276,23 @@ func TestRebalance(t *testing.T) {
 			out: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA2": types.CLCRunnerStats{
+						"checkA2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkA3": types.CLCRunnerStats{
+						"checkA3": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 300,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
@@ -1301,18 +1301,18 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkB0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 50,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkB1": types.CLCRunnerStats{
+						"checkB1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 20,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
 						},
-						"checkB2": types.CLCRunnerStats{
+						"checkB2": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 100,
 							MetricSamples:        10,
 							IsClusterCheck:       false,
@@ -1325,13 +1325,13 @@ func TestRebalance(t *testing.T) {
 			in: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 1000,
 							MetricSamples:        1000,
 							LastExecFailed:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							LastExecFailed:       false,
@@ -1340,19 +1340,19 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name:           "B",
-					clcRunnerStats: types.CLCRunnersStats{},
+					clcRunnerStats: clusterchecks.CLCRunnersStats{},
 				},
 			},
 			out: map[string]*nodeStore{
 				"A": {
 					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
+					clcRunnerStats: clusterchecks.CLCRunnersStats{
+						"checkA0": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 1000,
 							MetricSamples:        1000,
 							LastExecFailed:       true,
 						},
-						"checkA1": types.CLCRunnerStats{
+						"checkA1": clusterchecks.CLCRunnerStats{
 							AverageExecutionTime: 10,
 							MetricSamples:        10,
 							LastExecFailed:       false,
@@ -1361,7 +1361,7 @@ func TestRebalance(t *testing.T) {
 				},
 				"B": {
 					name:           "B",
-					clcRunnerStats: types.CLCRunnersStats{},
+					clcRunnerStats: clusterchecks.CLCRunnersStats{},
 				},
 			},
 		},
@@ -1448,7 +1448,7 @@ func TestMoveCheck(t *testing.T) {
 				dispatcher.store.nodes[node] = newNodeStore(node, "") // no need to setup the clientIP in this test
 			}
 			dispatcher.addConfig(tc.check.config, tc.check.node)
-			dispatcher.store.nodes[tc.check.node].clcRunnerStats = types.CLCRunnersStats{string(id): types.CLCRunnerStats{}}
+			dispatcher.store.nodes[tc.check.node].clcRunnerStats = clusterchecks.CLCRunnersStats{string(id): clusterchecks.CLCRunnerStats{}}
 
 			// move check
 			err := dispatcher.moveCheck(tc.check.node, tc.dest, string(id))
@@ -1485,12 +1485,12 @@ func TestCalculateAvg(t *testing.T) {
 
 	// The busyness of this node is 3 (1 + 2)
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "")
-	testDispatcher.store.nodes["node1"].clcRunnerStats = types.CLCRunnersStats{
-		"check1": types.CLCRunnerStats{
+	testDispatcher.store.nodes["node1"].clcRunnerStats = clusterchecks.CLCRunnersStats{
+		"check1": clusterchecks.CLCRunnerStats{
 			MetricSamples:  1,
 			IsClusterCheck: true,
 		},
-		"check2": types.CLCRunnerStats{
+		"check2": clusterchecks.CLCRunnerStats{
 			MetricSamples:  2,
 			IsClusterCheck: true,
 		},
@@ -1498,12 +1498,12 @@ func TestCalculateAvg(t *testing.T) {
 
 	// The busyness of this node is 7 (3 + 4)
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "")
-	testDispatcher.store.nodes["node2"].clcRunnerStats = types.CLCRunnersStats{
-		"check3": types.CLCRunnerStats{
+	testDispatcher.store.nodes["node2"].clcRunnerStats = clusterchecks.CLCRunnersStats{
+		"check3": clusterchecks.CLCRunnerStats{
 			MetricSamples:  3,
 			IsClusterCheck: true,
 		},
-		"check4": types.CLCRunnerStats{
+		"check4": clusterchecks.CLCRunnerStats{
 			MetricSamples:  4,
 			IsClusterCheck: true,
 		},
@@ -1531,7 +1531,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "")
 	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
 
-	testDispatcher.store.nodes["node1"].clcRunnerStats = map[string]types.CLCRunnerStats{
+	testDispatcher.store.nodes["node1"].clcRunnerStats = map[string]clusterchecks.CLCRunnerStats{
 		// This is the check with the highest utilization. The code will try to
 		// place this one first, but it'll give precedence to the node where the
 		// check is already running, so the check won't move.
@@ -1570,7 +1570,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	requireNotLocked(t, testDispatcher.store)
 
 	// Check that the internal state has been updated
-	expectedStatsNode1 := types.CLCRunnersStats{
+	expectedStatsNode1 := clusterchecks.CLCRunnersStats{
 		"check1": {
 			AverageExecutionTime: 3000,
 			IsClusterCheck:       true,
@@ -1580,7 +1580,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 			IsClusterCheck:       false,
 		},
 	}
-	expectedStatsNode2 := types.CLCRunnersStats{
+	expectedStatsNode2 := clusterchecks.CLCRunnersStats{
 		"check2": {
 			AverageExecutionTime: 2000,
 			IsClusterCheck:       true,

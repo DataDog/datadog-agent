@@ -5,7 +5,7 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"

@@ -5,7 +5,7 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -41,7 +41,7 @@ func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Conf
 
 // processNodeStatus keeps the node's status in the store, and returns true
 // if the last configuration change matches the one sent by the node agent.
-func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.NodeStatus) bool {
+func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status clusterchecks.NodeStatus) bool {
 	var warmingUp bool
 
 	d.store.Lock()
@@ -56,7 +56,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	node.heartbeat = timestampNow()
 	node.nodetype = status.NodeType
 	// When we receive ExtraHeartbeatLastChangeValue, we only update heartbeat
-	if status.LastChange == types.ExtraHeartbeatLastChangeValue {
+	if status.LastChange == clusterchecks.ExtraHeartbeatLastChangeValue {
 		return true
 	}
 
@@ -217,6 +217,8 @@ func (d *dispatcher) updateRunnersStats() {
 			continue
 		}
 		node.Lock()
+		// Convert the stats to the internal type
+		convertedStats := make(clusterchecks.CLCRunnersStats)
 		for idStr, checkStats := range stats {
 			id := checkid.ID(idStr)
 
@@ -227,12 +229,20 @@ func (d *dispatcher) updateRunnersStats() {
 				// Cluster check detected (exists in the Cluster Agent checks store)
 				log.Tracef("Check %s running on node %s is a cluster check", id, node.name)
 				checkStats.IsClusterCheck = true
-				stats[idStr] = checkStats
+			}
+			// Convert to internal type
+			convertedStats[idStr] = clusterchecks.CLCRunnerStats{
+				AverageExecutionTime: checkStats.AverageExecutionTime,
+				MetricSamples:        checkStats.MetricSamples,
+				HistogramBuckets:     checkStats.HistogramBuckets,
+				Events:               checkStats.Events,
+				IsClusterCheck:       checkStats.IsClusterCheck,
+				LastExecFailed:       checkStats.LastExecFailed,
 			}
 		}
-		node.clcRunnerStats = stats
-		log.Tracef("Updated CLC Runner stats on node: %s, node IP: %s, stats: %v", name, node.clientIP, stats)
-		node.busyness = calculateBusyness(stats)
+		node.clcRunnerStats = convertedStats
+		log.Tracef("Updated CLC Runner stats on node: %s, node IP: %s, stats: %v", name, node.clientIP, convertedStats)
+		node.busyness = calculateBusyness(convertedStats)
 		log.Debugf("Updated busyness on node: %s, node IP: %s, busyness value: %d", name, node.clientIP, node.busyness)
 		busyness.Set(float64(node.busyness), node.name, le.JoinLeaderValue)
 		node.Unlock()

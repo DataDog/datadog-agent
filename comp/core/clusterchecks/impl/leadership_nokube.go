@@ -5,14 +5,14 @@
 
 //go:build clusterchecks && !kubeapiserver
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 )
 
-func getLeaderIPCallback() (types.LeaderIPCallback, error) {
+func getLeaderIPCallback() (clusterchecks.LeaderIPCallback, error) {
 	return nil, errors.New("No leader election engine compiled in")
 }

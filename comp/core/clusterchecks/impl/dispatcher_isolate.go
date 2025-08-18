@@ -5,18 +5,18 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
-import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+import clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 
-func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
+func (d *dispatcher) isolateCheck(isolateCheckID string) clusterchecks.IsolateResponse {
 	// Update stats prior to starting isolate to ensure all checks are accounted for
 	d.updateRunnersStats()
 	currentDistribution := d.currentDistribution()
 
 	// If there is only one runner, we cannot isolate the check
 	if len(currentDistribution.runnerWorkers()) == 1 {
-		return types.IsolateResponse{
+		return clusterchecks.IsolateResponse{
 			CheckID:    isolateCheckID,
 			CheckNode:  "",
 			IsIsolated: false,
@@ -26,7 +26,7 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 
 	isolateNode := currentDistribution.runnerForCheck(isolateCheckID)
 	if isolateNode == "" {
-		return types.IsolateResponse{
+		return clusterchecks.IsolateResponse{
 			CheckID:    isolateCheckID,
 			CheckNode:  "",
 			IsIsolated: false,
@@ -54,7 +54,7 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 	}
 
 	d.applyDistribution(proposedDistribution, currentDistribution)
-	return types.IsolateResponse{
+	return clusterchecks.IsolateResponse{
 		CheckID:    isolateCheckID,
 		CheckNode:  isolateNode,
 		IsIsolated: true,

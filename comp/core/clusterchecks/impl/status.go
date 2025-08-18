@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"embed"

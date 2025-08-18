@@ -5,14 +5,14 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 )
 
 var (
@@ -54,7 +54,7 @@ func timestampNow() int64 {
 }
 
 // calculateBusyness returns the busyness value of a node
-func calculateBusyness(checkStats types.CLCRunnersStats) int {
+func calculateBusyness(checkStats clusterchecks.CLCRunnersStats) int {
 	busyness := 0
 	for _, stats := range checkStats {
 		busyness += busynessFunc(stats)
@@ -63,7 +63,7 @@ func calculateBusyness(checkStats types.CLCRunnersStats) int {
 }
 
 // busynessFunc returns the weight of a check
-func busynessFunc(s types.CLCRunnerStats) int {
+func busynessFunc(s clusterchecks.CLCRunnerStats) int {
 	if s.LastExecFailed {
 		// The check is failing, its weight is 0
 		return 0

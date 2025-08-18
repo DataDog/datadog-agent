@@ -22,7 +22,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -161,7 +161,7 @@ func rebalance(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) err
 		return err
 	}
 
-	checksMoved := make([]types.RebalanceResponse, 0)
+	checksMoved := make([]clusterchecks.RebalanceResponse, 0)
 	json.Unmarshal(r, &checksMoved) //nolint:errcheck
 
 	fmt.Printf("%d cluster checks rebalanced successfully\n", len(checksMoved))
@@ -197,7 +197,7 @@ func isolate(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error
 		return err
 	}
 
-	var response types.IsolateResponse
+	var response clusterchecks.IsolateResponse
 
 	json.Unmarshal(r, &response) //nolint:errcheck
 	if response.IsIsolated {

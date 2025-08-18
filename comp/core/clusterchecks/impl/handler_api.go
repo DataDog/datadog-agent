@@ -5,14 +5,14 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 )
 
 var errNotReady = errors.New("Startup in progress")
@@ -44,7 +44,7 @@ func (h *Handler) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.R
 }
 
 // GetState returns the state of the dispatching, for the clusterchecks cmd
-func (h *Handler) GetState() (types.StateResponse, error) {
+func (h *Handler) GetState() (clusterchecks.StateResponse, error) {
 	h.m.RLock()
 	defer h.m.RUnlock()
 
@@ -52,16 +52,16 @@ func (h *Handler) GetState() (types.StateResponse, error) {
 	case leader:
 		return h.dispatcher.getState()
 	case follower:
-		return types.StateResponse{NotRunning: "currently follower"}, nil
+		return clusterchecks.StateResponse{NotRunning: "currently follower"}, nil
 	default:
-		return types.StateResponse{NotRunning: errNotReady.Error()}, nil
+		return clusterchecks.StateResponse{NotRunning: errNotReady.Error()}, nil
 	}
 }
 
 // GetConfigs returns configurations dispatched to a given agent
-func (h *Handler) GetConfigs(identifier string) (types.ConfigResponse, error) {
+func (h *Handler) GetConfigs(identifier string) (clusterchecks.ConfigResponse, error) {
 	configs, lastChange, err := h.dispatcher.getClusterCheckConfigs(identifier)
-	response := types.ConfigResponse{
+	response := clusterchecks.ConfigResponse{
 		Configs:    configs,
 		LastChange: lastChange,
 	}
@@ -69,18 +69,18 @@ func (h *Handler) GetConfigs(identifier string) (types.ConfigResponse, error) {
 }
 
 // PostStatus handles status reports from the node agents
-func (h *Handler) PostStatus(identifier, clientIP string, status types.NodeStatus) types.StatusResponse {
+func (h *Handler) PostStatus(identifier, clientIP string, status clusterchecks.NodeStatus) clusterchecks.StatusResponse {
 	upToDate := h.dispatcher.processNodeStatus(identifier, clientIP, status)
-	response := types.StatusResponse{
+	response := clusterchecks.StatusResponse{
 		IsUpToDate: upToDate,
 	}
 	return response
 }
 
 // GetEndpointsConfigs returns endpoints configurations dispatched to a given node
-func (h *Handler) GetEndpointsConfigs(nodeName string) (types.ConfigResponse, error) {
+func (h *Handler) GetEndpointsConfigs(nodeName string) (clusterchecks.ConfigResponse, error) {
 	configs, err := h.dispatcher.getEndpointsConfigs(nodeName)
-	response := types.ConfigResponse{
+	response := clusterchecks.ConfigResponse{
 		Configs:    configs,
 		LastChange: 0,
 	}
@@ -88,9 +88,9 @@ func (h *Handler) GetEndpointsConfigs(nodeName string) (types.ConfigResponse, er
 }
 
 // GetAllEndpointsCheckConfigs returns all pod-backed dispatched endpointscheck configurations
-func (h *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
+func (h *Handler) GetAllEndpointsCheckConfigs() (clusterchecks.ConfigResponse, error) {
 	configs, err := h.dispatcher.getAllEndpointsCheckConfigs()
-	response := types.ConfigResponse{
+	response := clusterchecks.ConfigResponse{
 		Configs:    configs,
 		LastChange: 0,
 	}
@@ -98,16 +98,16 @@ func (h *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
 }
 
 // RebalanceClusterChecks triggers an attempt to rebalance cluster checks
-func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse, error) {
+func (h *Handler) RebalanceClusterChecks(force bool) ([]clusterchecks.RebalanceResponse, error) {
 	if !h.dispatcher.advancedDispatching {
 		return nil, fmt.Errorf("no checks to rebalance: advanced dispatching is not enabled")
 	}
 
 	rebalancingDecisions := h.dispatcher.rebalance(force)
-	response := []types.RebalanceResponse{}
+	response := []clusterchecks.RebalanceResponse{}
 
 	for _, decision := range rebalancingDecisions {
-		response = append(response, types.RebalanceResponse{
+		response = append(response, clusterchecks.RebalanceResponse{
 			CheckID:        decision.CheckID,
 			CheckWeight:    decision.CheckWeight,
 			SourceNodeName: decision.SourceNodeName,
@@ -122,7 +122,7 @@ func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse,
 
 // IsolateCheck triggers an attempt to isolate a check in a runner. Other checks
 // will be redistributed to other runners using the existing rebalancing logic.
-func (h *Handler) IsolateCheck(isolateCheckID string) types.IsolateResponse {
+func (h *Handler) IsolateCheck(isolateCheckID string) clusterchecks.IsolateResponse {
 	response := h.dispatcher.isolateCheck(isolateCheckID)
 	return response
 }

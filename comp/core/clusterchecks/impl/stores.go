@@ -5,14 +5,14 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,9 +68,9 @@ func (s *clusterStore) CountNodeTypes() (clcRunnerCount, nodeAgentCount int) {
 			continue
 		}
 		switch node.nodetype {
-		case types.NodeTypeCLCRunner:
+		case clusterchecks.NodeTypeCLCRunner:
 			clcRunnerCount++
-		case types.NodeTypeNodeAgent:
+		case clusterchecks.NodeTypeNodeAgent:
 			nodeAgentCount++
 		}
 	}
@@ -108,10 +108,10 @@ type nodeStore struct {
 	lastConfigChange int64
 	digestToConfig   map[string]integration.Config
 	clientIP         string
-	clcRunnerStats   types.CLCRunnersStats
+	clcRunnerStats   clusterchecks.CLCRunnersStats
 	busyness         int
 	workers          int
-	nodetype         types.NodeType
+	nodetype         clusterchecks.NodeType
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {
@@ -119,7 +119,7 @@ func newNodeStore(name, clientIP string) *nodeStore {
 		name:           name,
 		clientIP:       clientIP,
 		digestToConfig: make(map[string]integration.Config),
-		clcRunnerStats: types.CLCRunnersStats{},
+		clcRunnerStats: clusterchecks.CLCRunnersStats{},
 		busyness:       defaultBusynessValue,
 	}
 }
@@ -143,7 +143,7 @@ func (s *nodeStore) removeConfig(digest string) {
 
 // AddRunnerStats stores runner stats for a check
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) AddRunnerStats(checkID string, stats types.CLCRunnerStats) {
+func (s *nodeStore) AddRunnerStats(checkID string, stats clusterchecks.CLCRunnerStats) {
 	s.Lock()
 	defer s.Unlock()
 	s.clcRunnerStats[checkID] = stats
@@ -163,7 +163,7 @@ func (s *nodeStore) RemoveRunnerStats(checkID string) {
 
 // GetRunnerStats returns the runner stats of a given check
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetRunnerStats(checkID string) (types.CLCRunnerStats, error) {
+func (s *nodeStore) GetRunnerStats(checkID string) (clusterchecks.CLCRunnerStats, error) {
 	s.RLock()
 	defer s.RUnlock()
 	stats, found := s.clcRunnerStats[checkID]
@@ -176,7 +176,7 @@ func (s *nodeStore) GetRunnerStats(checkID string) (types.CLCRunnerStats, error)
 
 // GetBusyness calculates busyness of the node
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetBusyness(busynessFunc func(stats types.CLCRunnerStats) int) int {
+func (s *nodeStore) GetBusyness(busynessFunc func(stats clusterchecks.CLCRunnerStats) int) int {
 	s.RLock()
 	defer s.RUnlock()
 	busyness := 0
@@ -188,7 +188,7 @@ func (s *nodeStore) GetBusyness(busynessFunc func(stats types.CLCRunnerStats) in
 
 // GetMostWeightedClusterCheck returns the Cluster Check with the most weight on the node
 // The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetMostWeightedClusterCheck(busynessFunc func(stats types.CLCRunnerStats) int) (string, int, error) {
+func (s *nodeStore) GetMostWeightedClusterCheck(busynessFunc func(stats clusterchecks.CLCRunnerStats) int) (string, int, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if len(s.clcRunnerStats) == 0 {

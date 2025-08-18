@@ -5,156 +5,247 @@
 
 //go:build clusterchecks
 
-// Package clusterchecksimpl implements the clusterchecks handler component
-package clusterchecksimpl
+package clustercheckimpl
 
 import (
 	"context"
 	"errors"
-	"net/http"
+	"sync"
+	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
-	config "github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
-	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// handlerImpl wraps the existing Handler implementation
-// This thin wrapper provides component lifecycle management while
-// delegating all business logic to the pkg implementation.
-// This pattern avoids exporting internal dispatcher methods.
-type handlerImpl struct {
-	handler *pkgclusterchecks.Handler
-	log     log.Component
+const (
+	schedulerName = "clusterchecks"
+	logFrequency  = 100
+)
+
+type state int
+
+const (
+	unknown state = iota
+	leader
+	follower
+)
+
+// pluggableAutoConfig describes the AC methods we use and allows
+// to mock it for tests (see mockedPluggableAutoConfig)
+type pluggableAutoConfig interface {
+	AddScheduler(string, scheduler.Scheduler, bool)
+	RemoveScheduler(string)
 }
 
-// Requires defines the dependencies for the clusterchecks handler component
-type Requires struct {
-	compdef.In
-
-	Log           log.Component
-	Config        config.Component
-	Autodiscovery autodiscovery.Component
-	Tagger        tagger.Component
+// Handler is the glue holding all components for cluster-checks management
+type Handler struct {
+	autoconfig           pluggableAutoConfig
+	dispatcher           *dispatcher
+	leaderStatusFreq     time.Duration
+	warmupDuration       time.Duration
+	leaderStatusCallback clusterchecks.LeaderIPCallback
+	leadershipChan       chan state
+	leaderForwarder      *api.LeaderForwarder
+	m                    sync.RWMutex // Below fields protected by the mutex
+	state                state
+	leaderIP             string
+	errCount             int
 }
 
-// Provides defines the output of the clusterchecks handler component
-type Provides struct {
-	compdef.Out
-
-	Component clusterchecks.Component
-}
-
-// NewComponent creates a new clusterchecks handler component.
-// It acts as a bridge between the Fx component system and the pkg implementation,
-// allowing gradual migration without disrupting the existing dispatcher architecture.
-func NewComponent(deps Requires) (Provides, error) {
-	if deps.Autodiscovery == nil {
-		return Provides{}, errors.New("autodiscovery component is required")
+// NewHandler returns a populated Handler
+// It will hook on the specified AutoConfig instance at Start
+func NewHandler(ac pluggableAutoConfig, tagger tagger.Component) (*Handler, error) {
+	if ac == nil {
+		return nil, errors.New("empty autoconfig object")
+	}
+	h := &Handler{
+		autoconfig:       ac,
+		leaderStatusFreq: 1 * time.Second,
+		warmupDuration:   pkgconfigsetup.Datadog().GetDuration("cluster_checks.warmup_duration") * time.Second,
+		leadershipChan:   make(chan state, 1),
+		dispatcher:       newDispatcher(tagger),
 	}
 
-	// Create the handler using the existing implementation
-	handler, err := pkgclusterchecks.NewHandler(deps.Autodiscovery, deps.Tagger)
-	if err != nil {
-		return Provides{}, err
-	}
-
-	impl := &handlerImpl{
-		handler: handler,
-		log:     deps.Log,
-	}
-
-	deps.Log.Info("Cluster checks handler component initialized")
-
-	return Provides{
-		Component: impl,
-	}, nil
-}
-
-// Run delegates to the embedded Handler's Run method
-func (h *handlerImpl) Run(ctx context.Context) {
-	if h.handler != nil {
-		if h.log != nil {
-			h.log.Info("Starting cluster checks handler")
+	if pkgconfigsetup.Datadog().GetBool("leader_election") {
+		h.leaderForwarder = api.GetGlobalLeaderForwarder()
+		callback, err := getLeaderIPCallback()
+		if err != nil {
+			return nil, err
 		}
-		h.handler.Run(ctx)
+		h.leaderStatusCallback = callback
+	}
+
+	// Cache a pointer to the handler for the agent status command
+	key := cache.BuildAgentKey(handlerCacheKey)
+	cache.Cache.Set(key, h, cache.NoExpiration)
+
+	return h, nil
+}
+
+// Run is the main goroutine for the handler. It has to
+// be called in a goroutine with a cancellable context.
+func (h *Handler) Run(ctx context.Context) {
+	h.m.Lock()
+	if h.leaderStatusCallback != nil {
+		go h.leaderWatch(ctx)
+	} else {
+		// With no leader election enabled, we assume only one DCA is running
+		h.state = leader
+		h.leadershipChan <- leader
+	}
+	h.m.Unlock()
+
+	for {
+		// Follower / unknown
+		select {
+		case <-ctx.Done():
+			return
+		case newState := <-h.leadershipChan:
+			if newState != leader {
+				// Still follower, go back to select
+				continue
+			}
+		}
+
+		// Leading, start warmup
+		log.Infof("Becoming leader, waiting %s for node-agents to report", h.warmupDuration)
+		select {
+		case <-ctx.Done():
+			return
+		case newState := <-h.leadershipChan:
+			if newState != leader {
+				continue
+			}
+		case <-time.After(h.warmupDuration):
+			break
+		}
+
+		// Run discovery and dispatching
+		log.Info("Warmup phase finished, starting to serve configurations")
+		dispatchCtx, dispatchCancel := context.WithCancel(ctx)
+		go h.runDispatch(dispatchCtx)
+
+		// Wait until we lose leadership or exit
+		for {
+			var newState state
+
+			select {
+			case <-ctx.Done():
+				dispatchCancel()
+				return
+			case newState = <-h.leadershipChan:
+				// Store leadership status
+			}
+
+			if newState != leader {
+				log.Info("Lost leadership, reverting to follower")
+				dispatchCancel()
+				break // Return back to main loop start
+			}
+		}
 	}
 }
 
-// RejectOrForwardLeaderQuery delegates to the handler
-func (h *handlerImpl) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.Request) bool {
-	if h.handler == nil {
-		return false
+// runDispatch hooks in the Autodiscovery and runs the dispatch's run method
+func (h *Handler) runDispatch(ctx context.Context) {
+	// Register our scheduler and ask for a config replay
+	h.autoconfig.AddScheduler(schedulerName, h.dispatcher, true)
+
+	// Run dispatcher loop - blocking until context is cancelled
+	h.dispatcher.run(ctx)
+
+	// Reset the dispatcher
+	h.dispatcher.reset()
+	h.autoconfig.RemoveScheduler(schedulerName)
+}
+
+func (h *Handler) leaderWatch(ctx context.Context) {
+	err := h.updateLeaderIP()
+	if err != nil {
+		log.Warnf("Could not refresh leadership status: %s", err)
 	}
-	return h.handler.RejectOrForwardLeaderQuery(rw, req)
-}
 
-// GetState delegates to the handler
-func (h *handlerImpl) GetState() (types.StateResponse, error) {
-	if h.handler == nil {
-		return types.StateResponse{}, errors.New("cluster checks handler not initialized")
+	healthProbe := health.RegisterLiveness("clusterchecks-leadership")
+	defer health.Deregister(healthProbe) //nolint:errcheck
+
+	watchTicker := time.NewTicker(h.leaderStatusFreq)
+	defer watchTicker.Stop()
+
+	for {
+		select {
+		case <-healthProbe.C:
+			// This goroutine might hang if the leader election engine blocks
+		case <-watchTicker.C:
+			err := h.updateLeaderIP()
+			h.m.Lock()
+			if err != nil {
+				h.errCount++
+				if h.errCount == 1 {
+					log.Warnf("Could not refresh leadership status: %s, will only log every %d errors", err, logFrequency)
+				} else if h.errCount%logFrequency == 0 {
+					log.Warnf("Could not refresh leadership status after %d tries: %s", logFrequency, err)
+				}
+			} else {
+				if h.errCount > 0 {
+					log.Infof("Found leadership status after %d tries", h.errCount)
+					h.errCount = 0
+				}
+			}
+			h.m.Unlock()
+		case <-ctx.Done():
+			return
+		}
 	}
-	return h.handler.GetState()
 }
 
-// GetConfigs delegates to the handler
-func (h *handlerImpl) GetConfigs(identifier string) (types.ConfigResponse, error) {
-	if h.handler == nil {
-		return types.ConfigResponse{}, errors.New("cluster checks handler not initialized")
+// updateLeaderIP queries the leader election engine and updates
+// the leader IP accordlingly. In case of leadership statuschange,
+// a state type is sent on leadershipChan.
+func (h *Handler) updateLeaderIP() error {
+	newIP, err := h.leaderStatusCallback()
+	if err != nil {
+		return err
 	}
-	return h.handler.GetConfigs(identifier)
-}
 
-// PostStatus delegates to the handler
-func (h *handlerImpl) PostStatus(identifier, clientIP string, status types.NodeStatus) types.StatusResponse {
-	if h.handler == nil {
-		return types.StatusResponse{}
+	// Lock after the leader engine call returns
+	h.m.Lock()
+	defer h.m.Unlock()
+
+	var newState state
+	if h.leaderForwarder != nil && newIP != h.leaderIP {
+		// Update LeaderForwarder with new IP
+		h.leaderForwarder.SetLeaderIP(newIP)
 	}
-	return h.handler.PostStatus(identifier, clientIP, status)
-}
 
-// GetEndpointsConfigs delegates to the handler
-func (h *handlerImpl) GetEndpointsConfigs(nodeName string) (types.ConfigResponse, error) {
-	if h.handler == nil {
-		return types.ConfigResponse{}, errors.New("cluster checks handler not initialized")
+	h.leaderIP = newIP
+
+	switch h.state {
+	case leader:
+		if newIP != "" {
+			newState = follower
+		}
+	case follower:
+		if newIP == "" {
+			newState = leader
+		}
+	case unknown:
+		if newIP == "" {
+			newState = leader
+		} else {
+			newState = follower
+		}
 	}
-	return h.handler.GetEndpointsConfigs(nodeName)
-}
 
-// GetAllEndpointsCheckConfigs delegates to the handler
-func (h *handlerImpl) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
-	if h.handler == nil {
-		return types.ConfigResponse{}, errors.New("cluster checks handler not initialized")
+	if newState != unknown {
+		h.state = newState
+		h.leadershipChan <- newState
 	}
-	return h.handler.GetAllEndpointsCheckConfigs()
-}
 
-// RebalanceClusterChecks delegates to the handler
-func (h *handlerImpl) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse, error) {
-	if h.handler == nil {
-		return nil, errors.New("cluster checks handler not initialized")
-	}
-	return h.handler.RebalanceClusterChecks(force)
-}
-
-// IsolateCheck delegates to the handler
-func (h *handlerImpl) IsolateCheck(isolateCheckID string) types.IsolateResponse {
-	if h.handler == nil {
-		return types.IsolateResponse{}
-	}
-	return h.handler.IsolateCheck(isolateCheckID)
-}
-
-// GetStats delegates to the handler
-func (h *handlerImpl) GetStats() (*types.Stats, error) {
-	return h.handler.GetStats()
-}
-
-// GetNodeTypeCounts delegates to the handler
-func (h *handlerImpl) GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
-	return h.handler.GetNodeTypeCounts()
+	return nil
 }

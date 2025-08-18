@@ -5,7 +5,7 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"encoding/json"
@@ -16,7 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -171,7 +171,7 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 	return nil
 }
 
-func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
+func (d *dispatcher) rebalance(force bool) []clusterchecks.RebalanceResponse {
 	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
 		return d.rebalanceUsingUtilization(force)
 	}
@@ -181,7 +181,7 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 
 // rebalanceUsingBusyness tries to optimize the checks repartition on cluster
 // level check runners with less possible check moves based on the runner stats.
-func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
+func (d *dispatcher) rebalanceUsingBusyness() []clusterchecks.RebalanceResponse {
 	// Collect CLC runners stats and update cache before rebalancing
 	d.updateRunnersStats()
 
@@ -197,7 +197,7 @@ func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 		return nil
 	}
 
-	checksMoved := []types.RebalanceResponse{}
+	checksMoved := []clusterchecks.RebalanceResponse{}
 	diffMap, weights := d.getDiffAndWeights(totalAvg)
 	sort.Sort(weights)
 
@@ -233,7 +233,7 @@ func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 					checkID, checkWeight, totalAvg, sourceDiff, destDiff)
 				// diffMap needs to be updated on every check moved
 				diffMap = d.updateDiff(totalAvg)
-				checksMoved = append(checksMoved, types.RebalanceResponse{
+				checksMoved = append(checksMoved, clusterchecks.RebalanceResponse{
 					CheckID:        checkID,
 					CheckWeight:    checkWeight,
 					SourceNodeName: sourceNodeName,
@@ -298,7 +298,7 @@ func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 // checks are not very costly. They're ignored by this function.
 // - It can't predict the execution time of checks that are running for the
 // first time. This could become a problem for checks that take too long.
-func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResponse {
+func (d *dispatcher) rebalanceUsingUtilization(force bool) []clusterchecks.RebalanceResponse {
 	// Collect CLC runners stats and update cache before rebalancing
 	d.updateRunnersStats()
 
@@ -407,8 +407,8 @@ func (d *dispatcher) currentDistribution() checksDistribution {
 	return distribution
 }
 
-func (d *dispatcher) applyDistribution(proposedDistribution checksDistribution, currentDistribution checksDistribution) []types.RebalanceResponse {
-	var checksMoved []types.RebalanceResponse
+func (d *dispatcher) applyDistribution(proposedDistribution checksDistribution, currentDistribution checksDistribution) []clusterchecks.RebalanceResponse {
+	var checksMoved []clusterchecks.RebalanceResponse
 
 	for checkID, checkStatus := range proposedDistribution.Checks {
 		currentNode := currentDistribution.runnerForCheck(checkID)
@@ -430,7 +430,7 @@ func (d *dispatcher) applyDistribution(proposedDistribution checksDistribution, 
 
 		checksMoved = append(
 			checksMoved,
-			types.RebalanceResponse{
+			clusterchecks.RebalanceResponse{
 				CheckID:        checkID,
 				SourceNodeName: currentNode,
 				DestNodeName:   proposedNode,

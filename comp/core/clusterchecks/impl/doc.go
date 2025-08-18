@@ -5,6 +5,6 @@
 
 //go:build clusterchecks
 
-// Package clusterchecks implements the Cluster Agent logic to detect and
+// Package clustercheckimpl implements the Cluster Agent logic to detect and
 // dispatch cluster checks on node-agents that report to it.
-package clusterchecks
+package clustercheckimpl

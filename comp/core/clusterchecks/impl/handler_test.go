@@ -5,7 +5,7 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"context"
@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -234,7 +234,7 @@ func TestHandlerRun(t *testing.T) {
 	ac.On("AddScheduler", schedulerName, mock.AnythingOfType("*clusterchecks.dispatcher"), true).Return()
 	testutil.AssertTrueBeforeTimeout(t, tick, waitfor, func() bool {
 		// Keep node-agent caches even when timestamp is off (warmup)
-		response := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
+		response := h.PostStatus("dummy", "10.0.0.1", clusterchecks.NodeStatus{LastChange: -50})
 		return response.IsUpToDate == true
 	})
 	testutil.AssertTrueBeforeTimeout(t, tick, waitfor, func() bool {
@@ -255,7 +255,7 @@ func TestHandlerRun(t *testing.T) {
 	})
 	testutil.AssertTrueBeforeTimeout(t, tick, waitfor, func() bool {
 		// Flush node-agent caches when timestamp is off
-		response := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
+		response := h.PostStatus("dummy", "10.0.0.1", clusterchecks.NodeStatus{LastChange: -50})
 		return response.IsUpToDate == false
 	})
 
@@ -305,7 +305,7 @@ func TestHandlerRun(t *testing.T) {
 		return err == nil && len(state.Nodes) == 0 && len(state.Dangling) == 0
 	})
 
-	h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{})
+	h.PostStatus("dummy", "10.0.0.1", clusterchecks.NodeStatus{})
 	testutil.AssertTrueBeforeTimeout(t, tick, waitfor, func() bool {
 		// Test whether we're connected to the AD
 		return ac.AssertNumberOfCalls(dummyT, "AddScheduler", 2)

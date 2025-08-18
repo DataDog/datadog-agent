@@ -10,7 +10,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 )
 
 const (
@@ -20,8 +20,8 @@ const (
 )
 
 // PostClusterCheckStatus is called by the clustercheck config provider
-func (c *DCAClient) PostClusterCheckStatus(ctx context.Context, identifier string, status types.NodeStatus) (types.StatusResponse, error) {
-	var response types.StatusResponse
+func (c *DCAClient) PostClusterCheckStatus(ctx context.Context, identifier string, status clusterchecks.NodeStatus) (clusterchecks.StatusResponse, error) {
+	var response clusterchecks.StatusResponse
 	queryBody, err := json.Marshal(status)
 	if err != nil {
 		return response, err
@@ -33,8 +33,8 @@ func (c *DCAClient) PostClusterCheckStatus(ctx context.Context, identifier strin
 }
 
 // GetClusterCheckConfigs is called by the clustercheck config provider
-func (c *DCAClient) GetClusterCheckConfigs(ctx context.Context, identifier string) (types.ConfigResponse, error) {
-	var configs types.ConfigResponse
+func (c *DCAClient) GetClusterCheckConfigs(ctx context.Context, identifier string) (clusterchecks.ConfigResponse, error) {
+	var configs clusterchecks.ConfigResponse
 
 	// https://host:port/api/v1/clusterchecks/configs/{identifier}
 	err := c.doJSONQueryToLeader(ctx, dcaClusterChecksConfigsPath+"/"+identifier, "GET", nil, &configs)

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 )
@@ -46,7 +46,7 @@ func GetClusterChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 		return err
 	}
 
-	var cr types.StateResponse
+	var cr clusterchecks.StateResponse
 	err = json.Unmarshal(r, &cr)
 	if err != nil {
 		return err
@@ -126,7 +126,7 @@ func GetEndpointsChecks(w io.Writer, checkName string, c ipc.HTTPClient) error {
 		return err
 	}
 
-	var cr types.ConfigResponse
+	var cr clusterchecks.ConfigResponse
 	if err = json.Unmarshal(r, &cr); err != nil {
 		return err
 	}

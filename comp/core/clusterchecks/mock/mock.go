@@ -13,17 +13,16 @@ import (
 	"net/http"
 
 	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
 // Handler implements clusterchecks.Component for testing
 type Handler struct {
-	State types.StateResponse
+	State clusterchecks.StateResponse
 	Err   error
 }
 
 // New creates a new mock handler with the given state and error
-func New(state types.StateResponse, err error) clusterchecks.Component {
+func New(state clusterchecks.StateResponse, err error) clusterchecks.Component {
 	return &Handler{
 		State: state,
 		Err:   err,
@@ -33,7 +32,7 @@ func New(state types.StateResponse, err error) clusterchecks.Component {
 // NewDefault creates a new mock handler with default values
 func NewDefault() clusterchecks.Component {
 	return &Handler{
-		State: types.StateResponse{},
+		State: clusterchecks.StateResponse{},
 		Err:   nil,
 	}
 }
@@ -47,43 +46,43 @@ func (m *Handler) RejectOrForwardLeaderQuery(_ http.ResponseWriter, _ *http.Requ
 }
 
 // GetState returns the configured state and error
-func (m *Handler) GetState() (types.StateResponse, error) {
+func (m *Handler) GetState() (clusterchecks.StateResponse, error) {
 	return m.State, m.Err
 }
 
 // GetConfigs returns an empty response
-func (m *Handler) GetConfigs(_ string) (types.ConfigResponse, error) {
-	return types.ConfigResponse{}, nil
+func (m *Handler) GetConfigs(_ string) (clusterchecks.ConfigResponse, error) {
+	return clusterchecks.ConfigResponse{}, nil
 }
 
 // PostStatus returns an empty response
-func (m *Handler) PostStatus(_, _ string, _ types.NodeStatus) types.StatusResponse {
-	return types.StatusResponse{}
+func (m *Handler) PostStatus(_, _ string, _ clusterchecks.NodeStatus) clusterchecks.StatusResponse {
+	return clusterchecks.StatusResponse{}
 }
 
 // GetEndpointsConfigs returns an empty response
-func (m *Handler) GetEndpointsConfigs(_ string) (types.ConfigResponse, error) {
-	return types.ConfigResponse{}, nil
+func (m *Handler) GetEndpointsConfigs(_ string) (clusterchecks.ConfigResponse, error) {
+	return clusterchecks.ConfigResponse{}, nil
 }
 
 // GetAllEndpointsCheckConfigs returns an empty response
-func (m *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
-	return types.ConfigResponse{}, nil
+func (m *Handler) GetAllEndpointsCheckConfigs() (clusterchecks.ConfigResponse, error) {
+	return clusterchecks.ConfigResponse{}, nil
 }
 
 // RebalanceClusterChecks returns nil
-func (m *Handler) RebalanceClusterChecks(_ bool) ([]types.RebalanceResponse, error) {
+func (m *Handler) RebalanceClusterChecks(_ bool) ([]clusterchecks.RebalanceResponse, error) {
 	return nil, nil
 }
 
 // IsolateCheck returns an empty response
-func (m *Handler) IsolateCheck(_ string) types.IsolateResponse {
-	return types.IsolateResponse{}
+func (m *Handler) IsolateCheck(_ string) clusterchecks.IsolateResponse {
+	return clusterchecks.IsolateResponse{}
 }
 
 // GetStats returns the configured state and error
-func (m *Handler) GetStats() (*types.Stats, error) {
-	return &types.Stats{}, m.Err
+func (m *Handler) GetStats() (*clusterchecks.Stats, error) {
+	return &clusterchecks.Stats{}, m.Err
 }
 
 // GetNodeTypeCounts returns zero counts

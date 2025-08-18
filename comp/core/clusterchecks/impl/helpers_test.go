@@ -5,23 +5,23 @@
 
 //go:build clusterchecks
 
-package clusterchecks
+package clustercheckimpl
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	clusterchecks "github.com/DataDog/datadog-agent/comp/core/clusterchecks/def"
 )
 
 func Test_busynessFunc(t *testing.T) {
 	tests := []struct {
 		name  string
-		stats types.CLCRunnerStats
+		stats clusterchecks.CLCRunnerStats
 		want  int
 	}{
 		{
 			name: "nominal case",
-			stats: types.CLCRunnerStats{
+			stats: clusterchecks.CLCRunnerStats{
 				AverageExecutionTime: 100,
 				MetricSamples:        100,
 			},
@@ -29,7 +29,7 @@ func Test_busynessFunc(t *testing.T) {
 		},
 		{
 			name: "cluster check",
-			stats: types.CLCRunnerStats{
+			stats: clusterchecks.CLCRunnerStats{
 				AverageExecutionTime: 100,
 				MetricSamples:        100,
 				IsClusterCheck:       true,
@@ -38,7 +38,7 @@ func Test_busynessFunc(t *testing.T) {
 		},
 		{
 			name: "node based check",
-			stats: types.CLCRunnerStats{
+			stats: clusterchecks.CLCRunnerStats{
 				AverageExecutionTime: 100,
 				MetricSamples:        100,
 				IsClusterCheck:       false,
@@ -47,7 +47,7 @@ func Test_busynessFunc(t *testing.T) {
 		},
 		{
 			name: "failed check",
-			stats: types.CLCRunnerStats{
+			stats: clusterchecks.CLCRunnerStats{
 				AverageExecutionTime: 100,
 				MetricSamples:        100,
 				LastExecFailed:       true,
@@ -67,23 +67,23 @@ func Test_busynessFunc(t *testing.T) {
 func Test_calculateBusyness(t *testing.T) {
 	tests := []struct {
 		name  string
-		stats types.CLCRunnersStats
+		stats clusterchecks.CLCRunnersStats
 		want  int
 	}{
 		{
 			name: "nominal case",
-			stats: types.CLCRunnersStats{
-				"cluster check": types.CLCRunnerStats{
+			stats: clusterchecks.CLCRunnersStats{
+				"cluster check": clusterchecks.CLCRunnerStats{
 					AverageExecutionTime: 100,
 					MetricSamples:        100,
 					IsClusterCheck:       true,
 				},
-				"node check": types.CLCRunnerStats{
+				"node check": clusterchecks.CLCRunnerStats{
 					AverageExecutionTime: 100,
 					MetricSamples:        100,
 					IsClusterCheck:       false,
 				},
-				"failed check": types.CLCRunnerStats{
+				"failed check": clusterchecks.CLCRunnerStats{
 					AverageExecutionTime: 100,
 					MetricSamples:        100,
 					LastExecFailed:       true,
@@ -93,20 +93,20 @@ func Test_calculateBusyness(t *testing.T) {
 		},
 		{
 			name: "with histogrambuckets case",
-			stats: types.CLCRunnersStats{
-				"cluster check": types.CLCRunnerStats{
+			stats: clusterchecks.CLCRunnersStats{
+				"cluster check": clusterchecks.CLCRunnerStats{
 					AverageExecutionTime: 100,
 					MetricSamples:        100,
 					HistogramBuckets:     100,
 					IsClusterCheck:       true,
 				},
-				"node check": types.CLCRunnerStats{
+				"node check": clusterchecks.CLCRunnerStats{
 					AverageExecutionTime: 100,
 					MetricSamples:        100,
 					HistogramBuckets:     100,
 					IsClusterCheck:       false,
 				},
-				"failed check": types.CLCRunnerStats{
+				"failed check": clusterchecks.CLCRunnerStats{
 					AverageExecutionTime: 100,
 					MetricSamples:        100,
 					HistogramBuckets:     100,
@@ -117,22 +117,22 @@ func Test_calculateBusyness(t *testing.T) {
 		},
 		{
 			name: "with events case",
-			stats: types.CLCRunnersStats{
-				"cluster check": types.CLCRunnerStats{
+			stats: clusterchecks.CLCRunnersStats{
+				"cluster check": clusterchecks.CLCRunnerStats{
 					AverageExecutionTime: 100,
 					MetricSamples:        100,
 					HistogramBuckets:     100,
 					Events:               100,
 					IsClusterCheck:       true,
 				},
-				"node check": types.CLCRunnerStats{
+				"node check": clusterchecks.CLCRunnerStats{
 					AverageExecutionTime: 100,
 					MetricSamples:        100,
 					HistogramBuckets:     100,
 					Events:               100,
 					IsClusterCheck:       false,
 				},
-				"failed check": types.CLCRunnerStats{
+				"failed check": clusterchecks.CLCRunnerStats{
 					AverageExecutionTime: 100,
 					MetricSamples:        100,
 					HistogramBuckets:     100,
