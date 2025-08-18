@@ -647,6 +647,34 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 	)
 }
 
+// GetAnalyticsInterfaces retrieves interface utilization metrics from the Versa Analytics API
+func (client *Client) GetAnalyticsInterfaces(tenant string) ([]AnalyticsInterfaceMetrics, error) {
+	if tenant == "" {
+		return nil, fmt.Errorf("tenant cannot be empty")
+	}
+
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"intfUtil(site,accCkt,intf)",
+		"",
+		"",
+		[]string{
+			"rxUtil",
+			"txUtil",
+			"volume-rx",
+			"volume-tx",
+			"volume",
+			"bw-rx",
+			"bw-tx",
+			"bandwidth",
+		},
+		parseAnalyticsInterfaceMetrics,
+	)
+}
+
 // buildAnalyticsPath constructs a Versa Analytics query path in a cleaner way so multiple metrics can be added.
 // TODO: maybe this becomes a struct function. Modifications will be easier and the function signature will be
 // much cleaner
