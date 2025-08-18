@@ -114,7 +114,7 @@ deploy_packages_iot_rpm-armhf-7:
   extends: .deploy_packages_rpm
   needs: [ iot_agent_rpm-armhf ]
   variables:
-    PACKAGE_ARCH: aarch64
+    PACKAGE_ARCH: armv7hl
 
 deploy_packages_dogstatsd_rpm-x64-7:
   extends: .deploy_packages_rpm
