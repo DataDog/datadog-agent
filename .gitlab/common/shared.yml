@@ -15,7 +15,7 @@
         - release.json
       # We still need to add the environment omnibus-related variables so that triggered pipelines
       # don't get undesired cache hits
-      prefix: omnibus-deps-$CI_JOB_NAME-$OMNIBUS_RUBY_VERSION
+      prefix: omnibus-deps-$CI_JOB_IMAGE-$CI_JOB_NAME-$OMNIBUS_RUBY_VERSION
     paths:
       - omnibus/vendor/bundle
 
