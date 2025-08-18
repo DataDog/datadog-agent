@@ -422,6 +422,8 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 		StatusCode:     b.HTTPStatusCode,
 		GRPCStatusCode: b.GRPCStatusCode,
 		IsTraceRoot:    b.IsTraceRoot,
+		HTTPMethod:     b.HTTPMethod,
+		Endpoint:       b.Endpoint,
 	}
 	if tags := b.GetPeerTags(); len(tags) > 0 {
 		k.PeerTagsHash = tagsFnvHash(tags)

@@ -142,6 +142,8 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			PeerTagsHash:   tagsFnvHash(g.PeerTags),
 			IsTraceRoot:    g.IsTraceRoot,
 			GRPCStatusCode: g.GRPCStatusCode,
+			HTTPMethod:     g.HTTPMethod,
+			Endpoint:       g.Endpoint,
 		},
 	}
 }
