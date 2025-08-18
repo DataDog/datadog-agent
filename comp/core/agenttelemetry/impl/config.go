@@ -191,6 +191,8 @@ var defaultProfiles = `
   profiles:
   - name: checks
     metric:
+      exclude:
+        zero_metric: true
       metrics:
         - name: checks.execution_time
           aggregate_tags:
