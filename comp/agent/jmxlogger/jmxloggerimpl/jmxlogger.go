@@ -46,19 +46,15 @@ type logger struct {
 
 func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 	config := deps.Config
-	var jmxLogger logger
+	var inner jmxLoggerInterface
+	var err error
 
 	if deps.Params.fromCLI {
-		i, err := pkglogsetup.BuildJMXLogger(deps.Params.logFile, "", false, true, false, config)
+		inner, err = pkglogsetup.BuildJMXLogger(deps.Params.logFile, "", false, true, false, config)
 		if err != nil {
 			return logger{}, fmt.Errorf("Unable to set up JMX logger: %v", err)
 		}
-
-		jmxLogger = logger{
-			inner: i,
-		}
 	} else {
-		// Setup logger
 		syslogURI := pkglogsetup.GetSyslogURI(config)
 		jmxLogFile := config.GetString("jmx_log_file")
 		if jmxLogFile == "" {
@@ -70,8 +66,7 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 			jmxLogFile = ""
 		}
 
-		// Setup JMX logger
-		inner, jmxLoggerSetupErr := pkglogsetup.BuildJMXLogger(
+		inner, err = pkglogsetup.BuildJMXLogger(
 			jmxLogFile,
 			syslogURI,
 			config.GetBool("syslog_rfc"),
@@ -80,13 +75,13 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 			config,
 		)
 
-		if jmxLoggerSetupErr != nil {
-			return logger{}, fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
+		if err != nil {
+			return logger{}, fmt.Errorf("Error while setting up logging, exiting: %v", err)
 		}
+	}
 
-		jmxLogger = logger{
-			inner: inner,
-		}
+	jmxLogger := logger{
+		inner: inner,
 	}
 
 	deps.Lc.Append(fx.Hook{
