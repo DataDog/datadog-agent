@@ -76,7 +76,16 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: suite.configID, Path: suite.testPath})
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	suite.s = NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger)
+
+	// Create default fingerprint config for tests
+	defaultFingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	suite.s = NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, defaultFingerprintConfig)
 	suite.s.pipelineProvider = suite.pipelineProvider
 	suite.s.registry = auditorMock.NewMockRegistry()
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
@@ -160,7 +169,16 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger)
+
+	// Create fingerprint config for this test
+	launcherFingerprintConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            256,
+	}
+
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, *launcherFingerprintConfig)
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
@@ -187,14 +205,14 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	maxLines := 1
 	maxBytes := 256 // Match the mock config value
 	toSkip := 0
-	fingerprintConfig := &types.FingerprintConfig{
+	computeFingerprintConfig := &types.FingerprintConfig{
 		Count:               maxLines,
 		MaxBytes:            maxBytes,
 		CountToSkip:         toSkip,
 		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
 	}
 	filePath := tailer.Identifier()[5:]
-	fingerprint := s.fingerprinter.ComputeFingerprintFromConfig(filePath, fingerprintConfig)
+	fingerprint := s.fingerprinter.ComputeFingerprintFromConfig(filePath, computeFingerprintConfig)
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
 	// Rotate file
@@ -213,7 +231,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
 	filePath = newTailer.Identifier()[5:]
-	newFingerprint := s.fingerprinter.ComputeFingerprintFromConfig(filePath, fingerprintConfig)
+	newFingerprint := s.fingerprinter.ComputeFingerprintFromConfig(filePath, computeFingerprintConfig)
 	registryFingerprint := s.registry.GetFingerprint(newTailer.Identifier())
 	suite.NotEqual(registryFingerprint.Value, newFingerprint.Value, "The fingerprint of the new file should be different")
 
@@ -229,7 +247,16 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger)
+
+	// Create fingerprint config for this test
+	fingerprintConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            256,
+	}
+
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, *fingerprintConfig)
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
@@ -362,7 +389,16 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		openFilesLimit := 2
 		sleepDuration := 20 * time.Millisecond
 		fc := flareController.NewFlareController()
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+		// Create default fingerprint config for tests
+		defaultFingerprintConfig := types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+			Count:               1,
+			CountToSkip:         0,
+			MaxBytes:            10000,
+		}
+
+		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
 		outputChan := launcher.pipelineProvider.NextPipelineChan()
@@ -408,7 +444,16 @@ func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+	// Create fingerprint config for this test
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, fingerprintConfig)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
@@ -436,7 +481,16 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+	// Create fingerprint config for this test
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            256,
+	}
+
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, fingerprintConfig)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: &types.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: types.FingerprintStrategyLineChecksum}})
@@ -473,7 +527,16 @@ func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+	// Create fingerprint config for this test
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            256,
+	}
+
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, fingerprintConfig)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: &types.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: types.FingerprintStrategyLineChecksum}})
@@ -506,7 +569,16 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+	// Create default fingerprint config for tests
+	defaultFingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	outputChan := launcher.pipelineProvider.NextPipelineChan()
@@ -555,7 +627,16 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+	// Create default fingerprint config for tests
+	defaultFingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	outputChan := launcher.pipelineProvider.NextPipelineChan()
@@ -609,7 +690,16 @@ func TestLauncherSetTail(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+	// Create default fingerprint config for tests
+	defaultFingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 
@@ -634,7 +724,16 @@ func TestLauncherConfigIdentifier(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+	// Create default fingerprint config for tests
+	defaultFingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 
@@ -674,7 +773,16 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+	// Create default fingerprint config for tests
+	defaultFingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
@@ -706,7 +814,16 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	openFilesLimit := 2
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+	// Create default fingerprint config for tests
+	defaultFingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 
@@ -755,6 +872,15 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 
 	createLauncher := func() *Launcher {
 		sleepDuration := 20 * time.Millisecond
+
+		// Create default fingerprint config for tests
+		defaultFingerprintConfig := types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+			Count:               1,
+			CountToSkip:         0,
+			MaxBytes:            10000,
+		}
+
 		launcher := &Launcher{
 			tailingLimit:           openFilesLimit,
 			fileProvider:           fileprovider.NewFileProvider(openFilesLimit, fileprovider.WildcardUseFileModTime),
@@ -765,7 +891,7 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 			scanPeriod:             10 * time.Second,
 			flarecontroller:        flareController.NewFlareController(),
 			tagger:                 fakeTagger,
-			fingerprinter:          filetailer.NewFingerprinter(false, types.FingerprintConfig{}),
+			fingerprinter:          filetailer.NewFingerprinter(false, defaultFingerprintConfig),
 		}
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
@@ -825,7 +951,16 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 	createLauncher := func() *Launcher {
 		sleepDuration := 20 * time.Millisecond
 		fc := flareController.NewFlareController()
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_modification_time", fc, fakeTagger)
+
+		// Create default fingerprint config for tests
+		defaultFingerprintConfig := types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+			Count:               1,
+			CountToSkip:         0,
+			MaxBytes:            10000,
+		}
+
+		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_modification_time", fc, fakeTagger, defaultFingerprintConfig)
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
 		logDirectory := fmt.Sprintf("%s/*.log", testDir)
@@ -889,7 +1024,16 @@ func TestLauncherFileRotation(t *testing.T) {
 	createLauncher := func() *Launcher {
 		sleepDuration := 20 * time.Millisecond
 		fc := flareController.NewFlareController()
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+		// Create default fingerprint config for tests
+		defaultFingerprintConfig := types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+			Count:               1,
+			CountToSkip:         0,
+			MaxBytes:            10000,
+		}
+
+		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
 		logDirectory := fmt.Sprintf("%s/*.log", testDir)
@@ -957,7 +1101,16 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 	createLauncher := func() *Launcher {
 		sleepDuration := 20 * time.Millisecond
 		fc := flareController.NewFlareController()
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+
+		// Create default fingerprint config for tests
+		defaultFingerprintConfig := types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+			Count:               1,
+			CountToSkip:         0,
+			MaxBytes:            10000,
+		}
+
+		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
 		logDirectory := fmt.Sprintf("%s/*.log", testDir)
@@ -994,7 +1147,16 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUnder
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger)
+
+	// Create fingerprint config for this test
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger, fingerprintConfig)
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
@@ -1045,7 +1207,16 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersi
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger)
+
+	// Create fingerprint config for this test
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger, fingerprintConfig)
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)

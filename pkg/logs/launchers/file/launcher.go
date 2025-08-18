@@ -35,22 +35,6 @@ import (
 // DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
 const DefaultSleepDuration = 1 * time.Second
 
-// resolveFingerprintConfig resolves the global fingerprint configuration and converts it to the appropriate type
-func resolveFingerprintConfig() *types.FingerprintConfig {
-	fingerprintConfig, err := config.GlobalFingerprintConfig(pkgconfigsetup.Datadog())
-	if err != nil {
-		log.Warnf("Failed to get global fingerprint config: %v, using default", err)
-		return nil
-	}
-	// Convert from config.FingerprintConfig to types.FingerprintConfig
-	return &types.FingerprintConfig{
-		FingerprintStrategy: fingerprintConfig.FingerprintStrategy,
-		Count:               fingerprintConfig.Count,
-		CountToSkip:         fingerprintConfig.CountToSkip,
-		MaxBytes:            fingerprintConfig.MaxBytes,
-	}
-}
-
 // Launcher checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
 type Launcher struct {
@@ -84,7 +68,7 @@ type oldTailerInfo struct {
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController, tagger tagger.Component) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController, tagger tagger.Component, fingerprintConfig types.FingerprintConfig) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {
@@ -110,7 +94,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
 		oldInfoMap:             make(map[string]*oldTailerInfo),
-		fingerprinter:          tailer.NewFingerprinter(pkgconfigsetup.Datadog().GetBool("logs_config.fingerprint_enabled_experimental"), *resolveFingerprintConfig()),
+		fingerprinter:          tailer.NewFingerprinter(pkgconfigsetup.Datadog().GetBool("logs_config.fingerprint_enabled_experimental"), fingerprintConfig),
 	}
 }
 
