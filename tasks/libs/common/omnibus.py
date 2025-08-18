@@ -23,6 +23,7 @@ ENV_PASSHTROUGH = {
     'DD_CMAKE_TOOLCHAIN': 'Points at cmake toolchain',
     'DDA_NO_DYNAMIC_DEPS': 'Variable affecting dda behavior',
     'DEPLOY_AGENT': 'Used to apply higher compression level for deployed artifacts',
+    'E2E_COVERAGE_PIPELINE': 'Used to do a special build of the agent to generate coverage data',
     'FORCED_PACKAGE_COMPRESSION_LEVEL': 'Used as an override for the compression level of artifacts',
     'GEM_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'GEM_PATH': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
