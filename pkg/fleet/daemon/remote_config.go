@@ -101,11 +101,12 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 			// Backward compatibility with legacy installer configs.
 			var legacyConfigs struct {
 				Configs struct {
-					DatadogYAML       json.RawMessage `json:"datadog.yaml,omitempty"`
-					SecurityAgentYAML json.RawMessage `json:"security-agent.yaml,omitempty"`
-					SystemProbeYAML   json.RawMessage `json:"system-probe.yaml,omitempty"`
-					APMLibrariesYAML  json.RawMessage `json:"application_monitoring.yaml,omitempty"`
-					OTelConfigYAML    json.RawMessage `json:"otel-config.yaml,omitempty"`
+					DatadogYAML          json.RawMessage `json:"datadog.yaml,omitempty"`
+					SecurityAgentYAML    json.RawMessage `json:"security-agent.yaml,omitempty"`
+					SystemProbeYAML      json.RawMessage `json:"system-probe.yaml,omitempty"`
+					APMLibrariesYAML     json.RawMessage `json:"application_monitoring.yaml,omitempty"`
+					APMWorkloadSelection json.RawMessage `json:"apm_workload_selection.yaml,omitempty"`
+					OTelConfigYAML       json.RawMessage `json:"otel-config.yaml,omitempty"`
 				} `json:"configs"`
 			}
 			err = json.Unmarshal(config.Config, &legacyConfigs)
@@ -128,6 +129,9 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 			}
 			if len(legacyConfigs.Configs.OTelConfigYAML) > 0 {
 				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/otel-config.yaml", Contents: legacyConfigs.Configs.OTelConfigYAML})
+			}
+			if len(legacyConfigs.Configs.APMWorkloadSelection) > 0 {
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/apm_workload_selection.yaml", Contents: legacyConfigs.Configs.APMWorkloadSelection})
 			}
 			installerConfigs[installerConfig.ID] = installerConfig
 		}

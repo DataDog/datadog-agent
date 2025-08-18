@@ -6,9 +6,11 @@
 package packages
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -48,6 +50,11 @@ var datadogAgentPackage = hooks{
 const (
 	agentPackage = "datadog-agent"
 	agentSymlink = "/usr/bin/datadog-agent"
+
+	// TODO: generate these from context?
+	ddCompilePolicyPath            = "/opt/datadog-packages/datadog-apm-inject/experiment/dd-compile-policy"
+	apmWorkloadSelectionInputPath  = "/etc/datadog-agent/managed/datadog-agent/experiment/apm_workload_selection.yaml"
+	apmWorkloadSelectionOutputPath = "/etc/datadog-agent/managed/datadog-agent/experiment/apm_workload_selection.bin"
 )
 
 var (
@@ -363,6 +370,11 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 
 // postStartConfigExperimentDatadogAgent performs post-start steps for the config experiment.
 func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
+
+	if err := compileAPMWorkloadSelection(ctx); err != nil {
+		return err
+	}
+
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
 	}
@@ -676,4 +688,36 @@ func reverseStringSlice(slice []string) []string {
 	copy(reversed, slice)
 	slices.Reverse(reversed)
 	return reversed
+}
+
+func compileAPMWorkloadSelection(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("compile_apm_workload_selection")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	if _, err := os.Stat(ddCompilePolicyPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if _, err := os.Stat(apmWorkloadSelectionInputPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	contents, err := os.ReadFile(apmWorkloadSelectionInputPath)
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, ddCompilePolicyPath, string(contents), apmWorkloadSelectionOutputPath)
+	stderr := &bytes.Buffer{}
+	cmd.Stderr = stderr
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to compile APM workload selection: %v (%s)", err, stderr.String())
+	}
+	return nil
 }

@@ -824,6 +824,7 @@ var (
 		"/security-agent.yaml",
 		"/system-probe.yaml",
 		"/application_monitoring.yaml",
+		"/apm_workload_selection.yaml",
 		"/conf.d/*.yaml",
 		"/conf.d/*.d/*.yaml",
 	}
@@ -917,6 +918,9 @@ func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error
 				serialized, err := yaml.Marshal(c)
 				if err != nil {
 					return fmt.Errorf("could not serialize config file contents: %w", err)
+				}
+				if matched, err := filepath.Match("/apm_workload_selection.yaml", file.Path); err == nil && matched {
+					serialized = file.Contents // APM Workload Selection file should stay as JSON
 				}
 				if len(serialized) == 0 {
 					return fmt.Errorf("config file %s has no contents, skipping", file.Path)
