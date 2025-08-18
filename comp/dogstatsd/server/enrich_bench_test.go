@@ -47,7 +47,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 	conf := enrichConfig{}
 
 	sample := dogstatsdMetricSample{
-		name: "datadog.agent.testing.metric.does_not_match",
+		name: intern([]byte("datadog.agent.testing.metric.does_not_match")),
 	}
 
 	out := make([]metrics.MetricSample, 0, 10)

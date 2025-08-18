@@ -851,10 +851,10 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	}
 
 	if s.mapper != nil {
-		mapResult := s.mapper.Map(sample.name)
+		mapResult := s.mapper.Map(sample.name.Value())
 		if mapResult != nil {
-			s.log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name, mapResult.Name, mapResult.Tags)
-			sample.name = mapResult.Name
+			s.log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name.Value(), mapResult.Name, mapResult.Tags)
+			sample.name = intern([]byte(mapResult.Name))
 			sample.tags = append(sample.tags, utilstrings.ToUnique(mapResult.Tags)...)
 		}
 	}

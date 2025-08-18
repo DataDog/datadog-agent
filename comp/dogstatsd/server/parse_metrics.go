@@ -38,7 +38,7 @@ var (
 )
 
 type dogstatsdMetricSample struct {
-	name string
+	name unique.Handle[string]
 	// use for single value messages
 	value float64
 	// use for multiple value messages
