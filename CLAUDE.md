@@ -100,12 +100,8 @@ The development configuration file should be placed at `dev/dist/datadog.yaml`. 
 - Python tests using pytest
 - Run with `dda inv test --targets=<package>`
 
-### Integration Tests
-- Located in `test/integration/`
-- Run with `dda inv integration-tests`
-
 ### End-to-End Tests
-- New E2E framework in `test/new-e2e/`
+- E2E framework in `test/new-e2e/`
 
 ### Linting
 - Go: golangci-lint via `dda inv linter.go`
@@ -162,19 +158,6 @@ Go build tags control feature inclusion:
 ### Sensitive Data
 - Never commit API keys or secrets
 - Use secret backend for credentials
-- Scrub sensitive data from logs
-
-### Code Paths
-- `/pkg/security/` - Security monitoring code
-- `/pkg/compliance/` - Compliance checking
-- eBPF code is GPL-licensed (separate from Apache 2.0)
-
-## Debugging Tips
-
-1. **Enable debug logging**: Set `log_level: debug` in config
-2. **Check agent status**: `./bin/agent/agent status`
-3. **Inspect flare**: `./bin/agent/agent flare`
-4. **View check output**: `./bin/agent/agent check <check_name>`
 
 ## Module System
 The project uses Go modules with multiple sub-modules. Key modules:
@@ -185,17 +168,16 @@ The project uses Go modules with multiple sub-modules. Key modules:
 ## Platform Support
 - **Linux**: Full support (amd64, arm64)
 - **Windows**: Full support (Server 2016+, Windows 10+)
-- **macOS**: Development and testing
+- **macOS**: Supported
 - **AIX**: No support in this codebase
 - **Container**: Docker, Kubernetes, ECS, containerd, and more
 
 ## Best Practices
 
 1. **Always run linters before committing**: `dda inv linter.go`
-2. **Test your changes**: `dda inv test --targets=<your_package>`
+2. **Always test your changes**: `dda inv test --targets=<your_package>`
 3. **Follow Go conventions**: Use gofmt, follow project structure
 4. **Update documentation**: Keep docs in sync with code changes
-5. **Use meaningful commit messages**: Follow conventional commits
 6. **Check for security implications**: Review security-sensitive changes carefully
 
 ## Troubleshooting Development Issues
@@ -206,11 +188,5 @@ The project uses Go modules with multiple sub-modules. Key modules:
 
 ### Testing Issues
 - **Flaky tests**: Check `flakes.yaml` for known issues
-- **Integration test failures**: Ensure services are running
 - **Coverage issues**: Use `--coverage` flag
 
-## Additional Resources
-- [Developer Documentation](docs/dev/README.md)
-- [Agent User Documentation](https://docs.datadoghq.com/agent/)
-- [Contributing Guidelines](CONTRIBUTING.md)
-- [Public Datadog Agent Docs](https://docs.datadoghq.com/developers/dogstatsd/)
