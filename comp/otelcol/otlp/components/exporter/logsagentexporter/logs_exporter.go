@@ -79,7 +79,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		}
 	}()
 
-	payloads, err := e.translator.MapLogsAndRouteRUMEvents(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler(), true, "https://browser-intake-datadoghq.com/")
+	payloads, err := e.translator.MapLogsAndRouteRUMEvents(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler(), false, "")
 	if err != nil {
 		return err
 	}
