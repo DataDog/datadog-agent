@@ -60,7 +60,7 @@ func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, er
 		return false, err
 	}
 	// If the original fingerprint is nil, we can't detect rotation
-	if t.fingerprint == nil || err != nil {
+	if t.fingerprint == nil {
 		return false, nil
 	}
 
