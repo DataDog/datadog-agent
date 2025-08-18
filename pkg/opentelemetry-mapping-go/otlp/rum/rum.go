@@ -64,10 +64,11 @@ func buildRumPayload(k string, v pcommon.Value, rumPayload map[string]any) {
 	}
 }
 
+// ConstructRumPayloadFromOTLP constructs a RUM payload from OTLP attributes.
 func ConstructRumPayloadFromOTLP(attr pcommon.Map) map[string]any {
 	rumPayload := make(map[string]any)
 	attr.Range(func(k string, v pcommon.Value) bool {
-		if rumAttributeName, exists := OTLPAttributeToRUMPayloadKeyMapping[k]; exists {
+		if rumAttributeName, exists := otlpAttributeToRUMPayloadKeyMapping[k]; exists {
 			buildRumPayload(rumAttributeName, v, rumPayload)
 			return true
 		}
@@ -77,10 +78,6 @@ func ConstructRumPayloadFromOTLP(attr pcommon.Map) map[string]any {
 		return true
 	})
 	return rumPayload
-}
-
-type RUMPayload struct {
-	Type string
 }
 
 func parseIDs(payload map[string]any) (pcommon.TraceID, pcommon.SpanID, error) {
@@ -143,14 +140,14 @@ func parseDDForwardIntoResource(attributes pcommon.Map, ddforward string) {
 		attributes.PutStr("dd-evp-origin", ddEvpOrigin)
 	}
 
-	ddRequestId := queryParams.Get("dd-request-id")
-	if ddRequestId != "" {
-		attributes.PutStr("dd-request-id", ddRequestId)
+	ddRequestID := queryParams.Get("dd-request-id")
+	if ddRequestID != "" {
+		attributes.PutStr("dd-request-id", ddRequestID)
 	}
 
-	ddApiKey := queryParams.Get("dd-api-key")
-	if ddApiKey != "" {
-		attributes.PutStr("dd-api-key", ddApiKey)
+	ddAPIKey := queryParams.Get("dd-api-key")
+	if ddAPIKey != "" {
+		attributes.PutStr("dd-api-key", ddAPIKey)
 	}
 }
 
@@ -189,7 +186,7 @@ func flattenJSON(payload map[string]any) map[string]any {
 
 func setOTLPAttributes(flatPayload map[string]any, attributes pcommon.Map) {
 	for key, val := range flatPayload {
-		rumKey, exists := RUMPayloadKeyToOTLPAttributeMapping[key]
+		rumKey, exists := rumPayloadKeyToOTLPAttributeMapping[key]
 
 		if !exists {
 			rumKey = "datadog" + "." + key
@@ -302,6 +299,7 @@ func randomID() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// BuildIntakeUrlPathAndParameters builds the intake URL path and parameters to send RUM payloads to Datadog RUM backend.
 func BuildIntakeUrlPathAndParameters(rattrs pcommon.Map, lattrs pcommon.Map) string {
 	var parts []string
 
@@ -316,15 +314,15 @@ func BuildIntakeUrlPathAndParameters(rattrs pcommon.Map, lattrs pcommon.Map) str
 	ddEvpOriginParam := paramValue{ParamKey: "dd-evp-origin", SpanAttr: "source", Fallback: "browser"}
 	parts = append(parts, ddEvpOriginParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddEvpOriginParam))
 
-	ddRequestId, err := randomID()
+	ddRequestID, err := randomID()
 	if err != nil {
 		return ""
 	}
-	ddRequestIdParam := paramValue{ParamKey: "dd-request-id", SpanAttr: "", Fallback: ddRequestId}
-	parts = append(parts, ddRequestIdParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddRequestIdParam))
+	ddRequestIDParam := paramValue{ParamKey: "dd-request-id", SpanAttr: "", Fallback: ddRequestID}
+	parts = append(parts, ddRequestIDParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddRequestIDParam))
 
-	ddApiKeyParam := paramValue{ParamKey: "dd-api-key", SpanAttr: "", Fallback: ""}
-	parts = append(parts, ddApiKeyParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddApiKeyParam))
+	ddAPIKeyParam := paramValue{ParamKey: "dd-api-key", SpanAttr: "", Fallback: ""}
+	parts = append(parts, ddAPIKeyParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddAPIKeyParam))
 
 	return "/api/v2/rum?" + strings.Join(parts, "&")
 }

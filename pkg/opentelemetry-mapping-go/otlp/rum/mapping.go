@@ -5,34 +5,34 @@
 
 package rum
 
-var OTLPAttributeToRUMPayloadKeyMapping = map[string]string{
+var otlpAttributeToRUMPayloadKeyMapping = map[string]string{
 	// _common-schema.json (https://github.com/DataDog/rum-events-format/blob/master/schemas/rum/_common-schema.json)
-	ServiceName:    Service,
-	ServiceVersion: Version,
-	SessionId:      SessionId,
-	UserId:         UsrId,
-	UserFullName:   UsrName,
-	UserEmail:      UsrEmail,
-	UserHash:       UsrAnonymousId,
-	UserName:       AccountName,
+	serviceName:    service,
+	serviceVersion: version,
+	sessionID:      session,
+	userID:         usrID,
+	userFullName:   usrName,
+	userEmail:      usrEmail,
+	userHash:       usrAnonymousID,
+	userName:       accountName,
 
 	// error-schema.json (https://github.com/DataDog/rum-events-format/blob/master/schemas/rum/error-schema.json)
-	ErrorMessage: ErrorMessage,
-	ErrorType:    ErrorType,
+	errorMessage: errorMessage,
+	errorType:    errorType,
 }
 
-var RUMPayloadKeyToOTLPAttributeMapping = map[string]string{
+var rumPayloadKeyToOTLPAttributeMapping = map[string]string{
 	// _common-schema.json
-	Service:        ServiceName,
-	Version:        ServiceVersion,
-	SessionId:      SessionId,
-	UsrId:          UserId,
-	UsrName:        UserFullName,
-	UsrEmail:       UserEmail,
-	UsrAnonymousId: UserHash,
-	AccountName:    UserName,
+	service:        serviceName,
+	version:        serviceVersion,
+	sessionID:      session,
+	usrID:          userID,
+	usrName:        userFullName,
+	usrEmail:       userEmail,
+	usrAnonymousID: userHash,
+	accountName:    userName,
 
 	// error-schema.json
-	ErrorMessage: ErrorMessage,
-	ErrorType:    ErrorType,
+	errorMessage: errorMessage,
+	errorType:    errorType,
 }

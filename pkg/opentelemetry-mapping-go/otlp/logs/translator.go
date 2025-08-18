@@ -23,9 +23,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -33,13 +30,17 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum"
 )
 
 var (
 	signalTypeSet = attribute.NewSet(attribute.String("signal", "logs"))
 )
 
-type HTTPClient interface {
+type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
@@ -48,7 +49,7 @@ type Translator struct {
 	set                  component.TelemetrySettings
 	attributesTranslator *attributes.Translator
 	otelTag              string
-	httpClient           HTTPClient
+	httpClient           httpClient
 }
 
 // NewTranslator returns a new Translator
@@ -61,7 +62,8 @@ func NewTranslator(set component.TelemetrySettings, attributesTranslator *attrib
 	}, nil
 }
 
-func NewTranslatorWithHTTPClient(set component.TelemetrySettings, attributesTranslator *attributes.Translator, otelSource string, client HTTPClient) (*Translator, error) {
+// NewTranslatorWithHTTPClient returns a new Translator with a custom httpClient
+func NewTranslatorWithHTTPClient(set component.TelemetrySettings, attributesTranslator *attributes.Translator, otelSource string, client httpClient) (*Translator, error) {
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
@@ -91,7 +93,7 @@ func (t *Translator) hostFromAttributes(ctx context.Context, attrs pcommon.Map) 
 }
 
 // MapLogsAndRouteRUMEvents from OTLP format to Datadog format if shouldForwardOTLPRUMToDDRUM is true.
-func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs, hostFromAttributesHandler attributes.HostFromAttributesHandler, shouldForwardOTLPRUMToDDRUM bool, rumIntakeUrl string) ([]datadogV2.HTTPLogItem, error) {
+func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs, hostFromAttributesHandler attributes.HostFromAttributesHandler, shouldForwardOTLPRUMToDDRUM bool, rumIntakeURL string) ([]datadogV2.HTTPLogItem, error) {
 	if t.httpClient == nil {
 		return nil, fmt.Errorf("httpClient is nil")
 	}
@@ -117,7 +119,7 @@ func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs,
 
 						// build the Datadog intake URL
 						pathAndParams := rum.BuildIntakeUrlPathAndParameters(rattr, lattr)
-						outUrlString := rumIntakeUrl + pathAndParams
+						outURLString := rumIntakeURL + pathAndParams
 
 						rumPayload := rum.ConstructRumPayloadFromOTLP(lattr)
 						byts, err := json.Marshal(rumPayload)
@@ -125,7 +127,7 @@ func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs,
 							return []datadogV2.HTTPLogItem{}, fmt.Errorf("failed to marshal RUM payload: %w", err)
 						}
 
-						req, err := http.NewRequest("POST", outUrlString, bytes.NewBuffer(byts))
+						req, err := http.NewRequest("POST", outURLString, bytes.NewBuffer(byts))
 						if err != nil {
 							return []datadogV2.HTTPLogItem{}, fmt.Errorf("failed to create request: %w", err)
 						}

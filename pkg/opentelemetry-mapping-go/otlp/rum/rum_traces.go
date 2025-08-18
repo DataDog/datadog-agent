@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// ToTraces converts a RUM payload to OpenTelemetry Traces
 func ToTraces(logger *zap.Logger, payload map[string]any, req *http.Request) (ptrace.Traces, error) {
 	results := ptrace.NewTraces()
 	rs := results.ResourceSpans().AppendEmpty()
@@ -23,7 +24,7 @@ func ToTraces(logger *zap.Logger, payload map[string]any, req *http.Request) (pt
 	parseDDForwardIntoResource(rs.Resource().Attributes(), req.URL.Query().Get("ddforward"))
 
 	in := rs.ScopeSpans().AppendEmpty()
-	in.Scope().SetName(InstrumentationScopeName)
+	in.Scope().SetName(instrumentationScopeName)
 
 	traceID, spanID, err := parseIDs(payload)
 	if err != nil {
@@ -33,7 +34,7 @@ func ToTraces(logger *zap.Logger, payload map[string]any, req *http.Request) (pt
 	logger.Info("Span ID", zap.String("spanID", spanID.String()))
 
 	newSpan := in.Spans().AppendEmpty()
-	if eventType, ok := payload[Type].(string); ok {
+	if eventType, ok := payload[typeKey].(string); ok {
 		newSpan.SetName("datadog.rum." + eventType)
 	} else {
 		newSpan.SetName("datadog.rum.event")
@@ -60,8 +61,7 @@ func setDateForSpan(payload map[string]any, span ptrace.Span) {
 	}
 	dateNanoseconds := uint64(dateFloat) * 1e6
 
-	// default duration to 0 if not found
-	var duration float64 = 0
+	var duration float64
 	if resource, ok := payload["resource"].(map[string]any); ok {
 		if durationVal, ok := resource["duration"].(float64); ok {
 			duration = durationVal

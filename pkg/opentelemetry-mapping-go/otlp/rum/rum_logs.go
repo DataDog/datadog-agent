@@ -12,6 +12,7 @@ import (
 	semconv "go.opentelemetry.io/collector/semconv/v1.5.0"
 )
 
+// ToLogs converts a RUM payload to OpenTelemetry Logs
 func ToLogs(payload map[string]any, req *http.Request) plog.Logs {
 	results := plog.NewLogs()
 	rl := results.ResourceLogs().AppendEmpty()
@@ -20,7 +21,7 @@ func ToLogs(payload map[string]any, req *http.Request) plog.Logs {
 	parseDDForwardIntoResource(rl.Resource().Attributes(), req.URL.Query().Get("ddforward"))
 
 	in := rl.ScopeLogs().AppendEmpty()
-	in.Scope().SetName(InstrumentationScopeName)
+	in.Scope().SetName(instrumentationScopeName)
 
 	newLogRecord := in.LogRecords().AppendEmpty()
 

@@ -6,29 +6,29 @@
 package rum
 
 const (
-	InstrumentationScopeName = "datadog.rum-browser-sdk"
-	Type                     = "type"
+	instrumentationScopeName = "datadog.rum-browser-sdk"
+	typeKey                  = "type"
 
 	// _common-schema.json (https://github.com/DataDog/rum-events-format/blob/master/schemas/rum/_common-schema.json)
-	ServiceName    = "service.name"
-	ServiceVersion = "service.version"
-	SessionId      = "session.id"
-	UserId         = "user.id"
-	UserFullName   = "user.full_name"
-	UserEmail      = "user.email"
-	UserHash       = "user.hash"
-	UserName       = "user.name"
+	serviceName    = "service.name"
+	serviceVersion = "service.version"
+	sessionID      = "session.id"
+	userID         = "user.id"
+	userFullName   = "user.full_name"
+	userEmail      = "user.email"
+	userHash       = "user.hash"
+	userName       = "user.name"
 
-	Service        = "service"
-	Session        = "session"
-	Version        = "version"
-	UsrId          = "usr.id"
-	UsrName        = "usr.name"
-	UsrEmail       = "usr.email"
-	UsrAnonymousId = "usr.anonymous_id"
-	AccountName    = "account.name"
+	service        = "service"
+	session        = "session"
+	version        = "version"
+	usrID          = "usr.id"
+	usrName        = "usr.name"
+	usrEmail       = "usr.email"
+	usrAnonymousID = "usr.anonymous_id"
+	accountName    = "account.name"
 
 	// error-schema.json (https://github.com/DataDog/rum-events-format/blob/master/schemas/rum/error-schema.json)
-	ErrorMessage = "error.message"
-	ErrorType    = "error.type"
+	errorMessage = "error.message"
+	errorType    = "error.type"
 )

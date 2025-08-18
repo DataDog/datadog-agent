@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +31,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	semconv16 "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 )
 
 type translatorTestCase struct {
@@ -669,7 +670,7 @@ func TestTranslator(t *testing.T) {
 
 type mockHTTPClient struct{}
 
-func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
+func (m *mockHTTPClient) Do(_ *http.Request) (*http.Response, error) {
 	body := io.NopCloser(bytes.NewReader([]byte(`{"ok": true}`)))
 	return &http.Response{
 		StatusCode: http.StatusAccepted,
