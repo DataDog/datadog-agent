@@ -9,11 +9,12 @@
 
 other:
   - |
-    Added the following metrics for gRPC communication:
-    | Metric Name                     | Type      | Description                                     |
-    | ------------------------------- | --------- | ----------------------------------------------- |
-    | `grpc.request_count`            | Count   | Total number of gRPC requests processed.         |
-    | `grpc.error_count`              | Count   | Total number of gRPC errors encountered.         |
-    | `grpc.request_duration_seconds` | Histogram | Distribution of gRPC request latencies.          |
-    | `grpc.payload_size_bytes`       | Histogram | Distribution of payload sizes for gRPC calls.    |
-    | `grpc.active_requests`          | Gauge     | Number of currently active (in-flight) requests. |
+    Added the following agent telemetry metrics for debugging gRPC communication within the agent:
+    
+    | Metric Name                     | Type      | Description                                           |
+    | ------------------------------- | --------- | ----------------------------------------------------- |
+    | `grpc.request_count`            | Counter   | Total number of gRPC requests processed by the agent   |
+    | `grpc.error_count`              | Counter   | Total number of gRPC errors encountered by the agent   |
+    | `grpc.request_duration_seconds` | Histogram | Distribution of gRPC request latencies for agent communication |
+    | `grpc.payload_size_bytes`       | Histogram | Distribution of payload sizes for gRPC calls within the agent |
+    | `grpc.active_requests`          | Gauge     | Number of currently active (in-flight) gRPC requests in the agent |
