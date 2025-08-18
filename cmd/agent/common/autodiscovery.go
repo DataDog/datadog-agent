@@ -24,9 +24,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfighelpers "github.com/DataDog/datadog-agent/pkg/config/helpers"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -63,7 +63,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 
 	var extraEnvProviders []pkgconfigsetup.ConfigurationProviders
 	var extraEnvListeners []pkgconfigsetup.Listeners
-	if pkgconfigenv.IsAutoconfigEnabled(pkgconfigsetup.Datadog()) && !pkgconfigutils.IsCLCRunner(pkgconfigsetup.Datadog()) {
+	if pkgconfigenv.IsAutoconfigEnabled(pkgconfigsetup.Datadog()) && !pkgconfighelpers.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		extraEnvProviders, extraEnvListeners = confad.DiscoverComponentsFromEnv()
 	}
 

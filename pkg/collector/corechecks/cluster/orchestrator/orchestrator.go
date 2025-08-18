@@ -35,8 +35,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	pkgconfighelpers "github.com/DataDog/datadog-agent/pkg/config/helpers"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -108,7 +108,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, c
 		cfg:         cfg,
 		stopCh:      make(chan struct{}),
 		groupID:     atomic.NewInt32(rand.Int31()),
-		isCLCRunner: pkgconfigutils.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isCLCRunner: pkgconfighelpers.IsCLCRunner(pkgconfigsetup.Datadog()),
 		agentVersion: &model.AgentVersion{
 			Major:  agentVersion.Major,
 			Minor:  agentVersion.Minor,

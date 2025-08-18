@@ -38,6 +38,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
+	pkgconfighelpers "github.com/DataDog/datadog-agent/pkg/config/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -1082,8 +1083,8 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		instance:             instance,
 		telemetry:            newTelemetryCache(),
 		tagger:               tagger,
-		isCLCRunner:          pkgconfigutils.IsCLCRunner(pkgconfigsetup.Datadog()),
-		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigutils.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isCLCRunner:          pkgconfighelpers.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfighelpers.IsCLCRunner(pkgconfigsetup.Datadog()),
 		metricNamesMapper:    defaultMetricNamesMapper(),
 		metricAggregators:    defaultMetricAggregators(),
 		metricTransformers:   defaultMetricTransformers(),
