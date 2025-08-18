@@ -395,7 +395,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.config(mockConfig)
 			}
 
-			config, err := NewConfig(mockConfig)
+			config, err := NewConfig(mockConfig, nil)
 			require.NoError(t, err)
 
 			require.Equal(t, instrumentationV2, config.version)
@@ -546,7 +546,7 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	config, err := NewConfig(mockConfig)
+	config, err := NewConfig(mockConfig, nil)
 	require.NoError(t, err)
 	m, err := NewNamespaceMutator(config, wmeta)
 	require.NoError(t, err)
@@ -1032,7 +1032,7 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			config, err := NewConfig(mockConfig)
+			config, err := NewConfig(mockConfig, nil)
 			require.NoError(t, err)
 			mutator, err := NewNamespaceMutator(config, wmeta)
 			require.NoError(t, err)
@@ -1747,7 +1747,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
 
-			config, err := NewConfig(mockConfig)
+			config, err := NewConfig(mockConfig, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -3682,7 +3682,7 @@ func TestShouldInject(t *testing.T) {
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
-			config, err := NewConfig(mockConfig)
+			config, err := NewConfig(mockConfig, nil)
 			require.NoError(t, err)
 			mutator, err := NewNamespaceMutator(config, wmeta)
 			require.NoError(t, err)
@@ -3692,7 +3692,7 @@ func TestShouldInject(t *testing.T) {
 }
 
 func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Webhook, error) {
-	config, err := NewConfig(ddConfig)
+	config, err := NewConfig(ddConfig, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -362,6 +362,7 @@ func start(log log.Component,
 		DatadogClient:          dc,
 	}
 
+	// ERIKA: This does NOT include the admission controller?
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
 		for _, err := range aggErr.Errors() {
 			pkglog.Warnf("Error while starting controller: %v", err)
@@ -394,6 +395,9 @@ func start(log log.Component,
 		}
 		if config.GetBool("autoscaling.workload.enabled") {
 			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
+		}
+		if config.GetBool("admission_controller.auto_instrumentation.enabled") {
+			products = append(products, state.ProductGradualRollout)
 		}
 
 		if len(products) > 0 {
@@ -516,6 +520,7 @@ func start(log log.Component,
 			StopCh:                       stopCh,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,
+			RcClient:                     rcClient,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)

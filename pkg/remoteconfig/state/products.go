@@ -38,6 +38,7 @@ var validProducts = map[string]struct{}{
 	ProductMetricControl:                {},
 	ProductDataStreamsLiveMessages:      {},
 	ProductLiveDebuggingSymbolDB:        {},
+	ProductGradualRollout:               {},
 }
 
 const (
@@ -106,4 +107,6 @@ const (
 	ProductMetricControl = "METRIC_CONTROL"
 	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
+	// ProductGradualRollout tracks the latest stable release versions for K8s gradual rollout.
+	ProductGradualRollout = "K8S_INJECTION_DD"
 )

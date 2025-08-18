@@ -56,6 +56,11 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 		disabledNamespacesMap[ns] = true
 	}
 
+	var tagResolver *TagResolver
+	if config.rcClient != nil {
+		tagResolver = NewTagResolver(config.rcClient)
+	}
+
 	// Convert the targets to internal format.
 	internalTargets := make([]targetInternal, len(config.Instrumentation.Targets))
 	for i, t := range config.Instrumentation.Targets {
@@ -93,7 +98,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 		// Get the library versions to inject. If no versions are specified, we inject all libraries.
 		var libVersions []libInfo
 		if len(t.TracerVersions) == 0 {
-			libVersions = getAllLatestDefaultLibraries(config.containerRegistry)
+			libVersions = getAllLatestDefaultLibraries(config.containerRegistry, tagResolver)
 		} else {
 			libVersions = getPinnedLibraries(t.TracerVersions, config.containerRegistry, false).libs
 		}
@@ -134,7 +139,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 
 	// Create the core mutator. This is a bit gross.
 	// The target mutator is also the filter which we are passing in.
-	core := newMutatorCore(config, wmeta, m)
+	core := newMutatorCore(config, wmeta, m, tagResolver)
 	m.core = core
 
 	return m, nil
