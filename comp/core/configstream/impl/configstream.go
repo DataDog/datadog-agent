@@ -65,11 +65,11 @@ func NewComponent(reqs Requires) Provides {
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			go cs.run()
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			close(cs.stopChan)
 			return nil
 		},

@@ -15,6 +15,6 @@ import (
 )
 
 // Mock returns a mock for configstream component.
-func Mock(t *testing.T) configstream.Component {
+func Mock(_ *testing.T) configstream.Component {
 	return nil
 }
