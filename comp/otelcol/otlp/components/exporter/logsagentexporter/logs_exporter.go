@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	logsmapping "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs"
-	"github.com/stormcat24/protodep/pkg/logger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
 )
@@ -30,6 +29,7 @@ type Exporter struct {
 	logSource        *sources.LogSource
 	translator       *logsmapping.Translator
 	gatewaysUsage    otel.GatewayUsage
+	cfg *Config
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -63,6 +63,7 @@ func NewExporterWithGatewayUsage(
 		logSource:        logSource,
 		translator:       translator,
 		gatewaysUsage:    gatewaysUsage,
+		cfg: cfg,
 	}, nil
 }
 
@@ -107,7 +108,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 
 		content, err := ddLog.MarshalJSON()
 		if err != nil {
-			logger.Error("Error parsing log: " + err.Error())
+			e.set.Logger.Error("error parsing log", zap.Error(err))
 		}
 
 		// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
