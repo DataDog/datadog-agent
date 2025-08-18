@@ -276,7 +276,6 @@ func (s *Launcher) scan() {
 			// Check if this specific file should be fingerprinted
 			fingerprint = s.fingerprinter.ComputeFingerprint(file)
 			// Skip files with invalid fingerprints (Value == 0)
-			//TODO: Put the old stuff back in
 			if fingerprint != nil && !fingerprint.ValidFingerprint() {
 				continue
 			}
@@ -360,13 +359,11 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		}
 
 		var fingerprint *types.Fingerprint
-		if s.fingerprinter.IsFingerprintingEnabled() {
-			// Check if this specific file should be fingerprinted
-			if s.fingerprinter.ShouldFileFingerprint(file) {
-				fingerprint = s.fingerprinter.ComputeFingerprint(file)
-				if !fingerprint.ValidFingerprint() {
-					continue
-				}
+		// Check if this specific file should be fingerprinted
+		if s.fingerprinter.ShouldFileFingerprint(file) {
+			fingerprint = s.fingerprinter.ComputeFingerprint(file)
+			if !fingerprint.ValidFingerprint() {
+				continue
 			}
 		}
 

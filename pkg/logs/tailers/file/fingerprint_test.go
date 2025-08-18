@@ -123,7 +123,7 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
 	defer osFile.Close()
 
 	maxLines := 5
-	maxBytes := 2048
+	maxBytes := 1024
 	linesToSkip := 0
 
 	config := &types.FingerprintConfig{
@@ -133,8 +133,8 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
 		MaxBytes:            maxBytes,
 	}
 
-	// Expected: line should be cut off and hashed up to maxBytes (2048)
-	expectedText := make([]byte, 2048)
+	// Expected: line should be cut off and hashed up to maxBytes (1024)
+	expectedText := make([]byte, 1024)
 	for i := range expectedText {
 		expectedText[i] = 'A'
 	}
@@ -171,7 +171,7 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit()
 
 	fmt.Println(lines)
 	maxLines := 10
-	maxBytes := 1500
+	maxBytes := 1024
 	linesToSkip := 0
 
 	config := &types.FingerprintConfig{
@@ -181,11 +181,10 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit()
 		MaxBytes:            maxBytes,
 	}
 
-	//Should hash up to maxBytes (1500) which includes the 807 bytes of line1 and the first 693 bytes of line2 (which accounts for the text "line1: ", "line2: ", and the line break)
-	expectedText := "line1: " + line1Content + "line2: " + line2Content[:685]
+	//Should hash up to default maxBytes (1024) since we are falling back to the default byte based configuration
+	expectedText := "line1: " + line1Content + "\n" + "line2: " + line2Content[:209]
 
 	table := crc64.MakeTable(crc64.ISO)
-	fmt.Println(len(expectedText))
 	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
 
 	tailer := suite.createTailer()
@@ -701,10 +700,10 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine2() {
 // Tests the "whichever comes first" logic (X lines or Y bytes)
 func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 	lines := []string{
-		strings.Repeat("A", 30) + "\n", // ~31 bytes
-		strings.Repeat("B", 30) + "\n", // ~31 bytes
-		strings.Repeat("C", 30) + "\n", // ~31 bytes
-		strings.Repeat("D", 30) + "\n", // ~31 bytes
+		strings.Repeat("A", 268) + "\n",
+		strings.Repeat("B", 268) + "\n",
+		strings.Repeat("C", 268) + "\n",
+		strings.Repeat("D", 268) + "\n",
 	}
 
 	for _, line := range lines {
@@ -713,8 +712,8 @@ func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 	}
 	suite.testFile.Sync()
 
-	maxLines := 4
-	maxBytes := 80
+	maxLines := 5
+	maxBytes := 1024
 	linesToSkip := 0
 
 	config := &types.FingerprintConfig{
@@ -730,7 +729,7 @@ func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 	fingerprint := fingerprinter.ComputeFingerprint(tailer.file)
 
 	fmt.Println(lines)
-	stringToHash := strings.Repeat("A", 30) + strings.Repeat("B", 30) + strings.Repeat("C", 18)
+	stringToHash := strings.Repeat("A", 268) + "\n" + strings.Repeat("B", 268) + "\n" + strings.Repeat("C", 268) + "\n" + strings.Repeat("D", 217)
 	table := crc64.MakeTable(crc64.ISO)
 	expectedHash := crc64.Checksum([]byte(stringToHash), table)
 
