@@ -44,7 +44,7 @@ func resolveFingerprintConfig() *types.FingerprintConfig {
 	}
 	// Convert from config.FingerprintConfig to types.FingerprintConfig
 	return &types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategy(fingerprintConfig.FingerprintStrategy),
+		FingerprintStrategy: fingerprintConfig.FingerprintStrategy,
 		Count:               fingerprintConfig.Count,
 		CountToSkip:         fingerprintConfig.CountToSkip,
 		MaxBytes:            fingerprintConfig.MaxBytes,
@@ -277,6 +277,10 @@ func (s *Launcher) scan() {
 			fingerprint = s.fingerprinter.ComputeFingerprint(file)
 			// Skip files with invalid fingerprints (Value == 0)
 			if fingerprint != nil && !fingerprint.ValidFingerprint() {
+				// If fingerprint is invalid, persist the old info back into the map for future attempts
+				if hasOldInfo {
+					s.oldInfoMap[scanKey] = oldInfo
+				}
 				continue
 			}
 		}
