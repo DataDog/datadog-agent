@@ -97,8 +97,6 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:3,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
-		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
-		"DD_SBOM_HOST_ENABLED=true",
 		"DD_REMOTE_UPDATES=true",
 		"DD_ENV=env",
 		"DD_HOSTNAME=hostname",

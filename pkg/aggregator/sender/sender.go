@@ -32,10 +32,12 @@ type Sender interface {
 	// GaugeWithTimestamp reports a new gauge value to the intake with the given timestamp.
 	// Gauge time series measure a simple value over time.
 	// Unlike Gauge(), each submitted value will be passed to the intake as is, without aggregation. Each time series can have only one value per timestamp.
+	// The timestamp is in seconds since epoch (accepts fractional seconds)
 	GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error
 	// CountWithTimestamp reports a new count value to the intake with the given timestamp.
 	// Count time series measure how many times something happened in some time period.
 	// Unlike Count(), each submitted value will be passed to the intake as is, without aggregation. Each time series can have only one value per timestamp.
+	// The timestamp is in seconds since epoch (accepts fractional seconds)
 	CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error
 	Event(e event.Event)
 	EventPlatformEvent(rawEvent []byte, eventType string)

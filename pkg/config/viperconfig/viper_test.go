@@ -525,3 +525,23 @@ func TestSequenceID(t *testing.T) {
 	config.UnsetForSource("foo", model.SourceAgentRuntime)
 	assert.Equal(t, uint64(3), config.GetSequenceID())
 }
+
+func TestMultipleTransformersRaisesError(t *testing.T) {
+	config := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.BindEnvAndSetDefault("list_of_nums", []float64{}, "TEST_LIST_OF_NUMS")
+
+	assert.NotPanics(t, func() {
+		config.ParseEnvAsStringSlice("list_of_nums", func(in string) []string {
+			return strings.Split(in, ",")
+		})
+	}, "env transform for list_of_nums works if set once")
+
+	assert.PanicsWithValue(t, "env transform for list_of_strings already exists", func() {
+		config.ParseEnvAsStringSlice("list_of_strings", func(_ string) []string {
+			return []string{"a", "b"}
+		})
+		config.ParseEnvAsStringSlice("list_of_strings", func(in string) []string {
+			return strings.Split(in, ",")
+		})
+	})
+}
