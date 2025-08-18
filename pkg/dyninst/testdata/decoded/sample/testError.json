@@ -51,8 +51,8 @@
           "entry": {
             "arguments": {
               "e": {
-                "type": "error",
-                "notCapturedReason": "unimplemented"
+                "type": "UnknownType(0x[GoRuntimeType])",
+                "notCapturedReason": "missing type information"
               }
             }
           }

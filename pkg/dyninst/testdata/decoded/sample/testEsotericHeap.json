@@ -66,12 +66,12 @@
                         "notCapturedReason": "unimplemented"
                       },
                       "val": {
-                        "type": "interface {}",
-                        "notCapturedReason": "unimplemented"
+                        "type": "int",
+                        "value": "42"
                       },
                       "work": {
-                        "type": "main.something",
-                        "notCapturedReason": "unimplemented"
+                        "type": "UnknownType(0x[GoRuntimeType])",
+                        "notCapturedReason": "missing type information"
                       },
                       "foo": {
                         "type": "func()",

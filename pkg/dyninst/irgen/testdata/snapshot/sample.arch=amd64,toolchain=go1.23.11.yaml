@@ -6886,3 +6886,4 @@ Types:
                   ByteSize: 40
 MaxTypeID: 324
 Issues: []
+GoModuledataInfo: {FirstModuledataAddr: "0x1752740", TypesOffset: 296}

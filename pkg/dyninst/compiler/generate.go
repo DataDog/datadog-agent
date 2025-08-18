@@ -33,10 +33,11 @@ type Throttler struct {
 
 // Program represents stack machine program.
 type Program struct {
-	ID         uint32
-	Functions  []Function
-	Types      []ir.Type
-	Throttlers []Throttler
+	ID               uint32
+	Functions        []Function
+	Types            []ir.Type
+	Throttlers       []Throttler
+	GoModuledataInfo ir.GoModuledataInfo
 }
 
 type generator struct {
@@ -118,10 +119,11 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		types = append(types, t)
 	}
 	return Program{
-		ID:         uint32(program.ID),
-		Functions:  g.functions,
-		Types:      types,
-		Throttlers: throttlers,
+		ID:               uint32(program.ID),
+		Functions:        g.functions,
+		Types:            types,
+		Throttlers:       throttlers,
+		GoModuledataInfo: program.GoModuledataInfo,
 	}, nil
 }
 
@@ -348,8 +350,20 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		}
 
 	case *ir.GoEmptyInterfaceType:
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoEmptyInterfaceOp{},
+			ReturnOp{},
+		}
+
 	case *ir.GoInterfaceType:
-		// TODO: support Go interfaces
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoInterfaceOp{},
+			ReturnOp{},
+		}
 
 	case *ir.GoMapType:
 		g.typeQueue = append(g.typeQueue, t.HeaderType)

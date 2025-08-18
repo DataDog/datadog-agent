@@ -51,8 +51,8 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "interface {}",
-                "notCapturedReason": "unimplemented"
+                "type": "UnknownType(0x[GoRuntimeType])",
+                "notCapturedReason": "missing type information"
               }
             }
           }
@@ -113,8 +113,8 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "interface {}",
-                "notCapturedReason": "unimplemented"
+                "type": "UnknownType(0x[GoRuntimeType])",
+                "notCapturedReason": "missing type information"
               }
             }
           }
@@ -175,8 +175,8 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "interface {}",
-                "notCapturedReason": "unimplemented"
+                "type": "UnknownType(0x[GoRuntimeType])",
+                "notCapturedReason": "missing type information"
               }
             }
           }
@@ -237,8 +237,8 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "interface {}",
-                "notCapturedReason": "unimplemented"
+                "type": "UnknownType(0x[GoRuntimeType])",
+                "notCapturedReason": "missing type information"
               }
             }
           }
@@ -299,8 +299,8 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "interface {}",
-                "notCapturedReason": "unimplemented"
+                "type": "UnknownType(0x[GoRuntimeType])",
+                "notCapturedReason": "missing type information"
               }
             }
           }
@@ -361,8 +361,8 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "interface {}",
-                "notCapturedReason": "unimplemented"
+                "type": "UnknownType(0x[GoRuntimeType])",
+                "notCapturedReason": "missing type information"
               }
             }
           }
@@ -423,8 +423,8 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "interface {}",
-                "notCapturedReason": "unimplemented"
+                "type": "int",
+                "value": "1"
               }
             }
           }
@@ -485,8 +485,9 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "interface {}",
-                "notCapturedReason": "unimplemented"
+                "type": "*int",
+                "address": "[addr]",
+                "value": "1"
               }
             }
           }
@@ -547,8 +548,8 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "interface {}",
-                "notCapturedReason": "unimplemented"
+                "type": "string",
+                "value": "foo"
               }
             }
           }
@@ -609,8 +610,9 @@
           "entry": {
             "arguments": {
               "a": {
-                "type": "interface {}",
-                "notCapturedReason": "unimplemented"
+                "type": "*string",
+                "address": "[addr]",
+                "value": "foo"
               }
             }
           }

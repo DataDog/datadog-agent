@@ -1184,3 +1184,4 @@ Types:
                   ByteSize: 8
 MaxTypeID: 87
 Issues: []
+GoModuledataInfo: {FirstModuledataAddr: "0x57e340", TypesOffset: 296}

@@ -213,77 +213,80 @@
 // 0x30a: ProcessType[*bool]
 	ProcessPointer 2c 00 00 00 
 	Return 
-// 0x310: ProcessType[*uintptr]
+// 0x310: ProcessType[error]
+	ProcessGoInterface 
+	Return 
+// 0x312: ProcessType[*uintptr]
 	ProcessPointer 13 00 00 00 
 	Return 
-// 0x316: ProcessType[*int32]
+// 0x318: ProcessType[*int32]
 	ProcessPointer 2f 00 00 00 
 	Return 
-// 0x31c: ProcessType[*uint32]
+// 0x31e: ProcessType[*uint32]
 	ProcessPointer 2b 00 00 00 
 	Return 
-// 0x322: ProcessType[*float64]
+// 0x324: ProcessType[*float64]
 	ProcessPointer 35 00 00 00 
 	Return 
-// 0x328: ProcessType[*int64]
+// 0x32a: ProcessType[*int64]
 	ProcessPointer 30 00 00 00 
 	Return 
-// 0x32e: ProcessType[*uint64]
+// 0x330: ProcessType[*uint64]
 	ProcessPointer 12 00 00 00 
 	Return 
-// 0x334: ProcessType[*error]
+// 0x336: ProcessType[*error]
 	ProcessPointer 31 00 00 00 
 	Return 
-// 0x33a: ProcessType[*float32]
+// 0x33c: ProcessType[*float32]
 	ProcessPointer 34 00 00 00 
 	Return 
-// 0x340: ProcessType[*uint]
+// 0x342: ProcessType[*uint]
 	ProcessPointer 2d 00 00 00 
 	Return 
-// 0x346: ProcessType[*uint16]
+// 0x348: ProcessType[*uint16]
 	ProcessPointer 17 00 00 00 
 	Return 
-// 0x34c: ProcessType[[]string.array]
+// 0x34e: ProcessType[[]string.array]
 	ProcessSliceDataPrep 
 	Call 27 01 00 00 // ProcessType[string]
 	ProcessSliceDataRepeat 10 00 00 00 
 	Return 
-// 0x358: ProcessType[*table<string,int>]
+// 0x35a: ProcessType[*table<string,int>]
 	ProcessPointer 16 00 00 00 
 	Return 
-// 0x35e: ProcessType[[]*table<string,int>.array]
+// 0x360: ProcessType[[]*table<string,int>.array]
 	ProcessSliceDataPrep 
-	Call 58 03 00 00 // ProcessType[*table<string,int>]
+	Call 5a 03 00 00 // ProcessType[*table<string,int>]
 	ProcessSliceDataRepeat 08 00 00 00 
 	Return 
-// 0x36a: ProcessType[*table<string,main.bigStruct>]
+// 0x36c: ProcessType[*table<string,main.bigStruct>]
 	ProcessPointer 22 00 00 00 
 	Return 
-// 0x370: ProcessType[[]*table<string,main.bigStruct>.array]
+// 0x372: ProcessType[[]*table<string,main.bigStruct>.array]
 	ProcessSliceDataPrep 
-	Call 6a 03 00 00 // ProcessType[*table<string,main.bigStruct>]
+	Call 6c 03 00 00 // ProcessType[*table<string,main.bigStruct>]
 	ProcessSliceDataRepeat 08 00 00 00 
 	Return 
-// 0x37c: ProcessType[groupReference<string,int>]
+// 0x37e: ProcessType[groupReference<string,int>]
 	ProcessGoSwissMapGroups 4a 00 00 00 c8 00 00 00 00 08 
 	Return 
-// 0x388: ProcessType[table<string,int>]
+// 0x38a: ProcessType[table<string,int>]
 	IncrementOutputOffset 10 00 00 00 
-	Call 7c 03 00 00 // ProcessType[groupReference<string,int>]
+	Call 7e 03 00 00 // ProcessType[groupReference<string,int>]
 	Return 
-// 0x393: ProcessType[groupReference<string,main.bigStruct>]
+// 0x395: ProcessType[groupReference<string,main.bigStruct>]
 	ProcessGoSwissMapGroups 4c 00 00 00 c8 00 00 00 00 08 
 	Return 
-// 0x39f: ProcessType[table<string,main.bigStruct>]
+// 0x3a1: ProcessType[table<string,main.bigStruct>]
 	IncrementOutputOffset 10 00 00 00 
-	Call 93 03 00 00 // ProcessType[groupReference<string,main.bigStruct>]
+	Call 95 03 00 00 // ProcessType[groupReference<string,main.bigStruct>]
 	Return 
-// 0x3aa: ProcessType[[]noalg.map.group[string]int.array]
+// 0x3ac: ProcessType[[]noalg.map.group[string]int.array]
 	ProcessSliceDataPrep 
 	Call c2 02 00 00 // ProcessType[noalg.map.group[string]int]
 	ProcessSliceDataRepeat 00 00 00 00 
 	Return 
-// 0x3b6: ProcessType[[]noalg.map.group[string]main.bigStruct.array]
+// 0x3b8: ProcessType[[]noalg.map.group[string]main.bigStruct.array]
 	ProcessSliceDataPrep 
 	Call ff 02 00 00 // ProcessType[noalg.map.group[string]main.bigStruct]
 	ProcessSliceDataRepeat 00 00 00 00 
@@ -323,10 +326,10 @@ ID: 17 Len: 48 Enqueue: 672
 ID: 18 Len: 8 Enqueue: 0
 ID: 19 Len: 8 Enqueue: 0
 ID: 20 Len: 8 Enqueue: 0
-ID: 21 Len: 8 Enqueue: 856
-ID: 22 Len: 32 Enqueue: 904
+ID: 21 Len: 8 Enqueue: 858
+ID: 22 Len: 32 Enqueue: 906
 ID: 23 Len: 2 Enqueue: 0
-ID: 24 Len: 16 Enqueue: 892
+ID: 24 Len: 16 Enqueue: 894
 ID: 25 Len: 8 Enqueue: 0
 ID: 26 Len: 200 Enqueue: 706
 ID: 27 Len: 192 Enqueue: 690
@@ -335,9 +338,9 @@ ID: 29 Len: 8 Enqueue: 99
 ID: 30 Len: 8 Enqueue: 0
 ID: 31 Len: 48 Enqueue: 717
 ID: 32 Len: 8 Enqueue: 0
-ID: 33 Len: 8 Enqueue: 874
-ID: 34 Len: 32 Enqueue: 927
-ID: 35 Len: 16 Enqueue: 915
+ID: 33 Len: 8 Enqueue: 876
+ID: 34 Len: 32 Enqueue: 929
+ID: 35 Len: 16 Enqueue: 917
 ID: 36 Len: 8 Enqueue: 0
 ID: 37 Len: 200 Enqueue: 767
 ID: 38 Len: 192 Enqueue: 751
@@ -351,34 +354,34 @@ ID: 45 Len: 8 Enqueue: 0
 ID: 46 Len: 8 Enqueue: 778
 ID: 47 Len: 4 Enqueue: 0
 ID: 48 Len: 8 Enqueue: 0
-ID: 49 Len: 16 Enqueue: 0
+ID: 49 Len: 16 Enqueue: 784
 ID: 50 Len: 8 Enqueue: 0
 ID: 51 Len: 1 Enqueue: 0
 ID: 52 Len: 4 Enqueue: 0
 ID: 53 Len: 8 Enqueue: 0
-ID: 54 Len: 8 Enqueue: 784
-ID: 55 Len: 8 Enqueue: 790
-ID: 56 Len: 8 Enqueue: 796
+ID: 54 Len: 8 Enqueue: 786
+ID: 55 Len: 8 Enqueue: 792
+ID: 56 Len: 8 Enqueue: 798
 ID: 57 Len: 2 Enqueue: 0
 ID: 58 Len: 8 Enqueue: 0
 ID: 59 Len: 16 Enqueue: 0
-ID: 60 Len: 8 Enqueue: 802
-ID: 61 Len: 8 Enqueue: 808
-ID: 62 Len: 8 Enqueue: 814
-ID: 63 Len: 8 Enqueue: 820
-ID: 64 Len: 8 Enqueue: 826
-ID: 65 Len: 8 Enqueue: 832
-ID: 66 Len: 8 Enqueue: 838
+ID: 60 Len: 8 Enqueue: 804
+ID: 61 Len: 8 Enqueue: 810
+ID: 62 Len: 8 Enqueue: 816
+ID: 63 Len: 8 Enqueue: 822
+ID: 64 Len: 8 Enqueue: 828
+ID: 65 Len: 8 Enqueue: 834
+ID: 66 Len: 8 Enqueue: 840
 ID: 67 Len: 2048 Enqueue: 0
 ID: 68 Len: 8 Enqueue: 0
 ID: 69 Len: 2048 Enqueue: 0
 ID: 70 Len: 8 Enqueue: 0
-ID: 71 Len: 2048 Enqueue: 844
+ID: 71 Len: 2048 Enqueue: 846
 ID: 72 Len: 8 Enqueue: 0
-ID: 73 Len: 8192 Enqueue: 862
-ID: 74 Len: 2048 Enqueue: 938
-ID: 75 Len: 8192 Enqueue: 880
-ID: 76 Len: 2048 Enqueue: 950
+ID: 73 Len: 8192 Enqueue: 864
+ID: 74 Len: 2048 Enqueue: 940
+ID: 75 Len: 8192 Enqueue: 882
+ID: 76 Len: 2048 Enqueue: 952
 ID: 77 Len: 9 Enqueue: 0
 ID: 78 Len: 17 Enqueue: 0
 ID: 79 Len: 25 Enqueue: 0

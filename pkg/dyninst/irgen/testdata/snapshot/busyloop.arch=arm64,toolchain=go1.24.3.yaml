@@ -261,3 +261,4 @@ Types:
       Name: Probe[main.noop]
 MaxTypeID: 36
 Issues: []
+GoModuledataInfo: {FirstModuledataAddr: "0x191360", TypesOffset: 296}
