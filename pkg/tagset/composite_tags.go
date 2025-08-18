@@ -142,3 +142,15 @@ func (t CompositeTags) Join(separator string) string {
 	})
 	return b.String()
 }
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// UnmarshalJSON receiver need to be a pointer to modify `t`.
+func (t *CompositeTags) UnmarshalJSON(b []byte) error {
+	var tags []string
+	if err := json.Unmarshal(b, &tags); err != nil {
+		return err
+	}
+	// Store as non-interned strings in tags3 field
+	*t = CompositeTags{nil, nil, tags}
+	return nil
+}
