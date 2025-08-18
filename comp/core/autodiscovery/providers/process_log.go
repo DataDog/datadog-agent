@@ -254,10 +254,6 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 
 // getServiceName returns the name of the service to be used in the log config.
 func getServiceName(service *workloadmeta.Service) string {
-	if len(service.TracerMetadata) > 0 {
-		return service.TracerMetadata[0].ServiceName
-	}
-
 	if service.DDService != "" {
 		return service.DDService
 	}
