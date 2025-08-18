@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
- 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type linuxRuntimeSecretSuite struct {
@@ -48,6 +48,6 @@ secret_backend_config:
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		secretOutput := v.Env().Agent.Client.Secret()
-		require.Contains(v.T(), secretRefreshOutput, "fake-api-key")
+		require.Contains(v.T(), secretOutput, "fake-api-key")
 	}, 30*time.Second, 2*time.Second)
 }
