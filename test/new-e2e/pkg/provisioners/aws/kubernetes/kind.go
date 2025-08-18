@@ -107,7 +107,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		resolvedKubeVersion = kindConfig.KubeVersion
 
 		// Create wrapper that returns resolved version for components
-		ctx.Log.Info(fmt.Sprintf("Resolving kubernetesVersion=latest to %s for components", resolvedKubeVersion), nil)
+		_ = ctx.Log.Info(fmt.Sprintf("Resolving kubernetesVersion=latest to %s for components", resolvedKubeVersion), nil)
 		envForComponents = &kubernetesVersionOverride{
 			Env:             &awsEnv,
 			overrideVersion: resolvedKubeVersion,
