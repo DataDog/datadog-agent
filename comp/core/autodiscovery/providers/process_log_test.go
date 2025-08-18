@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -916,4 +917,65 @@ func TestProcessLogProviderServiceName(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestProcessLogProviderAgentExclude(t *testing.T) {
+	agentLogPath := "/var/log/agent.log"
+	notAgentLogPath := "/var/log/not-agent.log"
+
+	setBundle := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "123",
+					},
+					Pid: 123,
+					Exe: "/opt/datadog-agent/bin/agent",
+					Service: &workloadmeta.Service{
+						DDService: "agent",
+						LogFiles:  []string{agentLogPath},
+					},
+				},
+			},
+			{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   "456",
+					},
+					Pid: 456,
+					Exe: "/usr/bin/not-agent",
+					Service: &workloadmeta.Service{
+						DDService: "not-agent",
+						LogFiles:  []string{notAgentLogPath},
+					},
+				},
+			},
+		},
+	}
+
+	createProvider := func(excludeAgent bool) *processLogConfigProvider {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("logs_config.process_exclude_agent", excludeAgent)
+
+		provider, err := NewProcessLogConfigProvider(nil, nil, nil)
+		require.NoError(t, err)
+		p, ok := provider.(*processLogConfigProvider)
+		require.True(t, ok)
+
+		return p
+	}
+
+	p := createProvider(false)
+	changes := p.processEventsNoVerifyReadable(setBundle)
+	require.Len(t, changes.Schedule, 2)
+
+	p = createProvider(true)
+	changes = p.processEventsNoVerifyReadable(setBundle)
+	require.Len(t, changes.Schedule, 1)
+	assert.Equal(t, getIntegrationName(notAgentLogPath), changes.Schedule[0].Name)
 }

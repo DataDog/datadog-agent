@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -37,6 +38,7 @@ type processLogConfigProvider struct {
 	pidToServiceIDs      map[int32][]string
 	unreadableFilesCache *simplelru.LRU[string, struct{}]
 	mu                   sync.RWMutex
+	excludeAgent         bool
 }
 
 var _ types.ConfigProvider = &processLogConfigProvider{}
@@ -53,6 +55,7 @@ func NewProcessLogConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta
 		serviceLogRefs:       make(map[string]*serviceLogRef),
 		pidToServiceIDs:      make(map[int32][]string),
 		unreadableFilesCache: cache,
+		excludeAgent:         pkgconfigsetup.Datadog().GetBool("logs_config.process_exclude_agent"),
 	}, nil
 }
 
@@ -159,6 +162,10 @@ func (p *processLogConfigProvider) isFileReadable(logPath string) bool {
 	return true
 }
 
+func isAgentProcess(process *workloadmeta.Process) bool {
+	return strings.HasPrefix(process.Exe, "/opt/datadog-agent/bin/")
+}
+
 func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.EventBundle, verifyReadable bool) integration.ConfigChanges {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -173,6 +180,11 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
+			if p.excludeAgent && isAgentProcess(process) {
+				log.Debugf("Excluding agent process %d (%s) from process log collection", process.Pid, process.Exe)
+				continue
+			}
+
 			// The set of logs monitored by this service may change, so we need
 			// to handle deleting existing logs too. First, decrement refcounts
 			// for existing service IDs associated with this PID. Any logs still

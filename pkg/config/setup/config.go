@@ -1752,6 +1752,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
 	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
+
+	// If true, exclude agent processes from process log collection
+	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
 }
 
 func vector(config pkgconfigmodel.Setup) {
