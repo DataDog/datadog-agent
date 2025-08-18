@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseAuthMethod(t *testing.T) {
+func TestAuthMethodParse(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       string
@@ -62,7 +62,8 @@ func TestParseAuthMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := parseAuthMethod(tt.input)
+			var method authMethod
+			err := method.Parse(tt.input)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -70,7 +71,7 @@ func TestParseAuthMethod(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.input)
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tt.expected, result)
+				assert.Equal(t, tt.expected, method)
 			}
 		})
 	}

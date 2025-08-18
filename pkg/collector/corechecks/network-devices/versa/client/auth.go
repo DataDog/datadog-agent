@@ -61,15 +61,15 @@ const (
 	authMethodOAuth authMethod = "oauth"
 )
 
-// parseAuthMethod takes a string and attempts to return the associated
-// authMethod or an error
-func parseAuthMethod(authString string) (authMethod, error) {
+// Parse takes a string and attempts to parse it into a valid authMethod
+func (a *authMethod) Parse(authString string) error {
 	method := authMethod(strings.ToLower(authString))
 	switch method {
 	case authMethodBasic, authMethodOAuth:
-		return method, nil
+		*a = method
+		return nil
 	default:
-		return "", fmt.Errorf("invalid auth method %q, valid auth methods: %q, %q", authString, authMethodBasic, authMethodOAuth)
+		return fmt.Errorf("invalid auth method %q, valid auth methods: %q, %q", authString, authMethodBasic, authMethodOAuth)
 	}
 }
 
@@ -85,8 +85,7 @@ func processAuthConfig(config AuthConfig) (authMethod, error) {
 	// Parse and validate the auth method (if provided)
 	authMethod := authMethodBasic // default
 	if config.Method != "" {
-		var err error
-		authMethod, err = parseAuthMethod(config.Method)
+		err := authMethod.Parse(config.Method)
 		if err != nil {
 			return "", fmt.Errorf("invalid auth_method: %w", err)
 		}
