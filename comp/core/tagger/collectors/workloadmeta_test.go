@@ -1628,6 +1628,34 @@ func TestHandleECSTask(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Tasks can be emitted from metadata API that are still pending
+			// and thus only contain constant task-definition level metadata
+			// It should not trigger an update to the global-entity
+			name: "partially empty ECS EC2 task",
+			task: workloadmeta.ECSTask{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "foobar",
+				},
+				Tags:                  map[string]string{},
+				ContainerInstanceTags: map[string]string{},
+				ClusterName:           "",
+				Family:                "datadog-agent",
+				Version:               "1",
+				AWSAccountID:          "1234567891234",
+				KnownStatus:           "PENDING",
+				DesiredStatus:         "RUNNING",
+				LaunchType:            workloadmeta.ECSLaunchTypeEC2,
+				Containers:            []workloadmeta.OrchestratorContainer{},
+				ServiceName:           "",
+				Region:                "us-east-1",
+				ClusterARN:            "",
+				ServiceARN:            "",
+				TaskDefinitionARN:     "arn:aws:ecs:us-east-1:1234567891234:task-definition/datadog-agent:1",
+			},
+			expected: []*types.TagInfo{},
+		},
 	}
 
 	for _, tt := range tests {
