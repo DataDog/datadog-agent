@@ -239,6 +239,14 @@ func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Durat
 	return timeout
 }
 
+func getConfiguredProfilingRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	timeout := 5 * time.Second
+	if conf.ProfilingProxy.ReceiverTimeout > 0 {
+		timeout = time.Duration(conf.ProfilingProxy.ReceiverTimeout) * time.Second
+	}
+	return timeout
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	r.telemetryForwarder.start()

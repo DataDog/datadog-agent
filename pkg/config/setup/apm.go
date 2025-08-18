@@ -148,6 +148,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.max_sender_retries", "DD_APM_MAX_SENDER_RETRIES")
 	config.BindEnv("apm_config.profiling_dd_url", "DD_APM_PROFILING_DD_URL")
 	config.BindEnv("apm_config.profiling_additional_endpoints", "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS")
+	config.BindEnv("apm_config.profiling_receiver_timeout", "DD_APM_PROFILING_RECEIVER_TIMEOUT")
 	config.BindEnv("apm_config.additional_endpoints", "DD_APM_ADDITIONAL_ENDPOINTS")
 	config.BindEnv("apm_config.replace_tags", "DD_APM_REPLACE_TAGS")
 	config.BindEnv("apm_config.analyzed_spans", "DD_APM_ANALYZED_SPANS")
