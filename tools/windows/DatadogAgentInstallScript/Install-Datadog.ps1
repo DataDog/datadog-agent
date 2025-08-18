@@ -139,12 +139,14 @@ function Start-ProcessWithOutput {
    $stderr = Register-ObjectEvent -InputObject $process -EventName 'ErrorDataReceived' `
       -Action {
       if (![String]::IsNullOrEmpty($EventArgs.Data)) {
-         # Print stderr from process into host stderr
-         # Unfortunately that means this output cannot be captured from within PowerShell
-         # and it won't work within PowerShell ISE because it is not a console host.
-         [Console]::ForegroundColor = 'red'
-         [Console]::Error.WriteLine($EventArgs.Data)
-         [Console]::ResetColor()
+         # Different environments seem to show/hide different output streams
+         # PSRemoting and ISE won't see console
+         # PSRemoting sees Write-Error but neither console nor ISE do
+         # Write-Host seems pretty universal, though we lose the stdout/stderr distinction
+         # The only thing we're doing with the output right now is displaying to
+         # the user, so this seems okay. If we need the distinction later we can
+         # figure out how to output it.
+         Write-Host $EventArgs.Data -ForegroundColor 'red'
       }
    }
    [void]$process.Start()
