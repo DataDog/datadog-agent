@@ -385,7 +385,7 @@ func logFormatWithError(logLevel LogLevel, lpointer *loggerPointer, logFunc func
 	if isInnerNil {
 		if !fallbackStderr {
 			addLogToBuffer(func() {
-				logFormatWithError(logLevel, lpointer, logFunc, format, fallbackStderr, params...)
+				_ = logFormatWithError(logLevel, lpointer, logFunc, format, fallbackStderr, params...)
 			})
 		}
 	} else if l.shouldLog(logLevel) {
@@ -446,7 +446,7 @@ func logContextWithError(logLevel LogLevel, lpointer *loggerPointer, logFunc fun
 	l := lpointer.Load()
 	if l == nil {
 		addLogToBuffer(func() {
-			logContextWithError(logLevel, lpointer, logFunc, message, fallbackStderr, depth, context...)
+			_ = logContextWithError(logLevel, lpointer, logFunc, message, fallbackStderr, depth, context...)
 		})
 		err := formatErrorc(message, context...)
 		if fallbackStderr {
@@ -462,7 +462,7 @@ func logContextWithError(logLevel LogLevel, lpointer *loggerPointer, logFunc fun
 	if isInnerNil {
 		if !fallbackStderr {
 			addLogToBuffer(func() {
-				logContextWithError(logLevel, lpointer, logFunc, message, fallbackStderr, depth, context...)
+				_ = logContextWithError(logLevel, lpointer, logFunc, message, fallbackStderr, depth, context...)
 			})
 		}
 	} else if l.shouldLog(logLevel) {
