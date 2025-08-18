@@ -1,11 +1,14 @@
 package rum
 
 import (
+	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
@@ -225,4 +228,98 @@ func appendToOTLPSlice(slice pcommon.Slice, val any) {
 	default:
 		slice.AppendEmpty().SetStr(fmt.Sprintf("%v", val))
 	}
+}
+
+type paramValue struct {
+	ParamKey string
+	SpanAttr string
+	Fallback string
+}
+
+func getParamValue(rattrs pcommon.Map, lattrs pcommon.Map, param paramValue) string {
+	if param.SpanAttr != "" {
+		parts := strings.Split(param.SpanAttr, ".")
+		m := lattrs
+		for i, part := range parts {
+			if v, ok := m.Get(part); ok {
+				if i == len(parts)-1 {
+					return v.AsString()
+				}
+				if v.Type() == pcommon.ValueTypeMap {
+					m = v.Map()
+				}
+			}
+		}
+	}
+	if v, ok := rattrs.Get(param.ParamKey); ok {
+		return v.AsString()
+	}
+	return param.Fallback
+}
+
+func buildDDTags(rattrs pcommon.Map, lattrs pcommon.Map) string {
+	requiredTags := []paramValue{
+		{ParamKey: "service", SpanAttr: "service.name", Fallback: "otlpresourcenoservicename"},
+		{ParamKey: "version", SpanAttr: "service.version", Fallback: ""},
+		{ParamKey: "sdk_version", SpanAttr: "_dd.sdk_version", Fallback: ""},
+		{ParamKey: "env", Fallback: "default"},
+	}
+
+	tagMap := make(map[string]string)
+
+	if v, ok := rattrs.Get("ddtags"); ok && v.Type() == pcommon.ValueTypeMap {
+		v.Map().Range(func(k string, val pcommon.Value) bool {
+			tagMap[k] = val.AsString()
+			return true
+		})
+	}
+
+	for _, tag := range requiredTags {
+		val := getParamValue(rattrs, lattrs, tag)
+		if val != tag.Fallback {
+			tagMap[tag.ParamKey] = val
+		}
+	}
+
+	var tagParts []string
+	for k, v := range tagMap {
+		tagParts = append(tagParts, k+":"+v)
+	}
+
+	return strings.Join(tagParts, ",")
+}
+
+func randomID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func BuildIntakeUrlPathAndParameters(rattrs pcommon.Map, lattrs pcommon.Map) string {
+	var parts []string
+
+	batchTimeParam := paramValue{ParamKey: "batch_time", Fallback: strconv.FormatInt(time.Now().UnixMilli(), 10)}
+	parts = append(parts, batchTimeParam.ParamKey+"="+getParamValue(rattrs, lattrs, batchTimeParam))
+
+	parts = append(parts, "ddtags="+buildDDTags(rattrs, lattrs))
+
+	ddsourceParam := paramValue{ParamKey: "ddsource", SpanAttr: "source", Fallback: "browser"}
+	parts = append(parts, ddsourceParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddsourceParam))
+
+	ddEvpOriginParam := paramValue{ParamKey: "dd-evp-origin", SpanAttr: "source", Fallback: "browser"}
+	parts = append(parts, ddEvpOriginParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddEvpOriginParam))
+
+	ddRequestId, err := randomID()
+	if err != nil {
+		return ""
+	}
+	ddRequestIdParam := paramValue{ParamKey: "dd-request-id", SpanAttr: "", Fallback: ddRequestId}
+	parts = append(parts, ddRequestIdParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddRequestIdParam))
+
+	ddApiKeyParam := paramValue{ParamKey: "dd-api-key", SpanAttr: "", Fallback: ""}
+	parts = append(parts, ddApiKeyParam.ParamKey+"="+getParamValue(rattrs, lattrs, ddApiKeyParam))
+
+	return "/api/v2/rum?" + strings.Join(parts, "&")
 }

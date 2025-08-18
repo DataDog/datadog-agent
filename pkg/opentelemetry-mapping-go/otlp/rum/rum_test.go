@@ -1,9 +1,13 @@
 package rum
 
 import (
+	"net/url"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
@@ -311,6 +315,73 @@ func TestParseDDForwardIntoResource(t *testing.T) {
 				}
 				return true
 			})
+		})
+	}
+}
+
+func TestBuildIntakeUrlPathAndParameters(t *testing.T) {
+	tests := []struct {
+		name   string
+		rattrs pcommon.Map
+		lattrs pcommon.Map
+		want   string
+	}{
+		{
+			name: "successfully build intake url path and parameters",
+			rattrs: func() pcommon.Map {
+				rattrs := pcommon.NewMap()
+				rattrs.PutStr("batch_time", "123")
+				ddTagsMap := rattrs.PutEmptyMap("ddtags")
+				ddTagsMap.PutStr("service", "service-rattrs")
+				ddTagsMap.PutStr("env", "prod")
+				ddTagsMap.PutStr("sdk_version", "1.2.3")
+				ddTagsMap.PutStr("version", "1.2.3")
+				rattrs.PutStr("ddsource", "browser")
+				rattrs.PutStr("dd-evp-origin", "browser")
+				rattrs.PutStr("dd-request-id", "456")
+				rattrs.PutStr("dd-api-key", "1234567890")
+				return rattrs
+			}(),
+			lattrs: func() pcommon.Map {
+				lattrs := pcommon.NewMap()
+				serviceMap := lattrs.PutEmptyMap("service")
+				serviceMap.PutStr("name", "service")
+				serviceMap.PutStr("version", "1.2.3")
+				return lattrs
+			}(),
+			want: "/api/v2/rum?batch_time=123&ddtags=env:prod,sdk_version:1.2.3,service:service,version:1.2.3&ddsource=browser&dd-evp-origin=browser&dd-request-id=456&dd-api-key=1234567890",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := BuildIntakeUrlPathAndParameters(tt.rattrs, tt.lattrs)
+			uri, err := url.Parse(got)
+			require.NoError(t, err)
+			queryParams := uri.Query()
+
+			// handle ddtags specially - split, sort, and rejoin
+			var ddtagsStr string
+			if queryParams.Get("ddtags") != "" {
+				ddtags := strings.Split(queryParams.Get("ddtags"), ",")
+				sort.Strings(ddtags)
+				ddtagsStr = strings.Join(ddtags, ",")
+			}
+
+			var queryParts []string
+			queryParts = append(queryParts, "batch_time="+queryParams.Get("batch_time"))
+
+			if ddtagsStr != "" {
+				queryParts = append(queryParts, "ddtags="+ddtagsStr)
+			}
+
+			queryParts = append(queryParts, "ddsource="+queryParams.Get("ddsource"))
+			queryParts = append(queryParts, "dd-evp-origin="+queryParams.Get("dd-evp-origin"))
+			queryParts = append(queryParts, "dd-request-id="+queryParams.Get("dd-request-id"))
+			queryParts = append(queryParts, "dd-api-key="+queryParams.Get("dd-api-key"))
+
+			reconstructedURL := "/api/v2/rum?" + strings.Join(queryParts, "&")
+
+			assert.Equal(t, tt.want, reconstructedURL)
 		})
 	}
 }
