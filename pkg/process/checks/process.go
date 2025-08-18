@@ -512,9 +512,9 @@ func fmtProcesses(
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
 			// SERVICE DISCOVERY FIELDS
-			PortInfo:         formatPorts(fp.TCPPorts, fp.UDPPorts), // only populated if service discovery is enabled + linux
-			Language:         formatLanguage(fp.Language),           // only populated if language detection is enabled + linux
-			ServiceDiscovery: formatServiceDiscovery(fp.Service),    // only populated if service discovery is enabled + linux
+			PortInfo:         formatPorts(fp.PortsCollected, fp.TCPPorts, fp.UDPPorts), // only populated if service discovery is enabled + linux
+			Language:         formatLanguage(fp.Language),                              // only populated if language detection is enabled + linux
+			ServiceDiscovery: formatServiceDiscovery(fp.Service),                       // only populated if service discovery is enabled + linux
 		}
 
 		if tags, ok := pidToGPUTags[fp.Pid]; ok {

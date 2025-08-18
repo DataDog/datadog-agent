@@ -125,41 +125,46 @@ func TestProcessesByPIDWLM(t *testing.T) {
 func TestFormatPorts(t *testing.T) {
 	for _, tc := range []struct {
 		description      string
+		portsCollected   bool
 		tcpPorts         []uint16
 		udpPorts         []uint16
 		expectedPortInfo *model.PortInfo
 	}{
 		{
-			description: "normal tcp and udp ports",
-			tcpPorts:    []uint16{80, 443},
-			udpPorts:    []uint16{53, 123},
+			description:    "normal tcp and udp ports",
+			portsCollected: true,
+			tcpPorts:       []uint16{80, 443},
+			udpPorts:       []uint16{53, 123},
 			expectedPortInfo: &model.PortInfo{
 				Tcp: []int32{80, 443},
 				Udp: []int32{53, 123},
 			},
 		},
 		{
-			description: "tcp only ports",
-			tcpPorts:    []uint16{80, 443},
-			udpPorts:    nil,
+			description:    "tcp only ports",
+			portsCollected: true,
+			tcpPorts:       []uint16{80, 443},
+			udpPorts:       nil,
 			expectedPortInfo: &model.PortInfo{
 				Tcp: []int32{80, 443},
 				Udp: nil,
 			},
 		},
 		{
-			description: "udp only ports",
-			tcpPorts:    nil,
-			udpPorts:    []uint16{53, 123},
+			description:    "udp only ports",
+			portsCollected: true,
+			tcpPorts:       nil,
+			udpPorts:       []uint16{53, 123},
 			expectedPortInfo: &model.PortInfo{
 				Tcp: nil,
 				Udp: []int32{53, 123},
 			},
 		},
 		{
-			description: "empty ports",
-			tcpPorts:    []uint16{},
-			udpPorts:    []uint16{},
+			description:    "empty ports",
+			portsCollected: true,
+			tcpPorts:       []uint16{},
+			udpPorts:       []uint16{},
 			expectedPortInfo: &model.PortInfo{
 				Tcp: []int32{},
 				Udp: []int32{},
@@ -167,13 +172,21 @@ func TestFormatPorts(t *testing.T) {
 		},
 		{
 			description:      "ports not collected",
+			portsCollected:   false,
+			tcpPorts:         []uint16{},
+			udpPorts:         []uint16{},
+			expectedPortInfo: nil,
+		},
+		{
+			description:      "ports not collected",
+			portsCollected:   false,
 			tcpPorts:         nil,
 			udpPorts:         nil,
 			expectedPortInfo: nil,
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
-			actual := formatPorts(tc.tcpPorts, tc.udpPorts)
+			actual := formatPorts(tc.portsCollected, tc.tcpPorts, tc.udpPorts)
 			assert.Equal(t, tc.expectedPortInfo, actual)
 		})
 	}

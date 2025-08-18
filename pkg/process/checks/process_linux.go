@@ -98,6 +98,7 @@ func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) *procutil.Process {
 	var service *procutil.Service
 	var tcpPorts, udpPorts []uint16
+	portsCollected := false
 	if wlmProc.Service != nil {
 		service = &procutil.Service{
 			GeneratedName:            wlmProc.Service.GeneratedName,
@@ -109,31 +110,34 @@ func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) 
 		}
 		tcpPorts = wlmProc.Service.TCPPorts
 		udpPorts = wlmProc.Service.UDPPorts
+		portsCollected = true
 	}
 	return &procutil.Process{
-		Pid:      wlmProc.Pid,
-		Ppid:     wlmProc.Ppid,
-		NsPid:    wlmProc.NsPid,
-		Name:     wlmProc.Name,
-		Cwd:      wlmProc.Cwd,
-		Exe:      wlmProc.Exe,
-		Comm:     wlmProc.Comm,
-		Cmdline:  wlmProc.Cmdline,
-		Uids:     wlmProc.Uids,
-		Gids:     wlmProc.Gids,
-		Stats:    stats,
-		TCPPorts: tcpPorts,
-		UDPPorts: udpPorts,
-		Language: wlmProc.Language,
-		Service:  service,
+		Pid:            wlmProc.Pid,
+		Ppid:           wlmProc.Ppid,
+		NsPid:          wlmProc.NsPid,
+		Name:           wlmProc.Name,
+		Cwd:            wlmProc.Cwd,
+		Exe:            wlmProc.Exe,
+		Comm:           wlmProc.Comm,
+		Cmdline:        wlmProc.Cmdline,
+		Uids:           wlmProc.Uids,
+		Gids:           wlmProc.Gids,
+		Stats:          stats,
+		PortsCollected: portsCollected,
+		TCPPorts:       tcpPorts,
+		UDPPorts:       udpPorts,
+		Language:       wlmProc.Language,
+		Service:        service,
 	}
 }
 
 // formatPorts converts separate TCP and UDP uint16 port lists to a int32 PortInfo
-func formatPorts(tcpPorts, udpPorts []uint16) *model.PortInfo {
-	// if both port lists are nil, we want to semantically indicate that no data was collected instead of
-	// returning no open ports
-	if tcpPorts == nil && udpPorts == nil {
+func formatPorts(portsCollected bool, tcpPorts, udpPorts []uint16) *model.PortInfo {
+	// we want to semantically distinguish between the following cases:
+	// - ports not being collected (by setting the PortInfo to nil)
+	// - ports being collected, but no open ports for this process (a PortInfo with empty/nil ports)
+	if !portsCollected {
 		return nil
 	}
 

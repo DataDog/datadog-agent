@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/gopsutil/cpu"
+
 	// using process.FilledProcess
 	"github.com/DataDog/gopsutil/process"
 )
@@ -30,8 +31,9 @@ type Process struct {
 
 	// ports are stored on the process because they may/should be collected by default in the future
 	// however, currently this data is collected by service discovery collection
-	TCPPorts []uint16
-	UDPPorts []uint16
+	PortsCollected bool
+	TCPPorts       []uint16
+	UDPPorts       []uint16
 
 	Stats   *Stats
 	Service *Service
@@ -56,13 +58,14 @@ func (p *Process) GetCmdline() []string {
 func (p *Process) DeepCopy() *Process {
 	//nolint:revive // TODO(PROC) Fix revive linter
 	copy := &Process{
-		Pid:      p.Pid,
-		Ppid:     p.Ppid,
-		NsPid:    p.NsPid,
-		Name:     p.Name,
-		Cwd:      p.Cwd,
-		Exe:      p.Exe,
-		Username: p.Username,
+		Pid:            p.Pid,
+		Ppid:           p.Ppid,
+		NsPid:          p.NsPid,
+		Name:           p.Name,
+		Cwd:            p.Cwd,
+		Exe:            p.Exe,
+		Username:       p.Username,
+		PortsCollected: p.PortsCollected,
 	}
 	copy.Cmdline = make([]string, len(p.Cmdline))
 	for i := range p.Cmdline {
