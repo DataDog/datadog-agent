@@ -144,6 +144,10 @@ build do
             # remove headers that are not needed in the final package
             delete "#{install_dir}/embedded/include"
 
+            # compress LICENSES dir
+            command "tar -czf #{install_dir}/LICENSES.tar.gz #{install_dir}/LICENSES"
+            delete "#{install_dir}/LICENSES"
+
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
             #    https://github.com/pypa/manylinux/issues/119
