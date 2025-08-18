@@ -20,8 +20,8 @@ import (
 
 var datadogAgentDDOTPackage = hooks{
 	preInstall:  preInstallDatadogAgentDDOT,
-	postInstall: postInstallDatadogAgentDdot,
-	preRemove:   preRemoveDatadogAgentDdot,
+	postInstall: postInstallDatadogAgentDDOT,
+	preRemove:   preRemoveDatadogAgentDDOT,
 }
 
 const (
@@ -80,8 +80,20 @@ func preInstallDatadogAgentDDOT(ctx HookContext) error {
 	return packagemanager.RemovePackage(ctx, agentDDOTPackage)
 }
 
-// postInstallDatadogAgentDdot performs post-installation steps for the DDOT package
-func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
+// postInstallDatadogAgentDDOT performs post-installation steps for the DDOT packages
+func postInstallDatadogAgentDDOT(ctx HookContext) (err error) {
+	if ctx.PackageType == PackageTypeDEB || ctx.PackageType == PackageTypeRPM {
+		return postInstallDatadogAgentDDOTDEBRPM(ctx)
+	}
+	if ctx.PackageType == PackageTypeOCI {
+		return postInstallDatadogAgentDDOTOCI(ctx)
+	}
+
+	return fmt.Errorf("unsupported package type: %s", ctx.PackageType)
+}
+
+// postInstallDatadogAgentDDOTOCI performs post-installation steps for the DDOT OCI package
+func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_ddot_filesystem")
 	defer func() {
 		span.Finish(err)
@@ -166,7 +178,7 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 
 // preRemoveDatadogAgentDDOT performs pre-removal steps for the DDOT package
 // All the steps are allowed to fail
-func preRemoveDatadogAgentDdot(ctx HookContext) error {
+func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	err := agentDDOTService.StopExperiment(ctx)
 	if err != nil {
 		log.Warnf("failed to stop experiment unit: %s", err)
