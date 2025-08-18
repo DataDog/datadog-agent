@@ -161,17 +161,17 @@ func (p *processLogConfigProvider) isFileReadable(logPath string) bool {
 	return true
 }
 
-func isAgentProcess(process *workloadmeta.Process) bool {
-	// Check if the process name matches any of the known agent process names,
-	// since we may not be able to make assumptions about the executable paths.
-	agentProcessNames := []string{
-		"agent",
-		"process-agent",
-		"trace-agent",
-		"security-agent",
-		"system-probe",
-	}
+var agentProcessNames = []string{
+	"agent",
+	"process-agent",
+	"trace-agent",
+	"security-agent",
+	"system-probe",
+}
 
+func isAgentProcess(process *workloadmeta.Process) bool {
+	// Check if the process name matches any of the known agent process names;
+	// we may not be able to make assumptions about the executable paths.
 	for _, agentName := range agentProcessNames {
 		if process.Name == agentName {
 			return true
