@@ -3,16 +3,16 @@ module github.com/DataDog/datadog-agent/comp/core/secrets
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.69.1
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.69.1
-	github.com/DataDog/datadog-agent/comp/core/status v0.69.1
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.69.1
-	github.com/DataDog/datadog-agent/pkg/template v0.69.1
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.69.1
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.69.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.69.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.1
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.69.1
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.69.1-rc.2
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.69.1-rc.2
+	github.com/DataDog/datadog-agent/comp/core/status v0.69.1-rc.2
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.69.1-rc.2
+	github.com/DataDog/datadog-agent/pkg/template v0.69.1-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.69.1-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.69.1-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.69.1-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.1-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.69.1-rc.2
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.24.0
@@ -22,11 +22,11 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.69.1 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.69.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.69.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.69.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.69.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.69.1-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.69.1-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.69.1-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.69.1-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.69.1-rc.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
