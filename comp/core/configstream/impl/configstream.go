@@ -229,6 +229,8 @@ func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {
 func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) {
 	allSettings, sequenceID := cs.config.AllSettingsWithSequenceID()
 
+	// Note: AllSettings returns a map[string]interface{}. The inner values may be a type that structpb.NewValue is not able to
+	// handle (ex: map[string]string), so we perform a hacky operation by marshalling the data into a JSON string first.
 	data, err := json.Marshal(allSettings)
 	if err != nil {
 		return nil, 0, err
@@ -266,6 +268,9 @@ func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) 
 	return snapshot, sequenceID, nil
 }
 
+// sanitizeValue is a workaround for `structpb.NewValue`, which cannot handle
+// complex types like `map[string]string`. Marshalling to JSON and back converts
+// the value into a `structpb` compatible format.
 func sanitizeValue(value interface{}) (interface{}, error) {
 	data, err := json.Marshal(value)
 	if err != nil {
