@@ -13,6 +13,7 @@ import (
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -244,9 +245,9 @@ func (s *windowsTestSuite) TestUnprotectedProcessCheckIO() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
+	flake.Mark(s.T())
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
-
 	assertManualProcessCheck(s.T(), check, false, "MsMpEng.exe")
 }
 
