@@ -5,6 +5,8 @@
 
 //go:build linux_bpf
 
+// Package uploader deals with uploading SymDB data in the JSON format expected
+// by the debugger backend.
 package uploader
 
 import (
@@ -25,11 +27,15 @@ import (
 type ScopeType string
 
 const (
+	// ScopeTypePackage represents Go packages.
 	ScopeTypePackage ScopeType = "package"
-	ScopeTypeStruct  ScopeType = "struct"
-	ScopeTypeMethod  ScopeType = "method"
-	ScopeTypeClosure ScopeType = "closure"
-	ScopeTypeLocal   ScopeType = "local"
+	// ScopeTypeStruct represents Go structs (or other types with methods).
+	ScopeTypeStruct ScopeType = "struct"
+	// ScopeTypeMethod represents Go methods (i.e. functions with a receiver).
+	ScopeTypeMethod ScopeType = "method"
+	// ScopeTypeLocal represents lexical scopes (pairs of {} brackets) inside go
+	// functions.
+	ScopeTypeLocal ScopeType = "local"
 )
 
 // Scope represents a lexical scope in the SymDB schema
@@ -48,10 +54,12 @@ type Scope struct {
 type SymbolType string
 
 const (
-	SymbolTypeField       SymbolType = "field"
-	SymbolTypeStaticField SymbolType = "static_field"
-	SymbolTypeArg         SymbolType = "arg"
-	SymbolTypeLocal       SymbolType = "local"
+	// SymbolTypeField represents a struct field.
+	SymbolTypeField SymbolType = "field"
+	// SymbolTypeArg represents a function argument.
+	SymbolTypeArg SymbolType = "arg"
+	// SymbolTypeLocal represents a local variable.
+	SymbolTypeLocal SymbolType = "local"
 )
 
 // Symbol represents a variable, parameter, or field in the SymDB schema
@@ -60,67 +68,23 @@ type Symbol struct {
 	Type       string     `json:"type"`
 	SymbolType SymbolType `json:"symbol_type"`
 	Line       *int       `json:"line,omitempty"`
-}x
+}
 
+// LanguageSpecifics represents Go language-specific data in the SymDB schema.
 type LanguageSpecifics struct {
 	AvailableLineRanges []LineRange `json:"available_line_ranges,omitempty"`
 	GoQualifiedName     string      `json:"go_qualified_name,omitempty"`
 }
 
+// LineRange represents a range of source lines, inclusive of both ends.
 type LineRange struct {
 	Start int `json:"start"`
 	End   int `json:"end"`
 }
 
+// SymDBUploader deals with uploading SymDB data in the JSON format expected by
+// the debugger backend.
 type SymDBUploader struct {
-	service string
-	env     string
-	version string
-
-	*batcher
-}
-
-func NewSymDBUploader(
-	service string,
-	env string,
-	version string,
-	runtimeID string,
-	opts ...Option,
-) *SymDBUploader {
-	cfg := defaultConfig()
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-	sender := newSymDBSender(
-		cfg.client, cfg.url.String(),
-		service, env, version, runtimeID,
-	)
-	return &SymDBUploader{
-		service: service,
-		env:     env,
-		version: version,
-		batcher: newBatcher("symdb", sender, cfg.batcherConfig),
-	}
-}
-
-// Enqueue adds a package to the uploader's queue.
-func (u *SymDBUploader) Enqueue(pkg symdb.Package) error {
-	scope := convertPackageToScope(pkg)
-	data, err := json.Marshal(scope)
-	if err != nil {
-		return fmt.Errorf("failed to marshal message: %w", err)
-	}
-
-	u.enqueue(data)
-	return nil
-}
-
-func (u *SymDBUploader) Stop() {
-	u.stop()
-}
-
-type symdbSender struct {
-	client    *http.Client
 	url       string
 	service   string
 	env       string
@@ -128,16 +92,15 @@ type symdbSender struct {
 	runtimeID string
 }
 
-func newSymDBSender(
-	client *http.Client,
+// NewSymDBUploader returns a new SymDBUploader.
+func NewSymDBUploader(
 	urlStr string,
 	service string,
 	env string,
 	version string,
 	runtimeID string,
-) *symdbSender {
-	return &symdbSender{
-		client:    client,
+) *SymDBUploader {
+	return &SymDBUploader{
 		url:       urlStr,
 		service:   service,
 		env:       env,
@@ -146,7 +109,8 @@ func newSymDBSender(
 	}
 }
 
-func (s *symdbSender) send(batch []json.RawMessage) error {
+// Upload uploads a batch of packages to SymDB.
+func (s *SymDBUploader) Upload(packages []Scope) error {
 	// Wrap the data in an envelope expected by the debugger backend.
 	var buf bytes.Buffer
 	buf.WriteString(`{
@@ -154,23 +118,23 @@ func (s *symdbSender) send(batch []json.RawMessage) error {
 "env": "` + s.env + `",
 "version": "` + s.version + `",
 "language": "go",
-"scopes": [`)
-	for i, msgData := range batch {
-		if i > 0 {
-			buf.WriteString(",")
-		}
-		buf.Write(msgData)
-	}
-	buf.WriteString("]}")
+"scopes": `)
 
-	if err := s.upload(buf.Bytes()); err != nil {
+	jsonBytes, err := json.Marshal(packages)
+	if err != nil {
+		return fmt.Errorf("failed to marshal scope: %w", err)
+	}
+	buf.Write(jsonBytes)
+	buf.WriteString("}")
+
+	if err := s.uploadInner(buf.Bytes()); err != nil {
 		return fmt.Errorf("failed to send individual SymDB: %w", err)
 	}
 
 	return nil
 }
 
-func (s *symdbSender) upload(symdbData []byte) error {
+func (s *SymDBUploader) uploadInner(symdbData []byte) error {
 	// The upload is a multipart containing metadata expected by the event platform
 	// and the gzipped SymDB data.
 
@@ -223,7 +187,7 @@ func (s *symdbSender) upload(symdbData []byte) error {
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	resp, err := s.client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
@@ -255,8 +219,8 @@ func cleanString(s string) string {
 	return strings.ReplaceAll(s, " ", "")
 }
 
-// convertPackageToScope converts a symdb.Package to a Scope
-func convertPackageToScope(pkg symdb.Package) Scope {
+// ConvertPackageToScope converts a symdb.Package to a Scope
+func ConvertPackageToScope(pkg symdb.Package) Scope {
 	scope := Scope{
 		ScopeType: ScopeTypePackage,
 		Name:      pkg.Name,
