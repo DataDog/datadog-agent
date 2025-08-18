@@ -8,7 +8,6 @@ package remoteagentregistryimpl
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
@@ -21,7 +20,7 @@ type remoteAgentDetails struct {
 	client               pb.RemoteAgentClient
 }
 
-func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData, config config.Component) (*remoteAgentDetails, error) {
+func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (*remoteAgentDetails, error) {
 	client, err := newRemoteAgentClient(registration)
 	if err != nil {
 		return nil, err
