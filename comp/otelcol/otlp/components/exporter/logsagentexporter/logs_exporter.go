@@ -30,7 +30,7 @@ type Exporter struct {
 	logSource        *sources.LogSource
 	translator       *logsmapping.Translator
 	gatewaysUsage    otel.GatewayUsage
-	cfg *Config
+	cfg              *Config
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -64,7 +64,7 @@ func NewExporterWithGatewayUsage(
 		logSource:        logSource,
 		translator:       translator,
 		gatewaysUsage:    gatewaysUsage,
-		cfg: cfg,
+		cfg:              cfg,
 	}, nil
 }
 
