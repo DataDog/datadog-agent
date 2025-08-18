@@ -36,6 +36,7 @@ type PodMetadata struct {
 	Labels            map[string]string `json:"labels,omitempty"`
 	Owners            []PodOwner        `json:"ownerReferences,omitempty"`
 	CreationTimestamp time.Time         `json:"creationTimestamp,omitempty"`
+	DeletionTimestamp *time.Time        `json:"deletionTimestamp,omitempty"`
 }
 
 // PodOwner contains fields for unmarshalling a Pod.Metadata.Owners

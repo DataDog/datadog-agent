@@ -27,11 +27,17 @@ import (
 )
 
 func build(t *testing.T, outTarget string) {
+	// Create a cache directory for the compiler
+	pwd, _ := os.Getwd()
+	cacheDir := filepath.Join(pwd, "cache")
+	os.Mkdir(cacheDir, 0755)
 	// -mod=vendor ensures the `go` command will not use the network to look
 	// for modules. See https://go.dev/ref/mod#build-commands
 	cmd := exec.Command("go", "build", "-v", "-mod=vendor", "-o", outTarget)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	// Append to the command's env vars, which prevents them from affecting other tests
+	cmd.Env = append(cmd.Env, []string{"GOPROXY=off", "GOPRIVATE=*", fmt.Sprintf("GOCACHE=%s", cacheDir)}...)
 	err := cmd.Run()
 	if err != nil {
 		t.Fatalf("Could not compile secret backend binary: %s", err)

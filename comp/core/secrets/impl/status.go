@@ -42,15 +42,17 @@ func (s secretsStatus) populateStatus(stats map[string]interface{}) {
 
 	stats["executable"] = r.backendCommand
 
-	correctPermission := true
-	permissionMsg := "OK, the executable has the correct permissions"
-	err := checkRights(r.backendCommand, r.commandAllowGroupExec)
-	if err != nil {
-		correctPermission = false
-		permissionMsg = fmt.Sprintf("error: %s", err)
+	stats["executable_correct_permissions"] = true
+	if !r.embeddedBackendPermissiveRights {
+		if err := checkRights(r.backendCommand, r.commandAllowGroupExec); err != nil {
+			stats["executable_correct_permissions"] = false
+			stats["executable_permissions_message"] = fmt.Sprintf("error: the executable does not have the correct permissions: %s", err)
+		} else {
+			stats["executable_permissions_message"] = "OK, the executable has the correct permissions"
+		}
+	} else {
+		stats["executable_permissions_message"] = "OK, native secret generic connector used"
 	}
-	stats["executable_correct_permissions"] = correctPermission
-	stats["executable_permissions_message"] = permissionMsg
 
 	handleMap := make(map[string][][]string)
 	orderedHandles := make([]string, 0, len(r.origin))
