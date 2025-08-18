@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"maps"
 	"math/bits"
+	"unique"
 
 	"go.uber.org/atomic"
 
@@ -30,7 +31,7 @@ type Entry struct {
 	refs atomic.Uint64
 
 	// tags contains the cached tags in this entry.
-	tags []string
+	tags []unique.Handle[string]
 }
 
 // SizeInBytes returns the size of the Entry in bytes.
@@ -49,7 +50,7 @@ var _ size.HasSizeInBytes = (*Entry)(nil)
 // shared with other users and should not be modified. Users can keep
 // the slice after the entry was removed from the store; it is not
 // recycled or otherwise modified by the store.
-func (e *Entry) Tags() []string {
+func (e *Entry) Tags() []unique.Handle[string] {
 	return e.tags
 }
 

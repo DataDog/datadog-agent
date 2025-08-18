@@ -8,6 +8,7 @@ package server
 import (
 	"bytes"
 	"fmt"
+	"unique"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,7 +39,7 @@ type dogstatsdEvent struct {
 	priority       eventPriority
 	sourceType     string
 	alertType      alertType
-	tags           []string
+	tags           []unique.Handle[string]
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection

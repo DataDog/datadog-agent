@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"unique"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +30,7 @@ type dogstatsdServiceCheck struct {
 	timestamp int64
 	hostname  string
 	message   string
-	tags      []string
+	tags      []unique.Handle[string]
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection

@@ -27,13 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
@@ -66,7 +67,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 
 func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
@@ -100,7 +101,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 
 func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
@@ -127,7 +128,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 
 func TestStartExecutionSpanStepFunctionEvent(t *testing.T) {
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
@@ -163,7 +164,7 @@ func TestStartExecutionSpanStepFunctionEvent(t *testing.T) {
 
 func TestLegacyLambdaStartExecutionSpanStepFunctionEvent(t *testing.T) {
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
@@ -199,7 +200,7 @@ func TestLegacyLambdaStartExecutionSpanStepFunctionEvent(t *testing.T) {
 
 func TestStartExecutionSpanNestedStepFunctionEvent(t *testing.T) {
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
@@ -234,7 +235,7 @@ func TestStartExecutionSpanNestedStepFunctionEvent(t *testing.T) {
 
 func TestLegacyLambdaStartExecutionSpanNestedStepFunctionEvent(t *testing.T) {
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
@@ -269,7 +270,7 @@ func TestLegacyLambdaStartExecutionSpanNestedStepFunctionEvent(t *testing.T) {
 
 func TestStartExecutionSpanLambdaRootStepFunctionEvent(t *testing.T) {
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
@@ -304,7 +305,7 @@ func TestStartExecutionSpanLambdaRootStepFunctionEvent(t *testing.T) {
 
 func TestLegacyLambdaStartExecutionSpanLambdaRootStepFunctionEvent(t *testing.T) {
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
@@ -341,7 +342,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
 
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
@@ -389,7 +390,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 
 func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return true }
@@ -427,7 +428,7 @@ func TestEndExecutionSpanWithTraceMetadata(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
 
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
@@ -483,7 +484,7 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	t.Setenv("DD_SERVICE", "mock-lambda-service")
 
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
@@ -544,7 +545,7 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
 
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
@@ -602,7 +603,7 @@ func TestTimeoutExecutionSpan(t *testing.T) {
 	t.Setenv("DD_SERVICE", "mock-lambda-service")
 
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
@@ -662,7 +663,7 @@ func TestTimeoutExecutionSpanWithTraceContext(t *testing.T) {
 	t.Setenv("DD_SERVICE", "mock-lambda-service")
 
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
@@ -742,7 +743,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 	}
 
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 
 	var tracePayload *api.Payload
@@ -836,7 +837,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 	}
 
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 
 	var tracePayload *api.Payload
@@ -925,7 +926,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 	}
 
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 
 	var tracePayload *api.Payload
@@ -1011,7 +1012,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 	}
 
 	extraTags := &logs.Tags{
-		Tags: []string{"functionname:test-function"},
+		Tags: utilstrings.ToUnique([]string{"functionname:test-function"}),
 	}
 
 	var tracePayload *api.Payload

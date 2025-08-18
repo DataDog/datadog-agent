@@ -26,10 +26,7 @@ import (
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	l := ckey.NewKeyGenerator()
-	var tags []string
-	serie.Tags.ForEach(func(tag string) {
-		tags = append(tags, tag)
-	})
+	tags := utilstrings.ToUnique(serie.Tags.ToSlice())
 	return l.Generate(serie.Name, serie.Host, tagset.NewHashingTagsAccumulatorWithTags(tags))
 }
 
@@ -53,7 +50,7 @@ func testBucketSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 	}
 	sampler.sample(&mSample, 12345.0)
@@ -87,21 +84,21 @@ func testContextSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name1",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 	}
 	mSample2 := metrics.MetricSample{
 		Name:       "my.metric.name2",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 	}
 	mSample3 := metrics.MetricSample{
 		Name:       "my.metric.name3",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		Host:       "metric-hostname",
 		SampleRate: 1,
 	}
@@ -155,7 +152,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		Name:       "my.counter1",
 		Value:      1,
 		Mtype:      metrics.CounterType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 	}
 
@@ -163,7 +160,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		Name:       "my.counter2",
 		Value:      2,
 		Mtype:      metrics.CounterType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 	}
 
@@ -171,7 +168,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		Name:       "my.gauge",
 		Value:      2,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 	}
 
@@ -218,7 +215,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		Name:       "my.counter1",
 		Value:      1,
 		Mtype:      metrics.CounterType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 	}
 
@@ -287,7 +284,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 			for _, v := range values {
 				sampler.sample(&metrics.MetricSample{
 					Name:       name,
-					Tags:       tags,
+					Tags:       utilstrings.ToUnique(tags),
 					Host:       host,
 					Value:      v,
 					Mtype:      metrics.DistributionType,
@@ -335,7 +332,8 @@ func testSketch(t *testing.T, store *tags.Store) {
 					Ts:     0,
 				},
 			},
-			ContextKey: keyGen.Generate(name, host, tagset.NewHashingTagsAccumulatorWithTags(tags)),
+			ContextKey: keyGen.Generate(name, host,
+				tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique(tags))),
 		}, flushed[0])
 
 		_, flushed = flushSerie(sampler, now, false)
@@ -354,14 +352,14 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 		Name:       "test.metric.name",
 		Value:      1,
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"a", "b"},
+		Tags:       utilstrings.ToUnique([]string{"a", "b"}),
 		SampleRate: 1,
 	}
 	mSample2 := metrics.MetricSample{
 		Name:       "test.metric.name",
 		Value:      2,
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"a", "b"},
+		Tags:       utilstrings.ToUnique([]string{"a", "b"}),
 		SampleRate: 1,
 	}
 	sampler.sample(&mSample1, 10001)
@@ -400,14 +398,14 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 		Name:       "test.metric.name1",
 		Value:      1,
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"a", "b"},
+		Tags:       utilstrings.ToUnique([]string{"a", "b"}),
 		SampleRate: 1,
 	}
 	mSample2 := metrics.MetricSample{
 		Name:       "test.metric.name2",
 		Value:      1,
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"a", "c"},
+		Tags:       utilstrings.ToUnique([]string{"a", "c"}),
 		SampleRate: 1,
 	}
 	sampler.sample(&mSample1, 10011)
@@ -453,7 +451,7 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 		Name:       "distribution.metric.name1",
 		Value:      1,
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"a", "b"},
+		Tags:       utilstrings.ToUnique([]string{"a", "b"}),
 		SampleRate: 1,
 	}
 	sampler.sample(&dSample1, 12345.0)
@@ -464,7 +462,7 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 	}
 	sampler.sample(&mSample, 12345.0)
@@ -666,7 +664,7 @@ func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 		Timestamp:  12345.0,
 	}

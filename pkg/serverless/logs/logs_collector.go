@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unique"
 
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -33,7 +34,7 @@ const (
 
 // Tags contains the actual array of Tags (useful for passing it via reference)
 type Tags struct {
-	Tags []string
+	Tags []unique.Handle[string]
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -347,7 +348,7 @@ func (lc *LambdaLogsCollector) processMessage(
 
 			if err == nil {
 				if reason, exist := r[bottlecapFailoverReasonEnvVar]; exist {
-					tags = append(tags, fmt.Sprintf("reason:%v", reason))
+					tags = append(tags, unique.Make(fmt.Sprintf("reason:%v", reason)))
 					serverlessMetrics.SendFailoverReasonMetric(tags, lc.demux)
 					message.stringRecord = "" // Avoid sending the log to the intake
 				}

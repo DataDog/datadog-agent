@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestStatsdDirect(t *testing.T) {
@@ -45,7 +46,7 @@ func TestStatsdDirect(t *testing.T) {
 	sample := samples[0]
 	require.Equal(t, "test.gauge", sample.Name)
 	require.Equal(t, 1.0, sample.Value)
-	require.Equal(t, []string{"tag1:value1", "tag2:value2"}, sample.Tags)
+	require.Equal(t, []string{"tag1:value1", "tag2:value2"}, utilstrings.FromUnique(sample.Tags))
 	require.Equal(t, "my-hostname", sample.Host)
 	require.Equal(t, 1.0, sample.SampleRate)
 	require.Equal(t, metrics.GaugeType, sample.Mtype)

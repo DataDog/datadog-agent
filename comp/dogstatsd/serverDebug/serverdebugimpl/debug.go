@@ -168,7 +168,7 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 
 	// key
 	defer d.tagsAccumulator.Reset()
-	d.tagsAccumulator.Append(sample.Tags...)
+	d.tagsAccumulator.AppendUnique(sample.Tags)
 	key := d.keyGen.Generate(sample.Name, "", d.tagsAccumulator)
 
 	// store
@@ -176,7 +176,7 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	ms.Count++
 	ms.LastSeen = now
 	ms.Name = sample.Name
-	ms.Tags = strings.Join(d.tagsAccumulator.Get(), " ") // we don't want/need to share the underlying array
+	ms.Tags = tagset.NewCompositeTags(d.tagsAccumulator.GetUnique(), nil).Join(" ") // we don't want/need to share the underlying array
 	d.Stats[key] = ms
 
 	if d.dogstatsdDebugLogger != nil {

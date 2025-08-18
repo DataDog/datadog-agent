@@ -7,27 +7,28 @@ package tagset
 
 import (
 	"slices"
+	"unique"
 
 	"github.com/twmb/murmur3"
 )
 
 // hashedTags is the base type for HashingTagsAccumulator and HashedTags
 type hashedTags struct {
-	data []string
+	data []unique.Handle[string]
 	hash []uint64
 }
 
 func newHashedTagsWithCapacity(cap int) hashedTags {
 	return hashedTags{
-		data: make([]string, 0, cap),
+		data: make([]unique.Handle[string], 0, cap),
 		hash: make([]uint64, 0, cap),
 	}
 }
 
-func newHashedTagsFromSlice(tags []string) hashedTags {
+func newHashedTagsFromSlice(tags []unique.Handle[string]) hashedTags {
 	hash := make([]uint64, 0, len(tags))
 	for _, t := range tags {
-		hash = append(hash, murmur3.StringSum64(t))
+		hash = append(hash, murmur3.StringSum64(t.Value()))
 	}
 	return hashedTags{
 		data: tags,
@@ -35,9 +36,17 @@ func newHashedTagsFromSlice(tags []string) hashedTags {
 	}
 }
 
+func newHashedTagsFromStringSlice(tags []string) hashedTags {
+	data := make([]unique.Handle[string], 0, len(tags))
+	for _, t := range tags {
+		data = append(data, unique.Make(t))
+	}
+	return newHashedTagsFromSlice(data)
+}
+
 // Copy returns a new slice with the copy of the tags
-func (h hashedTags) Copy() []string {
-	return append(make([]string, 0, len(h.data)), h.data...)
+func (h hashedTags) Copy() []unique.Handle[string] {
+	return slices.Clone(h.data)
 }
 
 // Len returns number of tags

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(dda inv:*)",
+      "Bash(gofmt:*)",
+      "WebSearch",
+      "WebFetch(domain:cs.opensource.google)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

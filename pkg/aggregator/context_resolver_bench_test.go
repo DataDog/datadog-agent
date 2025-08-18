@@ -12,6 +12,7 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func benchmarkContextResolver(numContexts int, b *testing.B) {
@@ -22,7 +23,7 @@ func benchmarkContextResolver(numContexts int, b *testing.B) {
 			Name:       "my.metric.name",
 			Value:      1,
 			Mtype:      metrics.GaugeType,
-			Tags:       []string{"foo", "bar", strconv.Itoa(i)},
+			Tags:       utilstrings.ToUnique([]string{"foo", "bar", strconv.Itoa(i)}),
 			SampleRate: 1,
 		})
 	}
