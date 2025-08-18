@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"github.com/stretchr/testify/assert"
@@ -29,6 +28,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"go.uber.org/zap/zaptest"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 )
 
 func TestTranslator(t *testing.T) {
@@ -67,6 +68,35 @@ func TestTranslator(t *testing.T) {
 				AdditionalProperties: map[string]interface{}{
 					"app":              "test",
 					"status":           "debug",
+					otelSeverityNumber: "5",
+				},
+			},
+		},
+		{
+			// different attribute types
+			name: "basic",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.Attributes().PutStr("app", "test")
+					l.Attributes().PutBool("test_bool", true)
+					l.Attributes().PutInt("test_int", 1234)
+					l.Attributes().PutDouble("test_double", 1.234)
+					l.SetSeverityNumber(5)
+					return l
+				}(),
+				res:   pcommon.NewResource(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString(""),
+				AdditionalProperties: map[string]interface{}{
+					"app":              "test",
+					"status":           "debug",
+					"test_bool":        true,
+					"test_int":         1234,
+					"test_double":      1.234,
 					otelSeverityNumber: "5",
 				},
 			},
