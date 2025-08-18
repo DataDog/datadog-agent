@@ -201,7 +201,6 @@ type ParsingExtra struct {
 	IsPartial   bool
 	IsTruncated bool
 	IsMultiLine bool
-	IsMRFAllow  bool
 	Tags        []string
 }
 
@@ -373,7 +372,7 @@ func NewMessageFromLambda(content []byte, origin *Origin, status string, utcTime
 // if status is not set, StatusInfo will be returned.
 func (m *MessageMetadata) GetStatus() string {
 	if m.Status == "" {
-		m.Status = StatusInfo
+		return StatusInfo
 	}
 	return m.Status
 }
@@ -424,13 +423,4 @@ func TruncatedReasonTag(reason string) string {
 // MultiLineSourceTag returns a tag for multiline logs.
 func MultiLineSourceTag(source string) string {
 	return fmt.Sprintf("multiline:%s", source)
-}
-
-// IsMRF returns true if the payload should be sent to MRF endpoints.
-func (p *Payload) IsMRF() bool {
-	if len(p.MessageMetas) == 0 {
-		return false
-	}
-	// all messages in a payload are either all MRF or not
-	return p.MessageMetas[0].IsMRFAllow
 }

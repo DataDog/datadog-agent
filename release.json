@@ -2,7 +2,7 @@
     "base_branch": "main",
     "current_milestone": "7.71.0",
     "dependencies": {
-        "OMNIBUS_RUBY_VERSION": "dd14a4b9f3221d5c74c343c24f4585810d5cd068",
+        "OMNIBUS_RUBY_VERSION": "c760785c93689c06da59e5f38875cdeda39438c4",
         "JMXFETCH_VERSION": "0.49.9",
         "JMXFETCH_HASH": "0f33f0f0d95ba9286bb1c02ee39955ab6709c5b7f923d318a796a71ef2e6b706",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
@@ -16,6 +16,6 @@
     },
     "last_stable": {
         "6": "6.53.1",
-        "7": "7.68.2"
+        "7": "7.69.0"
     }
 }
