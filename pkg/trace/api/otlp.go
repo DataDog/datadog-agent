@@ -247,7 +247,12 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		return o.receiveResourceSpansV1(ctx, rspans, httpHeader, hostFromAttributesHandler)
 	}
 	// TODO(otel-2752): configure rumIntakeURL and pass it to receiveResourceSpansV2
-	return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)), hostFromAttributesHandler, "")
+	src, err := o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)), hostFromAttributesHandler, "")
+	if err != nil {
+		log.Error("failed to receive resource spans: %v", err)
+		return source.Source{}
+	}
+	return src
 }
 
 type ParamValue struct {
@@ -344,7 +349,7 @@ func buildIntakeUrlPathAndParameters(rattrs pcommon.Map, lattrs pcommon.Map) str
 	return "/api/v2/rum?" + strings.Join(parts, "&")
 }
 
-func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler, rumIntakeURL string) source.Source {
+func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler, rumIntakeURL string) (source.Source, error) {
 	otelres := rspans.Resource()
 	resourceAttributes := otelres.Attributes()
 
@@ -356,24 +361,30 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
 			if rumIntakeURL != "" {
+				if o.httpClient == nil {
+					log.Error("httpClient is nil, skipping RUM payload")
+					continue
+				}
+
 				if _, isRum := otelspan.Attributes().Get("session.id"); isRum {
 					rattr := otelres.Attributes()
 					sattr := otelspan.Attributes()
 
 					// build the Datadog intake URL
-					outUrlString := rumIntakeURL +
-						buildIntakeUrlPathAndParameters(rattr, sattr)
+					pathAndParams := buildIntakeUrlPathAndParameters(rattr, sattr)
+					if pathAndParams == "" {
+						return source.Source{}, fmt.Errorf("failed to build intake URL parameters")
+					}
+					outUrlString := rumIntakeURL + pathAndParams
 
 					rumPayload := rum.ConstructRumPayloadFromOTLP(sattr)
 					byts, err := json.Marshal(rumPayload)
 					if err != nil {
-						log.Error("failed to marshal RUM payload: %v", err)
-						return source.Source{}
+						return source.Source{}, err
 					}
 					req, err := http.NewRequest("POST", outUrlString, bytes.NewBuffer(byts))
 					if err != nil {
-						log.Error("failed to create request: %v", err)
-						return source.Source{}
+						return source.Source{}, fmt.Errorf("failed to create request: %v", err)
 					}
 
 					// add X-Forwarded-For header containing the request client IP address
@@ -385,8 +396,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 					// send the request to the Datadog intake URL
 					resp, err := o.httpClient.Do(req)
 					if err != nil {
-						log.Error("failed to send request: %v", err)
-						return source.Source{}
+						return source.Source{}, fmt.Errorf("failed to send request: %v", err)
 					}
 					defer func(Body io.ReadCloser) {
 						err := Body.Close()
@@ -397,14 +407,12 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 					// read the response body
 					body, err := io.ReadAll(resp.Body)
 					if err != nil {
-						log.Error("failed to read response: %v", err)
-						return source.Source{}
+						return source.Source{}, fmt.Errorf("failed to read response: %v", err)
 					}
 
 					// check the status code of the response
 					if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-						log.Error("received non-OK response: status: %s, body: %s", resp.Status, body)
-						return source.Source{}
+						return source.Source{}, fmt.Errorf("received non-OK response: status: %s, body: %s", resp.Status, body)
 					}
 					fmt.Println("Response:", string(body))
 					continue
@@ -510,7 +518,8 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	}
 
 	o.out <- &p
-	return src
+
+	return src, nil
 }
 
 func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {

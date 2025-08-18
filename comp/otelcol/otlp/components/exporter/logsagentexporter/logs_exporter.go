@@ -52,7 +52,7 @@ func NewExporterWithGatewayUsage(
 	attributesTranslator *attributes.Translator,
 	gatewaysUsage otel.GatewayUsage,
 ) (*Exporter, error) {
-	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
+	translator, err := logsmapping.NewTranslatorWithHTTPClient(set, attributesTranslator, cfg.OtelSource, nil)
 	if err != nil {
 		return nil, err
 	}
