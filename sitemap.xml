@@ -5,10 +5,6 @@
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/setup/</loc>
-         <lastmod>2020-02-02</lastmod>
-    </url>
-    <url>
          <loc>https://datadoghq.dev/datadog-agent/architecture/dogstatsd/internals/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
@@ -105,7 +101,43 @@
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/build/standalone/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
          <loc>https://datadoghq.dev/datadog-agent/how-to/go/add-module/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/test/static-analysis/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/how-to/test/unit/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/reference/images/builders/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/reference/images/dev/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/setup/manual/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/setup/optional/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/setup/required/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/tutorials/dev/env/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
 </urlset>
