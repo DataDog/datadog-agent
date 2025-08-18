@@ -3,19 +3,19 @@ module github.com/DataDog/datadog-agent/comp/core/status/statusimpl
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/comp/core/config v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/comp/core/status v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/model v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/pkg/fips v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/pkg/template v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/flavor v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.69.2-rc.1
-	github.com/DataDog/datadog-agent/pkg/version v0.69.2-rc.1
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/comp/core/config v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/comp/core/status v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/fips v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/template v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/flavor v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/version v0.69.2-rc.2
 	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.24.0
@@ -23,28 +23,28 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.69.2-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.69.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/create v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.69.2-rc.2 // indirect
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
