@@ -217,7 +217,7 @@ func (f *factory) createMetricsExporter(
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage, f.store)
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage, f.store, nil)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: serializerexporter.MetricsConfig{
 			Metrics: cfg.Metrics,
