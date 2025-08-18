@@ -9,4 +9,4 @@
 other:
   - |
     Add `checks.delay` and `checks.runs` telemetry metrics.
-    This enables breakdown and analysis by `check_name` and `state` where applicable.
+    This enables break down and analysis by `check_name` and `state` where applicable.
