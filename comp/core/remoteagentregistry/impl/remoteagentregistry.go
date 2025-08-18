@@ -222,8 +222,10 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		// This won't try and connect to the given gRPC endpoint immediately, but will instead surface any errors with
 		// connecting when we try to query the remote agent for status or flare data.
 		details, err := newRemoteAgentDetails(registration, ra.conf)
+
 		if err != nil {
-			ra.telemetryStore.remoteAgentRegisteredError.Inc(details.sanatizedDisplayName)
+			log.Errorf("Failed to create remote agent details for '%s' (endpoint: %s): %v", registration.DisplayName, registration.APIEndpoint, err)
+			ra.telemetryStore.remoteAgentRegisteredError.Inc(sanatizeString(registration.DisplayName))
 			return 0, err
 		}
 
@@ -244,6 +246,7 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 
 		newEntry, err := newRemoteAgentDetails(registration, ra.conf)
 		if err != nil {
+			log.Errorf("Failed to update remote agent details for '%s' (endpoint: %s): %v", registration.DisplayName, registration.APIEndpoint, err)
 			ra.telemetryStore.remoteAgentUpdatedError.Inc(sanatizeString(registration.DisplayName))
 			return 0, err
 		}
