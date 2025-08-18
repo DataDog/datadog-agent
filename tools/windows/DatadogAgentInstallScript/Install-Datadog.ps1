@@ -3,7 +3,7 @@
    Downloads and installs Datadog on the machine.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Default')]
-$SCRIPT_VERSION = "1.1.0"
+$SCRIPT_VERSION = "1.1.1"
 $GENERAL_ERROR_CODE = 1
 
 # Set some defaults if not provided
