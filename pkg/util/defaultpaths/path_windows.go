@@ -14,16 +14,20 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
+// NOTE: Do NOT calculate paths relative to the executable.
+//
+//	The agent executables are not all installed in the same path and this can
+//	lead to incorrect path calculations when this package is imported by
+//	other executables.
+//
+// defaultInstallPath is the default install path for the Agent. The install path is
+// customizable at install time, so we update it from the registry in init().
+const defaultInstallPath = `C:\Program Files\Datadog\Datadog Agent`
+
 var (
-	// NOTE: Do NOT calculate paths relative to the executable.
-	//       The agent executables are not all installed in the same path and this can
-	//       lead to incorrect path calculations when this package is imported by
-	//       other executables.
-	// installPath is the default install path for the Agent. The install path is
-	// customizable at install time, so we update it from the registry in init().
-	installPath = `C:\Program Files\Datadog\Datadog Agent`
+	installPath string
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	PyChecksPath = filepath.Join(installPath, "checks.d")
+	PyChecksPath string
 	distPath     string
 )
 
@@ -55,7 +59,7 @@ func init() {
 		DogstatsDLogFile = filepath.Join(pd, "logs", "dogstatsd_info", "dogstatsd-stats.log")
 		StreamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
 	}
-	installPath = getInstallPath()
+	installPath = fetchInstallPath()
 	PyChecksPath = filepath.Join(installPath, "checks.d")
 }
 
@@ -66,7 +70,7 @@ func GetInstallPath() string {
 	return installPath
 }
 
-func getInstallPath() string {
+func fetchInstallPath() string {
 	// fetch the installation path from the registry
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
 	if err != nil {
@@ -83,7 +87,7 @@ func getInstallPath() string {
 		}
 	}
 	// return default path
-	return installPath
+	return defaultInstallPath
 }
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
