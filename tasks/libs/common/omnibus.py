@@ -117,6 +117,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'RPM_SIGNING_PASSPHRASE',
         'S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS',
         'SIGN_WINDOWS_DD_WCS',
+        'SSH_AUTH_SOCK',
         'SYSTEMDRIVE',
         'SYSTEMROOT',
         'SSL_CERT_FILE',
