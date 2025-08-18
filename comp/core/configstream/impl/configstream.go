@@ -210,7 +210,7 @@ func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {
 					continue // A snapshot could not be created, but other subscribers may still be able to process the incremental update.
 				}
 			}
-			cs.log.Infof("Discontinuity detected for subscriber '%s'. Last seen ID: %d, current ID: %d. Resynchronizing with a snapshot.", id, sub.lastSequenceID, currentSequenceID)
+			cs.log.Warnf("Discontinuity detected for subscriber '%s'. Last seen ID: %d, current ID: %d. Resynchronizing with a snapshot.", id, sub.lastSequenceID, currentSequenceID)
 			sub.lastSequenceID = snapshotSeqID
 			eventToSend = snapshot
 		} else {
