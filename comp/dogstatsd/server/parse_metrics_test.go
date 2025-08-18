@@ -578,10 +578,10 @@ func TestParseContainerID(t *testing.T) {
 func TestNameFieldUsesUniqueHandle(t *testing.T) {
 	sample1, err1 := parseMetricSample(t, make(map[string]any), []byte("test_metric:666|g"))
 	sample2, err2 := parseMetricSample(t, make(map[string]any), []byte("test_metric:777|g"))
-	
+
 	assert.NoError(t, err1)
 	assert.NoError(t, err2)
-	
+
 	// Both samples should have the same unique handle for the same metric name
 	assert.Equal(t, sample1.name, sample2.name)
 	assert.Equal(t, "test_metric", sample1.name.Value())
