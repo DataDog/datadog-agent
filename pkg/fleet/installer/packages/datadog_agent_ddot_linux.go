@@ -31,15 +31,18 @@ const (
 )
 
 var (
+	// ddotDirectories are the directories that DDOT needs to function
+	ddotDirectories = file.Directories{
+		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+	}
+
 	// ddotConfigPermissionsDEBRPM are the ownerships and modes that are enforced on the DDOT configuration files for DEB/RPM packages
 	ddotConfigPermissionsDEBRPM = file.Permissions{
-		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
 
 	// ddotConfigPermissionsOCI are the ownerships and modes that are enforced on the DDOT configuration files for OCI packages
 	ddotConfigPermissionsOCI = file.Permissions{
-		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
@@ -107,12 +110,13 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// Set DDOT package permissions
+	// Ensure directories and files exist and have correct permissions
+	if err = ddotDirectories.Ensure(ctx); err != nil {
+		return fmt.Errorf("failed to create DDOT directories: %v", err)
+	}
 	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
 	}
-
-	// Set DDOT config permissions
 	if err = ddotConfigPermissionsOCI.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
@@ -152,12 +156,13 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// Set DDOT package permissions
+	// Ensure directories and files exist and have correct permissions
+	if err = ddotDirectories.Ensure(ctx); err != nil {
+		return fmt.Errorf("failed to create DDOT directories: %v", err)
+	}
 	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
 	}
-
-	// Set DDOT config permissions
 	if err = ddotConfigPermissionsDEBRPM.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
