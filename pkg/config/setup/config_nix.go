@@ -9,7 +9,6 @@ package setup
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -60,12 +59,7 @@ const (
 // in time
 func osinit() {
 	// Agent binary
-	if installPathOverride, ok := os.LookupEnv("DD_TEST_INSTALL_PATH_OVERRIDE"); ok {
-		// Some tests use the InstallPath variable to fetch dependencies. These tests' executable.Folder()
-		// are relative to the test files, but dependencies are always put in the same place during the tests'
-		// executions. This environment variable allows us to override the install path during the tests.
-		InstallPath = installPathOverride
-	} else {
+	if InstallPath == "" {
 		_here, err := executable.Folder() // {InstallPath}/bin/agent OR {InstallPath}/embedded/bin
 		if err != nil {
 			panic(fmt.Sprintf("Failed to get executable path: %v", err))
