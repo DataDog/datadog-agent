@@ -18,6 +18,6 @@ func main() {
 
 	if err := rootCmd.Execute(); err != nil {
 		// the error has already been printed
-		os.Exit(1)
+		os.Exit(-1)
 	}
 }
