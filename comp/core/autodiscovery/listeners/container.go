@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -35,7 +36,7 @@ const (
 // workloadmeta store.
 type ContainerListener struct {
 	workloadmetaListener
-	filterStore filter.Component
+	filterStore workloadfilter.Component
 	tagger      tagger.Component
 }
 
@@ -76,8 +77,8 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	}
 	containerImg := container.Image
 	if l.filterStore.IsContainerExcluded(
-		filter.CreateContainer(container, filter.CreatePod(pod)),
-		filter.GetAutodiscoveryFilters(filter.GlobalFilter),
+		workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
+		workloadfilter.GetAutodiscoveryFilters(workloadfilter.GlobalFilter),
 	) {
 		log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
 		return
@@ -131,12 +132,12 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		svc.ready = pod.Ready
 
 		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
-			filter.CreateContainer(container, filter.CreatePod(pod)),
-			filter.GetAutodiscoveryFilters(filter.MetricsFilter),
+			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
+			workloadfilter.GetAutodiscoveryFilters(workloadfilter.MetricsFilter),
 		)
 		svc.logsExcluded = l.filterStore.IsContainerExcluded(
-			filter.CreateContainer(container, filter.CreatePod(pod)),
-			filter.GetAutodiscoveryFilters(filter.LogsFilter),
+			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
+			workloadfilter.GetAutodiscoveryFilters(workloadfilter.LogsFilter),
 		)
 	} else {
 		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
@@ -162,12 +163,12 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		svc.hosts = hosts
 		svc.checkNames = checkNames
 		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
-			filter.CreateContainer(container, nil),
-			filter.GetAutodiscoveryFilters(filter.MetricsFilter),
+			workloadmetafilter.CreateContainer(container, nil),
+			workloadfilter.GetAutodiscoveryFilters(workloadfilter.MetricsFilter),
 		)
 		svc.logsExcluded = l.filterStore.IsContainerExcluded(
-			filter.CreateContainer(container, nil),
-			filter.GetAutodiscoveryFilters(filter.LogsFilter),
+			workloadmetafilter.CreateContainer(container, nil),
+			workloadfilter.GetAutodiscoveryFilters(workloadfilter.LogsFilter),
 		)
 	}
 
