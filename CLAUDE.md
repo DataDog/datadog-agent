@@ -120,12 +120,13 @@ The project uses Python's Invoke framework with custom tasks. Main task categori
 - `release.*` - Release management
 
 ### Build Tags
-Go build tags control feature inclusion:
+Go build tags control feature inclusion, some examples are:
 - `kubeapiserver` - Kubernetes API server support
 - `containerd` - containerd support
 - `docker` - Docker support
 - `ebpf` - eBPF support
 - `python` - Python check support
+- and MANY more, refer to ./tasks/build_tags.py for a full reference.
 
 ## Important Files
 
@@ -160,10 +161,9 @@ Go build tags control feature inclusion:
 - Use secret backend for credentials
 
 ## Module System
-The project uses Go modules with multiple sub-modules. Key modules:
-- Main module: `github.com/DataDog/datadog-agent`
-- Sub-modules defined in `modules.yml`
-- Use `dda inv modules.show` to list all modules
+The project uses Go modules with multiple sub-modules.
+TODO: Describe specific strategies for managing modules, including any invoke
+tasks.
 
 ## Platform Support
 - **Linux**: Full support (amd64, arm64)
