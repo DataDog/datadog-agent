@@ -7,6 +7,7 @@
 package size
 
 import (
+	"unique"
 	"unsafe"
 )
 
@@ -21,23 +22,23 @@ type HasSizeInBytes interface {
 
 const (
 	// stringSize is the size of a string structure in bytes.
-	stringSize = unsafe.Sizeof("")
+	stringSize = unsafe.Sizeof(unique.Make(""))
 	// stringSliceSize is the size of the string slice in bytes (not counting the size of the strings themselves).
-	stringSliceSize = unsafe.Sizeof([]string{})
+	stringSliceSize = unsafe.Sizeof([]unique.Handle[string]{})
 )
 
 // SizeOfStringSlice returns the size of the string slice in bytes (not counting the size of the strings themselves).
 //
 //nolint:revive
-func SizeOfStringSlice(s []string) int {
+func SizeOfStringSlice(s []unique.Handle[string]) int {
 	return int(stringSliceSize) + len(s)*int(stringSize)
 }
 
 // DataSizeOfStringSlice returns the size of the content of the string slice in bytes.
-func DataSizeOfStringSlice(v []string) int {
+func DataSizeOfStringSlice(v []unique.Handle[string]) int {
 	size := 0
 	for _, s := range v {
-		size += len(s)
+		size += len(s.Value())
 	}
 	return size
 }

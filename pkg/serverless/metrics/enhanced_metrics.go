@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unique"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -93,7 +94,7 @@ type GenerateEnhancedMetricsFromRuntimeDoneLogArgs struct {
 	ResponseLatency  float64
 	ResponseDuration float64
 	ProducedBytes    float64
-	Tags             []string
+	Tags             []unique.Handle[string]
 	Demux            aggregator.Demultiplexer
 }
 
@@ -155,7 +156,7 @@ func ContainsOutOfMemoryLog(logString string) bool {
 }
 
 // GenerateOutOfMemoryEnhancedMetrics generates enhanced metrics specific to an out of memory error
-func GenerateOutOfMemoryEnhancedMetrics(time time.Time, tags []string, demux aggregator.Demultiplexer) {
+func GenerateOutOfMemoryEnhancedMetrics(time time.Time, tags []unique.Handle[string], demux aggregator.Demultiplexer) {
 	SendOutOfMemoryEnhancedMetric(tags, time, demux)
 	SendErrorsEnhancedMetric(tags, time, demux)
 }
@@ -171,7 +172,7 @@ type GenerateEnhancedMetricsFromReportLogArgs struct {
 	RuntimeStart     time.Time
 	RuntimeEnd       time.Time
 	T                time.Time
-	Tags             []string
+	Tags             []unique.Handle[string]
 	Demux            aggregator.Demultiplexer
 }
 
@@ -253,28 +254,28 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 }
 
 // SendOutOfMemoryEnhancedMetric sends an enhanced metric representing a function running out of memory at a given time
-func SendOutOfMemoryEnhancedMetric(tags []string, t time.Time, demux aggregator.Demultiplexer) {
+func SendOutOfMemoryEnhancedMetric(tags []unique.Handle[string], t time.Time, demux aggregator.Demultiplexer) {
 	incrementEnhancedMetric(OutOfMemoryMetric, tags, float64(t.UnixNano())/float64(time.Second), demux, false)
 }
 
 // SendErrorsEnhancedMetric sends an enhanced metric representing an error at a given time
-func SendErrorsEnhancedMetric(tags []string, t time.Time, demux aggregator.Demultiplexer) {
+func SendErrorsEnhancedMetric(tags []unique.Handle[string], t time.Time, demux aggregator.Demultiplexer) {
 	incrementEnhancedMetric(ErrorsMetric, tags, float64(t.UnixNano())/float64(time.Second), demux, false)
 }
 
 // SendTimeoutEnhancedMetric sends an enhanced metric representing a timeout at the current time
-func SendTimeoutEnhancedMetric(tags []string, demux aggregator.Demultiplexer) {
+func SendTimeoutEnhancedMetric(tags []unique.Handle[string], demux aggregator.Demultiplexer) {
 	incrementEnhancedMetric(timeoutsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux, false)
 }
 
 // SendInvocationEnhancedMetric sends an enhanced metric representing an invocation at the current time
-func SendInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer) {
+func SendInvocationEnhancedMetric(tags []unique.Handle[string], demux aggregator.Demultiplexer) {
 	incrementEnhancedMetric(invocationsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux, false)
 }
 
 // SendASMInvocationEnhancedMetric sends an enhanced metric representing an appsec supported invocation at the current time
 // Metric is sent even if enhanced metrics are disabled
-func SendASMInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer) {
+func SendASMInvocationEnhancedMetric(tags []unique.Handle[string], demux aggregator.Demultiplexer) {
 	incrementEnhancedMetric(asmInvocationsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux, true)
 }
 
@@ -282,7 +283,7 @@ type generateCPUEnhancedMetricsArgs struct {
 	UserCPUTimeMs   float64
 	SystemCPUTimeMs float64
 	Uptime          float64
-	Tags            []string
+	Tags            []unique.Handle[string]
 	Demux           aggregator.Demultiplexer
 	Time            float64
 }
@@ -294,7 +295,7 @@ type GenerateCPUUtilizationEnhancedMetricArgs struct {
 	IdleTimeOffsetMs             float64
 	UptimeMs                     float64
 	UptimeOffsetMs               float64
-	Tags                         []string
+	Tags                         []unique.Handle[string]
 	Demux                        aggregator.Demultiplexer
 	Time                         float64
 }
@@ -331,7 +332,7 @@ func generateCPUEnhancedMetrics(args generateCPUEnhancedMetricsArgs) {
 	})
 }
 
-func SendFailoverReasonMetric(tags []string, demux aggregator.Demultiplexer) {
+func SendFailoverReasonMetric(tags []unique.Handle[string], demux aggregator.Demultiplexer) {
 	demux.AggregateSample(metrics.MetricSample{
 		Name:       failoverMetric,
 		Value:      1.0,
@@ -344,7 +345,7 @@ func SendFailoverReasonMetric(tags []string, demux aggregator.Demultiplexer) {
 }
 
 // SendCPUEnhancedMetrics sends CPU enhanced metrics for the invocation
-func SendCPUEnhancedMetrics(cpuOffsetData *proc.CPUData, uptimeOffset float64, tags []string, demux aggregator.Demultiplexer) {
+func SendCPUEnhancedMetrics(cpuOffsetData *proc.CPUData, uptimeOffset float64, tags []unique.Handle[string], demux aggregator.Demultiplexer) {
 	if enhancedMetricsDisabled {
 		return
 	}
@@ -458,7 +459,7 @@ func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMe
 	})
 }
 
-func SendNetworkEnhancedMetrics(networkOffsetData *proc.NetworkData, tags []string, demux aggregator.Demultiplexer) {
+func SendNetworkEnhancedMetrics(networkOffsetData *proc.NetworkData, tags []unique.Handle[string], demux aggregator.Demultiplexer) {
 	if enhancedMetricsDisabled {
 		return
 	}
@@ -486,7 +487,7 @@ type generateNetworkEnhancedMetricArgs struct {
 	RxBytes       float64
 	TxBytesOffset float64
 	TxBytes       float64
-	Tags          []string
+	Tags          []unique.Handle[string]
 	Demux         aggregator.Demultiplexer
 	Time          float64
 }
@@ -526,7 +527,7 @@ func generateNetworkEnhancedMetrics(args generateNetworkEnhancedMetricArgs) {
 type generateTmpEnhancedMetricsArgs struct {
 	TmpMax  float64
 	TmpUsed float64
-	Tags    []string
+	Tags    []unique.Handle[string]
 	Demux   aggregator.Demultiplexer
 	Time    float64
 }
@@ -553,7 +554,7 @@ func generateTmpEnhancedMetrics(args generateTmpEnhancedMetricsArgs) {
 	})
 }
 
-func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
+func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []unique.Handle[string], metricAgent *ServerlessMetricAgent) {
 	if enhancedMetricsDisabled {
 		return
 	}
@@ -596,7 +597,7 @@ func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *S
 type generateFdEnhancedMetricsArgs struct {
 	FdMax float64
 	FdUse float64
-	Tags  []string
+	Tags  []unique.Handle[string]
 	Demux aggregator.Demultiplexer
 	Time  float64
 }
@@ -604,7 +605,7 @@ type generateFdEnhancedMetricsArgs struct {
 type generateThreadEnhancedMetricsArgs struct {
 	ThreadsMax float64
 	ThreadsUse float64
-	Tags       []string
+	Tags       []unique.Handle[string]
 	Demux      aggregator.Demultiplexer
 	Time       float64
 }
@@ -653,7 +654,7 @@ func generateThreadEnhancedMetrics(args generateThreadEnhancedMetricsArgs) {
 	})
 }
 
-func SendProcessEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
+func SendProcessEnhancedMetrics(sendMetrics chan bool, tags []unique.Handle[string], metricAgent *ServerlessMetricAgent) {
 	if enhancedMetricsDisabled {
 		return
 	}
@@ -732,7 +733,7 @@ func SendProcessEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgen
 }
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
-func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer, force bool) {
+func incrementEnhancedMetric(name string, tags []unique.Handle[string], timestamp float64, demux aggregator.Demultiplexer, force bool) {
 	// TODO - pass config here, instead of directly looking up var
 	if !force && enhancedMetricsDisabled {
 		return

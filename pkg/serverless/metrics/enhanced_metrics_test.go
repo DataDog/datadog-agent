@@ -24,11 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	reportLogTime := time.Now()
 	isOOM := ContainsOutOfMemoryLog("JavaScript heap out of memory")
 	if isOOM {
@@ -60,7 +61,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	isOOM := ContainsOutOfMemoryLog("Task timed out after 30.03 seconds")
 	if isOOM {
 		GenerateOutOfMemoryEnhancedMetrics(time.Now(), tags, demux)
@@ -74,7 +75,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	reportLogTime := time.Now()
 	runtimeStartTime := reportLogTime.Add(-20 * time.Millisecond)
 	runtimeEndTime := reportLogTime.Add(-10 * time.Millisecond)
@@ -156,7 +157,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	reportLogTime := time.Now()
 	runtimeStartTime := reportLogTime.Add(-20 * time.Millisecond)
 	runtimeEndTime := reportLogTime.Add(-10 * time.Millisecond)
@@ -230,7 +231,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 
 func TestSendTimeoutEnhancedMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 
 	go SendTimeoutEnhancedMetric(tags, demux)
 
@@ -251,7 +252,7 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 
 func TestSendInvocationEnhancedMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 
 	go SendInvocationEnhancedMetric(tags, demux)
 
@@ -274,7 +275,7 @@ func TestDisableEnhancedMetrics(t *testing.T) {
 	var wg sync.WaitGroup
 	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 
 	wg.Add(1)
 	go func() {
@@ -293,7 +294,7 @@ func TestDisableEnhancedMetrics(t *testing.T) {
 
 func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	mockTime := time.Now()
 	go SendOutOfMemoryEnhancedMetric(tags, mockTime, demux)
 
@@ -313,7 +314,7 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 
 func TestSendErrorsEnhancedMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	mockTime := time.Now()
 	go SendErrorsEnhancedMetric(tags, mockTime, demux)
 
@@ -373,7 +374,7 @@ func TestCalculateEstimatedCost(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	startTime := time.Time{}
 	endTime := time.Now()
 	args := GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
@@ -417,7 +418,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	startTime := time.Now()
 	endTime := time.Time{}
 	args := GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
@@ -461,7 +462,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
 	endTime := time.Date(2020, 01, 01, 01, 01, 01, 653000000, time.UTC) //153 ms later
 	args := GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
@@ -513,7 +514,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 
 func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
 	args := generateCPUEnhancedMetricsArgs{100, 53, 200, tags, demux, now}
 	go generateCPUEnhancedMetrics(args)
@@ -555,7 +556,7 @@ func TestDisableCPUEnhancedMetrics(t *testing.T) {
 	var wg sync.WaitGroup
 	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 
 	wg.Add(1)
 	go func() {
@@ -573,7 +574,7 @@ func TestDisableCPUEnhancedMetrics(t *testing.T) {
 
 func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
 	args := GenerateCPUUtilizationEnhancedMetricArgs{
 		IndividualCPUIdleTimes: map[string]float64{
@@ -647,7 +648,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 
 func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
 	args := generateNetworkEnhancedMetricArgs{
 		RxBytesOffset: 10,
@@ -697,7 +698,7 @@ func TestNetworkEnhancedMetricsDisabled(t *testing.T) {
 	var wg sync.WaitGroup
 	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 
 	wg.Add(1)
 	go func() {
@@ -716,7 +717,7 @@ func TestNetworkEnhancedMetricsDisabled(t *testing.T) {
 
 func TestSendTmpEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
 	args := generateTmpEnhancedMetricsArgs{
 		TmpMax:  550461440,
@@ -757,7 +758,7 @@ func TestSendTmpEnhancedMetricsDisabled(t *testing.T) {
 	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
 	metricAgent := ServerlessMetricAgent{Demux: demux}
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 
 	wg.Add(1)
 	go func() {
@@ -776,7 +777,7 @@ func TestSendTmpEnhancedMetricsDisabled(t *testing.T) {
 
 func TestSendFdEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
 	args := generateFdEnhancedMetricsArgs{
 		FdMax: 1024,
@@ -814,7 +815,7 @@ func TestSendFdEnhancedMetrics(t *testing.T) {
 
 func TestSendThreadEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
 	args := generateThreadEnhancedMetricsArgs{
 		ThreadsMax: 1024,
@@ -855,7 +856,7 @@ func TestSendProcessEnhancedMetricsDisabled(t *testing.T) {
 	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
 	metricAgent := ServerlessMetricAgent{Demux: demux}
-	tags := []string{"functionname:test-function"}
+	tags := utilstrings.ToUnique([]string{"functionname:test-function"})
 
 	wg.Add(1)
 	go func() {
@@ -874,7 +875,7 @@ func TestSendProcessEnhancedMetricsDisabled(t *testing.T) {
 
 func TestSendFailoverReasonMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	tags := []string{"reason:test-reason"}
+	tags := utilstrings.ToUnique([]string{"reason:test-reason"})
 	go SendFailoverReasonMetric(tags, demux)
 	generatedMetrics, _ := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 	assert.Len(t, generatedMetrics, 1)
