@@ -419,7 +419,7 @@ func installConfigExperimentCommand() *cobra.Command {
 				}
 			}
 
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs, []string{})
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs)
 		},
 	}
 	return cmd

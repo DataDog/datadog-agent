@@ -61,9 +61,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(
-		ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string,
-	) error
+	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -501,10 +499,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-// TODO: remove the last parameter (configOrder)
-func (i *installerImpl) InstallConfigExperiment(
-	ctx context.Context, pkg string, version string, rawConfigs [][]byte, _ []string,
-) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
