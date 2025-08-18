@@ -98,6 +98,63 @@ func TestConfigStream(t *testing.T) {
 		require.Equal(t, "my.new.setting", update.Update.Setting.Key)
 		require.Equal(t, "new_value", update.Update.Setting.Value.GetStringValue())
 	})
+	t.Run("receives unset updates", func(t *testing.T) {
+		provides, configComp := buildComponent(t)
+
+		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client"})
+		defer unsubscribe()
+
+		var event *pb.ConfigEvent
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initial snapshot")
+		}
+		require.NotNil(t, event)
+		_, isSnapshot := event.GetEvent().(*pb.ConfigEvent_Snapshot)
+		require.True(t, isSnapshot, "first event must be a snapshot")
+
+		// set a configuration value and layer it
+		configComp.Set("my.new.setting", "original_value", model.SourceAgentRuntime)
+		configComp.Set("my.new.setting", "new_value", model.SourceCLI)
+
+		// verify we receive the update for the first set.
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for config update")
+		}
+		require.NotNil(t, event)
+		update, isUpdate := event.GetEvent().(*pb.ConfigEvent_Update)
+		require.True(t, isUpdate, "second event must be an update")
+		require.Equal(t, "original_value", update.Update.Setting.Value.GetStringValue())
+
+		// verify we receive the update for the second set.
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for config update")
+		}
+		require.NotNil(t, event)
+		update, isUpdate = event.GetEvent().(*pb.ConfigEvent_Update)
+		require.True(t, isUpdate, "third event must be an update")
+		require.Equal(t, "new_value", update.Update.Setting.Value.GetStringValue())
+
+		configComp.UnsetForSource("my.new.setting", model.SourceCLI)
+		// verify we receive the update for the unset.
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for config update")
+		}
+		require.NotNil(t, event)
+		update, isUpdate = event.GetEvent().(*pb.ConfigEvent_Update)
+		require.True(t, isUpdate, "unset event must be an update")
+
+		// verify that the value has been unset and back to the original value.
+		require.Equal(t, "my.new.setting", update.Update.Setting.Key)
+		require.Equal(t, "original_value", update.Update.Setting.Value.GetStringValue())
+	})
 
 	t.Run("resyncs with snapshot on discontinuity", func(t *testing.T) {
 		provides, configComp := buildComponent(t)
