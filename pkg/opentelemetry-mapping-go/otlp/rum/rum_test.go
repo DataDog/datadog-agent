@@ -260,3 +260,57 @@ func TestConstructRumPayloadFromOTLP(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDDForwardIntoResource(t *testing.T) {
+	tests := []struct {
+		name      string
+		ddforward string
+		expected  pcommon.Map
+	}{
+		{
+			name:      "empty ddforward",
+			ddforward: "",
+			expected:  pcommon.NewMap(),
+		},
+		{
+			name:      "successful parse of ddforward",
+			ddforward: "/api/v2/rum?ddsource=browser&ddtags=sdk_version:4.41.0,env:prod,service:test-app,version:2.0.0-beta&dd-evp-origin=browser&dd-request-id=1234-5678-91a-bcde&batch_time=1682595634052&dd-api-key=1234567890",
+			expected: func() pcommon.Map {
+				m := pcommon.NewMap()
+				m.PutStr("batch_time", "1682595634052")
+				m.PutStr("ddsource", "browser")
+
+				ddtags := m.PutEmptyMap("ddtags")
+				ddtags.PutStr("sdk_version", "4.41.0")
+				ddtags.PutStr("env", "prod")
+				ddtags.PutStr("service", "test-app")
+				ddtags.PutStr("version", "2.0.0-beta")
+
+				m.PutStr("dd-evp-origin", "browser")
+				m.PutStr("dd-request-id", "1234-5678-91a-bcde")
+				m.PutStr("dd-api-key", "1234567890")
+				return m
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attributes := pcommon.NewMap()
+			parseDDForwardIntoResource(attributes, tt.ddforward)
+			tt.expected.Range(func(key string, expectedValue pcommon.Value) bool {
+				actualValue, _ := attributes.Get(key)
+				if key == "ddtags" {
+					expectedValue.Map().Range(func(mapKey string, mapValue pcommon.Value) bool {
+						actualDDTagsValue, _ := actualValue.Map().Get(mapKey)
+						assert.Equal(t, mapValue.AsString(), actualDDTagsValue.AsString())
+						return true
+					})
+				} else {
+					assert.Equal(t, expectedValue.AsString(), actualValue.AsString())
+				}
+				return true
+			})
+		})
+	}
+}
