@@ -15,10 +15,12 @@ import (
 )
 
 var (
-	crypt32                 = windows.NewLazySystemDLL("crypt32.dll")
-	procCertEnumCRLsInStore = crypt32.NewProc("CertEnumCRLsInStore")
-	procCertFreeCRLContext  = crypt32.NewProc("CertFreeCRLContext")
-	procCertNameToStr       = crypt32.NewProc("CertNameToStrW")
+	crypt32                               = windows.NewLazySystemDLL("crypt32.dll")
+	procCertEnumCRLsInStore               = crypt32.NewProc("CertEnumCRLsInStore")
+	procCertFreeCRLContext                = crypt32.NewProc("CertFreeCRLContext")
+	procCertGetCRLContextProperty         = crypt32.NewProc("CertGetCRLContextProperty")
+	procCertGetCertificateContextProperty = crypt32.NewProc("CertGetCertificateContextProperty")
+	procCertNameToStr                     = crypt32.NewProc("CertNameToStrW")
 )
 
 // CRLContext contains both the encoded and decoded representations of a certificate revocation list (CRL).
@@ -75,6 +77,39 @@ func CertEnumCRLsInStore(hCertStore windows.Handle, pPrevCrlContext *CRLContext)
 func CertFreeCRLContext(pCrlContext *CRLContext) error {
 	r1, _, err := procCertFreeCRLContext.Call(uintptr(unsafe.Pointer(pCrlContext)))
 	if r1 == 0 {
+		return err
+	}
+	return nil
+}
+
+// CertGetCRLContextProperty gets an extended property for the specified certificate revocation list (CRL) context
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certgetcrlcontextproperty
+func CertGetCRLContextProperty(pCrlContext *CRLContext, dwPropID uint32, pvData *byte, pcbData *uint32) error {
+
+	r0, _, err := procCertGetCRLContextProperty.Call(
+		uintptr(unsafe.Pointer(pCrlContext)),
+		uintptr(dwPropID),
+		uintptr(unsafe.Pointer(pvData)),
+		uintptr(unsafe.Pointer(pcbData)),
+	)
+	if r0 == 0 {
+		return err
+	}
+	return nil
+}
+
+// CertGetCertificateContextProperty retrieves the information contained in an extended property of a certificate context.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certgetcertificatecontextproperty
+func CertGetCertificateContextProperty(pCertContext *windows.CertContext, dwPropID uint32, pvData *byte, pcbData *uint32) error {
+	r0, _, err := procCertGetCertificateContextProperty.Call(
+		uintptr(unsafe.Pointer(pCertContext)),
+		uintptr(dwPropID),
+		uintptr(unsafe.Pointer(pvData)),
+		uintptr(unsafe.Pointer(pcbData)),
+	)
+	if r0 == 0 {
 		return err
 	}
 	return nil

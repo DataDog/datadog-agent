@@ -76,6 +76,7 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'DEB_GPG_KEY': 'Used to sign packages',
         'DEB_GPG_KEY_NAME': 'Used to sign packages',
         'DEB_SIGNING_PASSPHRASE': 'Used to sign packages',
+        'LD_PRELOAD': 'Needed to fake armv7l architecture (via libfakearmv7l.so, see Dockerfile for rpm_armhf buildimage)',
         'RPM_GPG_KEY': 'Used to sign packages',
         'RPM_GPG_KEY_NAME': 'Used to sign packages',
         'RPM_SIGNING_PASSPHRASE': 'Used to sign packages',
@@ -102,6 +103,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'GEM_PATH',
         'HOME',
         'JARSIGN_JAR',
+        'LD_PRELOAD',
         'LOCALAPPDATA',
         'MY_RUBY_HOME',
         'OMNIBUS_GIT_CACHE_DIR',
@@ -161,7 +163,7 @@ def get_dd_api_key(ctx):
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:
-        cmd = f'vault kv get -field=token kv/k8s/{os.environ.get('POD_NAMESPACE', 'gitlab-runner')}/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
+        cmd = f'vault kv get -field=token kv/k8s/{os.environ["POD_NAMESPACE"]}/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     return ctx.run(cmd, hide=True).stdout.strip()
 
 
