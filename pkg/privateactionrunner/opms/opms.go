@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/utils"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -24,6 +25,7 @@ const (
 	taskUpdatePath  = "/api/v2/on-prem-management-service/workflow-tasks/publish-task-update"
 	heartbeat       = "/api/v2/on-prem-management-service/workflow-tasks/heartbeat"
 	healthCheckPath = "/api/v2/on-prem-management-service/runner/health-check"
+	enrollmentPath  = "/api/v2/on-prem-management-service/enrollments/complete"
 )
 
 type PublishTaskUpdateJSONRequestPayload struct {
@@ -65,6 +67,41 @@ type HeartbeatJSONData struct {
 
 type HeartbeatJSONRequest struct {
 	Data *HeartbeatJSONData `json:"data,omitempty"`
+}
+
+// EnrollmentRequest represents the enrollment request payload
+type EnrollmentRequest struct {
+	AccountBinding string `json:"accountBinding"`
+	PublicKey      string `json:"publicKey"`
+}
+
+// EnrollmentResponseData represents the data section of the JSONAPI response
+type EnrollmentResponseData struct {
+	Type       string                    `json:"type"`
+	ID         string                    `json:"id"`
+	Attributes EnrollmentResponseAttribs `json:"attributes"`
+}
+
+// EnrollmentResponseAttribs represents the attributes section of the JSONAPI response
+type EnrollmentResponseAttribs struct {
+	RunnerId         string   `json:"runner_id"`
+	OrgId            int64    `json:"org_id"`
+	RunnerModes      []string `json:"runner_modes"`
+	ActionsAllowlist []string `json:"actions_allowlist"`
+}
+
+// EnrollmentJSONAPIResponse represents the full JSONAPI response
+type EnrollmentJSONAPIResponse struct {
+	Data EnrollmentResponseData `json:"data"`
+}
+
+// EnrollmentResponse represents the simplified enrollment response
+type EnrollmentResponse struct {
+	ID               string
+	RunnerId         string
+	OrgId            int64
+	Modes            []string
+	ActionsAllowlist []string
 }
 
 // Client is the OPMS client interface
@@ -354,4 +391,73 @@ func (c *client) makeRequest(
 	}
 
 	return resBody, nil
+}
+
+// EnrollmentClient provides enrollment functionality without requiring a full config
+type EnrollmentClient struct {
+	httpClient *http.Client
+	host       string
+}
+
+// NewEnrollmentClient creates a new enrollment client
+func NewEnrollmentClient(host string) *EnrollmentClient {
+	return &EnrollmentClient{
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		host: host,
+	}
+}
+
+// SendEnrollmentJWT sends a JWT string as enrollment request body (following reference implementation)
+func (c *EnrollmentClient) SendEnrollmentJWT(ctx context.Context, jwtBody string) (*EnrollmentResponse, error) {
+	u := &url.URL{
+		Scheme: "https",
+		Host:   c.host,
+		Path:   enrollmentPath,
+	}
+
+	// Create HTTP request with JWT string as body
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), strings.NewReader(jwtBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/jose+json")
+	httpReq.Header.Set(utils.VersionHeaderName, version.AgentVersion)
+
+	// Send request
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send enrollment request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("enrollment request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse JSONAPI response
+	var jsonapiResp EnrollmentJSONAPIResponse
+	if err := json.Unmarshal(body, &jsonapiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode JSONAPI enrollment response: %w", err)
+	}
+
+	// Convert to simplified response structure
+	enrollmentResp := &EnrollmentResponse{
+		ID:               jsonapiResp.Data.ID,
+		RunnerId:         jsonapiResp.Data.Attributes.RunnerId,
+		OrgId:            jsonapiResp.Data.Attributes.OrgId,
+		Modes:            jsonapiResp.Data.Attributes.RunnerModes,
+		ActionsAllowlist: jsonapiResp.Data.Attributes.ActionsAllowlist,
+	}
+
+	return enrollmentResp, nil
 }

@@ -9,6 +9,7 @@ package privateactionrunnerimpl
 import (
 	"context"
 	"crypto/ecdsa"
+	"fmt"
 	"strings"
 	"time"
 
@@ -103,9 +104,13 @@ func getParConfig(component config.Component) (*parconfig.Config, error) {
 	encodedPrivateKey := component.GetString("privateactionrunner.private_key")
 	urn := component.GetString("privateactionrunner.urn")
 
+	if encodedPrivateKey == "" {
+		return nil, fmt.Errorf("private action runner not configured: either run enrollment or provide privateactionrunner.private_key")
+	}
+
 	privateKey, err := utils.Base64ToJWK(encodedPrivateKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode privateactionrunner.private_key: %w", err)
 	}
 
 	return &parconfig.Config{
