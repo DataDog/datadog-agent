@@ -182,6 +182,13 @@ type server struct {
 	listernersTelemetry     *listeners.TelemetryStore
 	packetsTelemetry        *packets.TelemetryStore
 	stringInternerTelemetry *stringInternerTelemetry
+	// Counters for absolute metric types
+	tlmMetricTypeGauge        telemetry.SimpleCounter
+	tlmMetricTypeCounter      telemetry.SimpleCounter
+	tlmMetricTypeDistribution telemetry.SimpleCounter
+	tlmMetricTypeHistogram    telemetry.SimpleCounter
+	tlmMetricTypeSet          telemetry.SimpleCounter
+	tlmMetricTypeTiming       telemetry.SimpleCounter
 }
 
 func initTelemetry() {
@@ -338,6 +345,27 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	)
 	s.tlmFilterListSize = telemetrycomp.NewSimpleGauge("dogstatsd", "filterlist_size",
 		"Filter list size",
+	)
+
+	// Initialize the metric type counters. These metrics are not
+	// per-context but absolute.
+	s.tlmMetricTypeGauge = telemetrycomp.NewSimpleCounter("dogstatsd", "metric_type_gauge_count",
+		"Count of gauge metrics processed by dogstatsd",
+	)
+	s.tlmMetricTypeCounter = telemetrycomp.NewSimpleCounter("dogstatsd", "metric_type_counter_count",
+		"Count of counter metrics processed by dogstatsd",
+	)
+	s.tlmMetricTypeDistribution = telemetrycomp.NewSimpleCounter("dogstatsd", "metric_type_distribution_count",
+		"Count of distribution metrics processed by dogstatsd",
+	)
+	s.tlmMetricTypeHistogram = telemetrycomp.NewSimpleCounter("dogstatsd", "metric_type_histogram_count",
+		"Count of histogram metrics processed by dogstatsd",
+	)
+	s.tlmMetricTypeSet = telemetrycomp.NewSimpleCounter("dogstatsd", "metric_type_set_count",
+		"Count of set metrics processed by dogstatsd",
+	)
+	s.tlmMetricTypeTiming = telemetrycomp.NewSimpleCounter("dogstatsd", "metric_type_timing_count",
+		"Count of timing metrics processed by dogstatsd",
 	)
 
 	s.listernersTelemetry = listeners.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_latency_buckets"), telemetrycomp)
@@ -848,6 +876,21 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		dogstatsdMetricParseErrors.Add(1)
 		errorCnt.Inc()
 		return metricSamples, err
+	}
+
+	switch sample.metricType {
+	case gaugeType:
+		s.tlmMetricTypeGauge.Inc()
+	case countType:
+		s.tlmMetricTypeCounter.Inc()
+	case distributionType:
+		s.tlmMetricTypeDistribution.Inc()
+	case histogramType:
+		s.tlmMetricTypeHistogram.Inc()
+	case setType:
+		s.tlmMetricTypeSet.Inc()
+	case timingType:
+		s.tlmMetricTypeTiming.Inc()
 	}
 
 	if s.mapper != nil {
