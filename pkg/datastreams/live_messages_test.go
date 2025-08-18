@@ -8,7 +8,6 @@ package datastreams
 import (
 	"context"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"testing"
 	"time"
 
@@ -19,15 +18,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-type mockedRcClient struct{}
+type mockedRcClient struct {
+	updateFunc func(map[string]state.RawConfig, func(string, state.ApplyStatus))
+}
 
 func (m *mockedRcClient) SubscribeAgentTask() {}
 
-func (m *mockedRcClient) Subscribe(_ data.Product, _ func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+func (m *mockedRcClient) Subscribe(product data.Product, updateFunc func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+	if product == data.ProductDataStreamsLiveMessages {
+		m.updateFunc = updateFunc
+	}
 }
 
 type mockedAutodiscovery struct {
@@ -60,6 +65,7 @@ func (m *mockedAutodiscovery) Stop()  {}
 func (m *mockedAutodiscovery) GetConfigCheck() integration.ConfigCheckResponse {
 	return integration.ConfigCheckResponse{}
 }
+func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config { return nil }
 
 const initialConfig = `
 kafka_connect_str: localhost:9092
@@ -99,8 +105,7 @@ topics:
 - my-topic
 `
 
-// return a Kafka consumer integration config
-func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config {
+func (m *mockedAutodiscovery) GetUnresolvedConfigs() []integration.Config {
 	return []integration.Config{{
 		Name:       kafkaConsumerIntegrationName,
 		Instances:  []integration.Data{integration.Data(initialConfig)},
@@ -109,11 +114,14 @@ func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config {
 }
 
 func TestController(t *testing.T) {
-	c := &controller{
-		ac:            &mockedAutodiscovery{},
-		rcclient:      &mockedRcClient{},
-		configChanges: make(chan integration.ConfigChanges, 10),
+	rcClient := &mockedRcClient{}
+	c := NewController(&mockedAutodiscovery{}, rcClient)
+	originalCfg := integration.Config{
+		Name:       kafkaConsumerIntegrationName,
+		Instances:  []integration.Data{integration.Data(initialConfig)},
+		InitConfig: integration.Data{},
 	}
+	c.Schedule([]integration.Config{originalCfg})
 	config := liveMessagesConfig{
 		ID: "config_2_id",
 		Kafka: kafkaConfig{
@@ -138,26 +146,30 @@ func TestController(t *testing.T) {
 	callback := func(path string, status state.ApplyStatus) {
 		updateStatus[path] = status
 	}
-	c.update(rcUpdate, callback)
+	assert.NotNil(t, rcClient.updateFunc)
+	rcClient.updateFunc(rcUpdate, callback)
 	assert.Equal(t, map[string]state.ApplyStatus{
 		"config_1": {State: state.ApplyStateError, Error: "invalid character 'i' looking for beginning of value"},
 		"config_2": {State: state.ApplyStateAcknowledged},
 	}, updateStatus)
 	updates := c.Stream(context.Background())
 	cfg := <-updates
-	assert.Len(t, cfg.Schedule, 1)
-	assert.Len(t, cfg.Unschedule, 1)
-	expectedUnscheduled := integration.Config{
-		Name:       kafkaConsumerIntegrationName,
-		Instances:  []integration.Data{integration.Data(initialConfig)},
-		InitConfig: integration.Data{},
-	}
-	expectedScheduled := integration.Config{
+	updatedConfig := integration.Config{
 		Name:       kafkaConsumerIntegrationName,
 		Instances:  []integration.Data{integration.Data(modifiedConfig)},
 		InitConfig: integration.Data{},
 		LogsConfig: integration.Data(logsConfig),
 	}
-	assert.Equal(t, expectedUnscheduled, cfg.Unschedule[0])
-	assert.Equal(t, expectedScheduled, cfg.Schedule[0])
+	assert.Len(t, cfg.Schedule, 1)
+	assert.Len(t, cfg.Unschedule, 1)
+	assert.Equal(t, originalCfg, cfg.Unschedule[0])
+	assert.Equal(t, updatedConfig, cfg.Schedule[0])
+
+	// When the original provider (k8s for example) unschedules the original config,
+	// the controller should unschedule the updated config.
+	c.Unschedule([]integration.Config{originalCfg})
+	cfg = <-updates
+	assert.Len(t, cfg.Schedule, 0)
+	assert.Len(t, cfg.Unschedule, 1)
+	assert.Equal(t, updatedConfig, cfg.Unschedule[0])
 }

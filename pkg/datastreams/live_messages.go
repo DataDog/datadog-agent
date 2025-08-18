@@ -10,12 +10,13 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
-	"time"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -52,11 +53,16 @@ type liveMessagesConfig struct {
 // controller listens to remote configuration updates for the Data Streams live messages feature
 // and configures the kafka_consumer integration to fetch messages from Kafka.
 type controller struct {
-	ac            autodiscovery.Component
-	rcclient      rcclient.Component
-	configChanges chan integration.ConfigChanges
-	closeMutex    sync.RWMutex
-	closed        bool
+	ac             autodiscovery.Component
+	rcclient       rcclient.Component
+	configChanges  chan integration.ConfigChanges
+	closeMutex     sync.RWMutex
+	subscribedToRC atomic.Bool
+	closed         bool
+
+	configsLock              sync.Mutex
+	originalToModifiedDigest map[string]string
+	kafkaConfigs             map[string]integration.Config
 }
 
 // String returns the name of the provider.  All Config instances produced
@@ -72,44 +78,90 @@ func (c *controller) GetConfigErrors() map[string]types.ErrorMsgSet {
 	return map[string]types.ErrorMsgSet{}
 }
 
-// manageSubscriptionToRC subscribes to remote configuration updates if the agent is running the kafka_consumer integration.
-func (c *controller) manageSubscriptionToRC() {
-	ticker := time.NewTicker(time.Second * 10)
-	defer ticker.Stop()
-	for range ticker.C {
-		c.closeMutex.RLock()
-		if c.closed {
-			c.closeMutex.RUnlock()
-			return
-		}
-		c.closeMutex.RUnlock()
-		if isConnectedToKafka(c.ac) {
-			c.rcclient.Subscribe(data.ProductDataStreamsLiveMessages, c.update)
-			return
-		}
-	}
-}
-
-func isConnectedToKafka(ac autodiscovery.Component) bool {
-	for _, config := range ac.GetAllConfigs() {
-		if config.Name == kafkaConsumerIntegrationName {
-			return true
-		}
-	}
-	return false
+// Controller is the Data Streams Kafka consumer integration controller.
+// It listens to remote configuration & integration configuration updates, to provide modified integration configurations of the Kafka consumer integration.
+type Controller interface {
+	types.ConfigProvider
+	types.StreamingConfigProvider
+	scheduler.Scheduler
 }
 
 // NewController creates a new controller instance
-func NewController(ac autodiscovery.Component, rcclient rcclient.Component) types.ConfigProvider {
-	c := &controller{
-		ac:            ac,
-		rcclient:      rcclient,
-		configChanges: make(chan integration.ConfigChanges, 10),
+func NewController(ac autodiscovery.Component, rcclient rcclient.Component) Controller {
+	return &controller{
+		ac:                       ac,
+		rcclient:                 rcclient,
+		configChanges:            make(chan integration.ConfigChanges, 10),
+		kafkaConfigs:             make(map[string]integration.Config),
+		originalToModifiedDigest: make(map[string]string),
 	}
-	// Send an empty config change to ensure that config_poller starts correctly
-	c.configChanges <- integration.ConfigChanges{}
-	go c.manageSubscriptionToRC()
-	return c
+}
+
+// Schedule saves kafka_consumer integration configs
+func (c *controller) Schedule(configs []integration.Config) {
+	for _, cfg := range configs {
+		if cfg.Name != kafkaConsumerIntegrationName {
+			continue
+		}
+		if c.subscribedToRC.CompareAndSwap(false, true) {
+			log.Info("Subscribing to remote config updates for Data Streams messages")
+			c.rcclient.Subscribe(data.ProductDataStreamsLiveMessages, c.update)
+		}
+		if cfg.Provider == names.DataStreamsLiveMessages {
+			// the controller is also a provider, so don't react to updates from itself
+			continue
+		}
+		func() {
+			c.configsLock.Lock()
+			defer c.configsLock.Unlock()
+			digest := cfg.Digest()
+			c.kafkaConfigs[digest] = cfg
+			c.originalToModifiedDigest[digest] = digest
+		}()
+	}
+}
+
+// Unschedule reacts to unscheduling of kafka_consumer integration configs, and when an unmodified config is unscheduled,
+// it removes the unschedules the modified config instead
+func (c *controller) Unschedule(configs []integration.Config) {
+	for _, cfg := range configs {
+		if cfg.Name != kafkaConsumerIntegrationName {
+			continue
+		}
+		if cfg.Provider == names.DataStreamsLiveMessages {
+			// avoid loop, only react to updates from other providers
+			continue
+		}
+		log.Info("Unscheduling Kafka consumer config! Writing it down!", cfg.String())
+		func() {
+			c.configsLock.Lock()
+			defer c.configsLock.Unlock()
+			originalDigest := cfg.Digest()
+			modifiedDigest, okMapping := c.originalToModifiedDigest[originalDigest]
+			modifiedConfig, okCfg := c.kafkaConfigs[modifiedDigest]
+			if !okMapping || !okCfg {
+				log.Warn("Live messages controller failed to keep track of kafka_consumer integration")
+				return
+			}
+			defer delete(c.originalToModifiedDigest, originalDigest)
+			defer delete(c.kafkaConfigs, modifiedDigest)
+			if modifiedDigest != originalDigest {
+				// Default unscheduling won't work, because the config was modified. Unscheduling the modified config instead.
+				c.closeMutex.RLock()
+				defer c.closeMutex.RUnlock()
+				if c.closed {
+					return
+				}
+				c.configChanges <- integration.ConfigChanges{
+					Unschedule: []integration.Config{modifiedConfig},
+				}
+			}
+		}()
+	}
+}
+
+func (c *controller) Stop() {
+
 }
 
 // Stream starts sending configuration updates for the kafka_consumer integration to the output channel.
@@ -127,18 +179,23 @@ func (c *controller) Stream(ctx context.Context) <-chan integration.ConfigChange
 	return c.configChanges
 }
 
-// update parses updates from remote configuration, and configures the kafka_consumer integration to fetch messages from Kafka
-func (c *controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	remoteConfigs := parseRemoteConfig(updates, applyStateCallback)
+func (c *controller) sendConfig(remoteConfigs []liveMessagesConfig) {
 	if len(remoteConfigs) == 0 {
 		return
 	}
 	configChange := integration.ConfigChanges{}
-	cfgs := c.ac.GetAllConfigs()
-	for _, integrationConfig := range cfgs {
+	// mapping current --> original
+	c.configsLock.Lock()
+	defer c.configsLock.Unlock()
+	currentToOriginal := make(map[string]string, len(c.originalToModifiedDigest))
+	for originalDigest, currentDigest := range c.originalToModifiedDigest {
+		currentToOriginal[currentDigest] = originalDigest
+	}
+	for _, integrationConfig := range c.ac.GetUnresolvedConfigs() {
 		if integrationConfig.Name != kafkaConsumerIntegrationName {
 			continue
 		}
+		currentDigest := integrationConfig.Digest()
 		configChange.Unschedule = append(configChange.Unschedule, integrationConfig)
 		updatedConfig := integrationConfig
 		updatedConfig.Instances = make([]integration.Data, 0, len(updatedConfig.Instances))
@@ -154,6 +211,15 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 			}
 			updatedConfig.Instances = append(updatedConfig.Instances, updatedInstance)
 		}
+		modifiedDigest := updatedConfig.Digest()
+		delete(c.kafkaConfigs, currentDigest)
+		c.kafkaConfigs[modifiedDigest] = updatedConfig
+		originalDigest, hasOriginal := currentToOriginal[currentDigest]
+		if hasOriginal {
+			c.originalToModifiedDigest[originalDigest] = modifiedDigest
+		} else {
+			log.Warn("Live messages update: Integration config not found in mapping, might lead to duplicate kafka_consumer integrations", "digest", currentDigest)
+		}
 		configChange.Schedule = append(configChange.Schedule, updatedConfig)
 	}
 	if len(configChange.Schedule) == 0 && len(configChange.Unschedule) == 0 {
@@ -165,6 +231,12 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		return
 	}
 	c.configChanges <- configChange
+}
+
+// update parses updates from remote configuration, and configures the kafka_consumer integration to fetch messages from Kafka
+func (c *controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	remoteConfigs := parseRemoteConfig(updates, applyStateCallback)
+	c.sendConfig(remoteConfigs)
 }
 
 func parseRemoteConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) (configs []liveMessagesConfig) {

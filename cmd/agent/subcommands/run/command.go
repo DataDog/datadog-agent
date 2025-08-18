@@ -617,6 +617,7 @@ func startAgent(
 		rcclient.SubscribeAgentTask()
 		controller := datastreams.NewController(ac, rcclient)
 		ac.AddConfigProvider(controller, false, 0)
+		ac.AddScheduler("datastreams", controller, true)
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
