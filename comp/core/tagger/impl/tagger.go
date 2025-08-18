@@ -219,7 +219,7 @@ func (t *localTagger) Tag(entityID types.EntityID, cardinality types.TagCardinal
 	if err != nil {
 		return nil, err
 	}
-	return tags.Copy(), nil
+	return tags.Get(), nil
 }
 
 // GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.

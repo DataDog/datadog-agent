@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func fulfillDeps(t testing.TB, overrides map[string]interface{}) serverdebug.Component {
@@ -46,7 +47,7 @@ func TestDebugStatsSpike(t *testing.T) {
 	d.clock = clk
 
 	d.SetMetricStatsEnabled(true)
-	sample := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
+	sample := metrics.MetricSample{Name: "some.metric1", Tags: nil}
 
 	send := func(count int) {
 		for i := 0; i < count; i++ {
@@ -107,11 +108,11 @@ func TestDebugStats(t *testing.T) {
 	keygen := ckey.NewKeyGenerator()
 
 	// data
-	sample1 := metrics.MetricSample{Name: "some.metric1", Tags: make([]string, 0)}
-	sample2 := metrics.MetricSample{Name: "some.metric2", Tags: []string{"a"}}
-	sample3 := metrics.MetricSample{Name: "some.metric3", Tags: make([]string, 0)}
-	sample4 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"b", "c"}}
-	sample5 := metrics.MetricSample{Name: "some.metric4", Tags: []string{"c", "b"}}
+	sample1 := metrics.MetricSample{Name: "some.metric1", Tags: nil}
+	sample2 := metrics.MetricSample{Name: "some.metric2", Tags: utilstrings.ToUnique([]string{"a"})}
+	sample3 := metrics.MetricSample{Name: "some.metric3", Tags: nil}
+	sample4 := metrics.MetricSample{Name: "some.metric4", Tags: utilstrings.ToUnique([]string{"b", "c"})}
+	sample5 := metrics.MetricSample{Name: "some.metric4", Tags: utilstrings.ToUnique([]string{"c", "b"})}
 	hash1 := keygen.Generate(sample1.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample1.Tags))
 	hash2 := keygen.Generate(sample2.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample2.Tags))
 	hash3 := keygen.Generate(sample3.Name, "", tagset.NewHashingTagsAccumulatorWithTags(sample3.Tags))

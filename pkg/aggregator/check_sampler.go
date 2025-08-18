@@ -59,7 +59,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	}
 
 	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1, pkgconfigsetup.Datadog()); err != nil {
-		log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+		log.Debugf("Ignoring sample '%s' on host '%s' and tags '%v': %s", metricSample.Name, metricSample.Host, fmtWrapper(metricSample.Tags), err)
 	}
 }
 

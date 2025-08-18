@@ -158,7 +158,7 @@ func (c *unbundledTransformer) buildEventTags(ev *v1.Event, involvedObject v1.Ob
 }
 
 // getTagsFromTagger add to the TagsAccumulator global tags from the tagger
-func (c *unbundledTransformer) getTagsFromTagger(tagsAcc tagset.TagsAccumulator) {
+func (c *unbundledTransformer) getTagsFromTagger(tagsAcc *tagset.HashlessTagsAccumulator) {
 	if c.taggerInstance == nil {
 		return
 	}
