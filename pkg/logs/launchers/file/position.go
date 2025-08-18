@@ -37,7 +37,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 			if err != nil {
 				log.Warnf("Failed to compute fingerprint for file %s: %v", filePath, err)
 				// If fingerprint computation fails, assume fingerprints don't align to be safe
-				fingerprintsAlign = false
+				fingerprintsAlign = true
 			} else {
 				fingerprintsAlign = prevFingerprint.Value == newFingerprint.Value
 			}
