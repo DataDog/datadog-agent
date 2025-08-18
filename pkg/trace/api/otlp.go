@@ -132,6 +132,11 @@ func (o *OTLPReceiver) Stop() {
 		go o.grpcsrv.Stop()
 	}
 	o.wg.Wait()
+
+	// Close out channel when HTTPReceiver is disabled and OTLPReceiver is the only receiver
+	if !o.conf.ReceiverEnabled {
+		close(o.out)
+	}
 }
 
 // Export implements ptraceotlp.Server
