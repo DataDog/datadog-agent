@@ -543,18 +543,18 @@ func TestLoggerScrubbingCount(t *testing.T) {
 		// loggerPointer methods
 		{
 			"loggerPointer methods basic",
-			[]any{logger.trace, logger.debug, logger.info, logger.warn, logger.error, logger.critical},
-			[]any{"a b"},
+			[]any{trace, debug, info, warn, logError, critical},
+			[]any{l, "a b"},
 		},
 		{
 			"loggerPointer methods with format",
-			[]any{logger.tracef, logger.debugf, logger.infof, logger.warnf, logger.errorf, logger.criticalf},
-			[]any{"a %s c", "b"},
+			[]any{tracef, debugf, infof, warnf, errorf, criticalf},
+			[]any{l, "a %s c", "b"},
 		},
 		{
 			"loggerPointer methods with stack depth",
-			[]any{logger.traceStackDepth, logger.debugStackDepth, logger.infoStackDepth, logger.warnStackDepth, logger.errorStackDepth, logger.criticalStackDepth},
-			[]any{"a b", 1},
+			[]any{traceStackDepth, debugStackDepth, infoStackDepth, warnStackDepth, errorStackDepth, criticalStackDepth},
+			[]any{l, "a b", 1},
 		},
 	}
 
@@ -814,17 +814,6 @@ func TestValidateLogLevelUnknownLevel(t *testing.T) {
 	assert.Equal(t, "unknown log level: "+strings.ToLower("unknownLogLevel"), err.Error())
 }
 
-func TestTraceNilLogger(t *testing.T) {
-	// reset buffer state
-	logsBuffer = []func(){}
-	logger.Store(nil)
-
-	logger.trace("message")
-
-	// should not write to the logs buffer
-	assert.Equal(t, 0, len(logsBuffer))
-}
-
 func TestJMXLoggerSetup(t *testing.T) {
 	SetupJMXLogger(Default(), DebugStr)
 	assert.NotNil(t, jmxLogger.Load())
@@ -847,4 +836,25 @@ func TestJMXLog(t *testing.T) {
 		"[ERROR] TestJMXLog: jmx error message",
 		"[INFO] TestJMXLog: jmx info message",
 	})
+}
+
+func TestJMXLogNilLogger(t *testing.T) {
+	// reset buffer state
+	logsBuffer = []func(){}
+	logger.Store(nil)
+	jmxLogger.Store(nil)
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.NoError(t, err)
+
+	SetupLogger(l, "debug")
+	assert.NotNil(t, logger.Load())
+
+	JMXError("jmx error message")
+	JMXInfo("jmx info message")
+
+	w.Flush()
 }
