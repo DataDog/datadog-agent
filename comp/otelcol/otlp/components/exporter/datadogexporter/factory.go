@@ -242,6 +242,7 @@ func (f *factory) createMetricsExporter(
 		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: cfg.Timeout,
 		},
+		HostMetadata:     cfg.HostMetadata,
 		QueueBatchConfig: cfg.QueueSettings,
 		ShutdownFunc: func(context.Context) error {
 			cancel()  // first cancel context
