@@ -610,7 +610,6 @@ namespace WixSetup.Datadog_Agent
                 },
                 agentBinDir,
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree),
-                new WixSharp.File(_agentBinaries.SecretGenericConnector),
                 new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",
                     new ServiceInstaller
                     {
@@ -635,6 +634,11 @@ namespace WixSetup.Datadog_Agent
                 ),
                 scriptsBinDir
             );
+            // TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
+            if (_agentFlavor.FlavorName != Constants.FipsFlavor)
+            {
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.SecretGenericConnector));
+            }
 
             return targetBinFolder;
         }
