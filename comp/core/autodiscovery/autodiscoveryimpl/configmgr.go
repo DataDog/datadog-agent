@@ -244,12 +244,26 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 	defer cm.m.Unlock()
 
 	var allChanges integration.ConfigChanges
+	log.Info("deleting configs")
 	for _, config := range configs {
+		log.Info("processing config deletion", "config_name", config.Name, "digest", config.Digest())
 		digest := config.Digest()
 		if _, found := cm.activeConfigs[digest]; !found {
-			log.Debug("Config %v is not tracked by autodiscovery", config.Name)
+			log.Infof("Config %v is not tracked by autodiscovery", config.Name)
+			log.Info("config is", config.String(), config.Digest())
+			for _, cfg := range cm.activeConfigs {
+				if cfg.Name == "kafka_consumer" {
+					log.Info("active config is", cfg.String(), cfg.Digest())
+				}
+			}
+			for _, cfg := range cm.scheduledConfigs {
+				if cfg.Name == "kafka_consumer" {
+					log.Info("scheduled config is", cfg.String(), cfg.Digest())
+				}
+			}
 			continue
 		}
+		log.Info("deleting for real")
 
 		// Execute the steps outlined in the comment on reconcilingConfigManager:
 		//
@@ -258,6 +272,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 
 		var changes integration.ConfigChanges
 		if config.IsTemplate() {
+			log.Info("is template")
 			//  2. update templatesByADID or servicesByADID to match
 			matchingServices := map[string]struct{}{}
 			for _, adID := range config.ADIdentifiers {

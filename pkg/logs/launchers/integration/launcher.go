@@ -8,7 +8,6 @@ package integration
 
 import (
 	"errors"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"math"
 	"os"
 	"path/filepath"
@@ -62,6 +61,7 @@ type fileInfo struct {
 // NewLauncher creates and returns an integrations launcher, and creates the
 // path for integrations files to run in
 func NewLauncher(fs afero.Fs, sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
+	ddLog.Info("Creating integrations launcher")
 	datadogConfig := pkgconfigsetup.Datadog()
 	runPath := filepath.Join(datadogConfig.GetString("logs_config.run_path"), "integrations")
 	err := fs.MkdirAll(runPath, 0755)
@@ -123,10 +123,11 @@ func (s *Launcher) Stop() {
 
 // run checks if there are new files to tail and tails them
 func (s *Launcher) run() {
+	ddLog.Info("Starting integrations launcher run loop")
 	for {
 		select {
 		case cfg := <-s.addedConfigs:
-			log.Info("Received integration config for integration ID:", cfg.IntegrationID)
+			ddLog.Info("Received integration config for integration ID:", cfg.IntegrationID)
 			if s.combinedUsageMax == 0 {
 				continue
 			}
@@ -146,32 +147,32 @@ func (s *Launcher) run() {
 
 // receiveSources handles receiving incoming sources
 func (s *Launcher) receiveSources(cfg integrations.IntegrationConfig) {
-	log.Info("Creating file for integration ID:", cfg.IntegrationID)
+	ddLog.Info("Creating file for integration ID:", cfg.IntegrationID, cfg.Config.String())
 	sources, err := ad.CreateSources(cfg.Config)
-	log.Info("Received sources for integration ID:", cfg.IntegrationID, "err", err)
+	ddLog.Info("Received sources for integration ID:", cfg.IntegrationID, "err", err)
 	if err != nil {
 		ddLog.Errorf("Failed to create source for %q: %v", cfg.Config.Name, err)
 		return
 	}
 
 	for _, source := range sources {
-		log.Info("Received source for integration ID:", cfg.IntegrationID, "source name:", source.Name)
+		ddLog.Info("Received source for integration ID:", cfg.IntegrationID, "source name:", source.Name)
 		// TODO: integrations should only be allowed to have one IntegrationType config.
 		if source.Config.Type == config.IntegrationType {
-			log.Info("Creating file for integration ID:", cfg.IntegrationID, "source name:", source.Name)
+			ddLog.Info("Creating file for integration ID:", cfg.IntegrationID, "source name2:", source.Name)
 			// This check avoids duplicating files that have already been created
 			// by scanInitialFiles
 			logFile, exists := s.integrationToFile[cfg.IntegrationID]
 
-			log.Info("Checking if file exists for integration ID:", cfg.IntegrationID, "exists:", exists)
+			ddLog.Info("Checking if file exists for integration ID:", cfg.IntegrationID, "exists:", exists)
 
 			if !exists {
 				logFile, err = s.createFile(cfg.IntegrationID)
-				log.Info("Created file for integration ID:", cfg.IntegrationID, "err:", err)
+				ddLog.Info("Created file for integration ID:", cfg.IntegrationID, "err:", err)
 				if logFile != nil {
-					log.Info("Created file for integration ID:", cfg.IntegrationID, "file path:", logFile.fileWithPath)
+					ddLog.Info("Created file for integration ID:", cfg.IntegrationID, "file path:", logFile.fileWithPath)
 				} else {
-					log.Info("Failed to create file for integration ID:", cfg.IntegrationID, "err:", err)
+					ddLog.Info("Failed to create file for integration ID:", cfg.IntegrationID, "err:", err)
 				}
 				if err != nil {
 					ddLog.Errorf("Failed to create integration log file for %q: %v", source.Config.IntegrationName, err)
@@ -371,6 +372,7 @@ func (s *Launcher) integrationLogFilePath(id string) string {
 // off the integrations_logs_disk_ratio and integrations_logs_total_usage
 // settings
 func computeMaxDiskUsage(runPath string, logsTotalUsageSetting int64, usageRatio float64) (int64, error) {
+	ddLog.Info("computing disk usage for path ", runPath)
 	usage, err := filesystem.NewDisk().GetUsage(runPath)
 	if err != nil {
 		return 0, err

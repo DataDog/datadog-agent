@@ -62,11 +62,13 @@ func (s *Scheduler) Stop() {
 // An entity represents a unique identifier for a process that be reused to query logs.
 func (s *Scheduler) Schedule(configs []integration.Config) {
 	for _, config := range configs {
+		log.Info("logs scheduler received config", config.String())
 		if !config.IsLogConfig() {
+			log.Info("it is not a log config")
 			continue
 		}
 		if config.HasFilter(workloadfilter.LogsFilter) {
-			log.Debugf("Config %s is filtered out for logs collection, ignoring it", configName(config))
+			log.Infof("Config %s is filtered out for logs collection, ignoring it", configName(config))
 			continue
 		}
 		switch {
@@ -198,6 +200,7 @@ func configName(config integration.Config) string {
 // createsSources creates new sources from an integration config,
 // returns an error if the parsing failed.
 func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
+	log.Info("service id is ", config.ServiceID, "provider is ", config.Provider, " type is ")
 	var configs []*logsConfig.LogsConfig
 	var err error
 
@@ -259,9 +262,10 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 
 		if service != nil {
 			log.Info("service not nil", service.GetEntityID())
+			log.Info("config type", cfg.Type, "provider", config.Provider)
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog) {
+			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType || cfg.Type == logsConfig.IntegrationType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType || config.Provider == names.ProcessLog || config.Provider == names.DataStreamsLiveMessages) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
@@ -269,6 +273,8 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 				cfg.Type = service.Type
 				cfg.Identifier = service.Identifier // used for matching a source with a service
 			}
+		} else {
+			log.Info("service is nil, using config name", configName)
 		}
 
 		source := sourcesPkg.NewLogSource(configName, cfg)

@@ -179,7 +179,7 @@ func newLogsAgent(deps dependencies) provides {
 }
 
 func (a *logAgent) start(context.Context) error {
-	a.log.Info("Starting logs-agent...")
+	a.log.Info("Starting logs-agent....")
 
 	// setup the server config
 	endpoints, err := buildEndpoints(a.config)

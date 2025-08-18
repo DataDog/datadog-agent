@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"time"
 
 	"github.com/spf13/afero"
@@ -33,6 +34,7 @@ import (
 
 // NewAgent returns a new Logs Agent
 func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component) {
+	log.Info("Starting logs agent")
 	destinationsCtx := client.NewDestinationsContext()
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
@@ -71,6 +73,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
 	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
+	log.Info("Starting integration launcher")
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))

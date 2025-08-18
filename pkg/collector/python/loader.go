@@ -249,6 +249,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	if v, ok := cl.logReceiver.Get(); ok {
+		log.Info("Registering Python check integration with logs receiver", config.Name, string(config.LogsConfig))
 		v.RegisterIntegration(string(c.id), config)
 	}
 

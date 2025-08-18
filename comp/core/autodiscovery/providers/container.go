@@ -98,8 +98,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 	changes := integration.ConfigChanges{}
 	// 	d := integration.Data(`kafka_connect_str: localhost:9092
 	// consumer_groups:
-	//   my-consumer-group: {}
-	// `)
+	//   my-consumer-group: {}`)
 	// 	changes.ScheduleConfig(integration.Config{
 	// 		Name:       "kafka_consumer",
 	// 		Instances:  []integration.Data{d},
