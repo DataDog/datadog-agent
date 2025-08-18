@@ -349,7 +349,6 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 	// existingResolutions in-place
 	for templateDigest, resolvedDigest := range existingResolutions {
 		if _, found = expectedResolutions[templateDigest]; !found {
-			log.Info("unscheduling")
 			changes.UnscheduleConfig(cm.scheduledConfigs[resolvedDigest])
 			delete(existingResolutions, templateDigest)
 		}
