@@ -404,12 +404,12 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 
 	// Set defaults before unmarshalling
 	instanceConfig.CollectHardwareMetrics = boolPointer(true)
-	instanceConfig.CollectDirectorInterfaceMetrics = boolPointer(true)
-	instanceConfig.CollectTunnelMetrics = boolPointer(true)
 	instanceConfig.SendDeviceMetadata = boolPointer(true)
 	instanceConfig.SendInterfaceMetadata = boolPointer(false)
+	instanceConfig.CollectDirectorInterfaceMetrics = boolPointer(false)
 
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
+	instanceConfig.CollectTunnelMetrics = boolPointer(false)
 	instanceConfig.CollectLinkMetrics = boolPointer(false)
 	instanceConfig.CollectApplicationsByApplianceMetrics = boolPointer(false)
 	instanceConfig.CollectTopUserMetrics = boolPointer(false)
