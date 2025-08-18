@@ -85,7 +85,7 @@ func (a actuatorConstructor[A, T]) apply(c *Config) {
 // WithActuatorConstructor is an option that allows the user to provide a
 // custom actuator constructor.
 func WithActuatorConstructor[
-A Actuator[T], T ActuatorTenant,
+	A Actuator[T], T ActuatorTenant,
 ](
 	f actuatorConstructor[A, T],
 ) Option {
