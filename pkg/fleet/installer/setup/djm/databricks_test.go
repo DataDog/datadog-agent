@@ -8,7 +8,6 @@ package djm
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"testing"
 
