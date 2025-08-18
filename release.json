@@ -12,7 +12,7 @@
         "WINDOWS_DDPROCMON_DRIVER": "release-signed",
         "WINDOWS_DDPROCMON_VERSION": "1.3.0",
         "WINDOWS_DDPROCMON_SHASUM": "649f1c83283a019a3f7bf822e6f025aacd7bd8de8d90485efe089f1dfb553813",
-        "INTEGRATIONS_CORE_VERSION": "ee8a9869bc9423cbd8b1cf3d6f810e5f22e4af61"
+        "INTEGRATIONS_CORE_VERSION": "bfaa34409b7fceb165045fb45338bae821de9e9b"
     },
     "last_stable": {
         "6": "6.53.1",
