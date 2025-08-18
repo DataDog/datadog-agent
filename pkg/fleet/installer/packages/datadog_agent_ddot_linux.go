@@ -33,11 +33,13 @@ const (
 var (
 	// ddotConfigPermissionsDEBRPM are the ownerships and modes that are enforced on the DDOT configuration files for DEB/RPM packages
 	ddotConfigPermissionsDEBRPM = file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
 
 	// ddotConfigPermissionsOCI are the ownerships and modes that are enforced on the DDOT configuration files for OCI packages
 	ddotConfigPermissionsOCI = file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
@@ -45,12 +47,6 @@ var (
 	// ddotPackagePermissions are the ownerships and modes that are enforced on the DDOT package files
 	ddotPackagePermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-	}
-
-	// ddotConfigUninstallPaths are the files that are deleted during an uninstall
-	ddotConfigUninstallPaths = file.Paths{
-		"otel-config.yaml.example",
-		"otel-config.yaml",
 	}
 
 	// agentDDOTService are the services that are part of the DDOT package
@@ -200,19 +196,6 @@ func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 		log.Warnf("failed to remove stable unit: %s", err)
 	}
 
-	if !ctx.Upgrade {
-		// Only remove config files during actual uninstall, not during upgrades
-		err := ddotConfigUninstallPaths.EnsureAbsent(ctx, "/etc/datadog-agent")
-		if err != nil {
-			log.Warnf("failed to remove DDOT config files: %s", err)
-		}
-
-		// Disable otelcollector in datadog.yaml
-		if err = disableOtelCollectorConfig(); err != nil {
-			log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
-		}
-	}
-
 	return nil
 }
 
@@ -256,39 +239,6 @@ func enableOtelCollectorConfig(ctx context.Context) error {
 
 	if err := datadogYamlPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set ownership on datadog.yaml: %w", err)
-	}
-
-	return nil
-}
-
-// disableOtelCollectorConfig removes otelcollector configuration from datadog.yaml
-func disableOtelCollectorConfig() error {
-	// Read existing config
-	data, err := os.ReadFile(datadogYamlPath)
-	// Nothing to delete if the file doesn't exist
-	if err != nil && os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("failed to read datadog.yaml: %w", err)
-	}
-
-	var existingConfig map[string]interface{}
-	if err := yaml.Unmarshal(data, &existingConfig); err != nil {
-		return fmt.Errorf("failed to parse existing datadog.yaml: %w", err)
-	}
-
-	delete(existingConfig, "otelcollector")
-	delete(existingConfig, "agent_ipc")
-
-	// Write back the updated config
-	updatedData, err := yaml.Marshal(existingConfig)
-	if err != nil {
-		return fmt.Errorf("failed to serialize updated datadog.yaml: %w", err)
-	}
-
-	if err := os.WriteFile(datadogYamlPath, updatedData, 0640); err != nil {
-		return fmt.Errorf("failed to write updated datadog.yaml: %w", err)
 	}
 
 	return nil
