@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build trivy || (windows && wmi)
-
-package sbom
+// Package bomconvert contains some cyclonedx conversion functions
+package bomconvert
 
 import (
 	"time"
@@ -124,7 +123,8 @@ func convertAttachedText(in *cyclonedx.AttachedText) *cyclonedx_v1_4.AttachedTex
 	}
 }
 
-func convertBOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
+// ConvertBOM converts a CycloneDX BOM to a CycloneDX v1.4 BOM.
+func ConvertBOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
 	if in == nil {
 		return nil
 	}
@@ -853,7 +853,8 @@ func convertTimestamp(in string) *timestamppb.Timestamp {
 	return timestamppb.New(ts)
 }
 
-func convertDuration(in time.Duration) *durationpb.Duration {
+// ConvertDuration converts a time.Duration to a protobuf Duration.
+func ConvertDuration(in time.Duration) *durationpb.Duration {
 	return durationpb.New(in)
 }
 
