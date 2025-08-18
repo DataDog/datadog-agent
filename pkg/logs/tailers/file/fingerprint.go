@@ -230,6 +230,7 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 				pos, err := fpFile.Seek(0, io.SeekStart)
 				if pos != 0 || err != nil {
 					log.Warnf("Error %s occurred while trying to reset file offset", err)
+					return newInvalidFingerprint(fingerprintConfig)
 				}
 				return computeFingerPrintByBytes(fpFile, filePath, defaultBytesConfig)
 			}
