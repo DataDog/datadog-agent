@@ -48,8 +48,10 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 	}
 	defer done()
 
-	if err := checkRights(cmd.Path, r.commandAllowGroupExec); err != nil {
-		return nil, err
+	if !r.embeddedBackendPermissiveRights {
+		if err := checkRights(cmd.Path, r.commandAllowGroupExec); err != nil {
+			return nil, err
+		}
 	}
 
 	cmd.Stdin = strings.NewReader(inputPayload)
