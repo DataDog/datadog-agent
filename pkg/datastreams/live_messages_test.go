@@ -23,16 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-type mockedRcClient struct {
-	updateFunc func(map[string]state.RawConfig, func(string, state.ApplyStatus))
-}
+type mockedRcClient struct{}
 
 func (m *mockedRcClient) SubscribeAgentTask() {}
 
-func (m *mockedRcClient) Subscribe(product data.Product, updateFunc func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-	if product == data.ProductDataStreamsLiveMessages {
-		m.updateFunc = updateFunc
-	}
+func (m *mockedRcClient) Subscribe(data.Product, func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 }
 
 type mockedAutodiscovery struct {
@@ -65,7 +60,6 @@ func (m *mockedAutodiscovery) Stop()  {}
 func (m *mockedAutodiscovery) GetConfigCheck() integration.ConfigCheckResponse {
 	return integration.ConfigCheckResponse{}
 }
-func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config { return nil }
 
 const initialConfig = `
 kafka_connect_str: localhost:9092
@@ -112,16 +106,24 @@ func (m *mockedAutodiscovery) GetUnresolvedConfigs() []integration.Config {
 		InitConfig: integration.Data{},
 	}}
 }
+func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config {
+	return []integration.Config{{
+		Name:      kafkaConsumerIntegrationName,
+		Instances: []integration.Data{integration.Data(initialConfig)},
+	}}
+}
 
 func TestController(t *testing.T) {
-	rcClient := &mockedRcClient{}
-	c := NewController(&mockedAutodiscovery{}, rcClient)
+	c := &controller{
+		ac:            &mockedAutodiscovery{},
+		rcclient:      &mockedRcClient{},
+		configChanges: make(chan integration.ConfigChanges, 10),
+	}
 	originalCfg := integration.Config{
 		Name:       kafkaConsumerIntegrationName,
 		Instances:  []integration.Data{integration.Data(initialConfig)},
 		InitConfig: integration.Data{},
 	}
-	c.Schedule([]integration.Config{originalCfg})
 	config := liveMessagesConfig{
 		ID: "config_2_id",
 		Kafka: kafkaConfig{
@@ -146,8 +148,7 @@ func TestController(t *testing.T) {
 	callback := func(path string, status state.ApplyStatus) {
 		updateStatus[path] = status
 	}
-	assert.NotNil(t, rcClient.updateFunc)
-	rcClient.updateFunc(rcUpdate, callback)
+	c.update(rcUpdate, callback)
 	assert.Equal(t, map[string]state.ApplyStatus{
 		"config_1": {State: state.ApplyStateError, Error: "invalid character 'i' looking for beginning of value"},
 		"config_2": {State: state.ApplyStateAcknowledged},
@@ -164,12 +165,4 @@ func TestController(t *testing.T) {
 	assert.Len(t, cfg.Unschedule, 1)
 	assert.Equal(t, originalCfg, cfg.Unschedule[0])
 	assert.Equal(t, updatedConfig, cfg.Schedule[0])
-
-	// When the original provider (k8s for example) unschedules the original config,
-	// the controller should unschedule the updated config.
-	c.Unschedule([]integration.Config{originalCfg})
-	cfg = <-updates
-	assert.Len(t, cfg.Schedule, 0)
-	assert.Len(t, cfg.Unschedule, 1)
-	assert.Equal(t, updatedConfig, cfg.Unschedule[0])
 }
