@@ -124,7 +124,7 @@ component temporarily wraps pkg/config.
 
 ### [comp/core/configstream](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstream)
 
-*Datadog Team*: agent-metric-pipelines
+*Datadog Team*: agent-metric-pipelines agent-configuration
 
 Package configstream implements a component to handle streaming configuration events to subscribers.
 
