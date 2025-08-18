@@ -110,6 +110,13 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, action *rules.HashDefinitio
 		return false
 	}
 
+	switch ev.Origin {
+	case EBPFOrigin:
+		if fileEvent.IsFileless() {
+			return false
+		}
+	}
+
 	report := &HashActionReport{
 		rule:      rule,
 		pid:       ev.ProcessContext.Pid,
