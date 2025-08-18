@@ -208,12 +208,9 @@ var defaultProfiles = `
       metrics:
         - name: dogstatsd.udp_packets_bytes
         - name: dogstatsd.uds_packets_bytes
-        - name: dogstatsd.metric_type_gauge_count
-        - name: dogstatsd.metric_type_counter_count
-        - name: dogstatsd.metric_type_distribution_count
-        - name: dogstatsd.metric_type_histogram_count
-        - name: dogstatsd.metric_type_set_count
-        - name: dogstatsd.metric_type_timing_count
+        - name: dogstatsd.metric_type_count
+          aggregate_tags:
+            - metric_type
         - name: aggregator.dogstatsd_contexts_by_mtype
           aggregate_tags:
             - shard
