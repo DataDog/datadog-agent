@@ -144,6 +144,11 @@ const (
 
 var (
 	// datadog is the global configuration object
+	// NOTE: The constructor `create.New` returns a `model.BuildableConfig`, which is the
+	// most general interface for the methods implemented by these types. However, we store
+	// them as `model.Config` because that is what the global `Datadog()` accessor returns.
+	// Keeping these types aligned signficantly reduces the compiled size of this binary.
+	// See https://datadoghq.atlassian.net/wiki/spaces/ACFG/pages/5386798973/Datadog+global+accessor+PR+size+increase
 	datadog     pkgconfigmodel.Config
 	systemProbe pkgconfigmodel.Config
 
@@ -154,7 +159,7 @@ var (
 // SetDatadog sets the the reference to the agent configuration.
 // This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
 // legacy converter and mock have been migrated we will remove this function.
-func SetDatadog(cfg pkgconfigmodel.Config) {
+func SetDatadog(cfg pkgconfigmodel.BuildableConfig) {
 	datadogMutex.Lock()
 	defer datadogMutex.Unlock()
 	datadog = cfg
@@ -163,7 +168,7 @@ func SetDatadog(cfg pkgconfigmodel.Config) {
 // SetSystemProbe sets the the reference to the systemProbe configuration.
 // This is currently used by the config mocks and should not be user anywhere else. Once the mocks have been migrated we
 // will remove this function.
-func SetSystemProbe(cfg pkgconfigmodel.Config) {
+func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 	systemProbeMutex.Lock()
 	defer systemProbeMutex.Unlock()
 	systemProbe = cfg
@@ -279,7 +284,7 @@ func init() {
 	// Configuration defaults
 	initConfig()
 
-	datadog.BuildSchema()
+	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
@@ -770,8 +775,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.unscheduled_check_threshold", 60) // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.cluster_tag_name", "cluster_name")
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
-	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", true)
-	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", true)
+	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_with_utilization", false)
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_percentage_improvement", 10) // Experimental. Subject to change. Rebalance only if the distribution found improves the current one by this.
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
@@ -927,6 +932,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
+	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_disable_cache", false)
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
@@ -1172,9 +1178,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
 	config.BindEnvAndSetDefault("syslog_rfc", false)
-	config.BindEnvAndSetDefault("syslog_pem", "")
-	config.BindEnvAndSetDefault("syslog_key", "")
-	config.BindEnvAndSetDefault("syslog_tls_verify", true)
 	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
