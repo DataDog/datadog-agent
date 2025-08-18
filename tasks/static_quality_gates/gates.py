@@ -388,7 +388,7 @@ class DockerArtifactMeasurer:
         image_suffix = ("-7" if flavor == "agent" else "") + jmx
 
         # Handle nightly builds
-        if os.environ.get("BUCKET_BRANCH") == "nightly":
+        if os.environ.get("BUCKET_BRANCH") == "nightly" and flavor != "dogstatsd":
             flavor += "-nightly"
 
         # Validate CI environment

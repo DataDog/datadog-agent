@@ -676,12 +676,15 @@ func (r *secretResolver) getDebugInfo(w io.Writer) {
 		fmt.Fprintf(w, "error parsing secret permissions details template: %s\n", err)
 		return
 	}
+
 	permissions := "OK, the executable has the correct permissions"
 	if !r.embeddedBackendPermissiveRights {
 		err = checkRights(r.backendCommand, r.commandAllowGroupExec)
 		if err != nil {
 			permissions = "error: the executable does not have the correct permissions"
 		}
+	} else {
+		permissions = "OK, native secret generic connector used"
 	}
 
 	details, err := r.getExecutablePermissions()

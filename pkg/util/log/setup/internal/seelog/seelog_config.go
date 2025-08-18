@@ -24,7 +24,6 @@ type Config struct {
 	maxsize               uint
 	maxrolls              uint
 	syslogURI             string
-	syslogUseTLS          bool
 	loggerName            string
 	format                string
 	syslogRFC             bool
@@ -64,7 +63,7 @@ func (c *Config) Render() (string, error) {
 
 	var syslogURI string
 	if c.syslogURI != "" {
-		syslogURI = fmt.Sprintf(`<custom name="syslog" formatid="syslog-%s" data-uri="%s" data-tls="%t" />`, c.format, c.syslogURI, c.syslogUseTLS)
+		syslogURI = fmt.Sprintf(`<custom name="syslog" formatid="syslog-%s" data-uri="%s" />`, c.format, c.syslogURI)
 	}
 
 	jsonSyslogFormat := xmlEscape(`{"agent":"` + strings.ToLower(c.loggerName) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"%ExtraJSONContext}%n`)
@@ -96,11 +95,10 @@ func (c *Config) EnableFileLogging(f string, maxsize, maxrolls uint) {
 }
 
 // ConfigureSyslog enables and configures syslog if the syslogURI it not an empty string
-func (c *Config) ConfigureSyslog(syslogURI string, usetTLS bool) {
+func (c *Config) ConfigureSyslog(syslogURI string) {
 	c.Lock()
 	defer c.Unlock()
 	c.syslogURI = xmlEscape(syslogURI)
-	c.syslogUseTLS = usetTLS
 
 }
 
