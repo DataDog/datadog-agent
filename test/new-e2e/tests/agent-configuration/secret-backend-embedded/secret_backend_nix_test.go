@@ -46,7 +46,7 @@ secret_backend_config:
 		),
 	))
 
-	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+	assert.EventuallyWithT(v.T(), func(_ *assert.CollectT) {
 		secretOutput := v.Env().Agent.Client.Secret()
 		require.Contains(v.T(), secretOutput, "fake-api-key")
 	}, 30*time.Second, 2*time.Second)
