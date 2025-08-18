@@ -72,7 +72,7 @@ func (c *component) isLogsAgentEnabled() bool {
 }
 
 // CheckHealth performs health checks related to logs agent health
-func (c *component) CheckHealth(ctx context.Context) ([]logsagenthealth.Issue, error) {
+func (c *component) CheckHealth(_ context.Context) ([]logsagenthealth.Issue, error) {
 	var issues []logsagenthealth.Issue
 
 	// Check if logs agent is enabled before running health checks

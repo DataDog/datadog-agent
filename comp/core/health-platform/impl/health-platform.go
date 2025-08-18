@@ -193,10 +193,7 @@ func (c *component) SubmitReport(ctx context.Context) error {
 		log.Warnf("Failed to collect issues from sub-components: %v", subErr)
 	} else {
 		// Merge sub-component issues with main issues
-		for _, issue := range subComponentIssues {
-			// Use the issue ID as key to avoid duplicates
-			issues = append(issues, issue)
-		}
+		issues = append(issues, subComponentIssues...)
 	}
 
 	if len(issues) == 0 {
