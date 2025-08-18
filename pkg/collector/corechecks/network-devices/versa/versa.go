@@ -72,6 +72,7 @@ type checkCfg struct {
 	CollectQoSMetrics                     *bool    `yaml:"collect_qos_metrics"`
 	CollectDIAMetrics                     *bool    `yaml:"collect_dia_metrics"`
 	CollectSiteMetrics                    *bool    `yaml:"collect_site_metrics"`
+	UseStartPagination                    *bool    `yaml:"use_start_pagination"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -390,6 +391,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectQoSMetrics = boolPointer(false)
 	instanceConfig.CollectDIAMetrics = boolPointer(false)
 	instanceConfig.CollectSiteMetrics = boolPointer(false)
+	instanceConfig.UseStartPagination = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
@@ -446,6 +448,10 @@ func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 
 	if v.config.LookbackTimeWindowMinutes > 0 {
 		clientOptions = append(clientOptions, client.WithLookback(v.config.LookbackTimeWindowMinutes))
+	}
+
+	if v.config.UseStartPagination != nil && *v.config.UseStartPagination {
+		clientOptions = append(clientOptions, client.WithStartPagination(true))
 	}
 
 	return clientOptions, nil

@@ -778,3 +778,54 @@ func TestGetSLAMetricsPaginationEmptyResponse(t *testing.T) {
 	// Should get all available data in first page and stop
 	require.Equal(t, 3, len(slaMetrics)) // Total of 3 items across all pages
 }
+
+func TestPaginationParameterName(t *testing.T) {
+	tests := []struct {
+		name               string
+		useStartPagination bool
+		expectedParam      string
+	}{
+		{
+			name:               "default pagination uses offset",
+			useStartPagination: false,
+			expectedParam:      "offset",
+		},
+		{
+			name:               "feature flag enabled uses start",
+			useStartPagination: true,
+			expectedParam:      "start",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := NewClient("example.com", 9182, "analytics.example.com:8443", "user", "pass", false)
+			require.NoError(t, err)
+
+			client.useStartPagination = tt.useStartPagination
+
+			param := client.getOffsetParamName()
+			require.Equal(t, tt.expectedParam, param)
+		})
+	}
+}
+
+func TestWithStartPaginationOption(t *testing.T) {
+	// Test with feature flag disabled (default)
+	client, err := NewClient("example.com", 9182, "analytics.example.com:8443", "user", "pass", false)
+	require.NoError(t, err)
+	require.False(t, client.useStartPagination)
+	require.Equal(t, "offset", client.getOffsetParamName())
+
+	// Test with feature flag enabled
+	client, err = NewClient("example.com", 9182, "analytics.example.com:8443", "user", "pass", false, WithStartPagination(true))
+	require.NoError(t, err)
+	require.True(t, client.useStartPagination)
+	require.Equal(t, "start", client.getOffsetParamName())
+
+	// Test with feature flag explicitly disabled
+	client, err = NewClient("example.com", 9182, "analytics.example.com:8443", "user", "pass", false, WithStartPagination(false))
+	require.NoError(t, err)
+	require.False(t, client.useStartPagination)
+	require.Equal(t, "offset", client.getOffsetParamName())
+}
