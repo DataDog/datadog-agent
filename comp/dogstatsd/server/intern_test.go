@@ -107,3 +107,63 @@ func TestInternLoadOrStoreReset(t *testing.T) {
 	sInterner.LoadOrStore([]byte("val"))
 	assert.Equal(1, len(sInterner.strings))
 }
+
+func TestUniqueInternLoadOrStoreValue(t *testing.T) {
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	assert := assert.New(t)
+	sInterner := newUniqueStringInterner(0, 1, stringInternerTelemetry)
+
+	foo := []byte("foo")
+	bar := []byte("bar")
+	far := []byte("far")
+	boo := []byte("boo")
+
+	// Test that the correct value is returned
+	v := sInterner.LoadOrStore(foo)
+	assert.Equal("foo", v)
+	v = sInterner.LoadOrStore(bar)
+	assert.Equal("bar", v)
+	v = sInterner.LoadOrStore(far)
+	assert.Equal("far", v)
+	v = sInterner.LoadOrStore(boo)
+	assert.Equal("boo", v)
+}
+
+func TestUniqueInternLoadOrStorePointerEquality(t *testing.T) {
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	assert := assert.New(t)
+	stringInternerTelemetry := newSiTelemetry(false, telemetryComp)
+	sInterner := newUniqueStringInterner(0, 1, stringInternerTelemetry)
+
+	foo := []byte("foo")
+	bar := []byte("bar")
+	boo := []byte("boo")
+
+	// Test pointer equality for same strings
+	v1 := sInterner.LoadOrStore(foo)
+	assert.Equal("foo", v1)
+
+	v2 := sInterner.LoadOrStore(foo)
+	assert.Equal("foo", v2)
+	assert.Equal(&v1, &v2, "same string should return same pointer (interned)")
+
+	// Test different strings have different pointers
+	v3 := sInterner.LoadOrStore(bar)
+	assert.Equal("bar", v3)
+	assert.NotEqual(&v1, &v3, "different strings should have different pointers")
+
+	// Test that same string returns same pointer even after other strings
+	v4 := sInterner.LoadOrStore(bar)
+	assert.Equal("bar", v4)
+	assert.Equal(&v3, &v4, "same string should return same pointer after other operations")
+
+	v5 := sInterner.LoadOrStore(boo)
+	assert.Equal("boo", v5)
+	assert.NotEqual(&v1, &v5, "different strings should have different pointers")
+	assert.NotEqual(&v3, &v5, "different strings should have different pointers")
+
+	// Test same string one more time after multiple other strings
+	v6 := sInterner.LoadOrStore(foo)
+	assert.Equal("foo", v6)
+	assert.Equal(&v1, &v6, "same string should still return same pointer")
+}
