@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -163,7 +162,23 @@ func (p *processLogConfigProvider) isFileReadable(logPath string) bool {
 }
 
 func isAgentProcess(process *workloadmeta.Process) bool {
-	return strings.HasPrefix(process.Exe, "/opt/datadog-agent/bin/")
+	// Check if the process name matches any of the known agent process names,
+	// since we may not be able to make assumptions about the executable paths.
+	agentProcessNames := []string{
+		"agent",
+		"process-agent",
+		"trace-agent",
+		"security-agent",
+		"system-probe",
+	}
+
+	for _, agentName := range agentProcessNames {
+		if process.Name == agentName {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.EventBundle, verifyReadable bool) integration.ConfigChanges {
@@ -181,7 +196,7 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
 			if p.excludeAgent && isAgentProcess(process) {
-				log.Debugf("Excluding agent process %d (%s) from process log collection", process.Pid, process.Exe)
+				log.Debugf("Excluding agent process %d (comm=%s) from process log collection", process.Pid, process.Comm)
 				continue
 			}
 

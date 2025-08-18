@@ -932,8 +932,8 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 						Kind: workloadmeta.KindProcess,
 						ID:   "123",
 					},
-					Pid: 123,
-					Exe: "/opt/datadog-agent/bin/agent",
+					Pid:  123,
+					Name: "agent",
 					Service: &workloadmeta.Service{
 						DDService: "agent",
 						LogFiles:  []string{agentLogPath},
@@ -947,8 +947,8 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 						Kind: workloadmeta.KindProcess,
 						ID:   "456",
 					},
-					Pid: 456,
-					Exe: "/usr/bin/not-agent",
+					Pid:  456,
+					Name: "not-agent",
 					Service: &workloadmeta.Service{
 						DDService: "not-agent",
 						LogFiles:  []string{notAgentLogPath},
@@ -978,4 +978,64 @@ func TestProcessLogProviderAgentExclude(t *testing.T) {
 	changes = p.processEventsNoVerifyReadable(setBundle)
 	require.Len(t, changes.Schedule, 1)
 	assert.Equal(t, getIntegrationName(notAgentLogPath), changes.Schedule[0].Name)
+}
+
+func TestProcessLogProviderIsAgentProcess(t *testing.T) {
+	tests := []struct {
+		name     string
+		comm     string
+		expected bool
+	}{
+		{
+			name:     "agent process",
+			comm:     "agent",
+			expected: true,
+		},
+		{
+			name:     "process-agent",
+			comm:     "process-agent",
+			expected: true,
+		},
+		{
+			name:     "trace-agent",
+			comm:     "trace-agent",
+			expected: true,
+		},
+		{
+			name:     "security-agent",
+			comm:     "security-agent",
+			expected: true,
+		},
+		{
+			name:     "system-probe",
+			comm:     "system-probe",
+			expected: true,
+		},
+		{
+			name:     "non-agent process",
+			comm:     "nginx",
+			expected: false,
+		},
+		{
+			name:     "partial match",
+			comm:     "agent-something",
+			expected: false,
+		},
+		{
+			name:     "empty comm",
+			comm:     "",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			process := &workloadmeta.Process{
+				Name: tt.comm,
+			}
+
+			result := isAgentProcess(process)
+			assert.Equal(t, tt.expected, result, "Expected %v for comm '%s'", tt.expected, tt.comm)
+		})
+	}
 }
