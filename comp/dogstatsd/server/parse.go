@@ -131,6 +131,9 @@ func (p *parser) parseTags(rawTags []byte) []unique.Handle[string] {
 func intern(b []byte) unique.Handle[string] {
 	// unique.Make copies the value before saving it, so unsafe string does not outlive this function
 	// https://cs.opensource.google/go/go/+/refs/tags/go1.24.5:src/unique/handle.go;l=60-65
+	if len(b) == 0 {
+		return unique.Make("")
+	}
 	return unique.Make(unsafe.String(&b[0], len(b)))
 }
 
