@@ -73,6 +73,7 @@ type checkCfg struct {
 	CollectDIAMetrics                     *bool    `yaml:"collect_dia_metrics"`
 	CollectSiteMetrics                    *bool    `yaml:"collect_site_metrics"`
 	UseStartPagination                    *bool    `yaml:"use_start_pagination"`
+	UseAlternateAppliancesEndpoint        *bool    `yaml:"use_alternate_appliances_endpoint"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -118,27 +119,48 @@ func (v *VersaCheck) Run() error {
 	// Process each organization and collect all required data
 	var appliances []client.Appliance
 	var interfaces []client.Interface
+	var appliancesByOrg map[string][]client.Appliance
 
 	// Determine if we need appliances for device mapping
 	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics ||
 		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics || *v.config.CollectApplicationsByApplianceMetrics ||
 		*v.config.CollectTopUserMetrics
 
-	for _, org := range organizations {
-		log.Tracef("Processing organization: %s", org.Name)
+	// Collect appliances based on configuration
+	if *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics || needsDeviceMapping {
+		appliancesByOrg = make(map[string][]client.Appliance)
 
-		// Gather appliances if we need device metadata, hardware metrics, or device mapping
-		if *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics || needsDeviceMapping {
-			orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
+		if *v.config.UseAlternateAppliancesEndpoint {
+			// Use alternate appliances endpoint and organize by org
+			allAppliances, err := c.GetAppliances()
 			if err != nil {
-				log.Errorf("error getting appliances from organization %s: %v", org.Name, err)
-			} else {
-				for _, appliance := range orgAppliances {
-					log.Tracef("Processing appliance: %+v", appliance)
+				log.Errorf("error getting all appliances: %v", err)
+			}
+			for _, appliance := range allAppliances {
+				appliancesByOrg[appliance.OwnerOrg] = append(appliancesByOrg[appliance.OwnerOrg], appliance)
+				appliances = append(appliances, appliance)
+				log.Tracef("Processing appliance: %+v", appliance)
+			}
+		} else {
+			// Use per-organization calls (default behavior)
+			for _, org := range organizations {
+				orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
+				if err != nil {
+					log.Errorf("error getting appliances from organization %s: %v", org.Name, err)
+				} else {
+					appliancesByOrg[org.Name] = orgAppliances
+					for _, appliance := range orgAppliances {
+						log.Tracef("Processing appliance: %+v", appliance)
+					}
+					appliances = append(appliances, orgAppliances...)
 				}
-				appliances = append(appliances, orgAppliances...)
 			}
 		}
+	}
+
+	// Collect interfaces per organization (this still needs to be done per org)
+	for _, org := range organizations {
+		log.Tracef("Processing organization: %s", org.Name)
 
 		// Grab interfaces if we need interface metadata or interface metrics
 		if *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics {
@@ -392,6 +414,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectDIAMetrics = boolPointer(false)
 	instanceConfig.CollectSiteMetrics = boolPointer(false)
 	instanceConfig.UseStartPagination = boolPointer(false)
+	instanceConfig.UseAlternateAppliancesEndpoint = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
@@ -452,6 +475,10 @@ func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 
 	if v.config.UseStartPagination != nil && *v.config.UseStartPagination {
 		clientOptions = append(clientOptions, client.WithStartPagination(true))
+	}
+
+	if v.config.UseAlternateAppliancesEndpoint != nil && *v.config.UseAlternateAppliancesEndpoint {
+		clientOptions = append(clientOptions, client.WithAlternateAppliances(true))
 	}
 
 	return clientOptions, nil

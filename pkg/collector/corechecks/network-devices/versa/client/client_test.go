@@ -829,3 +829,34 @@ func TestWithStartPaginationOption(t *testing.T) {
 	require.False(t, client.useStartPagination)
 	require.Equal(t, "offset", client.getOffsetParamName())
 }
+
+func TestWithAlternateAppliancesOption(t *testing.T) {
+	// Test with feature flag disabled (default)
+	client, err := NewClient("example.com", 9182, "analytics.example.com:8443", "user", "pass", false)
+	require.NoError(t, err)
+	require.False(t, client.useAlternateAppliances)
+
+	// Test with feature flag enabled
+	client, err = NewClient("example.com", 9182, "analytics.example.com:8443", "user", "pass", false, WithAlternateAppliances(true))
+	require.NoError(t, err)
+	require.True(t, client.useAlternateAppliances)
+
+	// Test with feature flag explicitly disabled
+	client, err = NewClient("example.com", 9182, "analytics.example.com:8443", "user", "pass", false, WithAlternateAppliances(false))
+	require.NoError(t, err)
+	require.False(t, client.useAlternateAppliances)
+}
+
+func TestUseAlternateAppliancesFlag(t *testing.T) {
+	t.Run("UseAlternateAppliances=false", func(t *testing.T) {
+		client, err := NewClient("example.com", 9182, "analytics.example.com:8443", "user", "pass", false, WithAlternateAppliances(false))
+		require.NoError(t, err)
+		require.False(t, client.useAlternateAppliances)
+	})
+
+	t.Run("UseAlternateAppliances=true", func(t *testing.T) {
+		client, err := NewClient("example.com", 9182, "analytics.example.com:8443", "user", "pass", false, WithAlternateAppliances(true))
+		require.NoError(t, err)
+		require.True(t, client.useAlternateAppliances)
+	})
+}

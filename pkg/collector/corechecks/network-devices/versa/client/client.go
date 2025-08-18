@@ -41,16 +41,17 @@ type Client struct {
 	directorAPIPort   int
 	analyticsEndpoint string
 	// TODO: replace with OAuth
-	token               string
-	tokenExpiry         time.Time
-	username            string
-	password            string
-	authenticationMutex *sync.Mutex
-	maxAttempts         int
-	maxPages            int
-	maxCount            string // Stored as string to be passed as an HTTP param
-	lookback            string
-	useStartPagination  bool // Use "start" instead of "offset" for pagination (necessary for some deployments)
+	token                  string
+	tokenExpiry            time.Time
+	username               string
+	password               string
+	authenticationMutex    *sync.Mutex
+	maxAttempts            int
+	maxPages               int
+	maxCount               string // Stored as string to be passed as an HTTP param
+	lookback               string
+	useStartPagination     bool // Use "start" instead of "offset" for pagination (necessary for some deployments)
+	useAlternateAppliances bool // Use GetAppliances instead of GetChildAppliancesDetail for appliance collection
 }
 
 // ClientOptions are the functional options for the Versa client
@@ -191,6 +192,13 @@ func WithLookback(lookback int) ClientOptions {
 func WithStartPagination(useStart bool) ClientOptions {
 	return func(c *Client) {
 		c.useStartPagination = useStart
+	}
+}
+
+// WithAlternateAppliances is a functional option to enable using GetAppliances instead of GetChildAppliancesDetail
+func WithAlternateAppliances(useAlternate bool) ClientOptions {
+	return func(c *Client) {
+		c.useAlternateAppliances = useAlternate
 	}
 }
 
