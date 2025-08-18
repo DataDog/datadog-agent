@@ -1042,10 +1042,16 @@ api_key:
 
   ## @param force_use_http - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_HTTP - boolean - optional - default: false
-  ## By default, the Agent sends logs in HTTPS batches to port 443 if HTTPS connectivity can
-  ## be established at Agent startup, and falls back to TCP otherwise. Set this parameter to `true` to
-  ## always send logs via HTTP protocol (recommended).
-  ## Warning: force_use_http means HTTP over TCP, not HTTP over HTTPS. Please use logs_no_ssl for HTTP over HTTPS.
+  ## Set this parameter to `true` to always send logs via HTTP(S) protocol and never fall back to
+  ## raw TCP forwarding (recommended).
+  ##
+  ## By default, the Agent sends logs in HTTPS batches if HTTPS connectivity can
+  ## be established at Agent startup, and falls back to TCP otherwise. This parameter
+  ## can be used to override this fallback behavior. It is recommended, but not the default, to
+  ## maintain compatibility with previous Agent versions.
+  ##
+  ## Note, the logs are forwarded via HTTPS (encrypted) by default. Please use `logs_no_ssl` if you
+  ## need unencrypted HTTP instead.
   #
   # force_use_http: true
 
