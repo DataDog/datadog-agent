@@ -12,8 +12,8 @@ other:
     Added the following metrics for gRPC communication:
     | Metric Name                     | Type      | Description                                     |
     | ------------------------------- | --------- | ----------------------------------------------- |
-    | `grpc.request_count`            | Counter   | Total number of gRPC requests processed         |
-    | `grpc.error_count`              | Counter   | Total number of gRPC errors encountered         |
-    | `grpc.request_duration_seconds` | Histogram | Distribution of gRPC request latencies          |
-    | `grpc.payload_size_bytes`       | Histogram | Distribution of payload sizes for gRPC calls    |
-    | `grpc.active_requests`          | Gauge     | Number of currently active (in-flight) requests |
+    | `grpc.request_count`            | Count   | Total number of gRPC requests processed.         |
+    | `grpc.error_count`              | Count   | Total number of gRPC errors encountered.         |
+    | `grpc.request_duration_seconds` | Histogram | Distribution of gRPC request latencies.          |
+    | `grpc.payload_size_bytes`       | Histogram | Distribution of payload sizes for gRPC calls.    |
+    | `grpc.active_requests`          | Gauge     | Number of currently active (in-flight) requests. |
