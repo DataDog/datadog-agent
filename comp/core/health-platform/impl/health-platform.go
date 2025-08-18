@@ -46,6 +46,10 @@ type component struct {
 	issuesMu sync.RWMutex
 	issues   map[string]healthplatform.Issue
 
+	// sub-components storage
+	subComponentsMu sync.RWMutex
+	subComponents   []healthplatform.SubComponent
+
 	// reporting control
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -113,10 +117,87 @@ func (c *component) ListIssues() []healthplatform.Issue {
 	return issues
 }
 
+// RegisterSubComponent registers a health checker sub-component
+func (c *component) RegisterSubComponent(sub healthplatform.SubComponent) error {
+	if sub == nil {
+		return fmt.Errorf("sub-component cannot be nil")
+	}
+
+	c.subComponentsMu.Lock()
+	defer c.subComponentsMu.Unlock()
+
+	c.subComponents = append(c.subComponents, sub)
+	log.Debugf("Registered sub-component: %T", sub)
+	return nil
+}
+
+// collectSubComponentIssues collects issues from all registered sub-components
+func (c *component) collectSubComponentIssues(ctx context.Context) ([]healthplatform.Issue, error) {
+	c.subComponentsMu.RLock()
+	defer c.subComponentsMu.RUnlock()
+
+	var allIssues []healthplatform.Issue
+
+	for _, sub := range c.subComponents {
+		issues, err := sub.CheckHealth(ctx)
+		if err != nil {
+			log.Debugf("Sub-component %T failed health check: %v", sub, err)
+			continue
+		}
+		allIssues = append(allIssues, issues...)
+	}
+
+	return allIssues, nil
+}
+
+// startSubComponents starts all registered sub-components
+func (c *component) startSubComponents(ctx context.Context) error {
+	c.subComponentsMu.RLock()
+	defer c.subComponentsMu.RUnlock()
+
+	var lastErr error
+	for _, sub := range c.subComponents {
+		if err := sub.Start(ctx); err != nil {
+			log.Warnf("Failed to start sub-component %T: %v", sub, err)
+			lastErr = err
+		}
+	}
+
+	return lastErr
+}
+
+// stopSubComponents stops all registered sub-components
+func (c *component) stopSubComponents() error {
+	c.subComponentsMu.RLock()
+	defer c.subComponentsMu.RUnlock()
+
+	var lastErr error
+	for _, sub := range c.subComponents {
+		if err := sub.Stop(); err != nil {
+			log.Warnf("Failed to stop sub-component %T: %v", sub, err)
+			lastErr = err
+		}
+	}
+
+	return lastErr
+}
+
 // SubmitReport immediately submits the current issues to the backend
 func (c *component) SubmitReport(ctx context.Context) error {
-	// Get current issues
+	// Get current issues from the main component
 	issues := c.ListIssues()
+
+	// Collect issues from sub-components
+	subComponentIssues, subErr := c.collectSubComponentIssues(ctx)
+	if subErr != nil {
+		log.Warnf("Failed to collect issues from sub-components: %v", subErr)
+	} else {
+		// Merge sub-component issues with main issues
+		for _, issue := range subComponentIssues {
+			// Use the issue ID as key to avoid duplicates
+			issues = append(issues, issue)
+		}
+	}
 
 	if len(issues) == 0 {
 		log.Debug("No issues to report")
@@ -197,6 +278,11 @@ func (c *component) Start(ctx context.Context) error {
 		}
 	}
 
+	// Start all sub-components
+	if err := c.startSubComponents(ctx); err != nil {
+		log.Warnf("Failed to start some sub-components: %v", err)
+	}
+
 	go c.reportingLoop()
 	log.Infof("Started health platform with interval: %v", c.interval)
 	return nil
@@ -212,6 +298,11 @@ func (c *component) Stop() error {
 	<-c.done
 	c.cancel = nil
 	c.done = nil
+
+	// Stop all sub-components
+	if err := c.stopSubComponents(); err != nil {
+		log.Warnf("Failed to stop some sub-components: %v", err)
+	}
 
 	log.Info("Stopped health platform")
 	return nil

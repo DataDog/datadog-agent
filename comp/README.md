@@ -172,6 +172,11 @@ It also provides helpers to use them in the agent (TLS configuration, HTTP clien
 
 Package log implements a component to handle logging internal to the agent.
 
+### [comp/core/health-platform/logs-agent-health](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/health-platform/logs-agent-health)
+
+Package logsagenthealth provides the interface for the logs agent health checker sub-component.
+This sub-component checks for logs agent health issues and reports them to the parent health platform.
+
 ### [comp/core/lsof](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/lsof)
 
 Package lsof provides a flare file with data about files opened by the agent process

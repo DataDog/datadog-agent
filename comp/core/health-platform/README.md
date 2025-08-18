@@ -10,6 +10,16 @@ The Health Platform component follows the standard Datadog Agent component archi
 - Periodic and on-demand health reporting
 - Host information integration (hostname, host ID)
 - Backend communication via protobuf
+- **Sub-component architecture** for modular health checking
+
+## Sub-Components
+
+The health platform supports sub-components that focus on specific areas of health monitoring:
+
+- **Logs Agent Health Checker**: Monitors logs agent health issues
+- Additional sub-components can be added for other health domains
+
+Sub-components are automatically started/stopped with the parent component and their issues are aggregated into unified health reports.
 
 ## Usage
 

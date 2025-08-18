@@ -72,6 +72,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
+	healthplatformfx "github.com/DataDog/datadog-agent/comp/core/health-platform/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -539,6 +540,8 @@ func getSharedFxOption() fx.Option {
 		ssistatusfx.Module(),
 		workloadfilterfx.Module(),
 		connectivitycheckerfx.Module(),
+		// Health Platform - monitors and reports agent health issues
+		healthplatformfx.Module(),
 	)
 }
 

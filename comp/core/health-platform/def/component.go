@@ -23,6 +23,18 @@ type Issue struct {
 	Name string
 	// Extra is optional complementary information
 	Extra string
+	// Severity indicates the impact level of the issue (optional)
+	Severity string
+}
+
+// SubComponent represents a health checker sub-component
+type SubComponent interface {
+	// CheckHealth performs health checks and returns any issues found
+	CheckHealth(ctx context.Context) ([]Issue, error)
+	// Start begins periodic health checking
+	Start(ctx context.Context) error
+	// Stop stops periodic health checking
+	Stop() error
 }
 
 // Component is the health platform component interface
@@ -35,6 +47,9 @@ type Component interface {
 
 	// ListIssues returns all currently tracked issues
 	ListIssues() []Issue
+
+	// RegisterSubComponent registers a health checker sub-component
+	RegisterSubComponent(sub SubComponent) error
 
 	// SubmitReport immediately submits the current issues to the backend
 	SubmitReport(ctx context.Context) error
