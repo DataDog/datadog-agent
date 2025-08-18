@@ -7,11 +7,10 @@
 package jmxloggerimpl
 
 import (
+	"context"
 	"fmt"
 
 	"go.uber.org/fx"
-
-	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -30,54 +29,74 @@ func Module(params Params) fxutil.Module {
 
 type dependencies struct {
 	fx.In
+	Lc     fx.Lifecycle
 	Config config.Component
 	Params Params
 }
 
+type jmxLoggerInterface interface {
+	Info(v ...interface{})
+	Error(v ...interface{}) error
+	Flush()
+}
+
 type logger struct {
-	inner seelog.LoggerInterface
+	inner jmxLoggerInterface
 }
 
 func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 	config := deps.Config
+	var jmxLogger logger
+
 	if deps.Params.fromCLI {
-		i, err := pkglogsetup.BuildJMXLogger(deps.Params.logFile, "", false, true, false, deps.Config)
+		i, err := pkglogsetup.BuildJMXLogger(deps.Params.logFile, "", false, true, false, config)
 		if err != nil {
 			return logger{}, fmt.Errorf("Unable to set up JMX logger: %v", err)
 		}
-		return logger{
+
+		jmxLogger = logger{
 			inner: i,
-		}, nil
+		}
+	} else {
+		// Setup logger
+		syslogURI := pkglogsetup.GetSyslogURI(config)
+		jmxLogFile := config.GetString("jmx_log_file")
+		if jmxLogFile == "" {
+			jmxLogFile = defaultpaths.JmxLogFile
+		}
+
+		if config.GetBool("disable_file_logging") {
+			// this will prevent any logging on file
+			jmxLogFile = ""
+		}
+
+		// Setup JMX logger
+		inner, jmxLoggerSetupErr := pkglogsetup.BuildJMXLogger(
+			jmxLogFile,
+			syslogURI,
+			config.GetBool("syslog_rfc"),
+			config.GetBool("log_to_console"),
+			config.GetBool("log_format_json"),
+			config,
+		)
+
+		if jmxLoggerSetupErr != nil {
+			return logger{}, fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
+		}
+
+		jmxLogger = logger{
+			inner: inner,
+		}
 	}
 
-	// Setup logger
-	syslogURI := pkglogsetup.GetSyslogURI(deps.Config)
-	jmxLogFile := config.GetString("jmx_log_file")
-	if jmxLogFile == "" {
-		jmxLogFile = defaultpaths.JmxLogFile
-	}
+	deps.Lc.Append(fx.Hook{
+		OnStop: func(_ context.Context) error {
+			jmxLogger.inner.Flush()
+			return nil
+		},
+	})
 
-	if config.GetBool("disable_file_logging") {
-		// this will prevent any logging on file
-		jmxLogFile = ""
-	}
-
-	// Setup JMX logger
-	inner, jmxLoggerSetupErr := pkglogsetup.BuildJMXLogger(
-		jmxLogFile,
-		syslogURI,
-		config.GetBool("syslog_rfc"),
-		config.GetBool("log_to_console"),
-		config.GetBool("log_format_json"),
-		deps.Config,
-	)
-
-	if jmxLoggerSetupErr != nil {
-		return logger{}, fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
-	}
-	return logger{
-		inner: inner,
-	}, nil
+	return jmxLogger, nil
 }
 
 func (j logger) JMXInfo(v ...interface{}) {
