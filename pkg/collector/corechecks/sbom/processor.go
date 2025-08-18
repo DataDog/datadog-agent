@@ -53,6 +53,7 @@ type processor struct {
 	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
+	contImageSBOM         bool
 	hostSBOM              bool
 	procfsSBOM            bool
 	hostname              string
@@ -73,6 +74,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 	}
 
 	envVarEnv := pkgconfigsetup.Datadog().GetString("env")
+	contImageSBOM := cfg.GetBool("sbom.container_image.enabled")
 	hostSBOM := cfg.GetBool("sbom.host.enabled")
 	procfsSBOM := isProcfsSBOMEnabled(cfg)
 
@@ -101,6 +103,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
 		sbomScanner:           sbomScanner,
+		contImageSBOM:         contImageSBOM,
 		hostSBOM:              hostSBOM,
 		procfsSBOM:            procfsSBOM,
 		hostname:              hname,
@@ -344,6 +347,10 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 }
 
 func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
+	if !p.contImageSBOM {
+		return
+	}
+
 	if img.SBOM == nil {
 		return
 	}
