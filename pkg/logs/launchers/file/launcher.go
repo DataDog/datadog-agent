@@ -256,11 +256,12 @@ func (s *Launcher) scan() {
 		// Check if we have stored info for this file from a previous rotation
 		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
 		var fingerprint *types.Fingerprint
+		var err error
 		if s.fingerprinter.ShouldFileFingerprint(file) {
 			// Check if this specific file should be fingerprinted
-			fingerprint = s.fingerprinter.ComputeFingerprint(file)
+			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
 			// Skip files with invalid fingerprints (Value == 0)
-			if fingerprint != nil && !fingerprint.ValidFingerprint() {
+			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
 				// If fingerprint is invalid, persist the old info back into the map for future attempts
 				if hasOldInfo {
 					s.oldInfoMap[scanKey] = oldInfo
@@ -349,8 +350,8 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		var fingerprint *types.Fingerprint
 		// Check if this specific file should be fingerprinted
 		if s.fingerprinter.ShouldFileFingerprint(file) {
-			fingerprint = s.fingerprinter.ComputeFingerprint(file)
-			if !fingerprint.ValidFingerprint() {
+			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
+			if err != nil || !fingerprint.ValidFingerprint() {
 				continue
 			}
 		}
@@ -431,6 +432,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		CapacityMonitor: monitor,
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
+		Rotated:         true,
 	}
 
 	tailer := tailer.NewTailer(tailerOptions)

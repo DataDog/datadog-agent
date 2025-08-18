@@ -60,8 +60,12 @@ func (t *Tailer) DidRotate() (bool, error) {
 // - removed and recreated
 // - truncated
 func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, error) {
-	newFingerprint := fingerprinter.ComputeFingerprint(t.file)
+	newFingerprint, err := fingerprinter.ComputeFingerprint(t.file)
 
+	// If computing the fingerprint led to an error there was likely an IO issue, handle this appropriately below.
+	if err != nil {
+		return false, err
+	}
 	// If the original fingerprint is nil, we can't detect rotation
 	if t.fingerprint == nil {
 		return false, nil

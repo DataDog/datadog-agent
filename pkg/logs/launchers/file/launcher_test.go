@@ -212,7 +212,9 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
 	}
 	filePath := tailer.Identifier()[5:]
-	fingerprint := s.fingerprinter.ComputeFingerprintFromConfig(filePath, computeFingerprintConfig)
+	fingerprint, err := s.fingerprinter.ComputeFingerprintFromConfig(filePath, computeFingerprintConfig)
+	suite.Nil(err, "should be able to compute fingerprint")
+	suite.NotNil(fingerprint, "fingerprint should not be nil")
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
 	// Rotate file
@@ -231,7 +233,8 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
 	filePath = newTailer.Identifier()[5:]
-	newFingerprint := s.fingerprinter.ComputeFingerprintFromConfig(filePath, computeFingerprintConfig)
+	newFingerprint, err := s.fingerprinter.ComputeFingerprintFromConfig(filePath, computeFingerprintConfig)
+	suite.Nil(err, "should be able to compute fingerprint")
 	registryFingerprint := s.registry.GetFingerprint(newTailer.Identifier())
 	suite.NotEqual(registryFingerprint.Value, newFingerprint.Value, "The fingerprint of the new file should be different")
 
