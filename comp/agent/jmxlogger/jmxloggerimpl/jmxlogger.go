@@ -11,12 +11,12 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
@@ -34,20 +34,24 @@ type dependencies struct {
 	Params Params
 }
 
-type logger struct{}
+type logger struct {
+	inner seelog.LoggerInterface
+}
 
 func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 	config := deps.Config
 	if deps.Params.fromCLI {
-		err := pkglogsetup.SetupJMXLogger(deps.Params.logFile, "", false, true, false, pkgconfigsetup.Datadog())
+		i, err := pkglogsetup.BuildJMXLogger(deps.Params.logFile, "", false, true, false, deps.Config)
 		if err != nil {
-			err = fmt.Errorf("Unable to set up JMX logger: %v", err)
+			return logger{}, fmt.Errorf("Unable to set up JMX logger: %v", err)
 		}
-		return logger{}, err
+		return logger{
+			inner: i,
+		}, nil
 	}
 
 	// Setup logger
-	syslogURI := pkglogsetup.GetSyslogURI(pkgconfigsetup.Datadog())
+	syslogURI := pkglogsetup.GetSyslogURI(deps.Config)
 	jmxLogFile := config.GetString("jmx_log_file")
 	if jmxLogFile == "" {
 		jmxLogFile = defaultpaths.JmxLogFile
@@ -59,25 +63,27 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 	}
 
 	// Setup JMX logger
-	jmxLoggerSetupErr := pkglogsetup.SetupJMXLogger(
+	inner, jmxLoggerSetupErr := pkglogsetup.BuildJMXLogger(
 		jmxLogFile,
 		syslogURI,
 		config.GetBool("syslog_rfc"),
 		config.GetBool("log_to_console"),
 		config.GetBool("log_format_json"),
-		pkgconfigsetup.Datadog(),
+		deps.Config,
 	)
 
 	if jmxLoggerSetupErr != nil {
-		jmxLoggerSetupErr = fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
+		return logger{}, fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
 	}
-	return logger{}, jmxLoggerSetupErr
+	return logger{
+		inner: inner,
+	}, nil
 }
 
 func (j logger) JMXInfo(v ...interface{}) {
-	log.JMXInfo(v...)
+	j.inner.Info(v...)
 }
 
 func (j logger) JMXError(v ...interface{}) error {
-	return log.JMXError(v...)
+	return j.inner.Error(v...)
 }

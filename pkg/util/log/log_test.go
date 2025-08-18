@@ -824,27 +824,3 @@ func TestTraceNilLogger(t *testing.T) {
 	// should not write to the logs buffer
 	assert.Equal(t, 0, len(logsBuffer))
 }
-
-func TestJMXLoggerSetup(t *testing.T) {
-	SetupJMXLogger(Default(), DebugStr)
-	assert.NotNil(t, jmxLogger.Load())
-}
-
-func TestJMXLog(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
-	SetupLogger(l, DebugStr)
-	SetupJMXLogger(l, DebugStr)
-
-	JMXError("jmx error message")
-	JMXInfo("jmx info message")
-
-	w.Flush()
-
-	assert.Subset(t, strings.Split(b.String(), "\n"), []string{
-		"[ERROR] TestJMXLog: jmx error message",
-		"[INFO] TestJMXLog: jmx info message",
-	})
-}
