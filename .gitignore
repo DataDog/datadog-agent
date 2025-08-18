@@ -18,6 +18,8 @@ venv*/
 # *.cov could be removed in OCT 2023, replaced by **/coverage.out
 *.cov
 **/coverage.out
+# Python coverage
+.coverage
 *.pyc
 *.swp
 *.exe

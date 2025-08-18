@@ -84,7 +84,7 @@ require (
 	github.com/docker/docker v28.3.3+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dustin/go-humanize v1.0.1
-	github.com/elastic/go-libaudit/v2 v2.5.0
+	github.com/elastic/go-libaudit/v2 v2.6.2
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
@@ -114,13 +114,13 @@ require (
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
-	github.com/itchyny/gojq v0.12.16
+	github.com/itchyny/gojq v0.12.17
 	github.com/json-iterator/go v1.1.12
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.0
 	github.com/mdlayher/netlink v1.7.2
-	github.com/miekg/dns v1.1.67
+	github.com/miekg/dns v1.1.68
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
@@ -554,7 +554,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.161
+	github.com/DataDog/agent-payload/v5 v5.0.162
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.67.0
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.68.3

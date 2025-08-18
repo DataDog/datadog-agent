@@ -21,8 +21,8 @@ import (
 
 var datadogAgentDDOTPackage = hooks{
 	preInstall:  preInstallDatadogAgentDDOT,
-	postInstall: postInstallDatadogAgentDdot,
-	preRemove:   preRemoveDatadogAgentDdot,
+	postInstall: postInstallDatadogAgentDDOT,
+	preRemove:   preRemoveDatadogAgentDDOT,
 }
 
 const (
@@ -31,8 +31,13 @@ const (
 )
 
 var (
-	// ddotConfigPermissions are the ownerships and modes that are enforced on the DDOT configuration files
-	ddotConfigPermissions = file.Permissions{
+	// ddotConfigPermissionsDEBRPM are the ownerships and modes that are enforced on the DDOT configuration files for DEB/RPM packages
+	ddotConfigPermissionsDEBRPM = file.Permissions{
+		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
+	}
+
+	// ddotConfigPermissionsOCI are the ownerships and modes that are enforced on the DDOT configuration files for OCI packages
+	ddotConfigPermissionsOCI = file.Permissions{
 		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
@@ -77,8 +82,20 @@ func preInstallDatadogAgentDDOT(ctx HookContext) error {
 	return packagemanager.RemovePackage(ctx, agentDDOTPackage)
 }
 
-// postInstallDatadogAgentDdot performs post-installation steps for the DDOT package
-func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
+// postInstallDatadogAgentDDOT performs post-installation steps for the DDOT packages
+func postInstallDatadogAgentDDOT(ctx HookContext) (err error) {
+	if ctx.PackageType == PackageTypeDEB || ctx.PackageType == PackageTypeRPM {
+		return postInstallDatadogAgentDDOTDEBRPM(ctx)
+	}
+	if ctx.PackageType == PackageTypeOCI {
+		return postInstallDatadogAgentDDOTOCI(ctx)
+	}
+
+	return fmt.Errorf("unsupported package type: %s", ctx.PackageType)
+}
+
+// postInstallDatadogAgentDDOTOCI performs post-installation steps for the DDOT OCI package
+func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_ddot_filesystem")
 	defer func() {
 		span.Finish(err)
@@ -100,7 +117,7 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	}
 
 	// Set DDOT config permissions
-	if err = ddotConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+	if err = ddotConfigPermissionsOCI.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
@@ -127,9 +144,41 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	return nil
 }
 
-// preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package
+// postInstallDatadogAgentDDOTDEBRPM performs post-installation steps for the DDOT DEB/RPM packages
+func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("setup_ddot_filesystem")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	// Ensure the dd-agent user and group exist
+	if err = user.EnsureAgentUserAndGroup(ctx, "/opt/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
+	}
+
+	// Set DDOT package permissions
+	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
+	}
+
+	// Set DDOT config permissions
+	if err = ddotConfigPermissionsDEBRPM.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
+	}
+
+	if err := agentDDOTService.WriteStable(ctx); err != nil {
+		return fmt.Errorf("failed to write stable units: %s", err)
+	}
+	if err := agentDDOTService.EnableStable(ctx); err != nil {
+		return fmt.Errorf("failed to install stable unit: %s", err)
+	}
+
+	return nil
+}
+
+// preRemoveDatadogAgentDDOT performs pre-removal steps for the DDOT package
 // All the steps are allowed to fail
-func preRemoveDatadogAgentDdot(ctx HookContext) error {
+func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	err := agentDDOTService.StopExperiment(ctx)
 	if err != nil {
 		log.Warnf("failed to stop experiment unit: %s", err)
