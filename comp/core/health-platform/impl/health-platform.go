@@ -141,23 +141,6 @@ func (c *component) SubmitReport(ctx context.Context) error {
 		return fmt.Errorf("failed to get host info: %w", err)
 	}
 
-	// Get org ID from config (with nil check for testing)
-	var orgID int64
-	if c.cfg != nil {
-		if configObj := c.cfg.Object(); configObj != nil {
-			if intGetter, ok := configObj.(interface{ GetInt64(string) int64 }); ok {
-				orgID = intGetter.GetInt64("api_key_orgid")
-				if orgID == 0 {
-					// Fallback to org_id config
-					orgID = intGetter.GetInt64("org_id")
-				}
-			}
-		}
-	}
-	if orgID == 0 {
-		orgID = 12345 // default for testing
-	}
-
 	// Convert issues to protobuf format
 	pbIssues := make([]*healthplatformpb.Issue, len(issues))
 	for i, issue := range issues {
@@ -175,13 +158,11 @@ func (c *component) SubmitReport(ctx context.Context) error {
 	report := &HealthReportPayload{
 		Hostname:  hostname,
 		HostID:    hostInfo.HostID,
-		OrgID:     uint64(orgID),
 		Issues:    issues,
 		Timestamp: time.Now().Unix(),
 		PbReport: &healthplatformpb.HealthReport{
 			Hostname:  hostname,
 			HostId:    hostInfo.HostID,
-			OrgId:     uint64(orgID),
 			Issues:    pbIssues,
 			Timestamp: time.Now().Unix(),
 		},
@@ -259,7 +240,6 @@ func (c *component) reportingLoop() {
 type HealthReportPayload struct {
 	Hostname  string                         `json:"hostname"`
 	HostID    string                         `json:"host_id"`
-	OrgID     uint64                         `json:"org_id"`
 	Issues    []healthplatform.Issue         `json:"issues"`
 	Timestamp int64                          `json:"timestamp"`
 	PbReport  *healthplatformpb.HealthReport `json:"-"` // Protobuf version for backend
@@ -270,13 +250,11 @@ func (p *HealthReportPayload) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Hostname  string                 `json:"hostname"`
 		HostID    string                 `json:"host_id"`
-		OrgID     uint64                 `json:"org_id"`
 		Issues    []healthplatform.Issue `json:"issues"`
 		Timestamp int64                  `json:"timestamp"`
 	}{
 		Hostname:  p.Hostname,
 		HostID:    p.HostID,
-		OrgID:     p.OrgID,
 		Issues:    p.Issues,
 		Timestamp: p.Timestamp,
 	})
@@ -303,7 +281,6 @@ func (p *HealthReportPayload) SplitPayload(times int) ([]marshaler.AbstractMarsh
 		chunk := &HealthReportPayload{
 			Hostname:  p.Hostname,
 			HostID:    p.HostID,
-			OrgID:     p.OrgID,
 			Issues:    p.Issues[i:end],
 			Timestamp: p.Timestamp,
 		}

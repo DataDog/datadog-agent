@@ -163,7 +163,6 @@ func TestHealthReportPayload(t *testing.T) {
 	payload := &HealthReportPayload{
 		Hostname:  "test-host",
 		HostID:    "host-id-123",
-		OrgID:     12345,
 		Issues:    issues,
 		Timestamp: 1234567890,
 	}
