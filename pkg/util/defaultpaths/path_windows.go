@@ -81,8 +81,7 @@ func fetchInstallPath() string {
 		s, _, err := k.GetStringValue("InstallPath")
 		if err != nil {
 			log.Warnf("Installpath not found in registry: %s", err)
-		}
-		if s != "" {
+		} else if s != "" {
 			return s
 		}
 	}
