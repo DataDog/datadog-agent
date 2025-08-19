@@ -1265,6 +1265,8 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
+	// Websocket echo test
+	config.BindEnvAndSetDefault("remote_configuration.no_websocket_echo", false)
 }
 
 func autoconfig(config pkgconfigmodel.Setup) {
