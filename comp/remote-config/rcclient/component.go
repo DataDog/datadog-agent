@@ -18,8 +18,9 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// SubscribeAgentTask subscribe the remote-config client to AGENT_TASK
-	SubscribeAgentTask()
+	// AgentTaskUpdateCallback is the callback function called when there is an AGENT_CONFIG config update
+	AgentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
+
 	// Subscribe is the generic way to start listening to a specific product update
 	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))

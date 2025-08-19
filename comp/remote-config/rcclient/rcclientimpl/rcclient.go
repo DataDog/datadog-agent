@@ -302,15 +302,6 @@ func (rc rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath st
 	return err
 }
 
-func (rc rcClient) SubscribeAgentTask() {
-	rc.taskProcessed = map[string]bool{}
-	if rc.client == nil {
-		pkglog.Errorf("No remote-config client")
-		return
-	}
-	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
-}
-
 func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 	rc.client.Subscribe(string(product), fn)
 }
@@ -385,10 +376,10 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 	}
 }
 
-// agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
+// AgentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
-func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (rc rcClient) AgentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	wg := &sync.WaitGroup{}
 	wg.Add(len(updates))
 
