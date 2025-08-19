@@ -86,7 +86,7 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 
 	deps.Lc.Append(fx.Hook{
 		OnStop: func(_ context.Context) error {
-			jmxLogger.inner.Flush()
+			jmxLogger.Flush()
 			return nil
 		},
 	})
@@ -100,4 +100,8 @@ func (j logger) JMXInfo(v ...interface{}) {
 
 func (j logger) JMXError(v ...interface{}) error {
 	return j.inner.Error(v...)
+}
+
+func (j logger) Flush() {
+	j.inner.Flush()
 }
