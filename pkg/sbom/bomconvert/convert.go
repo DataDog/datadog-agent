@@ -605,9 +605,14 @@ func convertMetadata(in *cyclonedx.Metadata) *cyclonedx_v1_4.Metadata {
 		licenses = convertLicenseChoice(&(*in.Licenses)[0])
 	}
 
+	var tools []*cyclonedx_v1_4.Tool
+	if in.Tools != nil {
+		tools = convertArray(in.Tools.Tools, convertTool)
+	}
+
 	return &cyclonedx_v1_4.Metadata{
 		Timestamp:   convertTimestamp(in.Timestamp),
-		Tools:       convertArray(in.Tools.Tools, convertTool),
+		Tools:       tools,
 		Authors:     convertArray(in.Authors, convertOrganizationalContact),
 		Component:   convertComponent(in.Component),
 		Manufacture: convertOrganizationalEntity(in.Manufacture),
