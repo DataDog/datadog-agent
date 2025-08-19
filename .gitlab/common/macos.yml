@@ -4,6 +4,12 @@
 .macos_runner_maintenance:
   - DD_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DD_API_KEY
   - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
+  # Report runner ID to Datadog, see this document for AWS meta data retrieval: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
+  - |
+    AWS_TOKEN="$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")"
+    RUNNER_ID="$(curl -s http://169.254.169.254/latest/meta-data/instance-id -H "X-aws-ec2-metadata-token: $AWS_TOKEN" || hostname)"
+    datadog-ci tag --level job --tags macos_runner:"$RUNNER_ID"
+    echo "Reported runner ID to Datadog: $RUNNER_ID"
   # Report current version to datadog if main / release branch
   - |
     if [ "$CI_COMMIT_BRANCH" = "main" ] || [[ "$CI_COMMIT_BRANCH" =~ ^[0-9]+\.[0-9]+\.(x|[0-9]+)$ ]]; then
