@@ -605,7 +605,6 @@
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
 /pkg/databasemonitoring                 @DataDog/database-monitoring
-/pkg/datastreams                        @DataDog/data-streams-monitoring
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/ndm-core
