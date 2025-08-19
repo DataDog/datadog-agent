@@ -94,6 +94,13 @@ jira_statuses = ["Backlog", "In Progress", "Done"]
 github_team = "networks"
 github_labels = ["team/networks"]
 
+[teams."Cloud Network Monitoring"]
+jira_project = "CNM"
+jira_issue_type = "Task"
+jira_statuses = ["Backlog", "In Progress", "Done"]
+github_team = "cloud-network-monitoring"
+github_labels = ["team/cloud-network-monitoring"]
+
 [teams."OpenTelemetry"]
 jira_project = "OTEL"
 jira_issue_type = "Task"
