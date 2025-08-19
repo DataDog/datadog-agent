@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build trivy || windows
-
-package sbom
+package bomconvert
 
 import (
 	"testing"
@@ -24,7 +22,7 @@ func FuzzConvertBOM(f *testing.F) {
 		f.Fuzz(&bom)
 		bom.SpecVersion = cyclonedx.SpecVersion1_6
 
-		pb := convertBOM(&bom)
+		pb := ConvertBOM(&bom)
 		_, err := proto.Marshal(pb)
 
 		assert.Nil(t, err)
