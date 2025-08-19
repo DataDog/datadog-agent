@@ -62,3 +62,62 @@ datadog_otel_components_ocb_build:
     - !reference [.except_mergequeue]
     - when: never
   timeout: 15 minutes
+
+# Test that the BYOC packages can be built with the existing Dockerfile
+ddot_byoc_package_build_test_rpm:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64  
+  needs: ["integration_tests_otel"]
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - !reference [docker_image_build_otel, before_script]
+  script:
+    - !reference [.login_to_docker_readonly]
+    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
+    - |
+      docker build \
+        --target artifact \
+        --output type=local,dest=./ \
+        --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME \
+        --build-arg PACKAGE_TYPE=rpm \
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+    - |
+      RPM_PATH=ddot-byoc/datadog-agent-ddot-byoc-${AGENT_VERSION}-1.x86_64.rpm
+      if [ ! -f "$RPM_PATH" ]; then
+        echo "ERROR: Expected RPM package not found in output directory!" >&2
+        exit 1
+      fi
+      rpm2archive - < "$RPM_PATH" | tar -tz | grep /opt/datadog-agent/embedded/bin/otel-agent || { echo "ERROR: otel-agent binary not found in RPM package"; exit 1; }
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+
+ddot_byoc_package_build_test_deb:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  needs: ["integration_tests_otel"]
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - !reference [docker_image_build_otel, before_script]
+  script:
+    - !reference [.login_to_docker_readonly]
+    - AGENT_VERSION=$(dda inv -- agent.version --no-include-git --no-include-pre)
+    - |
+      docker build \
+        --target artifact \
+        --output type=local,dest=./ \
+        --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME \
+        --build-arg PACKAGE_TYPE=deb \
+        --build-arg AGENT_VERSION=$AGENT_VERSION \
+        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+    - |
+      DEB_PATH=ddot-byoc/datadog-agent-ddot-byoc_${AGENT_VERSION}_amd64.deb
+      if [ ! -f "$DEB_PATH" ]; then
+        echo "ERROR: Expected DEB package not found in output directory!" >&2
+        exit 1
+      fi
+      dpkg -c "$DEB_PATH" | grep /opt/datadog-agent/embedded/bin/otel-agent || { echo "ERROR: otel-agent binary not found in DEB package"; exit 1; }
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
