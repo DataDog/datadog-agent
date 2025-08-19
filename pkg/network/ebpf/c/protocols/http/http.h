@@ -35,7 +35,7 @@ static __always_inline void http_begin_response(http_transaction_t *http, const 
     log_debug("http_begin_response: htx=%p status=%d", http, status_code);
 }
 
-static __always_inline void http_batch_enqueue_wrapper(conn_tuple_t *tuple, http_transaction_t *http) {
+static __always_inline void http_batch_enqueue_wrapper(void *ctx, conn_tuple_t *tuple, http_transaction_t *http) {
     u32 zero = 0;
     http_event_t *event = bpf_map_lookup_elem(&http_scratch_buffer, &zero);
     if (!event) {
@@ -47,7 +47,18 @@ static __always_inline void http_batch_enqueue_wrapper(conn_tuple_t *tuple, http
 
     // http_batch_enqueue(event);
 
-    long perf_ret = bpf_ringbuf_output(&http_batch_events, event, sizeof(http_event_t), 0);
+    // Check the ringbuffers_enabled constant to decide which output method to use
+    __u64 ringbuffers_enabled = 0;
+    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
+    
+    long perf_ret;
+    if (ringbuffers_enabled > 0) {
+        perf_ret = bpf_ringbuf_output(&http_batch_events, event, sizeof(http_event_t), 0);
+    } else {
+        u32 cpu = bpf_get_smp_processor_id();
+        perf_ret = bpf_perf_event_output(ctx, &http_batch_events, cpu, event, sizeof(http_event_t));
+    }
+    
     if (perf_ret < 0) {
         log_debug("http flush error: %ld", perf_ret);
         return;
@@ -195,7 +206,7 @@ static __always_inline bool http_should_flush_previous_state(http_transaction_t 
 
 // http_process is responsible for parsing traffic and emitting events
 // representing HTTP transactions.
-static __always_inline void http_process(http_event_t *event, skb_info_t *skb_info, __u64 tags) {
+static __always_inline void http_process(void *ctx, http_event_t *event, skb_info_t *skb_info, __u64 tags) {
     conn_tuple_t *tuple = &event->tuple;
     http_transaction_t *http = &event->http;
     char *buffer = (char *)http->request_fragment;
@@ -209,7 +220,7 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
     }
 
     if (http_should_flush_previous_state(http, packet_type)) {
-        http_batch_enqueue_wrapper(tuple, http);
+        http_batch_enqueue_wrapper(ctx, tuple, http);
         bpf_memcpy(http, &event->http, sizeof(http_transaction_t));
     }
 
@@ -229,7 +240,7 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
     }
 
     if (http->tcp_seq == HTTP_TERMINATING) {
-        http_batch_enqueue_wrapper(tuple, http);
+        http_batch_enqueue_wrapper(ctx, tuple, http);
         // Check a second time to minimize the chance of accidentally deleting a
         // map entry if there is a race with a late response.
         // Please refer to comments in `http_seen_before` for more context.
@@ -253,7 +264,7 @@ int socket__http_filter(struct __sk_buff* skb) {
     normalize_tuple(&event.tuple);
 
     read_into_buffer_skb((char *)event.http.request_fragment, skb, skb_info.data_off);
-    http_process(&event, &skb_info, NO_TAGS);
+    http_process(skb, &event, &skb_info, NO_TAGS);
     return 0;
 }
 
@@ -269,7 +280,7 @@ int uprobe__http_process(struct pt_regs *ctx) {
     bpf_memset(&event, 0, sizeof(http_event_t));
     bpf_memcpy(&event.tuple, &args->tup, sizeof(conn_tuple_t));
     read_into_user_buffer_http(event.http.request_fragment, args->buffer_ptr);
-    http_process(&event, NULL, args->tags);
+    http_process(ctx, &event, NULL, args->tags);
 
     return 0;
 }
@@ -287,7 +298,7 @@ int uprobe__http_termination(struct pt_regs *ctx) {
     bpf_memcpy(&event.tuple, &args->tup, sizeof(conn_tuple_t));
     skb_info_t skb_info = {0};
     skb_info.tcp_flags |= TCPHDR_FIN;
-    http_process(&event, &skb_info, NO_TAGS);
+    http_process(ctx, &event, &skb_info, NO_TAGS);
 
     return 0;
 }
