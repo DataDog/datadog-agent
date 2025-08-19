@@ -32,7 +32,7 @@ func (p *ProcessCheck) processesByPID() (map[int32]*procutil.Process, error) {
 }
 
 // formatPorts is a stub for non-linux platforms
-func formatPorts(_, _ []uint16) *model.PortInfo {
+func formatPorts(_ bool, _, _ []uint16) *model.PortInfo {
 	return nil
 }
 
