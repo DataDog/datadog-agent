@@ -286,7 +286,7 @@ __attribute__((always_inline)) int handle_sk_release(struct sock *sk) {
     if (route.netns == 0) {
         return 0;
     }
-    // extraact protocol
+    // extract protocol
     route.l4_protocol = get_protocol_from_sock(sk);
 
     // extract port
@@ -570,7 +570,7 @@ __attribute__((always_inline)) int handle_inet_bind_ret(int ret) {
     if (route.netns != 0) {
         bpf_map_update_elem(&netns_cache, &tid, &route.netns, BPF_ANY);
     }
-    
+
     // copy ipv4 / ipv6
     u16 family = 0;
     bpf_probe_read(&family, sizeof(family), &sk->__sk_common.skc_family);
