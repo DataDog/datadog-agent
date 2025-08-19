@@ -23,8 +23,38 @@ from tasks.static_quality_gates.gates import (
 )
 
 
+class SizeMixin:
+    """
+    Mixin class providing size validation and conversion utilities.
+    Classes using this mixin must have a size_bytes attribute.
+    """
+
+    # Type hint for the attribute that implementers must provide
+    size_bytes: int
+
+    def _validate_size_bytes(self, size_bytes: int) -> None:
+        """Validate that size_bytes is non-negative"""
+        if size_bytes < 0:
+            raise ValueError("size_bytes must be non-negative")
+
+    @property
+    def size_mb(self) -> float:
+        """Size in megabytes"""
+        return self.size_bytes / (1024 * 1024)
+
+    @property
+    def size_kb(self) -> float:
+        """Size in kilobytes"""
+        return self.size_bytes / 1024
+
+    @property
+    def size_gb(self) -> float:
+        """Size in gigabytes"""
+        return self.size_bytes / (1024 * 1024 * 1024)
+
+
 @dataclass(frozen=True)
-class FileInfo:
+class FileInfo(SizeMixin):
     """
     Information about a single file within an artifact.
     """
@@ -37,13 +67,73 @@ class FileInfo:
         """Validate file info data"""
         if not self.relative_path:
             raise ValueError("relative_path cannot be empty")
-        if self.size_bytes < 0:
-            raise ValueError("size_bytes must be non-negative")
+        self._validate_size_bytes(self.size_bytes)
+
+
+@dataclass(frozen=True)
+class DockerLayerInfo(SizeMixin):
+    """
+    Information about a single Docker layer within an image.
+    """
+
+    layer_id: str
+    size_bytes: int
+    created_by: str | None = None  # Dockerfile instruction that created this layer
+    empty_layer: bool = False      # Whether this is an empty layer (metadata only)
+
+    def __post_init__(self):
+        """Validate Docker layer info data"""
+        if not self.layer_id:
+            raise ValueError("layer_id cannot be empty")
+        self._validate_size_bytes(self.size_bytes)
+
+
+@dataclass(frozen=True)
+class DockerImageInfo:
+    """
+    Extended information specific to Docker images.
+    """
+
+    image_id: str
+    image_tags: list[str]
+    architecture: str
+    os: str
+    layers: list[DockerLayerInfo]
+    config_size: int  # Size of the image config JSON
+    manifest_size: int  # Size of the manifest
+
+    def __post_init__(self):
+        """Validate Docker image info data"""
+        if not self.image_id:
+            raise ValueError("image_id cannot be empty")
+        if not self.architecture:
+            raise ValueError("architecture cannot be empty")
+        if not self.os:
+            raise ValueError("os cannot be empty")
+        if self.config_size < 0:
+            raise ValueError("config_size must be non-negative")
+        if self.manifest_size < 0:
+            raise ValueError("manifest_size must be non-negative")
 
     @property
-    def size_mb(self) -> float:
-        """Size in megabytes"""
-        return self.size_bytes / (1024 * 1024)
+    def total_layers_size_bytes(self) -> int:
+        """Total size of all layers in bytes"""
+        return sum(layer.size_bytes for layer in self.layers)
+
+    @property
+    def total_layers_size_mb(self) -> float:
+        """Total size of all layers in megabytes"""
+        return self.total_layers_size_bytes / (1024 * 1024)
+
+    @property
+    def non_empty_layers(self) -> list[DockerLayerInfo]:
+        """List of layers that actually contain file changes"""
+        return [layer for layer in self.layers if not layer.empty_layer]
+
+    @property
+    def largest_layers(self) -> list[DockerLayerInfo]:
+        """Top 10 largest layers by size"""
+        return sorted(self.layers, key=lambda layer: layer.size_bytes, reverse=True)[:10]
 
 
 @dataclass(frozen=True)
@@ -72,6 +162,9 @@ class InPlaceArtifactReport:
     arch: str
     os: str
     build_job_name: str
+
+    # Docker-specific metadata (optional)
+    docker_info: DockerImageInfo | None = None
 
     def __post_init__(self):
         """Validate report data"""
