@@ -414,6 +414,7 @@ def is_system_probe(owners, files):
         ("TEAM", "@DataDog/universal-service-monitoring"),
         ("TEAM", "@DataDog/ebpf-platform"),
         ("TEAM", "@DataDog/agent-security"),
+        ("TEAM", "@DataDog/cloud-network-monitoring"),
     }
     for f in files:
         match_teams = set(owners.of(f)) & target
