@@ -1307,6 +1307,36 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}: 1,
 			},
 		},
+		{
+			name: "headers frame with PRIORITY flag",
+			messageBuilder: func() [][]byte {
+				fr := newFramer()
+				hdrBlock, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaders()})
+				require.NoError(t, err, "could not create headers block")
+
+				// Write a HEADERS frame that carries a PRIORITY section (flag 0x20).
+				require.NoError(t, fr.framer.WriteHeaders(http2.HeadersFrameParam{
+					StreamID:      1,
+					BlockFragment: hdrBlock,
+					EndHeaders:    endHeaders,
+					Priority: http2.PriorityParam{
+						StreamDep: 0,
+						Exclusive: false,
+						Weight:    10, // non-zero weight triggers PRIORITY flag
+					},
+				}), "could not write priority headers")
+
+				fr.writeData(t, 1, endStream, emptyBody)
+
+				return [][]byte{fr.bytes()}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
