@@ -1,9 +1,9 @@
-//go:build !windows && otlp
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+//go:build !windows && otlp
 
 // Package controlsvc implements 'otel-agent start-service', 'otel-agent stop-service',
 // and 'otel-agent restart-service'.
