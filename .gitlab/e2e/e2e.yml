@@ -275,6 +275,7 @@ new-e2e-agent-subcommands:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-configuration
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
@@ -336,6 +337,7 @@ new-e2e-windows-service-test:
     TARGETS: ./tests/windows/service-test
     TEAM: windows-products
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestServiceBehaviorAgentCommand
@@ -363,6 +365,7 @@ new-e2e-windows-certificate:
     TARGETS: ./tests/windows/windows-certificate
     TEAM: windows-products
     EXTRA_PARAMS: --run "TestRemoteCertificates$"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
@@ -373,6 +376,7 @@ new-e2e-language-detection:
     TARGETS: ./tests/language-detection
     TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-npm-packages:
   extends: .new_e2e_template
@@ -548,6 +552,7 @@ new-e2e-process:
     TARGETS: ./tests/process
     TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-orchestrator:
   extends:
@@ -604,6 +609,7 @@ new-e2e-installer-script:
     FLEET_INSTALL_METHOD: "install_script"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-installer:
   extends: .new_e2e_template
@@ -628,6 +634,7 @@ new-e2e-installer:
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-installer-windows:
   extends: .new_e2e_template
@@ -734,6 +741,7 @@ new-e2e-installer-ansible:
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
@@ -773,6 +781,7 @@ new-e2e-ha-agent:
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-ha-agent-failover:
   extends: .new_e2e_template_needs_deb_x64
@@ -809,6 +818,7 @@ new-e2e-windows-systemprobe:
   variables:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-products
+    REMOTE_STACK_CLEANING: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
@@ -826,6 +836,7 @@ new-e2e-windows-security-agent:
   variables:
     TARGETS: ./tests/security-agent-functional
     TEAM: windows-products
+    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-otel-eks-init:
   stage: e2e_init
@@ -940,6 +951,7 @@ new-e2e-gpu:
     TEAM: ebpf-platform
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
     ON_NIGHTLY_FIPS: "true"
+    REMOTE_STACK_CLEANING: "true"
   needs: # list of required jobs. By default gitlab waits for any previous jobs.
     - !reference [.new_e2e_template_needs_container_deploy, needs]
     - agent_deb-x64-a7 # agent 7 debian package
