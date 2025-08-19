@@ -22,57 +22,68 @@ import (
 )
 
 const (
-	// profilingURLTemplate specifies the template for obtaining the profiling URL along with the site.
-	profilingURLTemplate = "https://intake.profile.%s/api/v2/profile"
-	// profilingURLDefault specifies the default intake API URL.
-	profilingURLDefault = "https://intake.profile.datadoghq.com/api/v2/profile"
+	// profilingURLPath specifies the default intake API path
+	profilingURLPath = "/api/v2/profile"
 	// profilingV1EndpointSuffix suffix identifying a user-configured V1 endpoint
 	profilingV1EndpointSuffix = "v1/input"
 )
 
+// endpointDescriptor specifies the configuration of an endpoint for profiling data.
+type endpointDescriptor struct {
+	// url specifies the URL to send profiles too.
+	url *url.URL
+	// apiKey specifies the Datadog API key to use.
+	apiKey string
+	// isEnabled is a function that can be called to understand if this endpoint should be used
+	// one can use this to disable endpoints dynamically (e.g. due to multi_region_failover)
+	isEnabled func() bool
+}
+
 // profilingEndpoints returns the profiling intake urls and their corresponding
 // api keys based on agent configuration. The main endpoint is always returned as
 // the first element in the slice.
-func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []string, err error) {
-	main := profilingURLDefault
-	if v := conf.ProfilingProxy.DDURL; v != "" {
-		main = v
-		if strings.HasSuffix(main, profilingV1EndpointSuffix) {
-			log.Warnf("The configured url %s for apm_config.profiling_dd_url is deprecated. "+
-				"The updated endpoint path is /api/v2/profile.", v)
-		}
-	} else if conf.Site != "" {
-		main = fmt.Sprintf(profilingURLTemplate, conf.Site)
-	}
-	u, err := url.Parse(main)
-	if err != nil {
-		// if the main intake URL is invalid we don't use additional endpoints
-		return nil, nil, fmt.Errorf("error parsing main profiling intake URL %s: %v", main, err)
-	}
-	urls = append(urls, u)
-	apiKeys = append(apiKeys, conf.APIKey())
+func profilingEndpoints(conf *config.AgentConfig) (endpoints []endpointDescriptor, err error) {
+	for i, endpoint := range conf.ProfilingProxy.Endpoints {
+		url, err := url.Parse(endpoint.Host)
+		if err != nil {
+			if i == 0 {
+				// main endpoint parsing failure is fatal
+				return nil, fmt.Errorf("Error parsing main profiling intake URL: %s: %v", endpoint.Host, err)
+			}
 
-	if extra := conf.ProfilingProxy.AdditionalEndpoints; extra != nil {
-		for endpoint, keys := range extra {
-			u, err := url.Parse(endpoint)
-			if err != nil {
-				log.Errorf("Error parsing additional profiling intake URL %s: %v", endpoint, err)
-				continue
-			}
-			for _, key := range keys {
-				urls = append(urls, u)
-				apiKeys = append(apiKeys, key)
-			}
+			log.Errorf("Error parsing additional profiling intake URL %s: %v", endpoint.Host, err)
+			continue
 		}
+
+		if len(url.Path) > 0 {
+			if url.Path == profilingV1EndpointSuffix {
+				log.Warnf("The configured url %s for apm_config.profiling_dd_url is deprecated. "+
+					"The updated endpoint path is /api/v2/profile and this is the default path used if none is specified.", url.String())
+			}
+		} else {
+			url.Path = profilingURLPath
+		}
+
+		endpoints = append(endpoints, endpointDescriptor{
+			url:    url,
+			apiKey: endpoint.APIKey,
+			isEnabled: func() bool {
+				if !endpoint.IsMRF {
+					return true
+				}
+
+				return conf.MRFFailoverProfiling()
+			},
+		})
 	}
-	return urls, apiKeys, nil
+	return
 }
 
 // profileProxyHandler returns a new HTTP handler which will proxy requests to the profiling intakes.
 // If the main intake URL can not be computed because of config, the returned handler will always
 // return http.StatusInternalServerError along with a clarification.
 func (r *HTTPReceiver) profileProxyHandler() http.Handler {
-	targets, keys, err := profilingEndpoints(r.conf)
+	endpoints, err := profilingEndpoints(r.conf)
 	if err != nil {
 		return errorHandler(err)
 	}
@@ -90,7 +101,7 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		tags.WriteString(r.conf.AzureContainerAppTags)
 	}
 
-	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
+	return newProfileProxy(r.conf, endpoints, tags.String(), r.statsd)
 }
 
 func errorHandler(err error) http.Handler {
@@ -108,7 +119,7 @@ func errorHandler(err error) http.Handler {
 //
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
-func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
+func newProfileProxy(conf *config.AgentConfig, endpoints []endpointDescriptor, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
@@ -141,7 +152,7 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
-		Transport: &multiTransport{transport, targets, keys},
+		Transport: &multiTransport{transport, endpoints},
 	}
 }
 
@@ -152,9 +163,8 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 // response is discarded. There is no de-duplication done between endpoint
 // hosts or api keys.
 type multiTransport struct {
-	rt      http.RoundTripper
-	targets []*url.URL
-	keys    []string
+	rt        http.RoundTripper
+	endpoints []endpointDescriptor
 }
 
 func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -173,18 +183,18 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 			rresp.StatusCode = http.StatusOK
 		}
 	}()
-	if len(m.targets) == 1 {
-		setTarget(req, m.targets[0], m.keys[0])
+	if len(m.endpoints) == 1 {
+		setTarget(req, m.endpoints[0].url, m.endpoints[0].apiKey)
 		return m.rt.RoundTrip(req)
 	}
 	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
-	for i, u := range m.targets {
+	for i, e := range m.endpoints {
 		newreq := req.Clone(req.Context())
 		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
-		setTarget(newreq, u, m.keys[i])
+		setTarget(newreq, e.url, e.apiKey)
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error
