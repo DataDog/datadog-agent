@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    DogStatsD emits a new metric ``metric_type_count`` that tracks gauge, counters etc totals.
+    DogStatsD emits a new metric, ``metric_type_count``, that tracks total gauges, counters, etc.
