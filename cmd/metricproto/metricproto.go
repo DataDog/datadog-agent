@@ -1847,13 +1847,14 @@ func (a *agg) read(ts_ns int64, pid int, line string) {
 			if id, ok := strings.CutPrefix(field, "c:"); ok {
 				containerId = id
 			}
-			if tsstr, ok := strings.CutPrefix(field, "T"); ok {
-				var err error
-				ts, err = strconv.ParseInt(tsstr, 10, 64)
-				if err != nil {
-					panic(err)
-				}
-			}
+			// if tsstr, ok := strings.CutPrefix(field, "T"); ok {
+			// 	continue payload
+			// 	var err error
+			// 	ts, err = strconv.ParseInt(tsstr, 10, 64)
+			// 	if err != nil {
+			// 		panic(err)
+			// 	}
+			// }
 		}
 
 		if strings.Contains(tags, "dd.internal.entity_id:none") || strings.Contains(tags, "client:rust") {
@@ -1870,6 +1871,7 @@ func (a *agg) read(ts_ns int64, pid int, line string) {
 			numvalues = append(numvalues, v)
 		}
 
+		ts = 0
 		pm, ok := a.buckets[ts]
 		if !ok {
 			pm = make(map[int]*bucket)
