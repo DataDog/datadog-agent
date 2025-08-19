@@ -1,0 +1,33 @@
+//go:build windows
+
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package controlsvc contains shared code for controlling the Windows otel-agent service.
+package controlsvc
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+)
+
+const (
+	// ServiceName is the service name used for the otel-agent
+	ServiceName = "datadog-otel-agent"
+)
+
+// StartService starts the otel-agent service via the Service Control Manager
+func StartService() error {
+	return winutil.StartService(ServiceName)
+}
+
+// RestartService restarts the otel-agent service by calling StopService and StartService
+func RestartService() error {
+	return winutil.RestartService(ServiceName)
+}
+
+// StopService stops the otel-agent service via the Service Control Manager
+func StopService() error {
+	return winutil.StopService(ServiceName)
+}
