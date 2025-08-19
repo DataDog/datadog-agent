@@ -878,8 +878,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
-	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", false)
-	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
