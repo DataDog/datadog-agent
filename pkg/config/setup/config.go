@@ -1290,6 +1290,8 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
+	// Websocket echo test
+	config.BindEnvAndSetDefault("remote_configuration.no_websocket_echo", false)
 }
 
 func autoconfig(config pkgconfigmodel.Setup) {
@@ -1779,6 +1781,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
 	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
+
+	// If true, exclude agent processes from process log collection
+	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
 }
 
 func vector(config pkgconfigmodel.Setup) {
