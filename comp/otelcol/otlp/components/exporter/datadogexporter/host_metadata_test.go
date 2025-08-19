@@ -62,7 +62,7 @@ func (*mockProvider) GetOutputChan() chan *message.Message    { return make(chan
 func (*mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	return make(chan *message.Message), metrics.NewCapacityMonitor("test", "test-instance")
 }
-func (*mockProvider) Flush(ctx context.Context) {}
+func (*mockProvider) Flush(_ context.Context) {}
 
 func createTestResAttrs() pcommon.Resource {
 	res := pcommon.NewResource()
@@ -118,7 +118,7 @@ func createTestCfg(t *testing.T, serverAddr string) *datadogconfig.Config {
 }
 
 func createTestServer(t *testing.T, c chan payload.HostMetadata) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/intake/" {
 			return
 		}
