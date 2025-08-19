@@ -143,9 +143,7 @@ docker_build_agent7:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_amd64"
   after_script:
     - !reference [.static_quality_gate_docker]
-  artifacts:
-    reports:
-      - !reference [.static_quality_gate_report_path]
+
 
 # TODO: Move this job to .gitlab/deploy_containers/deploy_containers_a7.yml.
 # This cannot be done now because of the following reasons:
@@ -177,9 +175,7 @@ docker_build_agent7_arm64:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_arm64"
   after_script:
     - !reference [.static_quality_gate_docker]
-  artifacts:
-    reports:
-      - !reference [.static_quality_gate_report_path]
+
 
 # build agent7 fips image
 docker_build_fips_agent7:
@@ -209,9 +205,7 @@ docker_build_agent7_jmx:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_jmx_amd64"
   after_script:
     - !reference [.static_quality_gate_docker]
-  artifacts:
-    reports:
-      - !reference [.static_quality_gate_report_path]
+
 
 docker_build_agent7_jmx_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
@@ -223,9 +217,7 @@ docker_build_agent7_jmx_arm64:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_jmx_arm64"
   after_script:
     - !reference [.static_quality_gate_docker]
-  artifacts:
-    reports:
-      - !reference [.static_quality_gate_report_path]
+
 
 docker_build_fips_agent7_jmx:
   extends: [.docker_build_amd64, .docker_build_agent7]
@@ -340,9 +332,7 @@ docker_build_cluster_agent_amd64:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_amd64"
   after_script:
     - !reference [.static_quality_gate_docker]
-  artifacts:
-    reports:
-      - !reference [.static_quality_gate_report_path]
+
 
 docker_build_cluster_agent_arm64:
   extends: [.docker_build_arm64, .docker_build_cluster_agent]
@@ -357,9 +347,7 @@ docker_build_cluster_agent_arm64:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_arm64"
   after_script:
     - !reference [.static_quality_gate_docker]
-  artifacts:
-    reports:
-      - !reference [.static_quality_gate_report_path]
+
 
 .docker_build_cluster_agent_fips:
   extends: .docker_build_cluster_agent
@@ -433,9 +421,7 @@ docker_build_dogstatsd_amd64:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_amd64"
   after_script:
     - !reference [.static_quality_gate_docker]
-  artifacts:
-    reports:
-      - !reference [.static_quality_gate_report_path]
+
   timeout: 20m
 
 docker_build_dogstatsd_arm64:
@@ -447,7 +433,5 @@ docker_build_dogstatsd_arm64:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_arm64"
   after_script:
     - !reference [.static_quality_gate_docker]
-  artifacts:
-    reports:
-      - !reference [.static_quality_gate_report_path]
+
   timeout: 20m
