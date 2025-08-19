@@ -88,6 +88,7 @@
       if [[ "$FLATTEN_IMAGE" == "true" ]]; then
         crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
       fi
+    - !reference [.static_quality_gate_docker]
   # Workaround for temporary network failures
   retry: 2
   timeout: 30m
@@ -141,9 +142,6 @@ docker_build_agent7:
     TAG_SUFFIX: -7
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_amd64"
-  after_script:
-    - !reference [.static_quality_gate_docker]
-
 
 # TODO: Move this job to .gitlab/deploy_containers/deploy_containers_a7.yml.
 # This cannot be done now because of the following reasons:
@@ -173,9 +171,6 @@ docker_build_agent7_arm64:
     TAG_SUFFIX: -7
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_arm64"
-  after_script:
-    - !reference [.static_quality_gate_docker]
-
 
 # build agent7 fips image
 docker_build_fips_agent7:
@@ -203,9 +198,6 @@ docker_build_agent7_jmx:
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_jmx_amd64"
-  after_script:
-    - !reference [.static_quality_gate_docker]
-
 
 docker_build_agent7_jmx_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
@@ -215,8 +207,7 @@ docker_build_agent7_jmx_arm64:
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_agent_jmx_arm64"
-  after_script:
-    - !reference [.static_quality_gate_docker]
+
 
 
 docker_build_fips_agent7_jmx:
@@ -330,9 +321,6 @@ docker_build_cluster_agent_amd64:
       artifacts: true
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_amd64"
-  after_script:
-    - !reference [.static_quality_gate_docker]
-
 
 docker_build_cluster_agent_arm64:
   extends: [.docker_build_arm64, .docker_build_cluster_agent]
@@ -345,9 +333,6 @@ docker_build_cluster_agent_arm64:
       artifacts: true
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_arm64"
-  after_script:
-    - !reference [.static_quality_gate_docker]
-
 
 .docker_build_cluster_agent_fips:
   extends: .docker_build_cluster_agent
@@ -419,9 +404,6 @@ docker_build_dogstatsd_amd64:
       artifacts: false
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_amd64"
-  after_script:
-    - !reference [.static_quality_gate_docker]
-
   timeout: 20m
 
 docker_build_dogstatsd_arm64:
@@ -431,7 +413,4 @@ docker_build_dogstatsd_arm64:
       artifacts: false
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_arm64"
-  after_script:
-    - !reference [.static_quality_gate_docker]
-
   timeout: 20m

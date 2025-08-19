@@ -31,7 +31,7 @@
       --output-path "${REPORT_PREFIX}_size_report_${CI_PIPELINE_ID}_${CI_COMMIT_SHA:0:8}.yml" \
       --max-files 10000 \
       --no-checksums \
-      --debug || { echo "⚠️  Docker image measurement failed for $IMAGE_REF"; exit 1; }
+      --debug || { echo "⚠️  Docker image measurement failed for $IMAGE_REF"; exit 0; }
 
     echo "✅ Docker image measurement completed"
 
