@@ -406,8 +406,7 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 
 	// Assert
 	// have to wait for experiment to finish installing
-	err = s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	// sanity check: make sure we did indeed install the current version
 	s.Require().Host(s.Env().RemoteHost).
