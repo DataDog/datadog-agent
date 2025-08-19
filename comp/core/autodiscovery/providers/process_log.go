@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -136,16 +137,21 @@ func (p *processLogConfigProvider) isFileReadable(logPath string) bool {
 
 	err := checkFileReadable(logPath)
 	if err != nil {
-		// We want to display permissions errors in the agent status.
+		// We want to display permissions errors in the agent status.  Other
+		// errors such as file not found are likely due to the log file having
+		// gone away and are not actionable.
 		if errors.Is(err, os.ErrPermission) {
-			status.AddGlobalWarning(logPath, fmt.Sprintf("Discovered log file %s could not be opened due to lack of permissions", logPath))
+			message := fmt.Sprintf("Discovered log file %s could not be opened due to lack of permissions", logPath)
+			discovery.AddWarning(logPath, err, message)
+			status.AddGlobalWarning(logPath, message)
 		}
 
 		oldestPath, _, _ := p.unreadableFilesCache.GetOldest()
 		evicted := p.unreadableFilesCache.Add(logPath, struct{}{})
 		// We don't want to keep the number of warnings growing forever, so
-		// only keep warnings for files in our lru.
+		// only keep warnings for files in our LRU cache.
 		if evicted {
+			discovery.RemoveWarning(oldestPath)
 			status.RemoveGlobalWarning(oldestPath)
 		}
 
@@ -154,6 +160,7 @@ func (p *processLogConfigProvider) isFileReadable(logPath string) bool {
 
 	// Remove any existing warning for this file, since it is readable. Note that we won't get here
 	// for an existing file until it is evicted from the LRU cache.
+	discovery.RemoveWarning(logPath)
 	status.RemoveGlobalWarning(logPath)
 
 	return true
@@ -254,10 +261,6 @@ func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.Even
 
 // getServiceName returns the name of the service to be used in the log config.
 func getServiceName(service *workloadmeta.Service) string {
-	if len(service.TracerMetadata) > 0 {
-		return service.TracerMetadata[0].ServiceName
-	}
-
 	if service.DDService != "" {
 		return service.DDService
 	}
