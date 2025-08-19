@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 )
 
 type procRuntimeID struct {
@@ -27,6 +28,11 @@ type procRuntimeID struct {
 	runtimeID     string
 	gitInfo       *procmon.GitInfo
 	containerInfo *procmon.ContainerInfo
+}
+
+type testingKnobs struct {
+	// Callback to be called whenever the Controller receives process updates.
+	scraperUpdatesCallback func(updates []rcscrape.ProcessUpdate)
 }
 
 // Controller is the main controller for the module.
@@ -41,6 +47,7 @@ type Controller struct {
 	diagnostics              *diagnosticsManager
 	symdb                    *symdbManager
 	procRuntimeIDbyProgramID sync.Map // map[ir.ProgramID]procRuntimeID
+	testingKnobs             testingKnobs
 }
 
 // NewController creates a new Controller.
@@ -103,6 +110,9 @@ func (c *Controller) handleRemovals(removals []procmon.ProcessID) {
 
 func (c *Controller) checkForUpdates() {
 	scraperUpdates := c.rcScraper.GetUpdates()
+	if c.testingKnobs.scraperUpdatesCallback != nil && len(scraperUpdates) > 0 {
+		c.testingKnobs.scraperUpdatesCallback(scraperUpdates)
+	}
 	actuatorUpdates := make([]actuator.ProcessUpdate, 0, len(scraperUpdates))
 	for i := range scraperUpdates {
 		update := &scraperUpdates[i]
