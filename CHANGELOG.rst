@@ -17,6 +17,14 @@ Release on: 2025-08-20
 - Please refer to the `7.69.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7692>`_ for the list of changes on the Core Checks
 
 
+.. _Release Notes_7.69.2_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Upgrade libxml2 to 2.14.5.
+
+
 .. _Release Notes_7.69.1:
 
 7.69.1
