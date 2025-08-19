@@ -471,8 +471,8 @@ func (e *eventRootType) encodeValueFields(
 	_ []byte,
 ) error {
 	return writeTokens(enc,
-		notCapturedReason,
-		notCapturedReasonUnimplemented,
+		tokenNotCapturedReason,
+		tokenNotCapturedReasonUnimplemented,
 	)
 }
 
@@ -543,6 +543,14 @@ func (h *goHMapHeaderType) encodeValueFields(
 	}
 	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
+	}
+	if uint64(encodedItems) < count {
+		if err := writeTokens(enc,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonPruned,
+		); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -640,8 +648,8 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 		if !ok {
 			return writeTokens(enc,
 				jsontext.EndArray,
-				notCapturedReason,
-				notCapturedReasonDepth,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonDepth,
 			)
 		}
 		totalElementsEncoded, err := s.encodeSwissMapGroup(d, enc, groupDataItem.Data())
@@ -650,8 +658,8 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 		}
 		if used > int64(totalElementsEncoded) {
 			if err := writeTokens(enc,
-				notCapturedReason,
-				notCapturedReasonPruned,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonPruned,
 			); err != nil {
 				return err
 			}
@@ -666,8 +674,8 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 		if !ok {
 			return writeTokens(enc,
 				jsontext.EndArray,
-				notCapturedReason,
-				notCapturedReasonDepth,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonDepth,
 			)
 		}
 		tablePtrSliceDataItem, ok := d.dataItems[typeAndAddr{
@@ -677,8 +685,8 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 		if !ok {
 			return writeTokens(enc,
 				jsontext.EndArray,
-				notCapturedReason,
-				notCapturedReasonDepth,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonDepth,
 			)
 		}
 		totalElementsEncoded, err := s.encodeSwissMapTables(d, enc, tablePtrSliceDataItem)
@@ -688,8 +696,8 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 		if used > int64(totalElementsEncoded) {
 			return writeTokens(enc,
 				jsontext.EndArray,
-				notCapturedReason,
-				notCapturedReasonPruned,
+				tokenNotCapturedReason,
+				tokenNotCapturedReasonPruned,
 			)
 		}
 	}
@@ -703,8 +711,8 @@ func (s *goSwissMapGroupsType) encodeValueFields(
 	_ []byte,
 ) error {
 	return writeTokens(enc,
-		notCapturedReason,
-		notCapturedReasonUnimplemented,
+		tokenNotCapturedReason,
+		tokenNotCapturedReasonUnimplemented,
 	)
 }
 
@@ -770,8 +778,8 @@ func encodePointer(
 	pointedValue, dataItemExists := d.dataItems[pointeeKey]
 	if !dataItemExists {
 		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonDepth,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonDepth,
 		)
 	}
 	if writeAddress {
@@ -800,8 +808,8 @@ func encodePointer(
 	} else {
 		// If we're already encoding this value, we've hit a cycle and want to write a not captured reason
 		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonCycle,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonCycle,
 		)
 	}
 	return nil
@@ -878,8 +886,8 @@ func (a *arrayType) encodeValueFields(
 	}
 	if notCaptured {
 		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonPruned,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonPruned,
 		)
 	}
 	return nil
@@ -893,14 +901,14 @@ func (s *goSliceHeaderType) encodeValueFields(
 
 	if len(data) < int(s.ByteSize) {
 		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonPruned,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonPruned,
 		)
 	}
 	if len(data) < 16 {
 		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonPruned,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonPruned,
 		)
 	}
 	address := binary.NativeEndian.Uint64(data[0:8])
@@ -932,8 +940,8 @@ func (s *goSliceHeaderType) encodeValueFields(
 	sliceDataItem, ok := d.dataItems[taa]
 	if !ok {
 		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonPruned,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonPruned,
 		)
 	}
 	if err := writeTokens(enc,
@@ -951,7 +959,7 @@ func (s *goSliceHeaderType) encodeValueFields(
 			elementData,
 			s.Data.Element.GetName(),
 		); err != nil {
-			notCapturedReason = notCapturedReasonPruned
+			notCaptured = true
 			break
 		}
 	}
@@ -960,13 +968,13 @@ func (s *goSliceHeaderType) encodeValueFields(
 	}
 	if length > uint64(sliceLength) {
 		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonCollectionSize,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonCollectionSize,
 		)
 	} else if notCaptured {
 		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonPruned,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonPruned,
 		)
 	}
 	return nil
@@ -979,8 +987,8 @@ func (s *goSliceDataType) encodeValueFields(
 	_ []byte,
 ) error {
 	return writeTokens(enc,
-		notCapturedReason,
-		notCapturedReasonUnimplemented,
+		tokenNotCapturedReason,
+		tokenNotCapturedReasonUnimplemented,
 	)
 }
 
@@ -993,8 +1001,8 @@ func (s *goStringHeaderType) encodeValueFields(
 	fieldEnd := s.strFieldOffset + uint32(s.strFieldSize)
 	if fieldEnd >= uint32(len(data)) {
 		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonLength,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonLength,
 		)
 	}
 	address := binary.NativeEndian.Uint64(data[s.strFieldOffset : s.strFieldOffset+uint32(s.strFieldSize)])
@@ -1010,8 +1018,8 @@ func (s *goStringHeaderType) encodeValueFields(
 	}]
 	if !ok {
 		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonDepth,
+			tokenNotCapturedReason,
+			tokenNotCapturedReasonDepth,
 		)
 	}
 	stringData := stringValue.Data()
@@ -1022,7 +1030,7 @@ func (s *goStringHeaderType) encodeValueFields(
 		if err := writeTokens(enc,
 			jsontext.String("size"),
 			jsontext.String(strconv.FormatInt(int64(realLength), 10)),
-			truncated,
+			tokenTruncated,
 			jsontext.Bool(true),
 		); err != nil {
 			return err
@@ -1044,8 +1052,8 @@ func (s *goStringDataType) encodeValueFields(
 	_ []byte,
 ) error {
 	return writeTokens(enc,
-		notCapturedReason,
-		notCapturedReasonUnimplemented,
+		tokenNotCapturedReason,
+		tokenNotCapturedReasonUnimplemented,
 	)
 }
 
@@ -1056,8 +1064,8 @@ func (c *goChannelType) encodeValueFields(
 	_ []byte,
 ) error {
 	return writeTokens(enc,
-		notCapturedReason,
-		notCapturedReasonUnimplemented,
+		tokenNotCapturedReason,
+		tokenNotCapturedReasonUnimplemented,
 	)
 }
 
@@ -1068,8 +1076,8 @@ func (e *goEmptyInterfaceType) encodeValueFields(
 	_ []byte,
 ) error {
 	return writeTokens(enc,
-		notCapturedReason,
-		notCapturedReasonUnimplemented,
+		tokenNotCapturedReason,
+		tokenNotCapturedReasonUnimplemented,
 	)
 }
 
@@ -1080,8 +1088,8 @@ func (i *goInterfaceType) encodeValueFields(
 	_ []byte,
 ) error {
 	return writeTokens(enc,
-		notCapturedReason,
-		notCapturedReasonUnimplemented,
+		tokenNotCapturedReason,
+		tokenNotCapturedReasonUnimplemented,
 	)
 }
 
@@ -1092,8 +1100,8 @@ func (s *goSubroutineType) encodeValueFields(
 	_ []byte,
 ) error {
 	return writeTokens(enc,
-		notCapturedReason,
-		notCapturedReasonUnimplemented,
+		tokenNotCapturedReason,
+		tokenNotCapturedReasonUnimplemented,
 	)
 }
 
