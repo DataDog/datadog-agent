@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixes a bug in the trace agent that prevented DDOT from shutting down gracefully.
+    Fixes a bug in the Trace Agent that prevented DDOT from shutting down gracefully.
