@@ -1,0 +1,26 @@
+.integration_tests_deb:
+  stage: integration_test
+  needs: ["go_deps", "go_tools_deps"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+
+docker_integration_tests:
+  extends: .integration_tests_deb
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  # This job is not stable yet because of rate limit issues and micro vms beta status.
+  allow_failure: true
+  script:
+    - dda inv -- -e docker.test
+
+trace_agent_integration_tests:
+  extends: .integration_tests_deb
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  timeout: 50m
+  retry: 2
+  script:
+    - dda inv -- -e integration-tests --race --only="Trace Agent"

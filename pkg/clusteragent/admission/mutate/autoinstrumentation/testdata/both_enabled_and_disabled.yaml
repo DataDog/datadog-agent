@@ -1,0 +1,8 @@
+---
+apm_config:
+  instrumentation:
+    enabled_namespaces:
+      - "foo"
+    disabled_namespaces:
+      - "bar"
+

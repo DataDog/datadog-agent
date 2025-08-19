@@ -1,0 +1,44 @@
+# syntax = docker/dockerfile:experimental
+
+FROM public.ecr.aws/lambda/provided:al2 as builder
+
+RUN yum install -y wget tar gzip gcc
+RUN arch="$(uname -m)"; \
+    if [ "${arch}" = 'aarch64' ]; then \
+    arch='arm64'; \
+    fi; \
+    if [ "${arch}" = 'x86_64' ]; then \
+    arch='amd64'; \
+    fi; \
+    wget -O go1.22.5.linux-${arch}.tar.gz https://go.dev/dl/go1.22.5.linux-${arch}.tar.gz; \
+    tar -C /usr/local -xzf go1.22.5.linux-${arch}.tar.gz
+
+RUN mkdir -p /tmp/dd/recorder-extension
+
+# Copy Go modules and source files
+COPY go.mod go.sum main.go /tmp/dd/recorder-extension
+
+# build the extension
+WORKDIR /tmp/dd/recorder-extension
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    /usr/local/go/bin/go build -o recorder-extension main.go;
+
+# zip the extension
+FROM ubuntu:latest as compresser
+RUN apt-get update
+RUN apt-get install -y zip binutils
+RUN mkdir /extensions
+WORKDIR /extensions
+COPY --from=builder /tmp/dd/recorder-extension/recorder-extension /extensions/recorder-extension
+RUN strip /extensions/recorder-extension
+
+
+RUN chmod +x /extensions/recorder-extension
+RUN zip /recorder_extension.zip /extensions/recorder-extension
+
+# keep the smallest possible docker image
+FROM scratch
+COPY --from=compresser /recorder_extension.zip /
+ENTRYPOINT ["/recorder_extension.zip"]

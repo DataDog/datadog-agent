@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    Add the new following docker images, containing every components of the Datadog Agent, including the new Otel-Agent:
+    - `7.X.Y-full`
+    - `7-full`
+    - `latest-full`

@@ -1,0 +1,192 @@
+init_config:
+instances:
+  # Most memstats metrics are exported by default
+  # See http://godoc.org/runtime#MemStats for their explanation
+  # Note that you can specify a `type` for the metrics. One of:
+  #  * counter
+  #  * gauge (the default)
+  #  * rate (note that this will show up as a gauge in Datadog that is meant to be seen as a "per second rate")
+
+  # - expvar_url: http://localhost:8080
+  #   namespace: examplenamespace         # The default metric namespace is 'go_expvar', define your own
+  #   tags:
+  #     - "application_name:myapp"
+  #     - "optionaltag2"
+  #   metrics:
+  #     # These metrics are just here as examples.
+  #     # Most memstats metrics are collected by default without configuration needed.
+  #     - path: memstats/PauseTotalNs
+  #       alias: go_expvar.gc.pause_time_in_ns
+  #       type: rate
+  #       tags:
+  #         - "metric_tag1:tag_value1"
+  #         - "metric_tag2:tag_value2"
+  #     - path: memstats/Alloc            # metric will be reported as a gauge by default
+  #     - path: memstats/Lookups
+  #       type: rate                      # metric should be reported as a rate instead of the default gauge
+  #     - path: memstats/Mallocs          # with no name specified, the metric name will default to a path based name
+  #       type: counter                   # report as a counter instead of the default gauge
+  #     - path: memstats/Frees
+  #       type: rate
+  #     - path: memstats/BySize/1/Mallocs # You can get nested values by separating them with "/"
+  #     - path: myvariable
+  #       alias: go_expvar.my_custom_name
+  #       type: gauge
+  #     - path: routes/get_.*/count       # You can use a regex when you want to report for all elements matching a certain pattern
+
+
+  # The following instance pulls the go_expvar metrics of the running datadog-agent
+  # Feel free to comment out the instance if you're not interested in these metrics
+  - expvar_url: http://localhost:5000/debug/vars  # if you've defined `expvar_port` in datadog.yaml, change the port here to that value
+    namespace: datadog.agent
+    metrics:
+      # datadog-agent forwarder monitoring
+      - path: forwarder/Transactions/DroppedOnInput
+        type: rate
+      - path: forwarder/Transactions/RetryQueueSize
+      - path: forwarder/Transactions/Success
+        type: rate
+      - path: forwarder/Transactions/Errors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/DNSErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/TLSErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/ConnectionErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/WroteRequestErrors
+        type: rate
+      - path: forwarder/Transactions/ErrorsByType/SentRequestErrors
+        type: rate
+      - path: forwarder/Transactions/HTTPErrors
+        type: rate
+
+
+      # datadog-agent dogstatsd monitoring
+      - path: dogstatsd-udp/Packets
+        type: rate
+      - path: dogstatsd-udp/PacketReadingErrors
+        type: rate
+      - path: dogstatsd-uds/Packets
+        type: rate
+      - path: dogstatsd-uds/PacketReadingErrors
+        type: rate
+      - path: dogstatsd-uds/OriginDetectionErrors
+        type: rate
+      - path: dogstatsd/ServiceCheckParseErrors
+        type: rate
+      - path: dogstatsd/ServiceCheckPackets
+        type: rate
+      - path: dogstatsd/EventParseErrors
+        type: rate
+      - path: dogstatsd/EventPackets
+        type: rate
+      - path: dogstatsd/MetricParseErrors
+        type: rate
+      - path: dogstatsd/MetricPackets
+        type: rate
+
+      # datadog-agent aggregator monitoring
+      - path: aggregator/Flush/ChecksMetricSampleFlushTime/LastFlush
+      - path: aggregator/Flush/ServiceCheckFlushTime/LastFlush
+      - path: aggregator/Flush/EventFlushTime/LastFlush
+      - path: aggregator/Flush/MetricSketchFlushTime/LastFlush
+      - path: aggregator/Flush/MainFlushTime/LastFlush
+      - path: aggregator/FlushCount/ServiceChecks/LastFlush
+      - path: aggregator/FlushCount/Series/LastFlush
+      - path: aggregator/FlushCount/Events/LastFlush
+      - path: aggregator/FlushCount/Sketches/LastFlush
+      - path: aggregator/DogstatsdContexts
+      - path: aggregator/SeriesFlushed
+        type: rate
+      - path: aggregator/ServiceCheckFlushed
+        type: rate
+      - path: aggregator/EventsFlushed
+        type: rate
+      - path: aggregator/NumberOfFlush
+        type: rate
+      - path: aggregator/DogstatsdMetricSample
+        type: rate
+      - path: aggregator/ChecksMetricSample
+        type: rate
+      - path: aggregator/ServiceCheck
+        type: rate
+      - path: aggregator/Event
+        type: rate
+      - path: aggregator/HostnameUpdate
+        type: rate
+
+      # datadog-agent scheduler monitoring
+      - path: scheduler/ChecksEntered
+      - path: scheduler/Queues/.*/Size
+        alias: scheduler.queues.size
+      - path: scheduler/Queues/.*/Interval
+        alias: scheduler.queues.interval
+      - path: scheduler/QueuesCount
+
+      # datadog-agent serializer monitoring
+      - path: splitter/NotTooBig
+        type: rate
+      - path: splitter/TooBig
+        type: rate
+      - path: splitter/TotalLoops
+        type: rate
+      - path: splitter/PayloadDrops
+        type: rate
+
+      # datadog-agent logs-agent monitoring
+      - path: logs-agent/IsRunning
+        type: gauge
+      - path: logs-agent/DestinationErrors
+        type: rate
+      - path: logs-agent/LogsDecoded
+        type: rate
+      - path: logs-agent/LogsProcessed
+        type: rate
+      - path: logs-agent/LogsSent
+        type: rate
+      - path: logs-agent/BytesSent
+        type: rate
+      - path: logs-agent/EncodedBytesSent
+        type: rate
+      - path: logs-agent/HttpDestinationStats/logs_0_reliable_0/idleMs
+        type: rate
+        alias: batch_strategy.idle_time
+        tags: 
+        - sender:0
+      - path: logs-agent/HttpDestinationStats/logs_0_reliable_0/inUseMs
+        type: rate
+        alias: batch_strategy.in_use_time
+        tags: 
+        - sender:0
+      - path: logs-agent/HttpDestinationStats/logs_1_reliable_0/idleMs
+        type: rate
+        alias: batch_strategy.idle_time
+        tags: 
+        - sender:1
+      - path: logs-agent/HttpDestinationStats/logs_1_reliable_0/inUseMs
+        type: rate
+        alias: batch_strategy.in_use_time
+        tags: 
+        - sender:1
+      - path: logs-agent/HttpDestinationStats/logs_2_reliable_0/idleMs
+        type: rate
+        alias: batch_strategy.idle_time
+        tags: 
+        - sender:2
+      - path: logs-agent/HttpDestinationStats/logs_2_reliable_0/inUseMs
+        type: rate
+        alias: batch_strategy.in_use_time
+        tags: 
+        - sender:2
+      - path: logs-agent/HttpDestinationStats/logs_3_reliable_0/idleMs
+        type: rate
+        alias: batch_strategy.idle_time
+        tags: 
+        - sender:3
+      - path: logs-agent/HttpDestinationStats/logs_3_reliable_0/inUseMs
+        type: rate
+        alias: batch_strategy.in_use_time
+        tags: 
+        - sender:3
+

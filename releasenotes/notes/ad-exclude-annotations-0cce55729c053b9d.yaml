@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add ability to filter kubernetes containers based on autodiscovery annotation. Containers in a pod
+    can now be omitted by setting `ad.datadoghq.com/<container_name>.exclude` as an annotation on the
+    pod. Logs can now be ommitted by setting `ad.datadoghq.com/<container_name>.logs_exclude` as an
+    annotation on the pod.

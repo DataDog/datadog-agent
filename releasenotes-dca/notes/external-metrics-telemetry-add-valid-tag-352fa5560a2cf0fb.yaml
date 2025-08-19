@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add "active" tag on the telemetry datadog.cluster_agent.external_metrics.datadog_metrics tag.
+    The label active is true if DatadogMetrics CR is used, false otherwise.

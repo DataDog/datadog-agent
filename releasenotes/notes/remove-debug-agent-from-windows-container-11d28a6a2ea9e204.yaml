@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Removes an extra copy of ``agent.exe`` from the Windows container

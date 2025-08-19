@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Support logs collection from Kubernetes log files with old Kubernetes versions (< v1.10).

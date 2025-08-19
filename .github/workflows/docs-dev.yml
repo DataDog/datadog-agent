@@ -1,0 +1,76 @@
+name: dev docs
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+    paths:
+    - docs/**
+    - .github/workflows/docs-dev.yml
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && true || false }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        persist-credentials: false
+        # Fetch all history for applying timestamps to every page
+        fetch-depth: 0
+
+    - name: Install dda
+      uses: ./.github/actions/install-dda
+      with:
+        features: legacy-tasks
+
+    - name: Configure Git for GitHub Actions bot
+      run: |
+        git config --local user.name 'github-actions[bot]'
+        git config --local user.email 'github-actions[bot]@users.noreply.github.com'
+
+    - name: Validate documentation
+      run: dda run docs build --check
+
+    - name: Build documentation
+      run: dda run docs build
+
+    - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      with:
+        name: documentation
+        path: site
+
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+    - build
+
+    steps:
+    - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+      with:
+        name: documentation
+        path: site
+
+    - uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: site
+        commit_message: ${{ github.event.head_commit.message }}
+        # Write .nojekyll at the root, see:
+        # https://help.github.com/en/github/working-with-github-pages/about-github-pages#static-site-generators
+        enable_jekyll: false
+        # Only deploy if there were changes
+        allow_empty_commit: false

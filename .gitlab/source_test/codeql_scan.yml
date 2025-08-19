@@ -1,0 +1,46 @@
+---
+# codeql_scan stage
+# Contains CodeQL scan job to perform security static analysis
+
+run_codeql_scan:
+  image: registry.ddbuild.io/code-scanning:v62112110-4faa53b-datadog-agent 
+  tags: ["arch:amd64"]
+  stage: source_test
+  rules:
+  - !reference [.on_scheduled_main]
+  needs: ["go_deps", "go_tools_deps"]
+  allow_failure: true # This job should not impact the overall status of the pipeline
+  variables:
+    ARCH: arm64
+    BASE_REF: main
+    GOMAXPROCS: 10
+    KUBERNETES_CPU_REQUEST: 10
+    KUBERNETES_CPU_LIMIT: 10
+    KUBERNETES_MEMORY_REQUEST: 64Gi
+    KUBERNETES_MEMORY_LIMIT: 64Gi
+    GITHUB_APP_PRIVATE_KEY_NAME: csec.codescanning.githubapp.privatekey
+    CODEQL: /usr/local/codeql/codeql
+    CODEQL_DB: /tmp/datadog-agent.codeql
+    DB_CONFIGS: --threads 8 --ram 96000 --db-cluster --language=go,python,javascript,cpp
+    SCAN_CONFIGS: --format sarifv2.1.0 --threads 8 --ram 96000 --no-tuple-counting
+    UPLOAD_CONFIGS: -upload_sarif=true
+    GITHUB_APP_PRIVATE_KEY_NAME: csec.codescanning.githubapp.privatekey
+    GITHUB_APP_ID: 209967
+    GITHUB_INSTALLATION_ID: 26442897
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - git clone https://github.com/DataDog/codescanning.git --depth 1 --single-branch --branch=main /tmp/codescanning
+    - invoke install-tools
+    - $CODEQL database create datadog-agent.codeql $DB_CONFIGS --command="inv -e agent.build --build-exclude=systemd"
+    - $CODEQL database analyze datadog-agent.codeql/javascript codeql/javascript-queries $SCAN_CONFIGS --sarif-category="javascript" --output="/tmp/javascript.sarif" --verbosity=progress+++
+    - $CODEQL database analyze datadog-agent.codeql/go codeql/go-queries $SCAN_CONFIGS --sarif-category="go" --output="/tmp/go.sarif" --verbosity=progress+++
+    - $CODEQL database analyze datadog-agent.codeql/python codeql/python-queries $SCAN_CONFIGS --sarif-category="python" --output="/tmp/python.sarif" --verbosity=progress+++
+    - $CODEQL database analyze datadog-agent.codeql/cpp codeql/cpp-queries $SCAN_CONFIGS --sarif-category="cpp" --output="/tmp/cpp.sarif" --verbosity=progress+++
+    - GOPRIVATE=github.com/DataDog GOBIN=/usr/local/go/bin go install github.com/DataDog/codescanning@main
+    - CODEQL_SARIF="/tmp/go.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
+    - CODEQL_SARIF="/tmp/javascript.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
+    - CODEQL_SARIF="/tmp/python.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
+    - CODEQL_SARIF="/tmp/cpp.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
+

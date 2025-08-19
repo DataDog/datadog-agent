@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix missing tags with eBPF checks (OOM Kill/TCP Queue Length) with some container runtimes (for instance, containerd 1.5).

@@ -1,0 +1,43 @@
+// To generate code: `protoc --gofast_out=. HttpTransactionProto.proto`
+
+syntax = "proto3";
+
+package retry;
+
+message HeaderValuesProto {
+    repeated string values = 1;
+}
+
+message EndpointProto  {
+    string route = 1;
+    string name = 2;
+}
+
+enum TransactionPriorityProto {
+    NORMAL = 0;
+    HIGH = 1;
+ }
+
+ enum TransactionDestinationProto {
+    ALL_REGIONS = 0;
+    PRIMARY_ONLY = 1;
+    SECONDARY_ONLY = 2;
+ }
+
+message HttpTransactionProto {
+    string Domain = 1;
+    EndpointProto Endpoint = 2;
+    map<string, HeaderValuesProto> Headers = 3;
+    bytes Payload = 4;
+    int64 ErrorCount = 5;
+    int64 CreatedAt = 6;
+    bool Retryable = 7;
+    TransactionPriorityProto priority = 8;
+    int32 PointCount = 9;
+    TransactionDestinationProto Destination = 10;
+}
+
+message HttpTransactionProtoCollection {
+    int32 version = 1;
+    repeated HttpTransactionProto values = 2;
+}

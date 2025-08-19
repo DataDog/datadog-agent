@@ -1,0 +1,10 @@
+services:
+  fake-process:
+    container_name: fake-process
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM public.ecr.aws/docker/library/alpine:3.20
+
+        # generates a synthetic process that consumes CPU and memory
+        ENTRYPOINT ["dd", "if=/dev/zero", "of=/tmp/test-process.txt"]

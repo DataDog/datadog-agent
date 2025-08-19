@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The logs collection pipeline has been through a refactor to support 
+    processing only the message content (instead of the whole raw message)
+    in the journald and Windows events tailers.
+    This feature is experimental and off by default since it changes how
+    existing `log_processing_rules` behaves with journald and Windows events
+    tailer.
+    Note that it will be switched on by default in a future release of the Agent.
+    A warning notifying about this is shown when the journald and Windows events
+    tailers are used with some `log_processing_rules`.

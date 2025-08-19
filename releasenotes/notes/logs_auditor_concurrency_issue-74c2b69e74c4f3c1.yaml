@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed a concurrent issue in the logs auditor causing the agent to crash.

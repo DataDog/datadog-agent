@@ -1,0 +1,16 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Expose distinct endpoints for liveness and readiness probes.
+    * The liveness probe (``/live``) fails in case of unrecoverable error that deserve
+      an agent restart. (Ex.: goroutine deadlock or premature exit)
+    * The readiness probe (``/ready``) fails in case of recoverable errors or errors
+      for which an agent restart would be more nasty than useful
+      (Ex.: the forwarder fails to connect to DataDog)

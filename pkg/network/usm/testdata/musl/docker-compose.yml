@@ -1,0 +1,9 @@
+version: '3'
+services:
+  alpine:
+    image: byrnedo/alpine-curl:3.17
+    stdin_open: true
+    tty: true
+    # No server, the container only needs to be running for the test to get
+    # access to the root file system.
+    entrypoint: /bin/sh -c "echo started && /bin/cat"

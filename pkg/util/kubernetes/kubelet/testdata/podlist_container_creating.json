@@ -1,0 +1,141 @@
+{
+  "kind": "PodList",
+  "apiVersion": "v1",
+  "metadata": {},
+  "items": [
+    {
+      "metadata": {
+        "name": "pod-containercreating",
+        "namespace": "default",
+        "selfLink": "/api/v1/namespaces/default/pods/pod-containercreating",
+        "uid": "a7b2a624-3b27-11eb-bf0e-42010a8400c5",
+        "resourceVersion": "175060842",
+        "creationTimestamp": "2020-12-10T20:38:26Z",
+        "annotations": {
+          "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{},\"name\":\"pod-containercreating\",\"namespace\":\"default\"},\"spec\":{\"containers\":[{\"image\":\"k8s.gcr.io/test-webserver\",\"name\":\"test-container\",\"volumeMounts\":[{\"mountPath\":\"/test-ebs\",\"name\":\"test-volume\"}]}],\"restartPolicy\":\"Never\",\"volumes\":[{\"hostPath\":{\"path\":\"/invalid\",\"type\":\"Directory\"},\"name\":\"test-volume\"}]}}\n",
+          "kubernetes.io/config.seen": "2020-12-10T20:38:26.836351897Z",
+          "kubernetes.io/config.source": "api",
+          "kubernetes.io/limit-ranger": "LimitRanger plugin set: cpu request for container test-container"
+        }
+      },
+      "spec": {
+        "volumes": [
+          {
+            "name": "test-volume",
+            "hostPath": {
+              "path": "/invalid",
+              "type": "Directory"
+            }
+          },
+          {
+            "name": "default-token-6b2kz",
+            "secret": {
+              "secretName": "default-token-6b2kz",
+              "defaultMode": 420
+            }
+          }
+        ],
+        "containers": [
+          {
+            "name": "test-container",
+            "image": "k8s.gcr.io/test-webserver",
+            "resources": {
+              "requests": {
+                "cpu": "100m"
+              }
+            },
+            "volumeMounts": [
+              {
+                "name": "test-volume",
+                "mountPath": "/test-ebs"
+              },
+              {
+                "name": "default-token-6b2kz",
+                "readOnly": true,
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+              }
+            ],
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "imagePullPolicy": "Always"
+          }
+        ],
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "nodeName": "my-node-name",
+        "securityContext": {},
+        "schedulerName": "default-scheduler",
+        "tolerations": [
+          {
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          },
+          {
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          }
+        ],
+        "priority": 0,
+        "enableServiceLinks": true
+      },
+      "status": {
+        "phase": "Pending",
+        "conditions": [
+          {
+            "type": "Initialized",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2020-12-10T20:38:26Z"
+          },
+          {
+            "type": "Ready",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2020-12-10T20:38:26Z",
+            "reason": "ContainersNotReady",
+            "message": "containers with unready status: [test-container]"
+          },
+          {
+            "type": "ContainersReady",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2020-12-10T20:38:26Z",
+            "reason": "ContainersNotReady",
+            "message": "containers with unready status: [test-container]"
+          },
+          {
+            "type": "PodScheduled",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2020-12-10T20:38:26Z"
+          }
+        ],
+        "hostIP": "10.132.0.98",
+        "startTime": "2020-12-10T20:38:26Z",
+        "containerStatuses": [
+          {
+            "name": "test-container",
+            "state": {
+              "waiting": {
+                "reason": "ContainerCreating"
+              }
+            },
+            "lastState": {},
+            "ready": false,
+            "restartCount": 0,
+            "image": "k8s.gcr.io/test-webserver",
+            "imageID": ""
+          }
+        ],
+        "qosClass": "Burstable"
+      }
+    }
+  ]
+}

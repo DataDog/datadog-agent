@@ -1,0 +1,4 @@
+---
+security:
+  - |
+    Handle the return value of Close() for writable files in ``pkg/forwarder``

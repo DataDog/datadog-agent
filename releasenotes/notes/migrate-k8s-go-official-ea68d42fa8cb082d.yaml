@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Moves away from the community library for the kubernetes client in favor of the official one.

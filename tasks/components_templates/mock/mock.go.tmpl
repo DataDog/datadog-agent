@@ -1,0 +1,18 @@
+${COPYRIGHT_HEADER}
+
+//go:build test
+
+// Package mock provides a mock for the ${COMPONENT_NAME} component
+package mock
+
+import (
+	"testing"
+
+	${COMPONENT_NAME} "github.com/DataDog/datadog-agent/${COMPONENT_PATH}/def"
+)
+
+// Mock returns a mock for ${COMPONENT_NAME} component.
+func Mock(t *testing.T) ${COMPONENT_NAME}.Component {
+	// TODO: Implement the ${COMPONENT_NAME} mock
+	return nil
+}

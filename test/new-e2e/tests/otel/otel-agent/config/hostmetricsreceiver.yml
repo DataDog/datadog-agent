@@ -1,0 +1,18 @@
+receivers:
+  hostmetrics:
+    collection_interval: 10s
+    scrapers:
+      load:
+      memory:
+exporters:
+  datadog:
+    metrics:
+      resource_attributes_as_tags: true
+    hostname: "otelcol-docker"
+    api:
+      key: ${env:DD_API_KEY}
+service:
+  pipelines:
+    metrics:
+      receivers: [hostmetrics]
+      exporters: [datadog]

@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Each corecheck could now send custom tags using
+    the ``tags`` field in its configuration file.

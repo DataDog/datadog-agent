@@ -1,0 +1,5 @@
+---
+features:
+  - "Docker check: ignore the new exec_die event type by default"
+fixes:
+  - "Docker check: fix event filtering for exec events"

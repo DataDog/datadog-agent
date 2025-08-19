@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    The following Windows Agent container versions are removed: 1909, 2004, and 20H2.

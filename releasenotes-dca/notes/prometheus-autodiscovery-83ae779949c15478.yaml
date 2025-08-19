@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Support Prometheus Autodiscovery for Kubernetes Services.

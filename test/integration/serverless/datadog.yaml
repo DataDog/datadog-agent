@@ -1,0 +1,6 @@
+proxy:
+    https: "https://proxy.yaml:80"
+    http: "http://proxy.yaml:80"
+    no_proxy:
+      - "secretsmanager.eu-west-1.amazonaws.com"
+      - "kms.eu-west-1.amazonaws.com"

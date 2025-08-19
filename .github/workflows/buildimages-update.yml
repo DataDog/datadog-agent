@@ -1,0 +1,132 @@
+name: Update buildimages
+
+on:
+  workflow_dispatch:
+    inputs:
+      images_id:
+        description: 'Images ID'
+        required: true
+        type: string
+      go_version:
+        description: 'Go version'
+        required: true
+        type: string
+      branch:
+        description: 'Git branch to use'
+        required: true
+        type: string
+      test_version:
+        description: 'Whether the images are test images'
+        required: true
+        type: boolean
+      include_otel_modules:
+        description: 'Whether to also bump the Go version in modules used by OpenTelemetry'
+        required: true
+        type: boolean
+
+jobs:
+  open-go-update-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # This is required for getting the required OIDC token from GitHub
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # credentials are needed to create the PR at the end of the workflow
+          persist-credentials: true
+
+      - name: Fetch branch
+        env:
+          TARGET_BRANCH: ${{ inputs.branch }}
+        # this step needs the github repository to be already cloned locally
+        id: branch_fetch
+        run: |
+          if git fetch origin "refs/heads/$TARGET_BRANCH"; then
+            echo "RESULT=true" >> $GITHUB_OUTPUT
+          else
+            echo "RESULT=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: ${{ steps.branch_fetch.outputs.RESULT == 'true' }}
+        with:
+          ref: ${{ inputs.branch }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        with:
+          # use the go version from the input, not from the .go-version file
+          # in case it's a Go update PR
+          go-version: ${{ inputs.go_version }}
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Get current Go version
+        id: current_go_version
+        run: |
+          echo "GO_VERSION=$(dda inv -- go-version)" >> $GITHUB_OUTPUT
+
+      - name: Get current buildimage tag
+        id: current_buildimage_tag
+        run: |
+            echo "BUILDIMAGE_TAG=$(dda inv -- buildimages.get-tag)" >> $GITHUB_OUTPUT
+
+      - name: Install tools
+        # Updating the Go version requires having gopatch installed
+        id: install_tools
+        run: |
+          dda inv -- -e install-tools
+
+      - name: Update buildimages IDs and Go version
+        id: update_build_images
+        env:
+          TEST_VERSION_FLAG: ${{ inputs.test_version && '--test' || '--no-test' }}
+          # INCLUDE_OTEL_MODULES must be used without quotes to be ignored when empty
+          INCLUDE_OTEL_MODULES: ${{ inputs.include_otel_modules && '--include-otel-modules' || '' }}
+          # INPUT_TEST_VERSION must be used without quotes to be ignored when empty
+          INPUT_TEST_VERSION: ${{ inputs.test_version && '--test' || '' }}
+          CURRENT_GO_VERSION: ${{ steps.current_go_version.outputs.GO_VERSION }}
+          INPUT_GO_VERSION: ${{ inputs.go_version }}
+          CURRENT_BUILDIMAGE_TAG: ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }}
+          IMAGES_ID: ${{ inputs.images_id }}
+          TMP_PR_BODY_PATH: /tmp/pr_body
+        run: |
+          if [ "$CURRENT_GO_VERSION" = "$INPUT_GO_VERSION" ]; then
+            dda inv -- -e buildimages.update --tag "$IMAGES_ID" "$TEST_VERSION_FLAG"
+            echo "MESSAGE=Update buildimages ID to $IMAGES_ID" >> $GITHUB_OUTPUT
+          else
+            dda inv -- -e update-go --image-tag "$IMAGES_ID" "$TEST_VERSION_FLAG" $INCLUDE_OTEL_MODULES -v "$INPUT_GO_VERSION"
+            echo "MESSAGE=Update Go version to $INPUT_GO_VERSION" >> $GITHUB_OUTPUT
+          fi
+          # Generate the PR description
+          dda inv -- -e buildimages.generate-pr-body \
+          "$CURRENT_BUILDIMAGE_TAG" \
+          "$IMAGES_ID" \
+          "$CURRENT_GO_VERSION" \
+          "$INPUT_GO_VERSION" \
+          $INPUT_TEST_VERSION > $TMP_PR_BODY_PATH
+          echo "BODY<<EOF"$'\n'"$(cat $TMP_PR_BODY_PATH)"$'\n'EOF >> $GITHUB_OUTPUT
+
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.buildimages-update.create-pr
+
+      - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        name: Create pull request
+        with:
+          token: ${{ steps.octo-sts.outputs.token }}
+          commit-message: ${{ steps.update_build_images.outputs.MESSAGE }}
+          branch: ${{ inputs.branch }}
+          sign-commits: true
+          title: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
+          body: ${{ steps.update_build_images.outputs.BODY }}
+          draft: true
+          labels: go-update,team/agent-runtimes

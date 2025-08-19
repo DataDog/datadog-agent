@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# Perform necessary datadog-iot-agent setup steps before package is installed.
+#
+# .deb: STEP 2 of 5
+
+SERVICE_NAME=datadog-agent
+
+set -e
+
+if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/system/$SERVICE_NAME.service" ]; then
+    # Stop an already running agent
+    # Only supports systemd and upstart
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        initctl stop $SERVICE_NAME || true
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-iot-agent package only provides service files for systemd and upstart."
+    fi
+fi
+
+exit 0

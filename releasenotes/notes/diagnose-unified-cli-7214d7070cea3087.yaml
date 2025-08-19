@@ -1,0 +1,27 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Unified ``agent diagnose`` CLI command by removing ``all``,
+    ``datadog-connectivity``, and ``metadata-availability`` subcommands.
+    These separate subcommands became one of the diagnose suites. The
+    ``all`` subcommand became unnecessary.
+
+upgrade:
+  - |
+    ``datadog-connectivity`` and ``metadata-availability`` subcommands
+    do not exist anymore and their diagnoses are reported in a more
+    general and structured way.
+
+    Diagnostics previously reported via ``datadog-connectivity``
+    subcommand will be reported now as part of
+    ``connectivity-datadog-core-endpoints``suite. Correspondingly,
+    diagnostics previously reported via ``metadata-availability``
+    subcommand will be reported now as part of
+    ``connectivity-datadog-autodiscovery`` suite.

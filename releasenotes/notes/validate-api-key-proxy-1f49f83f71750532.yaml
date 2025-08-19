@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    API key validation logic was ignoring proxy settings, leading to situations
+    where the agent reported that it was "Unable to validate API key" in the GUI.

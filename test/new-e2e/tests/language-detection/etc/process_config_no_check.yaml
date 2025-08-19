@@ -1,0 +1,13 @@
+process_config:
+  run_in_core_agent:
+    enabled: false
+  process_collection:
+    enabled: false
+  container_collection:
+    enabled: false
+  process_discovery:
+    enabled: false
+  intervals:
+    process: 1
+language_detection:
+  enabled: true

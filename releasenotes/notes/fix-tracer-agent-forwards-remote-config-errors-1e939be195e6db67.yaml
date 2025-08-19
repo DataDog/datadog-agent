@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    APM: Fixed trace-agent not forwarding errors from remote configuration and reporting them all as 500s
+

@@ -1,0 +1,11 @@
+---
+variables:
+  BUCKET_BRANCH: 'dev'
+  CI_COMMIT_BRANCH: 'main'
+  CI_COMMIT_TAG: ''
+  CI_PIPELINE_SOURCE: 'pipeline'
+  DEPLOY_AGENT: 'true'
+  RUN_ALL_BUILDS: 'true'
+  RUN_E2E_TESTS: 'on'
+  RUN_KMT_TESTS: 'on'
+  RUN_UNIT_TESTS: 'true'

@@ -1,0 +1,11 @@
+version: '3.9'
+
+services:
+  lighttpd:
+    image: ghcr.io/rtsp/docker-lighttpd:1.4.73
+    ports:
+      - "9449:9449"
+    volumes:
+      - ${DD_LIGHTTPD_CONFIG}:/etc/lighttpd/lighttpd.conf
+      - ${DD_LIGHTTPD_LOGS_PATH}:/var/log/lighttpd
+    container_name: lighttpd

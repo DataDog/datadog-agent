@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Release the Leader Election Lock on shutdown to make the initialization of future cluster-agents faster. 

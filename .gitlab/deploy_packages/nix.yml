@@ -1,0 +1,259 @@
+---
+#
+# Agent v7
+#
+deploy_packages_deb-x64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ agent_deb-x64-a7 ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_deb-arm64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ agent_deb-arm64-a7 ]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_packages_deb-x64-7-fips:
+  extends: .deploy_packages_deb-7
+  needs: [ agent_deb-x64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_deb-arm64-7-fips:
+  extends: .deploy_packages_deb-7
+  needs: [ agent_deb-arm64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_packages_heroku_deb-x64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ agent_heroku_deb-x64-a7 ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_iot_deb-x64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ iot_agent_deb-x64 ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_iot_deb-arm64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ iot_agent_deb-arm64 ]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_packages_iot_deb-armhf-7:
+  extends: .deploy_packages_deb-7
+  needs: [ iot_agent_deb-armhf ]
+  variables:
+    PACKAGE_ARCH: armhf
+
+deploy_packages_dogstatsd_deb-x64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ dogstatsd_deb-x64 ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_dogstatsd_deb-arm64-7:
+  extends: .deploy_packages_deb-7
+  needs: [ dogstatsd_deb-arm64 ]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_packages_ddot_deb-x64:
+  extends: .deploy_packages_deb-7
+  needs: [ ddot_deb-x64 ]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_packages_ddot_deb-arm64:
+  extends: .deploy_packages_deb-7
+  needs: [ ddot_deb-arm64 ]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_packages_rpm-x64-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ agent_rpm-x64-a7 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_rpm-arm64-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ agent_rpm-arm64-a7 ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_packages_rpm-x64-7-fips:
+  extends: .deploy_packages_rpm-7
+  needs: [ agent_rpm-x64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_rpm-arm64-7-fips:
+  extends: .deploy_packages_rpm-7
+  needs: [ agent_rpm-arm64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_packages_iot_rpm-x64-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ iot_agent_rpm-x64 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_iot_rpm-arm64-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ iot_agent_rpm-arm64 ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_packages_iot_rpm-armhf-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ iot_agent_rpm-armhf ]
+  variables:
+    PACKAGE_ARCH: armv7hl
+
+deploy_packages_dogstatsd_rpm-x64-7:
+  extends: .deploy_packages_rpm-7
+  needs: [ dogstatsd_rpm-x64 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_ddot_rpm-x64:
+  extends: .deploy_packages_rpm-7
+  needs: [ ddot_rpm-x64 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_ddot_rpm-arm64:
+  extends: .deploy_packages_rpm-7
+  needs: [ ddot_rpm-arm64 ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_packages_suse_rpm-x64-7:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ agent_suse-x64-a7 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_suse_rpm-arm64-7:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ agent_suse-arm64-a7 ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_packages_suse_rpm-x64-7-fips:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ agent_suse-x64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_suse_rpm-arm64-7-fips:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ agent_suse-arm64-a7-fips ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_packages_iot_suse_rpm-x64-7:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ iot_agent_suse-x64 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_dogstatsd_suse_rpm-x64-7:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ dogstatsd_suse-x64 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_ddot_suse_rpm-x64:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ ddot_suse_rpm-x64 ]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_ddot_suse_rpm-arm64:
+  extends: .deploy_packages_suse_rpm-7
+  needs: [ ddot_suse_rpm-arm64 ]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_packages_dmg-x64-a7:
+  extends: .deploy_packages_dmg
+  needs: ["agent_dmg-x64-a7"]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_packages_dmg-arm64-a7:
+  extends: .deploy_packages_dmg
+  needs: ["agent_dmg-arm64-a7"]
+  variables:
+    PACKAGE_ARCH: arm64
+
+# deploy dogstatsd x64, non-static binary to staging bucket
+deploy_staging_dsd:
+  rules:
+    !reference [.on_deploy]
+  stage: deploy_packages
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  tags: ["arch:amd64"]
+  needs: ["build_dogstatsd-binary_x64"]
+  script:
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
+    - PACKAGE_VERSION=$(dda inv agent.version --url-safe) || exit $?
+    - $S3_CP_CMD ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# deploy iot-agent x64 binary to staging bucket
+deploy_staging_iot_agent:
+  rules:
+    !reference [.on_deploy]
+  stage: deploy_packages
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  tags: ["arch:amd64"]
+  needs: ["build_iot_agent-binary_x64"]
+  script:
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
+    - PACKAGE_VERSION=$(dda inv agent.version --url-safe) || exit $?
+    - $S3_CP_CMD ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# Datadog Installer
+
+deploy_installer_deb_arm64:
+  extends: .deploy_installer_deb
+  needs: ["installer_deb-arm64"]
+  variables:
+    PACKAGE_ARCH: arm64
+
+deploy_installer_deb_amd64:
+  extends: .deploy_installer_deb
+  needs: ["installer_deb-amd64"]
+  variables:
+    PACKAGE_ARCH: amd64
+
+deploy_installer_rpm_arm64:
+  extends: .deploy_installer_rpm
+  needs: ["installer_rpm-arm64"]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_installer_rpm_amd64:
+  extends: .deploy_installer_rpm
+  needs: ["installer_rpm-amd64"]
+  variables:
+    PACKAGE_ARCH: x86_64
+
+deploy_installer_suse_rpm_arm64:
+  extends: .deploy_installer_suse_rpm
+  needs: ["installer_suse_rpm-arm64"]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_installer_suse_rpm_amd64:
+  extends: .deploy_installer_suse_rpm
+  needs: ["installer_suse_rpm-amd64"]
+  variables:
+    PACKAGE_ARCH: x86_64

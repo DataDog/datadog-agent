@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add support for environment variables in checks' config files
+    using the format "%%env_XXXX%%".
+

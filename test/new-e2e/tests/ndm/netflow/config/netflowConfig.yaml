@@ -1,0 +1,14 @@
+network_devices:
+  netflow:
+    enabled: true
+    forwarder:
+      logs_dd_url: FAKEINTAKE_URL
+    listeners:
+    - flow_type: netflow9
+      port: 2055
+    - flow_type: netflow5
+      port: 2056
+    - flow_type: ipfix
+      port: 4739
+    - flow_type: sflow5
+      port: 6343

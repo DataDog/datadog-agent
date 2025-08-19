@@ -1,0 +1,153 @@
+name: "CWS BTFHub constants sync"
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_branch:
+        description: 'Base branch to target'
+        required: false
+        default: 'main'
+        type: string
+  schedule:
+    - cron: '30 4 * * 4' # at 4:30 UTC on Thursday
+
+permissions: {}
+
+jobs:
+  generate:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        cone:
+          - amzn
+          - centos
+          - debian
+          - fedora
+          - ol/7/arm64
+          - ol/7/x86_64
+          - ol/8/arm64
+          - ol/8/x86_64
+          - opensuse-leap
+          - rhel
+          - sles
+          - ubuntu/16.04/x86_64
+          - ubuntu/18.04/arm64
+          - ubuntu/18.04/x86_64
+          - ubuntu/20.04/arm64
+          - ubuntu/20.04/x86_64
+    steps:
+      - name: Cleanup runner
+        run: |
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
+          docker rmi $(docker image ls -aq) >/dev/null 2>&1
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          df -h
+
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.base_branch || 'main' }}
+          persist-credentials: false
+
+      - name: Checkout btfhub-archive repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: DataDog/btfhub-archive
+          path: dev/dist/archive
+          sparse-checkout: ${{ matrix.cone }}
+          persist-credentials: false
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Install go
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        with:
+          go-version-file: '.go-version'
+
+      - name: Compute name
+        id: artifact-name
+        run: |
+          echo "ARTIFACT_NAME=constants-${{ matrix.cone }}" | tr '/' '-' >> $GITHUB_OUTPUT
+
+      - name: Sync constants
+        env:
+          ARTIFACT_NAME: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
+        run: |
+          # fix amd64 missing embed files
+          touch pkg/ebpf/kernelbugs/c/uprobe-trigger.o
+          touch pkg/ebpf/kernelbugs/c/detect-seccomp-bug
+
+          # generate constants
+          dda inv -- -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./"$ARTIFACT_NAME".json
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
+          path: ./${{ steps.artifact-name.outputs.ARTIFACT_NAME }}.json
+
+  combine:
+    needs: generate
+    runs-on: ubuntu-22.04
+    permissions:
+      id-token: write # This is required for getting the required OIDC token from GitHub
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.base_branch || 'main' }}
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Install go
+        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        with:
+          go-version-file: '.go-version'
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          path: ./dev/dist/constants
+          pattern: constants-*
+          merge-multiple: true
+
+      - name: Combine constants
+        run: |
+          # fix amd64 missing embed files
+          touch pkg/ebpf/kernelbugs/c/uprobe-trigger.o
+          touch pkg/ebpf/kernelbugs/c/detect-seccomp-bug
+
+          # combine constants
+          dda inv -- -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
+          dda inv -- -e security-agent.split-btfhub-constants
+
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.cws-btfhub-sync.create-pr
+
+      - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        name: Create pull request
+        with:
+          token: ${{ steps.octo-sts.outputs.token }}
+          commit-message: "CWS: sync BTFhub constants"
+          branch: cws/constants-sync
+          branch-suffix: timestamp
+          sign-commits: true
+          title: "CWS: sync BTFHub constants"
+          body: |
+              ### What does this PR do?
+              This PR syncs the BTFHub constants used by CWS
+              _This PR was autogenerated_
+          milestone: 22 # triage
+          labels: changelog/no-changelog, qa/no-code-change, team/agent-security

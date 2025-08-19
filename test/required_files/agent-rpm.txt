@@ -1,0 +1,5 @@
+/etc/init/datadog-agent.conf
+/etc/init/datadog-agent-sysprobe.conf
+/etc/init/datadog-agent-trace.conf
+/etc/init/datadog-agent-process.conf
+/etc/init/datadog-agent-security.conf

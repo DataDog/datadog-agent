@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Show configuration source for each check's instance in the "status" and the
+    "configcheck" commands.

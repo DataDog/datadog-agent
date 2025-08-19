@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Added a network_config config to the system-probe that allows the
+    network module to be selectively enabled/disabled. Also added a
+    corresponding DD_SYSTEM_PROBE_NETWORK_ENABLED env var.  The network module
+    will only be disabled if the network_config exists and has enabled set to
+    false, or if the env var is set to false.  To maintain compatibility with
+    previous configs, the network module will be enabled in all other cases.

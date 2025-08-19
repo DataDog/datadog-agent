@@ -1,0 +1,43 @@
+receivers:
+  otlp:
+  prometheus/user-defined:
+    config:
+      scrape_configs:
+        - job_name: 'datadog-agent'
+          scrape_interval: 60s
+          metric_name_validation_scheme: legacy
+          metric_name_escaping_scheme: underscores
+          static_configs:
+            - targets: ['0.0.0.0:8888']
+
+processors:
+  infraattributes/user-defined:
+
+exporters:
+  datadog:
+    api:
+      key: abcde12345
+      site: datadoghq.eu
+
+extensions:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
+    endpoint: "localhost:55679"
+  ddflare/user-defined:
+
+service:
+  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [infraattributes/user-defined]
+      exporters: [datadog]
+    metrics:
+      receivers: [prometheus/user-defined]
+      processors: [infraattributes/user-defined]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes/user-defined]
+      exporters: [datadog]

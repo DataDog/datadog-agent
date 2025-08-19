@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed a bug that could prevent the Admission Controller from starting when the External Metrics Provider is enabled.

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Added a required infrastructure to enable protocol classification for Network Performance Monitoring in the future.
+    The protocol classification will allow us to label each connection with a L7 protocol.
+    The features requires Linux kernel version 4.5 or greater.

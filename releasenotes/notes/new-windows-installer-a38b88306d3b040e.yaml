@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    The Windows installer can now send a report to Datadog in case of installation failure.
+  - |
+    The Windows installer can now send APM telemetry.
+enhancements:
+  - |
+    The Windows installer is now built using WixSharp.
+  - |
+    Refactored the Windows installer custom actions in .Net.

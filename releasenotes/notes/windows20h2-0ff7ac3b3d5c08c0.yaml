@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add support for Windows 20H2 in published Docker images

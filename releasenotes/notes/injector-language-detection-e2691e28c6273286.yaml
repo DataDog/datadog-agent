@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Added a new language detector that uses the apm-inject propagated
+    language, if available.
+

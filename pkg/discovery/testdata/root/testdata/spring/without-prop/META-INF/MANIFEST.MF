@@ -1,0 +1,3 @@
+Manifest-Version: 1.0
+Main-Class: org.springframework.boot.loader.launch.JarLauncher
+Start-Class: com.example.spring_boot.ApplicationKtx

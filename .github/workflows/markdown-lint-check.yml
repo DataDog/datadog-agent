@@ -1,0 +1,20 @@
+name: Check Markdown links
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  markdown-link-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        persist-credentials: false
+    - uses: gaurav-nelson/github-action-markdown-link-check@3c3b66f1f7d0900e37b71eca45b63ea9eedfce31 # v1.0.17
+      with:
+        use-quiet-mode: yes
+        config-file: .markdown-link-check
+        check-modified-files-only: yes
+        base-branch: ${{ github.base_ref }}

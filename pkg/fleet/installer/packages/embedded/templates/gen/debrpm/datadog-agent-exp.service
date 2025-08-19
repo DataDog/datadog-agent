@@ -1,0 +1,22 @@
+[Unit]
+Description=Datadog Agent Experiment
+After=network.target
+Conflicts=datadog-agent.service
+Wants=datadog-agent-installer-exp.service datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service datadog-agent-ddot-exp.service
+OnFailure=datadog-agent.service
+Before=datadog-agent.service
+
+[Service]
+Type=simple
+PIDFile=/opt/datadog-agent/run/agent.pid
+User=dd-agent
+EnvironmentFile=-/etc/datadog-agent/environment
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/experiment"
+RuntimeDirectory=datadog
+StartLimitInterval=10
+StartLimitBurst=5
+Restart=no
+ExecStart=/usr/bin/timeout --kill-after=15s 3000s /opt/datadog-agent/bin/agent/agent run -p /opt/datadog-agent/run/agent.pid
+ExecStopPost=/bin/false
+
+

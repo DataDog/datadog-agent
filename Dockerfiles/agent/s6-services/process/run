@@ -1,0 +1,4 @@
+#!/usr/bin/execlineb -P
+
+foreground { /initlog.sh "starting process-agent" }
+process-agent --cfgpath=/etc/datadog-agent/datadog.yaml

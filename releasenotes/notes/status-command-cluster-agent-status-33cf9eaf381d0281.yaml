@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Adding the status of the DCA (If enabled) in the Agent status command.

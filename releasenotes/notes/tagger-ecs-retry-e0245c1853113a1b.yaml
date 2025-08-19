@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes an issue where the Agent would not retry resource tags collection for
+    containers on ECS if it could retrieve only a subset of tags. Now it will
+    keep on retrying until the complete set of tags is collected.

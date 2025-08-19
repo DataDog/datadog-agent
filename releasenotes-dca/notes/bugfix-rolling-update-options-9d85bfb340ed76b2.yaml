@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix collection of numeric rolling update options in Kubernetes deployments
+    and daemonsets.

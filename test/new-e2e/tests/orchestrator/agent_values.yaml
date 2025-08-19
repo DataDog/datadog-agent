@@ -1,0 +1,25 @@
+datadog:
+  kubelet:
+    tlsVerify: false
+  orchestratorExplorer:
+    customResources:
+      - datadoghq.com/v1alpha1/datadogmetrics
+agents:
+  useHostNetwork: true
+
+clusterAgent:
+  enabled: true
+  confd:
+    orchestrator.yaml: |-
+      init_config:
+      instances:
+        - collectors:
+          - pods
+          - nodes
+          - deployments
+          - customresourcedefinitions
+          crd_collectors:
+          - datadoghq.com/v1alpha1/datadogmetrics
+  envDict:
+    DD_ORCHESTRATOR_EXPLORER_TERMINATED_RESOURCES_ENABLED: true
+    DD_ORCHESTRATOR_EXPLORER_TERMINATED_PODS_ENABLED : true

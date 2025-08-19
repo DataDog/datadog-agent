@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix Orchestrator argument scrubbing to allow scrubbing of quoted arguments.

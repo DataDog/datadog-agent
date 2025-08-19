@@ -1,0 +1,95 @@
+:root > * {
+  /* https://www.datadoghq.com/about/resources/#datadog-purple */
+  --md-primary-fg-color: #632CA6;
+  --md-primary-fg-color--dark: #632CA6;
+
+  /* https://github.com/squidfunk/mkdocs-material/blob/9.1.2/src/assets/stylesheets/palette/_primary.scss#L34 */
+  --md-primary-fg-color--light: #9574CD;
+}
+
+/* Brighter links for dark mode */
+[data-md-color-scheme=slate] {
+  /* https://github.com/squidfunk/mkdocs-material/blob/9.1.2/src/assets/stylesheets/main/_colors.scss#L91-L92 */
+  --md-typeset-a-color: var(--md-primary-fg-color--light);
+}
+
+/* FiraCode https://github.com/tonsky/FiraCode */
+code { font-family: 'Fira Code', monospace; }
+@supports (font-variation-settings: normal) {
+  code { font-family: 'Fira Code VF', monospace; }
+}
+
+/* https://github.com/squidfunk/mkdocs-material/issues/1522 */
+.md-typeset h5 {
+  color: var(--md-default-fg-color);
+  text-transform: none;
+}
+
+/* https://github.com/squidfunk/mkdocs-material/discussions/6909#discussioncomment-8788221 */
+.md-typeset ol ol, .md-typeset ul ol {
+  list-style-type: decimal;
+}
+
+/* https://facelessuser.github.io/pymdown-extensions/extensions/progressbar/ */
+.progress-label {
+  position: absolute;
+  text-align: center;
+  font-weight: 700;
+  width: 100%;
+  margin: 0;
+  line-height: 1.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 1.2rem;
+  float: left;
+  background-color: #2979ff;
+}
+
+.progress {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0;
+  height: 1.2rem;
+  background-color: #eeeeee;
+  position: relative;
+}
+
+.progress.thin {
+  margin-top: 0.9rem;
+  height: 0.4rem;
+}
+
+.progress.thin .progress-label {
+  margin-top: -0.4rem;
+}
+
+.progress.thin .progress-bar {
+  height: 0.4rem;
+}
+
+.progress-100plus .progress-bar {
+  background-color: #00e676;
+}
+
+.progress-80plus .progress-bar {
+  background-color: #fbc02d;
+}
+
+.progress-60plus .progress-bar {
+  background-color: #ff9100;
+}
+
+.progress-40plus .progress-bar {
+  background-color: #ff5252;
+}
+
+.progress-20plus .progress-bar {
+  background-color: #ff1744;
+}
+
+.progress-0plus .progress-bar {
+  background-color: #f50057;
+}

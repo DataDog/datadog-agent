@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    GOMAXPROCS is now set automatically to match the allocated CPU cgroup quota.
+    GOMAXPROCS can now also be manually specified and overridden in millicore units.
+    If no quota or GOMAXPROCS value is set it will default to the original behavior.

@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Agent can be configured to replace colon ``:`` characters in the ECS resource tag keys by underscores ``_``.
+    This can be done by enabling ``ecs_resource_tags_replace_colon: true`` in the Agent config file
+    or by configuring the environment variable ``DD_ECS_RESOURCE_TAGS_REPLACE_COLON=true``.

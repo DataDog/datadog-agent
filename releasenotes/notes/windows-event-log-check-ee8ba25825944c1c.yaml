@@ -1,0 +1,29 @@
+---
+upgrade:
+  - |
+    The `win32_event_log check <https://docs.datadoghq.com/integrations/win32_event_log/?tab=events>`_
+    has moved from Python `(integrations-core#16108) <https://github.com/DataDog/integrations-core/pull/16108>`_
+    to Go `(#20701 <https://github.com/DataDog/datadog-agent/pull/20701>)`_.
+    All ``legacy_mode: false`` configuration options are backwards compatible except for some regular expressions
+    used in the ``included_messages`` and ``excluded_messages`` options.
+    For example, Go regular expressions do not support lookahead or lookbehind assertions. If you do not
+    use these options, then no configuration changes are necessary.
+    See the `Python regular expression docs <https://docs.python.org/3/library/re.html>`_ and the
+    `Go regular expression docs <https://github.com/google/re2/wiki/Syntax>`_ for more information on
+    the supported regular expression syntax.
+    Set ``legacy_mode_v2: true`` to revert to the Python implementation of the check. The Python implementation
+    may be removed in a future version of the Agent.
+enhancements:
+  - |
+    The win32_event_log check now continuously collects and reports events instead of waiting for
+    ``min_collection_interval`` to collect.
+    ``min_collection_interval`` now controls how frequently the check attempts to reconnect
+    when the event subscription is in an error state.
+deprecations:
+  - |
+    The ``timeout`` option for the win32_event_log check is no longer applicable and can be removed. If the option
+    is set, the check logs a deprecation warning and ignores the option.
+fixes:
+  - |
+    Fix an issue that caused the win32_event_log check to not stop running when the rate of incoming event
+    records was higher than the ``timeout`` option. The ``timeout`` option is now deprecated.

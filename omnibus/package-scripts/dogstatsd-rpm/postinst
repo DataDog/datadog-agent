@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# Perform necessary datadog-dogstatsd setup steps after package is installed.
+# NOTE: part of the setup is done in the posttrans (rpm-only) script
+#
+# .rpm: STEP 3 of 6
+
+INSTALL_DIR=/opt/datadog-dogstatsd
+LOG_DIR=/var/log/datadog
+CONFIG_DIR=/etc/datadog-dogstatsd
+
+# Set proper rights to the dd-agent user
+chown -R dd-agent:dd-agent ${CONFIG_DIR}
+chown -R dd-agent:dd-agent ${LOG_DIR}
+chown -R dd-agent:dd-agent ${INSTALL_DIR}
+
+exit 0

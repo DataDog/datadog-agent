@@ -1,0 +1,22 @@
+---
+features:
+  - |
+    Add `check_tag_cardinality` parameter config check.
+
+    By default `check_tag_cardinality` is not set which doesn't change the behavior of the checks.
+    Once it is set in pod annotaions, it overrides the cardinality value provided in the base agent configuration.
+    Example of usage:
+    ```yaml
+    ad.datadoghq.com/redis.checks: |
+      {
+        "redisdb": {
+          "check_tag_cardinality": "high", 
+          "instances": [
+            {
+              "host": "%%host%%",
+              "port": "6379"
+            }
+          ]
+        }
+      }
+    ```

@@ -1,0 +1,12 @@
+---
+# Unit test of internal python code
+invoke_unit_tests:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64"]
+  needs: []
+  rules:
+    - !reference [.on_invoke_tasks_changes]
+  script:
+    - dda self dep sync -f legacy-tasks
+    - dda inv -- -e invoke-unit-tests.run

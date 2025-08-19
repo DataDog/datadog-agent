@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package datadog.process;
+
+option go_package = "pkg/proto/pbgo/process"; // golang
+
+message ProcessStreamResponse {
+  int32 eventID = 1;
+  repeated ProcessEventSet setEvents = 2;
+  repeated ProcessEventUnset unsetEvents = 3;
+}
+
+message ProcessEventSet {
+  int32 pid = 1;
+  int32 nspid = 2;
+  string containerID = 3;
+  int64 creationTime = 4;
+  Language language = 5;
+}
+
+message ProcessEventUnset {
+  int32 pid = 1;
+}
+
+message Language {
+  string name = 1;
+}
+
+service ProcessEntityStream {
+  rpc StreamEntities (ProcessStreamEntitiesRequest) returns (stream ProcessStreamResponse);
+}
+
+message ProcessStreamEntitiesRequest {}
+
+// ParentLanguageAnnotationRequest is sent from the Core-Agent to the Cluster-Agent to notify that
+// a language was detected for a given container
+message ParentLanguageAnnotationRequest {
+  repeated PodLanguageDetails podDetails = 1;
+}
+
+// PodLanguageDetails holds the language metadata associated to a given pod
+message PodLanguageDetails {
+  string namespace = 1;
+  string name = 2;
+  repeated ContainerLanguageDetails containerDetails = 3;
+  KubeOwnerInfo ownerref = 4;
+  repeated ContainerLanguageDetails initContainerDetails = 5;
+}
+
+// ContainerLanguageDetails contains the different languages used in a container
+message ContainerLanguageDetails {
+  string containerName = 1;
+  repeated Language languages = 2;
+}
+
+// KubeOwnerInfo holds metadata about the owner of the pod
+message KubeOwnerInfo {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+}

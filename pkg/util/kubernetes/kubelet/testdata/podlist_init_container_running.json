@@ -1,0 +1,859 @@
+{
+    "kind": "PodList",
+    "apiVersion": "v1",
+    "metadata": {},
+    "items": [
+        {
+            "metadata": {
+                "name": "coredns-747dbcf5df-qmtnl",
+                "generateName": "coredns-747dbcf5df-",
+                "namespace": "kube-system",
+                "selfLink": "/api/v1/namespaces/kube-system/pods/coredns-747dbcf5df-qmtnl",
+                "uid": "23476f2c-61e0-11e9-bc12-02f121c1eeb4",
+                "resourceVersion": "245",
+                "creationTimestamp": "2019-04-18T13:44:50Z",
+                "labels": {
+                    "dns": "coredns",
+                    "pod-template-hash": "3038679189"
+                },
+                "annotations": {
+                    "kubernetes.io/config.seen": "2019-04-18T13:44:55.913393966Z",
+                    "kubernetes.io/config.source": "api"
+                },
+                "ownerReferences": [
+                    {
+                        "apiVersion": "extensions/v1beta1",
+                        "kind": "ReplicaSet",
+                        "name": "coredns-747dbcf5df",
+                        "uid": "2338976b-61e0-11e9-bc12-02f121c1eeb4",
+                        "controller": true,
+                        "blockOwnerDeletion": true
+                    }
+                ]
+            },
+            "spec": {
+                "volumes": [
+                    {
+                        "name": "config-volume",
+                        "configMap": {
+                            "name": "coredns",
+                            "items": [
+                                {
+                                    "key": "Corefile",
+                                    "path": "Corefile"
+                                }
+                            ],
+                            "defaultMode": 420
+                        }
+                    },
+                    {
+                        "name": "coredns-token-k52rj",
+                        "secret": {
+                            "secretName": "coredns-token-k52rj",
+                            "defaultMode": 420
+                        }
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "coredns",
+                        "image": "coredns/coredns:1.1.1",
+                        "args": [
+                            "-conf",
+                            "/etc/coredns/Corefile"
+                        ],
+                        "ports": [
+                            {
+                                "name": "dns",
+                                "containerPort": 53,
+                                "protocol": "UDP"
+                            },
+                            {
+                                "name": "dns-tcp",
+                                "containerPort": 53,
+                                "protocol": "TCP"
+                            },
+                            {
+                                "name": "metrics",
+                                "containerPort": 9153,
+                                "protocol": "TCP"
+                            }
+                        ],
+                        "resources": {
+                            "limits": {
+                                "cpu": "100m"
+                            },
+                            "requests": {
+                                "cpu": "50m"
+                            }
+                        },
+                        "volumeMounts": [
+                            {
+                                "name": "config-volume",
+                                "mountPath": "/etc/coredns"
+                            },
+                            {
+                                "name": "coredns-token-k52rj",
+                                "readOnly": true,
+                                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+                            }
+                        ],
+                        "livenessProbe": {
+                            "httpGet": {
+                                "path": "/health",
+                                "port": 8080,
+                                "scheme": "HTTP"
+                            },
+                            "timeoutSeconds": 1,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "failureThreshold": 3
+                        },
+                        "readinessProbe": {
+                            "httpGet": {
+                                "path": "/health",
+                                "port": 8080,
+                                "scheme": "HTTP"
+                            },
+                            "timeoutSeconds": 1,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "failureThreshold": 3
+                        },
+                        "terminationMessagePath": "/dev/termination-log",
+                        "terminationMessagePolicy": "File",
+                        "imagePullPolicy": "IfNotPresent"
+                    }
+                ],
+                "restartPolicy": "Always",
+                "terminationGracePeriodSeconds": 30,
+                "dnsPolicy": "Default",
+                "serviceAccountName": "coredns",
+                "serviceAccount": "coredns",
+                "nodeName": "ci-pierremargueritte",
+                "securityContext": {},
+                "schedulerName": "default-scheduler",
+                "tolerations": [
+                    {
+                        "key": "CriticalAddonsOnly",
+                        "operator": "Exists"
+                    }
+                ]
+            },
+            "status": {
+                "phase": "Running",
+                "conditions": [
+                    {
+                        "type": "Initialized",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T13:44:55Z"
+                    },
+                    {
+                        "type": "Ready",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T15:55:00Z"
+                    },
+                    {
+                        "type": "PodScheduled",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T13:44:55Z"
+                    }
+                ],
+                "hostIP": "10.0.2.15",
+                "podIP": "192.168.253.58",
+                "startTime": "2019-04-18T13:44:55Z",
+                "containerStatuses": [
+                    {
+                        "name": "coredns",
+                        "state": {
+                            "running": {
+                                "startedAt": "2019-04-18T15:54:57Z"
+                            }
+                        },
+                        "lastState": {
+                            "terminated": {
+                                "exitCode": 137,
+                                "reason": "Error",
+                                "startedAt": "2019-04-18T15:51:42Z",
+                                "finishedAt": "2019-04-18T15:54:36Z",
+                                "containerID": "containerd://b0428bd7c7be12cdf0b9b06e94804a8c922cefe1f949903d759b8b1b5bcdc159"
+                            }
+                        },
+                        "ready": true,
+                        "restartCount": 4,
+                        "image": "docker.io/coredns/coredns:1.1.1",
+                        "imageID": "docker.io/coredns/coredns@sha256:399cc5b2e2f0d599ef22f43aab52492e88b4f0fd69da9b10545e95a4253c86ce",
+                        "containerID": "containerd://509057eef9c66fcae1627a278216e29a0504d9b2e85ccc79c09b316dba7554e2"
+                    }
+                ],
+                "qosClass": "Burstable"
+            }
+        },
+        {
+            "metadata": {
+                "name": "myapp-pod",
+                "namespace": "default",
+                "selfLink": "/api/v1/namespaces/default/pods/myapp-pod",
+                "uid": "7760601b-65a6-11e9-bc12-02f121c1eeb4",
+                "resourceVersion": "73283",
+                "creationTimestamp": "2019-04-23T09:02:05Z",
+                "labels": {
+                    "app": "myapp"
+                },
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"myapp\"},\"name\":\"myapp-pod\",\"namespace\":\"default\"},\"spec\":{\"containers\":[{\"command\":[\"sh\",\"-c\",\"for i in `seq 1 3600`; do echo logging stuff $i; sleep 1; done;\"],\"image\":\"busybox\",\"name\":\"myapp-container\"}],\"initContainers\":[{\"command\":[\"sh\",\"-c\",\"for i in `seq 1 360`; do echo init stuff $i; sleep 1; done;\"],\"image\":\"busybox\",\"name\":\"init-myservice\"}]}}\n",
+                    "kubernetes.io/config.seen": "2019-04-23T09:02:05.335687965Z",
+                    "kubernetes.io/config.source": "api"
+                }
+            },
+            "spec": {
+                "volumes": [
+                    {
+                        "name": "default-token-nv6x5",
+                        "secret": {
+                            "secretName": "default-token-nv6x5",
+                            "defaultMode": 420
+                        }
+                    }
+                ],
+                "initContainers": [
+                    {
+                        "name": "init-myservice",
+                        "image": "busybox",
+                        "command": [
+                            "sh",
+                            "-c",
+                            "for i in `seq 1 360`; do echo init stuff $i; sleep 1; done;"
+                        ],
+                        "resources": {},
+                        "volumeMounts": [
+                            {
+                                "name": "default-token-nv6x5",
+                                "readOnly": true,
+                                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+                            }
+                        ],
+                        "terminationMessagePath": "/dev/termination-log",
+                        "terminationMessagePolicy": "File",
+                        "imagePullPolicy": "Always"
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "myapp-container",
+                        "image": "busybox",
+                        "command": [
+                            "sh",
+                            "-c",
+                            "for i in `seq 1 3600`; do echo logging stuff $i; sleep 1; done;"
+                        ],
+                        "resources": {},
+                        "volumeMounts": [
+                            {
+                                "name": "default-token-nv6x5",
+                                "readOnly": true,
+                                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+                            }
+                        ],
+                        "terminationMessagePath": "/dev/termination-log",
+                        "terminationMessagePolicy": "File",
+                        "imagePullPolicy": "Always"
+                    }
+                ],
+                "restartPolicy": "Always",
+                "terminationGracePeriodSeconds": 30,
+                "dnsPolicy": "ClusterFirst",
+                "serviceAccountName": "default",
+                "serviceAccount": "default",
+                "nodeName": "ci-pierremargueritte",
+                "securityContext": {},
+                "schedulerName": "default-scheduler"
+            },
+            "status": {
+                "phase": "Pending",
+                "conditions": [
+                    {
+                        "type": "Initialized",
+                        "status": "False",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-23T09:02:05Z",
+                        "reason": "ContainersNotInitialized",
+                        "message": "containers with incomplete status: [init-myservice]"
+                    },
+                    {
+                        "type": "Ready",
+                        "status": "False",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-23T09:02:05Z",
+                        "reason": "ContainersNotReady",
+                        "message": "containers with unready status: [myapp-container]"
+                    },
+                    {
+                        "type": "PodScheduled",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-23T09:02:05Z"
+                    }
+                ],
+                "hostIP": "10.0.2.15",
+                "podIP": "192.168.253.82",
+                "startTime": "2019-04-23T09:02:05Z",
+                "initContainerStatuses": [
+                    {
+                        "name": "init-myservice",
+                        "state": {
+                            "running": {
+                                "startedAt": "2019-04-23T09:02:07Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": false,
+                        "restartCount": 0,
+                        "image": "docker.io/library/busybox:latest",
+                        "imageID": "docker.io/library/busybox@sha256:954e1f01e80ce09d0887ff6ea10b13a812cb01932a0781d6b0cc23f743a874fd",
+                        "containerID": "containerd://922a2f3f14d1724d7eeb6cad2b5138bcbd85948c802fead1af2a1e5d79807e4e"
+                    }
+                ],
+                "containerStatuses": [
+                    {
+                        "name": "myapp-container",
+                        "state": {
+                            "waiting": {
+                                "reason": "PodInitializing"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": false,
+                        "restartCount": 0,
+                        "image": "busybox",
+                        "imageID": ""
+                    }
+                ],
+                "qosClass": "BestEffort"
+            }
+        },
+        {
+            "metadata": {
+                "name": "kube-scheduler-8mpwh",
+                "generateName": "kube-scheduler-",
+                "namespace": "kube-system",
+                "selfLink": "/api/v1/namespaces/kube-system/pods/kube-scheduler-8mpwh",
+                "uid": "2358fd3b-61e0-11e9-bc12-02f121c1eeb4",
+                "resourceVersion": "200",
+                "creationTimestamp": "2019-04-18T13:44:50Z",
+                "labels": {
+                    "app": "kube-scheduler",
+                    "controller-revision-hash": "2740278040",
+                    "pod-template-generation": "1"
+                },
+                "annotations": {
+                    "kubernetes.io/config.seen": "2019-04-18T13:44:50.521042779Z",
+                    "kubernetes.io/config.source": "api"
+                },
+                "ownerReferences": [
+                    {
+                        "apiVersion": "apps/v1",
+                        "kind": "DaemonSet",
+                        "name": "kube-scheduler",
+                        "uid": "204abed8-61e0-11e9-bc12-02f121c1eeb4",
+                        "controller": true,
+                        "blockOwnerDeletion": true
+                    }
+                ]
+            },
+            "spec": {
+                "volumes": [
+                    {
+                        "name": "default-token-xr795",
+                        "secret": {
+                            "secretName": "default-token-xr795",
+                            "defaultMode": 420
+                        }
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "kube-scheduler",
+                        "image": "gcr.io/google_containers/hyperkube:v1.10.7",
+                        "command": [
+                            "/hyperkube",
+                            "scheduler",
+                            "--master=http://127.0.0.1:8080",
+                            "--leader-elect=true",
+                            "--leader-elect-lease-duration=150s",
+                            "--leader-elect-renew-deadline=100s",
+                            "--leader-elect-retry-period=20s",
+                            "--housekeeping-interval=15s"
+                        ],
+                        "resources": {
+                            "limits": {
+                                "cpu": "100m"
+                            },
+                            "requests": {
+                                "cpu": "50m"
+                            }
+                        },
+                        "volumeMounts": [
+                            {
+                                "name": "default-token-xr795",
+                                "readOnly": true,
+                                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+                            }
+                        ],
+                        "livenessProbe": {
+                            "httpGet": {
+                                "path": "/healthz",
+                                "port": 10251,
+                                "scheme": "HTTP"
+                            },
+                            "initialDelaySeconds": 15,
+                            "timeoutSeconds": 1,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "failureThreshold": 3
+                        },
+                        "readinessProbe": {
+                            "httpGet": {
+                                "path": "/healthz",
+                                "port": 10251,
+                                "scheme": "HTTP"
+                            },
+                            "initialDelaySeconds": 5,
+                            "timeoutSeconds": 1,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "failureThreshold": 3
+                        },
+                        "terminationMessagePath": "/dev/termination-log",
+                        "terminationMessagePolicy": "File",
+                        "imagePullPolicy": "IfNotPresent"
+                    }
+                ],
+                "restartPolicy": "Always",
+                "terminationGracePeriodSeconds": 30,
+                "dnsPolicy": "ClusterFirst",
+                "serviceAccountName": "default",
+                "serviceAccount": "default",
+                "nodeName": "ci-pierremargueritte",
+                "hostNetwork": true,
+                "securityContext": {},
+                "schedulerName": "default-scheduler",
+                "tolerations": [
+                    {
+                        "key": "node.kubernetes.io/not-ready",
+                        "operator": "Exists",
+                        "effect": "NoExecute"
+                    },
+                    {
+                        "key": "node.kubernetes.io/unreachable",
+                        "operator": "Exists",
+                        "effect": "NoExecute"
+                    },
+                    {
+                        "key": "node.kubernetes.io/disk-pressure",
+                        "operator": "Exists",
+                        "effect": "NoSchedule"
+                    },
+                    {
+                        "key": "node.kubernetes.io/memory-pressure",
+                        "operator": "Exists",
+                        "effect": "NoSchedule"
+                    }
+                ]
+            },
+            "status": {
+                "phase": "Running",
+                "conditions": [
+                    {
+                        "type": "Initialized",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T13:44:50Z"
+                    },
+                    {
+                        "type": "Ready",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T15:54:52Z"
+                    },
+                    {
+                        "type": "PodScheduled",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T13:44:50Z"
+                    }
+                ],
+                "hostIP": "10.0.2.15",
+                "podIP": "10.0.2.15",
+                "startTime": "2019-04-18T13:44:50Z",
+                "containerStatuses": [
+                    {
+                        "name": "kube-scheduler",
+                        "state": {
+                            "running": {
+                                "startedAt": "2019-04-18T15:54:43Z"
+                            }
+                        },
+                        "lastState": {
+                            "terminated": {
+                                "exitCode": 137,
+                                "reason": "Error",
+                                "startedAt": "2019-04-18T15:52:34Z",
+                                "finishedAt": "2019-04-18T15:54:36Z",
+                                "containerID": "containerd://cbeb7e0c866f6f7de6225f994b5253cc15109248e50aa98673b097970fe556b8"
+                            }
+                        },
+                        "ready": true,
+                        "restartCount": 5,
+                        "image": "gcr.io/google_containers/hyperkube:v1.10.7",
+                        "imageID": "gcr.io/google_containers/hyperkube@sha256:d8afe405e650f0e4b5ba1c76a22fbbca4d0deb6bd6498c3818df58b5e30f8daf",
+                        "containerID": "containerd://6f23d0cd20742a67eb07581b2a7b79b48f6814c4fef313b51d0af76813482c2a"
+                    }
+                ],
+                "qosClass": "Burstable"
+            }
+        },
+        {
+            "metadata": {
+                "name": "kube-proxy-fbv92",
+                "generateName": "kube-proxy-",
+                "namespace": "kube-system",
+                "selfLink": "/api/v1/namespaces/kube-system/pods/kube-proxy-fbv92",
+                "uid": "2358e669-61e0-11e9-bc12-02f121c1eeb4",
+                "resourceVersion": "199",
+                "creationTimestamp": "2019-04-18T13:44:50Z",
+                "labels": {
+                    "app": "kube-proxy",
+                    "controller-revision-hash": "713792516",
+                    "pod-template-generation": "1"
+                },
+                "annotations": {
+                    "kubernetes.io/config.seen": "2019-04-18T13:44:50.520393704Z",
+                    "kubernetes.io/config.source": "api"
+                },
+                "ownerReferences": [
+                    {
+                        "apiVersion": "apps/v1",
+                        "kind": "DaemonSet",
+                        "name": "kube-proxy",
+                        "uid": "20496ca0-61e0-11e9-bc12-02f121c1eeb4",
+                        "controller": true,
+                        "blockOwnerDeletion": true
+                    }
+                ]
+            },
+            "spec": {
+                "volumes": [
+                    {
+                        "name": "config",
+                        "configMap": {
+                            "name": "kube-proxy",
+                            "defaultMode": 420
+                        }
+                    },
+                    {
+                        "name": "kube-proxy-token-j88lh",
+                        "secret": {
+                            "secretName": "kube-proxy-token-j88lh",
+                            "defaultMode": 420
+                        }
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "kube-proxy",
+                        "image": "gcr.io/google_containers/hyperkube:v1.10.7",
+                        "command": [
+                            "/hyperkube",
+                            "proxy",
+                            "--config=/var/lib/kubernetes/config.yaml"
+                        ],
+                        "resources": {
+                            "limits": {
+                                "cpu": "100m"
+                            },
+                            "requests": {
+                                "cpu": "50m"
+                            }
+                        },
+                        "volumeMounts": [
+                            {
+                                "name": "config",
+                                "mountPath": "/var/lib/kubernetes/"
+                            },
+                            {
+                                "name": "kube-proxy-token-j88lh",
+                                "readOnly": true,
+                                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+                            }
+                        ],
+                        "livenessProbe": {
+                            "httpGet": {
+                                "path": "/healthz",
+                                "port": 10256,
+                                "scheme": "HTTP"
+                            },
+                            "timeoutSeconds": 1,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "failureThreshold": 3
+                        },
+                        "readinessProbe": {
+                            "httpGet": {
+                                "path": "/healthz",
+                                "port": 10256,
+                                "scheme": "HTTP"
+                            },
+                            "timeoutSeconds": 1,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "failureThreshold": 3
+                        },
+                        "terminationMessagePath": "/dev/termination-log",
+                        "terminationMessagePolicy": "File",
+                        "imagePullPolicy": "IfNotPresent",
+                        "securityContext": {
+                            "privileged": true
+                        }
+                    }
+                ],
+                "restartPolicy": "Always",
+                "terminationGracePeriodSeconds": 30,
+                "dnsPolicy": "ClusterFirst",
+                "serviceAccountName": "kube-proxy",
+                "serviceAccount": "kube-proxy",
+                "nodeName": "ci-pierremargueritte",
+                "hostNetwork": true,
+                "securityContext": {},
+                "schedulerName": "default-scheduler",
+                "tolerations": [
+                    {
+                        "key": "node.kubernetes.io/not-ready",
+                        "operator": "Exists",
+                        "effect": "NoExecute"
+                    },
+                    {
+                        "key": "node.kubernetes.io/unreachable",
+                        "operator": "Exists",
+                        "effect": "NoExecute"
+                    },
+                    {
+                        "key": "node.kubernetes.io/disk-pressure",
+                        "operator": "Exists",
+                        "effect": "NoSchedule"
+                    },
+                    {
+                        "key": "node.kubernetes.io/memory-pressure",
+                        "operator": "Exists",
+                        "effect": "NoSchedule"
+                    }
+                ]
+            },
+            "status": {
+                "phase": "Running",
+                "conditions": [
+                    {
+                        "type": "Initialized",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T13:44:50Z"
+                    },
+                    {
+                        "type": "Ready",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T13:44:59Z"
+                    },
+                    {
+                        "type": "PodScheduled",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T13:44:50Z"
+                    }
+                ],
+                "hostIP": "10.0.2.15",
+                "podIP": "10.0.2.15",
+                "startTime": "2019-04-18T13:44:50Z",
+                "containerStatuses": [
+                    {
+                        "name": "kube-proxy",
+                        "state": {
+                            "running": {
+                                "startedAt": "2019-04-18T13:44:51Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": true,
+                        "restartCount": 0,
+                        "image": "gcr.io/google_containers/hyperkube:v1.10.7",
+                        "imageID": "gcr.io/google_containers/hyperkube@sha256:d8afe405e650f0e4b5ba1c76a22fbbca4d0deb6bd6498c3818df58b5e30f8daf",
+                        "containerID": "containerd://7fe704a201c2603b1df543c3c450c289cbe0c08319b26bbae69b03d6932ec9a2"
+                    }
+                ],
+                "qosClass": "Burstable"
+            }
+        },
+        {
+            "metadata": {
+                "name": "kube-controller-manager",
+                "namespace": "kube-system",
+                "selfLink": "/api/v1/namespaces/kube-system/pods/kube-controller-manager",
+                "uid": "2041aca9-61e0-11e9-bc12-02f121c1eeb4",
+                "resourceVersion": "149",
+                "creationTimestamp": "2019-04-18T13:44:45Z",
+                "labels": {
+                    "app": "kube-controller-manager"
+                },
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"kube-controller-manager\"},\"name\":\"kube-controller-manager\",\"namespace\":\"kube-system\"},\"spec\":{\"automountServiceAccountToken\":false,\"containers\":[{\"command\":[\"/hyperkube\",\"controller-manager\",\"--master=http://127.0.0.1:8080\",\"--leader-elect=true\",\"--leader-elect-lease-duration=150s\",\"--leader-elect-renew-deadline=100s\",\"--leader-elect-retry-period=20s\",\"--cluster-signing-cert-file=/etc/secrets/pupernetes.certificate\",\"--cluster-signing-key-file=/etc/secrets/pupernetes.private_key\",\"--root-ca-file=/etc/secrets/pupernetes.issuing_ca\",\"--service-account-private-key-file=/etc/secrets/service-accounts.rsa\",\"--concurrent-deployment-syncs=2\",\"--concurrent-endpoint-syncs=2\",\"--concurrent-gc-syncs=5\",\"--concurrent-namespace-syncs=3\",\"--concurrent-replicaset-syncs=2\",\"--concurrent-resource-quota-syncs=2\",\"--concurrent-service-syncs=1\",\"--concurrent-serviceaccount-token-syncs=2\",\"--horizontal-pod-autoscaler-use-rest-clients=true\"],\"image\":\"gcr.io/google_containers/hyperkube:v1.10.7\",\"imagePullPolicy\":\"IfNotPresent\",\"livenessProbe\":{\"httpGet\":{\"path\":\"/healthz\",\"port\":10252},\"initialDelaySeconds\":15},\"name\":\"kube-controller-manager\",\"readinessProbe\":{\"httpGet\":{\"path\":\"/healthz\",\"port\":10252},\"initialDelaySeconds\":5},\"resources\":{\"limits\":{\"cpu\":\"250m\"},\"requests\":{\"cpu\":\"100m\"}},\"volumeMounts\":[{\"mountPath\":\"/etc/secrets\",\"name\":\"secrets\"}]}],\"hostNetwork\":true,\"nodeName\":\"ci-pierremargueritte\",\"serviceAccountName\":\"kube-controller-manager\",\"volumes\":[{\"hostPath\":{\"path\":\"/opt/state/secrets\"},\"name\":\"secrets\"}]}}\n",
+                    "kubernetes.io/config.seen": "2019-04-18T13:44:45.333744312Z",
+                    "kubernetes.io/config.source": "api"
+                }
+            },
+            "spec": {
+                "volumes": [
+                    {
+                        "name": "secrets",
+                        "hostPath": {
+                            "path": "/opt/state/secrets",
+                            "type": ""
+                        }
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "kube-controller-manager",
+                        "image": "gcr.io/google_containers/hyperkube:v1.10.7",
+                        "command": [
+                            "/hyperkube",
+                            "controller-manager",
+                            "--master=http://127.0.0.1:8080",
+                            "--leader-elect=true",
+                            "--leader-elect-lease-duration=150s",
+                            "--leader-elect-renew-deadline=100s",
+                            "--leader-elect-retry-period=20s",
+                            "--cluster-signing-cert-file=/etc/secrets/pupernetes.certificate",
+                            "--cluster-signing-key-file=/etc/secrets/pupernetes.private_key",
+                            "--root-ca-file=/etc/secrets/pupernetes.issuing_ca",
+                            "--service-account-private-key-file=/etc/secrets/service-accounts.rsa",
+                            "--concurrent-deployment-syncs=2",
+                            "--concurrent-endpoint-syncs=2",
+                            "--concurrent-gc-syncs=5",
+                            "--concurrent-namespace-syncs=3",
+                            "--concurrent-replicaset-syncs=2",
+                            "--concurrent-resource-quota-syncs=2",
+                            "--concurrent-service-syncs=1",
+                            "--concurrent-serviceaccount-token-syncs=2",
+                            "--horizontal-pod-autoscaler-use-rest-clients=true"
+                        ],
+                        "resources": {
+                            "limits": {
+                                "cpu": "250m"
+                            },
+                            "requests": {
+                                "cpu": "100m"
+                            }
+                        },
+                        "volumeMounts": [
+                            {
+                                "name": "secrets",
+                                "mountPath": "/etc/secrets"
+                            }
+                        ],
+                        "livenessProbe": {
+                            "httpGet": {
+                                "path": "/healthz",
+                                "port": 10252,
+                                "scheme": "HTTP"
+                            },
+                            "initialDelaySeconds": 15,
+                            "timeoutSeconds": 1,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "failureThreshold": 3
+                        },
+                        "readinessProbe": {
+                            "httpGet": {
+                                "path": "/healthz",
+                                "port": 10252,
+                                "scheme": "HTTP"
+                            },
+                            "initialDelaySeconds": 5,
+                            "timeoutSeconds": 1,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "failureThreshold": 3
+                        },
+                        "terminationMessagePath": "/dev/termination-log",
+                        "terminationMessagePolicy": "File",
+                        "imagePullPolicy": "IfNotPresent"
+                    }
+                ],
+                "restartPolicy": "Always",
+                "terminationGracePeriodSeconds": 30,
+                "dnsPolicy": "ClusterFirst",
+                "serviceAccountName": "kube-controller-manager",
+                "serviceAccount": "kube-controller-manager",
+                "automountServiceAccountToken": false,
+                "nodeName": "ci-pierremargueritte",
+                "hostNetwork": true,
+                "securityContext": {},
+                "schedulerName": "default-scheduler"
+            },
+            "status": {
+                "phase": "Running",
+                "conditions": [
+                    {
+                        "type": "Initialized",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T13:44:45Z"
+                    },
+                    {
+                        "type": "Ready",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T15:54:50Z"
+                    },
+                    {
+                        "type": "PodScheduled",
+                        "status": "True",
+                        "lastProbeTime": null,
+                        "lastTransitionTime": "2019-04-18T13:44:45Z"
+                    }
+                ],
+                "hostIP": "10.0.2.15",
+                "podIP": "10.0.2.15",
+                "startTime": "2019-04-18T13:44:45Z",
+                "containerStatuses": [
+                    {
+                        "name": "kube-controller-manager",
+                        "state": {
+                            "running": {
+                                "startedAt": "2019-04-18T15:54:41Z"
+                            }
+                        },
+                        "lastState": {
+                            "terminated": {
+                                "exitCode": 137,
+                                "reason": "Error",
+                                "startedAt": "2019-04-18T15:51:41Z",
+                                "finishedAt": "2019-04-18T15:54:36Z",
+                                "containerID": "containerd://fb4c383b0f4aae6412d65af03ece7dd1ad04ca47554ff2f75d8ccac3296fbfbf"
+                            }
+                        },
+                        "ready": true,
+                        "restartCount": 4,
+                        "image": "gcr.io/google_containers/hyperkube:v1.10.7",
+                        "imageID": "gcr.io/google_containers/hyperkube@sha256:d8afe405e650f0e4b5ba1c76a22fbbca4d0deb6bd6498c3818df58b5e30f8daf",
+                        "containerID": "containerd://380f36a6fa8887c3613f4adbe57411972cde49e5dd419dabbcebc2ae767e6e6b"
+                    }
+                ],
+                "qosClass": "Burstable"
+            }
+        }
+    ]
+}

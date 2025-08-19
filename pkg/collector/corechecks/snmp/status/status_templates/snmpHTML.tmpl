@@ -1,0 +1,51 @@
+{{- if .snmpProfiles }}
+<div class="stat">
+  <span class="stat_title">SNMP Profiles</span>
+  <span class="stat_data">
+    {{- range $key, $value := .snmpProfiles}}
+      {{$key}}: {{$value}}
+    {{- end }}
+  </span>
+</div>
+{{- end }}
+{{- if or .autodiscoverySubnets .discoverySubnets }}
+<div class="stat">
+  <span class="stat_title">SNMP Autodiscovery</span>
+  <span class="stat_data">
+{{- range $subnet := .autodiscoverySubnets}}
+    {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
+    Subnet {{$subnet.Subnet}} scanned.</br>
+    {{- else if eq $subnet.DeviceScanning "" }}
+    Subnet {{$subnet.Subnet}} is queued for scanning.</br>
+    {{- else}}
+    Scanning subnet {{$subnet.Subnet}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.</br>
+    {{- end }}
+    {{- if $subnet.DevicesFound }}
+    Found the following IP(s) :</br>
+    {{- range $device := $subnet.DevicesFound }}
+      - {{$device}}</br>
+    {{- end }}
+    {{- else }}
+    Found no IPs in the subnet.</br>
+    {{- end }}
+{{ end -}}
+{{- range $subnet := .discoverySubnets}}
+    {{- if eq $subnet.IpsCount $subnet.DevicesScanned }}
+    Subnet {{$subnet.Subnet}} scanned.</br>
+    {{- else if eq $subnet.DeviceScanning "" }}
+    Subnet {{$subnet.Subnet}} is queued for scanning.</br>
+    {{- else}}
+    Scanning subnet {{$subnet.Subnet}}... Currently scanning IP {{$subnet.DeviceScanning}}, {{$subnet.DevicesScanned}} IPs out of {{$subnet.IpsCount}} scanned.</br>
+    {{- end }}
+    {{- if $subnet.DevicesFound }}
+    Found the following IP(s) :</br>
+    {{- range $device := $subnet.DevicesFound }}
+      - {{$device}}</br>
+    {{- end }}
+    {{- else }}
+    Found no IPs in the subnet.</br>
+    {{- end }}
+{{ end -}}
+  </span>
+</div>
+{{- end -}}

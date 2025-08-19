@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    On the Windows installer command line, it's now possible to specify DDAGENTUSER_NAME="NT AUTHORITY\SYSTEM" without having to also specify DDAGENTUSER_PASSWORD.

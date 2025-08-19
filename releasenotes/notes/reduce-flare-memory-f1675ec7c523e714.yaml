@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Reduced memory usage of the flare command

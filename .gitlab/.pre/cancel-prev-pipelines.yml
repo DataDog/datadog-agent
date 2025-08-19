@@ -1,0 +1,14 @@
+cancel-prev-pipelines:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64"]
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
+      when: never
+    - !reference [.on_dev_branches]
+    - when: on_success
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - dda inv -- pipeline.auto-cancel-previous-pipelines

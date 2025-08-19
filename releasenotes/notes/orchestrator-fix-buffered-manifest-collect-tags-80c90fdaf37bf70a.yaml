@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix a bug that resulted in some Orchestrator Kubernetes manifests losing the configured "extraTags".

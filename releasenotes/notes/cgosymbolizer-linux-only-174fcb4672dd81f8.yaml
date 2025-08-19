@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes the Agent using 100% CPU on MacOS Big Sur.

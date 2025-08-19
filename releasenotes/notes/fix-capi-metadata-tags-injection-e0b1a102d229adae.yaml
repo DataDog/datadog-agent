@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix Cloud Foundry CAPI Metadata tags injection into application containers.

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Make the number of workers used by the forwarder configurable and set default to 1.

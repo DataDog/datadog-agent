@@ -1,0 +1,114 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "enabledManagers": ["custom.regex", "pre-commit"],
+    "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
+    "stopUpdatingLabel": "stop-updating",
+    "platformCommit": "enabled",
+    "packageRules": [
+      {
+        "matchDepNames": ["integrations-core"],
+        "changelogUrl": "https://github.com/DataDog/integrations-core/compare/{{currentDigest}}..{{newDigest}}",
+        "schedule": ["* 2-6 * * 1,3"]
+      },
+      {
+        "matchDepNames": ["omnibus-ruby"],
+        "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}"
+      },
+      {
+        "matchDepNames": ["linux-images"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 * * 1-5"]
+      },
+      {
+        "matchDepNames": ["windows-images"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 2 * *"]
+      },
+      {
+        "matchDepNames": ["DataDog/datadog-agent-dev"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-dev/releases/tag/v{{newValue}}",
+        "schedule": ["* 1-4 5 6,12 *"]
+      }
+    ],
+    "pre-commit": {
+      "enabled": true,
+      "managerFilePatterns": [".pre-commit-config.yaml"]
+    },
+    "customManagers" : [
+      {
+        "customType": "regex",
+        "managerFilePatterns": [".gitlab-ci.yml"],
+        "matchStrings": [
+          "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"
+        ],
+        "depNameTemplate": "linux-images",
+        "versioningTemplate": "loose",
+        "datasourceTemplate": "custom.linux-images"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [".gitlab-ci.yml"],
+        "matchStrings": [
+          "  CI_IMAGE_WIN_[^:]*: (?<currentValue>v.*)"
+        ],
+        "depNameTemplate": "windows-images",
+        "versioningTemplate": "regex:^(ltsc2022-)?v(?<major>\\d+)-.*$",
+        "datasourceTemplate": "custom.windows-images",
+        "extractVersionTemplate": "^(ltsc2022-)?(?<version>.*)$"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [".protoc-version"],
+        "matchStrings": [
+          "(?<currentValue>[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "protocolbuffers/protobuf",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [".dda/version"],
+        "matchStrings": [
+          "(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "DataDog/datadog-agent-dev",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["release.json"],
+        "matchStrings": [
+          "[ ]+\"OMNIBUS_RUBY_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
+        ],
+        "currentValueTemplate": "datadog-5.5.0",
+        "depNameTemplate": "omnibus-ruby",
+        "packageNameTemplate": "https://github.com/DataDog/omnibus-ruby",
+        "datasourceTemplate": "git-refs"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["release.json"],
+        "matchStrings": [
+          "[ ]+\"INTEGRATIONS_CORE_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
+        ],
+        "currentValueTemplate": "master",
+        "depNameTemplate": "integrations-core",
+        "packageNameTemplate": "https://github.com/DataDog/integrations-core",
+        "datasourceTemplate": "git-refs"
+      }
+    ],
+    "customDatasources": {
+      "linux-images": {
+        "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-deb_x64/tags",
+        "transformTemplates": [
+          "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
+        ]
+      },
+      "windows-images": {
+        "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-windows_x64/tags",
+        "transformTemplates": [
+          "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
+        ]
+      }
+    }
+  }

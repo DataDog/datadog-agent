@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The Cluster Agent's Admission Controller now uses
+    the ``admissionregistration.k8s.io/v1`` kubernetes API when available.

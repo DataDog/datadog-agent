@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Upgrade the NTP check client library 'beevik/ntp' from v0.3.0 to v1.3.4

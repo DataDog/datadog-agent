@@ -1,0 +1,11 @@
+--- a/src/OVAL/oval_agent.c
++++ b/src/OVAL/oval_agent.c
+@@ -265,7 +265,7 @@ void oval_agent_reset_results(oval_agent_session_t * ag_sess) {
+ 		oval_results_model_free(ag_sess->res_model);
+ 		ag_sess->res_model = oval_results_model_new_with_probe_session(
+ 				ag_sess->def_model, ag_sess->sys_models, ag_sess->psess);
+-		oval_probe_session_reinit(ag_sess->psess, ag_sess->sys_model);
++		oval_probe_session_reset(ag_sess->psess, ag_sess->sys_model);
+ 	}
+ #endif
+ }

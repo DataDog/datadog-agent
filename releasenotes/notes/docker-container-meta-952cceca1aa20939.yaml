@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add docker & swarm information to host metadata

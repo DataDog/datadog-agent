@@ -1,0 +1,4 @@
+use_proxy_for_cloud_metadata: true
+proxy:
+  http: "http://ddconfig-proxy.example.com:8080"
+  https: "https://ddconfig-proxy.example.com:8443"

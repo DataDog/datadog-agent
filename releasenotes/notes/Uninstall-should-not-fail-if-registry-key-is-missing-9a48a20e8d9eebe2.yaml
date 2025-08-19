@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    On Windows, uninstalling the Agent should not fail if the Datadog Agent registry key is missing.

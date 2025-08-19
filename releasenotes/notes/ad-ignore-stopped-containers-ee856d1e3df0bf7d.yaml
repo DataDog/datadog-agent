@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Introduce a `container_exclude_stopped_age` configuration option to allow
+    the Agent to not autodiscover containers that have been stopped for a
+    certain number of hours (by default 22). This makes restarts of the Agent
+    not re-send logs for these containers.

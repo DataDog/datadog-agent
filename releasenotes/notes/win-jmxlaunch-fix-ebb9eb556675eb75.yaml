@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix the launch of JMXFetch on windows and make multiplatform treatment of
+    the launch more robust.

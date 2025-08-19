@@ -1,0 +1,187 @@
+syntax = "proto3";
+
+package datadog.workloadmeta;
+
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+enum WorkloadmetaKind {
+  CONTAINER = 0;
+  KUBERNETES_POD = 1;
+  ECS_TASK = 2;
+}
+
+enum WorkloadmetaSource {
+  ALL = 0;
+  RUNTIME = 1;
+  NODE_ORCHESTRATOR = 2;
+  CLUSTER_ORCHESTRATOR = 3;
+}
+
+enum WorkloadmetaEventType {
+  EVENT_TYPE_ALL = 0;
+  EVENT_TYPE_SET = 1;
+  EVENT_TYPE_UNSET = 2;
+}
+
+message WorkloadmetaFilter {
+  repeated WorkloadmetaKind kinds = 1;
+  WorkloadmetaSource source = 2;
+  WorkloadmetaEventType eventType = 3;
+}
+
+message WorkloadmetaStreamRequest {
+  WorkloadmetaFilter filter = 1;
+}
+
+message WorkloadmetaEntityId {
+  WorkloadmetaKind kind = 1;
+  string id = 2;
+}
+
+message EntityMeta {
+  string name = 1;
+  string namespace = 2;
+  map<string, string> annotations = 3;
+  map<string, string> labels = 4;
+}
+
+message ContainerImage {
+  string id = 1;
+  string rawName = 2;
+  string name = 3;
+  string shortName = 4;
+  string tag = 5;
+  string repo_digest = 6;
+}
+
+message ContainerPort {
+  string name = 1;
+  int32 port = 2;
+  string protocol = 3;
+}
+
+enum Runtime {
+  DOCKER = 0;
+  CONTAINERD = 1;
+  PODMAN = 2;
+  CRIO = 3;
+  GARDEN = 4;
+  ECS_FARGATE = 5;
+  UNKNOWN = 6;
+}
+
+enum ContainerStatus {
+  CONTAINER_STATUS_UNKNOWN = 0;
+  CONTAINER_STATUS_CREATED = 1;
+  CONTAINER_STATUS_RUNNING = 2;
+  CONTAINER_STATUS_RESTARTING = 3;
+  CONTAINER_STATUS_PAUSED = 4;
+  CONTAINER_STATUS_STOPPED = 5;
+}
+
+enum ContainerHealth {
+  CONTAINER_HEALTH_UNKNOWN = 0;
+  CONTAINER_HEALTH_HEALTHY = 1;
+  CONTAINER_HEALTH_UNHEALTHY = 2;
+}
+
+message ContainerState {
+  bool running = 1;
+  ContainerStatus status = 2;
+  ContainerHealth health = 3;
+  int64 createdAt = 4;
+  int64 startedAt = 5;
+  int64 finishedAt = 6;
+  int64 exitCode = 7;
+}
+
+message ContainerAllocatedResource {
+  string Name = 1;
+  string ID = 2;
+}
+
+message ContainerResources {
+  optional double cpuRequest = 1;
+  optional double cpuLimit = 2;
+  optional uint64 memoryRequest = 3;
+  optional uint64 memoryLimit = 4;
+}
+
+message Container {
+  WorkloadmetaEntityId entityId = 1;
+  EntityMeta entityMeta = 2;
+  map<string, string> envVars = 3;
+  string hostname = 4;
+  ContainerImage image = 5;
+  map<string, string> networkIps = 6;
+  int32 pid = 7;
+  repeated ContainerPort ports = 8;
+  Runtime runtime = 9;
+  ContainerState state = 10;
+  repeated string collectorTags = 11;
+  string cgroupPath = 12;
+  repeated ContainerAllocatedResource resolvedAllocatedResources = 13;
+  ContainerResources resources = 14;
+  WorkloadmetaEntityId owner = 15;
+}
+
+message KubernetesPodOwner {
+  string kind = 1;
+  string name = 2;
+  string id = 3;
+}
+
+message OrchestratorContainer {
+  string id = 1;
+  string name = 2;
+  ContainerImage image = 3;
+}
+
+message KubernetesPod {
+  WorkloadmetaEntityId entityId = 1;
+  EntityMeta entityMeta = 2;
+  repeated KubernetesPodOwner owners = 3;
+  repeated string persistentVolumeClaimNames = 4;
+  repeated OrchestratorContainer containers = 5;
+  bool ready = 6;
+  string phase = 7;
+  string ip = 8;
+  string priorityClass = 9;
+  string qosClass = 10;
+  repeated string kubeServices = 11;
+  map<string, string> namespaceLabels = 12;
+  repeated OrchestratorContainer InitContainers = 13;
+  string runtimeClass = 14;
+  repeated OrchestratorContainer ephemeralContainers = 15;
+}
+
+enum ECSLaunchType {
+  EC2 = 0;
+  FARGATE = 1;
+}
+
+message ECSTask {
+  WorkloadmetaEntityId entityId = 1;
+  EntityMeta entityMeta = 2;
+  map<string, string> tags = 3;
+  map<string, string> containerInstanceTags = 4;
+  string clusterName = 5;
+  string region = 6;
+  string availabilityZone = 7;
+  string family = 8;
+  string version = 9;
+  ECSLaunchType launchType = 10;
+  repeated OrchestratorContainer containers = 11;
+  string awsAccountID = 12;
+}
+
+message WorkloadmetaEvent {
+  WorkloadmetaEventType type = 1;
+  Container container = 2;
+  KubernetesPod kubernetesPod = 3;
+  ECSTask ecsTask = 4;
+}
+
+message WorkloadmetaStreamResponse {
+  repeated WorkloadmetaEvent events = 1;
+}

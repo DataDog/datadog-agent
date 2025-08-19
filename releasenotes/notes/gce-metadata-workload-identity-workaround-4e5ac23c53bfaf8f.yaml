@@ -1,0 +1,4 @@
+fixes:
+  - |
+    This fix aims to cover the case when the agent is running inside GKE with workload identity enabled.
+    If workload identity is enabled, access to /instance/name is forbidden, resulting into an empty host alias.

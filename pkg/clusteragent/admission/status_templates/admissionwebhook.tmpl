@@ -1,0 +1,53 @@
+  {{- if .admissionWebhook.Error }}
+  Error: {{ .admissionWebhook.Error }}
+  {{ else }}
+  {{- if .admissionWebhook.Disabled }}
+  Disabled: {{ .admissionWebhook.Disabled }}
+  {{ else }}
+    Webhooks info
+    -------------
+    {{ if .admissionWebhook.ValidatingWebhookError }}
+      ValidatingWebhookConfigurations name: {{ .admissionWebhook.WebhookName }}
+      Error: {{ .admissionWebhook.ValidatingWebhookError }}
+    {{else if .admissionWebhook.ValidatingWebhooks }}
+      ValidatingWebhookConfigurations name: {{ .admissionWebhook.ValidatingWebhooks.Name }}
+      Created at: {{ .admissionWebhook.ValidatingWebhooks.CreatedAt }}
+
+      {{- range $name, $config := .admissionWebhook.ValidatingWebhooks.Webhooks }}
+      ---------
+        Name: {{ $name }}
+        {{- range $k, $v := $config }}
+        {{$k}}: {{$v}}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{ if .admissionWebhook.MutatingWebhookError }}
+      MutatingWebhookConfigurations name: {{ .admissionWebhook.WebhookName }}
+      Error: {{ .admissionWebhook.MutatingWebhookError }}
+    {{else if .admissionWebhook.MutatingWebhooks }}
+      MutatingWebhookConfigurations name: {{ .admissionWebhook.MutatingWebhooks.Name }}
+      Created at: {{ .admissionWebhook.MutatingWebhooks.CreatedAt }}
+
+      {{- range $name, $config := .admissionWebhook.MutatingWebhooks.Webhooks }}
+      ---------
+        Name: {{ $name }}
+        {{- range $k, $v := $config }}
+        {{$k}}: {{$v}}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{ if .admissionWebhook.SecretError }}
+  Secret name: {{ .admissionWebhook.SecretName }}
+  Error: {{ .admissionWebhook.SecretError }}
+  {{- end }}
+  {{- if .admissionWebhook.Secret }}
+    Secret info
+    -----------
+    Secret name: {{ .admissionWebhook.Secret.Name }}
+    Secret namespace: {{ .admissionWebhook.Secret.Namespace }}
+    Created at: {{ .admissionWebhook.Secret.CreatedAt }}
+    CA bundle digest: {{ .admissionWebhook.Secret.CABundleDigest }}
+    Duration before certificate expiration: {{ .admissionWebhook.Secret.CertValidDuration }}
+  {{- end }}
+  {{- end }}
+  {{- end }}

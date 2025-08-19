@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix random panic in Kubelet searchPodForContainerID due to concurrent modification of pod.Status.AllContainers

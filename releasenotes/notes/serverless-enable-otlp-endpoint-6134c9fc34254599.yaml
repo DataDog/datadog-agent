@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Enable OTLP endpoint for receiving traces in the Datadog Lambda Extension.

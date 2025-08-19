@@ -1,0 +1,52 @@
+name: Add Milestone on a Merged PR
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+
+permissions: {}
+
+jobs:
+  add-milestone-pr:
+    name: Add Milestone on PR
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Get repo current milestone
+        id: current-milestone
+        run: |
+          # Use the current_milestone field in the release.json file.
+          MILESTONE=$(cat release.json | jq -r .current_milestone)
+          if [ -z "$MILESTONE" ]; then
+            echo "Error: Couldn't find the current_milestone field in the release.json file."
+            exit 1
+          fi
+
+          if [[ ! $MILESTONE =~ ^7\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Malformed milestone $MILESTONE. It should be of the form '7.x.y'."
+            exit 1
+          fi
+          echo "MILESTONE=$MILESTONE" >> "$GITHUB_OUTPUT"
+
+      - name: Set the merged PR milestone to current_milestone from release.json
+        run: |
+          echo "Setting milestone $MILESTONE to PR $NUMBER."
+          gh issue edit "$NUMBER" --milestone "$MILESTONE"
+        env:
+          NUMBER: ${{ github.event.number }}
+          MILESTONE: ${{ steps.current-milestone.outputs.MILESTONE }}
+

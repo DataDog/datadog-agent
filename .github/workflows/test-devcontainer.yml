@@ -1,0 +1,52 @@
+name: test devcontainer
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+
+    - name: Install dda
+      uses: ./.github/actions/install-dda
+      with:
+        version: "0.13.0"
+        features: legacy-tasks
+
+    - name: Build image
+      run: |
+        git clone https://github.com/DataDog/datadog-agent-buildimages.git
+        cd datadog-agent-buildimages
+        dda run build devcontainer --tag legacy-devenv
+
+    - name: Create Dev Container config
+      run: dda inv -- devcontainer.setup --image legacy-devenv
+
+    - name: Ensure mount paths exist
+      run: |
+        mkdir -p ~/.ssh
+
+    - name: Install Dev Container CLI
+      run: npm install -g @devcontainers/cli
+
+    - name: Start Dev Container
+      run: devcontainer up --workspace-folder .
+
+    - name: Test Agent build
+      run: devcontainer exec --workspace-folder . dda inv agent.hacky-dev-image-build --target-image=agent

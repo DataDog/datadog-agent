@@ -1,0 +1,154 @@
+default_language_version:
+  python: python3
+default_install_hook_types:
+  - pre-commit
+  - pre-push
+default_stages:
+  - pre-commit
+
+repos:
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.12.2
+  hooks:
+    - id: ruff
+      args: [ --fix ]
+    - id: ruff-format
+- repo: https://github.com/jendrikseipp/vulture
+  rev: e454d2ef39fc23e72549ff23a1a14e31c3a75605 # v2.14
+  hooks:
+    - id: vulture
+      args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: e5ea6670624c24f8321f6328ef3176dbba76db46  # 1.10.0
+  hooks:
+    - id: mypy
+      # Keep in sync with the build image, there's no good way to centralize this.
+      additional_dependencies:
+        - types-pyyaml==6.0.12.20240311
+        - types-requests==2.30.0
+        - types-tabulate==0.9.0.20240106
+        - types-toml==0.10.8.20240310
+- repo: https://github.com/jumanjihouse/pre-commit-hooks
+  rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # 2.1.5
+  hooks:
+    - id: shellcheck
+      args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
+- repo: https://github.com/tekwizely/pre-commit-golang
+  rev: bd69b816c43306f28bad4d7b303d981b0ecd2fd5 # v1.0.0-beta.5
+  hooks:
+    - id: go-fmt
+      args: [ "-w", "-s" ]
+      exclude: ^.*.(pb.go|_gen.go)$
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+        files: release.json
+- repo: https://github.com/rhysd/actionlint
+  rev: v1.7.7
+  hooks:
+    - id: actionlint
+      args: [ "-ignore", "shellcheck" ]
+- repo: local
+  hooks:
+    - id: protected-branches
+      name: protected-branches
+      description: checks that the commit isn't created on a protected branch
+      entry: 'dda inv git.check-protected-branch'
+      language: system
+      pass_filenames: false
+      stages: [pre-commit, pre-push]
+    - id: copyright
+      name: copyright
+      description: copyright headers
+      entry: 'dda inv linter.copyrights --only-staged-files'
+      language: system
+      require_serial: true
+      files: \.go$
+      pass_filenames: false
+    - id: win-clang-format
+      name: win-clang-format
+      description: clang-format
+      entry: 'dda inv pre-commit.check-winclang-format'
+      language: system
+      types_or: [c, c++]
+      pass_filenames: false
+    - # dotnet format is available on Linux, see https://learn.microsoft.com/en-us/dotnet/core/install/linux
+      id: dotnet-format-installer
+      name: dotnet-format-installer
+      description: Format .net file of the MSI installer
+      language: system
+      # The dotnet format tool requires a solution file to operate.
+      entry: dotnet format ./tools/windows/DatadogAgentInstaller --include
+      types: [c#]
+    - id: go-mod-tidy
+      name: go-mod-tidy
+      description: check that all go.mod files are tidy
+      entry: bash -c 'GOTOOLCHAIN=go$(cat .go-version) dda inv tidy'
+      language: system
+      require_serial: true
+      files: (\.go|^go\.mod|^go\.sum)$
+      pass_filenames: false
+      stages: [pre-push]
+    - id: go-test
+      name: go-test
+      description: run go test on modified packages
+      entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv test --only-modified-packages'
+      language: system
+      require_serial: true
+      always_run: true
+      pass_filenames: false
+      stages: [pre-push]
+    - id: go-linter
+      name: go-linter
+      description: run go linter on modified packages
+      entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv linter.go --only-modified-packages'
+      language: system
+      require_serial: true
+      always_run: true
+      pass_filenames: false
+      stages: [ pre-push ]
+    - id: shell-check-no-set-x
+      name: shell-check-no-set-x
+      description: check that no `set -x` is set within github / gitlab workflows
+      entry: 'dda inv pre-commit.check-set-x'
+      language: system
+      require_serial: true
+      files: (\.yaml|\.yml|\.sh|Dockerfile)$
+      pass_filenames: false
+    - id: gitlab-configuration
+      name: gitlab-configuration
+      description: Lint and test GitLab CI configuration files
+      entry: "dda inv linter.full-gitlab-ci -t main --pre-push-linters --fail-fast"
+      language: system
+      require_serial: true
+      files: .*gitlab.*\.yml$
+      pass_filenames: false
+      stages: [pre-push]
+    - id: update-go
+      name: update-go
+      description: test formatting of files will allow go update
+      entry: 'dda inv linter.update-go'
+      language: system
+      pass_filenames: false
+    - id: check-go-modules-in-python
+      name: check-go-modules-in-python
+      description: Validate all go modules are declared in Invoke tasks
+      entry: 'dda inv modules.validate --fix-format'
+      language: system
+      pass_filenames: false
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py)$
+    - id: protocol-buffer
+      name: validate-protocol-buffer-generated-files
+      description: Validate that the generated protocol buffer files are up to date
+      entry: 'dda inv protobuf.generate --pre-commit'
+      language: system
+      pass_filenames: false
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version|.*protobuf\.py)$
+    - id: experiment-systemd-units
+      name: validate-experiment-systemd-units
+      description: Validate that the generated systemd experimrent units are up to date
+      entry: 'dda inv installer.generate-experiment-units --check'
+      language: system
+      pass_filenames: false
+      files: ^pkg/fleet/installer/packages/embedded/.*\.service$

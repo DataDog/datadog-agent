@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Added an environment variable `DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL` to enable logs tailing on all containers.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The ``agent workload-list --verbose`` command and the ``workload-list.log`` file in the flare
+    do not show containers' environment variables anymore. Except for ``DD_SERVICE``, ``DD_ENV`` and ``DD_VERSION``.

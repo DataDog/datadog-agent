@@ -1,0 +1,1 @@
+1258 1249 254:1 /docker/volumes/0919c2d87ec8ba99f3c85fdada5fe26eca73b2fce73a5974d6030f30bf91cbaf/_data/lib/containerd/io.containerd.grpc.v1.cri/sandboxes/ca30bb64884083e29b1dc08a1081dd2df123f13f045dadb64dc346e56c0b6871/hostname /etc/hostname rw,relatime - ext4 /dev/vda1 rw,discard

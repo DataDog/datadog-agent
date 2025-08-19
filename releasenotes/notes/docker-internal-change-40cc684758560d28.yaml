@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Added a new implementation of the `docker` check based on the `container` check. Metrics produced do not change. Added the capability to run the `docker` check on Linux without access to `/sys` or `/proc`, although with a limited number of metrics.

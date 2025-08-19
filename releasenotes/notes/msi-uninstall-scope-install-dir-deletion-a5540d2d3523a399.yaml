@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Uninstalling the Windows Agent MSI Installer removes specific
+    subdirectories of the install path to help prevent data loss when
+    ``PROJECTLOCATION`` is misconfigured to an existing directory.

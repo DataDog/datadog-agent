@@ -1,0 +1,10 @@
+{{ if .enabled -}}
+<div class="stat">
+  <span class="stat_title">HA Agent Metadata</span>
+  <span class="stat_data">
+  {{- range $key, $value := .ha_agent_metadata }}
+    {{ $key }}: {{ $value }}<br>
+  {{- end }}
+  </span>
+</div>
+{{- end }}

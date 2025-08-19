@@ -1,0 +1,228 @@
+syntax = "proto3";
+
+package datadog.config;
+
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+// Backend definitions
+
+message ConfigMetas {
+  repeated TopMeta roots = 1;
+  TopMeta timestamp = 2;
+  TopMeta snapshot = 3;
+  TopMeta topTargets = 4;
+  repeated DelegatedMeta delegatedTargets = 5;
+}
+
+message DirectorMetas {
+  repeated TopMeta roots = 1;
+  TopMeta timestamp = 2;
+  TopMeta snapshot = 3;
+  TopMeta targets = 4;
+}
+
+message DelegatedMeta {
+  uint64 version = 1;
+  string role = 2;
+  bytes raw = 3;
+}
+
+message TopMeta {
+  uint64 version = 1;
+  bytes raw = 2;
+}
+
+message File {
+  string path = 1;
+  bytes raw = 2;
+}
+
+// Backend queries
+
+message LatestConfigsRequest {
+  string hostname = 1;
+  string agentVersion = 2;
+  // timestamp and snapshot versions move in tandem so they are the same.
+  uint64 current_config_snapshot_version = 3;
+  uint64 current_config_root_version = 9;
+  uint64 current_director_root_version = 8;
+  repeated string products = 4;
+  repeated string new_products = 5;
+  repeated Client active_clients = 6;
+  bytes backend_client_state = 10;
+  bool has_error = 11;
+  string error = 12;
+  string trace_agent_env = 13;
+  string org_uuid = 14;
+  repeated string tags = 15;
+  string agent_uuid = 16;
+}
+
+message LatestConfigsResponse {
+  ConfigMetas config_metas = 1;
+  DirectorMetas director_metas = 2;
+  repeated File target_files = 3;
+}
+
+message OrgDataResponse {
+  string uuid = 1;
+}
+
+message OrgStatusResponse {
+  bool enabled = 1;
+  bool authorized = 2;
+}
+
+// Client definitions
+
+message Client {
+  ClientState state = 1;
+  string id = 2;
+  repeated string products = 3;
+  reserved 4, 5;
+  bool is_tracer = 6;
+  ClientTracer client_tracer = 7;
+  bool is_agent = 8;
+  ClientAgent client_agent = 9;
+  uint64 last_seen = 10;
+  bytes capabilities = 11;
+  reserved 12, 13;
+  bool is_updater = 14;
+  ClientUpdater client_updater = 15;
+}
+
+message ClientTracer {
+  string runtime_id = 1;
+  string language = 2;
+  string tracer_version = 3;
+  string service = 4;
+  repeated string extra_services = 8;
+  string env = 5;
+  string app_version = 6;
+  repeated string tags = 7;
+  repeated string process_tags = 9;
+  repeated string container_tags = 10;
+}
+
+message ClientAgent {
+  string name = 1;
+  string version = 2;
+  string cluster_name = 3;
+  string cluster_id = 4;
+  repeated string cws_workloads = 5;
+}
+
+message ClientUpdater {
+  repeated string tags = 1;
+  repeated PackageState packages = 2;
+  uint64 available_disk_space = 3;
+}
+
+message PackageState {
+  string package = 1;
+  string stable_version = 2;
+  string experiment_version = 3;
+  PackageStateTask task = 4;
+  reserved 5, 6, 7, 8, 9, 10;
+  string stable_config_version = 11;
+  string experiment_config_version = 12;
+}
+
+message PackageStateTask {
+  string id = 1;
+  TaskState state = 2;
+  TaskError error = 3;
+}
+
+enum TaskState {
+  IDLE = 0;
+  RUNNING = 1;
+  DONE = 2;
+  INVALID_STATE = 3;
+  ERROR = 4;
+}
+
+message TaskError {
+  uint64 code = 1;
+  string message = 2;
+}
+
+message ConfigState {
+  string id = 1;
+  uint64 version = 2;
+  string product = 3;
+  uint64 apply_state = 4;
+  string apply_error = 5;
+}
+
+message ClientState {
+  uint64 root_version = 1;
+  uint64 targets_version = 2;
+  repeated ConfigState config_states = 3;
+  bool has_error = 4;
+  string error = 5;
+  bytes backend_client_state = 6;
+}
+
+// Client queries
+
+message TargetFileHash {
+  string algorithm = 1;
+  reserved 2; // old hash format
+  string hash = 3;
+}
+
+message TargetFileMeta {
+  string path = 1;
+  int64 length = 2;
+  repeated TargetFileHash hashes = 3;
+}
+
+message ClientGetConfigsRequest {
+  Client client = 1;
+  repeated TargetFileMeta cached_target_files = 2;
+}
+
+enum ConfigStatus {
+  CONFIG_STATUS_OK = 0;
+  CONFIG_STATUS_EXPIRED = 1;
+}
+
+message ClientGetConfigsResponse {
+  repeated bytes roots = 1;
+  bytes targets = 2;
+  repeated File target_files = 3;
+  repeated string client_configs = 4;
+  ConfigStatus config_status = 5;
+}
+
+// Full state
+
+message FileMetaState {
+  uint64 version = 1;
+  string hash = 2;
+}
+
+message GetStateConfigResponse {
+  map<string, FileMetaState> config_state = 1;
+  map<string, FileMetaState> director_state = 2;
+  map<string, string> target_filenames = 3;
+  repeated Client active_clients = 4;
+}
+
+message ResetStateConfigResponse {}
+
+
+message TracerPredicateV1 {
+  string clientID = 1;
+  string service = 2;
+  string environment = 3;
+  string appVersion = 4;
+  string tracerVersion = 5;
+  string language = 6;
+  string runtimeID = 7;
+}
+
+message TracerPredicates {
+	repeated TracerPredicateV1 tracer_predicates_v1 = 1;
+}

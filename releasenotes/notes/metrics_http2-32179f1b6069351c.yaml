@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Metrics are now sent over HTTP/2 when possible. A slight change to the
+    connection handling to take full advantage of this means multiple requests
+    can be in flight at any one time. This can be configured with the
+    ``forwarder_max_concurrent_requests`` option, default is 10.

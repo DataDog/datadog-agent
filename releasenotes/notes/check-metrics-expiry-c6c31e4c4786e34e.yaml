@@ -1,0 +1,8 @@
+enhancements:
+  - |
+    Reduce memory usage when checks report new metrics every run. Most metrics are removed
+    after two check runs without new samples. Rate, historate and monotonic count will be
+    kept in memory for additional 25 hours after that. Number of check runs and the
+    additional time can be changed with `check_sampler_bucket_commits_count_expiry` and
+    `check_sampler_stateful_metric_expiration_time`. Metric expiration can be disabled
+    entirely by setting `check_sampler_expire_metrics` to `false`.

@@ -1,0 +1,44 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 100
+  infraattributes:
+
+exporters:
+  debug:
+
+extensions:
+  ddflare:
+    include_metadata: true  # Set to true for testing; adjust for production.
+  # ddprofiling:
+  #   api:
+  #     key: abcde12345
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+
+# TODO: enable Additional configuration providers
+# providers:
+#   env:
+#   file:
+#   http:
+#   https:
+#   yaml:

@@ -1,0 +1,21 @@
+init_config:
+
+instances:
+
+    -
+
+    ## @param collect_tcp_queue_length - boolean - optional - default: true
+    ## Specify if the check should collect TCP Queue length metrics
+    ## This requires system-probe.
+    ## And this requires the enable_tcp_queue_length parameter of system-probe.yaml to be set to true.
+    #
+    # collect_tcp_queue_length: true
+
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>

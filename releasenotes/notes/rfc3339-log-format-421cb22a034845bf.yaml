@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Adding a 'log_format_rfc3339' option to use the RFC3339 format for the log
+    time.

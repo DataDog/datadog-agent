@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Cluster Agent can be instructed to dispatch cluster checks without decrypting secrets.
+    The node Agent or the cluster check runner will fetch the secrets after receiving the configurations from the Cluster Agent.
+    This can be enabled by setting ``DD_SECRET_BACKEND_SKIP_CHECKS`` to ``true`` in the Cluster Agent config.

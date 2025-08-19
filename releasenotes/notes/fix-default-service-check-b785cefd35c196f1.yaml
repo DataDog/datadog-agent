@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Avoid sending duplicated ``datadog.agent.up`` service checks.

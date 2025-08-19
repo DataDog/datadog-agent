@@ -1,0 +1,32 @@
+# Jobs that deploy agent packages on QA environment, to be used by e2e tests.
+# We use two separate jobs for Windows and Linux so that a failure in deploying the
+# Linux / Windows script doesn't impact the other OS (i.e. Windows scripts failing to be signed blocking Linux E2E tests).
+
+qa_installer_script_linux:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  stage: deploy_packages
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - installer-install-scripts
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "install*.sh" "$OMNIBUS_PACKAGE_DIR" "s3://${INSTALLER_TESTING_S3_BUCKET}/${CI_COMMIT_SHA}/scripts/"
+    - $S3_CP_CMD --recursive --exclude "*" --include "install*.sh" "$OMNIBUS_PACKAGE_DIR" "s3://${INSTALLER_TESTING_S3_BUCKET}/pipeline-${CI_PIPELINE_ID}/scripts/"
+
+qa_installer_script_windows:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  stage: deploy_packages
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - powershell_script_signing
+  before_script:
+    - ls $WINDOWS_POWERSHELL_DIR
+  script:
+    - $S3_CP_CMD $WINDOWS_POWERSHELL_DIR/Install-Datadog.ps1 s3://${INSTALLER_TESTING_S3_BUCKET}/pipeline-${CI_PIPELINE_ID}/scripts/Install-Datadog.ps1

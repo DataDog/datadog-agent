@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix the NVIDIA Jetson check to support parsing the ``tegrastats`` output 
+    when there are multiple Graphics Processing Clusters (GPCs). In that case, the metric 
+    ``nvidia.jetson.gpu.freq`` is emitted for each GPC and tagged with ``gpc:0``, ``gpc:1``, and so on.

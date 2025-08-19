@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+      annotations:
+        ad.datadoghq.com/nginx.check_names: '["nginx"]'
+        ad.datadoghq.com/nginx.init_configs: '[{}]'
+        ad.datadoghq.com/nginx.instances: '[{"nginx_status_url": "http://%%host%%/nginx_status"}]'
+        ad.datadoghq.com/nginx.logs: '[{"type": "docker","image": "nginx","service": "nginx","source": "nginx"}]'
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - name: http
+          containerPort: 80
+        volumeMounts:
+        - name: "config"
+          mountPath: "/etc/nginx/nginx.conf"
+          subPath: "nginx.conf"
+      volumes:
+        - name: "config"
+          configMap:
+            name: "nginxconfig"
+---
+apiVersion: v1
+data:
+  nginx.conf: |+
+    worker_processes  5;
+    events {
+      worker_connections  4096;
+    }
+    http {
+        server {
+            location /nginx_status {
+              stub_status on;
+              access_log  /dev/stdout;
+              allow all;
+            }
+        }
+    }
+kind: ConfigMap
+metadata:
+  name: nginxconfig
+  namespace: default
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: nginx
+  name: nginx
+spec:
+  selector:
+    app: nginx
+  ports:
+  - name: http
+    port: 8090
+    targetPort: 80

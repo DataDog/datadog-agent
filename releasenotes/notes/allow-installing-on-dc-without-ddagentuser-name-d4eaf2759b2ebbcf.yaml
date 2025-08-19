@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    On Windows on a Domain Controller, if no domain name is specified, the installer will use the controller's joined domain.

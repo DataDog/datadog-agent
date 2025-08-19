@@ -1,0 +1,4 @@
+#!/usr/bin/execlineb -P
+
+foreground { /initlog.sh "starting agent" }
+agent run

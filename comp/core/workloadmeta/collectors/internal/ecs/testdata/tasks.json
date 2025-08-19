@@ -1,0 +1,46 @@
+{
+  "Tasks": [
+    {
+      "Arn": "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/e39c666b3b134c2ca2241c4c3c64e6ac",
+      "DesiredStatus": "RUNNING",
+      "KnownStatus": "RUNNING",
+      "Family": "nginx",
+      "Version": "3",
+      "Containers": [
+        {
+          "DockerId": "2ad9e753a0dfbba1c91e0e7bebaaf3a0918d3ef304b7549b1ced5f573bc05645",
+          "DockerName": "nginx-3-stress-my-nginx-aa9883f7f3d6c5f73e00",
+          "Name": "my-nginx",
+          "Image": "ghcr.io/l9n41c/my-nginx:main",
+          "ImageID": "sha256:5365aa84ac82631670d111e43553ae75285d0335dd2fcca143cf0e9d6f88cd185",
+          "CreatedAt": "2023-11-13T19:33:52.310430928Z",
+          "StartedAt": "2023-11-13T19:33:52.939982634Z"
+        }
+      ]
+    },
+    {
+      "Arn": "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/7d2dae60ad844c608fb2d44215a46f6f",
+      "DesiredStatus": "RUNNING",
+      "KnownStatus": "RUNNING",
+      "Family": "datadog-agent",
+      "Version": "15",
+      "Containers": [
+        {
+          "DockerId": "749d28eb7145ff3b6c52b71c59b381c70a884c1615e9f99516f027492679496e",
+          "DockerName": "datadog-agent-15-datadog-agent-b2bb99c4dda5b2b25000",
+          "Name": "datadog-agent",
+          "Image": "datadog/datadog-agent:7.50.0",
+          "ImageID": "sha256:e4c58958181a5925816faa528ce959e487632f4cfc192f8132f71b32df2744b4",
+          "CreatedAt": "2023-10-18T19:26:17.940550067Z",
+          "StartedAt": "2023-10-18T19:26:18.743130652Z",
+          "Volumes": [
+            {
+              "Source": "/var/run/datadog",
+              "Destination": "/var/run/datadog"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

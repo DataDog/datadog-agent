@@ -1,0 +1,22 @@
+proto_outdir = "./protodep"
+
+[[dependencies]]
+target = "github.com/mwitkow/go-proto-validators"
+branch = "master"
+path = "github.com/mwitkow/go-proto-validators"
+ignores = ["./test", "./examples"]
+
+[[dependencies]]
+target = "github.com/protocolbuffers/protobuf/src/google/protobuf"
+revision = "v3.11.4"
+path = "google/protobuf"
+ignores = [
+  "./compiler",
+  "unittest",
+  "test_messages_",
+  "any_test",
+  "map_lite_unittest",
+  "map_proto2_unittest",
+  "util",
+  "map_unittest",
+]

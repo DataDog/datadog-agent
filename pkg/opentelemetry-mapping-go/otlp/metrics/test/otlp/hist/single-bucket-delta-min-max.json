@@ -1,0 +1,49 @@
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "hostname"
+            }
+          }
+        ]
+      },
+      "scopeMetrics": [
+        {
+          "scope": {},
+          "metrics": [
+            {
+              "name": "doubleHist.singlebucket.minmax.test",
+              "histogram": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      {
+                        "key": "attribute_tag",
+                        "value": {
+                          "stringValue": "attribute_value"
+                        }
+                      }
+                    ],
+                    "timeUnixNano": "1667560641226420924",
+                    "count": "20",
+                    "sum": 3.141592653589793,
+                    "min": 100,
+                    "max": 101,
+                    "bucketCounts": [
+                      "20"
+                    ]
+                  }
+                ],
+                "aggregationTemporality": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

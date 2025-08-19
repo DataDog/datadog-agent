@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Make the trace-agent read its configuration from datadog.yaml.
+

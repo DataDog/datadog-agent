@@ -1,0 +1,247 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$id": "ruleset_loaded.schema.json",
+    "type": "object",
+    "properties": {
+        "monitored_files": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "policies": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/policy"
+            }
+        },
+        "date": {
+            "$ref": "datetime.schema.json"
+        }
+    },
+    "required": [
+        "policies",
+        "date",
+        "monitored_files"
+    ],
+    "$defs": {
+        "policyinfo": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "bundled",
+                        "file",
+                        "remote-config",
+                        "self-test"
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "loaded",
+                        "partially_filtered",
+                        "partially_loaded",
+                        "fully_rejected",
+                        "fully_filtered",
+                        "error"
+                    ]
+                },
+                "message": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "source",
+                "name",
+                "version",
+                "status"
+            ]
+        },
+        "policy": {
+            "type": "object",
+            "allOf": [{ "$ref": "#/$defs/policyinfo" }],
+            "properties": {
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/rule"
+                    }
+                }
+            },
+            "required": [
+                "rules"
+            ]
+        },
+        "rule": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "expression": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "loaded",
+                        "agent_version_error",
+                        "event_type_disabled",
+                        "syntax_error",
+                        "filtered",
+                        "error"
+                    ]
+                },
+                "message": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "product_tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/action"
+                    }
+                },
+                "modified_by": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/policyinfo"
+                    }
+                },
+                "filter_type": {
+                    "type": "string",
+                    "enum": [
+                        "rule_id",
+                        "agent_version",
+                        "rule_filter"
+                    ]
+                },
+                "agent_version": {
+                    "type": "string"
+                },
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "id",
+                "status",
+                "expression"
+            ]
+        },
+        "action": {
+            "type": "object",
+            "properties": {
+                "filter": {
+                    "type": "string"
+                },
+                "set": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "value": {
+                            "type":["string", "number", "object", "array", "boolean", "null"]
+                        },
+                        "default_value": {
+                            "type": ["string", "number", "object", "array", "boolean", "null"]
+                        },
+                        "field": {
+                            "type": "string"
+                        },
+                        "expression": {
+                            "type": "string"
+                        },
+                        "append": {
+                            "type": "boolean"
+                        },
+                        "scope": {
+                            "type": "string",
+                            "enum": ["process", "container", "cgroup"]
+                        },
+                        "size": {
+                            "type": "integer"
+                        },
+                        "ttl": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "kill": {
+                    "type": "object",
+                    "properties": {
+                        "signal": {
+                            "type": "string"
+                        },
+                        "scope": {
+                            "type": "string",
+                            "enum": ["process", "container"]
+                        }
+                    }
+                },
+                "hash": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "coredump": {
+                    "type": "object",
+                    "properties": {
+                        "process": {
+                            "type": "boolean"
+                        },
+                        "mount": {
+                            "type": "boolean"
+                        },
+                        "dentry": {
+                            "type": "boolean"
+                        },
+                        "no_compression": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "log": {
+                    "type": "object",
+                    "properties": {
+                        "level": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

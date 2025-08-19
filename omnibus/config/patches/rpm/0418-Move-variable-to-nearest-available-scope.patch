@@ -1,0 +1,36 @@
+From 8be31c77806604cdca3cf628fb087bc1cc3d5c9e Mon Sep 17 00:00:00 2001
+From: Panu Matilainen <pmatilai@redhat.com>
+Date: Fri, 17 Mar 2023 14:36:26 +0200
+Subject: [PATCH 418/649] Move variable to nearest available scope
+
+Commit b960c0b43a080287a7c13533eeb2d9f288db1414 moved mayopen all the
+way to the function scope when the local if scope would've been enough.
+In a function with complex loops and all, nothing good comes out of having
+variables at unnecessarily wide scope.
+---
+ lib/fsm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/fsm.c b/lib/fsm.c
+index 183293edb..747ed2b09 100644
+--- a/lib/fsm.c
++++ b/lib/fsm.c
+@@ -879,7 +879,6 @@ int rpmPackageFilesInstall(rpmts ts, rpmte te, rpmfiles files,
+     int nodigest = (rpmtsFlags(ts) & RPMTRANS_FLAG_NOFILEDIGEST) ? 1 : 0;
+     int nofcaps = (rpmtsFlags(ts) & RPMTRANS_FLAG_NOCAPS) ? 1 : 0;
+     int firstlinkfile = -1;
+-    int mayopen = 0;
+     char *tid = NULL;
+     struct filedata_s *fdata = xcalloc(fc, sizeof(*fdata));
+     struct filedata_s *firstlink = NULL;
+@@ -940,6 +939,7 @@ int rpmPackageFilesInstall(rpmts ts, rpmte te, rpmfiles files,
+ 	    fp = firstlink;
+ 
+         if (!fp->skip) {
++	    int mayopen = 0;
+ 	    int fd = -1;
+ 	    rc = ensureDir(plugins, rpmfiDN(fi), 0,
+ 			    (fp->action == FA_CREATE), 0, &di.dirfd);
+-- 
+2.34.1
+

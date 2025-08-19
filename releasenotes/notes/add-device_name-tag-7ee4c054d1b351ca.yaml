@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    On Linux and MacOS, add a new ``device_name`` tag on IOstats and disk checks.

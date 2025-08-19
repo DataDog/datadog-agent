@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Resolve the issue with hostname resolution in the kube_apiserver provider when the useHostNetwork setting is enabled.

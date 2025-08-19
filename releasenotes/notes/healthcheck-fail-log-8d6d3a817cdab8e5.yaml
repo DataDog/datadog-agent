@@ -1,0 +1,2 @@
+enhancements:
+  - The Agent will log failed healthchecks on query and during exit

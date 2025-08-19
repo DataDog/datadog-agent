@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Enhanced the coverage of pause-containers filtering on Containerd.

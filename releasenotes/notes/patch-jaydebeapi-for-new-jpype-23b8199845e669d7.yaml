@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Carry a custom patch for jaydebeapi to support latest jpype.

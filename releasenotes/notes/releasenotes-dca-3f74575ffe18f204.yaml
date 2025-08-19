@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Add a field to differentiate between empty and undefined podSelector or namespaceSelector for network policies.

@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Add ``Process Language Detection Enabled`` in the output of the Agent Status command under the ``Process Agent`` section.

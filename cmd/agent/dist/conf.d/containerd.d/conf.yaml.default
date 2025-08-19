@@ -1,0 +1,36 @@
+ad_identifiers:
+  - _containerd
+init_config:
+instances:
+  -
+    ## @param filters - list of strings - optional
+    ## See the official grammar for the filters here https://github.com/containerd/containerd/blob/6daf8b77829b2d2d1ad9e2ef9f1e9fc6cebb3e13/filters/parser.go#L27-L50
+    ## The check supports Tasks, Containers and Images. See pkg/collector/corechecks/containers/containerd_events.go
+    #
+    filters:
+      - topic=="/containers/create"
+      - topic=="/containers/delete"
+      - topic=="/containers/update"
+      - topic=="/images/update"
+      - topic=="/images/create"
+      - topic=="/images/delete"
+      - topic=="/tasks/oom"
+      - topic=="/tasks/delete"
+
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param collect_events - bool to configure the event collection
+    ## Set to `false` if you want to deactivate the event collection for the containerd check
+    #
+    collect_events: true
+
+    ## @param openmetrics_endpoint - openmetrics endpoint on which containerd runtime exposes metrics
+    #  Learn more about exposing containerd openmetrics endpoint: https://github.com/containerd/containerd/blob/main/docs/ops.md
+    # openmetrics_endpoint: http://127.0.0.1:1338

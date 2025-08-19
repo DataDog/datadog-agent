@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    APM: Addition of configuration to add ``peer.service`` to trace stats exported by the Agent.
+  - |
+    APM: Addition of configuration to compute trace stats on spans based on their ``span.kind`` value.

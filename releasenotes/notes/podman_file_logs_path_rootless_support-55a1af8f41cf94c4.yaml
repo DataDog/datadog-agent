@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Adds support for file log collection from Podman rootless containers when ``logs_config.use_podman_logs`` is set to ``true`` and ``podman_db_path`` is configured.

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Support SNMP autodiscovery via a new configuration listener, with new
+    template variables.

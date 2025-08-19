@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The Kube State Metrics Core checks adds the global user-defined tags (``DD_TAGS``) by the default.

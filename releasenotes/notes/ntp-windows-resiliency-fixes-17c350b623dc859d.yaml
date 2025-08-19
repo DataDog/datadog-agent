@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The NTP check on Windows now discovers the primary domain controller (PDC) on domain-joined hosts when `use_local_defined_servers` is enabled. If the PDC is unavailable, it automatically falls back to registry-defined servers. Check now performs order-insensitive server list comparisons, reduces log noise, and avoids using itself as a time source when running on a domain controller.
+
+fixes:
+  - |
+    The NTP check will no longer fail to start if the initial discovery of local NTP servers fails at agent startup.
+

@@ -1,0 +1,20 @@
+#!/bin/sh
+##########################################################################
+#             DO NOT EDIT THIS SCRIPT DIRECTLY.                          #
+#                                                                        #
+# The installation logic is handled by the installer at in the following #
+# file: pkg/fleet/installer/packages/datadog_agent_linux.go              #
+#                                                                        #
+##########################################################################
+
+INSTALL_DIR=/opt/datadog-agent
+
+# Run FIPS installation script if available. Mandatory to execute the agent binary in FIPS mode.
+if [ -x ${INSTALL_DIR}/embedded/bin/fipsinstall.sh ]; then
+    ${INSTALL_DIR}/embedded/bin/fipsinstall.sh
+fi
+
+# Run the postinst. See pkg/fleet/installer/packages/datadog_agent_linux.go
+${INSTALL_DIR}/embedded/bin/installer postinst datadog-agent rpm || true
+
+exit 0

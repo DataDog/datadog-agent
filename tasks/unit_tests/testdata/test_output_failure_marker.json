@@ -1,0 +1,24 @@
+{"Time":"2024-04-25T19:35:40.385806+02:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/pkg/gohai/filesystem","Test":"TestCollectInfo","Elapsed":0}
+{"Time":"2024-04-25T19:35:40.385807+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai/filesystem","Output":"PASS\n"}
+{"Time":"2024-04-25T19:35:40.385828+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai/filesystem","Output":"ok  \tgithub.com/DataDog/datadog-agent/pkg/gohai/filesystem\t(cached)\n"}
+{"Time":"2024-04-25T19:35:40.385837+02:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/pkg/gohai/filesystem","Elapsed":0.005}
+{"Time":"2024-04-25T19:35:40.868296+02:00","Action":"run","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayload"}
+{"Time":"2024-04-25T19:35:40.870728+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayload","Output":"        flakytest: this is a known flaky test\n"}
+{"Time":"2024-04-25T19:35:40.868336+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayload","Output":"=== RUN   TestGetPayload\n"}
+{"Time":"2024-04-25T19:35:40.870619+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayload","Output":"    gohai_test.go:17: \n"}
+{"Time":"2024-04-25T19:35:40.870654+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayload","Output":"        \tError Trace:\t/Users/kevin.fairise/go/src/github.com/DataDog/datadog-agent/pkg/gohai/gohai_test.go:17\n"}
+{"Time":"2024-04-25T19:35:40.870728+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayload","Output":"        \tError:      \tExpected nil, but got: map[string]interface {}{\"cpu_cores\":\"10\", \"cpu_logical_processors\":\"10\", \"model_name\":\"Apple M1 Max\"}\n"}
+{"Time":"2024-04-25T19:35:40.870734+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayload","Output":"        \tTest:       \tTestGetPayload\n"}
+{"Time":"2024-04-25T19:35:40.870752+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayload","Output":"--- FAIL: TestGetPayload (0.00s)\n"}
+{"Time":"2024-04-25T19:35:40.870757+02:00","Action":"fail","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayload","Elapsed":0}
+{"Time":"2024-04-25T19:35:40.870768+02:00","Action":"run","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayloadContainerized"}
+{"Time":"2024-04-25T19:35:40.870772+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayloadContainerized","Output":"=== RUN   TestGetPayloadContainerized\n"}
+{"Time":"2024-04-25T19:35:40.87143+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayloadContainerized","Output":"--- PASS: TestGetPayloadContainerized (0.00s)\n"}
+{"Time":"2024-04-25T19:35:40.871439+02:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayloadContainerized","Elapsed":0}
+{"Time":"2024-04-25T19:35:40.871444+02:00","Action":"run","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayloadContainerizedWithDocker0"}
+{"Time":"2024-04-25T19:35:40.871448+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayloadContainerizedWithDocker0","Output":"=== RUN   TestGetPayloadContainerizedWithDocker0\n"}
+{"Time":"2024-04-25T19:35:40.873633+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayloadContainerizedWithDocker0","Output":"--- PASS: TestGetPayloadContainerizedWithDocker0 (0.00s)\n"}
+{"Time":"2024-04-25T19:35:40.873652+02:00","Action":"pass","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Test":"TestGetPayloadContainerizedWithDocker0","Elapsed":0}
+{"Time":"2024-04-25T19:35:40.873658+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Output":"FAIL\n"}
+{"Time":"2024-04-25T19:35:40.874562+02:00","Action":"output","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Output":"FAIL\tgithub.com/DataDog/datadog-agent/pkg/gohai\t0.494s\n"}
+{"Time":"2024-04-25T19:35:40.874579+02:00","Action":"fail","Package":"github.com/DataDog/datadog-agent/pkg/gohai","Elapsed":0.494}

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The kube node name is now reported a host tag ``kube_node``

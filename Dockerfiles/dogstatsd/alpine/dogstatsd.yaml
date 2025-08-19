@@ -1,0 +1,7 @@
+## Provides sane defaults, to be overridden by environment variables
+
+# Required for probe.sh
+health_port: 5555
+
+# Gohai does not support alpine
+enable_gohai: false

@@ -1,0 +1,3 @@
+features:
+  - |
+    Automatically add a "dirname" tag representing the directory of logs tailed from a wildcard path.

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    IIS configuration sections.
+
+    For schema documentation, see
+    %windir%\system32\inetsrv\config\schema\IIS_schema.xml.
+    
+    Please make a backup of this file before making any changes to it.
+
+-->
+
+<configuration>
+  <system.applicationHost>
+    <sites>
+        <site name="app1" id="2">
+            <application path="/" applicationPool="pool1">
+                <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\app1" />
+            </application>
+            <application path="/app2" applicationPool="pool1">
+                <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\app2" />
+            </application>
+            <application path="/app2/app3" applicationPool="pool1">
+                <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\app3" />
+            </application>
+            <application path="/app4" applicationPool="pool1">
+                <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\app4" />
+            </application>
+        </site>
+        <site name="app1" id="3">
+            <application path="/" applicationPool="pool1">
+                <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\app1" />
+            </application>
+            <application path="/siteapp2" applicationPool="pool1">
+                <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\app2" />
+            </application>
+            <application path="/siteapp2/siteapp3" applicationPool="pool1">
+                <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\app3" />
+            </application>
+            <application path="/siteapp4" applicationPool="pool1">
+                <virtualDirectory path="/" physicalPath="%TESTROOTDIR%\app4" />
+            </application>
+        </site>
+    </sites>
+  </system.applicationHost>
+</configuration>

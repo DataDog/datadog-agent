@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix bug when docker container terminate the last logs are missing
+    and partially recovered from restart.

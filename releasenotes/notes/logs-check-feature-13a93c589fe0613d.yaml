@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The Logs Agent Analyze feature introduces a new subcommand, `agent analyze-logs`, within the Datadog Agent. 
+    This tool helps users test log configurations, regular expressions, and processing rules in isolation. 
+    It offers a streamlined, cost-effective way to validate log configurations without 
+    running the entire Datadog Agent or sending data to Datadog. This allows users to quickly identify configuration issues.
+

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add Compliance agent in Cluster Agent to monitor Kubernetes objects

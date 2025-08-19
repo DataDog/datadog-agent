@@ -1,0 +1,73 @@
+---
+name: Add dependabot PR to the Merge Queue
+on:
+  pull_request_review:
+    types:
+      - submitted
+      - edited
+
+permissions: {}
+jobs:
+  add_to_merge_queue:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    environment:
+      name: dependabot
+
+    steps:
+      # Use a token as only the github App can push to the merge queue
+      - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        id: app-token
+        with:
+          app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
+          private-key: ${{ secrets.DD_GITHUB_TOKEN_GENERATOR_PRIVATE_KEY }}
+      - name: Check if the PR is mergeable
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        id: check-mergeable
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const pullRequestNumber = context.payload.pull_request.number;
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullRequestNumber
+            });
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullRequestNumber
+            });
+
+            // Users can have several reviews, which are listed in chronological order: we use a map to keep the last review state.
+            let reviewers = new Map();
+            for (const review of reviews) {
+              reviewers.set(review.user.login, review.state);
+            }
+            let allApproved = true;
+            for (const [reviewer, state] of reviewers) {
+              if (state === 'CHANGES_REQUESTED') {
+                allApproved = false;
+                break;
+              }
+            }
+            // When a required reviewer approves, the team is removed from the requested_teams list.
+            // As such, a mergeable PR has no more requested teams and no changes requested in its reviews.
+            return `${allApproved && pullRequest.requested_teams.length === 0}`;
+          result-encoding: string
+      - name: Add Merge Comment to Pull Request
+        if: ${{ steps.check-mergeable.outputs.result == 'true' }}
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const pullRequestNumber = context.payload.pull_request.number;
+            const commentBody = "/merge";
+
+            // Add a comment to the pull request
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullRequestNumber,
+              body: commentBody
+            });

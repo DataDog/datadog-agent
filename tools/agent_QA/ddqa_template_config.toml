@@ -1,0 +1,11 @@
+global_config_source = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0RhdGFEb2cvZ2l0aHViLW1ldGFkYXRhL21hc3Rlci9qaXJhLnRvbWw="
+repo = "datadog-agent"
+cache_dir = ""
+jira_statuses = [
+    "TODO",
+    "Testing",
+    "Done",
+]
+ignored_labels = [
+    "qa/skip-qa",
+]

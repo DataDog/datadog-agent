@@ -1,0 +1,65 @@
+---
+# integration_test stage
+# Contains jobs to run integration tests in otel go binaries
+
+integration_tests_otel:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64"]
+  needs: ["go_deps"]
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - dda inv -- check-otel-build
+    - dda inv -- check-otel-module-versions
+    - dda inv -- otel-agent.integration-test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+
+docker_image_build_otel:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  needs: ["go_deps", "integration_tests_otel"]
+  tags: ["docker-in-docker:amd64"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - mkdir -p /tmp/otel-ci
+    - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
+    - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
+    - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
+    - wget https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -O
+      /usr/bin/yq && chmod +x /usr/bin/yq
+    - export OTELCOL_VERSION=v$(/usr/bin/yq r /tmp/otel-ci/manifest.yaml dist.version)
+    - yq w -i /tmp/otel-ci/manifest.yaml "receivers[+] gomod"
+      "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver ${OTELCOL_VERSION}"
+    - yq w -i /tmp/otel-ci/manifest.yaml "processors[+] gomod"
+      "github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor ${OTELCOL_VERSION}"
+  script:
+    - !reference [.login_to_docker_readonly]
+    - docker build --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME --tag agent-byoc:latest -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+    - OT_AGENT_IMAGE_NAME=agent-byoc OT_AGENT_TAG=latest python3 /tmp/otel-ci/otel_agent_build_tests.py
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+
+datadog_otel_components_ocb_build:
+  stage: integration_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64"]
+  needs: ["go_deps"]
+  artifacts:
+    paths:
+      - ocb-output.log
+      - otelcol-custom.log
+      - flare-info.log
+    when: always
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - echo "Building custom collector with datadog components"
+    - test/otel/testdata/ocb_build_script.sh
+    - echo "see artifacts for job logs"
+  rules:
+    - !reference [.except_mergequeue]
+    - when: never
+  timeout: 15 minutes

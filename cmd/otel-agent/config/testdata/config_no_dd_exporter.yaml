@@ -1,0 +1,34 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+exporters:
+  debug:
+    verbosity: detailed
+  otlp:
+    endpoint: localhost:4317
+    tls:
+      insecure: true
+processors:
+  batch:
+    timeout: 10s
+  resourcedetection:
+    detectors: [system, env]
+service:
+  telemetry:
+    logs:
+      level: debug
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, resourcedetection]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      processors: [batch, resourcedetection]
+      exporters: [debug]
+    logs:
+      receivers: [otlp]
+      processors: [batch, resourcedetection]
+      exporters: [debug]

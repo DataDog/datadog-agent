@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add Dynamic Instrumentation diagnostics proxy endpoint to the trace-agent http server.
+
+    At present, diagnostics are forwarded through the debugger endpoint on the trace-agent server to logs.
+    Since Dynamic Instrumentation also allows adding dynamic metrics and dynamic spans, we want to remove the
+    dependency on logs for diagnostics - the new endpoint uploads diagnostic messages on a dedicated track.

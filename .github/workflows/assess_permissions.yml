@@ -1,0 +1,69 @@
+---
+name: Assess Repository Permissions
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 2 * *' # At 4 UTC every 2nd day of the month (out of business hours for rate limiting)
+    - cron: '0 6 2 * *' # Later for the simple permission display
+
+permissions: {}
+
+jobs:
+  assess_repo_permission:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 6 2 * * *'
+    strategy:
+      matrix:
+        value: ['datadog-agent', 'datadog-agent-buildimages', 'omnibus-ruby', 'agent-release-management']
+      fail-fast: false
+    environment:
+      name: main
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            .dda
+            .github
+            tasks
+          persist-credentials: false
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks legacy-github
+
+      - name: Assess Repository Permissions
+        if: github.event.schedule == '0 4 2 * * *'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+        run: dda inv -- -e github.check-permissions --name ${{ matrix.value }} --check repo
+
+  assess_agent_all_permission:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 4 2 * * *'
+    environment:
+      name: main
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            .dda
+            .github
+            tasks
+          persist-credentials: false
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks legacy-github
+
+      - name: Assess agent-all Permissions
+        if: github.event.schedule == '0 4 2 * * *'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+        run: dda inv -- -e github.check-permissions --name agent-all --check team

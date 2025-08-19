@@ -1,0 +1,15 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, copy this file
+## to `cpu.yaml` and make your changes on that file.
+
+init_config:
+
+## The Cpu check only supports one configured instance.
+
+instances:
+  - 
+
+    ## @param report_total_percpu - boolean - required
+    ## Set to true to report cpu total metrics for each cpu.
+    #
+    # report_total_percpu: false

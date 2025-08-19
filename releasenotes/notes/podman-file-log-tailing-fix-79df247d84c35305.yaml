@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes containers file-based log collection when using the ``k8s-file`` podman log driver and the ``logs_config.use_podman_logs`` parameter.

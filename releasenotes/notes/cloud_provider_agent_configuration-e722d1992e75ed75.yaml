@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Introducing the 'cloud_provider_metadata' option in the Agent configuration
+    to restrict which cloud provider metadata endpoints will be queried.

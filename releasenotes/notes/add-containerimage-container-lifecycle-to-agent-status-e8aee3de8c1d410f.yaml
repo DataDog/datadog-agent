@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add the container image and container lifecycle checks to the output of the Agent status command.

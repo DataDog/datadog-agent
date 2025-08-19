@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The AWS Lambda Extension is now  able to read the full 128-bit trace ID 
+    from the headers of the end-invocation HTTP request made by dd-trace or the
+    datadog-lambda-go library.

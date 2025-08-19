@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds OOM Kill probe to ebpf package and corresponding corecheck to the agent.

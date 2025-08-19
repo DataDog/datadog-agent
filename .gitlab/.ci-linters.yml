@@ -1,0 +1,111 @@
+---
+# Configuration for CI related linters
+
+# Lists stages and jobs that are not allowed to have both 'needs' and 'rules' keywords
+needs-rules:
+  allowed-stages:
+    - .pre
+    - lint
+    - notify
+    - deploy_dca
+    - deploy_dca_mutable_tags
+    - deploy_containers
+    - deploy_mutable_image_tags
+    - deploy_cws_instrumentation
+    - deploy_cws_instrumentation_mutable_tags
+
+  allowed-jobs:
+    - build_clang_arm64
+    - build_clang_x64
+    - build_dogstatsd_static-binary_x64
+    - build_processed_btfhub_archive
+    - check_already_deployed_version_7
+    - compute_gitlab_ci_config
+    - dogstatsd_x64_size_test
+    - go_mod_tidy_check
+    - golang_deps_send_count_metrics
+    - lint_flavor_dogstatsd_linux-x64
+    - lint_flavor_heroku_linux-x64
+    - lint_flavor_iot_linux-x64
+    - lint_linux-arm64
+    - lint_linux-x64
+    - lint_macos_gitlab_amd64
+    - new-e2e-cleanup-on-failure
+    - lint_macos_gitlab_arm64
+    - protobuf_test
+    - publish_winget_7_x64
+    - revert_latest_7
+    - security_go_generate_check
+    - setup_agent_version
+    - tests_ebpf_arm64
+    - tests_ebpf_x64
+    - tests_macos_gitlab_amd64
+    - tests_macos_gitlab_arm64
+    - tests_windows_secagent_x64
+    - tests_windows_sysprobe_x64
+    - trigger_auto_staging_release
+    - trigger_manual_prod_release
+    - trigger_distribution
+    - trigger_distribution_on_failure
+    - installer_trigger_auto_staging_release
+    - installer_trigger_manual_prod_release
+
+# Lists jobs that are allowed to not be within JOBOWNERS
+job-owners:
+  allowed-jobs:
+    - benchmark
+    - build_dogstatsd-binary_arm64
+    - build_dogstatsd-binary_x64
+    - build_dogstatsd_static-binary_arm64
+    - build_dogstatsd_static-binary_x64
+    - build_fakeintake
+    - build_iot_agent-binary_arm64
+    - build_iot_agent-binary_x64
+    - build_otel_agent_binary_arm64
+    - build_otel_agent_binary_x64
+    - cancel-prev-pipelines
+    - clone
+    - close_failing_tests_stale_issues
+    - compute_gitlab_ci_config
+    - deploy_cluster_agent_cloudfoundry
+    - do-not-merge
+    - dogstatsd_x64_size_test
+    - export_testing_public_key
+    - generate-flakes-finder-pipeline
+    - generate-fips-e2e-pipeline
+    - github_rate_limit_info
+    - go_deps
+    - go_e2e_deps
+    - go_mod_tidy_check
+    - go_tools_deps
+    - installer-amd64
+    - installer-amd64-oci
+    - installer-arm64
+    - installer-arm64-oci
+    - installer-install-scripts
+    - integration_tests_otel
+    - invoke_unit_tests
+    - new-e2e-cspm
+    - new-e2e-otel
+    - new-e2e-package-signing-debian-a7-x86_64
+    - new-e2e-package-signing-suse-a7-x86_64
+    - new-e2e-unit-tests
+    - publish_fakeintake
+    - publish_fakeintake_latest
+    - rc_kubernetes_deploy
+    - revert_latest_7
+    - send_pipeline_stats
+    - send_pkg_size
+    - setup_agent_version
+    - single-machine-performance-regression_detector
+    - single-machine-performance-regression_detector-pr-comment
+    - test_install_script
+    - trace-agent-v04-2cpus-normal_load-fixed_sps
+    - trace-agent-v04-2cpus-stress_load-fixed_sps
+    - trace-agent-v05-2cpus-normal_load-fixed_sps
+    - trace-agent-v05-2cpus-stress_load-fixed_sps
+    - trigger-flakes-finder
+    - trigger-fips-e2e
+    - unit_tests_notify
+    - update_rc_build_links
+    - validate_modules

@@ -1,0 +1,22 @@
+---
+features:
+  - |
+    CWS: Add support for ``write`` events on Windows.
+  - |
+    CWS: Add support for ``delete`` event on Windows.
+  - |
+    CWS: Add ``chdir``, ``mount`` and ``umount`` in ``ptracer`` mode.
+  - |
+    CWS: Add APM spans in ``ptracer`` mode.
+  - |
+    CWS: Add support for file hashing in ``ptracer`` mode.
+enhancements:
+  - |
+    CWS: Always snapshot memory mapped files in activity dumps. This allows easier mapping of workload to loaded shared libraries.
+  - |
+    CWS: Normalize Windows filenames before going through glob matching.
+  - |
+    CWS: Support non seccomp mode in ``ptracer`` mode.
+other:
+  - |
+    CWS: Allow ``fim_enabled`` to explicitly be set to false on Windows to enable process monitoring only.

@@ -1,0 +1,2 @@
+pkg/serverless/trace:
+  - test: TestLoadConfigShouldBeFast

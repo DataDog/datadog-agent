@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds the ability to use `DD_TAGS` to set global tags in Fargate.

@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    TCP log collectors have historically closed sockets that are idle for more
+    than 60 seconds.  This is no longer the case.  The agent relies on TCP
+    keepalives to detect failed connections, and will otherwise wait indefinitely
+    for logs to arrive on a TCP connection.

@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Metric payloads are compressed using `zstd` compression by default.
+    This may be breaking for users who are sending metrics to systems other
+    than Datadog, such as Vector prior to version 0.40 or proxy servers that
+    need to decode requests. The setting can be reverted to the previous
+    compression kind by adding ``serializer_compressor_kind: zlib`` to the
+    configuration.

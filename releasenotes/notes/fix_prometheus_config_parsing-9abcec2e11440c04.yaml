@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix a ``datadog.yaml`` configuration file parsing issue.
+    When the ``datadog.yaml`` configuration file contained a complex configuration under ``prometheus.checks[*].configurations[*].metrics``, a parsing error could lead to an OpenMetrics check not being properly scheduled. Instead, the Agent logged the following error::
+
+      2023-07-26 14:09:23 UTC | CORE | WARN | (pkg/autodiscovery/common/utils/prometheus.go:77 in buildInstances) | Error processing prometheus configuration: json: unsupported type: map[interface {}]interface {}

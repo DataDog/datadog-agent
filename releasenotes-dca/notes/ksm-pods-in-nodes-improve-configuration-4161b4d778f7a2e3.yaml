@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed an issue in the KSM check when it's configured with the option
+    ``pod_collection_mode`` set to ``node_kubelet``. Previously, the check could
+    fail to start if there was a timeout while contacting the API server. This
+    issue has now been resolved.

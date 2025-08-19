@@ -1,0 +1,164 @@
+connectors: {}
+exporters:
+  datadog:
+    api:
+      fail_on_invalid_key: false
+      key: "[REDACTED]"
+      site: datadoghq.com
+    headers: {}
+    host_metadata:
+      enabled: false
+      hostname_source: config_or_system
+      reporter_period: 30m0s
+      tags: []
+    hostname: ""
+    hostname_detection_timeout: 25s
+    idle_conn_timeout: "1m30s"
+    logs:
+      batch_wait: 5
+      compression_level: 6
+      dump_payloads: false
+      endpoint: https://http-intake.logs.datadoghq.com
+      use_compression: true
+    max_idle_conns: 100
+    metrics:
+      delta_ttl: 3600
+      endpoint: https://api.datadoghq.com
+      histograms:
+        mode: distributions
+        send_aggregation_metrics: false
+        send_count_sum_metrics: false
+      instrumentation_scope_metadata_as_tags: true
+      resource_attributes_as_tags: false
+      summaries:
+        mode: gauges
+      sums:
+        cumulative_monotonic_mode: to_delta
+        initial_cumulative_monotonic_value: auto
+    only_metadata: false
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_elapsed_time: 5m0s
+      max_interval: 30s
+      multiplier: 1.5
+      randomization_factor: 0.5
+    sending_queue:
+      batch:
+      block_on_overflow: false
+      enabled: true
+      num_consumers: 10
+      queue_size: 1000
+      sizer: {}
+      storage: null
+      wait_for_result: false
+    timeout: 15s
+    traces:
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      endpoint: https://trace.agent.datadoghq.com
+      ignore_resources: []
+      peer_service_aggregation: true
+      peer_tags: []
+      peer_tags_aggregation: true
+      span_name_as_resource_name: false
+      span_name_remappings: {}
+      trace_buffer: 0
+extensions: {}
+processors: {}
+receivers:
+  otlp:
+    protocols:
+      grpc: null
+      http: null
+  prometheus:
+    api_server: null
+    config:
+      global:
+        evaluation_interval: 1m
+        metric_name_escaping_scheme: allow-utf-8
+        metric_name_validation_scheme: utf8
+        scrape_interval: 1m
+        scrape_protocols:
+          - OpenMetricsText1.0.0
+          - OpenMetricsText0.0.1
+          - PrometheusText1.0.0
+          - PrometheusText0.0.4
+        scrape_timeout: 10s
+      otlp:
+        translation_strategy: UnderscoreEscapingWithSuffixes
+      runtime:
+        gogc: 75
+      scrape_configs:
+        - always_scrape_classic_histograms: false
+          convert_classic_histograms_to_nhcb: false
+          enable_compression: true
+          enable_http2: true
+          fallback_scrape_protocol: PrometheusText0.0.4
+          follow_redirects: true
+          honor_timestamps: true
+          job_name: datadog-agent
+          metric_name_validation_scheme: legacy
+          metric_name_escaping_scheme: underscores
+          metrics_path: /metrics
+          scheme: http
+          scrape_interval: 5s
+          scrape_protocols:
+            - PrometheusText0.0.4
+          scrape_timeout: 5s
+          static_configs:
+            - targets:
+                - 0.0.0.0:8888
+          track_timestamps_staleness: false
+    report_extra_scrape_metrics: false
+    start_time_metric_regex: ""
+    target_allocator: null
+    trim_metric_suffixes: false
+    use_start_time_metric: false
+service:
+  pipelines:
+    logs:
+      exporters:
+        - datadog
+      processors: []
+      receivers:
+        - otlp
+    metrics:
+      exporters:
+        - datadog
+      processors: []
+      receivers:
+        - otlp
+        - prometheus
+    traces:
+      exporters:
+        - datadog
+      processors: []
+      receivers:
+        - otlp
+  telemetry:
+    logs:
+      encoding: console
+      error_output_paths:
+        - stderr
+      level: info
+      output_paths:
+        - stderr
+      sampling:
+        enabled: true
+        initial: 10
+        thereafter: 100
+        tick: 10s
+    metrics:
+      level: Normal
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: localhost
+                port: 8888
+                with_resource_constant_labels:
+                  included: []
+                without_scope_info: true
+                without_type_suffix: true
+                without_units: true

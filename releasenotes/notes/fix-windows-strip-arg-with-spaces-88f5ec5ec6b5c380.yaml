@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix Windows Process Agent argument stripping to account for spaces in the executable path.

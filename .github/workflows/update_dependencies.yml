@@ -1,0 +1,69 @@
+name: Update golang.org/x/... dependencies
+on:
+  schedule:
+    # Run every 10th of the month, as it seems golang.org/x/... packages are usually
+    # released at the beginning of the month.
+    # Run at 6AM UTC so that it's ready at the beginning of the day CET.
+    - cron: "0 6 10 * *"
+
+  # allow triggering the workflow manually
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  backport:
+    name: Update golang.org/x/... dependencies
+    runs-on: ubuntu-latest
+    permissions: {} # the workflow uses the GitHub App token to create the PR so no specific permissions needed here
+    environment:
+      name: main
+    steps:
+      - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        id: app-token
+        with:
+          app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
+          private-key: ${{ secrets.DD_GITHUB_TOKEN_GENERATOR_PRIVATE_KEY }}
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # credentials are needed to create the PR at the end of the workflow
+          persist-credentials: true
+      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+        with:
+          go-version-file: ".go-version"
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+      - name: Update every golang.org/x/... package
+        run: |
+          go get -u golang.org/x/arch golang.org/x/crypto \
+                    golang.org/x/lint golang.org/x/mod \
+                    golang.org/x/net golang.org/x/sync \
+                    golang.org/x/sys golang.org/x/term \
+                    golang.org/x/text golang.org/x/time \
+                    golang.org/x/xerrors golang.org/x/tools \
+                    golang.org/x/exp golang.org/x/oauth2
+          # run tidy twice because the first one doesn't always clean everything
+          # depending on module order
+          dda inv -- -e tidy
+          dda inv -- -e tidy
+      - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        name: Create pull request
+        with:
+          commit-message: "chore(deps): update all golang.org/x/... dependencies"
+          branch: update-golang-org-x-${{ github.run_id }}-${{ github.run_attempt }}
+          token: ${{ steps.app-token.outputs.token }}
+          sign-commits: true
+          title: "[automated] Update golang.org/x/... dependencies"
+          body: |
+            ### What does this PR do?
+            Update all \`golang.org/x/...\` dependencies.
+
+            ### Motivation
+            Keep dependencies up-to-date, benefit from bug fixes and new features.
+
+            ### Describe how you validated your changes
+            CI is considered enough to validate changes.
+          team-reviewers: agent-runtimes
+          labels: team/agent-runtimes,qa/done,changelog/no-changelog,ask-review

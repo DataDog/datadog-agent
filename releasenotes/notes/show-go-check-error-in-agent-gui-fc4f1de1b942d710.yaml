@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Error messages from Go checks are now shown on the Agent GUI status page
+    instead of ``UNKNOWN ERROR``.

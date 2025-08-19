@@ -1,0 +1,42 @@
+# The host of the Datadog intake server to send Agent data to
+dd_url: https://app.datadoghq.com
+
+# The Datadog api key to associate your Agent's data with your organization.
+# Can be found here:
+# https://app.datadoghq.com/account/settings
+# This can be a comma-separated list of api keys.
+# (default: None, the agent doesn't start without it)
+api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+# If you need a proxy to connect to the Internet, provide it here (default: disabled)
+proxy: http://user:password@host:port
+
+# If you run the agent behind haproxy, you might want to set this to yes
+# skip_ssl_validation: no
+
+# Force the hostname to whatever you want. (default: auto-detected)
+# hostname: mymachine.mydomain
+
+# ========================================================================== #
+# DogStatsd configuration                                                    #
+# ========================================================================== #
+
+# If you don't want to enable the DogStatsd server, set this option to no
+# use_dogstatsd: yes
+
+# DogStatsd is a small server that aggregates your custom app metrics. For
+# usage information, check out http://api.datadoghq.com
+
+# Make sure your client is sending to the same port.
+dogstatsd_port : 8125
+#
+# The buffer size use to receive statsd packet (defaults 1024)
+# dogstatsd_buffer_size: 1024
+
+# ========================================================================== #
+# Logging
+# ========================================================================== #
+
+log_level: info
+
+# log_file: /var/log/datadog/agent.log

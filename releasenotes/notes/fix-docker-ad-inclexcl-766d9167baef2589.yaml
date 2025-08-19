@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a bug where container_include/exclude_metrics was applied on Autodiscovery when using Docker, preventing logs collection configured through container_include/exclude_logs.

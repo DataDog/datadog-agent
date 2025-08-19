@@ -1,0 +1,32 @@
+receivers:
+    otlp:
+
+exporters:
+    datadog:
+      api:
+        key: abcde12345
+
+extensions:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
+    endpoint: "localhost:55679"
+  ddflare/user-defined:
+
+processors: 
+
+service:
+    telemetry:
+      metrics:
+        level: none
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
+    pipelines:
+        traces:
+            receivers: [nop]
+            exporters: [datadog]
+        metrics:
+            receivers: [nop]
+            exporters: [datadog]
+        logs:
+            receivers: [nop]
+            exporters: [datadog]

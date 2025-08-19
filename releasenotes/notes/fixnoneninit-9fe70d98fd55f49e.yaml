@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes initialization of performance counter (Windows) to be able to better cope with missing
+    counter strings, and non-english locales

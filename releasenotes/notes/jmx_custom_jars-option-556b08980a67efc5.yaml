@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add jmx_custom_jars option to make sure they are loaded by jmxfetch

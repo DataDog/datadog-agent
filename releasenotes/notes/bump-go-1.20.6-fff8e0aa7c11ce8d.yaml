@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Agents are now built with Go ``1.20.6``. This version of Golang fixes `CVE-2023-29406`.

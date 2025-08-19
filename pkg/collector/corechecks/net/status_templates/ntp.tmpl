@@ -1,0 +1,6 @@
+{{- if .ntpOffset }}
+NTP offset: {{ humanizeDuration .ntpOffset "s"}}
+{{- if ntpWarning .ntpOffset}}
+{{yellowText "NTP offset is high. Datadog may ignore metrics sent by this Agent."}}
+{{- end }}
+{{- end }}

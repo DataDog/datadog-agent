@@ -1,0 +1,14 @@
+# Profile for F5 BIG-IP devices
+#
+extends:
+  - _base.yaml
+
+device:
+  vendor: "p4_default"
+
+sysobjectid: 1.2.5.*
+
+metrics:
+  - symbol:
+      OID: 1.2.3.5
+      name: default_p4_metric

@@ -1,0 +1,51 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build agent",
+            "command": "dda inv -e agent.build",
+            "args": [],
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "clean",
+            "command": "dda inv -e agent.clean",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": []
+        },
+        {
+            "label": "install dependencies",
+            "command": "dda inv -e deps",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": []
+        },
+        {
+            "label": "go linters",
+            "command": "dda inv -e linter.go",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": []
+        },
+        {
+            "label": "go tests",
+            "command": "dda inv -e test",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": []
+        },
+        {
+            "label": "go linters and tests",
+            "command": "dda inv -e test",
+            "args": [],
+            "type": "shell",
+            "problemMatcher": []
+        }
+    ]
+}

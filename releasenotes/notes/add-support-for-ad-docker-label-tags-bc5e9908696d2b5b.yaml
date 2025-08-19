@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Support custom tagging of docker container data via an autodiscovery "tags"
+    label key.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a bug where the Agent disables collecting tags when the
+    cluster checks advanced dispatching is enabled in the Daemonset Agent.

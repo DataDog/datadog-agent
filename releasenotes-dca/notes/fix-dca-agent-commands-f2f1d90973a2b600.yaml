@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix `agent` commands in DCA (listener should always be started)

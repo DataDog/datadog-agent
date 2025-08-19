@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add docker memory soft limit metric.

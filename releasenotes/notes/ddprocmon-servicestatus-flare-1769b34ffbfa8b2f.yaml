@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Include Datadog Process Monitor (``ddprocmon``) service status in flare on Windows
+fixes:
+  - |
+    Agent flare service status search for ``datadog`` services is now case insensitive on Windows

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Detect and handle Docker messages without header.

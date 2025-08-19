@@ -1,0 +1,13 @@
+# enable logs agent
+logs_enabled: true
+
+# enable process agent
+process_config:
+  # live process
+  process_collection:
+    enabled: true
+
+# enable the datadog-installer, needs an API KEY
+remote_updates: true
+
+# trace-agent is running by default

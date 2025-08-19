@@ -1,0 +1,34 @@
+<Include>
+  <ComboBox Property="SITE">
+    <ListItem Text="datadoghq.com" Value="datadoghq.com"/>
+    <ListItem Text="datadoghq.eu" Value="datadoghq.eu"/>
+    <ListItem Text="us3.datadoghq.com" Value="us3.datadoghq.com"/>
+    <ListItem Text="ddog-gov.com" Value="ddog-gov.com"/>
+  </ComboBox>
+ <Dialog Id="SiteDlg" Width="370" Height="270" Title="!(loc.SiteDialogTitle)">
+  <Control Id="SiteFromDefault" Type="ComboBox" ComboList="no" Height="15" Width="320" X="25" Y="148" Property="SITE"/>
+  <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
+        Text="Back">
+
+    <Publish Event="NewDialog" Value="ApiKeyDlg">1</Publish>
+  </Control>
+  <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes"
+          Text="Next">
+    <Publish Event="NewDialog" Value="VerifyReadyDlg" />
+
+  </Control>
+  <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes"
+          Text="Cancel">
+    <Publish Event="EndDialog" Value="Exit">1</Publish>
+  </Control>
+
+   <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.LicenseAgreementDlgBannerBitmap)" />
+   <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+   <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+   <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="32" 
+            Transparent="yes" NoPrefix="yes" Text="!(loc.SiteDialogDescription)" />
+
+   <Control Id="EnterKey" Type="Text" Height="32" Width="320" X="25" Y="116"
+               Text="!(loc.SiteDialogKeyLabel)" />
+      </Dialog>
+</Include>

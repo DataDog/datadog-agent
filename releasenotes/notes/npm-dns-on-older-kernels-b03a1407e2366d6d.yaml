@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add support for the DNS Monitoring feature of NPM to Linux kernels older than 4.1.

@@ -1,0 +1,4 @@
+otlp_config:
+  receiver:
+    protocols:
+      htttp:

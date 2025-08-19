@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix ``dogstatsd_mapper_profiles`` wrong serialization when displaying the configuration (for example ``match_type``
+    was shown as ``matchtype``). This also fixes a bug in which the secret management feature was incompatible with
+    ``dogstatsd_mapper_profiles`` due to the renaming of the ``match_type`` key in the YAML data.

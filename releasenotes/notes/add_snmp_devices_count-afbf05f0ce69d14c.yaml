@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add ``autodiscovery_subnet`` to available SNMP template extra configs

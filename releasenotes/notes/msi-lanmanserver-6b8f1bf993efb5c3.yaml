@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Windows installer will not abort if the LanmanServer (Server) service is not running (regression introduced in 7.47.0).

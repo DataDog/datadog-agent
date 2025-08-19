@@ -1,0 +1,3 @@
+---
+features:
+  - handle the "warning" value to log_level, translating it to "warn"

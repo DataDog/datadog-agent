@@ -1,0 +1,32 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The introduction of multiple runners for checks implies check
+    instances may now run concurrently. This should help the agent
+    make better use of resources, in particular it will help prevent
+    or reduce the side-effects of slow checks delaying the execution
+    of all other checks.
+
+    The change will affect custom checks not enforcing thread safety as
+    they may, depending on the schedule, access unsynchronized structures
+    concurrently with the corresponding data race ensuing. If you wish to
+    run checks in a fully sequential fashion, you may set the `check_runners`
+    option in your `datadog.yaml` config or via the `DD_CHECK_RUNNERS` to 1.
+    Also, please feel free to reach out to us if you need more information
+    or help with the new multiple runner/concurrency model.
+
+    For more details please read the technical note in the `datadog.yaml`_. 
+
+    .. _datadog.yaml: https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml#L130-L140
+features:
+  - |
+    Bump the default number of check runners to 4. This has some
+    concurrency implications as we will now run multiple checks in
+    parallel.

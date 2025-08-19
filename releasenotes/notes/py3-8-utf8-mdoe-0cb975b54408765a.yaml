@@ -1,0 +1,15 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+other:
+  - |
+    Following the upgrade to Python 3.8, the Datadog Agent version ``>= 6.18.0``
+    running Python 3 and version ``>= 7.18.0`` are now enforcing UTF8 encoding
+    while running checks (and while running pdb debugger with `-b` option on the
+    `check` cli command). Previous versions of the Agent were already using this
+    encoding by default (depending on the environment variables) without enforcing it.

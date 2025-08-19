@@ -1,0 +1,4 @@
+#!/bin/bash
+
+echo "The deprecated binary 'dd-agent' is no longer provided. Please use the 'datadog-agent' binary instead."
+exit 1

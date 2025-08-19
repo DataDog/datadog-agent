@@ -1,0 +1,58 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.require_version ">= 1.8.4"
+
+Vagrant.configure("2") do |config|
+
+  config.vm.communicator = "winrm"
+
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+  gopath = ENV['GOPATH'].gsub('\\', '/')
+  config.vm.synced_folder gopath + "/src/github.com/DataDog", "/Users/dogdev/go/src/github.com/DataDog"
+
+  config.vm.define "win-10-prl", autostart: false  do |cfg|
+    cfg.vm.box     = "windows_10_ent_parallels.box"
+  end
+  config.vm.define "win-10-vmw", autostart: false  do |cfg|
+    cfg.vm.box     = "windows_10_ent_vmware.box"
+  end
+  config.vm.define "win-10-vbx", autostart: false  do |cfg|
+    cfg.vm.box     = "windows_10_ent_virtualbox.box"
+  end
+  config.vm.define "win-srv-prl", autostart: false do |cfg|
+    cfg.vm.box     = "windows_2019_core_parallels.box"
+  end
+  config.vm.define "win-srv-vmw", autostart: false do |cfg|
+    cfg.vm.box     = "windows_2019_core_vmware.box"
+  end
+  config.vm.define "win-srv-vbx", autostart: false do |cfg|
+    cfg.vm.box     = "windows_2019_core_virtualbox.box"
+  end
+
+  ["vmware_fusion", "vmware_workstation"].each do |provider|
+    config.vm.provider provider do |v, override|
+      v.cpus = 4
+      v.memory = 4096
+      v.linked_clone = true
+      # nested virtualization
+      v.vmx["vhv.enable"] = "TRUE"
+    end
+  end
+
+  config.vm.provider "virtualbox" do |v, override|
+    v.cpus = 4
+    v.memory = 4096
+    v.linked_clone = true
+    # Does not work, or at least not on Intel processors https://docs.oracle.com/cd/E97728_01/F12469/html/nested-virt.html
+    # v.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+  end
+
+  config.vm.provider "parallels" do |prl, override|
+    prl.cpus = 4
+    prl.memory = 4096
+    prl.linked_clone = true
+    prl.customize ['set', :id, '--nested-virt', 'on']
+  end
+
+end

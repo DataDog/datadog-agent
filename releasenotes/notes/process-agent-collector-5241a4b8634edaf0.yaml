@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Added a new collector in the process agent in workloadmeta.
+    This collector allows for collecting processes when the `process_config.process_collection.enabled` is false 
+    and `language_detection.enabled` is true.
+    The interval at which this collector collects processes can be adjusted with the setting 
+    `workloadmeta.local_process_collector.collection_interval`.

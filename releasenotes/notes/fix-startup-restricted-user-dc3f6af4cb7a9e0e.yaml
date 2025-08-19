@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix Agent startup failure when running as a non-privileged user (for instance, when running on OpenShift with ``restricted`` SCC)

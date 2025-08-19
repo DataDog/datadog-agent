@@ -1,0 +1,3 @@
+---
+fixes:
+  - Avoid multiple initializations of the tagger subsystem

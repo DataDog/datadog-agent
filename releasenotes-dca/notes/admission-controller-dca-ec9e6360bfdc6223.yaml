@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    The Cluster Agent now provides a Kubernetes Admission Controller to inject 'DD_AGENT_HOST'
+    and 'DD_ENTITY_ID' into Dogstasd clients and APM tracers automatically.
+    The Admission Controller can also inject the standard tags (env, service, version)
+    as environment variables from object labels 'tags.datadoghq.com/'.
