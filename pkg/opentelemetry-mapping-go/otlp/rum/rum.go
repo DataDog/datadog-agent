@@ -299,8 +299,8 @@ func randomID() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// BuildIntakeUrlPathAndParameters builds the intake URL path and parameters to send RUM payloads to Datadog RUM backend.
-func BuildIntakeUrlPathAndParameters(rattrs pcommon.Map, lattrs pcommon.Map) string {
+// BuildIntakeURLPathAndParameters builds the intake URL path and parameters to send RUM payloads to Datadog RUM backend.
+func BuildIntakeURLPathAndParameters(rattrs pcommon.Map, lattrs pcommon.Map) string {
 	var parts []string
 
 	batchTimeParam := paramValue{ParamKey: "batch_time", Fallback: strconv.FormatInt(time.Now().UnixMilli(), 10)}

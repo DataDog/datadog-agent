@@ -118,7 +118,7 @@ func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs,
 						lattr := logRecord.Attributes()
 
 						// build the Datadog intake URL
-						pathAndParams := rum.BuildIntakeUrlPathAndParameters(rattr, lattr)
+						pathAndParams := rum.BuildIntakeURLPathAndParameters(rattr, lattr)
 						outURLString := rumIntakeURL + pathAndParams
 
 						rumPayload := rum.ConstructRumPayloadFromOTLP(lattr)

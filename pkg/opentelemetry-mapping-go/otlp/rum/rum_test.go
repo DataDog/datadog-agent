@@ -324,7 +324,7 @@ func TestParseDDForwardIntoResource(t *testing.T) {
 	}
 }
 
-func TestBuildIntakeUrlPathAndParameters(t *testing.T) {
+func TestBuildIntakeURLPathAndParameters(t *testing.T) {
 	tests := []struct {
 		name   string
 		rattrs pcommon.Map
@@ -359,7 +359,7 @@ func TestBuildIntakeUrlPathAndParameters(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := BuildIntakeUrlPathAndParameters(tt.rattrs, tt.lattrs)
+			got := BuildIntakeURLPathAndParameters(tt.rattrs, tt.lattrs)
 			uri, err := url.Parse(got)
 			require.NoError(t, err)
 			queryParams := uri.Query()
