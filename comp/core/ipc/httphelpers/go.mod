@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel

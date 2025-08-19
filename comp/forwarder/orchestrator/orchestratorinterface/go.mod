@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface
 
-go 1.23.0
+go 1.24.0
 
 require github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
 

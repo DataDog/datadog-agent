@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/otel
 
-go 1.23.0
+go 1.24.0
 
 require github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1
 

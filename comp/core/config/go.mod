@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/config
 
-go 1.23.0
-
-toolchain go1.23.6
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0
