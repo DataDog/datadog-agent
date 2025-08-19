@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build ncm
+
 // Package report contains types and functions for submitting/reporting network device configurations payloads
 package report
 

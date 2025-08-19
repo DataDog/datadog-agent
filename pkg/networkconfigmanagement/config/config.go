@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build ncm
+
 // Package config provides configuration structures and functions for the Network Config Management (NCM) core check and component
 package config
 

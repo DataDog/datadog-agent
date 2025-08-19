@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build ncm
+
 // Package remote provides interfaces for remote device communications (SSH/Telnet) to retrieve configurations
 package remote
 

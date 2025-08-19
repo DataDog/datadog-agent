@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build ncm
+
 // Package sender provides a wrapper around the sender.Sender to send network device configuration data
 package sender
 

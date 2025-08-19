@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build ncm
+
 // Package networkconfigmanagement defines the agent core check for retrieving network device configurations
 package networkconfigmanagement
 
