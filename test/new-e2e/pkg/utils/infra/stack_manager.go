@@ -502,7 +502,9 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		upCount++
 		upCtx, cancel := context.WithTimeout(ctx, params.UpTimeout)
 		now := time.Now()
+		fmt.Println("DDDDDDDDDDDDDD upCount", upCount, stackName)
 		upResult, upError = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
+		fmt.Println("DDDDDDDDDDDDDDDDDDDDD upResult", upResult, upError, stackName)
 		fmt.Fprintf(logger, "Stack up took %v at attempt %v\n", time.Since(now), upCount)
 		cancel()
 
@@ -614,10 +616,6 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 }
 
 func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) (RetryType, []GetStackOption) {
-	// if first attempt + retries count are higher than max retry, give up
-	if upCount > stackUpMaxRetry {
-		return NoRetry, nil
-	}
 
 	for _, knownError := range sm.knownErrors {
 		isMatch, err := regexp.MatchString(knownError.errorMessage, err.Error())
@@ -625,8 +623,16 @@ func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) (RetryType,
 			fmt.Printf("Error matching regex %s: %v\n", knownError.errorMessage, err)
 		}
 		if isMatch {
+			if upCount > knownError.maxRetry {
+				return NoRetry, nil
+			}
 			return knownError.retryType, nil
 		}
+	}
+
+	// if first attempt + retries count are higher than max retry, give up
+	if upCount > stackUpMaxRetry {
+		return NoRetry, nil
 	}
 
 	return ReUp, nil
