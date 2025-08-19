@@ -46,12 +46,14 @@ type Consumer[V any] interface {
 	Stop()
 }
 
+// DirectConsumer processes individual events directly from eBPF programs.
 type DirectConsumer[V any] struct {
 	perf.EventHandler
 	proto    string
 	callback func(V)
 }
 
+// NewDirectConsumer creates a new DirectConsumer for the specified protocol.
 func NewDirectConsumer[V any](proto string, callback func(V)) (*DirectConsumer[V], error) {
 	if callback == nil {
 		return nil, errors.New("callback function is required")
@@ -137,6 +139,7 @@ func (c *DirectConsumer[V]) Stop() {
 	log.Debugf("DirectConsumer: stopping for protocol %s", c.proto)
 }
 
+// BatchConsumer processes batches of events from eBPF maps.
 type BatchConsumer[V any] struct {
 	mux         sync.Mutex
 	proto       string
