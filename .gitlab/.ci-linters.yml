@@ -95,6 +95,7 @@ job-owners:
     - rc_kubernetes_deploy
     - revert_latest_7
     - send_pipeline_stats
+    - send_pkg_size
     - setup_agent_version
     - single-machine-performance-regression_detector
     - single-machine-performance-regression_detector-pr-comment
