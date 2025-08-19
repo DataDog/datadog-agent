@@ -2,6 +2,8 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/agent-payload/v5 v5.0.162 h1:HhxJr51Fch5vexOTqkjqkZa5awedmHFaDNP0R9ZSR0o=
 github.com/DataDog/agent-payload/v5 v5.0.162/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/datadog-agent v0.0.0-20250818182653-52b1108dd6c4 h1:kW7MPGOayztCsFbRPwYcJ2vD4qKJqmzgA02PPT25MBw=
+github.com/DataDog/datadog-agent v0.0.0-20250818182653-52b1108dd6c4/go.mod h1:WGUxr0mEsf/87SzLAIq+i7+6rrWkjjF3sWmTBAEQnQg=
 github.com/DataDog/datadog-agent/comp/core/secrets v0.67.0 h1:3VkM/GRDnT3Wnsmjtu2eikUgE0/Ml6gpz1pNKu4r2GQ=
 github.com/DataDog/datadog-api-client-go/v2 v2.42.0 h1:0L03LqChbOf7IaaiBUZpXi1Ss6PseGGhQEQrNqD9nU8=
 github.com/DataDog/datadog-api-client-go/v2 v2.42.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
@@ -391,6 +393,7 @@ github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQ
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=
 go.opentelemetry.io/auto/sdk v1.1.0/go.mod h1:3wSPjt5PWp2RhlCcmmOial7AvC4DQqZb7a7wCow3W8A=
+go.opentelemetry.io/collector v0.131.0 h1:WLqVniVDNjEJhCMP0W6X1n1i5IUQREL7/B/h7pxsLPE=
 go.opentelemetry.io/collector/client v1.37.0 h1:pHwICNhM+iVCZVRzib0ghowbyZyVkS4pfndbdy3g8qk=
 go.opentelemetry.io/collector/client v1.37.0/go.mod h1:f4ILN5558XCvOibKrwitZ+MScPX/1k1uCGZEhIeszMQ=
 go.opentelemetry.io/collector/component v1.37.0 h1:yc5X0WhZwlpJ+W8Sg1fpRRjiUu3nByLe1wVOKWWRWRQ=
