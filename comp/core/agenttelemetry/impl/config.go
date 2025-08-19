@@ -213,7 +213,6 @@ var defaultProfiles = `
             - metric_type
         - name: aggregator.dogstatsd_contexts_by_mtype
           aggregate_tags:
-            - shard
             - metric_type
         - name: logs.bytes_missed
         - name: logs.bytes_sent
