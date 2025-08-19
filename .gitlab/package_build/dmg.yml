@@ -61,6 +61,7 @@
   script:
     - set -eo pipefail
     - !reference [.vault_login]
+    - !reference [.macos_runner_tmpdir]
     - !reference [.macos_setup_python]
     - !reference [.macos_setup_go]
     # List Python and Go existing environments and their disk space
