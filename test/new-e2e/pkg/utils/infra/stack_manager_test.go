@@ -50,7 +50,7 @@ func TestStackManager(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should-succeed-on-successful-run-function", func(t *testing.T) {
-		// t.Parallel()
+		t.Parallel()
 		t.Log("Should succeed on successful run function")
 		mockWriter := &mockWriter{
 			logs: []string{},
@@ -99,7 +99,6 @@ func TestStackManager(t *testing.T) {
 					ctx,
 					stackName,
 					func(*pulumi.Context) error {
-						fmt.Println("stackUpCounter", stackUpCounter)
 						stackUpCounter++
 						if stackUpCounter > errCount {
 							return nil
