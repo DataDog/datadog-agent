@@ -5,7 +5,7 @@ This doc describes how to define new configuration parameters for the Agent.
 1. Define your config.
 2. Add it to the config template (optional).
 3. Use your config in your code.
-4. Request a review from the Agent configuration team ()
+4. Request a review from the Agent configuration team (team/agent-configuration)
 
 If you have any questions, head over to #agent-configuration and ask (datadog
 internal).
@@ -65,7 +65,7 @@ See the [package documentation] for available methods.
 
 ## 4. Request a Review!
 
-Please add this label to your PRs: `team/agent-congfiguration`
+Please add this label to your PRs: `team/agent-configuration`
 
 This will summon a config wizard who can review your changes and suggest any
 changes.
