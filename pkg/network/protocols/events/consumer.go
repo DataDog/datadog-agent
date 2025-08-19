@@ -19,6 +19,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,7 +55,7 @@ type DirectConsumer[V any] struct {
 }
 
 // NewDirectConsumer creates a new DirectConsumer for the specified protocol.
-func NewDirectConsumer[V any](proto string, callback func(V)) (*DirectConsumer[V], error) {
+func NewDirectConsumer[V any](proto string, callback func(V), config *config.Config) (*DirectConsumer[V], error) {
 	if callback == nil {
 		return nil, errors.New("callback function is required")
 	}
@@ -88,11 +89,11 @@ func NewDirectConsumer[V any](proto string, callback func(V)) (*DirectConsumer[V
 	// because we want kernel-level batching but individual event processing in userspace
 
 	// Set up mode selection similar to initClosedConnEventHandler
-	// For DirectConsumer, we prefer ring buffers for direct events from bpf_ringbuf_output
-	// TODO: Add equivalent of config.RingBufferSupportedUSM() when available
 	mode := perf.UsePerfBuffers(usmDirectPerfBufferSize, chanSize, perfMode)
 	// Always try to upgrade to ring buffers for direct events if supported
-	mode = perf.UpgradePerfBuffers(usmDirectPerfBufferSize, chanSize, perfMode, usmDirectRingBufferSize)
+	if config.RingBufferSupportedUSM() {
+		mode = perf.UpgradePerfBuffers(usmDirectPerfBufferSize, chanSize, perfMode, usmDirectRingBufferSize)
+	}
 
 	// Calculate the size of the single event that will be written via bpf_ringbuf_output
 	eventSize := int(unsafe.Sizeof(*new(V)))

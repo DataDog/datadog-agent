@@ -131,7 +131,7 @@ func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protoc
 		telemetry: telemetry,
 		mgr:       mgr,
 	}
-	directConsumer, err := events.NewDirectConsumer("http", p.processHTTPDirect)
+	directConsumer, err := events.NewDirectConsumer("http", p.processHTTPDirect, cfg)
 	if err != nil {
 		return nil, err
 	}
