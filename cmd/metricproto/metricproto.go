@@ -14,11 +14,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"iter"
 	"maps"
 	"os"
 	"runtime"
 	"runtime/pprof"
 	"slices"
+	stdsort "sort"
 	"strconv"
 	"strings"
 	"time"
@@ -44,10 +46,26 @@ type sketch struct {
 
 type bucket struct {
 	containerId string
+	total       int
 
 	gauges   map[string]map[string]float64
 	counts   map[string]map[string]float64
 	sketches map[string]map[string]sketch
+}
+
+func (b *bucket) length() int {
+	if b.total == 0 {
+		for _, v := range b.gauges {
+			b.total += len(v)
+		}
+		for _, v := range b.counts {
+			b.total += len(v)
+		}
+		for _, v := range b.sketches {
+			b.total += len(v)
+		}
+	}
+	return b.total
 }
 
 func (b *bucket) read(payload string) {
@@ -216,8 +234,8 @@ var globalTags = func() map[string]struct{} {
 		"env",
 		"site",
 		//"service",
-		"client",
-		"client_transport",
+		//"client",
+		//"client_transport",
 		//"client_version",
 		"dd.internal.entity_id",
 	} {
@@ -1931,10 +1949,15 @@ func main() {
 		*flagTs = timestamps[0]
 	}
 
-	pids := slices.Sorted(maps.Keys(a.buckets[*flagTs]))
-	fmt.Printf("Available pids: %#v\n", pids)
+	pids := collect(maps.All(a.buckets[*flagTs]))
+	stdsort.Slice(pids, func(i, j int) bool { return pids[i].b.length() > pids[j].b.length() })
+	fmt.Printf("Available pids:\n")
+	for _, pid := range pids {
+		fmt.Printf("  % 8d: %d\n", pid.a, pid.b.length())
+	}
+
 	if *flagPid == 0 {
-		*flagPid = pids[0]
+		*flagPid = pids[0].a
 	}
 
 	b := a.buckets[*flagTs][*flagPid]
@@ -1976,4 +1999,17 @@ func main() {
 			panic(err)
 		}
 	}
+}
+
+type pair[A, B any] struct {
+	a A
+	b B
+}
+
+func collect[A, B any](seq iter.Seq2[A, B]) []pair[A, B] {
+	s := []pair[A, B]{}
+	for a, b := range seq {
+		s = append(s, pair[A, B]{a, b})
+	}
+	return s
 }
