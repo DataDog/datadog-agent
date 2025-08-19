@@ -19,12 +19,16 @@ import (
 type Issue struct {
 	// ID is the unique identifier for the issue
 	ID string
-	// Name is the human-readable name of the issue
-	Name string
+	// Description is the human-readable description of the issue
+	Description string
 	// Extra is optional complementary information
 	Extra string
-	// Severity indicates the impact level of the issue (optional)
+	// Severity indicates the impact level of the issue
 	Severity string
+	// Location indicates where the issue occurred (e.g., core agent, log agent, etc.)
+	Location string
+	// IntegrationFeature indicates which integration or feature is affected
+	IntegrationFeature string
 }
 
 // SubComponent represents a health checker sub-component

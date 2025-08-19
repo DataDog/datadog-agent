@@ -54,10 +54,12 @@ func (a *logsAgentHealthAdapter) CheckHealth(ctx context.Context) ([]healthplatf
 	platformIssues := make([]healthplatform.Issue, len(issues))
 	for i, issue := range issues {
 		platformIssues[i] = healthplatform.Issue{
-			ID:       issue.ID,
-			Name:     issue.Name,
-			Extra:    issue.Extra,
-			Severity: string(issue.Severity),
+			ID:                 issue.ID,
+			Description:        issue.Name,
+			Extra:              issue.Extra,
+			Severity:           string(issue.Severity),
+			Location:           "logs-agent",
+			IntegrationFeature: "logs",
 		}
 	}
 

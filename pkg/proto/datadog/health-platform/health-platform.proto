@@ -9,11 +9,20 @@ message Issue {
     // Unique identifier for the issue
     string id = 1;
     
-    // Human-readable name of the issue
-    string name = 2;
+    // Human-readable description of the issue
+    string description = 2;
     
     // Optional extra field for complementary information
     optional string extra = 3;
+    
+    // Severity indicates the impact level of the issue
+    string severity = 4;
+    
+    // Location indicates where the issue occurred (e.g., core agent, log agent, etc.)
+    string location = 5;
+    
+    // Integration/feature indicates which integration or feature is affected
+    string integration_feature = 6;
 }
 
 // HealthReport represents the full health report payload

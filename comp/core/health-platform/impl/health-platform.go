@@ -19,7 +19,7 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/core/health-platform/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	healthplatformpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/healthplatform"
+	healthplatformpb "github.com/DataDog/datadog-agent/pkg/proto/datadog/health-platform"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,7 +33,7 @@ const (
 type Dependencies struct {
 	Config    config.Component
 	Hostname  hostnameinterface.Component
-	Forwarder defaultforwarder.Component
+	Forwarder defaultforwarder.Component `optional:"true"`
 }
 
 // component implements the health platform component
@@ -75,15 +75,15 @@ func (c *component) AddIssue(issue healthplatform.Issue) error {
 	if issue.ID == "" {
 		return fmt.Errorf("issue ID cannot be empty")
 	}
-	if issue.Name == "" {
-		return fmt.Errorf("issue name cannot be empty")
+	if issue.Description == "" {
+		return fmt.Errorf("issue description cannot be empty")
 	}
 
 	c.issuesMu.Lock()
 	defer c.issuesMu.Unlock()
 
 	c.issues[issue.ID] = issue
-	log.Debugf("Added issue: %s (%s)", issue.ID, issue.Name)
+	log.Debugf("Added issue: %s (%s)", issue.ID, issue.Description)
 	return nil
 }
 
@@ -223,8 +223,11 @@ func (c *component) SubmitReport(ctx context.Context) error {
 	pbIssues := make([]*healthplatformpb.Issue, len(issues))
 	for i, issue := range issues {
 		pbIssue := &healthplatformpb.Issue{
-			Id:   issue.ID,
-			Name: issue.Name,
+			Id:                 issue.ID,
+			Description:        issue.Description,
+			Severity:           issue.Severity,
+			Location:           issue.Location,
+			IntegrationFeature: issue.IntegrationFeature,
 		}
 		if issue.Extra != "" {
 			pbIssue.Extra = &issue.Extra

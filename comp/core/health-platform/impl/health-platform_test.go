@@ -11,21 +11,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	healthplatform "github.com/DataDog/datadog-agent/comp/core/health-platform/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// newTestComponent creates a component using fxutil.Test with proper mock dependencies
+// newTestComponent creates a simple test component with mock dependencies
 func newTestComponent(t *testing.T) healthplatform.Component {
-	return fxutil.Test[healthplatform.Component](t, fx.Options(
-		core.MockBundle(),
-		defaultforwarder.MockModule(),
-		fxutil.ProvideComponentConstructor(NewComponent),
-	))
+	// Create a simple component with nil dependencies for testing
+	return &component{
+		issues:   make(map[string]healthplatform.Issue),
+		interval: DefaultReportingInterval,
+	}
 }
 
 func TestAddIssue(t *testing.T) {
@@ -33,9 +29,12 @@ func TestAddIssue(t *testing.T) {
 
 	// Test adding valid issue
 	issue := healthplatform.Issue{
-		ID:    "test-issue-1",
-		Name:  "Test Issue",
-		Extra: "some extra info",
+		ID:                 "test-issue-1",
+		Description:        "Test Issue",
+		Extra:              "some extra info",
+		Severity:           "medium",
+		Location:           "core-agent",
+		IntegrationFeature: "health-platform",
 	}
 
 	err := comp.AddIssue(issue)
@@ -48,19 +47,19 @@ func TestAddIssue(t *testing.T) {
 
 	// Test adding issue with empty ID
 	invalidIssue := healthplatform.Issue{
-		Name: "Invalid Issue",
+		Description: "Invalid Issue",
 	}
 	err = comp.AddIssue(invalidIssue)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "issue ID cannot be empty")
 
-	// Test adding issue with empty name
+	// Test adding issue with empty description
 	invalidIssue2 := healthplatform.Issue{
 		ID: "test-issue-2",
 	}
 	err = comp.AddIssue(invalidIssue2)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "issue name cannot be empty")
+	assert.Contains(t, err.Error(), "issue description cannot be empty")
 }
 
 func TestRemoveIssue(t *testing.T) {
@@ -68,8 +67,11 @@ func TestRemoveIssue(t *testing.T) {
 
 	// Add an issue first
 	issue := healthplatform.Issue{
-		ID:   "test-issue-1",
-		Name: "Test Issue",
+		ID:                 "test-issue-1",
+		Description:        "Test Issue",
+		Severity:           "medium",
+		Location:           "core-agent",
+		IntegrationFeature: "health-platform",
 	}
 	err := comp.AddIssue(issue)
 	require.NoError(t, err)
@@ -101,8 +103,20 @@ func TestListIssues(t *testing.T) {
 	assert.Len(t, issues, 0)
 
 	// Add multiple issues
-	issue1 := healthplatform.Issue{ID: "1", Name: "Issue 1"}
-	issue2 := healthplatform.Issue{ID: "2", Name: "Issue 2"}
+	issue1 := healthplatform.Issue{
+		ID:                 "1",
+		Description:        "Issue 1",
+		Severity:           "low",
+		Location:           "core-agent",
+		IntegrationFeature: "health-platform",
+	}
+	issue2 := healthplatform.Issue{
+		ID:                 "2",
+		Description:        "Issue 2",
+		Severity:           "high",
+		Location:           "core-agent",
+		IntegrationFeature: "health-platform",
+	}
 
 	err := comp.AddIssue(issue1)
 	require.NoError(t, err)
@@ -156,8 +170,22 @@ func TestStartStop(t *testing.T) {
 
 func TestHealthReportPayload(t *testing.T) {
 	issues := []healthplatform.Issue{
-		{ID: "1", Name: "Issue 1", Extra: "extra1"},
-		{ID: "2", Name: "Issue 2", Extra: "extra2"},
+		{
+			ID:                 "1",
+			Description:        "Issue 1",
+			Extra:              "extra1",
+			Severity:           "medium",
+			Location:           "core-agent",
+			IntegrationFeature: "health-platform",
+		},
+		{
+			ID:                 "2",
+			Description:        "Issue 2",
+			Extra:              "extra2",
+			Severity:           "high",
+			Location:           "core-agent",
+			IntegrationFeature: "health-platform",
+		},
 	}
 
 	payload := &HealthReportPayload{
@@ -184,7 +212,13 @@ func TestHealthReportPayload(t *testing.T) {
 	assert.Nil(t, splits)
 
 	// Test SplitPayload with single issue
-	payload.Issues = []healthplatform.Issue{{ID: "1", Name: "Issue 1"}}
+	payload.Issues = []healthplatform.Issue{{
+		ID:                 "1",
+		Description:        "Issue 1",
+		Severity:           "medium",
+		Location:           "core-agent",
+		IntegrationFeature: "health-platform",
+	}}
 	splits, err = payload.SplitPayload(2)
 	assert.Error(t, err)
 	assert.Nil(t, splits)
