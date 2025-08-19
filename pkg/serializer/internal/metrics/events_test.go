@@ -18,181 +18,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
-
-func TestMarshalJSON(t *testing.T) {
-	events := Events{
-		EventsArr: []*event.Event{{
-			Title:          "An event occurred",
-			Text:           "event description",
-			Ts:             12345,
-			Priority:       event.PriorityNormal,
-			Host:           "my-hostname",
-			Tags:           []string{"tag1", "tag2:yes"},
-			AlertType:      event.AlertTypeError,
-			AggregationKey: "my_agg_key",
-			SourceTypeName: "custom_source_type",
-			OriginInfo:     taggertypes.OriginInfo{},
-		}},
-
-		Hostname: "test-hostname",
-	}
-
-	payload, err := events.MarshalJSON()
-	assert.Nil(t, err)
-	assert.NotNil(t, payload)
-	assert.Equal(t, payload, []byte("{\"apiKey\":\"\",\"events\":{\"custom_source_type\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"priority\":\"normal\",\"host\":\"my-hostname\",\"tags\":[\"tag1\",\"tag2:yes\"],\"alert_type\":\"error\",\"aggregation_key\":\"my_agg_key\",\"source_type_name\":\"custom_source_type\"}]},\"internalHostname\":\"test-hostname\"}\n"))
-}
-
-func TestMarshalJSONOmittedFields(t *testing.T) {
-	events := Events{
-		EventsArr: []*event.Event{{
-			// Don't populate optional fields
-			Title:      "An event occurred",
-			Text:       "event description",
-			Ts:         12345,
-			Host:       "my-hostname",
-			OriginInfo: taggertypes.OriginInfo{},
-		}},
-		Hostname: "test-hostname",
-	}
-
-	payload, err := events.MarshalJSON()
-	assert.Nil(t, err)
-	assert.NotNil(t, payload)
-	// These optional fields are not present in the serialized payload, and a default source type name is used
-	assert.Equal(t, payload, []byte("{\"apiKey\":\"\",\"events\":{\"api\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"host\":\"my-hostname\"}]},\"internalHostname\":\"test-hostname\"}\n"))
-}
-
-func TestSplitEvents(t *testing.T) {
-	events := Events{}
-	for i := 0; i < 2; i++ {
-		e := event.Event{
-			Title:          "An event occurred",
-			Text:           "event description",
-			Ts:             12345,
-			Priority:       event.PriorityNormal,
-			Host:           "my-hostname",
-			Tags:           []string{"tag1", "tag2:yes"},
-			AlertType:      event.AlertTypeError,
-			AggregationKey: "my_agg_key",
-			SourceTypeName: "custom_source_type",
-			OriginInfo:     taggertypes.OriginInfo{},
-		}
-		events.EventsArr = append(events.EventsArr, &e)
-
-	}
-
-	newEvents, err := events.SplitPayload(2)
-	require.Nil(t, err)
-	require.Len(t, newEvents, 2)
-
-	newEvents, err = events.SplitPayload(3)
-	require.Nil(t, err)
-	require.Len(t, newEvents, 2)
-}
-
-// Test StreamJSONMarshaler
-func TestPayloadDescribeItem(t *testing.T) {
-	events := Events{
-		EventsArr: []*event.Event{createEvent("sourceTypeName")},
-	}
-	assert.Equal(t, `Source type: sourceTypeName, events count: 1`,
-		events.CreateSingleMarshaler().DescribeItem(0))
-	assert.Equal(t, `Title: 1, Text: 2, Source Type: sourceTypeName`,
-		events.CreateMarshalersBySourceType()[0].DescribeItem(0))
-}
-
-func TestPayloadsNoEvent(t *testing.T) {
-	assertEqualEventsToMarshalJSON(t, Events{})
-}
-
-func TestPayloadsSingleEvent(t *testing.T) {
-	events := createEvents("sourceTypeName")
-	assertEqualEventsToMarshalJSON(t, events)
-}
-
-func TestPayloadsEmptyEvent(t *testing.T) {
-	assertEqualEventsToMarshalJSON(t, Events{EventsArr: []*event.Event{{}}})
-}
-
-func TestPayloadsEvents(t *testing.T) {
-	events := createEvents("1", "2", "3", "2", "1", "3")
-	assertEqualEventsToMarshalJSON(t, events)
-}
-
-func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
-	tests := map[string]struct {
-		kind string
-	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_max_payload_size", 500)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			events := createEvents("3", "3", "2", "2", "1", "1")
-
-			expectedPayloads, err := events.MarshalJSON()
-			assert.NoError(t, err)
-
-			payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler(), mockConfig)
-			bytePayloads2, err := MarshalEvents(
-				events.EventsArr,
-				events.Hostname,
-				mockConfig,
-				logmock.New(t),
-				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
-			)
-			assert.NoError(t, err)
-			payloads2 := decodePayload(t, mockConfig, bytePayloads2)
-			assert.Equal(t, 3, len(payloadsBySourceType))
-			assertEqualEventsPayloads(t, expectedPayloads, payloadsBySourceType)
-			assertEqualEventsPayloads(t, expectedPayloads, payloads2)
-		})
-	}
-}
-
-func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
-	tests := map[string]struct {
-		kind string
-	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_max_payload_size", 300)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			events := createEvents("3", "3", "2", "2", "1", "1")
-			expectedPayloads, err := events.MarshalJSON()
-			assert.NoError(t, err)
-
-			marshalers := events.CreateMarshalersBySourceType()
-			assert.Equal(t, 3, len(marshalers))
-			var payloadForEachSourceType []payloadsType
-			for _, marshaler := range marshalers {
-				payloads := buildPayload(t, marshaler, mockConfig)
-				assert.Equal(t, 2, len(payloads))
-				payloadForEachSourceType = append(payloadForEachSourceType, payloads...)
-			}
-
-			assertEqualEventsPayloads(t, expectedPayloads, payloadForEachSourceType)
-		})
-	}
-}
 
 // Helpers
 type payloadsType = []byte
@@ -213,45 +46,12 @@ func createEvent(sourceTypeName string) *event.Event {
 	}
 }
 
-func createEvents(sourceTypeNames ...string) Events {
+func createEvents(sourceTypeNames ...string) []*event.Event {
 	var events []*event.Event
 	for _, s := range sourceTypeNames {
 		events = append(events, createEvent(s))
 	}
-	return Events{
-		EventsArr: events,
-	}
-}
-
-// Check JSONPayloadBuilder for CreateSingleMarshaler and CreateMarshalersBySourceType
-// return the same results as for MarshalJSON.
-func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
-
-	tests := map[string]struct {
-		kind string
-	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			json, err := events.MarshalJSON()
-			assert.NoError(t, err)
-
-			payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler(), mockConfig)
-			assertEqualEventsPayloads(t, json, payloadsBySourceType)
-
-			var payloads []payloadsType
-			for _, e := range events.CreateMarshalersBySourceType() {
-				payloads = append(payloads, buildPayload(t, e, mockConfig)...)
-			}
-			assertEqualEventsPayloads(t, json, payloads)
-		})
-
-	}
-
+	return events
 }
 
 func assertEqualEventsPayloads(t *testing.T, expected payloadsType, actual []payloadsType) {
@@ -305,12 +105,12 @@ type eventsJSON struct {
 	InternalHostname string
 }
 
-func createBenchmarkEvents(numberOfItem int) Events {
-	events := Events{}
+func createBenchmarkEvents(numberOfItem int) []*event.Event {
+	events := make([]*event.Event, 0, numberOfItem)
 
 	maxValue := int(math.Sqrt(float64(numberOfItem)))
 	for i := 0; i < numberOfItem; i++ {
-		events.EventsArr = append(events.EventsArr, createEvent(strconv.Itoa(i%maxValue)))
+		events = append(events, createEvent(strconv.Itoa(i%maxValue)))
 	}
 	return events
 }
@@ -322,83 +122,6 @@ func runBenchmark(b *testing.B, bench func(*testing.B, int)) {
 			bench(b, numberOfItem)
 		})
 	}
-}
-
-func BenchmarkCreateSingleMarshaler(b *testing.B) {
-	benchmarkCreateSingleMarshaler(b, createBenchmarkEvents)
-}
-
-func BenchmarkCreateSingleMarshalerOneEventBySource(b *testing.B) {
-	benchmarkCreateSingleMarshaler(b, func(numberOfItem int) Events {
-		events := Events{}
-
-		for i := 0; i < numberOfItem; i++ {
-			events.EventsArr = append(events.EventsArr, createEvent(strconv.Itoa(i)))
-		}
-		return events
-	})
-}
-
-func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem int) Events) {
-	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		cfg := configmock.New(b)
-		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(b))
-		events := createEvents(numberOfItem)
-
-		b.ResetTimer()
-
-		for n := 0; n < b.N; n++ {
-			stream.BuildJSONPayload(payloadBuilder, events.CreateSingleMarshaler())
-		}
-	})
-}
-
-func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
-	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		cfg := configmock.New(b)
-		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(b))
-		events := createBenchmarkEvents(numberOfItem)
-
-		b.ResetTimer()
-
-		for n := 0; n < b.N; n++ {
-			for _, m := range events.CreateMarshalersBySourceType() {
-				stream.BuildJSONPayload(payloadBuilder, m)
-			}
-		}
-	})
-}
-
-func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
-	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		cfg := configmock.New(b)
-
-		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(b))
-
-		events := Events{}
-		// Half of events have the same source type
-		for i := 0; i < numberOfItem/2; i++ {
-			events.EventsArr = append(events.EventsArr, createEvent("sourceType"))
-		}
-		// Half of events have their own source type
-		for i := 0; i < numberOfItem/2; i++ {
-			events.EventsArr = append(events.EventsArr, createEvent(strconv.Itoa(i)))
-		}
-
-		b.ResetTimer()
-
-		for n := 0; n < b.N; n++ {
-			// As CreateMarshalersBySourceType is called only after CreateSingleMarshaler,
-			// we also call CreateSingleMarshaler in this benchmark.
-			stream.BuildJSONPayload(payloadBuilder, events.CreateSingleMarshaler())
-			for _, m := range events.CreateMarshalersBySourceType() {
-				stream.BuildJSONPayload(payloadBuilder, m)
-			}
-		}
-	})
 }
 
 func TestEventsMarshaler2(t *testing.T) {
@@ -416,8 +139,8 @@ func TestEventsMarshaler2(t *testing.T) {
 			events := createEvents("3", "3", "2", "2", "1", "1")
 
 			bytePayloads, err := MarshalEvents(
-				events.EventsArr,
-				events.Hostname,
+				events,
+				"",
 				mockConfig,
 				logmock.New(t),
 				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
@@ -448,8 +171,8 @@ func TestEventsMarshaler2Split(t *testing.T) {
 			events := createEvents("3", "3", "2", "2", "1", "1")
 
 			bytePayloads, err := MarshalEvents(
-				events.EventsArr,
-				events.Hostname,
+				events,
+				"",
 				mockConfig,
 				logmock.New(t),
 				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
@@ -481,11 +204,11 @@ func TestEventsMarshaler2Drop(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_max_payload_size", 400)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "2", "1", "1", largeText)
-			events.EventsArr[3].Text = largeText
+			events[3].Text = largeText
 
 			marshaler := createMarshaler2(
-				events.EventsArr,
-				events.Hostname,
+				events,
+				"",
 				mockConfig,
 				logmock.New(t),
 				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
@@ -516,7 +239,7 @@ func BenchmarkMarshaler2(b *testing.B) {
 
 		b.ResetTimer()
 		for n := 0; n < b.N; n++ {
-			_, _ = MarshalEvents(events.EventsArr, events.Hostname, cfg, logger, compressor)
+			_, _ = MarshalEvents(events, "", cfg, logger, compressor)
 		}
 	})
 }
