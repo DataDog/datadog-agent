@@ -19,7 +19,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/rum v0.32.0
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -52,6 +51,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
 	github.com/DataDog/datadog-agent/pkg/api v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/rum v0.32.0
 	github.com/shirou/gopsutil/v4 v4.25.6
 	go.opentelemetry.io/collector/component/componenttest v0.131.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822
