@@ -9,8 +9,11 @@ package run
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -29,12 +32,28 @@ func StartOTelAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, e
 		ctx := <-ctxChan
 
 		// Create default parameters for service mode
+		// Prefer ProgramData\Datadog\otel-config.yaml to align with runtime config location
+		pd, _ := winutil.GetProgramDataDir()
+		// Normalize to avoid duplicate 'Datadog' and handle trailing separators
+		ddRoot := strings.TrimRight(pd, "\\/")
+		if !strings.EqualFold(filepath.Base(ddRoot), "Datadog") {
+			ddRoot = filepath.Join(ddRoot, "Datadog")
+		}
+
+		svcCfg := filepath.Join(ddRoot, "otel-config.yaml")
+		confURL := "file:" + filepath.ToSlash(svcCfg)
+
+		// Also point core config to ProgramData so otelcollector.enabled is read correctly.
+		// NOTE: CoreConfPath expects a native filesystem path, not a confmap URI.
+		coreCfgPath := filepath.Join(ddRoot, "datadog.yaml")
+
 		params := &cliParams{
 			GlobalParams: &subcommands.GlobalParams{
-				ConfPaths:  []string{"file:C:/Program Files/Datadog/Datadog Agent/bin/agent/dist/otel-config.yaml"},
-				ConfigName: "datadog-otel",
-				LoggerName: loggerName,
-				BYOC:       false,
+				ConfPaths:    []string{confURL},
+				CoreConfPath: coreCfgPath,
+				ConfigName:   "datadog-otel",
+				LoggerName:   loggerName,
+				BYOC:         false,
 			},
 			pidfilePath: "", // No pidfile for service mode
 		}
