@@ -22,6 +22,7 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 
@@ -390,6 +391,13 @@ func (t *Tailer) forwardMessages() {
 			// XXX(remy): is it OK recreating a message here?
 			// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
 			msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+			if output.ParsingExtra.IsTruncated {
+				if origin != nil {
+					metrics.TlmTruncatedCount.Inc(origin.Service(), origin.Source())
+				} else {
+					metrics.TlmTruncatedCount.Inc("", "")
+				}
+			}
 			t.outputChan <- msg
 		}
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -112,6 +113,14 @@ func (t *Tailer) readForever() {
 				}
 				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddressWithoutPort)
 				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, sourceHostTag)
+				if msg.ParsingExtra.IsTruncated {
+					origin := msg.Origin
+					if origin != nil {
+						metrics.TlmTruncatedCount.Inc(origin.Service(), origin.Source())
+					} else {
+						metrics.TlmTruncatedCount.Inc("", "")
+					}
+				}
 			}
 			t.decoder.InputChan <- msg
 		}

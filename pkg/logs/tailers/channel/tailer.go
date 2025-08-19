@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -82,6 +83,15 @@ func (t *Tailer) run() {
 			origin.SetTags(channelTags)
 		}
 
+		msg := buildMessage(logline, origin)
+
+		if msg.ParsingExtra.IsTruncated {
+			if origin != nil {
+				metrics.TlmTruncatedCount.Inc(origin.Service(), origin.Source())
+			} else {
+				metrics.TlmTruncatedCount.Inc("", "")
+			}
+		}
 		t.outputChan <- buildMessage(logline, origin)
 	}
 }
