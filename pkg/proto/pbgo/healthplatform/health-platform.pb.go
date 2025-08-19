@@ -26,12 +26,18 @@ type Issue struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Unique identifier for the issue
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Human-readable name of the issue
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Human-readable description of the issue
+	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	// Optional extra field for complementary information
-	Extra         *string `protobuf:"bytes,3,opt,name=extra,proto3,oneof" json:"extra,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Extra *string `protobuf:"bytes,3,opt,name=extra,proto3,oneof" json:"extra,omitempty"`
+	// Severity indicates the impact level of the issue
+	Severity string `protobuf:"bytes,4,opt,name=severity,proto3" json:"severity,omitempty"`
+	// Location indicates where the issue occurred (e.g., core agent, log agent, etc.)
+	Location string `protobuf:"bytes,5,opt,name=location,proto3" json:"location,omitempty"`
+	// Integration/feature indicates which integration or feature is affected
+	IntegrationFeature string `protobuf:"bytes,6,opt,name=integration_feature,json=integrationFeature,proto3" json:"integration_feature,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *Issue) Reset() {
@@ -71,9 +77,9 @@ func (x *Issue) GetId() string {
 	return ""
 }
 
-func (x *Issue) GetName() string {
+func (x *Issue) GetDescription() string {
 	if x != nil {
-		return x.Name
+		return x.Description
 	}
 	return ""
 }
@@ -81,6 +87,27 @@ func (x *Issue) GetName() string {
 func (x *Issue) GetExtra() string {
 	if x != nil && x.Extra != nil {
 		return *x.Extra
+	}
+	return ""
+}
+
+func (x *Issue) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *Issue) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+func (x *Issue) GetIntegrationFeature() string {
+	if x != nil {
+		return x.IntegrationFeature
 	}
 	return ""
 }
@@ -269,11 +296,14 @@ var File_datadog_health_platform_health_platform_proto protoreflect.FileDescript
 
 const file_datadog_health_platform_health_platform_proto_rawDesc = "" +
 	"\n" +
-	"-datadog/health-platform/health-platform.proto\x12\x19datadog.healthplatform.v1\"P\n" +
+	"-datadog/health-platform/health-platform.proto\x12\x19datadog.healthplatform.v1\"\xc7\x01\n" +
 	"\x05Issue\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
-	"\x05extra\x18\x03 \x01(\tH\x00R\x05extra\x88\x01\x01B\b\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x19\n" +
+	"\x05extra\x18\x03 \x01(\tH\x00R\x05extra\x88\x01\x01\x12\x1a\n" +
+	"\bseverity\x18\x04 \x01(\tR\bseverity\x12\x1a\n" +
+	"\blocation\x18\x05 \x01(\tR\blocation\x12/\n" +
+	"\x13integration_feature\x18\x06 \x01(\tR\x12integrationFeatureB\b\n" +
 	"\x06_extra\"\xb2\x01\n" +
 	"\fHealthReport\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x17\n" +
