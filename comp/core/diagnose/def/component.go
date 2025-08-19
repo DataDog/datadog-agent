@@ -40,6 +40,8 @@ const (
 	PortConflict = "port-conflict"
 	// FirewallScan is the suite name for the firewall-scan suite
 	FirewallScan = "firewall-scan"
+	// CheckHealth is the suite name for the check-health suite
+	CheckHealth = "check-health"
 )
 
 // AllSuites is a list of all available suites
@@ -50,6 +52,7 @@ var AllSuites = []string{
 	EventPlatformConnectivity,
 	PortConflict,
 	FirewallScan,
+	CheckHealth,
 }
 
 var catalog *Catalog
