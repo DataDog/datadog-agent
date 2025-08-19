@@ -2689,6 +2689,8 @@ func TestSecurityProfileSystemd(t *testing.T) {
 		securityProfileDir:                  outputDir,
 		securityProfileWatchDir:             true,
 		traceSystemdCgroups:                 true,
+		enableSBOM:                          true,
+		enableHostSBOM:                      true,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -2703,18 +2705,20 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	// Test that our systemd service profile metadata is correctly generated
 	// This test verifies that profile metadata includes service name tags and correct cgroup information
 	t.Run("systemd-service-profile-metadata", func(t *testing.T) {
-		serviceName := "cws-test-service"
-		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName)
-		if err != nil {
-			t.Fatal(err)
-		}
+		serviceName := "cws-test-service-" + utils.RandString(6)
+		reloadCmd := syscallTester + " sleep 1"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
 		defer serviceInstance.stop()
-
-		err = serviceInstance.ExecCommand(syscallTester, []string{"sleep", "1"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(1 * time.Second) // a quick sleep to let events be added to the dump
+
+		// reload the service to execute the reload command
+		if err := serviceInstance.reload(); err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
 
 		err = test.StopActivityDump(dump.Name)
 		if err != nil {
@@ -2734,7 +2738,7 @@ func TestSecurityProfileSystemd(t *testing.T) {
 				if ctx == nil {
 					t.Errorf("No profile context found!")
 				} else {
-					if !slices.Contains(ctx.Tags, "service:"+serviceName) {
+					if !slices.Contains(ctx.Tags, "service:"+serviceName+".service") {
 						t.Errorf("Profile did not contain service tag: %v\n", ctx.Tags)
 					}
 				}
@@ -2745,29 +2749,31 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	// Test that systemd service process information is correctly captured in profiles
 	// This test verifies that the process tree includes the expected executables run within the service
 	t.Run("systemd-service-profile-process", func(t *testing.T) {
-		serviceName := "cws-test-service-proc"
-		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName)
-		if err != nil {
-			t.Fatal(err)
-		}
+		serviceName := "cws-test-service-proc-" + utils.RandString(6)
+		reloadCmd := syscallTester + " sleep 1"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
 		defer serviceInstance.stop()
-
-		err = serviceInstance.ExecCommand(syscallTester, []string{"sleep", "1"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(1 * time.Second) // a quick sleep to let events be added to the dump
+
+		// reload the service to execute the reload command
+		if err := serviceInstance.reload(); err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
 
 		err = test.StopActivityDump(dump.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
-
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
 			func(sp *profile.Profile) bool {
 				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
 					return node.Node.Process.FileEvent.PathnameStr == syscallTester
 				})
+
 				if nodes == nil {
 					t.Fatal("Node not found in systemd service security profile")
 				}
@@ -2779,10 +2785,125 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	})
 }
 
-// TestAnomalyDetectionSystemd tests the anomaly detection functionality for systemd services.
-// It verifies that anomalies are properly detected when unknown processes are executed within
-// systemd services, and that known processes from the security profile don't trigger false positives.
 func TestAnomalyDetectionSystemd(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// Skip if not running on a systemd system
+	if !isSystemdAvailable() {
+		t.Skip("Skip test when systemd is not available")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		enableActivityDump:                      true,
+		activityDumpRateLimiter:                 200,
+		activityDumpTracedCgroupsCount:          100,
+		activityDumpDuration:                    testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:       outputDir,
+		activityDumpLocalStorageCompression:     false,
+		activityDumpLocalStorageFormats:         expectedFormats,
+		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                   true,
+		securityProfileDir:                      outputDir,
+		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec", "dns"},
+		anomalyDetectionMinimumStablePeriodExec: time.Second,
+		anomalyDetectionMinimumStablePeriodDNS:  time.Second,
+		anomalyDetectionWarmupPeriod:            time.Second,
+		traceSystemdCgroups:                     true,
+		enableSBOM:                              true,
+		enableHostSBOM:                          true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Test that anomaly detection correctly identifies unknown processes in systemd services
+	// This test verifies that executing a process not in the security profile triggers an anomaly detection event
+	t.Run("systemd-anomaly-detection-process", func(t *testing.T) {
+		serviceName := "cws-test-service-anomaly-pos-" + utils.RandString(6)
+		reloadCmd := "getconf -a"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer serviceInstance.stop()
+
+		// stop the activity dump before reloading the service so that the reload command can be considered as an anomaly
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+		err = test.GetCustomEventSent(t, func() error {
+			// Execute the reload command to trigger an anomaly detection event
+			err := serviceInstance.reload()
+			return err
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
+			return true
+		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	// Test that anomaly detection doesn't trigger false positives for known processes
+	// This test verifies that executing a process that exists in the security profile does not trigger an anomaly
+	t.Run("systemd-anomaly-detection-process-negative", func(t *testing.T) {
+		serviceName := "cws-test-service-anomaly-neg-" + utils.RandString(6)
+		reloadCmd := syscallTester + " sleep 1"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer serviceInstance.stop()
+
+		// reload the service to execute the reload command so that the command is considered as part of the profile
+		err = serviceInstance.reload()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+		test.GetCustomEventSent(t, func() error {
+			// Execute the same command that was profiled - should not trigger anomaly
+			err := serviceInstance.reload()
+			return err
+		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
+			t.Error("Should not have received any anomaly detection for known command.")
+			return false
+		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
+	})
+}
+
+// TestSecurityProfileSystemdLifeCycle tests the lifecycle management of security profiles for systemd services.
+// It verifies that profiles transition correctly between learning and stable states, and that
+// multiple versions of the same service are handled properly with appropriate anomaly detection behavior.
+func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// Skip if not running on a systemd system
@@ -2814,125 +2935,11 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 		securityProfileWatchDir:                 true,
 		enableAnomalyDetection:                  true,
 		anomalyDetectionEventTypes:              []string{"exec"},
-		anomalyDetectionMinimumStablePeriodExec: time.Second,
-		anomalyDetectionWarmupPeriod:            time.Second,
-		traceSystemdCgroups:                     true,
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Test that anomaly detection correctly identifies unknown processes in systemd services
-	// This test verifies that executing a process not in the security profile triggers an anomaly detection event
-	t.Run("systemd-anomaly-detection-process", func(t *testing.T) {
-		serviceName := "cws-test-anomaly"
-		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer serviceInstance.stop()
-
-		err = serviceInstance.ExecCommand(syscallTester, []string{"sleep", "1"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(1 * time.Second) // a quick sleep to let events be added to the dump
-
-		err = test.StopActivityDump(dump.Name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
-
-		err = test.GetCustomEventSent(t, func() error {
-			return serviceInstance.ExecCommand("getconf", []string{"-a"})
-		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			return true
-		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	// Test that anomaly detection doesn't trigger false positives for known processes
-	// This test verifies that executing a process that exists in the security profile does not trigger an anomaly
-	t.Run("systemd-anomaly-detection-process-negative", func(t *testing.T) {
-		serviceName := "cws-test-anomaly-neg"
-		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer serviceInstance.stop()
-
-		err = serviceInstance.ExecCommand(syscallTester, []string{"sleep", "1"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(1 * time.Second) // a quick sleep to let events be added to the dump
-
-		err = test.StopActivityDump(dump.Name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
-
-		test.GetCustomEventSent(t, func() error {
-			// Execute the same command that was profiled - should not trigger anomaly
-			return serviceInstance.ExecCommand(syscallTester, []string{"sleep", "1"})
-		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Error("Should not have received any anomaly detection for known command.")
-			return false
-		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
-	})
-}
-
-// TestSecurityProfileSystemdLifeCycle tests the lifecycle management of security profiles for systemd services.
-// It verifies that profiles transition correctly between learning and stable states, and that
-// multiple versions of the same service are handled properly with appropriate anomaly detection behavior.
-func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
-	SkipIfNotAvailable(t)
-
-	// Skip if not running on a systemd system
-	if !isSystemdAvailable() {
-		t.Skip("Skip test when systemd is not available")
-	}
-	if !IsDedicatedNodeForAD() {
-		t.Skip("Skip test when not run in dedicated env")
-	}
-
-	var expectedFormats = []string{"profile"}
-	var testActivityDumpTracedEventTypes = []string{"exec"}
-
-	outputDir := t.TempDir()
-	os.MkdirAll(outputDir, 0755)
-	defer os.RemoveAll(outputDir)
-
-	fakeManualTagger := NewFakeManualTagger()
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
-		enableActivityDump:                      true,
-		activityDumpRateLimiter:                 200,
-		activityDumpTracedCgroupsCount:          100,
-		activityDumpDuration:                    testActivityDumpDuration,
-		activityDumpLocalStorageDirectory:       outputDir,
-		activityDumpLocalStorageCompression:     false,
-		activityDumpLocalStorageFormats:         expectedFormats,
-		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
-		enableSecurityProfile:                   true,
-		securityProfileDir:                      outputDir,
-		securityProfileWatchDir:                 true,
-		enableAnomalyDetection:                  true,
-		anomalyDetectionEventTypes:              testActivityDumpTracedEventTypes,
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionWarmupPeriod:            1 * time.Second,
-		tagger:                                  fakeManualTagger,
 		traceSystemdCgroups:                     true,
+		enableSBOM:                              true,
+		enableHostSBOM:                          true,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -2943,57 +2950,64 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	serviceName := "cws-test-lifecycle"
-	serviceInstanceV1, dump, err := test.StartSystemdServiceGetDump(serviceName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer serviceInstanceV1.stop()
-
-	err = serviceInstanceV1.ExecCommand(syscallTester, []string{"sleep", "1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(1 * time.Second) // a quick sleep to let events be added to the dump
-
-	err = test.StopActivityDump(dump.Name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
-
-	// HERE: V1 is learning
 
 	// Test that new processes are automatically learned during the learning phase
 	// This test verifies that processes executed during the learning phase are added to the profile
 	// and don't trigger anomaly detection events
 	t.Run("systemd-lifecycle-v1-learning-new-process", func(t *testing.T) {
-		err = test.GetCustomEventSent(t, func() error {
-			return serviceInstanceV1.ExecCommand("getconf", []string{"-a"})
+		serviceName := "cws-test-lifecycle-learning-" + utils.RandString(6)
+		reloadCmd := syscallTester + " sleep 1"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer serviceInstance.stop()
+
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+		// HERE: V1 is learning - new process should not trigger anomaly
+		test.GetCustomEventSent(t, func() error {
+			err := serviceInstance.reload()
+			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Error(errors.New("caught a custom event that should have been reinserted"))
+			t.Error("Should not have received any anomaly detection during learning phase.")
 			return false
-		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
+		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
-
-	selector := &cgroupModel.WorkloadSelector{
-		Image: serviceName,
-		Tag:   "*",
-	}
-
-	if err := test.SetProfileVersionState(selector, "latest", model.StableEventType); err != nil {
-		t.Fatal(err)
-	}
-
-	// HERE: V1 is stable
 
 	// Test that unknown processes trigger anomalies when the profile is stable
 	// This test verifies that once a profile transitions to stable state,
 	// executing processes not in the profile generates anomaly detection events
 	t.Run("systemd-lifecycle-v1-stable-process-anomaly", func(t *testing.T) {
+		serviceName := "cws-test-lifecycle-stable-" + utils.RandString(6)
+		reloadCmd := syscallTester + " sleep 1"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer serviceInstance.stop()
+
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+		// Wait for the stable period to pass
+		time.Sleep(11 * time.Second)
+
 		err = test.GetCustomEventSent(t, func() error {
-			return serviceInstanceV1.ExecCommand("getent", []string{})
+			// Execute the new reload command, it should trigger an anomaly
+			err := serviceInstance.reload()
+			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
 			return true
 		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
@@ -3002,49 +3016,41 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 		}
 	})
 
-	// Test version 2 of the same service
-	serviceInstanceV2, err := test.StartSystemdService(serviceName + "-v2")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer serviceInstanceV2.stop()
-
-	// HERE: V1 is stable and V2 is learning
-
-	// Test that a new service version still triggers anomalies for completely unknown processes
-	// This test verifies that even during the learning phase of v2, processes that aren't in any
-	// existing profile version still generate anomaly detection events
-	t.Run("systemd-lifecycle-v2-learning-new-process-anomaly", func(t *testing.T) {
-		err = test.GetCustomEventSent(t, func() error {
-			return serviceInstanceV2.ExecCommand("iconv", []string{"-l"})
-		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			return true
-		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
+	// Test that known processes don't trigger anomalies when the profile is stable
+	// This test verifies that processes that exist in the security profile do not trigger anomalies
+	t.Run("systemd-lifecycle-v1-stable-known-process", func(t *testing.T) {
+		serviceName := "cws-test-lifecycle-known-" + utils.RandString(6)
+		reloadCmd := "getconf -a"
+		serviceInstance, dump, err := test.StartSystemdServiceGetDump(serviceName, reloadCmd)
 		if err != nil {
 			t.Fatal(err)
 		}
-	})
+		defer serviceInstance.stop()
 
-	// Test that v2 service can execute processes already known in v1 without triggering anomalies
-	// This test verifies that processes from stable profile versions are inherited by new learning versions
-	t.Run("systemd-lifecycle-v2-learning-v1-process", func(t *testing.T) {
-		err = test.GetCustomEventSent(t, func() error {
-			return serviceInstanceV2.ExecCommand("getconf", []string{"-a"})
-		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Error(errors.New("caught a custom event that should have been reinserted"))
-			return false
-		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
-	})
+		// reload the service to execute the reload command so it gets profiled
+		if err := serviceInstance.reload(); err != nil {
+			t.Fatal(err)
+		}
 
-	// Test that v1 stable service can execute processes learned by v2 without triggering anomalies
-	// This test verifies that processes learned by newer versions are automatically available
-	// to older stable versions of the same service
-	t.Run("systemd-lifecycle-v1-stable-v2-process", func(t *testing.T) {
-		err = test.GetCustomEventSent(t, func() error {
-			return serviceInstanceV1.ExecCommand("iconv", []string{"-l"})
+		time.Sleep(3 * time.Second) // a quick sleep to let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+		// Wait for the stable period to pass
+		time.Sleep(11 * time.Second)
+
+		// HERE: V1 is stable - known process should not trigger anomaly
+		test.GetCustomEventSent(t, func() error {
+			// Execute the same command that was profiled - should not trigger anomaly
+			err := serviceInstance.reload()
+			return err
 		}, func(_ *rules.Rule, _ *events.CustomEvent) bool {
-			t.Error(errors.New("caught a custom event that should have been reinserted"))
+			t.Error("Should not have received any anomaly detection for known command.")
 			return false
-		}, time.Second*2, model.ExecEventType, events.AnomalyDetectionRuleID)
+		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
 	})
 }

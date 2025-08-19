@@ -798,10 +798,10 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			workloadID = containerID
 			imageTag = utils.GetTagValue("image_tag", event.ContainerContext.Tags)
 		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
-			workloadID = cgroupID
-			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(cgroupID)
+			workloadID = containerutils.CGroupID(cgroupID)
+			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
 			if err != nil {
-				seclog.Errorf("failed to resolve tags for cgroup %s: %v", cgroupID, err)
+				seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
 				return
 			}
 			imageTag = utils.GetTagValue("version", tags)

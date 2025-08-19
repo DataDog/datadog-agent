@@ -11,10 +11,12 @@ package tests
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -22,11 +24,12 @@ import (
 type wrapperType string
 
 const (
-	noWrapperType     wrapperType = "" //nolint:deadcode,unused
-	stdWrapperType    wrapperType = "std"
-	dockerWrapperType wrapperType = "docker"
-	podmanWrapperType wrapperType = "podman"
-	multiWrapperType  wrapperType = "multi"
+	noWrapperType      wrapperType = "" //nolint:deadcode,unused
+	stdWrapperType     wrapperType = "std"
+	dockerWrapperType  wrapperType = "docker"
+	podmanWrapperType  wrapperType = "podman"
+	systemdWrapperType wrapperType = "systemd"
+	multiWrapperType   wrapperType = "multi"
 )
 
 // Because of rate limits, we allow the specification of multiple images for the same "kind".
@@ -231,4 +234,136 @@ func newMultiCmdWrapper(wrappers ...cmdWrapper) *multiCmdWrapper {
 	return &multiCmdWrapper{
 		wrappers: wrappers,
 	}
+}
+
+type systemdCmdWrapper struct {
+	serviceName string
+	cgroupID    string
+	reloadCmd   string
+}
+
+func (s *systemdCmdWrapper) Command(bin string, args []string, envs []string) *exec.Cmd {
+	return s.CommandContext(context.TODO(), bin, args, envs)
+}
+
+func (s *systemdCmdWrapper) CommandContext(ctx context.Context, bin string, args []string, envs []string) *exec.Cmd {
+	// Execute command within the systemd service context using systemd-run
+	systemdArgs := []string{"--slice=" + s.serviceName, bin}
+	systemdArgs = append(systemdArgs, args...)
+
+	cmd := exec.CommandContext(ctx, "systemd-run", systemdArgs...)
+	cmd.Env = envs
+	return cmd
+}
+
+func (s *systemdCmdWrapper) reload() error {
+	cmd := exec.Command("systemctl", "reload", s.serviceName)
+	_, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to reload service: %v", err)
+	}
+	return nil
+}
+
+func (s *systemdCmdWrapper) start() ([]byte, error) {
+
+	// Create a systemd service unit file
+	serviceUnit := fmt.Sprintf(`[Unit]
+Description=CWS Test Service %s
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sleep 3600
+Restart=on-failure
+RestartSec=1s
+ExecReload=%s
+
+[Install]
+WantedBy=multi-user.target
+`, s.serviceName, s.reloadCmd)
+
+	serviceFile := "/etc/systemd/system/" + s.serviceName + ".service"
+	if err := os.WriteFile(serviceFile, []byte(serviceUnit), 0644); err != nil {
+		return nil, fmt.Errorf("failed to create service file: %v", err)
+	}
+
+	// Reload systemd and start the service
+	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+		return nil, fmt.Errorf("failed to reload systemd: %v", err)
+	}
+
+	if err := exec.Command("systemctl", "enable", s.serviceName).Run(); err != nil {
+		return nil, fmt.Errorf("failed to enable service: %v", err)
+	}
+
+	cmd := exec.Command("systemctl", "start", s.serviceName)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return out, fmt.Errorf("failed to start service: %v", err)
+	}
+
+	// Wait for the service to be running
+	time.Sleep(2 * time.Second)
+
+	// Get the cgroup ID for the service
+	s.cgroupID = "/system.slice/" + s.serviceName + ".service"
+
+	return out, nil
+}
+
+func (s *systemdCmdWrapper) stop() ([]byte, error) {
+	// Stop the systemd service
+	cmd := exec.Command("systemctl", "stop", s.serviceName)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return out, fmt.Errorf("failed to stop service: %v", err)
+	}
+
+	err = exec.Command("systemctl", "disable", s.serviceName).Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to disable service: %v", err)
+	}
+
+	err = os.Remove("/etc/systemd/system/" + s.serviceName + ".service")
+	if err != nil {
+		return nil, fmt.Errorf("failed to remove service file: %v", err)
+	}
+
+	err = exec.Command("systemctl", "daemon-reload").Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to reload systemd: %v", err)
+	}
+
+	return out, nil
+}
+
+func (s *systemdCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+	t.Run(name, func(t *testing.T) {
+		fnc(t, s.Type(), s.Command)
+	})
+}
+
+func (s *systemdCmdWrapper) Type() wrapperType {
+	return systemdWrapperType
+}
+
+func newSystemdCmdWrapper(serviceName string, reloadCmd string) (*systemdCmdWrapper, error) {
+	// Check if systemctl is available
+	_, err := exec.LookPath("systemctl")
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if systemd is running
+	cmd := exec.Command("systemctl", "is-system-running")
+	output, err := cmd.Output()
+	if err != nil {
+		state := strings.TrimSpace(string(output))
+		if state == "running" || state == "degraded" {
+			return &systemdCmdWrapper{serviceName: serviceName, reloadCmd: reloadCmd}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("systemd is not running")
 }

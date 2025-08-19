@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	retry "github.com/avast/retry-go/v4"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
@@ -1324,132 +1324,40 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	return dockerInstance, dump, nil
 }
 
-// Systemd service helper functions
-
-type systemdServiceWrapper struct {
-	serviceName string
-	test        *testModule
-	cgroupID    string
-}
-
-func (s *systemdServiceWrapper) ExecCommand(binary string, args []string) error {
-	// Execute command within the systemd service context
-	cmd := []string{"systemd-run", "--scope", "--slice=" + s.serviceName, binary}
-	cmd = append(cmd, args...)
-
-	execCmd := exec.Command(cmd[0], cmd[1:]...)
-	return execCmd.Run()
-}
-
-func (s *systemdServiceWrapper) stop() error {
-	// Stop the systemd service
-	err := exec.Command("systemctl", "stop", s.serviceName).Run()
+func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd string) (*systemdCmdWrapper, *activityDumpIdentifier, error) {
+	systemd, err := newSystemdCmdWrapper(serviceName, reloadCmd)
 	if err != nil {
-		return fmt.Errorf("failed to stop service: %v", err)
-	}
-	err = exec.Command("systemctl", "disable", s.serviceName).Run()
-	if err != nil {
-		return fmt.Errorf("failed to disable service: %v", err)
-	}
-	err = os.Remove("/etc/systemd/system/" + s.serviceName + ".service")
-	if err != nil {
-		return fmt.Errorf("failed to remove service file: %v", err)
-	}
-	err = exec.Command("systemctl", "daemon-reload").Run()
-	if err != nil {
-		return fmt.Errorf("failed to reload systemd: %v", err)
-	}
-	return nil
-}
-
-func (tm *testModule) StartSystemdService(serviceName string) (*systemdServiceWrapper, error) {
-	// Create a systemd service unit file
-	serviceUnit := fmt.Sprintf(`[Unit]
-Description=CWS Test Service %s
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/bin/sleep 3600
-Restart=always
-RestartSec=1
-
-[Install]
-WantedBy=multi-user.target
-`, serviceName)
-
-	serviceFile := "/etc/systemd/system/" + serviceName + ".service"
-	if err := os.WriteFile(serviceFile, []byte(serviceUnit), 0644); err != nil {
-		return nil, fmt.Errorf("failed to create service file: %v", err)
-	}
-
-	// Reload systemd and start the service
-	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
-		return nil, fmt.Errorf("failed to reload systemd: %v", err)
-	}
-
-	if err := exec.Command("systemctl", "enable", serviceName).Run(); err != nil {
-		return nil, fmt.Errorf("failed to enable service: %v", err)
-	}
-
-	if err := exec.Command("systemctl", "start", serviceName).Run(); err != nil {
-		return nil, fmt.Errorf("failed to start service: %v", err)
-	}
-
-	// Wait for the service to be running
-	time.Sleep(2 * time.Second)
-
-	// Get the cgroup ID for the service
-	cgroupID := "/system.slice/" + serviceName + ".service"
-
-	return &systemdServiceWrapper{
-		serviceName: serviceName,
-		test:        tm,
-		cgroupID:    cgroupID,
-	}, nil
-}
-
-func (tm *testModule) StartSystemdServiceGetDump(serviceName string) (*systemdServiceWrapper, *activityDumpIdentifier, error) {
-	fmt.Printf("=========== Starting systemd service: %s\n", serviceName)
-	service, err := tm.StartSystemdService(serviceName)
-	if err != nil {
-		fmt.Printf("=========== Failed to start service: %v\n", err)
 		return nil, nil, err
 	}
 
-	fmt.Printf("=========== Service started, waiting for detection\n")
-	// Wait a moment for the service to be detected and dump to start
-	time.Sleep(5 * time.Second)
+	_, err = systemd.start()
+	if err != nil {
+		return nil, nil, err
+	}
 
-	// Look for an existing activity dump for this systemd service
-	var activityDump *activityDumpIdentifier
+	time.Sleep(1 * time.Second) // a quick sleep to ensure the dump has started
+
+	var dump *activityDumpIdentifier
 	if err := retry.Do(func() error {
 		dumps, err := tm.ListActivityDumps()
 		if err != nil {
-			fmt.Printf("=========== Failed to list dumps: %v\n", err)
 			return err
 		}
 
-		fmt.Printf("=========== Found %d dumps\n", len(dumps))
 		// Look for a dump with matching cgroup ID
-		for _, dump := range dumps {
-			fmt.Printf("=========== Checking dump with cgroup: %s\n", dump.CGroupID)
-			if string(dump.CGroupID) == service.cgroupID {
-				fmt.Printf("=========== Found matching dump\n")
-				activityDump = dump
+		for _, d := range dumps {
+			if string(d.CGroupID) == systemd.cgroupID {
+				dump = d
 				return nil
 			}
 		}
-		fmt.Printf("=========== No matching dump found for cgroup: %s\n", service.cgroupID)
-		return fmt.Errorf("no dump found for systemd service %s with cgroup %s", serviceName, service.cgroupID)
-	}, retry.Delay(2*time.Second), retry.Attempts(5)); err != nil {
-		fmt.Printf("=========== Failed to find dump after retries: %v\n", err)
-		service.stop()
+		return errors.New("CGroupID not found on activity dump list")
+	}, retry.Delay(time.Second*1), retry.Attempts(15)); err != nil {
+		systemd.stop()
 		return nil, nil, err
 	}
 
-	fmt.Printf("=========== Successfully found dump for service\n")
-	return service, activityDump, nil
+	return systemd, dump, nil
 }
 
 func isSystemdAvailable() bool {

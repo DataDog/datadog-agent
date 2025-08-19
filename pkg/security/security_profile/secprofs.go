@@ -89,6 +89,9 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 			profile = m.profiles[selector]
 			m.profilesLock.Unlock()
 			imageTag = utils.GetTagValue("version", tags)
+			if imageTag == "" {
+				imageTag = "latest"
+			}
 		}
 	}
 	if profile == nil {
