@@ -77,9 +77,13 @@ build do
     # Extract the zip file
     copy "#{project_dir}/datadog-secret-backend.exe", "#{install_dir}/bin/secret-generic-connector.exe"
   else
-    # Extract the tar.gz file
-    target = "#{install_dir}/embedded/bin/secret-generic-connector"
-    copy "#{project_dir}/datadog-secret-backend", target
-    block { File.chmod(0500, target) }
+    if fips_mode?
+      next
+    else
+      # Extract the tar.gz file
+      target = "#{install_dir}/embedded/bin/secret-generic-connector"
+      copy "#{project_dir}/datadog-secret-backend", target
+      block { File.chmod(0500, target) }
+    end
   end
 end
