@@ -10,11 +10,12 @@ package traceroute
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"net/http"
 )
 
 const (
@@ -28,7 +29,7 @@ type UnixTraceroute struct {
 	sysprobeClient *http.Client
 }
 
-// New creates a new instance of UnixTraceroute
+// New creates a new  instance of UnixTraceroute
 // based on an input configuration
 func New(cfg config.Config, _ telemetry.Component) (*UnixTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)

@@ -95,6 +95,6 @@ class S3Backend(DynTestBackend):
             return DynamicTestIndex.from_dict(json.load(f))
 
     def list_indexed_keys(self, kind: IndexKind) -> list[str]:
-        keys = list_sorted_keys_in_s3(self.s3_base_path, f"{kind.value}/index.json")
+        keys = list_sorted_keys_in_s3(f"{self.s3_base_path}/{kind.value}", "index.json")
 
         return [key.split("/")[0] for key in keys if len(key.split("/")) == 3]

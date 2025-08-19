@@ -68,7 +68,7 @@ const (
 // we are inside a container or not, or of thecgroup version being used.
 // rootfs is the root filesystem path (usually /, but can be d ifferent to allow unit testing)
 // hostRoot is the path to the host root filesystem, relative to rootfs
-// currentProcessPid is the PID of the process currently running (os.Getpid(), but can be different for unit testing)
+// currentProcessPid is  the PID of the process currently running (os.Getpid(), but can be different for unit testing)
 // targetProcessPid is the PID of the process whose cgroup we want to get
 func getAbsoluteCgroupForProcess(rootfs, hostRoot string, currentProcessPid, targetProcessPid uint32, cgroupMode cgroups.CGMode) (string, error) {
 	// Get the cgroup for the target process
