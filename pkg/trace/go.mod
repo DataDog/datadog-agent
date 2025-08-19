@@ -21,11 +21,9 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/Microsoft/go-winio v0.6.2
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/golang/mock v1.7.0-rc.1
 	github.com/golang/protobuf v1.5.4
-	github.com/google/go-cmp v0.7.0
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.131.0
@@ -44,16 +42,17 @@ require (
 	google.golang.org/grpc v1.74.2
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/ini.v1 v1.67.0
-	k8s.io/apimachinery v0.32.3
 )
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
 	github.com/DataDog/datadog-agent/pkg/api v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
+	github.com/google/go-cmp v0.7.0
 	github.com/shirou/gopsutil/v4 v4.25.6
 	go.opentelemetry.io/collector/component/componenttest v0.131.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822
+	k8s.io/apimachinery v0.32.3
 )
 
 require go.opentelemetry.io/collector/processor v1.37.0 // indirect
@@ -75,6 +74,7 @@ require (
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect

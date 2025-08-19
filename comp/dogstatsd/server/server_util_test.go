@@ -9,6 +9,7 @@ package server
 
 import (
 	"testing"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -39,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // This is a copy of the serverDeps struct, but without the server field.
@@ -188,7 +190,7 @@ func defaultMetric() *tMetricSample {
 		Value:      666.0,
 		SampleRate: 1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"sometag1:somevalue1", "sometag2:somevalue2"},
+		Tags:       utilstrings.ToUnique([]string{"sometag1:somevalue1", "sometag2:somevalue2"}),
 	}
 }
 
@@ -225,7 +227,7 @@ func defaultEvent() tEvent {
 type tMetricSample struct {
 	Name       string
 	Value      float64
-	Tags       []string
+	Tags       []unique.Handle[string]
 	Mtype      metrics.MetricType
 	SampleRate float64
 	RawValue   string
@@ -259,7 +261,7 @@ func (m *tMetricSample) withType(t metrics.MetricType) *tMetricSample {
 }
 
 func (m *tMetricSample) withTags(tags []string) *tMetricSample {
-	m.Tags = tags
+	m.Tags = utilstrings.ToUnique(tags)
 	return m
 }
 

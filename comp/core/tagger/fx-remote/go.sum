@@ -10,6 +10,8 @@ cloud.google.com/go/compute v1.37.0/go.mod h1:AsK4VqrSyXBo4SMbRtfAO1VfaMjUEjEwv1
 cloud.google.com/go/compute/metadata v0.7.0 h1:PBWF+iiAerVNe8UCHxdOt6eHLVc3ydFeOCw78U8ytSU=
 cloud.google.com/go/compute/metadata v0.7.0/go.mod h1:j5MvL9PprKL39t166CoB1uVHfQMs4tFQZZcKwksXUjo=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/DataDog/datadog-agent v0.0.0-20250818182653-52b1108dd6c4 h1:kW7MPGOayztCsFbRPwYcJ2vD4qKJqmzgA02PPT25MBw=
+github.com/DataDog/datadog-agent v0.0.0-20250818182653-52b1108dd6c4/go.mod h1:WGUxr0mEsf/87SzLAIq+i7+6rrWkjjF3sWmTBAEQnQg=
 github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 h1:PwqhnH1ln2EjGm9XZGUF4RTCwLt0Jt4cebbZBTe+BnA=
 github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=

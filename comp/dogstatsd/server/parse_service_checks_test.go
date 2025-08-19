@@ -7,9 +7,12 @@ package server
 
 import (
 	"testing"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func parseServiceCheck(t *testing.T, rawServiceCheck []byte) (dogstatsdServiceCheck, error) {
@@ -27,7 +30,7 @@ func TestServiceCheckMinimal(t *testing.T) {
 	assert.Equal(t, int64(0), sc.timestamp)
 	assert.Equal(t, serviceCheckStatusOk, sc.status)
 	assert.Equal(t, "", sc.message)
-	assert.Equal(t, []string(nil), sc.tags)
+	assert.Equal(t, []unique.Handle[string](nil), sc.tags)
 }
 
 func TestServiceCheckError(t *testing.T) {
@@ -68,7 +71,7 @@ func TestServiceCheckMetadataTimestamp(t *testing.T) {
 	assert.Equal(t, int64(21), sc.timestamp)
 	assert.Equal(t, serviceCheckStatusOk, sc.status)
 	assert.Equal(t, "", sc.message)
-	assert.Equal(t, []string(nil), sc.tags)
+	assert.Equal(t, []unique.Handle[string](nil), sc.tags)
 }
 
 func TestServiceCheckMetadataHostname(t *testing.T) {
@@ -80,7 +83,7 @@ func TestServiceCheckMetadataHostname(t *testing.T) {
 	assert.Equal(t, int64(0), sc.timestamp)
 	assert.Equal(t, serviceCheckStatusOk, sc.status)
 	assert.Equal(t, "", sc.message)
-	assert.Equal(t, []string(nil), sc.tags)
+	assert.Equal(t, []unique.Handle[string](nil), sc.tags)
 }
 
 func TestServiceCheckMetadataTags(t *testing.T) {
@@ -91,7 +94,7 @@ func TestServiceCheckMetadataTags(t *testing.T) {
 	assert.Equal(t, int64(0), sc.timestamp)
 	assert.Equal(t, serviceCheckStatusOk, sc.status)
 	assert.Equal(t, "", sc.message)
-	assert.Equal(t, []string{"tag1", "tag2:test", "tag3"}, sc.tags)
+	assert.Equal(t, utilstrings.ToUnique([]string{"tag1", "tag2:test", "tag3"}), sc.tags)
 }
 
 func TestServiceCheckMetadataMessage(t *testing.T) {
@@ -102,7 +105,7 @@ func TestServiceCheckMetadataMessage(t *testing.T) {
 	assert.Equal(t, int64(0), sc.timestamp)
 	assert.Equal(t, serviceCheckStatusOk, sc.status)
 	assert.Equal(t, "this is fine", sc.message)
-	assert.Equal(t, []string(nil), sc.tags)
+	assert.Equal(t, []unique.Handle[string](nil), sc.tags)
 }
 
 func TestServiceCheckMetadataMultiple(t *testing.T) {
@@ -114,7 +117,7 @@ func TestServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, int64(21), sc.timestamp)
 	assert.Equal(t, serviceCheckStatusOk, sc.status)
 	assert.Equal(t, "this is fine", sc.message)
-	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.tags)
+	assert.Equal(t, utilstrings.ToUnique([]string{"tag1:test", "tag2"}), sc.tags)
 
 	// multiple time the same tag
 	sc, err = parseServiceCheck(t, []byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"))
@@ -124,5 +127,5 @@ func TestServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, int64(22), sc.timestamp)
 	assert.Equal(t, serviceCheckStatusOk, sc.status)
 	assert.Equal(t, "", sc.message)
-	assert.Equal(t, []string(nil), sc.tags)
+	assert.Equal(t, []unique.Handle[string](nil), sc.tags)
 }

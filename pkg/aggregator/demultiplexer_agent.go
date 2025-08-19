@@ -244,7 +244,7 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 		d.AggregateSample(metrics.MetricSample{
 			Name:       fmt.Sprintf("datadog.%s.started", d.aggregator.agentName),
 			Value:      1,
-			Tags:       d.aggregator.tags(true),
+			Tags:       utilstrings.ToUnique(d.aggregator.tags(true)),
 			Host:       d.aggregator.hostname,
 			Mtype:      metrics.CountType,
 			SampleRate: 1,

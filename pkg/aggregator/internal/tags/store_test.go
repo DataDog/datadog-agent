@@ -11,14 +11,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStore(t *testing.T) {
 	c := NewStore(true, "test")
 
-	t1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
-	t2 := tagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
+	t1 := tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique([]string{"1"}))
+	t2 := tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique([]string{"2"}))
 
 	t1a := c.Insert(1, t1)
 
@@ -86,8 +87,8 @@ func TestStore(t *testing.T) {
 func TestStoreDisabled(t *testing.T) {
 	c := NewStore(false, "test")
 
-	t1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
-	t2 := tagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
+	t1 := tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique([]string{"1"}))
+	t2 := tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique([]string{"2"}))
 
 	t1a := c.Insert(1, t1)
 	require.EqualValues(t, 0, len(c.tagsByKey))
