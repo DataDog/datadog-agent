@@ -36,7 +36,7 @@ __attribute__((always_inline)) int prepare_raw_packet_event(struct __sk_buff *sk
     }
 
     evt->process.pid = pkt->pid;
-    evt->container.cgroup_context.cgroup_file.ino = pkt->cgroup_id;
+    evt->cgroup.cgroup_file.ino = pkt->cgroup_id;
 
     bpf_skb_pull_data(skb, 0);
 

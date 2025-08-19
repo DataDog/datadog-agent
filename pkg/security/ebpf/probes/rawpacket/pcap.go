@@ -31,19 +31,13 @@ const (
 	packetCaptureSize = 256
 
 	// raw packet data, see kernel definition
-<<<<<<< HEAD
-	structRawPacketEventDataSize   = 256
-	structRawPacketEventDataOffset = 164
-	structRawPacketEventPidOffset  = 16
-=======
 	// pahole /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime-security-syscall-wrapper.o -y raw_packet_event_t -E --structs -V
-	packetPidOffset      = 16
-	packetCgroupIdOffset = 136
-	packetDataOffset     = 164
+	structRawPacketEventPidOffset      = 16
+	structRawPacketEventCgroupIdOffset = 64
+	structRawPacketEventDataOffset     = 92
 
 	// payload size
-	packetDataSize = 256
->>>>>>> e988783e33d (fix probes selection)
+	structRawPacketEventDataSize = 256
 )
 
 // ProgOpts defines options
@@ -146,7 +140,7 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 
 			// check the pid
 			// load the pid from the packet
-			asm.LoadMem(asm.R7, opts.eventPtrReg, packetPidOffset, asm.Word),
+			asm.LoadMem(asm.R7, opts.eventPtrReg, structRawPacketEventPidOffset, asm.Word),
 			asm.JEq.Imm(asm.R7, int32(filter.Pid), opts.onMatchLabel),
 			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel), // nop instruction, just hold the symbol
 		)
@@ -157,7 +151,7 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
 
 			// load the cgroup id from the packet
-			asm.LoadMem(asm.R7, opts.eventPtrReg, packetCgroupIdOffset, asm.DWord),
+			asm.LoadMem(asm.R7, opts.eventPtrReg, structRawPacketEventCgroupIdOffset, asm.DWord),
 
 			// printk the cgroup id
 			/*

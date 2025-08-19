@@ -171,7 +171,7 @@ static void __attribute__((always_inline)) fill_cgroup_context(struct proc_cache
 
 u64 __attribute__((always_inline)) get_cgroup_id(u32 tgid) {
     struct proc_cache_t *entry = get_proc_cache(tgid);
-    return entry ? entry->container.cgroup_context.cgroup_file.ino : 0;
+    return entry ? entry->cgroup.cgroup_file.ino : 0;
 }
 
 #endif
