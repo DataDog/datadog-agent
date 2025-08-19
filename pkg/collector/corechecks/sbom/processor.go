@@ -24,6 +24,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/bomconvert"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -238,7 +239,7 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 		Id:                 p.hostname,
 		InUse:              true,
 		GeneratedAt:        timestamppb.New(result.CreatedAt),
-		GenerationDuration: convertDuration(result.Duration),
+		GenerationDuration: bomconvert.ConvertDuration(result.Duration),
 	}
 
 	if result.Error != nil {
@@ -253,17 +254,9 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
 			sbom.Heartbeat = true
 		} else {
-			report, err := result.Report.ToCycloneDX()
-			if err != nil {
-				log.Errorf("Failed to extract SBOM from report: %s", err)
-				sbom.Sbom = &model.SBOMEntity_Error{
-					Error: err.Error(),
-				}
-				sbom.Status = model.SBOMStatus_FAILED
-			} else {
-				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: convertBOM(report),
-				}
+			report := result.Report.ToCycloneDX()
+			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+				Cyclonedx: report,
 			}
 
 			sbom.Hash = result.Report.ID()
@@ -306,7 +299,7 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 		Type:               model.SBOMSourceType_CONTAINER_FILE_SYSTEM,
 		InUse:              true,
 		GeneratedAt:        timestamppb.New(result.CreatedAt),
-		GenerationDuration: convertDuration(result.Duration),
+		GenerationDuration: bomconvert.ConvertDuration(result.Duration),
 	}
 
 	if result.Error != nil {
@@ -324,17 +317,9 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
 			sbom.Heartbeat = true
 		} else {
-			report, err := result.Report.ToCycloneDX()
-			if err != nil {
-				log.Errorf("Failed to extract SBOM from report: %s", err)
-				sbom.Sbom = &model.SBOMEntity_Error{
-					Error: err.Error(),
-				}
-				sbom.Status = model.SBOMStatus_FAILED
-			} else {
-				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: convertBOM(report),
-				}
+			report := result.Report.ToCycloneDX()
+			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+				Cyclonedx: report,
 			}
 		}
 	}
@@ -453,9 +438,9 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		default:
 			sbom.Status = model.SBOMStatus_SUCCESS
 			sbom.GeneratedAt = timestamppb.New(img.SBOM.GenerationTime)
-			sbom.GenerationDuration = convertDuration(img.SBOM.GenerationDuration)
+			sbom.GenerationDuration = bomconvert.ConvertDuration(img.SBOM.GenerationDuration)
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: convertBOM(img.SBOM.CycloneDXBOM),
+				Cyclonedx: img.SBOM.CycloneDXBOM,
 			}
 		}
 		p.queue <- sbom
