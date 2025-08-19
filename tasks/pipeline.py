@@ -819,7 +819,7 @@ def compare_to_itself(ctx):
     """
     if not gitlab_configuration_is_modified(ctx):
         print("No modification in the gitlab configuration, ignoring this test.")
-        return
+        # return
     agent = get_gitlab_repo()
     gh = GithubAPI()
     current_branch = os.environ["CI_COMMIT_REF_NAME"]
