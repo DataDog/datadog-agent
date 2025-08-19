@@ -43,7 +43,7 @@ require (
 	// TODO: pin to an operator released version once there is a release that includes the api module
 	github.com/DataDog/datadog-operator/api v0.0.0-20250417130148-1aa8dc0fc964
 	github.com/DataDog/datadog-traceroute v0.1.1
-	github.com/DataDog/ebpf-manager v0.7.13
+	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1
@@ -72,7 +72,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.19.0
+	github.com/cilium/ebpf v0.19.1-0.20250815124406-a785455afa54
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.27
 	github.com/containernetworking/cni v1.2.3
@@ -84,7 +84,7 @@ require (
 	github.com/docker/docker v28.3.3+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dustin/go-humanize v1.0.1
-	github.com/elastic/go-libaudit/v2 v2.5.0
+	github.com/elastic/go-libaudit/v2 v2.6.2
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
@@ -114,13 +114,13 @@ require (
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
-	github.com/itchyny/gojq v0.12.16
+	github.com/itchyny/gojq v0.12.17
 	github.com/json-iterator/go v1.1.12
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.0
 	github.com/mdlayher/netlink v1.7.2
-	github.com/miekg/dns v1.1.67
+	github.com/miekg/dns v1.1.68
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
@@ -865,7 +865,7 @@ require (
 	github.com/magefile/mage v1.15.0 // indirect
 	github.com/masahiro331/go-mvn-version v0.0.0-20250131095131-f4974fa13b8a // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
-	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/docker-image-spec v1.3.1
 	github.com/moby/spdystream v0.5.0 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
@@ -943,7 +943,6 @@ require (
 	github.com/smartystreets/assertions v1.1.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
-	github.com/stormcat24/protodep v0.1.8 // indirect
 	github.com/swaggest/refl v1.3.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
