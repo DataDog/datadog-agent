@@ -9,6 +9,8 @@ package nvidia
 
 import (
 	"fmt"
+	"time"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -28,8 +30,11 @@ type SystemProbeCache struct {
 
 // NewSystemProbeCache creates a new stats cache that connects to system-probe using sysprobeclient.
 func NewSystemProbeCache() *SystemProbeCache {
+	client := sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	client.SetTimeout(pkgconfigsetup.SystemProbe().GetDuration("gpu.sp_process_metrics_timeout_seconds") * time.Second)
+
 	return &SystemProbeCache{
-		client: sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		client: client,
 		stats:  nil, // Start with no data
 	}
 }
