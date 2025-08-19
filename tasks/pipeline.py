@@ -889,10 +889,10 @@ def compare_to_itself(ctx):
         else:
             print(f"Pipeline correctly created, {color_message('congrats', Color.GREEN)}")
     finally:
-        print("Cleaning up the pipelines")
-        for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
-            cancel_pipeline(pipeline)
-        print("Cleaning up git")
-        ctx.run(f"git checkout {current_branch}", hide=True)
-        ctx.run(f"git branch -D {new_branch}", hide=True)
-        ctx.run(f"git push origin :{new_branch}", hide=True)
+        print("NOT Cleaning up the pipelines")
+        # for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
+        #     cancel_pipeline(pipeline)
+        # print("Cleaning up git")
+        # ctx.run(f"git checkout {current_branch}", hide=True)
+        # ctx.run(f"git branch -D {new_branch}", hide=True)
+        # ctx.run(f"git push origin :{new_branch}", hide=True)
