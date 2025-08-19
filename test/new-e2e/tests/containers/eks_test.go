@@ -32,7 +32,8 @@ func TestEKSSuite(t *testing.T) {
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
-	)))
+	)),
+		e2e.WithSkipDeleteOnFailure())
 }
 
 func (suite *eksSuite) SetupSuite() {
