@@ -217,6 +217,7 @@
 /cmd/agent/dist/conf.d/containerd.d/    @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
+/cmd/agent/dist/conf.d/discovery.d/          @DataDog/agent-discovery
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-devx
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
@@ -434,6 +435,7 @@
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
+/pkg/collector/corechecks/discovery/ @DataDog/agent-discovery
 /pkg/collector/corechecks/ebpf/                       @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/ebpf*                  @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
@@ -701,10 +703,17 @@
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
-/test/new-e2e/tests/agent-subcommands         @DataDog/agent-configuration
-/test/new-e2e/tests/agent-subcommands/check   @DataDog/agent-runtimes
-/test/new-e2e/tests/agent-subcommands/health  @DataDog/agent-runtimes
-/test/new-e2e/tests/agent-subcommands/hostname  @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands             @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands/check       @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands/health      @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands/hostname    @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands/configcheck @DataDog/agent-runtimes @DataDog/agent-integrations
+/test/new-e2e/tests/agent-subcommands/run         @DataDog/agent-runtimes
+/test/new-e2e/tests/agent-subcommands/config      @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands/diagnose    @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands/flare       @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands/secret      @DataDog/agent-configuration
+/test/new-e2e/tests/agent-subcommands/status      @DataDog/agent-configuration
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery
 /test/new-e2e/tests/fips-compliance           @DataDog/agent-runtimes
