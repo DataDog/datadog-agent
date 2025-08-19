@@ -375,8 +375,7 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 
 	// Assert
 	// have to wait for experiment to finish installing
-	err := s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	s.Require().Host(s.Env().RemoteHost).
 		HasDatadogInstaller().
@@ -395,10 +394,6 @@ func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	s.T().Helper()
-
-	// this is to ensure that the agent is running before we start the experiment
-	err := s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
 
 	// Arrange
 	agentVersion := s.CurrentAgentVersion().Version()
@@ -519,6 +514,11 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 // WaitForDaemonToStop waits for the daemon service PID to change after the function is called.
 func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 	s.T().Helper()
+
+	// service must be running before we can get the PID
+	// might be redundant in some cases but we keep forgetting to ensure it
+	// in others and it keeps causing flakes.
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)
