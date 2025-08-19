@@ -35,7 +35,7 @@ func TestParseGauge(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.Equal(t, 666.0, sample.value)
 	assert.InEpsilon(t, 666.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
@@ -50,7 +50,7 @@ func TestParseGaugeMultiple(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.Len(t, sample.values, 2)
 	assert.InEpsilon(t, 666.0, sample.values[0], epsilon)
 	assert.InEpsilon(t, 777.0, sample.values[1], epsilon)
@@ -65,7 +65,7 @@ func TestParseCounter(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.InEpsilon(t, 21.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, countType, sample.metricType)
@@ -79,7 +79,7 @@ func TestParseCounterMultiple(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.Len(t, sample.values, 2)
 	assert.InEpsilon(t, 666.0, sample.values[0], epsilon)
 	assert.InEpsilon(t, 777.0, sample.values[1], epsilon)
@@ -94,13 +94,13 @@ func TestParseCounterWithTags(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "custom_counter", sample.name)
+	assert.Equal(t, "custom_counter", sample.name.Value())
 	assert.InEpsilon(t, 1.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, countType, sample.metricType)
 	assert.Equal(t, 2, len(sample.tags))
-	assert.Equal(t, "protocol:http", sample.tags[0])
-	assert.Equal(t, "bench", sample.tags[1])
+	assert.Equal(t, "protocol:http", sample.tags[0].Value())
+	assert.Equal(t, "bench", sample.tags[1].Value())
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	assert.Zero(t, sample.ts)
 }
@@ -110,7 +110,7 @@ func TestParseHistogram(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.InEpsilon(t, 21.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, histogramType, sample.metricType)
@@ -124,7 +124,7 @@ func TestParseHistogramrMultiple(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.Len(t, sample.values, 2)
 	assert.InEpsilon(t, 21.0, sample.values[0], epsilon)
 	assert.InEpsilon(t, 22.0, sample.values[1], epsilon)
@@ -139,7 +139,7 @@ func TestParseTimer(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.InEpsilon(t, 21.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, timingType, sample.metricType)
@@ -153,7 +153,7 @@ func TestParseTimerMultiple(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.Len(t, sample.values, 2)
 	assert.InEpsilon(t, 21.0, sample.values[0], epsilon)
 	assert.InEpsilon(t, 22.0, sample.values[1], epsilon)
@@ -168,7 +168,7 @@ func TestParseSet(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.Equal(t, "abc", sample.setValue)
 	assert.Equal(t, setType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
@@ -183,7 +183,7 @@ func TestParseSetMultiple(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.Equal(t, "abc:def", sample.setValue)
 	assert.Equal(t, setType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
@@ -196,7 +196,7 @@ func TestSampleDistribution(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.InEpsilon(t, 3.5, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, distributionType, sample.metricType)
@@ -209,7 +209,7 @@ func TestParseDistributionMultiple(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.Len(t, sample.values, 2)
 	assert.InEpsilon(t, 3.5, sample.values[0], epsilon)
 	assert.InEpsilon(t, 4.5, sample.values[1], epsilon)
@@ -223,7 +223,7 @@ func TestParseSetUnicode(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.Equal(t, "♬†øU†øU¥ºuT0♪", sample.setValue)
 	assert.Equal(t, setType, sample.metricType)
 	assert.Len(t, sample.tags, 0)
@@ -236,13 +236,13 @@ func TestParseGaugeWithTags(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.InEpsilon(t, 666.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
 	require.Equal(t, 2, len(sample.tags))
-	assert.Equal(t, "sometag1:somevalue1", sample.tags[0])
-	assert.Equal(t, "sometag2:somevalue2", sample.tags[1])
+	assert.Equal(t, "sometag1:somevalue1", sample.tags[0].Value())
+	assert.Equal(t, "sometag2:somevalue2", sample.tags[1].Value())
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	assert.Zero(t, sample.ts)
 }
@@ -251,7 +251,7 @@ func TestParseGaugeWithNoTags(t *testing.T) {
 	sample, err := parseMetricSample(t, make(map[string]any), []byte("daemon:666|g"))
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.InEpsilon(t, 666.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
@@ -265,7 +265,7 @@ func TestParseGaugeWithSampleRate(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.InEpsilon(t, 666.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
@@ -279,7 +279,7 @@ func TestParseGaugeWithPoundOnly(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "daemon", sample.name)
+	assert.Equal(t, "daemon", sample.name.Value())
 	assert.InEpsilon(t, 666.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
@@ -293,12 +293,12 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "♬†øU†øU¥ºuT0♪", sample.name)
+	assert.Equal(t, "♬†øU†øU¥ºuT0♪", sample.name.Value())
 	assert.InEpsilon(t, 666.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
 	require.Equal(t, 1, len(sample.tags))
-	assert.Equal(t, "intitulé:T0µ", sample.tags[0])
+	assert.Equal(t, "intitulé:T0µ", sample.tags[0].Value())
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	assert.Zero(t, sample.ts)
 }
@@ -349,12 +349,12 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "metric", sample.name)
+	assert.Equal(t, "metric", sample.name.Value())
 	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
 	require.Equal(t, 1, len(sample.tags))
-	assert.Equal(t, "onetag", sample.tags[0])
+	assert.Equal(t, "onetag", sample.tags[0].Value())
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	assert.Zero(t, sample.ts)
 
@@ -368,12 +368,12 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "metric", sample.name)
+	assert.Equal(t, "metric", sample.name.Value())
 	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
 	require.Equal(t, 1, len(sample.tags))
-	assert.Equal(t, "onetag", sample.tags[0])
+	assert.Equal(t, "onetag", sample.tags[0].Value())
 	assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	assert.Equal(t, sample.ts, time.Unix(1657100430, 0))
 
@@ -383,7 +383,7 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "metric", sample.name)
+	assert.Equal(t, "metric", sample.name.Value())
 	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
@@ -397,7 +397,7 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "metric", sample.name)
+	assert.Equal(t, "metric", sample.name.Value())
 	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
@@ -411,12 +411,12 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "metric", sample.name)
+	assert.Equal(t, "metric", sample.name.Value())
 	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
 	require.Equal(t, 1, len(sample.tags))
-	assert.Equal(t, "thereisatag", sample.tags[0])
+	assert.Equal(t, "thereisatag", sample.tags[0].Value())
 	assert.InEpsilon(t, 0.21, sample.sampleRate, epsilon)
 	assert.Equal(t, sample.ts, time.Unix(1657100440, 0))
 
@@ -426,12 +426,12 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "metric", sample.name)
+	assert.Equal(t, "metric", sample.name.Value())
 	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
 	require.Equal(t, 1, len(sample.tags))
-	assert.Equal(t, "thereisatag", sample.tags[0])
+	assert.Equal(t, "thereisatag", sample.tags[0].Value())
 	assert.InEpsilon(t, 0.21, sample.sampleRate, epsilon)
 	assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
 
@@ -439,12 +439,12 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "metric", sample.name)
+	assert.Equal(t, "metric", sample.name.Value())
 	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
 	require.Equal(t, 1, len(sample.tags))
-	assert.Equal(t, "thereisatag", sample.tags[0])
+	assert.Equal(t, "thereisatag", sample.tags[0].Value())
 	assert.InEpsilon(t, 0.21, sample.sampleRate, epsilon)
 	assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
 
@@ -452,12 +452,12 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "metric", sample.name)
+	assert.Equal(t, "metric", sample.name.Value())
 	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
 	require.Equal(t, 1, len(sample.tags))
-	assert.Equal(t, "atag", sample.tags[0])
+	assert.Equal(t, "atag", sample.tags[0].Value())
 	assert.InEpsilon(t, 0.25, sample.sampleRate, epsilon)
 	assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
 
@@ -465,12 +465,12 @@ func TestParseGaugeWithTimestamp(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	assert.Equal(t, "metric", sample.name)
+	assert.Equal(t, "metric", sample.name.Value())
 	assert.InEpsilon(t, 1234.0, sample.value, epsilon)
 	require.Nil(t, sample.values)
 	assert.Equal(t, gaugeType, sample.metricType)
 	require.Equal(t, 1, len(sample.tags))
-	assert.Equal(t, "atag", sample.tags[0])
+	assert.Equal(t, "atag", sample.tags[0].Value())
 	assert.InEpsilon(t, 0.25, sample.sampleRate, epsilon)
 	assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
 }
@@ -500,12 +500,12 @@ func TestParseManyPipes(t *testing.T) {
 
 		require.NoError(t, err)
 
-		assert.Equal(t, "example.metric", sample.name)
+		assert.Equal(t, "example.metric", sample.name.Value())
 		assert.InEpsilon(t, 2.39283, sample.value, epsilon)
 		require.Nil(t, sample.values)
 		assert.Equal(t, distributionType, sample.metricType)
 		require.Equal(t, 1, len(sample.tags))
-		assert.Equal(t, "environment:dev", sample.tags[0])
+		assert.Equal(t, "environment:dev", sample.tags[0].Value())
 		assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	})
 
@@ -517,13 +517,13 @@ func TestParseManyPipes(t *testing.T) {
 
 		require.NoError(t, err)
 
-		assert.Equal(t, "example.metric", sample.name)
+		assert.Equal(t, "example.metric", sample.name.Value())
 		assert.InEpsilon(t, 2.39283, sample.value, epsilon)
 		require.Nil(t, sample.values)
 		assert.Equal(t, distributionType, sample.metricType)
 		require.Equal(t, 1, len(sample.tags))
 		assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
-		assert.Equal(t, "environment:dev", sample.tags[0])
+		assert.Equal(t, "environment:dev", sample.tags[0].Value())
 		assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	})
 
@@ -536,13 +536,13 @@ func TestParseManyPipes(t *testing.T) {
 
 		require.NoError(t, err)
 
-		assert.Equal(t, "example.metric", sample.name)
+		assert.Equal(t, "example.metric", sample.name.Value())
 		assert.InEpsilon(t, 2.39283, sample.value, epsilon)
 		require.Nil(t, sample.values)
 		assert.Equal(t, distributionType, sample.metricType)
 		require.Equal(t, 1, len(sample.tags))
 		assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
-		assert.Equal(t, "environment:dev", sample.tags[0])
+		assert.Equal(t, "environment:dev", sample.tags[0].Value())
 		assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	})
 
@@ -554,13 +554,13 @@ func TestParseManyPipes(t *testing.T) {
 
 		require.NoError(t, err)
 
-		assert.Equal(t, "example.metric", sample.name)
+		assert.Equal(t, "example.metric", sample.name.Value())
 		assert.InEpsilon(t, 2.39283, sample.value, epsilon)
 		require.Nil(t, sample.values)
 		assert.Equal(t, distributionType, sample.metricType)
 		require.Equal(t, 1, len(sample.tags))
 		assert.Equal(t, sample.ts, time.Unix(1657100540, 0))
-		assert.Equal(t, "environment:dev", sample.tags[0])
+		assert.Equal(t, "environment:dev", sample.tags[0].Value())
 		assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	})
 }
@@ -573,4 +573,17 @@ func TestParseContainerID(t *testing.T) {
 	sample, err := parseMetricSample(t, cfg, []byte("metric:1234|g|c:1234567890abcdef"))
 	require.NoError(t, err)
 	assert.Equal(t, "1234567890abcdef", sample.localData.ContainerID)
+}
+
+func TestNameFieldUsesUniqueHandle(t *testing.T) {
+	sample1, err1 := parseMetricSample(t, make(map[string]any), []byte("test_metric:666|g"))
+	sample2, err2 := parseMetricSample(t, make(map[string]any), []byte("test_metric:777|g"))
+
+	assert.NoError(t, err1)
+	assert.NoError(t, err2)
+
+	// Both samples should have the same unique handle for the same metric name
+	assert.Equal(t, sample1.name, sample2.name)
+	assert.Equal(t, "test_metric", sample1.name.Value())
+	assert.Equal(t, "test_metric", sample2.name.Value())
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // RawSender interface to submit samples to aggregator directly
@@ -197,7 +198,7 @@ func (s *checkSender) sendMetricSample(
 		Name:            metric,
 		Value:           value,
 		Mtype:           mType,
-		Tags:            tags,
+		Tags:            utilstrings.ToUnique(tags),
 		Host:            hostname,
 		SampleRate:      1,
 		Timestamp:       timestamp,

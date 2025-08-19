@@ -7,9 +7,12 @@ package server
 
 import (
 	"testing"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func parseEvent(t *testing.T, rawEvent []byte) (dogstatsdEvent, error) {
@@ -27,7 +30,7 @@ func TestEventMinimal(t *testing.T) {
 	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, []string(nil), e.tags)
+	assert.Equal(t, []unique.Handle[string](nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
 	assert.Equal(t, "", e.aggregationKey)
 	assert.Equal(t, "", e.sourceType)
@@ -41,7 +44,7 @@ func TestEventMultilinesText(t *testing.T) {
 	assert.Equal(t, string("test\\line1\nline2\nline3"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, []string(nil), e.tags)
+	assert.Equal(t, []unique.Handle[string](nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
 	assert.Equal(t, "", e.aggregationKey)
 	assert.Equal(t, "", e.sourceType)
@@ -55,7 +58,7 @@ func TestEventPipeInTitle(t *testing.T) {
 	assert.Equal(t, string("test\\line1\nline2\nline3"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, []string(nil), e.tags)
+	assert.Equal(t, []unique.Handle[string](nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
 	assert.Equal(t, "", e.aggregationKey)
 	assert.Equal(t, "", e.sourceType)
@@ -149,7 +152,7 @@ func TestEventMetadataTimestamp(t *testing.T) {
 	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(21), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, []string(nil), e.tags)
+	assert.Equal(t, []unique.Handle[string](nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
 	assert.Equal(t, "", e.aggregationKey)
 	assert.Equal(t, "", e.sourceType)
@@ -163,7 +166,7 @@ func TestEventMetadataPriority(t *testing.T) {
 	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityLow, e.priority)
-	assert.Equal(t, []string(nil), e.tags)
+	assert.Equal(t, []unique.Handle[string](nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
 	assert.Equal(t, "", e.aggregationKey)
 	assert.Equal(t, "", e.sourceType)
@@ -177,7 +180,7 @@ func TestEventMetadataHostname(t *testing.T) {
 	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, []string(nil), e.tags)
+	assert.Equal(t, []unique.Handle[string](nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
 	assert.Equal(t, "", e.aggregationKey)
 	assert.Equal(t, "", e.sourceType)
@@ -191,7 +194,7 @@ func TestEventMetadataAlertType(t *testing.T) {
 	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, []string(nil), e.tags)
+	assert.Equal(t, []unique.Handle[string](nil), e.tags)
 	assert.Equal(t, alertTypeWarning, e.alertType)
 	assert.Equal(t, "", e.aggregationKey)
 	assert.Equal(t, "", e.sourceType)
@@ -205,7 +208,7 @@ func TestEventMetadataAggregatioKey(t *testing.T) {
 	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, []string(nil), e.tags)
+	assert.Equal(t, []unique.Handle[string](nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
 	assert.Equal(t, string("some aggregation key"), e.aggregationKey)
 	assert.Equal(t, "", e.sourceType)
@@ -219,7 +222,7 @@ func TestEventMetadataSourceType(t *testing.T) {
 	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, []string(nil), e.tags)
+	assert.Equal(t, []unique.Handle[string](nil), e.tags)
 	assert.Equal(t, alertTypeInfo, e.alertType)
 	assert.Equal(t, "", e.aggregationKey)
 	assert.Equal(t, string("this is the source"), e.sourceType)
@@ -233,7 +236,7 @@ func TestEventMetadataTags(t *testing.T) {
 	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(0), e.timestamp)
 	assert.Equal(t, priorityNormal, e.priority)
-	assert.Equal(t, []string{string("tag1"), string("tag2:test")}, e.tags)
+	assert.Equal(t, []string{string("tag1"), string("tag2:test")}, utilstrings.FromUnique(e.tags))
 	assert.Equal(t, alertTypeInfo, e.alertType)
 	assert.Equal(t, "", e.aggregationKey)
 	assert.Equal(t, "", e.sourceType)
@@ -247,7 +250,7 @@ func TestEventMetadataMultiple(t *testing.T) {
 	assert.Equal(t, string("test text"), e.text)
 	assert.Equal(t, int64(12345), e.timestamp)
 	assert.Equal(t, priorityLow, e.priority)
-	assert.Equal(t, []string{string("tag1"), string("tag2:test")}, e.tags)
+	assert.Equal(t, []string{string("tag1"), string("tag2:test")}, utilstrings.FromUnique(e.tags))
 	assert.Equal(t, alertTypeWarning, e.alertType)
 	assert.Equal(t, string("aggKey"), e.aggregationKey)
 	assert.Equal(t, string("source test"), e.sourceType)

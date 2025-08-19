@@ -35,12 +35,17 @@ func TestAdd(t *testing.T) {
 	mockAgent := serverlessMetrics.ServerlessMetricAgent{
 		Demux: demux,
 	}
+	beforeTime := time.Now()
 	Add("a.super.metric", 1.0, mockMetricSource, mockAgent)
+	afterTime := time.Now()
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
 	assert.Equal(t, metric.Name, "a.super.metric")
+	// Check timestamp is within reasonable bounds
+	assert.GreaterOrEqual(t, metric.Timestamp, float64(beforeTime.UnixNano())/float64(time.Second))
+	assert.LessOrEqual(t, metric.Timestamp, float64(afterTime.UnixNano())/float64(time.Second))
 }
 
 func TestAddStartMetric(t *testing.T) {
@@ -53,8 +58,8 @@ func TestAddStartMetric(t *testing.T) {
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
-	assert.Equal(t, metric.Name, "datadog.serverless_agent.enhanced.cold_start")
-	assert.Equal(t, metric.Source, metrics.MetricSourceServerless)
+	assert.Equal(t, metric.Name, mockStartMetricName)
+	assert.Equal(t, metric.Source, mockMetricSource)
 }
 
 func TestAddShutdownMetric(t *testing.T) {
@@ -67,8 +72,8 @@ func TestAddShutdownMetric(t *testing.T) {
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
-	assert.Equal(t, metric.Name, "datadog.serverless_agent.enhanced.shutdown")
-	assert.Equal(t, metric.Source, metrics.MetricSourceServerless)
+	assert.Equal(t, metric.Name, mockShutdownMetricName)
+	assert.Equal(t, metric.Source, mockMetricSource)
 }
 
 func TestNilDemuxDoesNotPanic(t *testing.T) {

@@ -22,6 +22,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
@@ -40,7 +41,7 @@ func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 		Timestamp:  12345.0,
 	}
@@ -48,7 +49,7 @@ func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      2,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 		Timestamp:  12347.0,
 	}
@@ -56,7 +57,7 @@ func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar", "baz"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar", "baz"}),
 		SampleRate: 1,
 		Timestamp:  12348.0,
 	}
@@ -104,7 +105,7 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.RateType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 		Timestamp:  12345.0,
 	}
@@ -112,7 +113,7 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      10,
 		Mtype:      metrics.RateType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 		Timestamp:  12347.5,
 	}
@@ -120,7 +121,7 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.RateType,
-		Tags:       []string{"foo", "bar", "baz"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar", "baz"}),
 		SampleRate: 1,
 		Timestamp:  12348.0,
 	}
@@ -158,7 +159,7 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.HistogramType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 		Timestamp:  12345.0,
 	}
@@ -166,7 +167,7 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      10,
 		Mtype:      metrics.HistogramType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 		Timestamp:  12347.5,
 	}
@@ -174,7 +175,7 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.HistogramType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 		Timestamp:  12348.0,
 	}
@@ -394,7 +395,7 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 		Timestamp:  12345.0,
 	}

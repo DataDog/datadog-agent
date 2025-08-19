@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unique"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -174,21 +175,21 @@ func buildTags(tags map[string]string, tagsToSkip []string) map[string]string {
 }
 
 // AddColdStartTag appends the cold_start tag to existing tags
-func AddColdStartTag(tags []string, coldStart bool, proactiveInit bool) []string {
+func AddColdStartTag(tags []unique.Handle[string], coldStart bool, proactiveInit bool) []unique.Handle[string] {
 	if proactiveInit {
-		tags = append(tags, "cold_start:false")
-		tags = append(tags, "proactive_initialization:true")
+		tags = append(tags, unique.Make("cold_start:false"))
+		tags = append(tags, unique.Make("proactive_initialization:true"))
 	} else {
-		tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+		tags = append(tags, unique.Make(fmt.Sprintf("cold_start:%v", coldStart)))
 	}
 	return tags
 }
 
 // AddInitTypeTag appends the init_type tag to existing tags
-func AddInitTypeTag(tags []string) []string {
+func AddInitTypeTag(tags []unique.Handle[string]) []unique.Handle[string] {
 	initType := os.Getenv(InitType)
 	if initType != "" {
-		tags = append(tags, fmt.Sprintf("init_type:%v", initType))
+		tags = append(tags, unique.Make(fmt.Sprintf("init_type:%v", initType)))
 	}
 	return tags
 }
