@@ -90,7 +90,8 @@ func (ddr *datadogRUMReceiver) Start(ctx context.Context, host component.Host) e
 
 	ddr.address = hln.Addr().String()
 
-	ctx, ddr.cancel = context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	ddr.cancel = cancel
 
 	go func() {
 		if err := ddr.server.Serve(hln); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -153,6 +154,11 @@ func (ddr *datadogRUMReceiver) handleEvent(w http.ResponseWriter, req *http.Requ
 			}
 			if ddr.nextTracesConsumer != nil {
 				err = ddr.nextTracesConsumer.ConsumeTraces(obsCtx, otelTraces)
+				if err != nil {
+					http.Error(w, "Unable to consume traces", http.StatusInternalServerError)
+					ddr.params.Logger.Error("Unable to consume traces", zap.Error(err))
+					return
+				}
 			}
 			eventCount = otelTraces.SpanCount()
 		}

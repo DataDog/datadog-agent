@@ -723,6 +723,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/sharedcomponent v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/rum v0.32.0 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
@@ -1106,6 +1107,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ./comp/otelcol/otlp/components/processor/infraattributesprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/receiver/datadogrumreceiver => ./comp/otelcol/otlp/components/receiver/datadogrumreceiver
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ./comp/otelcol/otlp/components/statsprocessor
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/sharedcomponent => ./comp/otelcol/otlp/internal/sharedcomponent
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/otelcol/status/def => ./comp/otelcol/status/def
 	github.com/DataDog/datadog-agent/comp/otelcol/status/impl => ./comp/otelcol/status/impl

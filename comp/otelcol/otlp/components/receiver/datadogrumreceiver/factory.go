@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/receiver/datadogrumreceiver/internal/sharedcomponent"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/sharedcomponent"
 )
 
 // NewFactory creates a factory for the Datadog RUM receiver
@@ -23,6 +23,7 @@ func NewFactory() receiver.Factory {
 	return NewFactoryForAgent()
 }
 
+// NewFactoryForAgent creates a factory for the Datadog RUM receiver
 func NewFactoryForAgent() receiver.Factory {
 	return receiver.NewFactory(
 		Type,
