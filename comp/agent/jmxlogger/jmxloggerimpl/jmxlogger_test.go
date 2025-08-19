@@ -22,8 +22,9 @@ import (
 func TestJMXLog(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "jmx_test.log")
-	_, err := os.Create(filePath)
+	f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	assert.NoError(t, err)
+	defer f.Close()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
