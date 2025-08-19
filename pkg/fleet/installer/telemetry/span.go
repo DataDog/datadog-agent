@@ -70,7 +70,7 @@ func (s *Span) Finish(err error) {
 		s.span.Meta = map[string]string{
 			"error.message": err.Error(),
 			"error.stack":   string(debug.Stack()),
-			"error.type":    getRootErrType(err),
+			"error.type":    getRootErrorType(err),
 		}
 	}
 	globalTracer.finishSpan(s)
@@ -152,7 +152,11 @@ func setSpanIDsInContext(ctx context.Context, span *Span) context.Context {
 	return context.WithValue(ctx, spanKey, spanIDs{traceID: span.span.TraceID, spanID: span.span.SpanID})
 }
 
-func getRootErrType(err error) string {
+func getRootErrorType(err error) string {
+	if err == nil {
+		return ""
+	}
+
 	for u := errors.Unwrap(err); u != nil; u = errors.Unwrap(u) {
 		err = u
 	}
