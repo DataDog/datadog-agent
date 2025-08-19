@@ -1467,6 +1467,22 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 			},
 			mapSize: 1,
 		},
+		{
+			name: "priority-only frame header",
+			messageBuilder: func() [][]byte {
+				fr := newFramer()
+				param := http2.HeadersFrameParam{
+					StreamID:   1,
+					EndHeaders: true,
+					Priority:   http2.PriorityParam{StreamDep: 0, Weight: 100},
+				}
+				require.NoError(t, fr.framer.WriteHeaders(param))
+				frame := fr.bytes()
+
+				return [][]byte{frame[:9]}
+			},
+			mapSize: 0,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
