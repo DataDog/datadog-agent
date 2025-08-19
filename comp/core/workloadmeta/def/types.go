@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -1341,7 +1341,7 @@ type ContainerImageLayer struct {
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
 type SBOM struct {
-	CycloneDXBOM       *cyclonedx.BOM
+	CycloneDXBOM       *cyclonedx_v1_4.Bom
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
 	Status             SBOMStatus

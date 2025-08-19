@@ -2,6 +2,36 @@
 Release Notes
 =============
 
+.. _Release Notes_7.69.1:
+
+7.69.1
+======
+
+.. _Release Notes_7.69.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-08-18
+
+- Please refer to the `7.69.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7691>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.69.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Remote Agent updates on Windows now checks if the custom Agent password
+  is available before updating the Agent. This prevents the update from
+  failing later and leaving the host without an Agent installed.
+  
+  This is only applicable to domain-joined hosts using a custom Agent
+  username and password. See
+  [Agent 7.66.0 upgrade notes](https://github.com/DataDog/datadog-agent/releases/tag/7.66.0)
+  for more information.
+
+
 .. _Release Notes_7.69.0:
 
 7.69.0
