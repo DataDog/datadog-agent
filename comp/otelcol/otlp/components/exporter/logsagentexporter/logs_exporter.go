@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"go.uber.org/zap"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	logsmapping "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs"
@@ -31,8 +32,6 @@ type Exporter struct {
 	logSource        *sources.LogSource
 	translator       *logsmapping.Translator
 	gatewaysUsage    otel.GatewayUsage
-	reporter         *inframetadata.Reporter
-	cfg              *Config
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
