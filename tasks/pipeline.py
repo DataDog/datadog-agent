@@ -16,7 +16,6 @@ from tasks.libs.ciproviders.gitlab_api import (
     cancel_pipeline,
     get_gitlab_bot_token,
     get_gitlab_repo,
-    gitlab_configuration_is_modified,
     refresh_pipeline,
 )
 from tasks.libs.common.color import Color, color_message
@@ -817,9 +816,9 @@ def compare_to_itself(ctx):
     """
     Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline
     """
-    if not gitlab_configuration_is_modified(ctx):
-        print("No modification in the gitlab configuration, ignoring this test.")
-        return
+    # if not gitlab_configuration_is_modified(ctx):
+    #     print("No modification in the gitlab configuration, ignoring this test.")
+    #     return
     agent = get_gitlab_repo()
     gh = GithubAPI()
     current_branch = os.environ["CI_COMMIT_REF_NAME"]
