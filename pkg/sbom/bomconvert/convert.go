@@ -606,7 +606,7 @@ func convertMetadata(in *cyclonedx.Metadata) *cyclonedx_v1_4.Metadata {
 	}
 
 	var tools []*cyclonedx_v1_4.Tool
-	if in.Tools != nil {
+	if in.Tools != nil && in.Tools.Tools != nil {
 		tools = convertArray(in.Tools.Tools, convertTool)
 	}
 
