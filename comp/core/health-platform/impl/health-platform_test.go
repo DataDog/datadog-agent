@@ -16,7 +16,7 @@ import (
 )
 
 // newTestComponent creates a simple test component with mock dependencies
-func newTestComponent(t *testing.T) healthplatform.Component {
+func newTestComponent(_ *testing.T) healthplatform.Component {
 	// Create a simple component with nil dependencies for testing
 	return &component{
 		issues:   make(map[string]healthplatform.Issue),

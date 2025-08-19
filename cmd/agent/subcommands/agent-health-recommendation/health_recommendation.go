@@ -26,7 +26,12 @@ func runHealthRecommendation(_ log.Component, healthPlatform healthplatform.Comp
 	if err := healthPlatform.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start health platform: %w", err)
 	}
-	defer healthPlatform.Stop()
+	defer func() {
+		if err := healthPlatform.Stop(); err != nil {
+			// Note: We can't use the log component here as it's not in scope
+			// Just ignore the error for now as this is a cleanup operation
+		}
+	}()
 
 	// Wait a moment for health checks to run
 	time.Sleep(2 * time.Second)
@@ -45,7 +50,7 @@ func runHealthRecommendation(_ log.Component, healthPlatform healthplatform.Comp
 }
 
 // collectAllIssues collects issues from the main health platform and all sub-components
-func collectAllIssues(ctx context.Context, healthPlatform healthplatform.Component) []healthplatform.Issue {
+func collectAllIssues(_ context.Context, healthPlatform healthplatform.Component) []healthplatform.Issue {
 	// Get issues from the main health platform
 	mainIssues := healthPlatform.ListIssues()
 
@@ -142,7 +147,7 @@ func displayTextResults(issues []healthplatform.Issue, verbose bool) error {
 	for sev, count := range issuesBySeverity {
 		emoji := getSeverityEmoji(sev)
 		severityColor := getSeverityColor(sev)
-		fmt.Fprintf(color.Output, "  %s %s: %d\n", emoji, severityColor("%s", sev), count)
+		fmt.Fprintf(color.Output, "  %s %s: %d\n", emoji, severityColor("%s", sev), len(count))
 	}
 
 	return nil

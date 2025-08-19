@@ -8,22 +8,22 @@ package logsagenthealthimpl
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	logsagenthealth "github.com/DataDog/datadog-agent/comp/core/health-platform/logs-agent-health/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// newTestComponent creates a component using fxutil.Test with proper mock dependencies
+// newTestComponent creates a simple test component with mock dependencies
 func newTestComponent(t *testing.T) logsagenthealth.Component {
-	return fxutil.Test[logsagenthealth.Component](t, fx.Options(
-		core.MockBundle(),
-		fxutil.ProvideComponentConstructor(NewComponent),
-	))
+	// Create a simple component with nil dependencies for testing
+	return &component{
+		ctx:      context.Background(),
+		done:     make(chan struct{}),
+		interval: 30 * time.Second, // Default interval
+	}
 }
 
 func TestCheckHealth(t *testing.T) {
