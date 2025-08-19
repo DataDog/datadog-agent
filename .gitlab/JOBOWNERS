@@ -156,7 +156,6 @@ trace_agent_integration_tests @DataDog/agent-apm
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 serverless_cold_start_performance-deb_x64_dind @DataDog/agent-devx
 static_quality_gates                           @DataDog/agent-build
-debug_static_quality_gates                     @DataDog/agent-build
 manual_gate_threshold_update                   @DataDog/agent-build
 
 oracle*                                        @DataDog/database-monitoring

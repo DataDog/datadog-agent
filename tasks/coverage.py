@@ -112,6 +112,10 @@ def upload_to_codecov(
              --push-coverage-cache: [For main]         Push the coverage cache to the S3 bucket.
              --debug-cache:                            Used to debug the cache.
     """
+    if not os.path.exists(PROFILE_COV):
+        print(color_message(f"Skipping Codecov upload: {PROFILE_COV} is missing from earlier step", Color.ORANGE))
+        return
+
     if pull_coverage_cache and push_coverage_cache:
         raise Exit(
             color_message("Error: Can't use both --pull-missing-coverage and --push-coverage-cache flags.", Color.RED),
@@ -128,7 +132,8 @@ def upload_to_codecov(
             upload_coverage_to_s3(ctx)
 
     with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
-        ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True, timeout=2 * 60)
+        # macOS jobs clone from GitLab => `Repository not found`: force `--git-service=github` (safe for other jobs)
+        ctx.run(f"{codecov_binary} --git-service=github -f {PROFILE_COV} -F {distro_tag}", warn=True, timeout=2 * 60)
 
 
 def produce_coverage_tar(files, archive_name):
