@@ -130,6 +130,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		if eksParams.WindowsNodeGroup {
 			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
 		}
+		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithClusterName(cluster.ClusterName))
 
 		kubernetesAgent, err = helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
 		if err != nil {
