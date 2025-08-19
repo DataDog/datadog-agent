@@ -4,10 +4,10 @@ go 1.24.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.7.0
-	github.com/DataDog/datadog-agent/pkg/template v0.65.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel.0.20250129111638-01c8fb06949e
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.3
-	github.com/DataDog/datadog-agent/pkg/version v0.64.3
+	github.com/DataDog/datadog-agent/pkg/template v0.68.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3
+	github.com/DataDog/datadog-agent/pkg/version v0.68.3
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cenkalti/backoff/v5 v5.0.2
 	github.com/fatih/color v1.18.0
@@ -27,7 +27,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -69,3 +69,55 @@ replace (
 )
 
 replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
+
+replace github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
+
+replace github.com/DataDog/datadog-agent/comp/core/status => ../../../comp/core/status
+
+replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+
+replace github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
+
+replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
+
+replace github.com/DataDog/datadog-agent/pkg/config/create => ../../config/create
+
+replace github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
+
+replace github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
+
+replace github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../config/nodetreemodel
+
+replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
+
+replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../config/structure
+
+replace github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../config/teeconfig
+
+replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../config/viperconfig
+
+replace github.com/DataDog/datadog-agent/pkg/fips => ../../fips
+
+replace github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
+
+replace github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
+
+replace github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
+
+replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
+
+replace github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
+
+replace github.com/DataDog/datadog-agent/pkg/util/option => ../../util/option
+
+replace github.com/DataDog/datadog-agent/pkg/util/pointer => ../../util/pointer
+
+replace github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
+
+replace github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
+
+replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil

@@ -84,8 +84,10 @@ build do
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
             end
 
-            # Create the installer symlink
-            link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
+            # Create the installer symlink if the file doesn't already exist
+            unless File.exist?("#{install_dir}/embedded/bin/installer")
+              link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
+            end
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
