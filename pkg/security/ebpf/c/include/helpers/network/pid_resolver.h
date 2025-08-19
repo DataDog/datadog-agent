@@ -40,8 +40,6 @@ __attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {
     }
 
     pid_route.l4_protocol = pkt->translated_ns_flow.flow.l4_protocol;
-    char msg[] = "pid_resolver: l4_protocol: %u\n";
-    bpf_trace_printk(msg, sizeof(msg), pid_route.l4_protocol);
     pkt->pid = get_flow_pid(&pid_route);
 }
 

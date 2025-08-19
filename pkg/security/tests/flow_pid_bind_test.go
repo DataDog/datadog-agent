@@ -1110,9 +1110,6 @@ func TestMultipleProtocols(t *testing.T) {
 
 		}
 
-		fmt.Printf("FOR DEBUGGING:\n")
-		dumpMap(t, m)
-
 		assert.NotEqual(t, tcpVal.Pid, udpVal.Pid, "TCP and UDP should be from different PIDs")
 		assert.Equal(t, tcpPid, tcpVal.Pid, "TCP PID mismatch")
 		assert.Equal(t, udpPid, udpVal.Pid, "UDP PID mismatch")
