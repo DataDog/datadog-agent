@@ -136,7 +136,7 @@ func (sm *subscriptionManager) Notify(events []types.EntityEvent) {
 			for _, subscriber := range subscribers {
 
 				if len(subscriber.ch) >= bufferSize {
-					log.Info("channel full, canceling subscription")
+					log.Errorf("subscriber with id %q has a channel full, canceling subscription", subscriber.id)
 					sm.unsubscribe(subscriber.id)
 					continue
 				}
