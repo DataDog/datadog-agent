@@ -827,16 +827,16 @@ def compare_to_itself(ctx):
         print("Branch already in compare_to_itself mode, ignoring this test to prevent infinite loop")
         return
     new_branch = f"compare/{current_branch}/{int(datetime.now(timezone.utc).timestamp())}"
-    ctx.run(f"git checkout -b {new_branch}", hide=True)
+    ctx.run(f"git checkout -b {new_branch}")
     ctx.run(
         f"git remote set-url origin https://x-access-token:{gh._auth.token}@github.com/DataDog/datadog-agent.git",
         hide=True,
     )
-    ctx.run(f"git config --global user.name '{BOT_NAME}'", hide=True)
-    ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'", hide=True)
+    ctx.run(f"git config --global user.name '{BOT_NAME}'")
+    ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'")
     # The branch must exist in gitlab to be able to "compare_to"
     # Push an empty commit to prevent linking this pipeline to the actual PR
-    ctx.run("git commit -m 'Initial push of the compare/to branch' --allow-empty", hide=True)
+    ctx.run("git commit -m 'Initial push of the compare/to branch' --allow-empty")
     ctx.run(f"git push origin {new_branch}")
 
     from tasks.libs.releasing.json import load_release_json
@@ -849,8 +849,8 @@ def compare_to_itself(ctx):
             content.replace(f'COMPARE_TO_BRANCH: {release_json["base_branch"]}', f'COMPARE_TO_BRANCH: {new_branch}')
         )
 
-    ctx.run("git commit -am 'Commit to compare to itself'", hide=True)
-    ctx.run(f"git push origin {new_branch}", hide=True)
+    ctx.run("git commit -am 'Commit to compare to itself'")
+    ctx.run(f"git push origin {new_branch}")
     max_attempts = 6
     compare_to_pipeline = None
     for attempt in range(max_attempts):
@@ -858,6 +858,8 @@ def compare_to_itself(ctx):
         time.sleep(30)
         for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
             commit = agent.commits.get(pipeline.sha)
+            print("commit details:", commit.author_name, commit.title)
+            print("pipeline details", pipeline.status)
             if commit.author_name == BOT_NAME and commit.title == "Commit to compare to itself":
                 if pipeline.status == "skipped":
                     # DDCI: we need to trigger the pipeline
