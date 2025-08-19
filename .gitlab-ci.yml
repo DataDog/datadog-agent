@@ -30,6 +30,7 @@ include:
   - .gitlab/package_build/include.yml
   - .gitlab/packaging/include.yml
   - .gitlab/package_deps_build/package_deps_build.yml
+  - .gitlab/pkg_metrics/pkg_metrics.yml
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/trigger_distribution/trigger_distribution.yml
   - .gitlab/trigger_distribution/conditions.yml
