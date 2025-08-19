@@ -7,9 +7,12 @@ package api
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	stdlog "log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -100,6 +103,39 @@ func errorHandler(err error) http.Handler {
 	})
 }
 
+// isRetryableBodyReadError determines if a body read error should be retried
+func isRetryableBodyReadError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for specific connection errors during body read
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if opErr.Op == "read" {
+			return true
+		}
+	}
+
+	// Check for network-level errors that might be transient
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return netErr.Timeout()
+	}
+
+	// Check for context cancellation (might be transient)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	// Don't retry EOF or other stream-related errors
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return false
+	}
+
+	return false
+}
+
 // newProfileProxy creates an http.ReverseProxy which can forward requests to
 // one or more endpoints.
 //
@@ -142,6 +178,60 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
 		Transport: &multiTransport{transport, targets, keys},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			// Extract useful context for logging
+			var payloadSize int64
+			if r.ContentLength > 0 {
+				payloadSize = r.ContentLength
+			} else if r.Body != nil {
+				// For chunked uploads, ContentLength is 0 but there might still be a body
+				// Try to get a size estimate, but don't consume the body as it may have already been read
+				payloadSize = -1 // Indicate chunked/unknown size
+			}
+
+			var timeoutSetting time.Duration
+			if deadline, ok := r.Context().Deadline(); ok {
+				timeoutSetting = time.Until(deadline)
+			}
+
+			// Determine appropriate HTTP status code based on error type
+			var statusCode int
+			var errorType string
+
+			if errors.Is(err, context.DeadlineExceeded) {
+				// Context deadline exceeded during request processing
+				// This typically means the client was too slow uploading the request body
+				statusCode = http.StatusRequestTimeout // 408 (client timeout)
+				errorType = "request timeout"
+			} else if isRetryableBodyReadError(err) {
+				// Check if this is specifically a timeout error
+				var netErr net.Error
+				if errors.As(err, &netErr) && netErr.Timeout() {
+					statusCode = http.StatusRequestTimeout // 408 (client timeout)
+					errorType = "body read timeout"
+				} else {
+					statusCode = http.StatusServiceUnavailable // 503 (other retryable errors)
+					errorType = "retryable body read error"
+				}
+			} else { // default case
+				statusCode = http.StatusBadGateway // 502 (default)
+				errorType = "transport error"
+			}
+
+			// Single comprehensive log with all context
+			if payloadSize == -1 {
+				log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=chunked timeout_remaining=%v error=%v",
+					errorType, statusCode, r.Method, r.URL.Path, timeoutSetting, err)
+			} else {
+				log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=%d timeout_remaining=%v error=%v",
+					errorType, statusCode, r.Method, r.URL.Path, payloadSize, timeoutSetting, err)
+			}
+
+			w.WriteHeader(statusCode)
+			if _, writeErr := w.Write([]byte(err.Error())); writeErr != nil {
+				log.Debugf("Failed to write error response body: %v", writeErr)
+			}
+		},
 	}
 }
 
