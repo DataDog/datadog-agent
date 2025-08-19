@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/logs/sds
 
-go 1.24.5
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1

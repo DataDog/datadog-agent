@@ -107,7 +107,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestActionKillExcludeBinary",
 			"~TestActionKillDisarm",
 			"~TestProcessInterpreter",
-			"~TestConnectEvent/io-uring",
+			"~TestConnectEventAFInetIOUring",
 			"TestAcceptEvent/accept-af-inet-any-tcp-success-sockaddrin-io-uring",
 			"TestOpenTree",
 		}
