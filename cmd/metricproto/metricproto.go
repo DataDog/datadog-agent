@@ -8,7 +8,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/binary"
 	"errors"
 	"flag"
@@ -28,6 +27,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+	"github.com/DataDog/zstd"
 	"github.com/richardartoul/molecule"
 )
 
@@ -126,7 +126,7 @@ func (b *bucket) printStats() {
 	if b == nil {
 		return
 	}
-	
+
 	mapStat("gauges", b.gauges)
 	mapStat("counts", b.counts)
 	mapStat("sketches", b.sketches)
@@ -1965,7 +1965,14 @@ func main() {
 	b := a.buckets[*flagTs][*flagPid]
 	b.printStats()
 
-	for _, item := range funcs {
+	type result struct {
+		size int
+		time float64
+	}
+
+	results := make([][20]result, len(funcs))
+	levels := []int{1, 5, 19}
+	for item_no, item := range funcs {
 		m, _ := fmt.Printf("\n%s\n", item.name)
 		fmt.Printf("%s\n", strings.Repeat("-", m-2))
 
@@ -1976,18 +1983,30 @@ func main() {
 
 		t1 := time.Now()
 
-		compressed := bytes.NewBuffer(nil)
-		gz, err := gzip.NewWriterLevel(compressed, 1)
-		if err != nil {
-			panic(err)
+		results[item_no][0] = result{
+			size: raw.Len(),
+			time: t1.Sub(t0).Seconds(),
 		}
-		gz.Write(raw.Bytes())
-		gz.Close()
-		t2 := time.Now()
 
 		fmt.Printf("raw = %d, t1 = %v\n", raw.Len(), t1.Sub(t0).Seconds())
-		fmt.Printf("gz1 = %d, t2 = %v\n", compressed.Len(), t2.Sub(t1).Seconds())
 		os.WriteFile(fmt.Sprintf("%s.pb", item.name), raw.Bytes(), 0666)
+
+		compressed := bytes.NewBuffer(nil)
+
+		for _, level := range levels {
+			t1 := time.Now()
+			compressed.Reset()
+			w := zstd.NewWriterLevel(compressed, level)
+			w.Write(raw.Bytes())
+			w.Close()
+			t2 := time.Now()
+			results[item_no][level] = result{
+				size: compressed.Len(),
+				time: t2.Sub(t1).Seconds(),
+			}
+			os.WriteFile(fmt.Sprintf("%s.pb.ztd.%02d", item.name, level), compressed.Bytes(), 0666)
+		}
+
 	}
 
 	if *flagProfMem != "" {
@@ -2000,6 +2019,16 @@ func main() {
 		if err := pprof.Lookup("allocs").WriteTo(f, 0); err != nil {
 			panic(err)
 		}
+	}
+
+	levels = append([]int{0}, levels...)
+	for item_no, item := range funcs {
+		fmt.Printf("%s\t", item.name)
+		for _, level := range levels {
+			r := results[item_no][level]
+			fmt.Printf("\t%d\t%.3f", r.size, r.time)
+		}
+		fmt.Printf("\n")
 	}
 }
 
