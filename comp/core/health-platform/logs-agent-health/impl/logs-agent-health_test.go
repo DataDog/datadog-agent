@@ -17,7 +17,7 @@ import (
 )
 
 // newTestComponent creates a simple test component with mock dependencies
-func newTestComponent(t *testing.T) logsagenthealth.Component {
+func newTestComponent(_ *testing.T) logsagenthealth.Component {
 	// Create a simple component with nil dependencies for testing
 	return &component{
 		ctx:      context.Background(),

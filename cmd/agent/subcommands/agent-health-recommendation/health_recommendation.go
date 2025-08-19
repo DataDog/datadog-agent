@@ -30,6 +30,7 @@ func runHealthRecommendation(_ log.Component, healthPlatform healthplatform.Comp
 		if err := healthPlatform.Stop(); err != nil {
 			// Note: We can't use the log component here as it's not in scope
 			// Just ignore the error for now as this is a cleanup operation
+			_ = err // explicitly ignore the error to avoid empty block
 		}
 	}()
 
