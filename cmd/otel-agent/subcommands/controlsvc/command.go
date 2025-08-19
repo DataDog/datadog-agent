@@ -18,14 +18,14 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'otel-agent' command.
-func Commands(globalParams *subcommands.GlobalParams) []*cobra.Command {
+func Commands(_ *subcommands.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
 		{
 			Use:     "start-service",
 			Aliases: []string{"startservice"},
 			Short:   "starts the otel-agent within the service control manager",
 			Long:    ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(controlsvc.StartService)
 			},
 		},
@@ -34,7 +34,7 @@ func Commands(globalParams *subcommands.GlobalParams) []*cobra.Command {
 			Aliases: []string{"stopservice"},
 			Short:   "stops the otel-agent within the service control manager",
 			Long:    ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(controlsvc.StopService)
 			},
 		},
@@ -43,7 +43,7 @@ func Commands(globalParams *subcommands.GlobalParams) []*cobra.Command {
 			Aliases: []string{"restartservice"},
 			Short:   "restarts the otel-agent within the service control manager",
 			Long:    ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(controlsvc.RestartService)
 			},
 		},
