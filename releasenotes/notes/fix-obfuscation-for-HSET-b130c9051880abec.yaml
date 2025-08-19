@@ -1,0 +1,5 @@
+
+---
+fixes:
+  - |
+   Fix redis span obfuscation for HSET command, as it allows multiples fields to be set at once since redis 4.0.0
