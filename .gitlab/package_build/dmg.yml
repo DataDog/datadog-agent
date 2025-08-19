@@ -23,14 +23,13 @@
 
 .agent_dmg:
   stage: package_build
-  # needs: ["go_mod_tidy_check"]
-  needs: []
-  # rules:
-  #    - !reference [.on_macos_gui_change]
-  #    - !reference [.on_packaging_change]
-  #    - !reference [.on_main_or_release_branch]
-  #    - !reference [.on_all_builds]
-  #    - !reference [.manual]
+  needs: ["go_mod_tidy_check"]
+  rules:
+     - !reference [.on_macos_gui_change]
+     - !reference [.on_packaging_change]
+     - !reference [.on_main_or_release_branch]
+     - !reference [.on_all_builds]
+     - !reference [.manual]
   artifacts:
     expire_in: 2 weeks
     paths:
