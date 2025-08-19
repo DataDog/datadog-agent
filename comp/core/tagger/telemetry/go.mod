@@ -3,12 +3,12 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/telemetry
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.69.2-rc.2
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.69.2
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.69.2
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.69.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect

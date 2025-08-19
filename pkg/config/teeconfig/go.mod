@@ -3,14 +3,14 @@ module github.com/DataDog/datadog-agent/pkg/config/teeconfig
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.69.2-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.69.2-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.69.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.69.2
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.2-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.69.2-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.69.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
