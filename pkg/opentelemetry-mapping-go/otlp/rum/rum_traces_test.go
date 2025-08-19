@@ -51,7 +51,7 @@ func TestToTraces(t *testing.T) {
 
 				assert.Equal(t, 1, rs.ScopeSpans().Len())
 				scopeSpans := rs.ScopeSpans().At(0)
-				assert.Equal(t, InstrumentationScopeName, scopeSpans.Scope().Name())
+				assert.Equal(t, instrumentationScopeName, scopeSpans.Scope().Name())
 
 				assert.Equal(t, 1, scopeSpans.Spans().Len())
 				span := scopeSpans.Spans().At(0)

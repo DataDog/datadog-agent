@@ -48,7 +48,7 @@ func TestToLogs_SuccessfulConversion(t *testing.T) {
 
 	assert.Equal(t, 1, resourceLogs.ScopeLogs().Len())
 	scopeLogs := resourceLogs.ScopeLogs().At(0)
-	assert.Equal(t, InstrumentationScopeName, scopeLogs.Scope().Name())
+	assert.Equal(t, instrumentationScopeName, scopeLogs.Scope().Name())
 
 	logRecord := scopeLogs.LogRecords().At(0)
 
