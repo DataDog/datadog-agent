@@ -31,10 +31,12 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
 
 @task
 def evaluate_index(ctx: Context, bucket_uri: str, commit_sha: str, pipeline_id: str):
+    changes = get_modified_files(ctx)
+
     uploader = S3Backend(bucket_uri)
     executor = DynTestExecutor(ctx, IndexKind.PACKAGE, uploader, commit_sha)
     evaluator = DatadogDynTestEvaluator(ctx, IndexKind.PACKAGE, executor, pipeline_id)
-    changes = get_modified_files(ctx)
-    results = evaluator.evaluate([os.path.basename(change) for change in changes])
+
+    results = evaluator.evaluate([os.path.dirname(change) for change in changes])
     evaluator.print_summary(results)
     evaluator.send_stats_to_datadog(results)
