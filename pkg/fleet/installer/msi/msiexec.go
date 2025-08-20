@@ -479,14 +479,23 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 			_ = os.RemoveAll(tempDir)
 		})
 	}
+
+	// Add MSI properties to the command line
+	properties := map[string]string{}
 	if a.ddagentUserName != "" {
-		WithProperties(map[string]string{"DDAGENTUSER_NAME": a.ddagentUserName})(a)
+		properties["DDAGENTUSER_NAME"] = a.ddagentUserName
 	}
 	if a.ddagentUserPassword != "" {
-		WithProperties(map[string]string{"DDAGENTUSER_PASSWORD": a.ddagentUserPassword})(a)
+		properties["DDAGENTUSER_PASSWORD"] = a.ddagentUserPassword
 	}
 	if a.msiAction == "/i" {
-		WithProperties(map[string]string{"MSIFASTINSTALL": "7"})(a)
+		properties["MSIFASTINSTALL"] = "7"
+	}
+	if len(properties) > 0 {
+		err := WithProperties(properties)(a)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cmd.logFile = a.logFile

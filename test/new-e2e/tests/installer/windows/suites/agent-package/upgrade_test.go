@@ -528,6 +528,8 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 }
 
 // TestUpgradeWithLocalSystemUser tests that the agent user is preserved across remote upgrades.
+// Also serves as a regression test for WINA-1742, since it will upgrade with DDAGENTUSER_NAME="NT AUTHORITY\SYSTEM"
+// which contains a space.
 func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
 	// Arrange
 	s.setAgentConfig()
