@@ -4836,7 +4836,7 @@ api_key:
 ##   2. Environment variables
 ##   3. Local config file
 ##      (etc/datadog-agent/application_monitoring.yaml)
-# apm_configuration_rules:
+# apm_configuration_default:
 
   ## @param DD_APM_TRACING_ENABLED - boolean - optional - default: true
   ## Enable Datadog tracing.
