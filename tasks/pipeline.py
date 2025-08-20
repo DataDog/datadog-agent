@@ -852,6 +852,8 @@ def compare_to_itself(ctx):
     ctx.run("git commit -am 'Commit to compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
 
+    time.sleep(30)
+
     # Trigger the pipeline
     pipeline = agent.pipelines.create({'ref': new_branch})
     print(f"Pipeline created: {pipeline.web_url}")
