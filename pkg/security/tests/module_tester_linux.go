@@ -1353,7 +1353,7 @@ func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd s
 		}
 		return errors.New("CGroupID not found on activity dump list")
 	}, retry.Delay(time.Second*1), retry.Attempts(15)); err != nil {
-		systemd.stop()
+		_, _ = systemd.stop()
 		return nil, nil, err
 	}
 
