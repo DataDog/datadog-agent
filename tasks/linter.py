@@ -163,8 +163,8 @@ def python(ctx):
     """
 
     print(
-        f"""Remember to set up pre-commit to lint your files before committing:
-    https://github.com/DataDog/datadog-agent/blob/{get_default_branch()}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+        "Remember to set up pre-commit to lint your files before committing: "
+        "https://datadoghq.dev/datadog-agent/setup/optional/#pre-commit-hooks"
     )
 
     if running_in_ci():
