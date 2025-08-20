@@ -1,0 +1,6 @@
+log_level: 'debug'
+system_probe_config:
+  process_config:
+    enabled: true
+discovery:
+  enabled: true

@@ -205,8 +205,10 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		)
 
 		if c.isProcessCollectionEnabled() {
+			log.Debug("Starting cached service collection (process collection enabled)")
 			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
 		} else {
+			log.Debug("Starting non-cached service collection (process collection disabled)")
 			go c.collectServicesNoCache(ctx, c.clock.Ticker(serviceCollectionInterval))
 		}
 	}
@@ -307,7 +309,7 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 
 		// Filter out processes that started less than a minute ago
 		if proc, exists := procs[pid]; exists {
-			processStartTime := time.UnixMilli(proc.Stats.CreateTime)
+			processStartTime := time.UnixMilli(proc.Stats.CreateTime).UTC()
 			if now.Sub(processStartTime) < time.Minute {
 				continue
 			}
@@ -478,8 +480,17 @@ func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32
 
 	for _, entity := range entities {
 		if proc, exists := procs[entity.Pid]; exists {
+			// process fields should be set when the process collector is disabled
+			entity.NsPid = proc.NsPid
+			entity.Ppid = proc.Ppid
+			entity.Name = proc.Name
+			entity.Cwd = proc.Cwd
+			entity.Exe = proc.Exe
+			entity.Comm = proc.Comm
 			entity.Cmdline = proc.Cmdline
 			entity.CreationTime = time.UnixMilli(proc.Stats.CreateTime).UTC()
+			entity.Uids = proc.Uids
+			entity.Gids = proc.Gids
 
 			// Add language if available
 			if language, hasLanguage := pidToLanguage[entity.Pid]; hasLanguage {

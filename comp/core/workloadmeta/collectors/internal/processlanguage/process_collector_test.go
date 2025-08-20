@@ -181,6 +181,7 @@ func TestProcessCollectorStart(t *testing.T) {
 		langDetectionEnabled bool
 		runInCoreAgent       bool
 		expectedEnabled      bool
+		use_wlm              bool
 	}{
 		{
 			name:                 "core agent + all configs enabled",
@@ -210,6 +211,14 @@ func TestProcessCollectorStart(t *testing.T) {
 			runInCoreAgent:       false,
 			expectedEnabled:      false,
 		},
+		{
+			name:                 "process agent + all configs disabled",
+			agentFlavor:          flavor.ProcessAgent,
+			langDetectionEnabled: true,
+			runInCoreAgent:       true,
+			use_wlm:              true,
+			expectedEnabled:      false,
+		},
 	}
 
 	for _, test := range tests {
@@ -219,8 +228,9 @@ func TestProcessCollectorStart(t *testing.T) {
 			flavor.SetFlavor(test.agentFlavor)
 
 			configOverrides := map[string]interface{}{
-				"language_detection.enabled":               test.langDetectionEnabled,
-				"process_config.run_in_core_agent.enabled": test.runInCoreAgent,
+				"language_detection.enabled":                test.langDetectionEnabled,
+				"process_config.run_in_core_agent.enabled":  test.runInCoreAgent,
+				"process_config.process_collection.use_wlm": test.use_wlm,
 			}
 
 			c := setUpCollectorTest(t, configOverrides)

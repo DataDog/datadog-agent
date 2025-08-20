@@ -119,6 +119,8 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 					assert.Equal(cT, expectedProc, actualProc)
 				}
 			}, time.Second, time.Millisecond*100)
+			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
+			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
@@ -203,6 +205,8 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 					assert.Equal(cT, expectedProc, actualProc)
 				}
 			}, time.Second, time.Millisecond*100)
+			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
+			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
@@ -313,6 +317,8 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 					assert.Equal(cT, expectedProc, actualProc)
 				}
 			}, time.Second, time.Millisecond*100)
+			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
+			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
@@ -496,6 +502,8 @@ func TestProcessLifecycleCollection(t *testing.T) {
 
 				}
 			}, time.Second, time.Millisecond*100)
+			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
+			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
