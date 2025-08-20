@@ -170,7 +170,6 @@ func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMa
 func (s *Sender) SendLinkUsageMetrics(linkUsageMetrics []client.LinkUsageMetrics, deviceNameToIDMap map[string]string) {
 	for _, linkMetric := range linkUsageMetrics {
 		var tags = []string{
-			"interface:" + linkMetric.Site,
 			"site:" + linkMetric.Site,
 			"access_circuit:" + linkMetric.AccessCircuit,
 			"type:" + linkMetric.Type,
@@ -181,10 +180,26 @@ func (s *Sender) SendLinkUsageMetrics(linkUsageMetrics []client.LinkUsageMetrics
 		if deviceIP, ok := deviceNameToIDMap[linkMetric.Site]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
+
 		s.Gauge(versaMetricPrefix+"link.volume_tx", linkMetric.VolumeTx, "", tags)
 		s.Gauge(versaMetricPrefix+"link.volume_rx", linkMetric.VolumeRx, "", tags)
 		s.Gauge(versaMetricPrefix+"link.bandwidth_tx", linkMetric.BandwidthTx, "", tags)
 		s.Gauge(versaMetricPrefix+"link.bandwidth_rx", linkMetric.BandwidthRx, "", tags)
+
+		// Send link speed metrics
+		s.Gauge(versaMetricPrefix+"link.tx_speed", linkMetric.UplinkBandwidth, "", tags)
+		s.Gauge(versaMetricPrefix+"link.rx_speed", linkMetric.DownlinkBandwidth, "", tags)
+
+		// Calculate and send bandwidth utilization percentages
+		if linkMetric.UplinkBandwidth > 0 {
+			txBandwidthUsage := (linkMetric.BandwidthTx / linkMetric.UplinkBandwidth) * 100
+			s.Gauge(versaMetricPrefix+"link.tx_util", txBandwidthUsage, "", tags)
+		}
+
+		if linkMetric.DownlinkBandwidth > 0 {
+			rxBandwidthUsage := (linkMetric.BandwidthRx / linkMetric.DownlinkBandwidth) * 100
+			s.Gauge(versaMetricPrefix+"link.rx_util", rxBandwidthUsage, "", tags)
+		}
 	}
 }
 

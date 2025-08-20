@@ -334,7 +334,6 @@ func (v *VersaCheck) Run() error {
 			tunnelMetrics, err := c.GetTunnelMetrics(org.Name)
 			if err != nil {
 				log.Warnf("error getting tunnel metrics for tenant %s from Versa client: %v", org.Name, err)
-				continue
 			}
 			v.metricsSender.SendTunnelMetrics(tunnelMetrics, deviceNameToIDMap)
 		}
@@ -364,7 +363,6 @@ func (v *VersaCheck) Run() error {
 			analyticsInterfaceMetrics, err := c.GetAnalyticsInterfaces(org.Name)
 			if err != nil {
 				log.Errorf("error getting analytics interface metrics from organization %s: %v", org.Name, err)
-				continue
 			}
 
 			if len(analyticsInterfaceMetrics) > 0 {

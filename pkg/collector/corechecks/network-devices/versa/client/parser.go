@@ -8,6 +8,7 @@ package client
 
 import (
 	"fmt"
+	"strconv"
 )
 
 // parseSLAMetrics parses the raw AaData response into SLAMetrics structs
@@ -139,10 +140,10 @@ func parseLinkUsageMetrics(data [][]interface{}) ([]LinkUsageMetrics, error) {
 		if m.AccessCircuit, ok = row[2].(string); !ok {
 			return nil, fmt.Errorf("expected string for AccessCircuit")
 		}
-		if m.UplinkBandwidth, ok = row[3].(string); !ok {
+		if m.UplinkBandwidthString, ok = row[3].(string); !ok {
 			return nil, fmt.Errorf("expected string for UplinkBandwidth")
 		}
-		if m.DownlinkBandwidth, ok = row[4].(string); !ok {
+		if m.DownlinkBandwidthString, ok = row[4].(string); !ok {
 			return nil, fmt.Errorf("expected string for DownlinkBandwidth")
 		}
 		if m.Type, ok = row[5].(string); !ok {
@@ -156,6 +157,18 @@ func parseLinkUsageMetrics(data [][]interface{}) ([]LinkUsageMetrics, error) {
 		}
 		if m.ISP, ok = row[8].(string); !ok {
 			return nil, fmt.Errorf("expected string for ISP")
+		}
+
+		// Parse bandwidth strings to numeric values
+		var err error
+		m.UplinkBandwidth, err = strconv.ParseFloat(m.UplinkBandwidthString, 64)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing uplink bandwidth %q: %w", m.UplinkBandwidthString, err)
+		}
+
+		m.DownlinkBandwidth, err = strconv.ParseFloat(m.DownlinkBandwidthString, 64)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing downlink bandwidth %q: %w", m.DownlinkBandwidthString, err)
 		}
 
 		// Floats from index 9–12
