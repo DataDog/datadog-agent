@@ -435,7 +435,7 @@ It does not expose any public methods.
 
 ## [comp/networkpath](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath) (Component Bundle)
 
-*Datadog Team*: Networks
+*Datadog Team*: cloud-network-monitoring
 
 Package networkpath implements the "networkpath" bundle,
 

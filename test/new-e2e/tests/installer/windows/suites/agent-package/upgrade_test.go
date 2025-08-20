@@ -639,6 +639,11 @@ func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version strin
 func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
 	s.T().Helper()
 
+	// service must be running before we can get the PID
+	// might be redundant in some cases but we keep forgetting to ensure it
+	// in others and it keeps causing flakes.
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+
 	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)
 	s.Require().Greater(originalPID, 0)
