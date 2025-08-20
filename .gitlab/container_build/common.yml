@@ -2,13 +2,7 @@
 .static_quality_gate_docker: |
   # Measure Docker image size and generate in-place report
   # This runs after the main script and won't fail the job if there are issues.
-  # Only run if the job status is success.
   # This is common for all Docker image builds
-  if [[ "$CI_JOB_STATUS" != "success" ]]; then
-    echo "ℹ️  Skipping Docker image measurement (job status is not success)"
-    exit 0
-  fi
-
   if [[ -n "$STATIC_QUALITY_GATE_NAME" ]]; then
     echo "📊 Starting Docker image measurement..."
 
