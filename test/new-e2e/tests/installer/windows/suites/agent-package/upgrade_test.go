@@ -534,6 +534,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
 	// Arrange
 	s.setAgentConfig()
 	agentUserInput := "LocalSystem"
+	agentDomainExpected := "NT AUTHORITY"
 	agentUserExpected := "SYSTEM"
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUserInput, "the custom user should be different from the default user")
 	s.installPreviousAgentVersion(
@@ -545,6 +546,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
 		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedDomain", agentDomainExpected).
 		WithValueEqual("installedUser", agentUserExpected).
 		HasAService("datadogagent").
 		WithIdentity(identity)
@@ -560,6 +562,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
 		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedDomain", agentDomainExpected).
 		WithValueEqual("installedUser", agentUserExpected).
 		HasAService("datadogagent").
 		WithIdentity(identity)
