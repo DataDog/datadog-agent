@@ -40,6 +40,26 @@ import (
 
 const (
 
+	// DefaultExperimentalFingerprintingEnabled is a flag to determine whether we want to detect file rotation or truncation using checksum fingerprinting
+	DefaultExperimentalFingerprintingEnabled = false
+
+	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
+	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
+	DefaultFingerprintingMaxBytes = 100000
+
+	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
+	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
+	DefaultLinesOrBytesToSkip = 0
+
+	// DefaultFingerprintingMaxLines is the default maximum number of lines to read before computing the fingerprint.
+	DefaultFingerprintingMaxLines = 1
+
+	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
+	// Options are:
+	// - "line_checksum": compute the fingerprint by lines
+	// - "byte_checksum": compute the fingerprint by bytes
+	DefaultFingerprintStrategy = "line_checksum"
+
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
 
@@ -770,7 +790,28 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
-	config.BindEnvAndSetDefault("clc_runner_remote_tagger_enabled", false)
+
+	// Enabling remote tagger in cluster check runners by default allows
+	// enriching the cluster check runners with tags sourced from the
+	// cluster agent's cluster tagger.
+	//
+	// This was previously disabled because of the overhead this can
+	// cause on large clusters. This is no longer an issue because
+	// the tagger now supports filtering out unwanted tags and the
+	// cluster check runner remote tagger filters out pod tags, making
+	// the overhead relatively insignificant.
+	//
+	// For more details: https://github.com/DataDog/datadog-agent/blob/8af994a91cafecf647197e1638de9ddd98b06575/cmd/agent/common/tagger_params.go#L1-L39
+	//
+	// The benefit of activating this is allowing cluster checks and component
+	// running in the cluster check runner to gain better tagging coverage
+	// on emitted metrics:
+	//
+	//		* KSM check running in CLC runner needs the remote tagger to ensure
+	//		  namespace labels and annotations as tags are applied to emitted KSM
+	//		  metrics in case the check is partitioned to multiple instances, each
+	//		  emitting different resource metrics.
+	config.BindEnvAndSetDefault("clc_runner_remote_tagger_enabled", true)
 
 	// Remote tagger
 	config.BindEnvAndSetDefault("remote_tagger.max_concurrent_sync", 3)
@@ -1270,6 +1311,8 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
+	// Websocket echo test
+	config.BindEnvAndSetDefault("remote_configuration.no_websocket_echo", false)
 }
 
 func autoconfig(config pkgconfigmodel.Setup) {
@@ -1578,6 +1621,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
+	// determines fingerprinting strategy to detect rotation and truncation
+	config.BindEnvAndSetDefault("logs_config.fingerprint_enabled_experimental", DefaultExperimentalFingerprintingEnabled)
+	// default fingerprint configuration
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingMaxLines)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", DefaultLinesOrBytesToSkip)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key")
 
@@ -1752,6 +1802,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
 	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
+
+	// If true, exclude agent processes from process log collection
+	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
 }
 
 func vector(config pkgconfigmodel.Setup) {
