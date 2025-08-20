@@ -93,7 +93,12 @@ func excludedContainerNamesContainerFilter(c *corev1.Container) bool {
 }
 
 // NewConfig creates a new Config from the datadog config. It returns an error if the configuration is invalid.
-func NewConfig(datadogConfig config.Component, rcClient *rcclient.Client) (*Config, error) {
+func NewConfig(datadogConfig config.Component) (*Config, error) {
+	return NewConfigWithRemoteConfigClient(datadogConfig, nil)
+}
+
+// NewConfigWithRemoteConfigClient creates a new Config from the datadog config and a remote config client. It returns an error if the configuration is invalid.
+func NewConfigWithRemoteConfigClient(datadogConfig config.Component, rcClient *rcclient.Client) (*Config, error) {
 	instrumentationConfig, err := NewInstrumentationConfig(datadogConfig)
 	if err != nil {
 		return nil, err

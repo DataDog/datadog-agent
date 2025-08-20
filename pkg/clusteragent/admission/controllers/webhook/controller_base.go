@@ -185,7 +185,7 @@ func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig c
 }
 
 func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, rcClient *rcclient.Client) (*autoinstrumentation.Webhook, error) {
-	config, err := autoinstrumentation.NewConfig(datadogConfig, rcClient)
+	config, err := autoinstrumentation.NewConfigWithRemoteConfigClient(datadogConfig, rcClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}

@@ -47,7 +47,7 @@ func TestNewTargetMutator(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
 			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
-			config, err := NewConfig(mockConfig, nil)
+			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
 			// Create a mock meta.
@@ -170,7 +170,7 @@ func TestMutatePod(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
 			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
-			config, err := NewConfig(mockConfig, nil)
+			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
 			// Create a mock meta.
@@ -275,7 +275,7 @@ func TestShouldMutatePod(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
 			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
-			config, err := NewConfig(mockConfig, nil)
+			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
 			// Create a mock meta.
@@ -361,7 +361,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
 			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
-			config, err := NewConfig(mockConfig, nil)
+			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
 			// Create a mock meta.
@@ -432,7 +432,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
 			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
-			config, err := NewConfig(mockConfig, nil)
+			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
 			// Create a mock meta.
@@ -687,7 +687,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
 			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
-			config, err := NewConfig(mockConfig, nil)
+			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
 			// Create a mock meta.
