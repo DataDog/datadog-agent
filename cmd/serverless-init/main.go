@@ -24,6 +24,8 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -91,6 +93,7 @@ func main() {
 		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "off", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),
+		hostnameimpl.Module(),
 	)
 
 	if err != nil {
@@ -102,8 +105,8 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression)
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostname.Component) error {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
 
@@ -116,7 +119,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	return err
 }
 
-func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostname.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
@@ -148,7 +151,8 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, origin)
+
+	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
