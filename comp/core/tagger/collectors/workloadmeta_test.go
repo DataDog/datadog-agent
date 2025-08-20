@@ -2783,3 +2783,135 @@ func assertTagInfoListEqual(t *testing.T, expectedUpdates []*types.TagInfo, upda
 		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
 	}
 }
+
+func TestHandleProcess(t *testing.T) {
+	const (
+		pid               = "12345"
+		serviceNameFromDD = "my-service"
+		envFromDD         = "production"
+		versionFromDD     = "1.2.3"
+	)
+
+	collector := &WorkloadMetaCollector{}
+
+	tests := []struct {
+		name            string
+		process         *workloadmeta.Process
+		expectedTagInfo *types.TagInfo
+		expectNil       bool
+	}{
+		{
+			name: "process with complete UST service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   string(workloadmeta.SourceServiceDiscovery),
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+			},
+		},
+		{
+			name: "process with partial UST service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     "", // Empty env
+						Version: versionFromDD,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   string(workloadmeta.SourceServiceDiscovery),
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+			},
+		},
+		{
+			name: "process with no service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid:     12345,
+				Service: nil,
+			},
+			expectNil: true,
+		},
+		{
+			name: "process with empty service metadata",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					// All UST fields empty
+					UST: workloadmeta.UST{
+						Service: "",
+						Env:     "",
+						Version: "",
+					},
+				},
+			},
+			expectNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: tt.process,
+			}
+
+			result := collector.handleProcess(event)
+
+			if tt.expectNil {
+				assert.Nil(t, result)
+			} else {
+				require.Len(t, result, 1)
+				assertTagInfoEqual(t, tt.expectedTagInfo, result[0])
+			}
+		})
+	}
+}

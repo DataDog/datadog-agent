@@ -152,7 +152,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
 			case workloadmeta.KindProcess:
-				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
+				tagInfos = append(tagInfos, c.handleProcess(ev)...)
 			case workloadmeta.KindKubernetesDeployment:
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindGPU:
@@ -249,6 +249,45 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		{
 			Source:               containerSource,
 			EntityID:             common.BuildTaggerEntityID(container.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+}
+
+func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {
+	process := ev.Entity.(*workloadmeta.Process)
+
+	// Only create tags if the process has service metadata with UST information
+	if process.Service == nil {
+		return nil
+	}
+
+	tagList := taglist.NewTagList()
+
+	// Add Unified Service Tagging tags if present in the service metadata
+	if process.Service.UST.Service != "" {
+		tagList.AddStandard(tags.Service, process.Service.UST.Service)
+	}
+	if process.Service.UST.Env != "" {
+		tagList.AddStandard(tags.Env, process.Service.UST.Env)
+	}
+	if process.Service.UST.Version != "" {
+		tagList.AddStandard(tags.Version, process.Service.UST.Version)
+	}
+
+	low, orch, high, standard := tagList.Compute()
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	processSource := string(workloadmeta.SourceServiceDiscovery)
+	return []*types.TagInfo{
+		{
+			Source:               processSource,
+			EntityID:             common.BuildTaggerEntityID(process.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,

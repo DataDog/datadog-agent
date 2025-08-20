@@ -513,10 +513,15 @@ func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 			DDService:                nameMeta.DDService,
 			DDServiceInjected:        nameMeta.DDServiceInjected,
 			TracerMetadata:           tracerMetadataArr,
-			Language:                 string(lang),
-			APMInstrumentation:       string(apmInstrumentation),
-			CommandLine:              truncateCmdline(lang, cmdline),
-			StartTimeMilli:           uint64(createTime),
+			UST: model.UST{
+				Service: env.GetDefault("DD_SERVICE", ""),
+				Env:     env.GetDefault("DD_ENV", ""),
+				Version: env.GetDefault("DD_VERSION", ""),
+			},
+			Language:           string(lang),
+			APMInstrumentation: string(apmInstrumentation),
+			CommandLine:        truncateCmdline(lang, cmdline),
+			StartTimeMilli:     uint64(createTime),
 		},
 	}, nil
 }

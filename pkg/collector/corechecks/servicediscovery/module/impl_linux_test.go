@@ -472,6 +472,8 @@ func TestServiceName(t *testing.T) {
 	cmd.Dir = "/tmp/"
 	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
 	cmd.Env = append(cmd.Env, "DD_SERVICE=foo😀bar")
+	cmd.Env = append(cmd.Env, "DD_ENV=my😀dd-env")
+	cmd.Env = append(cmd.Env, "DD_VERSION=my😀dd-version")
 	cmd.Env = append(cmd.Env, "YET_OTHER_ENV=test")
 	err = cmd.Start()
 	require.NoError(t, err)
@@ -487,6 +489,9 @@ func TestServiceName(t *testing.T) {
 
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(collect, "foo_bar", startEvent.DDService)
+		assert.Equal(collect, "foo😀bar", startEvent.UST.Service)
+		assert.Equal(collect, "my😀dd-env", startEvent.UST.Env)
+		assert.Equal(collect, "my😀dd-version", startEvent.UST.Version)
 		assert.Equal(collect, "sleep", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), startEvent.GeneratedNameSource)
 		assert.False(collect, startEvent.DDServiceInjected)

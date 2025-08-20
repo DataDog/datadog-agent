@@ -1459,8 +1459,13 @@ type Service struct {
 	// TracerMetadata contains APM tracer metadata
 	TracerMetadata []tracermetadata.TracerMetadata
 
-	// DDService is the value from DD_SERVICE environment variable
+	// DDService is a service name based on either the DD_SERVICE environment
+	// variable or other framework-specific tracer configuration of service
+	// names
 	DDService string
+
+	// UST contains Unified Service Tagging environment variables
+	UST UST
 
 	// DDServiceInjected indicates if DD_SERVICE was injected
 	DDServiceInjected bool
@@ -1473,6 +1478,13 @@ type Service struct {
 
 	// Type is the service type (e.g., "web_service")
 	Type string
+}
+
+// UST contains Unified Service Tagging environment variables
+type UST struct {
+	Service string
+	Env     string
+	Version string
 }
 
 // Process is an Entity that represents a process
@@ -1548,6 +1560,9 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
 			_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
 			_, _ = fmt.Fprintln(&sb, "Service DD Service Injected:", p.Service.DDServiceInjected)
+			_, _ = fmt.Fprintln(&sb, "Service UST Service:", p.Service.UST.Service)
+			_, _ = fmt.Fprintln(&sb, "Service UST Env:", p.Service.UST.Env)
+			_, _ = fmt.Fprintln(&sb, "Service UST Version:", p.Service.UST.Version)
 			_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
 			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)

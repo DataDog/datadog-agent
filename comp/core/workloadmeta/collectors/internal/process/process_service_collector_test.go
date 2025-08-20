@@ -99,7 +99,12 @@ func makeModelService(pid int32, name string) model.Service {
 				ServiceName:    name + "-service",
 			},
 		},
-		DDService:          "dd-model-" + name,
+		DDService: "dd-model-" + name,
+		UST: model.UST{
+			Service: "dd-model-" + name,
+			Env:     "test-env",
+			Version: "1.2.3",
+		},
 		DDServiceInjected:  false,
 		Ports:              []uint16{3000, 4000},
 		APMInstrumentation: "manual",
@@ -129,7 +134,12 @@ func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
 					ServiceName:    name + "-service",
 				},
 			},
-			DDService:          "dd-model-" + name,
+			DDService: "dd-model-" + name,
+			UST: workloadmeta.UST{
+				Service: "dd-model-" + name,
+				Env:     "test-env",
+				Version: "1.2.3",
+			},
 			DDServiceInjected:  false,
 			Ports:              []uint16{3000, 4000},
 			APMInstrumentation: "manual",
@@ -165,6 +175,7 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 			assert.Equal(collectT, expectedProcess.Service.AdditionalGeneratedNames, entity.Service.AdditionalGeneratedNames)
 			assert.Equal(collectT, expectedProcess.Service.TracerMetadata, entity.Service.TracerMetadata)
 			assert.Equal(collectT, expectedProcess.Service.DDService, entity.Service.DDService)
+			assert.Equal(collectT, expectedProcess.Service.UST, entity.Service.UST)
 			assert.Equal(collectT, expectedProcess.Service.DDServiceInjected, entity.Service.DDServiceInjected)
 			assert.Equal(collectT, expectedProcess.Service.Ports, entity.Service.Ports)
 			assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)

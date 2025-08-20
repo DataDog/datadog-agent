@@ -180,9 +180,14 @@ Creation time: 2023-01-01 12:00:00 +0000 UTC
 					TracerMetadata:           []tracermetadata.TracerMetadata{},
 					DDService:                "java-app",
 					DDServiceInjected:        true,
-					Ports:                    []uint16{8080},
-					APMInstrumentation:       "enabled",
-					Type:                     "web_service",
+					UST: UST{
+						Service: "java-app",
+						Env:     "production",
+						Version: "1.2.3",
+					},
+					Ports:              []uint16{8080},
+					APMInstrumentation: "enabled",
+					Type:               "web_service",
 					LogFiles: []string{
 						"/var/log/app_access.log",
 						"/var/log/app_error.log",
@@ -201,6 +206,9 @@ Service Additional Generated Names: [java app]
 Service Tracer Metadata: []
 Service DD Service: java-app
 Service DD Service Injected: true
+Service UST Service: java-app
+Service UST Env: production
+Service UST Version: 1.2.3
 Service Ports: [8080]
 Service APM Instrumentation: enabled
 Service Type: web_service

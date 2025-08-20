@@ -38,6 +38,14 @@ type Service struct {
 	TxBytes                    uint64                          `json:"tx_bytes"`
 	RxBps                      float64                         `json:"rx_bps"`
 	TxBps                      float64                         `json:"tx_bps"`
+	UST                        UST                             `json:"ust"`
+}
+
+// UST represents the Unified Service Tagging environment variables of a service.
+type UST struct {
+	Service string `json:"service"`
+	Env     string `json:"env"`
+	Version string `json:"version"`
 }
 
 // ServicesResponse is the response for the system-probe /discovery/check endpoint.
