@@ -29,7 +29,8 @@ target:
     DD_PROFILING_WAIT_PROFILE: true
     DD_APM_INTERNAL_PROFILING_ENABLED: true
 
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:quality_gate_idle_with_sp
+    DD_SYSTEM_PROBE_ENABLED: true
 
 checks:
   - name: memory_usage
