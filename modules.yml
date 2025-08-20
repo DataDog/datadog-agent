@@ -291,7 +291,8 @@ modules:
     used_by_otel: true
   pkg/util/filesystem:
     used_by_otel: true
-  pkg/util/flavor: default
+  pkg/util/flavor:
+    used_by_otel: true
   pkg/util/fxutil:
     used_by_otel: true
   pkg/util/grpc:
