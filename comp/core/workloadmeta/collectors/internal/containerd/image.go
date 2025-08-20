@@ -319,7 +319,6 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 			Namespace: namespace,
 		},
 		MediaType: manifest.MediaType,
-		SBOM:      sbom,
 		SizeBytes: totalSizeBytes,
 	}
 	// Do not pull references for new image if agent is starting up,
@@ -365,8 +364,8 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 		}
 	}
 
-	if wlmImage.SBOM == nil {
-		wlmImage.SBOM = &workloadmeta.SBOM{
+	if sbom == nil {
+		sbom = &workloadmeta.SBOM{
 			Status: workloadmeta.Pending,
 		}
 	}
@@ -375,7 +374,7 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 	// not be able to inject them. For example, if we use the scanner from filesystem or
 	// if the `imgMeta` object does not contain all the metadata when it is sent.
 	// We add them here to make sure they are present.
-	wlmImage.SBOM = sbomutil.UpdateSBOMRepoMetadata(wlmImage.SBOM, wlmImage.RepoTags, wlmImage.RepoDigests)
+	wlmImage.SBOM = sbomutil.UpdateSBOMRepoMetadata(sbom, wlmImage.RepoTags, wlmImage.RepoDigests)
 	return &wlmImage, nil
 }
 
