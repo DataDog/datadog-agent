@@ -13,6 +13,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"net"
+	"os"
 	"path/filepath"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -39,10 +41,14 @@ func getCertFilepath(config configModel.Reader) string {
 }
 
 type certificateFactory struct {
+	caCert             *x509.Certificate
+	caPrivKey          any // x509.ParsePKCS8PrivateKey returns as the private key any, and x509.CreateCertificate takes any as the private key argument
+	additionalIPs      []net.IP
+	additionalDNSNames []string
 }
 
-func (certificateFactory) Generate() (Certificate, []byte, error) {
-	cert, err := generateCertKeyPair()
+func (f certificateFactory) Generate() (Certificate, []byte, error) {
+	cert, err := generateCertKeyPair(f.caCert, f.caPrivKey, f.additionalIPs, f.additionalDNSNames)
 	return cert, bytes.Join([][]byte{cert.cert, cert.key}, []byte{}), err
 }
 
@@ -66,16 +72,112 @@ func (certificateFactory) Deserialize(raw []byte) (Certificate, error) {
 }
 
 // FetchIPCCert loads certificate file used to authenticate IPC communicates
-func FetchIPCCert(config configModel.Reader) ([]byte, []byte, error) {
+func FetchIPCCert(config configModel.Reader) (*tls.Config, *tls.Config, *tls.Config, error) {
+	// Read cluster CA configuration and files once
+	caData, err := readClusterCAConfig(config)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error reading cluster CA config: %w", err)
+	}
+
+	// Build cluster client TLS configuration using pre-read CA data
+	clusterClientConfig, err := caData.buildClusterClientTLSConfig()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error building cluster client TLS config: %w", err)
+	}
+
 	cert, err := filesystem.TryFetchArtifact(getCertFilepath(config), &certificateFactory{}) // TODO IPC: replace this call by FetchArtifact to retry until the artifact is successfully retrieved or the context is done
-	return cert.cert, cert.key, err
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error while fetching IPC cert: %w", err)
+	}
+
+	clientConfig, serverConfig, err := GetTLSConfigFromCert(cert.cert, cert.key)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error while setting TLS configs: %w", err)
+	}
+	return clientConfig, serverConfig, clusterClientConfig, nil
 }
 
 // FetchOrCreateIPCCert loads or creates certificate file used to authenticate IPC communicates
 // It takes a context to allow for cancellation or timeout of the operation
-func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) ([]byte, []byte, error) {
-	cert, err := filesystem.FetchOrCreateArtifact(ctx, getCertFilepath(config), &certificateFactory{})
-	return cert.cert, cert.key, err
+func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) (*tls.Config, *tls.Config, *tls.Config, error) {
+	// Read cluster CA configuration and files once
+	caData, err := readClusterCAConfig(config)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error reading cluster CA config: %w", err)
+	}
+
+	// Build cluster client TLS configuration using pre-read CA data
+	clusterClientConfig, err := caData.buildClusterClientTLSConfig()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error building cluster client TLS config: %w", err)
+	}
+
+	// Setup certificate factory with cluster CA and SANs
+	var certificateFactory certificateFactory
+	if err := caData.setupCertificateFactoryWithClusterCA(config, &certificateFactory); err != nil {
+		return nil, nil, nil, fmt.Errorf("error setting up certificate factory with cluster CA: %w", err)
+	}
+
+	cert, err := filesystem.FetchOrCreateArtifact(ctx, getCertFilepath(config), certificateFactory)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error while fetching or creating IPC cert: %w", err)
+	}
+
+	clientConfig, serverConfig, err := GetTLSConfigFromCert(cert.cert, cert.key)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error while setting TLS configs: %w", err)
+	}
+	return clientConfig, serverConfig, clusterClientConfig, err
+}
+
+// ReadClusterCA reads the cluster CA certificate and key from the given path
+func ReadClusterCA(caCertPath, caKeyPath string) (*x509.Certificate, any, error) {
+	var caCert *x509.Certificate
+
+	// Read the cluster CA cert and key
+	caCertPEM, err := os.ReadFile(caCertPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to read cluster CA cert file: %w", err)
+	}
+	caKeyPEM, err := os.ReadFile(caKeyPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to read cluster CA key file: %w", err)
+	}
+
+	// Parse the cluster CA cert
+	block, _ := pem.Decode(caCertPEM)
+	if block == nil {
+		return nil, nil, fmt.Errorf("unable to decode cluster CA cert PEM")
+	}
+	caCert, err = x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to parse cluster CA cert file: %w", err)
+	}
+
+	// Parse the cluster CA key
+	block, _ = pem.Decode(caKeyPEM)
+	if block == nil {
+		return nil, nil, fmt.Errorf("unable to decode cluster CA key PEM")
+	}
+
+	var caPrivKey any
+
+	switch block.Type {
+	case "PRIVATE KEY":
+		caPrivKey, err = x509.ParsePKCS8PrivateKey(block.Bytes)
+	case "EC PRIVATE KEY":
+		caPrivKey, err = x509.ParseECPrivateKey(block.Bytes)
+	case "RSA PRIVATE KEY":
+		caPrivKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+	default:
+		return nil, nil, fmt.Errorf("unsupported cluster CA key type: %s", block.Type)
+	}
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to parse cluster CA key file: %w", err)
+	}
+
+	return caCert, caPrivKey, nil
 }
 
 // GetTLSConfigFromCert returns the TLS configs for the client and server using the provided IPC certificate and key.
@@ -84,7 +186,7 @@ func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) ([]byt
 func GetTLSConfigFromCert(ipccert, ipckey []byte) (*tls.Config, *tls.Config, error) {
 	certPool := x509.NewCertPool()
 	if ok := certPool.AppendCertsFromPEM(ipccert); !ok {
-		return nil, nil, fmt.Errorf("Unable to generate certPool from PERM IPC cert")
+		return nil, nil, fmt.Errorf("Unable to generate certPool from PEM IPC cert")
 	}
 	tlsCert, err := tls.X509KeyPair(ipccert, ipckey)
 	if err != nil {
