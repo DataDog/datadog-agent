@@ -21,12 +21,11 @@ import (
 
 type processState struct {
 	procRuntimeID
-	executable         actuator.Executable
-	symbolicator       symbol.Symbolicator
-	symbolicatorFile   io.Closer
-	symbolicatorErr    error
-	gitInfo            procmon.GitInfo
-	symdbUploadStarted bool
+	executable       actuator.Executable
+	symbolicator     symbol.Symbolicator
+	symbolicatorFile io.Closer
+	symbolicatorErr  error
+	gitInfo          procmon.GitInfo
 }
 
 type processStore struct {
@@ -144,17 +143,4 @@ func (ps *processStore) getRuntimeID(procID actuator.ProcessID) (procRuntimeID, 
 		return procRuntimeID{}, false
 	}
 	return p.procRuntimeID, true
-}
-
-func (ps *processStore) markSymdbUploadStarted(pid actuator.ProcessID) bool {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-
-	proc, ok := ps.processes[pid]
-	if !ok || proc.symdbUploadStarted {
-		return false // Process gone or already started
-	}
-
-	proc.symdbUploadStarted = true
-	return true
 }

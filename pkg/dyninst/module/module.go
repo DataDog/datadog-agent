@@ -168,5 +168,6 @@ func (m *Module) Close() {
 		if err := m.actuator.Shutdown(); err != nil {
 			log.Errorf("error shutting down actuator: %v", err)
 		}
+		m.controller.symdb.stop()
 	})
 }

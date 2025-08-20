@@ -110,7 +110,7 @@ func NewSymDBUploader(
 }
 
 // Upload uploads a batch of packages to SymDB.
-func (s *SymDBUploader) Upload(packages []Scope) error {
+func (s *SymDBUploader) Upload(ctx context.Context, packages []Scope) error {
 	// Wrap the data in an envelope expected by the debugger backend.
 	var buf bytes.Buffer
 	buf.WriteString(`{
@@ -127,14 +127,14 @@ func (s *SymDBUploader) Upload(packages []Scope) error {
 	buf.Write(jsonBytes)
 	buf.WriteString("}")
 
-	if err := s.uploadInner(buf.Bytes()); err != nil {
+	if err := s.uploadInner(ctx, buf.Bytes()); err != nil {
 		return fmt.Errorf("failed to send individual SymDB: %w", err)
 	}
 
 	return nil
 }
 
-func (s *SymDBUploader) uploadInner(symdbData []byte) error {
+func (s *SymDBUploader) uploadInner(ctx context.Context, symdbData []byte) error {
 	// The upload is a multipart containing metadata expected by the event platform
 	// and the gzipped SymDB data.
 
@@ -181,7 +181,7 @@ func (s *SymDBUploader) uploadInner(symdbData []byte) error {
 		return fmt.Errorf("failed to close multipart writer: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, s.url, &buf)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url, &buf)
 	if err != nil {
 		return fmt.Errorf("failed to build request: %w", err)
 	}

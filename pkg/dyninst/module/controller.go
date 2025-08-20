@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type procRuntimeID struct {
@@ -67,7 +68,7 @@ func NewController[AT ActuatorTenant, LU LogsUploader](
 		rcScraper:      rcScraper,
 		store:          store,
 		diagnostics:    newDiagnosticsManager(diagUploader),
-		symdb:          newSymdbManager(symdbUploaderURL, store),
+		symdb:          newSymdbManager(symdbUploaderURL),
 		decoderFactory: decoderFactory,
 	}
 	c.actuator = a.NewTenant(
@@ -128,7 +129,13 @@ func (c *Controller) checkForUpdates() {
 		}
 
 		if update.ShouldUploadSymDB {
-			c.symdb.requestUpload(runtimeID, update.Executable)
+			if err := c.symdb.queueUpload(runtimeID, update.Executable.Path); err != nil {
+				log.Warnf("Failed to queue SymDB upload for process %v: %v", runtimeID.ProcessID, err)
+			}
+		} else {
+			// Stop an upload for the respective process, if there was one
+			// queued.
+			c.symdb.removeUpload(runtimeID)
 		}
 	}
 	if len(actuatorUpdates) > 0 {
