@@ -38,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -210,6 +212,12 @@ func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 		if leaderEngine, err := leaderelection.GetLeaderEngine(); err == nil {
 			dca.metadata["is_leader"] = leaderEngine.IsLeader()
 		}
+	}
+
+	// Add cluster check runner and node agent counts
+	if clcRunnerCount, nodeAgentCount, err := clusterchecks.GetNodeTypeCounts(); err == nil {
+		dca.metadata["cluster_check_runner_count"] = clcRunnerCount
+		dca.metadata["cluster_check_node_agent_count"] = nodeAgentCount
 	}
 
 	//Sending dca configuration can be disabled using `inventories_configuration_enabled`.
