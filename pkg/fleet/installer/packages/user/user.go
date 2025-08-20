@@ -84,7 +84,7 @@ func ensureUserInGroup(ctx context.Context, userName string, groupName string) e
 		// User is already in the group, nothing to do
 		return nil
 	}
-	err := exec.CommandContext(ctx, "usermod", "-g", groupName, userName).Run()
+	err = exec.CommandContext(ctx, "usermod", "-g", groupName, userName).Run()
 	if err != nil {
 		return fmt.Errorf("error adding %s user to %s group: %w", userName, groupName, err)
 	}
