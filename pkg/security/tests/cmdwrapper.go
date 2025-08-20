@@ -365,9 +365,8 @@ func newSystemdCmdWrapper(serviceName string, reloadCmd string) (*systemdCmdWrap
 		state := strings.TrimSpace(string(output))
 		if state == "running" || state == "degraded" {
 			return &systemdCmdWrapper{serviceName: serviceName, reloadCmd: reloadCmd}, nil
-		} else {
-			return nil, fmt.Errorf("systemd is not running: %s", state)
 		}
+		return nil, fmt.Errorf("systemd is not running: %s", state)
 	}
 
 	return &systemdCmdWrapper{serviceName: serviceName, reloadCmd: reloadCmd}, nil
