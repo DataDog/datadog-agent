@@ -153,7 +153,7 @@ func getClusterChecksMetadata(fb flaretypes.FlareBuilder, client ipc.HTTPClient)
 
 	r, err := client.Get(targetURL.String(), ipchttp.WithCloseConnection)
 	if err != nil {
-		if r != nil && string(r) != "" {
+		if len(r) > 0 {
 			// If cluster checks metadata return an error, create a file indicating this
 			return fb.AddFile("cluster-checks-metadata.json", []byte(fmt.Sprintf(`{"error": "cluster checks metadata unavailable: %s"}`, string(r))))
 		}

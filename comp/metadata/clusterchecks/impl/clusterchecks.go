@@ -32,6 +32,16 @@ import (
 
 type metadata map[string]interface{}
 
+// State constants for cluster checks handler
+const (
+	// StateLeader indicates the cluster agent is the leader (NotRunning is empty)
+	StateLeader = ""
+	// StateFollower indicates the cluster agent is a follower
+	StateFollower = "currently follower"
+	// StateNotReady indicates the cluster checks handler is not ready (startup in progress)
+	StateNotReady = "Startup in progress"
+)
+
 // Payload handles the JSON unmarshalling of the cluster checks metadata payload
 type Payload struct {
 	// Cluster identification (required)
@@ -99,6 +109,7 @@ func NewComponent(deps Requires) Provides {
 	clusterName := clustername.GetClusterName(context.TODO(), "")
 	clusterID, err := clustername.GetClusterID()
 	if err != nil {
+		deps.Log.Debugf("Error retrieving cluster ID: %v", err)
 		clusterID = "" // Handle error gracefully like clusteragent
 	}
 
@@ -217,10 +228,7 @@ func (cc *clusterChecksImpl) SetClusterHandler(handler interface{}) {
 }
 
 // isLeader checks if the cluster agent is the leader using GetState.
-// The handler's GetState() returns:
-// - NotRunning == "" when state is leader
-// - NotRunning == "currently follower" when state is follower
-// - NotRunning == "Startup in progress" when state is unknown
+// Returns true only when the cluster agent is the leader (NotRunning == StateLeader).
 // Assumes the caller already holds a read lock on cc.m
 func (cc *clusterChecksImpl) isLeader(handler *pkgclusterchecks.Handler) bool {
 	state, err := handler.GetState()
@@ -228,8 +236,8 @@ func (cc *clusterChecksImpl) isLeader(handler *pkgclusterchecks.Handler) bool {
 		return false
 	}
 
-	// NotRunning is empty only when the handler is in leader state
-	return state.NotRunning == ""
+	// Check if we're the leader (NotRunning is empty)
+	return state.NotRunning == StateLeader
 }
 
 // collectClusterCheckMetadata populates the payload with cluster check metadata
@@ -249,7 +257,7 @@ func (cc *clusterChecksImpl) collectClusterCheckMetadata(payload *Payload) {
 	// Add status information to payload
 	// dangling_count: how many checks are not assigned to any node
 	payload.ClusterCheckStatus["dangling_count"] = len(state.Dangling)
-	//node_count: how many nodes are available for check distribution
+	// node_count: how many nodes are available for check distribution
 	payload.ClusterCheckStatus["node_count"] = len(state.Nodes)
 
 	// Process configs from all nodes
