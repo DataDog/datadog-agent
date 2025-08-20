@@ -29,6 +29,7 @@ type translatorConfig struct {
 	InitialCumulMonoValueMode            InitialCumulMonoValueMode
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
+	InferDeltaInterval                   bool
 
 	originProduct OriginProduct
 
@@ -229,6 +230,15 @@ const (
 func WithInitialCumulMonoValueMode(mode InitialCumulMonoValueMode) TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.InitialCumulMonoValueMode = mode
+		return nil
+	}
+}
+
+// WithInferDeltaInterval infers the interval for delta sums.
+// By default the interval is set to 0.
+func WithInferDeltaInterval() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.InferDeltaInterval = true
 		return nil
 	}
 }
