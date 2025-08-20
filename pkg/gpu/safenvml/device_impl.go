@@ -156,6 +156,14 @@ func (d *safeDeviceImpl) GetMemoryInfo() (nvml.Memory, error) {
 	return memInfo, NewNvmlAPIErrorOrNil("GetMemoryInfo", ret)
 }
 
+func (d *safeDeviceImpl) GetMemoryInfo_v2() (nvml.Memory_v2, error) {
+	if err := d.lib.lookup(toNativeName("GetMemoryInfo_v2")); err != nil {
+		return nvml.Memory_v2{}, err
+	}
+	memInfo, ret := d.nvmlDevice.GetMemoryInfo_v2()
+	return memInfo, NewNvmlAPIErrorOrNil("GetMemoryInfo_v2", ret)
+}
+
 // GetMigDeviceHandleByIndex returns the MIG device handle at the given index
 func (d *safeDeviceImpl) GetMigDeviceHandleByIndex(index int) (SafeDevice, error) {
 	if err := d.lib.lookup(toNativeName("GetMigDeviceHandleByIndex")); err != nil {
