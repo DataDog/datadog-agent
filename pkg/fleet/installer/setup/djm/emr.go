@@ -7,7 +7,6 @@
 package djm
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -147,7 +146,7 @@ func setupResourceManager(s *common.Setup, clusterName string) {
 	var yarnIntegration config.IntegrationConfig
 	hostname, err := os.Hostname()
 	if err != nil {
-		slog.InfoContext(context.TODO(), "Failed to get hostname, defaulting to localhost", "error", err)
+		slog.InfoContext(s.Ctx, "Failed to get hostname, defaulting to localhost", "error", err)
 		hostname = "localhost"
 	}
 	sparkIntegration.Instances = []any{
@@ -175,17 +174,17 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	defer func() { span.Finish(err) }()
 	emrResponseRaw, err := common.ExecuteCommandWithTimeout(s, "aws", "emr", "describe-cluster", "--cluster-id", jobFlowID)
 	if err != nil {
-		slog.WarnContext(context.TODO(), "error describing emr cluster, using cluster id as name", "error", err)
+		slog.WarnContext(s.Ctx, "error describing emr cluster, using cluster id as name", "error", err)
 		return jobFlowID
 	}
 	var response emrResponse
 	if err = json.Unmarshal(emrResponseRaw, &response); err != nil {
-		slog.WarnContext(context.TODO(), "error unmarshalling AWS EMR response, using cluster id as name", "error", err)
+		slog.WarnContext(s.Ctx, "error unmarshalling AWS EMR response, using cluster id as name", "error", err)
 		return jobFlowID
 	}
 	clusterName := response.Cluster.Name
 	if clusterName == "" {
-		slog.WarnContext(context.TODO(), "clusterName is empty, using cluster id as name")
+		slog.WarnContext(s.Ctx, "clusterName is empty, using cluster id as name")
 		return jobFlowID
 	}
 	return clusterName

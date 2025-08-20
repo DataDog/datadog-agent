@@ -25,8 +25,8 @@ import (
 // This is purposeful as the archive is extracted only after its SHA256 hash has been validated
 // against its reference in the package catalog. This catalog is itself sent over Remote Config
 // which guarantees its integrity.
-func Extract(reader io.Reader, destinationPath string, maxSize int64) error {
-	slog.DebugContext(context.TODO(), "Extracting archive", "destination", destinationPath)
+func Extract(ctx context.Context, reader io.Reader, destinationPath string, maxSize int64) error {
+	slog.DebugContext(ctx, "Extracting archive", "destination", destinationPath)
 	tr := tar.NewReader(io.LimitReader(reader, maxSize))
 	for {
 		header, err := tr.Next()
@@ -67,11 +67,11 @@ func Extract(reader io.Reader, destinationPath string, maxSize int64) error {
 		case tar.TypeLink:
 			// we currently don't support hard links in the installer
 		default:
-			slog.WarnContext(context.TODO(), "Unsupported tar entry type", "type", header.Typeflag, "name", header.Name)
+			slog.WarnContext(ctx, "Unsupported tar entry type", "type", header.Typeflag, "name", header.Name)
 		}
 	}
 
-	slog.DebugContext(context.TODO(), "Successfully extracted archive", "destination", destinationPath)
+	slog.DebugContext(ctx, "Successfully extracted archive", "destination", destinationPath)
 	return nil
 }
 

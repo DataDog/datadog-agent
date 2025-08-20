@@ -150,7 +150,7 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	}, nil
 }
 
-func getKeychain(auth string, username string, password string) authn.Keychain {
+func getKeychain(ctx context.Context, auth string, username string, password string) authn.Keychain {
 	switch auth {
 	case RegistryAuthGCR:
 		return google.Keychain
@@ -162,7 +162,7 @@ func getKeychain(auth string, username string, password string) authn.Keychain {
 	case RegistryAuthDefault, "":
 		return authn.DefaultKeychain
 	default:
-		slog.WarnContext(context.TODO(), "unsupported registry authentication method, defaulting to docker", "auth_method", auth)
+		slog.WarnContext(ctx, "unsupported registry authentication method, defaulting to docker", "auth_method", auth)
 		return authn.DefaultKeychain
 	}
 }
@@ -173,8 +173,8 @@ type urlWithKeychain struct {
 }
 
 // getRefAndKeychains returns the references and their keychains to try in order to download an OCI at the given URL
-func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
-	mainRefAndKeyChain := getRefAndKeychain(mainEnv, url)
+func getRefAndKeychains(ctx context.Context, mainEnv *env.Env, url string) []urlWithKeychain {
+	mainRefAndKeyChain := getRefAndKeychain(ctx, mainEnv, url)
 	refAndKeychains := []urlWithKeychain{mainRefAndKeyChain}
 	if mainRefAndKeyChain.ref != url || mainRefAndKeyChain.keychain != authn.DefaultKeychain {
 		// Override: we don't need to try the default registries
@@ -186,7 +186,7 @@ func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
 		defaultRegistries = defaultRegistriesStaging
 	}
 	for _, additionalDefaultRegistry := range defaultRegistries {
-		refAndKeychain := getRefAndKeychain(&env.Env{RegistryOverride: additionalDefaultRegistry}, url)
+		refAndKeychain := getRefAndKeychain(ctx, &env.Env{RegistryOverride: additionalDefaultRegistry}, url)
 		// Deduplicate
 		found := false
 		for _, rk := range refAndKeychains {
@@ -205,7 +205,7 @@ func getRefAndKeychains(mainEnv *env.Env, url string) []urlWithKeychain {
 
 // getRefAndKeychain returns the reference and keychain for the given URL.
 // This function applies potential registry and authentication overrides set either globally or per image.
-func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
+func getRefAndKeychain(ctx context.Context, env *env.Env, url string) urlWithKeychain {
 	imageWithIdentifier := url[strings.LastIndex(url, "/")+1:]
 	registryOverride := env.RegistryOverride
 	for image, override := range env.RegistryOverrideByImage {
@@ -222,10 +222,10 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		}
 		ref = registryOverride + imageWithIdentifier
 	}
-	keychain := getKeychain(env.RegistryAuthOverride, env.RegistryUsername, env.RegistryPassword)
+	keychain := getKeychain(ctx, env.RegistryAuthOverride, env.RegistryUsername, env.RegistryPassword)
 	for image, override := range env.RegistryAuthOverrideByImage {
 		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
-			keychain = getKeychain(override, env.RegistryUsername, env.RegistryPassword)
+			keychain = getKeychain(ctx, override, env.RegistryUsername, env.RegistryPassword)
 			break
 		}
 	}
@@ -248,7 +248,7 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 		}
 	}
 	var multiErr error
-	for _, refAndKeychain := range getRefAndKeychains(d.env, url) {
+	for _, refAndKeychain := range getRefAndKeychains(ctx, d.env, url) {
 		slog.DebugContext(ctx, "Downloading index", "ref", refAndKeychain.ref)
 		ref, err := name.ParseReference(refAndKeychain.ref)
 		if err != nil {
@@ -339,7 +339,7 @@ func (d *DownloadedPackage) ExtractLayers(ctx context.Context, mediaType types.M
 
 					switch layerMediaType {
 					case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType:
-						err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+						err = tar.Extract(ctx, uncompressedLayer, dir, layerMaxSize)
 					case DatadogPackageInstallerLayerMediaType:
 						err = writeBinary(uncompressedLayer, dir)
 					default:

@@ -256,9 +256,9 @@ func secureCreateDirectory(path string, sddl string) error {
 //
 // CreateInstallerDataDir sets the owner to Administrators and is called during bootstrap.
 // Unprivileged users (users without SeTakeOwnershipPrivilege/SeRestorePrivilege) cannot set the owner to Administrators.
-func IsInstallerDataDirSecure() error {
+func IsInstallerDataDirSecure(ctx context.Context) error {
 	targetDir := DatadogInstallerData
-	slog.InfoContext(context.TODO(), "Checking if installer data directory is secure", "directory", targetDir)
+	slog.InfoContext(ctx, "Checking if installer data directory is secure", "directory", targetDir)
 	return IsDirSecure(targetDir)
 }
 
@@ -485,13 +485,13 @@ func getProgramDataDirForProduct(product string) (path string, err error) {
 		registry.ALL_ACCESS)
 	if err != nil {
 		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
-		slog.DebugContext(context.TODO(), "Windows installation key root not found, using default program data dir", "keyname", keyname)
+		slog.Debug("Windows installation key root not found, using default program data dir", "keyname", keyname)
 		return filepath.Join(res, "Datadog"), nil
 	}
 	defer k.Close()
 	val, _, err := k.GetStringValue("ConfigRoot")
 	if err != nil {
-		slog.WarnContext(context.TODO(), "Windows installation key config not found, using default program data dir")
+		slog.Warn("Windows installation key config not found, using default program data dir")
 		return filepath.Join(res, "Datadog"), nil
 	}
 	path = val

@@ -196,7 +196,7 @@ func TestGetRefAndKeychain(t *testing.T) {
 			RegistryAuthOverride:        tt.registryAuthOverride,
 			RegistryAuthOverrideByImage: tt.regAuthOverrideByImage,
 		}
-		actual := getRefAndKeychain(env, tt.url)
+		actual := getRefAndKeychain(context.Background(), env, tt.url)
 		assert.Equal(t, tt.expectedRef, actual.ref)
 		assert.Equal(t, tt.expectedKeychain, actual.keychain)
 	}
@@ -323,7 +323,7 @@ func TestGetRefAndKeychains(t *testing.T) {
 			if tt.isProd {
 				env.Site = "datadoghq.com"
 			}
-			actual := getRefAndKeychains(env, tt.url)
+			actual := getRefAndKeychains(context.Background(), env, tt.url)
 			assert.Len(t, actual, len(tt.expectedRefAndKeychains))
 			for i, a := range actual {
 				assert.Equal(t, tt.expectedRefAndKeychains[i].ref, a.ref)

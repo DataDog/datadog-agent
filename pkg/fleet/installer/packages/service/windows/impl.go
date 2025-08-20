@@ -46,7 +46,7 @@ func NewWinServiceManagerWithAPI(api systemAPI) *WinServiceManager {
 //
 // The terminate policy can be configured by setting the registry key to the desired value:
 // `HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\TerminatePolicy`
-func getTerminatePolicy() bool {
+func getTerminatePolicy(ctx context.Context) bool {
 	defaultTerminatePolicy := true
 
 	// open the registry key
@@ -56,13 +56,13 @@ func getTerminatePolicy() bool {
 		registry.ALL_ACCESS)
 	if err != nil {
 		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
-		slog.DebugContext(context.TODO(), "Windows installation key root not found, using default")
+		slog.DebugContext(ctx, "Windows installation key root not found, using default")
 		return defaultTerminatePolicy
 	}
 	defer k.Close()
 	val, _, err := k.GetIntegerValue("TerminatePolicy")
 	if err != nil {
-		slog.WarnContext(context.TODO(), "Windows installation key TerminatePolicy not found, using default")
+		slog.WarnContext(ctx, "Windows installation key TerminatePolicy not found, using default")
 		return defaultTerminatePolicy
 	}
 	return val == 1
@@ -75,9 +75,9 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 	defer func() { span.Finish(err) }()
 	span.SetTag("service_name", serviceName)
 
-	terminatePolicy := getTerminatePolicy()
+	terminatePolicy := getTerminatePolicy(ctx)
 	if !terminatePolicy {
-		slog.DebugContext(context.TODO(), "TerminatePolicy is false, skipping termination of service", "serviceName", serviceName)
+		slog.DebugContext(ctx, "TerminatePolicy is false, skipping termination of service", "serviceName", serviceName)
 		return fmt.Errorf("TerminatePolicy is false, skipping termination of service %s", serviceName)
 	}
 

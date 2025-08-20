@@ -22,7 +22,6 @@ import (
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"log/slog"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -65,7 +64,7 @@ const (
 // postInstallDatadogAgent runs post install scripts for a given package.
 func postInstallDatadogAgent(ctx HookContext) error {
 	// must get env before uninstalling the Agent since it may read from the registry
-	env := getenv()
+	env := getenv(ctx)
 
 	// remove the installer if it is installed
 	// if nothing is installed this will return without an error
@@ -107,8 +106,8 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 // Performing the checks in the "pre" hook allows us to return an error before the
 // experiment state is created, which allows us to skip stop_experiment which would
 // otherwise unecessarily try to uninstall and then reinstall the stable Agent.
-func preStartExperimentDatadogAgent(_ HookContext) error {
-	env := getenv()
+func preStartExperimentDatadogAgent(ctx HookContext) error {
+	env := getenv(ctx)
 	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
 	if err != nil {
 		return fmt.Errorf("cannot start remote update: %w", err)
@@ -124,7 +123,7 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	// this allows for running multiple experiments in sequence
 	_ = setWatchdogStopEvent()
 
-	return launchPackageCommandInBackground(ctx.Context, getenv(), "postStartExperimentBackground")
+	return launchPackageCommandInBackground(ctx.Context, getenv(ctx), "postStartExperimentBackground")
 }
 
 // postStartExperimentDatadogAgentBackground uninstalls the Agent, installs the experiment,
@@ -150,7 +149,7 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 //     "stop experiment" from the backend.
 func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	// must get env before uninstalling the Agent since it may read from the registry
-	env := getenv()
+	env := getenv(ctx)
 
 	// remove the Agent if it is installed
 	// if nothing is installed this will return without an error
@@ -184,7 +183,7 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 
 	// now we start our watchdog to make sure the Agent is running
 	// and we can restore the stable Agent if it stops.
-	err = startWatchdog(ctx, time.Now().Add(getWatchdogTimeout()))
+	err = startWatchdog(ctx, time.Now().Add(getWatchdogTimeout(ctx)))
 	if err != nil {
 		slog.ErrorContext(ctx, "Watchdog failed", "error", err)
 		// we failed to start the watchdog, the Agent stopped, or we received a timeout
@@ -207,7 +206,7 @@ func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
 	// this will just stop a watchdog that is running
 	_ = setWatchdogStopEvent()
 
-	return launchPackageCommandInBackground(ctx.Context, getenv(), "postStopExperimentBackground")
+	return launchPackageCommandInBackground(ctx, getenv(ctx), "postStopExperimentBackground")
 }
 
 // postStopExperimentDatadogAgentBackground uninstalls the Agent and then reinstalls the stable Agent,
@@ -218,7 +217,7 @@ func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
 //     to avoid locking the executable
 func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 	// must get env before uninstalling the Agent since it may read from the registry
-	env := getenv()
+	env := getenv(ctx)
 
 	// remove the Agent
 	err = removeAgentIfInstalledAndRestartOnFailure(ctx)
@@ -242,7 +241,7 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 }
 
 // postPromoteExperimentDatadogAgent runs post promote scripts for a given package.
-func postPromoteExperimentDatadogAgent(_ HookContext) error {
+func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	err := setWatchdogStopEvent()
 	if err != nil {
 		// if we can't set the event it means the watchdog has failed
@@ -495,7 +494,7 @@ func setWatchdogStopEvent() error {
 //
 // The timeout can be configured by setting the registry key to the desired timeout in minutes:
 // `HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout`
-func getWatchdogTimeout() time.Duration {
+func getWatchdogTimeout(ctx context.Context) time.Duration {
 	defaultTimeout := 60 * time.Minute
 
 	// open the registry key
@@ -505,13 +504,13 @@ func getWatchdogTimeout() time.Duration {
 		registry.ALL_ACCESS)
 	if err != nil {
 		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
-		slog.DebugContext(context.TODO(), "Windows installation key root not found, using default")
+		slog.DebugContext(ctx, "Windows installation key root not found, using default")
 		return defaultTimeout
 	}
 	defer k.Close()
 	val, _, err := k.GetIntegerValue("WatchdogTimeout")
 	if err != nil {
-		slog.WarnContext(context.TODO(), "Windows installation key watchdogTimeout not found, using default")
+		slog.WarnContext(ctx, "Windows installation key watchdogTimeout not found, using default")
 		return defaultTimeout
 	}
 	return time.Duration(val) * time.Minute
@@ -529,7 +528,7 @@ func getWatchdogTimeout() time.Duration {
 // This accomplishes the following:
 //   - ensures setup carries over settings from previous installs (i.e. before remote updates)
 //   - ensures subcommands provide the correct options even if the MSI removes the registry keys (like during rollback)
-func getenv() *env.Env {
+func getenv(ctx context.Context) *env.Env {
 	env := env.FromEnv()
 
 	// This function prefers values from the environment, with a fallback if not set, for values:
@@ -649,7 +648,7 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 
-	return launchPackageCommandInBackground(ctx.Context, getenv(), "postStartConfigExperimentBackground")
+	return launchPackageCommandInBackground(ctx.Context, getenv(ctx.Context), "postStartConfigExperimentBackground")
 }
 
 // postStartConfigExperimentDatadogAgentBackground restarts the Agent services and then
@@ -682,7 +681,7 @@ func postStartConfigExperimentDatadogAgentBackground(ctx context.Context) error 
 	}
 
 	// Start watchdog to monitor the agent service
-	timeout := getWatchdogTimeout()
+	timeout := getWatchdogTimeout(ctx)
 	err = startWatchdog(ctx, time.Now().Add(timeout))
 	if err != nil {
 		slog.ErrorContext(ctx, "Config watchdog failed", "error", err)
@@ -707,7 +706,7 @@ func postStartConfigExperimentDatadogAgentBackground(ctx context.Context) error 
 // The updated repository state will cause the stable daemon to skip the stop-experiment
 // operation received from the backend, which avoids restarting the services again.
 func restoreStableConfigFromExperiment(ctx context.Context) error {
-	env := getenv()
+	env := getenv(ctx)
 	installer, err := newInstallerExec(env)
 	if err != nil {
 		return fmt.Errorf("failed to create installer exec: %w", err)
@@ -735,7 +734,7 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 
-	return launchPackageCommandInBackground(ctx.Context, getenv(), "preStopConfigExperimentBackground")
+	return launchPackageCommandInBackground(ctx.Context, getenv(ctx.Context), "preStopConfigExperimentBackground")
 }
 
 // preStopConfigExperimentDatadogAgentBackground restarts the Agent services.
@@ -766,7 +765,7 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 
-	return launchPackageCommandInBackground(ctx.Context, getenv(), "postPromoteConfigExperimentBackground")
+	return launchPackageCommandInBackground(ctx.Context, getenv(ctx.Context), "postPromoteConfigExperimentBackground")
 }
 
 // postPromoteConfigExperimentDatadogAgentBackground restarts the Agent services.

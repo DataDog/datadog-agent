@@ -528,7 +528,7 @@ func (i *installerImpl) InstallConfigExperiment(
 		)
 	}
 
-	err = i.writeConfig(tmpDir, rawConfigs)
+	err = i.writeConfig(ctx, tmpDir, rawConfigs)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -710,7 +710,7 @@ func (i *installerImpl) GarbageCollect(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not cleanup configs: %w", err)
 	}
-	err = cleanupTmpDirectory(paths.RootTmpDir)
+	err = cleanupTmpDirectory(ctx, paths.RootTmpDir)
 	if err != nil {
 		return fmt.Errorf("could not cleanup tmp directory: %w", err)
 	}
@@ -863,7 +863,7 @@ type configFile struct {
 	Contents json.RawMessage `json:"contents"`
 }
 
-func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error {
+func (i *installerImpl) writeConfig(ctx context.Context, dir string, rawConfigActions [][]byte) error {
 	for _, rawConfigAction := range rawConfigActions {
 		var configAction experimentConfigAction
 		err := json.Unmarshal(rawConfigAction, &configAction)
@@ -896,7 +896,7 @@ func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error
 				err = os.Remove(filepath.Join(dir, file.Path))
 				if err != nil {
 					if os.IsNotExist(err) {
-						slog.WarnContext(context.TODO(), "config file does not exist, skipping", "path", file.Path)
+						slog.WarnContext(ctx, "config file does not exist, skipping", "path", file.Path)
 						continue
 					}
 					return fmt.Errorf("could not remove config file: %w", err)
@@ -1029,7 +1029,7 @@ func ensureRepositoriesExist() error {
 }
 
 // cleanupTmpDirectory removes files and directories in RootTmpDir that are older than 24 hours
-func cleanupTmpDirectory(rootTmpDir string) error {
+func cleanupTmpDirectory(ctx context.Context, rootTmpDir string) error {
 	// Check if RootTmpDir exists
 	if _, err := os.Stat(rootTmpDir); os.IsNotExist(err) {
 		// Directory doesn't exist, nothing to clean up
@@ -1052,20 +1052,20 @@ func cleanupTmpDirectory(rootTmpDir string) error {
 		// Get file info to check modification time
 		info, err := entry.Info()
 		if err != nil {
-			slog.WarnContext(context.TODO(), "Could not get info for entry", "path", entryPath, "error", err)
+			slog.WarnContext(ctx, "Could not get info for entry", "path", entryPath, "error", err)
 			continue
 		}
 
 		// Check if the file/directory is older than 24 hours
 		if info.ModTime().Before(cutoffTime) {
-			slog.DebugContext(context.TODO(), "Removing old tmp file/directory", "path", entryPath, "modified", info.ModTime())
+			slog.DebugContext(ctx, "Removing old tmp file/directory", "path", entryPath, "modified", info.ModTime())
 
 			err := os.RemoveAll(entryPath)
 			if err != nil {
 				cleanupErrors = append(cleanupErrors, fmt.Sprintf("failed to remove %s: %v", entryPath, err))
-				slog.WarnContext(context.TODO(), "Could not remove old tmp file/directory", "path", entryPath, "error", err)
+				slog.WarnContext(ctx, "Could not remove old tmp file/directory", "path", entryPath, "error", err)
 			} else {
-				slog.DebugContext(context.TODO(), "Successfully removed old tmp file/directory", "path", entryPath)
+				slog.DebugContext(ctx, "Successfully removed old tmp file/directory", "path", entryPath)
 			}
 		}
 	}

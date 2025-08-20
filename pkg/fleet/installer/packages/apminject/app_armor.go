@@ -16,9 +16,10 @@ import (
 	"os/exec"
 	"strings"
 
+	"log/slog"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"log/slog"
 )
 
 const (
@@ -162,7 +163,7 @@ func reloadAppArmor(ctx context.Context) error {
 	if !isAppArmorRunning() {
 		return nil
 	}
-	if running, err := systemd.IsRunning(); err != nil {
+	if running, err := systemd.IsRunning(ctx); err != nil {
 		return err
 	} else if running {
 		return tracedCommand(ctx, "systemctl", "reload", "apparmor")

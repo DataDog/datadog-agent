@@ -7,7 +7,6 @@
 package djm
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -275,7 +274,7 @@ func setupDatabricksDriver(s *common.Setup) {
 			},
 		}
 	} else {
-		slog.WarnContext(context.TODO(), "DB_DRIVER_IP not set")
+		slog.WarnContext(s.Ctx, "DB_DRIVER_IP not set")
 	}
 	s.Config.IntegrationConfigs["spark.d/databricks.yaml"] = sparkIntegration
 }
@@ -344,7 +343,7 @@ func loadLogProcessingRules(s *common.Setup) {
 	if rawRules := os.Getenv("DD_LOGS_CONFIG_PROCESSING_RULES"); rawRules != "" {
 		processingRules, err := parseLogProcessingRules(rawRules)
 		if err != nil {
-			slog.WarnContext(context.TODO(), "Failed to parse log processing rules", "error", err)
+			slog.WarnContext(s.Ctx, "Failed to parse log processing rules", "error", err)
 			s.Out.WriteString(fmt.Sprintf("Invalid log processing rules: %v\n", err))
 		} else {
 			logsConfig := config.LogsConfig{ProcessingRules: processingRules}

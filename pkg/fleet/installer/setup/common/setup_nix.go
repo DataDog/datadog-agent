@@ -18,22 +18,22 @@ import (
 )
 
 func (s *Setup) postInstallPackages() (err error) {
-	s.addAgentToAdditionalGroups()
+	s.addAgentToAdditionalGroups(s.Ctx)
 
 	return nil
 }
 
-func (s *Setup) addAgentToAdditionalGroups() {
+func (s *Setup) addAgentToAdditionalGroups(ctx context.Context) {
 	for _, group := range s.DdAgentAdditionalGroups {
 		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
 		if _, err := user.LookupGroup(group); err != nil {
-			slog.InfoContext(context.TODO(), "Skipping group as it does not exist", "group", group)
+			slog.InfoContext(ctx, "Skipping group as it does not exist", "group", group)
 			continue
 		}
 		_, err := ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
 		if err != nil {
 			s.Out.WriteString("Failed to add dd-agent to group" + group + ": " + err.Error())
-			slog.WarnContext(context.TODO(), "failed to add dd-agent to group", "group", group, "error", err)
+			slog.WarnContext(ctx, "failed to add dd-agent to group", "group", group, "error", err)
 		}
 	}
 }
