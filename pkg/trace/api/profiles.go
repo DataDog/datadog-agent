@@ -128,12 +128,7 @@ func isRetryableBodyReadError(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-
-	// Don't retry EOF or other stream-related errors
-	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-		return false
-	}
-
+	// Default to false, this covers EOF and other stream-related errors
 	return false
 }
 
@@ -177,63 +172,67 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 	ptransport := newProfilingTransport(transport)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
-		Director:  director,
-		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
-		Transport: &multiTransport{ptransport, targets, keys},
-		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			// Extract useful context for logging
-			var payloadSize int64
-			if r.ContentLength > 0 {
-				payloadSize = r.ContentLength
-			} else if r.Body != nil {
-				// For chunked uploads, ContentLength is 0 but there might still be a body
-				// Try to get a size estimate, but don't consume the body as it may have already been read
-				payloadSize = -1 // Indicate chunked/unknown size
-			}
+		Director:     director,
+		ErrorLog:     stdlog.New(logger, "profiling.Proxy: ", 0),
+		Transport:    &multiTransport{ptransport, targets, keys},
+		ErrorHandler: handleProxyError,
+	}
+}
 
-			var timeoutSetting time.Duration
-			if deadline, ok := r.Context().Deadline(); ok {
-				timeoutSetting = time.Until(deadline)
-			}
+// handleProxyError handles errors from the profiling reverse proxy with appropriate
+// HTTP status codes and comprehensive logging.
+func handleProxyError(w http.ResponseWriter, r *http.Request, err error) {
+	// Extract useful context for logging
+	var payloadSize int64
+	if r.ContentLength > 0 {
+		payloadSize = r.ContentLength
+	} else if r.Body != nil {
+		// For chunked uploads, ContentLength is 0 but there might still be a body
+		// Try to get a size estimate, but don't consume the body as it may have already been read
+		payloadSize = -1 // Indicate chunked/unknown size
+	}
 
-			// Determine appropriate HTTP status code based on error type
-			var statusCode int
-			var errorType string
+	var timeoutSetting time.Duration
+	if deadline, ok := r.Context().Deadline(); ok {
+		timeoutSetting = time.Until(deadline)
+	}
 
-			if errors.Is(err, context.DeadlineExceeded) {
-				// Context deadline exceeded during request processing
-				// This typically means the client was too slow uploading the request body
-				statusCode = http.StatusRequestTimeout // 408 (client timeout)
-				errorType = "request timeout"
-			} else if isRetryableBodyReadError(err) {
-				// Check if this is specifically a timeout error
-				var netErr net.Error
-				if errors.As(err, &netErr) && netErr.Timeout() {
-					statusCode = http.StatusRequestTimeout // 408 (client timeout)
-					errorType = "body read timeout"
-				} else {
-					statusCode = http.StatusServiceUnavailable // 503 (other retryable errors)
-					errorType = "retryable body read error"
-				}
-			} else { // default case
-				statusCode = http.StatusBadGateway // 502 (default)
-				errorType = "transport error"
-			}
+	// Determine appropriate HTTP status code based on error type
+	var statusCode int
+	var errorType string
 
-			// Single comprehensive log with all context
-			if payloadSize == -1 {
-				log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=chunked timeout_remaining=%v error=%v",
-					errorType, statusCode, r.Method, r.URL.Path, timeoutSetting, err)
-			} else {
-				log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=%d timeout_remaining=%v error=%v",
-					errorType, statusCode, r.Method, r.URL.Path, payloadSize, timeoutSetting, err)
-			}
+	if errors.Is(err, context.DeadlineExceeded) {
+		// Context deadline exceeded during request processing
+		// This typically means the client was too slow uploading the request body
+		statusCode = http.StatusRequestTimeout // 408 (client timeout)
+		errorType = "request timeout"
+	} else if isRetryableBodyReadError(err) {
+		// Check if this is specifically a timeout error
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			statusCode = http.StatusRequestTimeout // 408 (client timeout)
+			errorType = "body read timeout"
+		} else {
+			statusCode = http.StatusServiceUnavailable // 503 (other retryable errors)
+			errorType = "retryable body read error"
+		}
+	} else { // default case
+		statusCode = http.StatusBadGateway // 502 (default)
+		errorType = "transport error"
+	}
 
-			w.WriteHeader(statusCode)
-			if _, writeErr := w.Write([]byte(err.Error())); writeErr != nil {
-				log.Debugf("Failed to write error response body: %v", writeErr)
-			}
-		},
+	// Single comprehensive log with all context
+	if payloadSize == -1 {
+		log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=chunked timeout_remaining=%v error=%v",
+			errorType, statusCode, r.Method, r.URL.Path, timeoutSetting, err)
+	} else {
+		log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=%d timeout_remaining=%v error=%v",
+			errorType, statusCode, r.Method, r.URL.Path, payloadSize, timeoutSetting, err)
+	}
+
+	w.WriteHeader(statusCode)
+	if _, writeErr := w.Write([]byte(err.Error())); writeErr != nil {
+		log.Debugf("Failed to write error response body: %v", writeErr)
 	}
 }
 
@@ -303,14 +302,13 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 // profilingTransport wraps an *http.Transport to improve connection hygiene after
 // response body copy errors by flushing idle connections and forcing the next
 // outbound request to close instead of reusing a possibly bad connection.
-
 type profilingTransport struct {
-	base           *http.Transport
+	*http.Transport
 	forceCloseNext atomic.Bool
 }
 
-func newProfilingTransport(base *http.Transport) *profilingTransport {
-	return &profilingTransport{base: base}
+func newProfilingTransport(transport *http.Transport) *profilingTransport {
+	return &profilingTransport{Transport: transport}
 }
 
 func (p *profilingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -323,7 +321,7 @@ func (p *profilingTransport) RoundTrip(req *http.Request) (*http.Response, error
 		p.forceCloseNext.Store(false)
 	}
 
-	resp, err := p.base.RoundTrip(req)
+	resp, err := p.Transport.RoundTrip(req)
 	if err != nil || resp == nil || resp.Body == nil {
 		return resp, err
 	}
@@ -334,7 +332,7 @@ func (p *profilingTransport) RoundTrip(req *http.Request) (*http.Response, error
 		ReadCloser: origBody,
 		onReadError: func(rerr error) {
 			if rerr != nil && rerr != io.EOF {
-				p.base.CloseIdleConnections()
+				p.CloseIdleConnections()
 				p.forceCloseNext.Store(true)
 				log.Warnf("profiling proxy: upstream body read error detected, flushed idle conns and will force close on next request: %v", rerr)
 			}
