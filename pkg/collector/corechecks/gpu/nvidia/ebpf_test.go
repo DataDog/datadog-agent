@@ -153,7 +153,7 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	assert.Equal(t, float64(50), coreUsage.Value)
 	assert.Equal(t, []string{"pid:123"}, coreUsage.Tags)
 
-	memoryUsage := findMetric(metrics, "memory.usage")
+	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(1024), memoryUsage.Value)
 	assert.Equal(t, []string{"pid:123"}, memoryUsage.Tags)
@@ -262,7 +262,7 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	assert.Equal(t, float64(0), coreUsage.Value)
 	assert.Equal(t, []string{"pid:123"}, coreUsage.Tags)
 
-	memoryUsage := findMetric(metrics, "memory.usage")
+	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(0), memoryUsage.Value)
 	assert.Equal(t, []string{"pid:123"}, memoryUsage.Tags)
