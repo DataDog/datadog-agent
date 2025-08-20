@@ -8,14 +8,24 @@ package agonsticapi
 /*
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <dlfcn.h>
-#include "executor.h"
+#include "loader.h"
 
-extern void close_library(void *handle)
+extern void close_library(void *handle, const char **error)
 {
-	dlclose(handle);
-}
+	// Load the shared library
+	if (!handle) {
+		*error = strdup("Error loading library");
+		return;
+	}
 
+	int result = dlclose(handle);
+	if (result > 0) {
+	 	*error = strdup("Error closing the library");
+		return;
+	}
+}
 
 extern Result* run_check(void *handle, const char **error)
 {
@@ -55,7 +65,7 @@ extern void free_result(void *handle, Result *result, const char **error)
 	// Load the shared library
 	if (!handle) {
 		*error = strdup("Error loading library");
-		return NULL;
+		return;
 	}
 
 	// Clear any previous dlerror
@@ -72,7 +82,7 @@ extern void free_result(void *handle, Result *result, const char **error)
 		char *formatted_error = malloc(len);
 		snprintf(formatted_error, len, "Error loading symbol 'FreeResult': %s", dl_error);
 		*error = formatted_error;
-		return NULL;
+		return;
 	}
 
 
@@ -83,6 +93,7 @@ extern void free_result(void *handle, Result *result, const char **error)
 import "C"
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -91,16 +102,19 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 type Metric struct {
 	Type  string   `json:"type"`
 	Name  string   `json:"name"`
-	Value uint64   `json:"value"`
+	Value float64  `json:"value"`
 	Tags  []string `json:"tags"`
 }
 
@@ -110,14 +124,16 @@ type Payload struct {
 
 type agnosticCheck struct {
 	sendermanager sender.SenderManager
+	tagger        tagger.Component
 	name          string
 	libHandle     unsafe.Pointer
 	id            checkid.ID
 }
 
-func NewCheck(sendermanager sender.SenderManager, name string, lib unsafe.Pointer) (check.Check, error) {
+func NewCheck(sendermanager sender.SenderManager, tagger tagger.Component, name string, lib unsafe.Pointer) (check.Check, error) {
 	return &agnosticCheck{
 		sendermanager: sendermanager,
+		tagger:        tagger,
 		name:          name,
 		libHandle:     lib,
 	}, nil
@@ -132,7 +148,6 @@ func (c *agnosticCheck) Run() error {
 		errorString := C.GoString(cErr)
 		defer C.free(unsafe.Pointer(cErr))
 
-		// error message should not be too verbose, to keep the logs clean
 		errMsg := fmt.Sprintf("failed to execute `run`  function on library %s: err %s", c.name, errorString)
 		return errors.New(errMsg)
 	}
@@ -142,15 +157,13 @@ func (c *agnosticCheck) Run() error {
 	}
 
 	// Extract the JSON string from the Result using the len attribute
-	jsonString := C.GoStringN(unsafe.Pointer(result.message), result.len)
+	jsonString := C.GoStringN(result.Char, result.Len)
 
-	// Parse the JSON into our struct
 	var payload Payload
 	if err := json.Unmarshal([]byte(jsonString), &payload); err != nil {
 		return fmt.Errorf("failed to unmarshal JSON from library %s: %v", c.name, err)
 	}
 
-	// Free the result from the shared library
 	C.free_result(c.libHandle, result, &cErr)
 	if cErr != nil {
 		errorString := C.GoString(cErr)
@@ -159,10 +172,43 @@ func (c *agnosticCheck) Run() error {
 		fmt.Printf("Warning: failed to free result from library %s: %s\n", c.name, errorString)
 	}
 
-	// TODO: Process the metrics in the payload (send to aggregator, etc.)
 	fmt.Printf("Received %d metrics from library %s\n", len(payload.Metrics), c.name)
 	for _, metric := range payload.Metrics {
-		fmt.Printf("Metric: %s = %d (type: %s, tags: %v)\n", metric.Name, metric.Value, metric.Type, metric.Tags)
+		fmt.Printf("Metric: %s = %f (type: %s, tags: %v)\n", metric.Name, metric.Value, metric.Type, metric.Tags)
+		sender, err := c.sendermanager.GetSender(c.id)
+		if err != nil {
+			return fmt.Errorf("failed to get sender manager for shared library check %s: %v", c.name, err)
+		}
+
+		name := metric.Name
+		value := metric.Value
+		hostn, _ := hostname.Get(context.TODO())
+		tags := metric.Tags
+
+		// We need to figure out what tags we need to fetch from the Agent
+		extraTags, err := c.tagger.GlobalTags(types.LowCardinality)
+		if err != nil {
+			fmt.Printf("failed to get global tags: %s\n", err.Error())
+		} else {
+			tags = append(tags, extraTags...)
+		}
+
+		switch metric.Type {
+		case "gauge":
+			sender.Gauge(name, value, hostn, tags)
+		case "rate":
+			sender.Rate(name, value, hostn, tags)
+		case "count":
+			sender.Count(name, value, hostn, tags)
+		case "monotonic_count":
+			sender.MonotonicCountWithFlushFirstValue(name, value, hostn, tags, false)
+		case "counter":
+			sender.Counter(name, value, hostn, tags)
+		case "histogram":
+			sender.Histogram(name, value, hostn, tags)
+		case "historate":
+			sender.Historate(name, value, hostn, tags)
+		}
 	}
 
 	return nil
@@ -171,6 +217,16 @@ func (c *agnosticCheck) Run() error {
 func (c *agnosticCheck) Stop() {}
 
 func (c *agnosticCheck) Cancel() {
+	var cErr *C.char
+
+	C.close_library(c.libHandle, &cErr)
+
+	if cErr != nil {
+		errorString := C.GoString(cErr)
+		defer C.free(unsafe.Pointer(cErr))
+
+		fmt.Printf("Warning: failed to cancel the shared library check %s: %s\n", c.name, errorString)
+	}
 }
 
 func (c *agnosticCheck) String() string {

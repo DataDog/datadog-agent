@@ -8,8 +8,9 @@ package agonsticapi
 /*
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <dlfcn.h>
-#include "executor.h"
+#include "loader.h"
 
 extern void* open_library(char *library, const char **error)
 {
@@ -27,7 +28,6 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -38,16 +38,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-var sharedlibraryOnce sync.Once
-
 const loaderName string = "agnosticapi"
 
 type agonsticAPILoader struct {
+	tagger tagger.Component
 }
 
 // NewSharedLibraryCheckLoader creates a loader for Shared Library checks
-func NewAgonsticAPILoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component) (check.Loader, error) {
-	return &agonsticAPILoader{}, nil
+func NewAgonsticAPILoader(_ sender.SenderManager, _ option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
+	return &agonsticAPILoader{
+		tagger: tagger,
+	}, nil
 }
 
 // Name returns Shared Library loader name
@@ -63,8 +64,7 @@ func (sl *agonsticAPILoader) String() string {
 func (sl *agonsticAPILoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var cErr *C.char
 
-	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	name := "libdatadog-agent-" + config.Name
+	name := "lib" + config.Name + ".dylib"
 
 	cName := C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
@@ -79,15 +79,12 @@ func (sl *agonsticAPILoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	// Create the check
-	c, err := NewCheck(senderManager, config.Name, libHandles)
+	c, err := NewCheck(senderManager, sl.tagger, config.Name, libHandles)
 	if err != nil {
 		return c, err
 	}
 
-	// Set the check ID
-	configDigest := config.FastDigest()
-
-	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(senderManager, config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
 		return c, err
 	}
 

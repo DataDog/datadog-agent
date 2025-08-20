@@ -8,7 +8,7 @@ use sysinfo::{Disks, System};
 pub struct Metric {
     r#type: String,
     name: String,
-    value: u64,
+    value: f64,
     tags: Vec<String>,
 }
 
@@ -35,11 +35,9 @@ pub extern "C" fn Run() -> *mut Result {
 
     for disk in &disks {
         if let Some(name) = disk.name().to_str() {
-            if name.contains("sda") {
-                value = disk.total_space(); // in bytes
-                tags.push(format!("device:{}", name));
-                break;
-            }
+            value = disk.total_space(); // in bytes
+            tags.push(format!("device:{}", name));
+            break;
         }
     }
 
