@@ -45,6 +45,7 @@ func (m sketchMap) insertInterp(ts int64, ck ckey.ContextKey, lower float64, upp
 		return false
 	}
 
+	// Use the error to indicate whether the insertion happened.
 	err := m.getOrCreate(ts, ck).InsertInterpolate(lower, upper, count)
 	return err == nil
 }

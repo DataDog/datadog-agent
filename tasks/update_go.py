@@ -80,7 +80,7 @@ def update_go(
 
     if image_tag:
         try:
-            update_gitlab_config(".gitlab-ci.yml", image_tag, test=test)
+            update_gitlab_config(".gitlab-ci.yml", image_tag, test=test, windows=True)
         except RuntimeError as e:
             if warn:
                 print(color_message(f"WARNING: {str(e)}", "orange"))

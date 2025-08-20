@@ -30,13 +30,13 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total collector memory usage."
     bounds:
       series: total_pss_bytes
-      upper_bound: 1.1 GiB
+      upper_bound: 1100 MiB
 
   - name: cpu_usage
     description: "CPU usage quality gate. This puts a bound on the total average collector millicore usage."
     bounds:
       series: avg(total_cpu_usage_millicores)
-      upper_bound: 4000
+      upper_bound: 3500
 
   - name: intake_connections
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."

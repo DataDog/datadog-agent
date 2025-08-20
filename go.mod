@@ -474,7 +474,7 @@ require (
 	github.com/kraken-hpc/go-fork v0.1.1
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/safchain/ethtool v0.5.10
-	github.com/shirou/gopsutil/v4 v4.25.6
+	github.com/shirou/gopsutil/v4 v4.25.8-0.20250809033336-ffcdc2b7662f
 	go.opentelemetry.io/collector/component/componenttest v0.131.0
 	modernc.org/sqlite v1.36.2 // indirect
 )
@@ -619,6 +619,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.12
+	github.com/DataDog/datadog-agent/pkg/logs/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.67.0
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
@@ -722,6 +723,8 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.131.0 // indirect
@@ -1142,6 +1145,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ./pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ./pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ./pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ./pkg/network/payload
