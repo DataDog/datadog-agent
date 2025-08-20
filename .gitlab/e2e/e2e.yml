@@ -87,9 +87,6 @@
   after_script:
     - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV token) || exit $?; export CODECOV_TOKEN
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
-    - curl -Os https://uploader.codecov.io/v0.6.1/linux/codecov
-    - mv codecov /usr/local/bin/codecov
-    - chmod +x /usr/local/bin/codecov
     - |
       if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
         dda inv -- -e coverage.process-e2e-coverage-folders $E2E_COVERAGE_OUT_DIR
