@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.24.5
+go 1.24.0
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -474,7 +474,7 @@ require (
 	github.com/kraken-hpc/go-fork v0.1.1
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/safchain/ethtool v0.5.10
-	github.com/shirou/gopsutil/v4 v4.25.6
+	github.com/shirou/gopsutil/v4 v4.25.8-0.20250809033336-ffcdc2b7662f
 	go.opentelemetry.io/collector/component/componenttest v0.131.0
 	modernc.org/sqlite v1.36.2 // indirect
 )
@@ -722,6 +722,8 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.131.0 // indirect

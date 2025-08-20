@@ -21,7 +21,7 @@ exporters:
       site: datadoghq.com
     headers: {}
     host_metadata:
-      enabled: false
+      enabled: true
       hostname_source: config_or_system
       reporter_period: 30m0s
       tags: []
