@@ -17,7 +17,7 @@ import (
 // init adds the shared library loader to the scheduler
 func init() {
 	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, int, error) {
-		loader, err := NewAgonsticAPILoader(senderManager, logReceiver, tagger)
+		loader, err := newLoader(senderManager, logReceiver, tagger)
 		priority := 40
 		return loader, priority, err
 	}

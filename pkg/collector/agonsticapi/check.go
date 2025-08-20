@@ -27,7 +27,7 @@ extern void close_library(void *handle, const char **error)
 	}
 }
 
-extern Result* run_check(void *handle, const char **error)
+extern Result* run_agnostic_check(void *handle, const char **error)
 {
 	// Load the shared library
 	if (!handle) {
@@ -111,15 +111,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-type Metric struct {
+type metric struct {
 	Type  string   `json:"type"`
 	Name  string   `json:"name"`
 	Value float64  `json:"value"`
 	Tags  []string `json:"tags"`
 }
 
-type Payload struct {
-	Metrics []Metric `json:"metrics"`
+type payload struct {
+	Metrics []metric `json:"metrics"`
 }
 
 type agnosticCheck struct {
@@ -130,7 +130,7 @@ type agnosticCheck struct {
 	id            checkid.ID
 }
 
-func NewCheck(sendermanager sender.SenderManager, tagger tagger.Component, name string, lib unsafe.Pointer) (check.Check, error) {
+func newCheck(sendermanager sender.SenderManager, tagger tagger.Component, name string, lib unsafe.Pointer) (check.Check, error) {
 	return &agnosticCheck{
 		sendermanager: sendermanager,
 		tagger:        tagger,
@@ -142,7 +142,7 @@ func NewCheck(sendermanager sender.SenderManager, tagger tagger.Component, name 
 func (c *agnosticCheck) Run() error {
 	var cErr *C.char
 
-	result := C.run_check(c.libHandle, &cErr)
+	result := C.run_agnostic_check(c.libHandle, &cErr)
 
 	if cErr != nil {
 		errorString := C.GoString(cErr)
@@ -153,13 +153,13 @@ func (c *agnosticCheck) Run() error {
 	}
 
 	if result == nil {
-		return errors.New(fmt.Sprintf("library %s execution did not return any result", c.name))
+		return fmt.Errorf("library %s execution did not returned any result", c.name)
 	}
 
 	// Extract the JSON string from the Result using the len attribute
 	jsonString := C.GoStringN(result.Char, result.Len)
 
-	var payload Payload
+	var payload payload
 	if err := json.Unmarshal([]byte(jsonString), &payload); err != nil {
 		return fmt.Errorf("failed to unmarshal JSON from library %s: %v", c.name, err)
 	}
@@ -261,7 +261,7 @@ func (c *agnosticCheck) GetWarnings() []error {
 	return []error{}
 }
 
-func (c *agnosticCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *agnosticCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, _source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 

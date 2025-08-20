@@ -44,8 +44,7 @@ type agonsticAPILoader struct {
 	tagger tagger.Component
 }
 
-// NewSharedLibraryCheckLoader creates a loader for Shared Library checks
-func NewAgonsticAPILoader(_ sender.SenderManager, _ option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
+func newLoader(_ sender.SenderManager, _ option.Option[integrations.Component], tagger tagger.Component) (check.Loader, error) {
 	return &agonsticAPILoader{
 		tagger: tagger,
 	}, nil
@@ -78,8 +77,7 @@ func (sl *agonsticAPILoader) Load(senderManager sender.SenderManager, config int
 		return nil, errors.New(errMsg)
 	}
 
-	// Create the check
-	c, err := NewCheck(senderManager, sl.tagger, config.Name, libHandles)
+	c, err := newCheck(senderManager, sl.tagger, config.Name, libHandles)
 	if err != nil {
 		return c, err
 	}
