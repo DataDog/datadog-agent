@@ -90,7 +90,7 @@ func (ddr *datadogRUMReceiver) Start(ctx context.Context, host component.Host) e
 
 	ddr.address = hln.Addr().String()
 
-	_, ddr.cancel := context.WithCancel(ctx)
+	_, ddr.cancel = context.WithCancel(ctx)
 
 	go func() {
 		if err := ddr.server.Serve(hln); err != nil && !errors.Is(err, http.ErrServerClosed) {

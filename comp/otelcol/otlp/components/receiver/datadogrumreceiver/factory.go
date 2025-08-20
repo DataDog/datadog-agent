@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
@@ -34,9 +33,7 @@ func NewFactoryForAgent() receiver.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		ServerConfig: confighttp.ServerConfig{
-			Endpoint: "localhost:12722",
-		},
+		Endpoint:    "localhost:12722",
 		ReadTimeout: 60 * time.Second,
 	}
 }

@@ -14,9 +14,8 @@ import (
 // Config defines configuration for the Datadog RUM receiver
 type Config struct {
 	confighttp.ServerConfig `mapstructure:",squash"`
+	// Endpoint is the URL where the RUM receiver will listen for events
+	Endpoint string `mapstructure:"endpoint"`
 	// ReadTimeout of the http server
 	ReadTimeout time.Duration `mapstructure:"read_timeout"`
-
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
