@@ -5,7 +5,7 @@ go 1.23.0
 require github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.67.1
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.150 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.162 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.67.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.67.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.67.1 // indirect
