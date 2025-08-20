@@ -40,6 +40,26 @@ import (
 
 const (
 
+	// DefaultExperimentalFingerprintingEnabled is a flag to determine whether we want to detect file rotation or truncation using checksum fingerprinting
+	DefaultExperimentalFingerprintingEnabled = false
+
+	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
+	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
+	DefaultFingerprintingMaxBytes = 100000
+
+	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
+	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
+	DefaultLinesOrBytesToSkip = 0
+
+	// DefaultFingerprintingMaxLines is the default maximum number of lines to read before computing the fingerprint.
+	DefaultFingerprintingMaxLines = 1
+
+	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
+	// Options are:
+	// - "line_checksum": compute the fingerprint by lines
+	// - "byte_checksum": compute the fingerprint by bytes
+	DefaultFingerprintStrategy = "line_checksum"
+
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
 
@@ -1601,6 +1621,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
+	// determines fingerprinting strategy to detect rotation and truncation
+	config.BindEnvAndSetDefault("logs_config.fingerprint_enabled_experimental", DefaultExperimentalFingerprintingEnabled)
+	// default fingerprint configuration
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingMaxLines)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", DefaultLinesOrBytesToSkip)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key")
 
