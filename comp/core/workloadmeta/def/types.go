@@ -1348,6 +1348,15 @@ type SBOM struct {
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 }
 
+// CompressedSBOM represents a compressed version of the Software Bill Of Materials (SBOM) of a container
+type CompressedSBOM struct {
+	Bom                []byte
+	GenerationTime     time.Time
+	GenerationDuration time.Duration
+	Status             SBOMStatus
+	Error              string
+}
+
 // GetID implements Entity#GetID.
 func (i ContainerImageMetadata) GetID() EntityID {
 	return i.EntityID
