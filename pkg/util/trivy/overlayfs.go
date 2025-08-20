@@ -122,5 +122,5 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftyp
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	return c.buildReport(trivyReport, imgMeta.ID), nil
+	return c.buildReport(trivyReport, imgMeta.ID)
 }

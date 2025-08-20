@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -542,6 +542,13 @@ func (e ECSContainer) String(verbose bool) string {
 	return sb.String()
 }
 
+// ContainerProbe represents a health check probe for a Container
+type ContainerProbe struct {
+	// This is only used by KSM, so it only includes the fields used by KSM. We
+	// can add the rest later as needed.
+	InitialDelaySeconds int32
+}
+
 // Container is an Entity representing a containerized workload.
 type Container struct {
 	EntityID
@@ -563,6 +570,7 @@ type Container struct {
 	CollectorTags   []string
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
+	ReadinessProbe  *ContainerProbe
 	Resources       ContainerResources
 
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
@@ -727,6 +735,21 @@ type KubernetesPod struct {
 	NamespaceAnnotations       map[string]string
 	FinishedAt                 time.Time
 	SecurityContext            *PodSecurityContext
+
+	// The following fields are only needed for the KSM check when configured to
+	// emit pod metrics from the node agent. That means only the node agent
+	// needs them, so for now they're not added to the protobufs.
+	CreationTimestamp     time.Time
+	StartTime             *time.Time
+	NodeName              string
+	HostIP                string
+	HostNetwork           bool
+	InitContainerStatuses []KubernetesContainerStatus
+	ContainerStatuses     []KubernetesContainerStatus
+	Conditions            []KubernetesPodCondition
+	Volumes               []KubernetesPodVolume
+	Tolerations           []KubernetesPodToleration
+	Reason                string
 }
 
 // GetID implements Entity#GetID.
@@ -801,8 +824,66 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
 		_, _ = fmt.Fprintln(&sb, "Namespace Annotations:", mapToString(p.NamespaceAnnotations))
+
 		if !p.FinishedAt.IsZero() {
 			_, _ = fmt.Fprintln(&sb, "Finished At:", p.FinishedAt)
+		}
+
+		if !p.CreationTimestamp.IsZero() {
+			_, _ = fmt.Fprintln(&sb, "Creation Timestamp:", p.CreationTimestamp)
+		}
+
+		if p.StartTime != nil {
+			_, _ = fmt.Fprintln(&sb, "Start Time:", *p.StartTime)
+		}
+
+		if p.NodeName != "" {
+			_, _ = fmt.Fprintln(&sb, "Node Name:", p.NodeName)
+		}
+
+		if p.HostIP != "" {
+			_, _ = fmt.Fprintln(&sb, "Host IP:", p.HostIP)
+		}
+
+		_, _ = fmt.Fprintln(&sb, "Host Network:", p.HostNetwork)
+
+		if len(p.InitContainerStatuses) > 0 {
+			_, _ = fmt.Fprintln(&sb, "----------- Init Container Statuses -----------")
+			for _, cs := range p.InitContainerStatuses {
+				_, _ = fmt.Fprint(&sb, cs.String(verbose))
+			}
+		}
+
+		if len(p.ContainerStatuses) > 0 {
+			_, _ = fmt.Fprintln(&sb, "----------- Container Statuses -----------")
+			for _, cs := range p.ContainerStatuses {
+				_, _ = fmt.Fprint(&sb, cs.String(verbose))
+			}
+		}
+
+		if len(p.Conditions) > 0 {
+			_, _ = fmt.Fprintln(&sb, "----------- Conditions -----------")
+			for _, c := range p.Conditions {
+				_, _ = fmt.Fprintln(&sb, c.String(verbose))
+			}
+		}
+
+		if len(p.Volumes) > 0 {
+			_, _ = fmt.Fprintln(&sb, "----------- Volumes -----------")
+			for _, v := range p.Volumes {
+				_, _ = fmt.Fprint(&sb, v.String(verbose))
+			}
+		}
+
+		if len(p.Tolerations) > 0 {
+			_, _ = fmt.Fprintln(&sb, "----------- Tolerations -----------")
+			for _, t := range p.Tolerations {
+				_, _ = fmt.Fprint(&sb, t.String(verbose))
+			}
+		}
+
+		if p.Reason != "" {
+			_, _ = fmt.Fprintln(&sb, "Reason:", p.Reason)
 		}
 	}
 
@@ -825,9 +906,10 @@ var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
 type KubernetesPodOwner struct {
-	Kind string
-	Name string
-	ID   string
+	Kind       string
+	Name       string
+	ID         string
+	Controller *bool
 }
 
 // String returns a string representation of KubernetesPodOwner.
@@ -840,6 +922,154 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+// KubernetesPodVolume represents a volume in a Kubernetes pod.
+type KubernetesPodVolume struct {
+	Name                  string
+	PersistentVolumeClaim *KubernetesPersistentVolumeClaim
+	Ephemeral             *KubernetesEphemeralVolume
+}
+
+// String returns a string representation of KubernetesPodVolume.
+func (v KubernetesPodVolume) String(_ bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Name:", v.Name)
+
+	if v.PersistentVolumeClaim != nil {
+		_, _ = fmt.Fprintln(&sb, "PVC ClaimName:", v.PersistentVolumeClaim.ClaimName)
+		_, _ = fmt.Fprintln(&sb, "PVC ReadOnly:", v.PersistentVolumeClaim.ReadOnly)
+	}
+
+	if v.Ephemeral != nil {
+		_, _ = fmt.Fprintln(&sb, "Ephemeral Volume UID:", v.Ephemeral.UID)
+		_, _ = fmt.Fprintln(&sb, "Ephemeral Volume Name:", v.Ephemeral.Name)
+		_, _ = fmt.Fprintln(&sb, "Ephemeral Volume Annotations:", v.Ephemeral.Annotations)
+		_, _ = fmt.Fprintln(&sb, "Ephemeral Volume Labels:", v.Ephemeral.Labels)
+	}
+
+	return sb.String()
+}
+
+// KubernetesPersistentVolumeClaim represents a PVC volume source.
+type KubernetesPersistentVolumeClaim struct {
+	ClaimName string
+	ReadOnly  bool
+}
+
+// KubernetesEphemeralVolume represents an ephemeral volume source.
+type KubernetesEphemeralVolume struct {
+	Name        string
+	UID         string
+	Annotations map[string]string
+	Labels      map[string]string
+}
+
+// KubernetesPodToleration represents a toleration in a Kubernetes pod.
+type KubernetesPodToleration struct {
+	Key               string
+	Operator          string
+	Value             string
+	Effect            string
+	TolerationSeconds *int64
+}
+
+// String returns a string representation of KubernetesPodToleration.
+func (t KubernetesPodToleration) String(_ bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Key:", t.Key)
+	_, _ = fmt.Fprintln(&sb, "Operator:", t.Operator)
+	_, _ = fmt.Fprintln(&sb, "Value:", t.Value)
+	_, _ = fmt.Fprintln(&sb, "Effect:", t.Effect)
+
+	if t.TolerationSeconds != nil {
+		_, _ = fmt.Fprintln(&sb, "TolerationSeconds:", *t.TolerationSeconds)
+	}
+
+	return sb.String()
+}
+
+// KubernetesPodCondition represents a condition in a Kubernetes pod status.
+type KubernetesPodCondition struct {
+	Type   string
+	Status string
+}
+
+// String returns a string representation of KubernetesPodCondition.
+func (c KubernetesPodCondition) String(_ bool) string {
+	return fmt.Sprintf("Type: %s, Status: %s", c.Type, c.Status)
+}
+
+// KubernetesContainerStatus represents the status of a container in a Kubernetes pod.
+type KubernetesContainerStatus struct {
+	ContainerID          string
+	Name                 string
+	Image                string
+	ImageID              string
+	Ready                bool
+	RestartCount         int32
+	State                KubernetesContainerState
+	LastTerminationState KubernetesContainerState
+}
+
+// String returns a string representation of KubernetesContainerStatus.
+func (cs KubernetesContainerStatus) String(_ bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "ContainerID:", cs.ContainerID)
+	_, _ = fmt.Fprintln(&sb, "Name:", cs.Name)
+	_, _ = fmt.Fprintln(&sb, "Image:", cs.Image)
+	_, _ = fmt.Fprintln(&sb, "ImageID:", cs.ImageID)
+	_, _ = fmt.Fprintln(&sb, "Ready:", cs.Ready)
+	_, _ = fmt.Fprintln(&sb, "RestartCount:", cs.RestartCount)
+	_, _ = fmt.Fprint(&sb, cs.State.String(false))
+	_, _ = fmt.Fprint(&sb, cs.LastTerminationState.String(false))
+	return sb.String()
+}
+
+// KubernetesContainerState represents the state of a container.
+type KubernetesContainerState struct {
+	Waiting    *KubernetesContainerStateWaiting
+	Running    *KubernetesContainerStateRunning
+	Terminated *KubernetesContainerStateTerminated
+}
+
+// String returns a string representation of KubernetesContainerState.
+func (cs KubernetesContainerState) String(_ bool) string {
+	var sb strings.Builder
+
+	if cs.Running != nil {
+		_, _ = fmt.Fprintln(&sb, "State: Running")
+		_, _ = fmt.Fprintln(&sb, "StartedAt:", cs.Running.StartedAt)
+	} else if cs.Waiting != nil {
+		_, _ = fmt.Fprintln(&sb, "State: Waiting")
+		_, _ = fmt.Fprintln(&sb, "Reason:", cs.Waiting.Reason)
+	} else if cs.Terminated != nil {
+		_, _ = fmt.Fprintln(&sb, "State: Terminated")
+		_, _ = fmt.Fprintln(&sb, "ExitCode:", cs.Terminated.ExitCode)
+		_, _ = fmt.Fprintln(&sb, "Reason:", cs.Terminated.Reason)
+		_, _ = fmt.Fprintln(&sb, "StartedAt:", cs.Terminated.StartedAt)
+		_, _ = fmt.Fprintln(&sb, "FinishedAt:", cs.Terminated.FinishedAt)
+	}
+
+	return sb.String()
+}
+
+// KubernetesContainerStateWaiting represents a waiting container state.
+type KubernetesContainerStateWaiting struct {
+	Reason string
+}
+
+// KubernetesContainerStateRunning represents a running container state.
+type KubernetesContainerStateRunning struct {
+	StartedAt time.Time
+}
+
+// KubernetesContainerStateTerminated represents a terminated container state.
+type KubernetesContainerStateTerminated struct {
+	ExitCode   int32
+	StartedAt  time.Time
+	FinishedAt time.Time
+	Reason     string
 }
 
 // KubeMetadataEntityID is a unique ID for Kube Metadata Entity
@@ -1111,7 +1341,7 @@ type ContainerImageLayer struct {
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
 type SBOM struct {
-	CycloneDXBOM       *cyclonedx.BOM
+	CycloneDXBOM       *cyclonedx_v1_4.Bom
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
 	Status             SBOMStatus

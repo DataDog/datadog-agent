@@ -126,11 +126,7 @@ func runScanCrio(imageMeta *workloadmeta.ContainerImageMetadata, analyzers []str
 }
 
 func outputReport(report sbom.Report) error {
-	bom, err := report.ToCycloneDX()
-	if err != nil {
-		return err
-	}
-
+	bom := report.ToCycloneDX()
 	bomJSON, err := json.MarshalIndent(bom, "", "  ")
 	if err != nil {
 		return err
