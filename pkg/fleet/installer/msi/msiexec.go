@@ -22,6 +22,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -163,7 +164,28 @@ func WithLogFile(logFile string) MsiexecOption {
 	}
 }
 
-// WithAdditionalArgs specifies additional arguments for msiexec
+// WithProperties specifies additional MSI properties as Key=Value entries.
+// In the final command line, values are always quoted and any embedded quotes are escaped by doubling them.
+// Properties are appended in sorted key order to ensure deterministic command line construction.
+func WithProperties(props map[string]string) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		if len(props) == 0 {
+			return nil
+		}
+		keys := make([]string, 0, len(props))
+		for k := range props {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			a.additionalArgs = append(a.additionalArgs, formatPropertyArg(k, props[k]))
+		}
+		return nil
+	}
+}
+
+// WithAdditionalArgs specifies raw additional arguments for msiexec, e.g. []string{"PROP=VALUE", "WIXUI_DONTVALIDATEPATH=1"}
+// These are appended as-is without additional quoting. Use WithProperties for MSI properties to ensure they are properly quoted.
 func WithAdditionalArgs(additionalArgs []string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.additionalArgs = append(a.additionalArgs, additionalArgs...)
@@ -190,10 +212,7 @@ func WithDdAgentUserPassword(ddagentUserPassword string) MsiexecOption {
 // HideControlPanelEntry passes a flag to msiexec so that the installed program
 // does not show in the Control Panel "Add/Remove Software"
 func HideControlPanelEntry() MsiexecOption {
-	return func(a *msiexecArgs) error {
-		a.additionalArgs = append(a.additionalArgs, "ARPSYSTEMCOMPONENT=1")
-		return nil
-	}
+	return WithProperties(map[string]string{"ARPSYSTEMCOMPONENT": "1"})
 }
 
 // withCmdRunner overrides how msiexec commands are executed.
@@ -461,13 +480,13 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 		})
 	}
 	if a.ddagentUserName != "" {
-		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
+		WithProperties(map[string]string{"DDAGENTUSER_NAME": a.ddagentUserName})(a)
 	}
 	if a.ddagentUserPassword != "" {
-		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", a.ddagentUserPassword))
+		WithProperties(map[string]string{"DDAGENTUSER_PASSWORD": a.ddagentUserPassword})(a)
 	}
 	if a.msiAction == "/i" {
-		a.additionalArgs = append(a.additionalArgs, "MSIFASTINSTALL=7")
+		WithProperties(map[string]string{"MSIFASTINSTALL": "7"})(a)
 	}
 
 	cmd.logFile = a.logFile
@@ -510,4 +529,13 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	}
 
 	return cmd, nil
+}
+
+// formatPropertyArg returns an MSI property formatted as: Key="Value" with
+// any embedded quotes in Value doubled per MSI escaping requirements.
+func formatPropertyArg(key, value string) string {
+	// Escape embedded quotes by doubling them
+	// https://learn.microsoft.com/en-us/windows/win32/msi/command-line-options
+	escaped := strings.ReplaceAll(value, `"`, `""`)
+	return fmt.Sprintf(`%s="%s"`, key, escaped)
 }
