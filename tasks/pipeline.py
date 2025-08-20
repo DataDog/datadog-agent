@@ -852,44 +852,27 @@ def compare_to_itself(ctx):
     ctx.run("git commit -am 'Commit to compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
 
-    time.sleep(30)
-
-    # Trigger the pipeline
-    pipeline = agent.pipelines.create({'ref': new_branch})
-    print(f"Pipeline created: {pipeline.web_url}")
-    print(pipeline)
-
-
-    max_attempts = 6
-    compare_to_pipeline = None
-    for attempt in range(max_attempts):
-        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created {attempt + 1}/{max_attempts}")
-        time.sleep(30)
-        for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
-            commit = agent.commits.get(pipeline.sha)
-            if commit.author_name == BOT_NAME and commit.title == "Commit to compare to itself":
-                if pipeline.status == "skipped":
-                    # DDCI: we need to trigger the pipeline
-                    print(f"Triggering the CI execution for {new_branch}")
-                    trigger_agent_pipeline(repo=agent, ref=new_branch)
-                else:
-                    compare_to_pipeline = pipeline
-                    print(f"Test pipeline found: {pipeline.web_url}")
-                # Either we found the pipeline or we need to wait for it to be created
-                # In both cases we can skip the loop
-                break
-        if compare_to_pipeline:
-            break
-        if attempt == max_attempts - 1:
-            print("Cleaning up the pipelines")
-            for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
-                cancel_pipeline(pipeline)
-            print("Cleaning up git")
-            ctx.run(f"git checkout {current_branch}", hide=True)
-            ctx.run(f"git branch -D {new_branch}", hide=True)
-            ctx.run(f"git push origin :{new_branch}", hide=True)
-            raise RuntimeError(f"No pipeline found for {new_branch}")
     try:
+        max_attempts = 18
+        compare_to_pipeline = None
+        branch_created = False
+        for attempt in range(max_attempts):
+            print(f"[{datetime.now()}] Waiting 10s for the branch to be created {attempt + 1}/{max_attempts}")
+            time.sleep(10)
+            if agent.branches.get(new_branch):
+                branch_created = True
+                break
+
+        if not branch_created:
+            print(f"{color_message('ERROR', Color.RED)}: Branch {new_branch} not created", file=sys.stderr)
+            raise RuntimeError(f"No branch found for {new_branch}")
+
+        print('Branch created, triggering the pipeline')
+
+        # Trigger the pipeline on the last commit of this branch
+        compare_to_pipeline = agent.pipelines.create({'ref': new_branch})
+        print(f"Pipeline created: {compare_to_pipeline.web_url}")
+
         if len(compare_to_pipeline.jobs.list(get_all=False)) == 0:
             print(
                 f"[{color_message('ERROR', Color.RED)}] Failed to generate a pipeline for {new_branch}, please check {compare_to_pipeline.web_url}"
