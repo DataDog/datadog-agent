@@ -605,9 +605,14 @@ func convertMetadata(in *cyclonedx.Metadata) *cyclonedx_v1_4.Metadata {
 		licenses = convertLicenseChoice(&(*in.Licenses)[0])
 	}
 
+	var tools []*cyclonedx_v1_4.Tool
+	if in.Tools != nil {
+		tools = convertArray(in.Tools.Tools, convertTool)
+	}
+
 	return &cyclonedx_v1_4.Metadata{
 		Timestamp:   convertTimestamp(in.Timestamp),
-		Tools:       convertArray(in.Tools.Tools, convertTool),
+		Tools:       tools,
 		Authors:     convertArray(in.Authors, convertOrganizationalContact),
 		Component:   convertComponent(in.Component),
 		Manufacture: convertOrganizationalEntity(in.Manufacture),
@@ -885,6 +890,11 @@ func convertVulnerability(in *cyclonedx.Vulnerability) *cyclonedx_v1_4.Vulnerabi
 		}
 	}
 
+	var tools []*cyclonedx_v1_4.Tool
+	if in.Tools != nil {
+		tools = convertArray(in.Tools.Tools, convertTool)
+	}
+
 	return &cyclonedx_v1_4.Vulnerability{
 		BomRef:         stringPtr(in.BOMRef),
 		Id:             stringPtr(in.ID),
@@ -900,7 +910,7 @@ func convertVulnerability(in *cyclonedx.Vulnerability) *cyclonedx_v1_4.Vulnerabi
 		Published:      convertTimestamp(in.Published),
 		Updated:        convertTimestamp(in.Updated),
 		Credits:        convertVulnerabilityCredits(in.Credits),
-		Tools:          convertArray(in.Tools.Tools, convertTool),
+		Tools:          tools,
 		Analysis:       convertVulnerabilityAnalysis(in.Analysis),
 		Affects:        convertArray(in.Affects, convertVulnerabilityAffects),
 		Properties:     convertArray(in.Properties, convertProperty),

@@ -11,8 +11,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/CycloneDX/cyclonedx-go"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -137,33 +135,7 @@ func (c *collector) processScanResult(ctx context.Context, result sbom.ScanResul
 
 	// Updating workloadmeta entities directly is not thread-safe, that's why we
 	// generate an update event here instead.
-	if err := c.handleImageCreateOrUpdate(ctx, result.ImgMeta.Namespace, result.ImgMeta.Name, convertScanResultToSBOM(result)); err != nil {
+	if err := c.handleImageCreateOrUpdate(ctx, result.ImgMeta.Namespace, result.ImgMeta.Name, result.ConvertScanResultToSBOM()); err != nil {
 		log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
-	}
-}
-
-func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
-	status := workloadmeta.Success
-	reportedError := ""
-	var report *cyclonedx.BOM
-
-	if result.Error != nil {
-		log.Debugf("Failed to generate SBOM for containerd image: %s", result.Error)
-		status = workloadmeta.Failed
-		reportedError = result.Error.Error()
-	} else if bom, err := result.Report.ToCycloneDX(); err != nil {
-		log.Debugf("Failed to extract SBOM from report")
-		status = workloadmeta.Failed
-		reportedError = err.Error()
-	} else {
-		report = bom
-	}
-
-	return &workloadmeta.SBOM{
-		CycloneDXBOM:       report,
-		GenerationTime:     result.CreatedAt,
-		GenerationDuration: result.Duration,
-		Status:             status,
-		Error:              reportedError,
 	}
 }
