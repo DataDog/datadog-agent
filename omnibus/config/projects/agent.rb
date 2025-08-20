@@ -317,7 +317,7 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\agent.exe",
     "#{install_dir}\\bin\\agent\\trace-agent.exe",
     "#{install_dir}\\bin\\agent\\process-agent.exe",
-    "#{install_dir}\\bin\\agent\\system-probe.exe",
+    "#{install_dir}\\bin\\agent\\system-probe.exe"
   ]
 
   if not fips_mode?
