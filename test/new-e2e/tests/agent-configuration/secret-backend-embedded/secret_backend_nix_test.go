@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	perms "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/filepermissions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type linuxRuntimeSecretSuite struct {
@@ -38,9 +38,10 @@ secret_backend_type: file.yaml
 secret_backend_config:
   file_path: /tmp/secrets.yaml`
 
+	unixPermission := perms.NewUnixPermissions(perms.WithPermissions("0700"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			secretsutils.WithUnixSetupCustomScript("/tmp/secrets.yaml", secretScript, false),
+			agentparams.WithFileWithPermissions("/tmp/secrets.yaml", secretScript, true, unixPermission),
 			agentparams.WithSkipAPIKeyInConfig(),
 			agentparams.WithAgentConfig(config),
 		),
@@ -48,6 +49,6 @@ secret_backend_config:
 
 	assert.EventuallyWithT(v.T(), func(_ *assert.CollectT) {
 		secretOutput := v.Env().Agent.Client.Secret()
-		require.Contains(v.T(), secretOutput, "fake-api-key")
+		require.Contains(v.T(), secretOutput, "fake_yaml_key")
 	}, 30*time.Second, 2*time.Second)
 }
