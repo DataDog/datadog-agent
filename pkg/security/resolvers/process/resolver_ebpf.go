@@ -1348,6 +1348,8 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 	// it may happen if the activity is from a process (same pid) that was replaced since then.
 	if inode != 0 {
 		if entry.FileEvent.Inode != inode {
+			seclog.Debugf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
+
 			entry.FileEvent.Inode = inode
 			entry.IsParentMissing = true
 			p.inodeErrStats[inodeErrTagProcfsMismatch].Inc()
