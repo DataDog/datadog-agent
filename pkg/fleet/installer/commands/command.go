@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"runtime"
@@ -152,7 +153,9 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	if _, set := os.LookupEnv("DD_SITE"); !set && config.Site != "" {
 		site = config.Site
 	}
-	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
+	logger := telemetry.NewLogger(slog.Default().Handler())
+	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, logger, site, "datadog-installer") // No sampling rules for commands
+	slog.SetDefault(slog.New(logger))
 	return t
 }
 

@@ -27,6 +27,7 @@ const (
 // Telemetry handles the telemetry for fleet components.
 type Telemetry struct {
 	telemetryClient *client
+	logger          *Logger
 	done            chan struct{}
 	flushed         chan struct{}
 
@@ -35,7 +36,7 @@ type Telemetry struct {
 }
 
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
+func NewTelemetry(client *http.Client, apiKey string, logger *Logger, site string, service string) *Telemetry {
 	t := newTelemetry(client, apiKey, site, service)
 	t.Start()
 	return t
@@ -62,14 +63,16 @@ func newTelemetry(client *http.Client, apiKey string, site string, service strin
 
 // Start starts the telemetry
 func (t *Telemetry) Start() {
-	ticker := time.Tick(1 * time.Minute)
+	ticker := time.Tick(30 * time.Second)
 	go func() {
 		for {
 			select {
 			case <-ticker:
 				t.sendCompletedSpans()
+				t.sendLogs()
 			case <-t.done:
 				t.sendCompletedSpans()
+				t.sendLogs()
 				close(t.flushed)
 				return
 			}
@@ -81,6 +84,11 @@ func (t *Telemetry) Start() {
 func (t *Telemetry) Stop() {
 	close(t.done)
 	<-t.flushed
+}
+
+func (t *Telemetry) sendLogs() {
+	logs := t.logger.flush()
+	fmt.Println("sending logs", len(logs))
 }
 
 func (t *Telemetry) extractCompletedSpans() traces {
