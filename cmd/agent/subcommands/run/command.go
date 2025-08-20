@@ -632,7 +632,7 @@ func startAgent(
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") && pkgconfigsetup.Datadog().GetBool("clc_runner_enabled") {
 		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
 			"/telemetry": telemetryHandler,
-		}, ac); err != nil {
+		}, ac, ipc); err != nil {
 			return log.Errorf("Error while starting clc runner api server, exiting: %v", err)
 		}
 	}
