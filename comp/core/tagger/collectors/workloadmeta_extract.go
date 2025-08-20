@@ -157,6 +157,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
+			case workloadmeta.KindKubelet:
+				tagInfos = append(tagInfos, c.handleKubelet(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -623,6 +625,55 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 		{
 			Source:               kubeMetadataSource,
 			EntityID:             common.BuildTaggerEntityID(kubeMetadata.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleKubelet(ev workloadmeta.Event) []*types.TagInfo {
+	kubelet := ev.Entity.(*workloadmeta.Kubelet)
+	kubeletConfigInterface, ok := kubelet.Config["kubeletconfig"]
+	if !ok {
+		log.Errorf("Error when parsing kubelet config, expected to find key: kubeletconfig")
+		return nil
+	}
+
+	kubeletConfig, ok := kubeletConfigInterface.(map[string]interface{})
+	if !ok {
+		log.Errorf("Error when parsing kubelet config, type assertion failed for kubeletConfig")
+		return nil
+	}
+
+	cpuManagerPolicyInterface, ok := kubeletConfig["cpuManagerPolicy"]
+	if !ok {
+		log.Errorf("Error when parsing kubelet config, expected to find key: cpuManagerPolicy")
+		return nil
+	}
+
+	cpuManagerPolicy, ok := cpuManagerPolicyInterface.(string) // Assert to string
+	if !ok {
+		log.Errorf("Error when parsing kubelet config, type assertion failed for cpuManagerPolicy")
+		return nil
+	}
+
+	tagList := taglist.NewTagList()
+	tagList.AddLow(tags.CpuManagerPolicy, strings.ToLower(cpuManagerPolicy))
+
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               kubeletSource,
+			EntityID:             types.GetGlobalEntityID(),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,

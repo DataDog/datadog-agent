@@ -189,6 +189,9 @@ const (
 	// RemoteConfigRevision is the tag for the remote config revision
 	RemoteConfigRevision = "dd_remote_config_rev"
 
+	// CpuManagerPolicy is the tag for kubelet cpu manager policy
+	CpuManagerPolicy = "cpu_manager_policy"
+
 	// ORCHESTRATOR CARDINALITY
 
 	// KubeOwnerRefName is the tag for the Kubernetes owner reference name

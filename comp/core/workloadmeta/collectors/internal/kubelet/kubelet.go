@@ -10,6 +10,7 @@ package kubelet
 
 import (
 	"context"
+	"encoding/json"
 	stdErrors "errors"
 	"slices"
 	"strings"
@@ -34,6 +35,7 @@ const (
 	collectorID         = "kubelet"
 	componentName       = "workloadmeta-kubelet"
 	expireFreq          = 15 * time.Second
+	configExpireFreq    = 15 * time.Second
 	dockerImageIDPrefix = "docker-pullable://"
 )
 
@@ -47,9 +49,12 @@ type collector struct {
 	id                         string
 	catalog                    workloadmeta.AgentType
 	watcher                    *kubelet.PodWatcher
+	kubeclient                 kubelet.KubeUtilInterface
 	store                      workloadmeta.Component
 	lastExpire                 time.Time
+	configLastExpire           time.Time
 	expireFreq                 time.Duration
+	configExpireFreq           time.Duration
 	collectEphemeralContainers bool
 }
 
@@ -77,9 +82,19 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	var err error
 
 	c.store = store
+	// Pod watcher
 	c.lastExpire = time.Now()
 	c.expireFreq = expireFreq
+	// Kubelet
+	c.configLastExpire = time.Now()
+	c.configExpireFreq = configExpireFreq
+
 	c.watcher, err = kubelet.NewPodWatcher(expireFreq)
+	if err != nil {
+		return err
+	}
+
+	c.kubeclient, err = kubelet.GetKubeUtil()
 	if err != nil {
 		return err
 	}
@@ -101,6 +116,38 @@ func (c *collector) Pull(ctx context.Context) error {
 		if err == nil {
 			events = append(events, parseExpires(expiredIDs)...)
 			c.lastExpire = time.Now()
+		}
+	}
+
+	if time.Since(c.configLastExpire) >= c.configExpireFreq {
+		log.Debugf("Getting kubelet config...")
+		configBytes, code, err := c.kubeclient.QueryKubelet(ctx, "/configz")
+		log.Debugf("Received status code: %d from kubelet when querying /configz", code)
+		if err != nil {
+			log.Errorf("There was an error when querying the kubelet config: %v", err)
+			return err
+		}
+
+		var config workloadmeta.KubeletConfig
+		err = json.Unmarshal(configBytes, &config)
+		if err == nil {
+			log.Debugf("Unmarshalled config is: %+v", config)
+			events = append(events, workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: workloadmeta.SourceNodeOrchestrator,
+				Entity: &workloadmeta.Kubelet{
+					EntityID: workloadmeta.EntityID{
+						ID:   "kubelet",
+						Kind: workloadmeta.KindKubelet,
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "kubelet",
+					},
+					Config: config,
+				},
+			})
+		} else {
+			log.Errorf("Failed to marshal the kubelet config: %v", err)
 		}
 	}
 
