@@ -38,6 +38,7 @@ type jmxLoggerInterface interface {
 	Info(v ...interface{})
 	Error(v ...interface{}) error
 	Flush()
+	Close()
 }
 
 type logger struct {
@@ -87,6 +88,7 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 	deps.Lc.Append(fx.Hook{
 		OnStop: func(_ context.Context) error {
 			jmxLogger.Flush()
+			jmxLogger.close()
 			return nil
 		},
 	})
@@ -104,4 +106,9 @@ func (j logger) JMXError(v ...interface{}) error {
 
 func (j logger) Flush() {
 	j.inner.Flush()
+}
+
+// close is use in to ensure we release any resource associated with the JMXLogger
+func (j logger) close() {
+	j.inner.Close()
 }
