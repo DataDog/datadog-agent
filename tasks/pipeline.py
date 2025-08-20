@@ -856,15 +856,12 @@ def compare_to_itself(ctx):
     try:
         max_attempts = 18
         compare_to_pipeline = None
-        branch_created = False
         for attempt in range(max_attempts):
             print(f"[{datetime.now()}] Waiting 10s for the branch to be created {attempt + 1}/{max_attempts}")
             time.sleep(10)
             if agent.branches.get(new_branch, raise_exception=False):
-                branch_created = True
                 break
-
-        if not branch_created:
+        else:
             print(f"{color_message('ERROR', Color.RED)}: Branch {new_branch} not created", file=sys.stderr)
             raise RuntimeError(f"No branch found for {new_branch}")
 
