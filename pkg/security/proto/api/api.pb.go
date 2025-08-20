@@ -1771,7 +1771,6 @@ type MetadataMessage struct {
 	Timeout       string `protobuf:"bytes,12,opt,name=Timeout,proto3" json:"Timeout,omitempty"`
 	Size          uint64 `protobuf:"varint,13,opt,name=Size,proto3" json:"Size,omitempty"`
 	Serialization string `protobuf:"bytes,14,opt,name=Serialization,proto3" json:"Serialization,omitempty"`
-	CGroupID      string `protobuf:"bytes,15,opt,name=CGroupID,proto3" json:"CGroupID,omitempty"` // string CGroupManager = 16 [deprecated = true];
 	CGroupID      string `protobuf:"bytes,15,opt,name=CGroupID,proto3" json:"CGroupID,omitempty"`
 	// Deprecated: Marked as deprecated in pkg/security/proto/api/api.proto.
 	CGroupManager string `protobuf:"bytes,16,opt,name=CGroupManager,proto3" json:"CGroupManager,omitempty"`
