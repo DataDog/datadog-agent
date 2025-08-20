@@ -33,7 +33,7 @@ func TestLinuxRuntimeSecretSuite(t *testing.T) {
 }
 
 func (v *linuxRuntimeSecretSuite) TestPullSecret() {
-	config := `api_key: ENC[fake_api_key]
+	config := `api_key: ENC[fake_yaml_key]
 secret_backend_type: file.yaml
 secret_backend_config:
   file_path: /tmp/secrets.yaml`
