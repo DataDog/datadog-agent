@@ -428,6 +428,9 @@
     "version": {
       "type": "string"
     },
+    "replace_policy_id": {
+      "type": "string"
+    },
     "macros": {
       "items": {
         "$ref": "#/$defs/MacroDefinition"
