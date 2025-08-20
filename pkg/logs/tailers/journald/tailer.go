@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -204,13 +203,6 @@ func (t *Tailer) forwardMessages() {
 
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
-			if decodedMessage.ParsingExtra.IsTruncated {
-				if decodedMessage.Origin != nil {
-					metrics.TlmTruncatedCount.Inc(decodedMessage.Origin.Service(), decodedMessage.Origin.Source())
-				} else {
-					metrics.TlmTruncatedCount.Inc("", "")
-				}
-			}
 			// Preserve the original message structure and ParsingExtra information (including IsTruncated)
 			// The decodedMessage already has the proper origin with tags set
 			t.outputChan <- decodedMessage

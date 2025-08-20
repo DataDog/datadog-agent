@@ -134,6 +134,15 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 
+		// Record truncation metrics if the message is truncated
+		if msg.ParsingExtra.IsTruncated {
+			if msg.Origin != nil {
+				metrics.TlmTruncatedCount.Inc(msg.Origin.Service(), msg.Origin.Source())
+			} else {
+				metrics.TlmTruncatedCount.Inc("", "")
+			}
+		}
+
 		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)

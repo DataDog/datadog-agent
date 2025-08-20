@@ -20,7 +20,6 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
@@ -136,9 +135,6 @@ func (t *Tailer) forwardMessages() {
 				// Combine tags from multiple sources: parsing extra tags and source config tags
 				tags := append(msg.ParsingExtra.Tags, t.source.Config.Tags...)
 				msg.Origin.SetTags(tags)
-				if msg.ParsingExtra.IsTruncated {
-					metrics.TlmTruncatedCount.Inc(msg.Origin.Service(), msg.Origin.Source())
-				}
 			}
 
 			t.outputChan <- msg
