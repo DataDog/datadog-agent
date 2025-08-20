@@ -39,4 +39,6 @@
     echo "ℹ️  Skipping Docker image measurement (no STATIC_QUALITY_GATE_NAME defined)"
   fi
 
+  docker rmi "$IMAGE_REF"
+
 .static_quality_gate_report_path: "**/*_size_report_*.yml"
