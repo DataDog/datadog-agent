@@ -853,7 +853,7 @@ def compare_to_itself(ctx):
     ctx.run(f"git push origin {new_branch}", hide=True)
 
     # Trigger the pipeline
-    pipeline = agent.pipelines.create(ref=new_branch)
+    pipeline = agent.pipelines.create({'ref': new_branch})
     print(f"Pipeline created: {pipeline.web_url}")
     print(pipeline)
 
