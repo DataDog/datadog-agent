@@ -420,12 +420,12 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			require.Equal(t, volumeName, tt.pod.Spec.Volumes[0].Name,
 				"expected datadog volume to be injected")
 
-			require.Equal(t, etcVolume.Name, tt.pod.Spec.Volumes[1].Name,
+			require.Equal(t, etcVolume(corev1.StorageMediumDefault).Name, tt.pod.Spec.Volumes[1].Name,
 				"expected datadog-etc volume to be injected")
 
 			volumesMarkedAsSafeToEvict := strings.Split(tt.pod.Annotations[common.K8sAutoscalerSafeToEvictVolumesAnnotation], ",")
 			require.Contains(t, volumesMarkedAsSafeToEvict, volumeName, "expected volume %s to be marked as safe to evict", volumeName)
-			require.Contains(t, volumesMarkedAsSafeToEvict, etcVolume.Name, "expected volume %s to be marked as safe to evict", etcVolume.Name)
+			require.Contains(t, volumesMarkedAsSafeToEvict, etcVolume(corev1.StorageMediumDefault).Name, "expected volume %s to be marked as safe to evict", etcVolume(corev1.StorageMediumDefault).Name)
 
 			require.Equal(t, len(tt.libInfo.libs)+1, len(tt.pod.Spec.InitContainers),
 				"expected there to be one more than the number of libs to inject for init containers")
@@ -479,7 +479,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				SubPath:   "opt/datadog-packages/datadog-apm-inject",
 			}, mounts[0], "expected first container volume mount to be the injector")
 			require.Equal(t, corev1.VolumeMount{
-				Name:      etcVolume.Name,
+				Name:      etcVolume(corev1.StorageMediumDefault).Name,
 				MountPath: "/etc/ld.so.preload",
 				SubPath:   "ld.so.preload",
 				ReadOnly:  true,
@@ -1739,7 +1739,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			mutator, err := NewNamespaceMutator(config, wmeta)
 			require.NoError(t, err)
 
-			c := tt.lang.libInfo("", tt.image).initContainers(config.version)[0]
+			c := tt.lang.libInfo("", tt.image).initContainers(config.version, config.libraryStorageMedium)[0]
 			requirements, injectionDecision := initContainerResourceRequirements(tt.pod, config.defaultResourceRequirements)
 			require.Equal(t, tt.wantSkipInjection, injectionDecision.skipInjection)
 			require.Equal(t, tt.resourceRequireAnnotation, injectionDecision.message)

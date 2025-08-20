@@ -539,3 +539,50 @@ func TestGetPinnedLibraries(t *testing.T) {
 		})
 	}
 }
+
+func TestLibraryStorageMedium(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputString string
+		expected    corev1.StorageMedium
+		shouldErr   bool
+	}{
+		{
+			name:        "medium memory",
+			inputString: "memory",
+			expected:    corev1.StorageMediumMemory,
+			shouldErr:   false,
+		},
+		{
+			name:        "medium default",
+			inputString: "default",
+			expected:    corev1.StorageMediumDefault,
+			shouldErr:   false,
+		},
+		{
+			name:        "medium invalid",
+			inputString: "invalid",
+			shouldErr:   true,
+		},
+		{
+			name:        "medium empty",
+			inputString: "",
+			expected:    corev1.StorageMediumDefault,
+			shouldErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.volume.empty_dir_storage_medium", tt.inputString)
+			actual, err := NewConfig(mockConfig)
+			if tt.shouldErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.libraryStorageMedium)
+		})
+	}
+}

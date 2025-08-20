@@ -10,6 +10,7 @@ package autoinstrumentation
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -69,6 +70,9 @@ type Config struct {
 	// We don't expose this option to the user, and [[instrumentationV1]]
 	// is deprecated and slated for removal.
 	version version
+
+	// libraryStorageMedium is the storage medium to use for the library storage volume emptyDir.
+	libraryStorageMedium corev1.StorageMedium
 }
 
 var excludedContainerNames = map[string]bool{
@@ -102,6 +106,11 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		return nil, err
 	}
 
+	libraryStorageMedium, err := parseLibraryStorageMedium(datadogConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	defaultResourceRequirements, err := initDefaultResources(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse init-container's resources from configuration: %w", err)
@@ -120,6 +129,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
 		containerFilter:               excludedContainerNamesContainerFilter,
 		version:                       version,
+		libraryStorageMedium:          libraryStorageMedium,
 	}, nil
 }
 
@@ -362,6 +372,24 @@ func getOptionalBoolValue(datadogConfig config.Component, key string) *bool {
 	}
 
 	return value
+}
+
+func parseLibraryStorageMedium(datadogConfig config.Component) (corev1.StorageMedium, error) {
+	confKey := "admission_controller.auto_instrumentation.volume.empty_dir_storage_medium"
+	if !datadogConfig.IsSet(confKey) {
+		return corev1.StorageMediumDefault, nil
+	}
+
+	confValue := datadogConfig.GetString(confKey)
+
+	switch strings.ToLower(confValue) {
+	case "", "default":
+		return corev1.StorageMediumDefault, nil
+	case "memory":
+		return corev1.StorageMediumMemory, nil
+	default:
+		return corev1.StorageMediumDefault, fmt.Errorf("invalid library storage medium: %s", confValue)
+	}
 }
 
 // getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config

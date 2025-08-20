@@ -16,6 +16,7 @@ type libRequirementOptions struct {
 	containerMutators     containerMutators
 	podMutators           []podMutator
 	containerFilter       containerFilter
+	libraryStorageMedium  corev1.StorageMedium
 }
 
 type libRequirement struct {

@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    A new configuration option has been added to control the library storage medium for the auto-instrumentation webhook. This
+    will allow you to utilize a memory backed emptyDir for environments that are storage constrained. The default
+    behavior is to use a disk backed emptyDir for library storage. To enable memory backed emptyDir, set the following
+    configuration option for the cluster agent:
+    ```yaml
+    clusterAgent:
+      env:
+        - name: "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_VOLUME_EMPTY_DIR_STORAGE_MEDIUM"
+          value: "memory"
+    ```
