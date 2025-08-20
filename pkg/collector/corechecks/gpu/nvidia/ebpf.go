@@ -150,7 +150,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 				Tags:  pidTag,
 			},
 			Metric{
-				Name:  "memory.usage",
+				Name:  "process.memory.usage",
 				Value: float64(metrics.Memory.CurrentBytes),
 				Type:  ddmetrics.GaugeType,
 				Tags:  pidTag,
@@ -177,7 +177,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 					Tags:  pidTag,
 				},
 				Metric{
-					Name:  "memory.usage",
+					Name:  "process.memory.usage",
 					Value: 0,
 					Type:  ddmetrics.GaugeType,
 					Tags:  pidTag,
