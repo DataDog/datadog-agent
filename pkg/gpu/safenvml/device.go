@@ -53,8 +53,8 @@ type SafeDevice interface {
 	GetMemoryBusWidth() (uint32, error)
 	// GetMemoryInfo returns memory information of the device
 	GetMemoryInfo() (nvml.Memory, error)
-	// GetMemoryInfo_v2 returns extended memory information of the device (includes reserved memory)
-	GetMemoryInfo_v2() (nvml.Memory_v2, error)
+	// GetMemoryInfoV2 returns extended memory information of the device (includes reserved memory)
+	GetMemoryInfoV2() (nvml.Memory_v2, error)
 	// GetMigDeviceHandleByIndex returns the MIG device handle at the given index
 	GetMigDeviceHandleByIndex(index int) (SafeDevice, error)
 	// GetMigMode returns the MIG mode of the device
