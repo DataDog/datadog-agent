@@ -1,0 +1,8 @@
+# Per https://docs.datadoghq.com/security/cloud_security_management/setup/agent/linux/
+
+system_probe_config:
+  debug_port: 7654
+  # Only to run SP in idle mode
+  # The language detection module should not do any work unless called explicitly
+  language_detection:
+    enabled: true
