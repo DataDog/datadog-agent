@@ -21,7 +21,7 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"log/slog"
 )
 
 const (
@@ -141,7 +141,7 @@ func Reload(ctx context.Context) (err error) {
 func IsRunning() (running bool, err error) {
 	_, err = os.Stat("/run/systemd/system")
 	if os.IsNotExist(err) {
-		log.Infof("Installer: systemd is not running, skip unit setup")
+		slog.InfoContext(context.TODO(), "Installer: systemd is not running, skip unit setup")
 		return false, nil
 	} else if err != nil {
 		return false, err

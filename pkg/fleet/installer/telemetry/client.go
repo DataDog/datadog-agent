@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"runtime"
@@ -20,7 +21,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/shirou/gopsutil/v4/host"
 )
@@ -138,7 +138,7 @@ type httpClient interface {
 func newClient(httpClient httpClient, endpoints []*endpoint, service string, debug bool) *client {
 	info, err := host.Info()
 	if err != nil {
-		log.Errorf("failed to retrieve host info: %v", err)
+		slog.Error("failed to retrieve host info", "error", err)
 		info = &host.InfoStat{}
 	}
 	return &client{
@@ -204,7 +204,7 @@ func (c *client) sampleTraces(ts traces) traces {
 			tracesWithSampling = append(tracesWithSampling, trace)
 		}
 	}
-	log.Debugf("sampling telemetry traces (had %d, kept %d)", len(ts), len(tracesWithSampling))
+	slog.Debug("sampling telemetry traces", "had", len(ts), "kept", len(tracesWithSampling))
 	return tracesWithSampling
 }
 
@@ -220,7 +220,7 @@ func (c *client) sendPayload(requestType requestType, payload interface{}) {
 
 	serializedPayload, err := json.Marshal(event)
 	if err != nil {
-		log.Errorf("failed to serialize payload: %v", err)
+		slog.ErrorContext(ctx, "failed to serialize payload", "error", err)
 		return
 	}
 	group := sync.WaitGroup{}
@@ -231,7 +231,7 @@ func (c *client) sendPayload(requestType requestType, payload interface{}) {
 			url := fmt.Sprintf("%s%s", e.Host, telemetryEndpoint)
 			req, err := http.NewRequest("POST", url, bytes.NewReader(serializedPayload))
 			if err != nil {
-				log.Errorf("failed to create request for endpoint %s: %v", url, err)
+				slog.ErrorContext(ctx, "failed to create request for endpoint", "url", url, "error", err)
 				return
 			}
 			req.Header.Add("dd-api-key", e.APIKey)
@@ -246,12 +246,12 @@ func (c *client) sendPayload(requestType requestType, payload interface{}) {
 
 			resp, err := c.client.Do(req.WithContext(ctx))
 			if err != nil {
-				log.Warnf("failed to send telemetry payload to endpoint %s: %v", url, err)
+				slog.WarnContext(ctx, "failed to send telemetry payload to endpoint", "url", url, "error", err)
 				return
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				log.Warnf("failed to send telemetry payload to endpoint %s: %s", url, resp.Status)
+				slog.WarnContext(ctx, "failed to send telemetry payload to endpoint", "url", url, "status", resp.Status)
 			}
 			_, _ = io.Copy(io.Discard, resp.Body)
 

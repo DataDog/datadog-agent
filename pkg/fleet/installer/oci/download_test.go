@@ -68,7 +68,7 @@ func TestDownload(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -84,7 +84,7 @@ func TestDownloadMirror(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -99,7 +99,7 @@ func TestDownloadLayout(t *testing.T) {
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }

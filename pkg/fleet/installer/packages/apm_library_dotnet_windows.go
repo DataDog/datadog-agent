@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"log/slog"
 )
 
 var apmLibraryDotnetPackage = hooks{
@@ -120,7 +120,7 @@ func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 		// If the remove is being retried after a failed first attempt, the stable symlink may have been removed
 		// so we do not consider this an error
 		if errors.Is(err, fs.ErrNotExist) {
-			log.Warn("Stable symlink does not exist, assuming the package has already been partially removed and skipping UninstallProduct")
+			slog.WarnContext(ctx, "Stable symlink does not exist, assuming the package has already been partially removed and skipping UninstallProduct")
 			return nil
 		}
 		return err

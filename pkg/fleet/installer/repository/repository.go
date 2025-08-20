@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"log/slog"
 )
 
 const (
@@ -463,7 +463,7 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		if pkgHook, hasHook := r.preRemoveHooks[pkgName]; hasHook {
 			canDelete, err := pkgHook(ctx, pkgRepositoryPath)
 			if err != nil {
-				log.Errorf("Pre-remove hook for package %s returned an error: %v", pkgRepositoryPath, err)
+				slog.ErrorContext(ctx, "Pre-remove hook for package returned an error", "package", pkgRepositoryPath, "error", err)
 			}
 			// if there is an error, the hook still decides if the package can be deleted
 			if !canDelete {
@@ -471,16 +471,16 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 			}
 		}
 
-		log.Debugf("Removing package %s", pkgRepositoryPath)
+		slog.DebugContext(ctx, "Removing package", "package", pkgRepositoryPath)
 		realPkgRepositoryPath, err := filepath.EvalSymlinks(pkgRepositoryPath)
 		if err != nil {
-			log.Errorf("could not evaluate symlinks for package %s: %v", pkgRepositoryPath, err)
+			slog.ErrorContext(ctx, "could not evaluate symlinks for package", "package", pkgRepositoryPath, "error", err)
 		}
 		if err := os.RemoveAll(realPkgRepositoryPath); err != nil {
-			log.Errorf("could not remove package %s directory, will retry: %v", realPkgRepositoryPath, err)
+			slog.ErrorContext(ctx, "could not remove package directory, will retry", "package", realPkgRepositoryPath, "error", err)
 		}
 		if err := os.RemoveAll(pkgRepositoryPath); err != nil {
-			log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
+			slog.ErrorContext(ctx, "could not remove package directory, will retry", "package", pkgRepositoryPath, "error", err)
 		}
 	}
 

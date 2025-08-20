@@ -16,7 +16,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"log/slog"
 )
 
 var rollbackNoop = func() error { return nil }
@@ -112,7 +112,7 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 	if ft.validateFinal != nil {
 		if err = ft.validateFinal(); err != nil {
 			if rollbackErr := rollback(); rollbackErr != nil {
-				log.Errorf("could not rollback file %s: %s", ft.path, rollbackErr)
+				slog.ErrorContext(ctx, "could not rollback file", "path", ft.path, "error", rollbackErr)
 			}
 			return nil, err
 		}

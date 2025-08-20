@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
@@ -21,7 +22,7 @@ import (
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"log/slog"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -175,7 +176,7 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 		// if the reinstall of the stable fails again we can't do much.
 		restoreErr := restoreStableAgentFromExperiment(ctx, env)
 		if restoreErr != nil {
-			log.Error(restoreErr)
+			slog.ErrorContext(ctx, "Restore error", "error", restoreErr)
 			err = fmt.Errorf("%w, %w", err, restoreErr)
 		}
 		return err
@@ -185,12 +186,12 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	// and we can restore the stable Agent if it stops.
 	err = startWatchdog(ctx, time.Now().Add(getWatchdogTimeout()))
 	if err != nil {
-		log.Errorf("Watchdog failed: %s", err)
+		slog.ErrorContext(ctx, "Watchdog failed", "error", err)
 		// we failed to start the watchdog, the Agent stopped, or we received a timeout
 		// we need to restore the stable Agent to leave the system in a consistent state.
 		restoreErr := restoreStableAgentFromExperiment(ctx, env)
 		if restoreErr != nil {
-			log.Error(restoreErr)
+			slog.ErrorContext(ctx, "Restore error", "error", restoreErr)
 			err = fmt.Errorf("%w, %w", err, restoreErr)
 		}
 		return err
@@ -248,7 +249,7 @@ func postPromoteExperimentDatadogAgent(_ HookContext) error {
 		// In this case, we were already premoting the experiment
 		// so we can return without an error as all we were about to do
 		// is stop the watchdog
-		log.Errorf("failed to set premote event: %s", err)
+		slog.ErrorContext(ctx, "failed to set premote event", "error", err)
 	}
 
 	return nil
@@ -403,7 +404,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 			if err != nil {
 				// removal failed, this should rarely happen.
 				// Rollback might have restored the Agent, but we can't be sure.
-				log.Errorf("failed to remove agent: %s", err)
+				slog.ErrorContext(ctx, "failed to remove agent", "error", err)
 			}
 			span.Finish(err)
 		}()
@@ -414,7 +415,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 			return err
 		}
 	} else {
-		log.Debugf("%s not installed", product)
+		slog.DebugContext(ctx, "product not installed", "product", product)
 	}
 	return nil
 }
@@ -459,7 +460,7 @@ func removeInstallerIfInstalled(ctx context.Context) (err error) {
 				return fmt.Errorf("could not remove old installer directory: %w", err)
 			}
 		} else {
-			log.Warnf("old installer directory is not secure, not removing: %s", oldInstallerDir)
+			slog.WarnContext(ctx, "old installer directory is not secure, not removing", "directory", oldInstallerDir)
 		}
 	}
 	return nil
@@ -504,13 +505,13 @@ func getWatchdogTimeout() time.Duration {
 		registry.ALL_ACCESS)
 	if err != nil {
 		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
-		log.Debugf("Windows installation key root not found, using default")
+		slog.DebugContext(context.TODO(), "Windows installation key root not found, using default")
 		return defaultTimeout
 	}
 	defer k.Close()
 	val, _, err := k.GetIntegerValue("WatchdogTimeout")
 	if err != nil {
-		log.Warnf("Windows installation key watchdogTimeout not found, using default")
+		slog.WarnContext(context.TODO(), "Windows installation key watchdogTimeout not found, using default")
 		return defaultTimeout
 	}
 	return time.Duration(val) * time.Minute
@@ -540,7 +541,7 @@ func getenv() *env.Env {
 	if env.MsiParams.AgentUserName == "" {
 		user, err := windowsuser.GetAgentUserFromService()
 		if err != nil {
-			log.Warnf("Could not read Agent user from service: %v", err)
+			slog.WarnContext(ctx, "Could not read Agent user from service", "error", err)
 		} else {
 			env.MsiParams.AgentUserName = user
 		}
@@ -674,7 +675,7 @@ func postStartConfigExperimentDatadogAgentBackground(ctx context.Context) error 
 		// Agent failed to start, restore stable config
 		restoreErr := restoreStableConfigFromExperiment(ctx)
 		if restoreErr != nil {
-			log.Error(restoreErr)
+			slog.ErrorContext(ctx, "Restore error", "error", restoreErr)
 			err = fmt.Errorf("%w, %w", err, restoreErr)
 		}
 		return fmt.Errorf("failed to start agent service: %w", err)
@@ -684,11 +685,11 @@ func postStartConfigExperimentDatadogAgentBackground(ctx context.Context) error 
 	timeout := getWatchdogTimeout()
 	err = startWatchdog(ctx, time.Now().Add(timeout))
 	if err != nil {
-		log.Errorf("Config watchdog failed: %s", err)
+		slog.ErrorContext(ctx, "Config watchdog failed", "error", err)
 		// If watchdog fails, restore stable config
 		restoreErr := restoreStableConfigFromExperiment(ctx)
 		if restoreErr != nil {
-			log.Error(restoreErr)
+			slog.ErrorContext(ctx, "Restore error", "error", restoreErr)
 			err = fmt.Errorf("%w, %w", err, restoreErr)
 		}
 		return err
@@ -755,7 +756,7 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 		// if we can't set the event it means the watchdog has failed
 		// In this case, we were already promoting the experiment
 		// so we can continue without error
-		log.Errorf("failed to set premote event: %s", err)
+		slog.ErrorContext(ctx, "failed to set premote event", "error", err)
 	}
 
 	// Set the registry key to point to the stable config (which now contains the promoted experiment)

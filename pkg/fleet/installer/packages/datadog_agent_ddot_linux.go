@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"log/slog"
 )
 
 var datadogAgentDDOTPackage = hooks{
@@ -70,13 +70,13 @@ var (
 // preInstallDatadogAgentDDOT performs pre-installation steps for DDOT
 func preInstallDatadogAgentDDOT(ctx HookContext) error {
 	if err := agentDDOTService.StopStable(ctx); err != nil {
-		log.Warnf("failed to stop stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to stop stable unit", "error", err)
 	}
 	if err := agentDDOTService.DisableStable(ctx); err != nil {
-		log.Warnf("failed to disable stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to disable stable unit", "error", err)
 	}
 	if err := agentDDOTService.RemoveStable(ctx); err != nil {
-		log.Warnf("failed to remove stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to remove stable unit", "error", err)
 	}
 	return packagemanager.RemovePackage(ctx, agentDDOTPackage)
 }
@@ -182,23 +182,23 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	err := agentDDOTService.StopExperiment(ctx)
 	if err != nil {
-		log.Warnf("failed to stop experiment unit: %s", err)
+		slog.WarnContext(ctx, "failed to stop experiment unit", "error", err)
 	}
 	err = agentDDOTService.RemoveExperiment(ctx)
 	if err != nil {
-		log.Warnf("failed to remove experiment unit: %s", err)
+		slog.WarnContext(ctx, "failed to remove experiment unit", "error", err)
 	}
 	err = agentDDOTService.StopStable(ctx)
 	if err != nil {
-		log.Warnf("failed to stop stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to stop stable unit", "error", err)
 	}
 	err = agentDDOTService.DisableStable(ctx)
 	if err != nil {
-		log.Warnf("failed to disable stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to disable stable unit", "error", err)
 	}
 	err = agentDDOTService.RemoveStable(ctx)
 	if err != nil {
-		log.Warnf("failed to remove stable unit: %s", err)
+		slog.WarnContext(ctx, "failed to remove stable unit", "error", err)
 	}
 
 	return nil

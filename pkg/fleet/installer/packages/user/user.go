@@ -12,11 +12,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"os/user"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EnsureAgentUserAndGroup ensures that the user and group required by the agent are present on the system.
@@ -44,7 +44,7 @@ func ensureGroup(ctx context.Context, groupName string) (err error) {
 	}
 	var unknownGroupError *user.UnknownGroupError
 	if !errors.As(err, &unknownGroupError) {
-		log.Warnf("error looking up %s group: %v", groupName, err)
+		slog.WarnContext(ctx, "error looking up group", "groupName", groupName, "error", err)
 	}
 	err = exec.CommandContext(ctx, "groupadd", "--force", "--system", groupName).Run()
 	if err != nil {
@@ -64,7 +64,7 @@ func ensureUser(ctx context.Context, userName string, installPath string) (err e
 	}
 	var unknownUserError *user.UnknownUserError
 	if !errors.As(err, &unknownUserError) {
-		log.Warnf("error looking up %s user: %v", userName, err)
+		slog.WarnContext(ctx, "error looking up user", "userName", userName, "error", err)
 	}
 	err = exec.CommandContext(ctx, "useradd", "--system", "--shell", "/usr/sbin/nologin", "--home", installPath, "--no-create-home", "--no-user-group", "-g", "dd-agent", "dd-agent").Run()
 	if err != nil {

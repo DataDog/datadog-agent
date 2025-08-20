@@ -9,9 +9,11 @@
 package paths
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -23,7 +25,6 @@ import (
 	"golang.org/x/sys/windows/registry"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -257,7 +258,7 @@ func secureCreateDirectory(path string, sddl string) error {
 // Unprivileged users (users without SeTakeOwnershipPrivilege/SeRestorePrivilege) cannot set the owner to Administrators.
 func IsInstallerDataDirSecure() error {
 	targetDir := DatadogInstallerData
-	log.Infof("Checking if installer data directory is secure: %s", targetDir)
+	slog.InfoContext(context.TODO(), "Checking if installer data directory is secure", "directory", targetDir)
 	return IsDirSecure(targetDir)
 }
 
@@ -484,13 +485,13 @@ func getProgramDataDirForProduct(product string) (path string, err error) {
 		registry.ALL_ACCESS)
 	if err != nil {
 		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
-		log.Debugf("Windows installation key root (%s) not found, using default program data dir", keyname)
+		slog.DebugContext(context.TODO(), "Windows installation key root not found, using default program data dir", "keyname", keyname)
 		return filepath.Join(res, "Datadog"), nil
 	}
 	defer k.Close()
 	val, _, err := k.GetStringValue("ConfigRoot")
 	if err != nil {
-		log.Warnf("Windows installation key config not found, using default program data dir")
+		slog.WarnContext(context.TODO(), "Windows installation key config not found, using default program data dir")
 		return filepath.Join(res, "Datadog"), nil
 	}
 	path = val
@@ -511,13 +512,13 @@ func getProgramFilesDirForProduct(product string) (path string, err error) {
 		registry.ALL_ACCESS)
 	if err != nil {
 		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
-		log.Debugf("Windows installation key root (%s) not found, using default program data dir", keyname)
+		slog.DebugContext(context.TODO(), "Windows installation key root not found, using default program data dir", "keyname", keyname)
 		return filepath.Join(res, "Datadog", product), nil
 	}
 	defer k.Close()
 	val, _, err := k.GetStringValue("InstallPath")
 	if err != nil {
-		log.Warnf("Windows installation key config not found, using default program data dir")
+		slog.WarnContext(context.TODO(), "Windows installation key config not found, using default program data dir")
 		return filepath.Join(res, "Datadog", product), nil
 	}
 	path = val

@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"log/slog"
 	"github.com/shirou/gopsutil/v4/process"
 )
 
@@ -46,7 +46,7 @@ func (a *InjectorInstaller) instrumentDocker(ctx context.Context) (func() error,
 	err = reloadDockerConfig(ctx)
 	if err != nil {
 		if rollbackErr := rollbackDockerConfig(); rollbackErr != nil {
-			log.Warn("failed to rollback docker configuration: ", rollbackErr)
+			slog.WarnContext(ctx, "failed to rollback docker configuration", "error", rollbackErr)
 		}
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func (a *InjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error)
 	defer func() { span.Finish(err) }()
 
 	if !isDockerActive(ctx) {
-		log.Warn("docker is inactive, skipping docker runtime verification")
+		slog.WarnContext(ctx, "docker is inactive, skipping docker runtime verification")
 		return nil
 	}
 
@@ -160,9 +160,9 @@ func (a *InjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error)
 		err = cmd.Run()
 		if err != nil {
 			if i < maxRetries {
-				log.Debug("failed to verify docker runtime, retrying: ", err)
+				slog.DebugContext(ctx, "failed to verify docker runtime, retrying", "error", err)
 			} else {
-				log.Warn("failed to verify docker runtime: ", err)
+				slog.WarnContext(ctx, "failed to verify docker runtime", "error", err)
 			}
 		}
 		currentRuntime = strings.TrimSpace(outb.String())
@@ -173,7 +173,7 @@ func (a *InjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error)
 		}
 		// Reload Docker daemon again in case the signal was lost
 		if reloadErr := reloadDockerConfig(ctx); reloadErr != nil {
-			log.Warn("failed to reload docker daemon: ", reloadErr)
+			slog.WarnContext(ctx, "failed to reload docker daemon", "error", reloadErr)
 		}
 	}
 	span.SetTag("retries", maxRetries)
@@ -186,7 +186,7 @@ func reloadDockerConfig(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "reload_docker")
 	defer func() { span.Finish(err) }()
 	if !isDockerActive(ctx) {
-		log.Warn("docker is inactive, skipping docker reload")
+		slog.WarnContext(ctx, "docker is inactive, skipping docker reload")
 		return nil
 	}
 
@@ -224,12 +224,12 @@ func isDockerInstalled(ctx context.Context) bool {
 	if err != nil && errors.Is(err, exec.ErrNotFound) {
 		return false
 	} else if err != nil {
-		log.Warn("installer: failed to check if docker is installed, assuming it isn't: ", err)
+		slog.WarnContext(ctx, "installer: failed to check if docker is installed, assuming it isn't", "error", err)
 		return false
 	}
 	span.SetTag("docker_path", dockerPath)
 	if strings.Contains(dockerPath, "/snap/") {
-		log.Warn("installer: docker is installed via snap, skipping docker instrumentation")
+		slog.WarnContext(ctx, "installer: docker is installed via snap, skipping docker instrumentation")
 		return false
 	}
 	return true

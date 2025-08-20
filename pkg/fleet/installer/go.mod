@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	cloud.google.com/go/compute/metadata v0.7.0
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel.0.20250129111638-01c8fb06949e
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.3
 	github.com/DataDog/datadog-agent/pkg/version v0.64.3
 	github.com/Microsoft/go-winio v0.6.2
@@ -27,6 +26,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel.0.20250129111638-01c8fb06949e // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.3 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
@@ -66,6 +66,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
 )
 
-replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil

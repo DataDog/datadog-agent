@@ -24,13 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
+	"log/slog"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -177,7 +178,7 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 func (i *installerImpl) ForceInstall(ctx context.Context, url string, args []string) error {
 	return i.doInstall(ctx, url, args, func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool {
 		if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
-			log.Warnf("package %s version %s is already installed, updating it anyway", pkg.Name, pkg.Version)
+			slog.WarnContext(ctx, "package is already installed, updating it anyway", "package", pkg.Name, "version", pkg.Version)
 		}
 		return true
 	})
@@ -187,7 +188,7 @@ func (i *installerImpl) ForceInstall(ctx context.Context, url string, args []str
 func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
 	return i.doInstall(ctx, url, args, func(dbPkg db.Package, pkg *oci.DownloadedPackage) bool {
 		if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
-			log.Warnf("package %s version %s is already installed", pkg.Name, pkg.Version)
+			slog.WarnContext(ctx, "package is already installed", "package", pkg.Name, "version", pkg.Version)
 			return false
 		}
 		return true
@@ -313,11 +314,11 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 		return fmt.Errorf("could not remove package installation in db: %w", err)
 	}
 	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
-	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
-	err = pkg.ExtractLayers(oci.DatadogPackageConfigLayerMediaType, configDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageConfigLayerMediaType, configDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
@@ -371,14 +372,14 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	}
 	defer os.RemoveAll(tmpDir)
 	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
-	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrDownloadFailed,
 			fmt.Errorf("could not extract package layer: %w", err),
 		)
 	}
-	err = pkg.ExtractLayers(oci.DatadogPackageConfigLayerMediaType, configDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageConfigLayerMediaType, configDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrDownloadFailed,
@@ -595,7 +596,7 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	}
 	err = writeConfigSymlinks(paths.ConfigsPath, repository.StablePath())
 	if err != nil {
-		log.Warnf("could not write user-facing config symlinks: %v", err)
+		slog.WarnContext(ctx, "could not write user-facing config symlinks", "error", err)
 	}
 	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
 }
@@ -609,7 +610,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	if err != nil {
 		// if we can't list packages we'll only remove the installer
 		dbPackages = nil
-		log.Warnf("could not list packages: %v", err)
+		slog.WarnContext(ctx, "could not list packages", "error", err)
 	}
 	for _, pkg := range dbPackages {
 		if pkg.Name == packageDatadogInstaller {
@@ -620,7 +621,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		}
 		err := i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, false)
 		if err != nil {
-			log.Warnf("could not remove package %s: %v", pkg.Name, err)
+			slog.WarnContext(ctx, "could not remove package", "package", pkg.Name, "error", err)
 		}
 	}
 	// NOTE: On Windows, purge must be called from a copy of the installer that
@@ -633,14 +634,14 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//       as the daemon may be running and holding locks on files that need to be removed.
 	err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
 	if err != nil {
-		log.Warnf("could not remove agent: %v", err)
+		slog.WarnContext(ctx, "could not remove agent", "error", err)
 	}
 	// TODO: wont need this when Linux packages are merged
 	if runtime.GOOS != "windows" {
 		// on windows the installer package has been merged with the agent package
 		err = i.hooks.PreRemove(ctx, packageDatadogInstaller, packages.PackageTypeOCI, false)
 		if err != nil {
-			log.Warnf("could not remove installer: %v", err)
+			slog.WarnContext(ctx, "could not remove installer", "error", err)
 		}
 	}
 
@@ -650,7 +651,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 
 	err = os.RemoveAll(paths.ConfigsPath)
 	if err != nil {
-		log.Warnf("could not delete configs dir: %v", err)
+		slog.WarnContext(ctx, "could not delete configs dir", "error", err)
 	}
 
 	// explicitly remove the packages database from disk
@@ -661,7 +662,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	// is still used as a source of truth.
 	err = os.Remove(filepath.Join(i.packagesDir, "packages.db"))
 	if err != nil {
-		log.Warnf("could not delete packages db: %v", err)
+		slog.WarnContext(ctx, "could not delete packages db", "error", err)
 	}
 
 	// remove all from disk
@@ -669,12 +670,12 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	err = os.RemoveAll(i.packagesDir)
 	defer span.Finish(err)
 	if err != nil {
-		log.Warnf("could not delete packages dir: %v", err)
+		slog.WarnContext(ctx, "could not delete packages dir", "error", err)
 	}
 
 	err = purgeTmpDirectory(paths.RootTmpDir)
 	if err != nil {
-		log.Warnf("could not delete tmp directory: %v", err)
+		slog.WarnContext(ctx, "could not delete tmp directory", "error", err)
 	}
 }
 
@@ -895,7 +896,7 @@ func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error
 				err = os.Remove(filepath.Join(dir, file.Path))
 				if err != nil {
 					if os.IsNotExist(err) {
-						log.Warnf("config file %s does not exist, skipping", file.Path)
+						slog.WarnContext(context.TODO(), "config file does not exist, skipping", "path", file.Path)
 						continue
 					}
 					return fmt.Errorf("could not remove config file: %w", err)
@@ -1051,20 +1052,20 @@ func cleanupTmpDirectory(rootTmpDir string) error {
 		// Get file info to check modification time
 		info, err := entry.Info()
 		if err != nil {
-			log.Warnf("Could not get info for %s: %v", entryPath, err)
+			slog.WarnContext(context.TODO(), "Could not get info for entry", "path", entryPath, "error", err)
 			continue
 		}
 
 		// Check if the file/directory is older than 24 hours
 		if info.ModTime().Before(cutoffTime) {
-			log.Debugf("Removing old tmp file/directory: %s (modified: %v)", entryPath, info.ModTime())
+			slog.DebugContext(context.TODO(), "Removing old tmp file/directory", "path", entryPath, "modified", info.ModTime())
 
 			err := os.RemoveAll(entryPath)
 			if err != nil {
 				cleanupErrors = append(cleanupErrors, fmt.Sprintf("failed to remove %s: %v", entryPath, err))
-				log.Warnf("Could not remove old tmp file/directory %s: %v", entryPath, err)
+				slog.WarnContext(context.TODO(), "Could not remove old tmp file/directory", "path", entryPath, "error", err)
 			} else {
-				log.Debugf("Successfully removed old tmp file/directory: %s", entryPath)
+				slog.DebugContext(context.TODO(), "Successfully removed old tmp file/directory", "path", entryPath)
 			}
 		}
 	}

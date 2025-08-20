@@ -22,11 +22,12 @@ import (
 	"go.uber.org/multierr"
 	"gopkg.in/yaml.v3"
 
+	"log/slog"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -64,7 +65,7 @@ type InjectorInstaller struct {
 
 // Finish cleans up the APM injector
 // Runs rollbacks if an error is passed and always runs cleanups
-func (a *InjectorInstaller) Finish(err error) {
+func (a *InjectorInstaller) Finish(ctx context.Context, err error) {
 	if err != nil {
 		// Run rollbacks in reverse order
 		for i := len(a.rollbacks) - 1; i >= 0; i-- {
@@ -72,7 +73,7 @@ func (a *InjectorInstaller) Finish(err error) {
 				continue
 			}
 			if rollbackErr := a.rollbacks[i](); rollbackErr != nil {
-				log.Warnf("rollback failed: %v", rollbackErr)
+				slog.WarnContext(ctx, "rollback failed", "error", rollbackErr)
 			}
 		}
 	}
@@ -147,7 +148,7 @@ func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 		return err
 	}
 
-	if shouldInstrumentHost(a.Env) {
+	if shouldInstrumentHost(ctx, a.Env) {
 		a.cleanups = append(a.cleanups, a.ldPreloadFileInstrument.cleanup)
 		rollbackLDPreload, err := a.ldPreloadFileInstrument.mutate(ctx)
 		if err != nil {
@@ -160,7 +161,7 @@ func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 	if mustInstrumentDocker(a.Env) && !dockerIsInstalled {
 		return fmt.Errorf("DD_APM_INSTRUMENTATION_ENABLED is set to docker but docker is not installed")
 	}
-	if shouldInstrumentDocker(a.Env) && dockerIsInstalled {
+	if shouldInstrumentDocker(ctx, a.Env) && dockerIsInstalled {
 		// Set up defaults for agent sockets -- requires an agent restart
 		if err := a.configureSocketsEnv(ctx); err != nil {
 			return err
@@ -185,12 +186,12 @@ func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 func (a *InjectorInstaller) Uninstrument(ctx context.Context) error {
 	errs := []error{}
 
-	if shouldInstrumentHost(a.Env) {
+	if shouldInstrumentHost(ctx, a.Env) {
 		_, hostErr := a.ldPreloadFileUninstrument.mutate(ctx)
 		errs = append(errs, hostErr)
 	}
 
-	if shouldInstrumentDocker(a.Env) {
+	if shouldInstrumentDocker(ctx, a.Env) {
 		dockerErr := a.uninstrumentDocker(ctx)
 		errs = append(errs, dockerErr)
 	}
@@ -419,26 +420,26 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 	return nil
 }
 
-func shouldInstrumentHost(execEnvs *env.Env) bool {
+func shouldInstrumentHost(ctx context.Context, execEnvs *env.Env) bool {
 	switch execEnvs.InstallScript.APMInstrumentationEnabled {
 	case env.APMInstrumentationEnabledHost, env.APMInstrumentationEnabledAll, env.APMInstrumentationNotSet:
 		return true
 	case env.APMInstrumentationEnabledDocker:
 		return false
 	default:
-		log.Warnf("Unknown value for DD_APM_INSTRUMENTATION_ENABLED: %s. Supported values are all/docker/host", execEnvs.InstallScript.APMInstrumentationEnabled)
+		slog.WarnContext(ctx, "Unknown value for DD_APM_INSTRUMENTATION_ENABLED. Supported values are all/docker/host", "value", execEnvs.InstallScript.APMInstrumentationEnabled)
 		return false
 	}
 }
 
-func shouldInstrumentDocker(execEnvs *env.Env) bool {
+func shouldInstrumentDocker(ctx context.Context, execEnvs *env.Env) bool {
 	switch execEnvs.InstallScript.APMInstrumentationEnabled {
 	case env.APMInstrumentationEnabledDocker, env.APMInstrumentationEnabledAll, env.APMInstrumentationNotSet:
 		return true
 	case env.APMInstrumentationEnabledHost:
 		return false
 	default:
-		log.Warnf("Unknown value for DD_APM_INSTRUMENTATION_ENABLED: %s. Supported values are all/docker/host", execEnvs.InstallScript.APMInstrumentationEnabled)
+		slog.WarnContext(ctx, "Unknown value for DD_APM_INSTRUMENTATION_ENABLED. Supported values are all/docker/host", "value", execEnvs.InstallScript.APMInstrumentationEnabled)
 		return false
 	}
 }

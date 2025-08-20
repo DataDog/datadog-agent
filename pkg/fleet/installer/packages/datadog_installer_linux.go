@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"log/slog"
 )
 
 var datadogInstallerPackage = hooks{
@@ -44,10 +44,10 @@ var (
 // preInstallDatadogInstaller prepares the installer
 func preInstallDatadogInstaller(ctx HookContext) error {
 	if err := systemd.StopUnit(ctx, installerUnit); err != nil {
-		log.Warnf("Failed to stop unit %s: %s", installerUnit, err)
+		slog.WarnContext(ctx, "Failed to stop unit %s: %s", installerUnit, err)
 	}
 	if err := systemd.DisableUnit(ctx, installerUnit); err != nil {
-		log.Warnf("Failed to disable %s: %s", installerUnit, err)
+		slog.WarnContext(ctx, "Failed to disable %s: %s", installerUnit, err)
 	}
 	return nil
 }
@@ -121,19 +121,19 @@ func preRemoveDatadogInstaller(ctx HookContext) error {
 			if ok && exitErr.ExitCode() == 5 {
 				continue
 			}
-			log.Warnf("Failed stop unit %s: %s", unit, err)
+			slog.WarnContext(ctx, "Failed stop unit %s: %s", unit, err)
 		}
 		if err := systemd.DisableUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to disable %s: %s", unit, err)
+			slog.WarnContext(ctx, "Failed to disable %s: %s", unit, err)
 		}
 		if err := removeUnits(ctx, unit); err != nil {
-			log.Warnf("Failed to stop %s: %s", unit, err)
+			slog.WarnContext(ctx, "Failed to stop %s: %s", unit, err)
 		}
 	}
 
 	// Remove symlink
 	if err := os.Remove("/usr/bin/datadog-installer"); err != nil {
-		log.Warnf("Failed to remove /usr/bin/datadog-installer: %s", err)
+		slog.WarnContext(ctx, "Failed to remove /usr/bin/datadog-installer: %s", err)
 	}
 
 	// TODO: return error to caller?

@@ -143,7 +143,7 @@ dogstatsd_socket: /banana/dsd.socket
 				os.WriteFile(agentConfigPath, []byte(tc.agentConfig), 0644)
 			}
 
-			apmSockPath, statsdSockPath, err := getSocketsPath()
+			apmSockPath, statsdSockPath, err := getSocketsPath(context.Background())
 			assert.Nil(t, err)
 			assert.Equal(t, tc.expectedAPMSockPath, apmSockPath)
 			assert.Equal(t, tc.expectedStatsdSockPath, statsdSockPath)

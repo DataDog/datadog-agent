@@ -9,13 +9,13 @@ package djm
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"cloud.google.com/go/compute/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -94,7 +94,7 @@ func setupCommonDataprocHostTags(s *common.Setup, metadataClient *metadata.Clien
 
 	clusterName, err := metadataClient.InstanceAttributeValueWithContext(ctx, "dataproc-cluster-name")
 	if err != nil {
-		log.Warn("failed to get clusterName, using clusterID instead")
+		slog.WarnContext(ctx, "failed to get clusterName, using clusterID instead", "error", err)
 		return isMaster, clusterID, nil
 	}
 	setHostTag(s, "cluster_name", clusterName)

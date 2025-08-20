@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -18,7 +19,6 @@ import (
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // WinServiceManager implements ServiceManager using the SystemAPI interface
@@ -56,13 +56,13 @@ func getTerminatePolicy() bool {
 		registry.ALL_ACCESS)
 	if err != nil {
 		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
-		log.Debugf("Windows installation key root not found, using default")
+		slog.DebugContext(context.TODO(), "Windows installation key root not found, using default")
 		return defaultTerminatePolicy
 	}
 	defer k.Close()
 	val, _, err := k.GetIntegerValue("TerminatePolicy")
 	if err != nil {
-		log.Warnf("Windows installation key TerminatePolicy not found, using default")
+		slog.WarnContext(context.TODO(), "Windows installation key TerminatePolicy not found, using default")
 		return defaultTerminatePolicy
 	}
 	return val == 1
@@ -77,7 +77,7 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 
 	terminatePolicy := getTerminatePolicy()
 	if !terminatePolicy {
-		log.Debugf("TerminatePolicy is false, skipping termination of service %s", serviceName)
+		slog.DebugContext(context.TODO(), "TerminatePolicy is false, skipping termination of service", "serviceName", serviceName)
 		return fmt.Errorf("TerminatePolicy is false, skipping termination of service %s", serviceName)
 	}
 

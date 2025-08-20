@@ -36,7 +36,7 @@ type Telemetry struct {
 }
 
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(client *http.Client, apiKey string, logger *Logger, site string, service string) *Telemetry {
+func NewTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
 	t := newTelemetry(client, apiKey, site, service)
 	t.Start()
 	return t
@@ -86,7 +86,15 @@ func (t *Telemetry) Stop() {
 	<-t.flushed
 }
 
+// SetLogger sets the logger for the telemetry.
+func (t *Telemetry) SetLogger(logger *Logger) {
+	t.logger = logger
+}
+
 func (t *Telemetry) sendLogs() {
+	if t.logger == nil {
+		return
+	}
 	logs := t.logger.flush()
 	fmt.Println("sending logs", len(logs))
 }

@@ -154,7 +154,7 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 		site = config.Site
 	}
 	logger := telemetry.NewLogger(slog.Default().Handler())
-	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, logger, site, "datadog-installer") // No sampling rules for commands
+	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	slog.SetDefault(slog.New(logger))
 	return t
 }

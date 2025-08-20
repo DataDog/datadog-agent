@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"log/slog"
 )
 
 const (
@@ -128,7 +128,7 @@ func setupAppArmor(ctx context.Context) (err error) {
 
 	if err = reloadAppArmor(ctx); err != nil {
 		if rollbackErr := os.Remove(appArmorInjectorProfilePath); rollbackErr != nil {
-			log.Warnf("failed to remove apparmor profile: %v", rollbackErr)
+			slog.WarnContext(ctx, "failed to remove apparmor profile", "error", rollbackErr)
 		}
 		return err
 	}

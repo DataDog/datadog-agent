@@ -32,11 +32,12 @@ import (
 	"go.uber.org/multierr"
 	"golang.org/x/net/http2"
 
+	"log/slog"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/tar"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -103,7 +104,7 @@ func NewDownloader(env *env.Env, client *http.Client) *Downloader {
 
 // Download downloads the Datadog Package referenced in the given Package struct.
 func (d *Downloader) Download(ctx context.Context, packageURL string) (*DownloadedPackage, error) {
-	log.Debugf("Downloading package from %s", packageURL)
+	slog.DebugContext(ctx, "Downloading package", "url", packageURL)
 	url, err := url.Parse(packageURL)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse package URL: %w", err)
@@ -140,7 +141,7 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 			return nil, fmt.Errorf("could not parse package size: %w", err)
 		}
 	}
-	log.Debugf("Successfully downloaded package from %s", packageURL)
+	slog.DebugContext(ctx, "Successfully downloaded package", "url", packageURL)
 	return &DownloadedPackage{
 		Image:   image,
 		Name:    name,
@@ -161,7 +162,7 @@ func getKeychain(auth string, username string, password string) authn.Keychain {
 	case RegistryAuthDefault, "":
 		return authn.DefaultKeychain
 	default:
-		log.Warnf("unsupported registry authentication method: %s, defaulting to docker", auth)
+		slog.WarnContext(context.TODO(), "unsupported registry authentication method, defaulting to docker", "auth_method", auth)
 		return authn.DefaultKeychain
 	}
 }
@@ -248,11 +249,11 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 	}
 	var multiErr error
 	for _, refAndKeychain := range getRefAndKeychains(d.env, url) {
-		log.Debugf("Downloading index from %s", refAndKeychain.ref)
+		slog.DebugContext(ctx, "Downloading index", "ref", refAndKeychain.ref)
 		ref, err := name.ParseReference(refAndKeychain.ref)
 		if err != nil {
 			multiErr = multierr.Append(multiErr, fmt.Errorf("could not parse reference: %w", err))
-			log.Warnf("could not parse reference: %s", err.Error())
+			slog.WarnContext(ctx, "could not parse reference", "error", err.Error())
 			continue
 		}
 		index, err := remote.Index(
@@ -263,7 +264,7 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 		)
 		if err != nil {
 			multiErr = multierr.Append(multiErr, fmt.Errorf("could not download image using %s: %w", url, err))
-			log.Warnf("could not download image using %s: %s", url, err.Error())
+			slog.WarnContext(ctx, "could not download image", "url", url, "error", err.Error())
 			continue
 		}
 		return d.downloadIndex(index)
@@ -309,7 +310,7 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 }
 
 // ExtractLayers extracts the layers of the downloaded package with the given media type to the given directory.
-func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string) error {
+func (d *DownloadedPackage) ExtractLayers(ctx context.Context, mediaType types.MediaType, dir string) error {
 	layers, err := d.Image.Layers()
 	if err != nil {
 		return fmt.Errorf("could not get image layers: %w", err)
@@ -320,7 +321,7 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 			return fmt.Errorf("could not get layer media type: %w", err)
 		}
 		if layerMediaType == mediaType {
-			err = withNetworkRetries(
+			err = withNetworkRetries(ctx,
 				func() error {
 					var err error
 					defer func() {
@@ -360,9 +361,9 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 }
 
 // WriteOCILayout writes the image as an OCI layout to the given directory.
-func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
+func (d *DownloadedPackage) WriteOCILayout(ctx context.Context, dir string) (err error) {
 	var layoutPath layout.Path
-	return withNetworkRetries(
+	return withNetworkRetries(ctx,
 		func() error {
 			layoutPath, err = layout.Write(dir, empty.Index)
 			if err != nil {
@@ -388,7 +389,7 @@ func PackageURL(env *env.Env, pkg string, version string) string {
 	}
 }
 
-func withNetworkRetries(f func() error) error {
+func withNetworkRetries(ctx context.Context, f func() error) error {
 	var err error
 	for i := 0; i < networkRetries; i++ {
 		err = f()
@@ -398,7 +399,7 @@ func withNetworkRetries(f func() error) error {
 		if !isRetryableNetworkError(err) {
 			return err
 		}
-		log.Warnf("retrying after network error: %s", err)
+		slog.WarnContext(ctx, "retrying after network error", "error", err)
 		time.Sleep(time.Second)
 	}
 	return err
