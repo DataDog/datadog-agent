@@ -1676,6 +1676,41 @@ func TestSampling(t *testing.T) {
 	}
 }
 
+func TestProbSamplerSetsChunkPriority(t *testing.T) {
+	now := time.Now()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	statsd := mockStatsd.NewMockClientInterface(ctrl)
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{}), ProbabilisticSamplerEnabled: true, ProbabilisticSamplerSamplingPercentage: 100}
+	root := &pb.Span{
+		Service:  "serv1",
+		Start:    now.UnixNano(),
+		Duration: (100 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{"_top_level": 1},
+		Meta:     map[string]string{},
+	}
+	chunk := testutil.TraceChunkWithSpan(root)
+	pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
+	pt.TraceChunk.Priority = int32(-128)
+
+	a := &Agent{
+		NoPrioritySampler:    sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:        sampler.NewErrorsSampler(cfg),
+		PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:          sampler.NewRareSampler(config.New()),
+		ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg),
+		EventProcessor:       newEventProcessor(cfg, statsd),
+		SamplerMetrics:       sampler.NewMetrics(statsd),
+		conf:                 cfg,
+	}
+
+	keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	assert.True(t, keep)
+	// In order to ensure intake keeps this chunk we must override whatever priority was previously set on this chunk
+	// This is especially an issue for incoming OTLP spans where the chunk priority may have the "unset" value of -128
+	assert.Equal(t, int32(1), pt.TraceChunk.Priority)
+}
+
 func TestSampleTrace(t *testing.T) {
 	now := time.Now()
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}

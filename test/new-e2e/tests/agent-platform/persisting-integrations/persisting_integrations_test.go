@@ -40,8 +40,9 @@ var (
 
 type persistingIntegrationsSuite struct {
 	e2e.BaseSuite[environments.Host]
-	srcVersion string
-	platform   string
+	srcVersion     string
+	platform       string
+	testingKeysURL string
 }
 
 func (is *persistingIntegrationsSuite) AfterTest(suiteName, testName string) {
@@ -97,7 +98,9 @@ func TestPersistingIntegrations(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
 			e2e.Run(tt,
-				&persistingIntegrationsSuite{srcVersion: *srcAgentVersion, platform: *platform},
+				// testingKeysURL will be set as TESTING_KEYS_URL in the install script
+				// then used in places like https://github.com/DataDog/agent-linux-install-script/blob/8f5c0b4f5b60847ee7989aa2c35052382f282d5d/install_script.sh.template#L1229
+				&persistingIntegrationsSuite{srcVersion: *srcAgentVersion, platform: *platform, testingKeysURL: "apttesting.datad0g.com/test-keys-vault"},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
@@ -112,6 +115,7 @@ func (is *persistingIntegrationsSuite) TestIntegrationPersistsByDefault() {
 
 	startAgentVersion := is.SetupAgentStartVersion(VMclient)
 	is.InstallNVMLIntegration(VMclient)
+	is.InstallPackage(VMclient, "datadog-api-client")
 
 	// remove the flag to skip installing third party deps if it exists
 	is.DisableSkipInstallThirdPartyDepsFlag(VMclient)
@@ -119,6 +123,13 @@ func (is *persistingIntegrationsSuite) TestIntegrationPersistsByDefault() {
 	upgradedAgentVersion := is.UpgradeAgentVersion(VMclient)
 	is.Require().NotEqual(startAgentVersion, upgradedAgentVersion)
 	is.CheckIntegrationInstalled(VMclient)
+
+	freezeRequirement := VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 freeze")
+	is.Assert().Contains(freezeRequirement, "datadog-api-client")
+
+	VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 uninstall -y datadog-api-client")
+	freezeRequirement = VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 freeze")
+	is.Assert().NotContains(freezeRequirement, "datadog-api-client")
 }
 
 func (is *persistingIntegrationsSuite) TestIntegrationDoesNotPersistWithSkipFileFlag() {
@@ -158,6 +169,19 @@ func (is *persistingIntegrationsSuite) InstallNVMLIntegration(VMclient *common.T
 	is.Require().Contains(freezeRequirement, "datadog-nvml==1.0.0")
 }
 
+func (is *persistingIntegrationsSuite) InstallPackage(VMclient *common.TestClient, packageName string) {
+	// Make sure that the package is not installed
+	freezeRequirement := VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+	is.Assert().NotContains(freezeRequirement, packageName)
+
+	// Install the package
+	VMclient.Host.MustExecute("sudo -u dd-agent /opt/datadog-agent/embedded/bin/pip3 install " + packageName)
+
+	// Check that the package is installed successfully
+	freezeRequirement = VMclient.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+	is.Require().Contains(freezeRequirement, packageName)
+}
+
 func (is *persistingIntegrationsSuite) EnableSkipInstallThirdPartyDepsFlag(VMclient *common.TestClient) string {
 	return VMclient.Host.MustExecute("sudo touch /etc/datadog-agent/.skip_install_python_third_party_deps")
 }
@@ -178,7 +202,16 @@ func (is *persistingIntegrationsSuite) UpgradeAgentVersion(VMclient *common.Test
 	defer VMclient.Host.MustExecute("sudo chmod +t /tmp")
 	VMclient.Host.MustExecute("sudo chmod -t /tmp")
 
-	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithUpgrade(true))
+	installOptions := []installparams.Option{
+		installparams.WithArch(*architecture),
+		installparams.WithFlavor(*flavorName),
+		installparams.WithUpgrade(true),
+	}
+
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	install.Unix(is.T(), VMclient, installOptions...)
 
 	common.CheckInstallation(is.T(), VMclient)
 

@@ -14,7 +14,33 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": [
+          {
+            "function": "main.testEsotericHeap",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go",
+            "lineNumber": 47
+          },
+          {
+            "function": "main.executeEsoteric",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go",
+            "lineNumber": 68
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 43
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
         "probe": {
           "id": "testEsotericHeap",
           "location": {
@@ -53,24 +79,7 @@
                       }
                     }
                   },
-                  "mu": {
-                    "type": "sync.Mutex",
-                    "fields": {
-                      "mu": {
-                        "type": "internal/sync.Mutex",
-                        "fields": {
-                          "state": {
-                            "type": "int32",
-                            "value": "0"
-                          },
-                          "sema": {
-                            "type": "uint32",
-                            "value": "0"
-                          }
-                        }
-                      }
-                    }
-                  },
+                  "mu": "[sync.Mutex (different in different versions)]",
                   "once": {
                     "type": "sync.Once",
                     "fields": {
@@ -83,24 +92,7 @@
                           }
                         }
                       },
-                      "m": {
-                        "type": "sync.Mutex",
-                        "fields": {
-                          "mu": {
-                            "type": "internal/sync.Mutex",
-                            "fields": {
-                              "state": {
-                                "type": "int32",
-                                "value": "0"
-                              },
-                              "sema": {
-                                "type": "uint32",
-                                "value": "0"
-                              }
-                            }
-                          }
-                        }
-                      }
+                      "m": "[sync.Mutex (different in different versions)]"
                     }
                   },
                   "wg": {

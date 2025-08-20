@@ -457,7 +457,9 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.TaskVersion, task.Version)
 	taskTags.AddLow(tags.AwsAccount, task.AWSAccountID)
 	taskTags.AddLow(tags.Region, task.Region)
+	taskTags.AddLow(tags.EcsServiceARN, task.ServiceARN)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
+	taskTags.AddOrchestrator(tags.TaskDefinitionARN, task.TaskDefinitionARN)
 
 	clusterTags := taglist.NewTagList()
 	if task.ClusterName != "" {
@@ -466,6 +468,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			taskTags.AddLow(tags.ClusterName, task.ClusterName)
 		}
 		clusterTags.AddLow(tags.EcsClusterName, task.ClusterName)
+		clusterTags.AddLow(tags.EcsClusterARN, task.ClusterARN)
 	}
 	clusterLow, clusterOrch, clusterHigh, clusterStandard := clusterTags.Compute()
 
@@ -521,18 +524,21 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		})
 	}
 
-	// add global cluster tags to EC2
-	if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 {
-		tagInfos = append(tagInfos, &types.TagInfo{
-			Source:               taskSource,
-			EntityID:             types.GetGlobalEntityID(),
-			HighCardTags:         clusterHigh,
-			OrchestratorCardTags: clusterOrch,
-			LowCardTags:          clusterLow,
-			StandardTags:         clusterStandard,
-		})
+	// Global tags only updated when a valid ClusterName is provided
+	// There exist edge cases in the metadata API returning a task without cluster info
+	if task.ClusterName != "" {
+		// add global cluster tags to EC2
+		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 {
+			tagInfos = append(tagInfos, &types.TagInfo{
+				Source:               taskSource,
+				EntityID:             types.GetGlobalEntityID(),
+				HighCardTags:         clusterHigh,
+				OrchestratorCardTags: clusterOrch,
+				LowCardTags:          clusterLow,
+				StandardTags:         clusterStandard,
+			})
+		}
 	}
-
 	return tagInfos
 }
 

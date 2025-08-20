@@ -19,23 +19,22 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"slices"
-
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
-	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationlibrary"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationscope"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 const (
@@ -170,16 +169,21 @@ func (t *Translator) mapNumberMetrics(
 			continue
 		}
 
-		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), val)
+		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), 0, val)
 	}
 }
 
 // TODO(songy23): consider changing this to a Translator start time that must be initialized
 // if the package-level variable causes any issue.
-var startTime = uint64(time.Now().Unix())
+var startTime = uint64(time.Now().UnixNano())
 
 // getProcessStartTime returns the start time of the Agent process in seconds since epoch
 func getProcessStartTime() uint64 {
+	return startTime / 1_000_000_000
+}
+
+// getProcessStartTimeNano returns the start time of the Agent process in nanoseconds since epoch
+func getProcessStartTimeNano() uint64 {
 	return startTime
 }
 
@@ -188,7 +192,7 @@ func getProcessStartTime() uint64 {
 func (t *Translator) shouldConsumeInitialValue(startTs, ts uint64) bool {
 	switch t.cfg.InitialCumulMonoValueMode {
 	case InitialCumulMonoValueModeAuto:
-		if getProcessStartTime() < startTs && startTs != ts {
+		if getProcessStartTimeNano() < startTs && startTs != ts {
 			// Report the first value if the timeseries started after the Datadog Agent process started.
 			return true
 		}
@@ -235,7 +239,7 @@ func (t *Translator) mapNumberMonotonicMetrics(
 			if shouldDropPoint {
 				t.logger.Debug("Dropping point: timestamp is older or equal to timestamp of previous point received", zap.String(metricName, pointDims.name))
 			} else if !isFirstPoint {
-				consumer.ConsumeTimeSeries(ctx, pointDims, Gauge, ts, dx)
+				consumer.ConsumeTimeSeries(ctx, pointDims, Gauge, ts, 0, dx)
 			}
 			continue
 		}
@@ -247,11 +251,11 @@ func (t *Translator) mapNumberMonotonicMetrics(
 		}
 
 		if !isFirstPoint {
-			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, dx)
+			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, dx)
 		} else if i == 0 && t.shouldConsumeInitialValue(startTs, ts) {
 			// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
 			// Todo: Investigate why we don't compute first val if i > 0 and add reason as comment.
-			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, val)
+			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, val)
 		}
 	}
 }
@@ -294,7 +298,7 @@ func (t *Translator) getSketchBuckets(
 	p pmetric.HistogramDataPoint,
 	histInfo histogramInfo,
 	delta bool,
-) {
+) error {
 	startTs := uint64(p.StartTimestamp())
 	ts := uint64(p.Timestamp())
 	as := &quantile.Agent{}
@@ -356,10 +360,16 @@ func (t *Translator) getSketchBuckets(
 		var nonZeroBucket bool
 		if delta {
 			nonZeroBucket = count > 0
-			as.InsertInterpolate(lowerBound, upperBound, uint(count))
+			err := as.InsertInterpolate(lowerBound, upperBound, uint(count))
+			if err != nil {
+				return err
+			}
 		} else if dx, ok := t.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
 			nonZeroBucket = dx > 0
-			as.InsertInterpolate(lowerBound, upperBound, uint(dx))
+			err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
+			if err != nil {
+				return err
+			}
 		}
 
 		if nonZeroBucket {
@@ -407,8 +417,9 @@ func (t *Translator) getSketchBuckets(
 			sketch.Basic.Max = math.Min(p.Max(), sketch.Basic.Max)
 		}
 
-		consumer.ConsumeSketch(ctx, pointDims, ts, sketch)
+		consumer.ConsumeSketch(ctx, pointDims, ts, 0, sketch)
 	}
+	return nil
 }
 
 func (t *Translator) getLegacyBuckets(
@@ -432,9 +443,9 @@ func (t *Translator) getLegacyBuckets(
 
 		count := float64(p.BucketCounts().At(idx))
 		if delta {
-			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, count)
+			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, 0, count)
 		} else if dx, ok := t.prevPts.Diff(bucketDims, startTs, ts, count); ok {
-			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, dx)
+			consumer.ConsumeTimeSeries(ctx, bucketDims, Count, ts, 0, dx)
 		}
 	}
 }
@@ -458,7 +469,7 @@ func (t *Translator) mapHistogramMetrics(
 	dims *Dimensions,
 	slice pmetric.HistogramDataPointSlice,
 	delta bool,
-) {
+) error {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {
@@ -506,8 +517,8 @@ func (t *Translator) mapHistogramMetrics(
 
 		if t.cfg.SendHistogramAggregations && histInfo.ok {
 			// We only send the sum and count if both values were ok.
-			consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, float64(histInfo.count))
-			consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, histInfo.sum)
+			consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, float64(histInfo.count))
+			consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, 0, histInfo.sum)
 
 			if delta {
 				// We could check is[Min/Max]FromLastTimeWindow here, and report the minimum/maximum
@@ -516,10 +527,10 @@ func (t *Translator) mapHistogramMetrics(
 				// where the min/max is (pressumably) available in either all or none of the points.
 
 				if p.HasMin() {
-					consumer.ConsumeTimeSeries(ctx, minDims, Gauge, ts, p.Min())
+					consumer.ConsumeTimeSeries(ctx, minDims, Gauge, ts, 0, p.Min())
 				}
 				if p.HasMax() {
-					consumer.ConsumeTimeSeries(ctx, maxDims, Gauge, ts, p.Max())
+					consumer.ConsumeTimeSeries(ctx, maxDims, Gauge, ts, 0, p.Max())
 				}
 			}
 		}
@@ -528,9 +539,13 @@ func (t *Translator) mapHistogramMetrics(
 		case HistogramModeCounters:
 			t.getLegacyBuckets(ctx, consumer, pointDims, p, delta)
 		case HistogramModeDistributions:
-			t.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta)
+			err := t.getSketchBuckets(ctx, consumer, pointDims, p, histInfo, delta)
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // formatFloat formats a float number as close as possible to what
@@ -579,11 +594,20 @@ func (t *Translator) mapSummaryMetrics(
 		ts := uint64(p.Timestamp())
 		pointDims := dims.WithAttributeMap(p.Attributes())
 
-		// count and sum are increasing; we treat them as cumulative monotonic sums.
+		// treat count as a cumulative monotonic metric
+		// and sum as a non-monotonic metric
+		// https://prometheus.io/docs/practices/histograms/#count-and-sum-of-observations
 		{
 			countDims := pointDims.WithSuffix("count")
-			if dx, ok := t.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok && !t.isSkippable(countDims.name, dx) {
-				consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, dx)
+			val := float64(p.Count())
+			dx, isFirstPoint, shouldDropPoint := t.prevPts.MonotonicDiff(countDims, startTs, ts, val)
+			if !shouldDropPoint && !t.isSkippable(countDims.name, dx) {
+				if !isFirstPoint {
+					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, dx)
+				} else if i == 0 && t.shouldConsumeInitialValue(startTs, ts) {
+					// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
+					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, val)
+				}
 			}
 		}
 
@@ -591,7 +615,7 @@ func (t *Translator) mapSummaryMetrics(
 			sumDims := pointDims.WithSuffix("sum")
 			if !t.isSkippable(sumDims.name, p.Sum()) {
 				if dx, ok := t.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
-					consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, dx)
+					consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, 0, dx)
 				}
 			}
 		}
@@ -607,7 +631,7 @@ func (t *Translator) mapSummaryMetrics(
 				}
 
 				quantileDims := baseQuantileDims.AddTags(getQuantileTag(q.Quantile()))
-				consumer.ConsumeTimeSeries(ctx, quantileDims, Gauge, ts, q.Value())
+				consumer.ConsumeTimeSeries(ctx, quantileDims, Gauge, ts, 0, q.Value())
 			}
 		}
 	}
@@ -740,17 +764,14 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 		}
 
 		var host string
-		switch src.Kind {
-		case source.HostnameKind:
+		if src.Kind == source.HostnameKind {
 			host = src.Identifier
-			if c, ok := consumer.(HostConsumer); ok {
-				c.ConsumeHost(host)
-			}
-		case source.AWSECSFargateKind:
-			if c, ok := consumer.(TagsConsumer); ok {
-				c.ConsumeTag(src.Tag())
-			}
+			// Don't consume the host yet, first check if we have any nonAPM metrics.
 		}
+
+		// seenNonAPMMetrics is used to determine if we have seen any non-APM metrics in this ResourceMetrics.
+		// If we have only seen APM metrics, we don't want to consume the host.
+		var seenNonAPMMetrics bool
 
 		// Fetch tags from attributes.
 		attributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
@@ -802,6 +823,10 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 							mapHistogramRuntimeMetricWithAttributes(md, newMetrics, mp)
 						}
 					}
+				} else {
+					// If we are here, we have a non-APM metric:
+					// it is not a stats metric, nor a runtime metric.
+					seenNonAPMMetrics = true
 				}
 
 				if t.cfg.withRemapping {
@@ -811,19 +836,39 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 					renameMetrics(md)
 				}
 
-				t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
+				err := t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
+				if err != nil {
+					return metadata, err
+				}
 			}
 
 			for k := 0; k < newMetrics.Len(); k++ {
 				md := newMetrics.At(k)
-				t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
+				err := t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
+				if err != nil {
+					return metadata, err
+				}
+			}
+		}
+
+		// Only consume the source if we have seen non-APM metrics.
+		if seenNonAPMMetrics {
+			switch src.Kind {
+			case source.HostnameKind:
+				if c, ok := consumer.(HostConsumer); ok {
+					c.ConsumeHost(host)
+				}
+			case source.AWSECSFargateKind:
+				if c, ok := consumer.(TagsConsumer); ok {
+					c.ConsumeTag(src.Tag())
+				}
 			}
 		}
 	}
 	return metadata, nil
 }
 
-func (t *Translator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) {
+func (t *Translator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
 	baseDims := &Dimensions{
 		name:                md.Name(),
 		tags:                additionalTags,
@@ -861,7 +906,10 @@ func (t *Translator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consu
 		switch md.Histogram().AggregationTemporality() {
 		case pmetric.AggregationTemporalityCumulative, pmetric.AggregationTemporalityDelta:
 			delta := md.Histogram().AggregationTemporality() == pmetric.AggregationTemporalityDelta
-			t.mapHistogramMetrics(ctx, consumer, baseDims, md.Histogram().DataPoints(), delta)
+			err := t.mapHistogramMetrics(ctx, consumer, baseDims, md.Histogram().DataPoints(), delta)
+			if err != nil {
+				return err
+			}
 		default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
 			t.logger.Debug("Unknown or unsupported aggregation temporality",
 				zap.String("metric name", md.Name()),
@@ -884,4 +932,5 @@ func (t *Translator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consu
 	default: // pmetric.MetricDataTypeNone or any other not supported type
 		t.logger.Debug("Unknown or unsupported metric type", zap.String(metricName, md.Name()), zap.Any("data type", md.Type()))
 	}
+	return nil
 }

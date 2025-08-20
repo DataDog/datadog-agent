@@ -11,7 +11,6 @@ import (
 	"errors"
 	"os"
 	"reflect"
-	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -23,7 +22,6 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 
@@ -197,10 +195,6 @@ func TestProvider_Provide(t *testing.T) {
 			}
 
 			p, err := NewProvider(
-				&containers.Filter{
-					Enabled:         true,
-					NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
-				},
 				config,
 				store,
 			)
@@ -259,10 +253,6 @@ func TestProvider_DisableProvider(t *testing.T) {
 	}
 
 	p, err := NewProvider(
-		&containers.Filter{
-			Enabled:         true,
-			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
-		},
 		config,
 		store,
 	)

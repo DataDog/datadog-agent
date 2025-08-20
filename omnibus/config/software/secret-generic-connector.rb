@@ -16,7 +16,7 @@
 require './lib/ostools.rb'
 
 name "secret-generic-connector"
-default_version "1.0.1"
+default_version "1.1.1"
 
 # Define URLs for each platform
 secret_generic_urls = {
@@ -38,16 +38,16 @@ secret_generic_urls = {
 # Note: These should be updated for each version
 secret_generic_sha256 = {
   "linux" => {
-    "amd64" => "76add0ba9b638c41c2cd98b8ef29fe89c65c217bfad3b58f176889a8f7e555bd",
-    "arm64" => "16d31666d039622ce6bd526bb0c2aabbfebb24b95b6de4a96319d4db9b87101b"
+    "amd64" => "42499fc5bc2da362da00381cf5ea62afb67fd9f43dac1fdb9a84f1d72dce9af4",
+    "arm64" => "62e98bf8f631a1646cdffe8b808148512a6714a5a0c876063f2591cc090602f6"
   },
   "windows" => {
-    "amd64" => "e536450a4885b526df41279c76798b9486b5550fb2c4b4bef4f216a1788a2e88",
-    "arm64" => "2cde0c06797eb4d2bd463e0e2c71a6c8bdc3b6e43632b7ec34301fcd5ad7a7f5"
+    "amd64" => "68267d591c2bb65273903eee01b73d46a3a94714bdc4628c4deca6c779eb47d2",
+    "arm64" => "1e361a2d021465b67d4bacd43e39c7834602741f33fcb999194f4ece9152e746"
   },
   "darwin" => {
-    "amd64" => "044b34b3bd160914e6e40a95cf4a11dd41aefebac74c35ef193ae0b0199f6dee",
-    "arm64" => "1c22332ca6fbb3f1453a6395c665905237bc27d6893f45770a38aee418983bf6"
+    "amd64" => "bec7ed5bf38fc99e6bee8073d72bbc4e8eb407efece662c9689db1255024cefc",
+    "arm64" => "0edd1a3ac66b7cec2b46ee21360bc4f8842fc08a8c1ec5b7af01d04dd7b9f522"
   },
 }
 

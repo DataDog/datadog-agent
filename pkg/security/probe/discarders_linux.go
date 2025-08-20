@@ -262,7 +262,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 					}
 
 					isDiscarderFnc = func(dirname string) (bool, bool, error) {
-						return !glob.Contains(dirname), false, nil
+						return !glob.IsPrefix(dirname), false, nil
 					}
 				} else if value.Type == eval.ScalarValueType {
 					str := value.Value.(string)

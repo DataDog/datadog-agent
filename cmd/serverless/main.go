@@ -220,7 +220,7 @@ func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfi
 		SketchesBucketOffset: time.Second * 10,
 		Tagger:               tagger,
 	}
-	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, false)
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, pkgconfigsetup.Datadog().GetBool("serverless.logs_enabled"), pkgconfigsetup.Datadog().GetBool("enhanced_metrics"), lambdaInitMetricChan)
 	return metricAgent
@@ -393,9 +393,10 @@ func setupApiKey() bool {
 }
 
 func loadConfig() {
-	pkgconfigsetup.Datadog().SetConfigFile(datadogConfigPath)
+	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
+	ddcfg.SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
-	if _, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil); err != nil {
+	if _, err := pkgconfigsetup.LoadWithoutSecret(ddcfg, nil); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
 }

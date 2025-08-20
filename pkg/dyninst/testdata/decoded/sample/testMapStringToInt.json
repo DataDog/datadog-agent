@@ -14,7 +14,33 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": [
+          {
+            "function": "main.testMapStringToInt",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 26
+          },
+          {
+            "function": "main.executeMapFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/maps.go",
+            "lineNumber": 130
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 45
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
         "probe": {
           "id": "testMapStringToInt",
           "location": {
@@ -26,7 +52,109 @@
             "arguments": {
               "m": {
                 "type": "map[string]int",
-                "notCapturedReason": "unimplemented"
+                "size": "10",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "AAA"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "BBB"
+                    },
+                    {
+                      "type": "int",
+                      "value": "2"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "CCC"
+                    },
+                    {
+                      "type": "int",
+                      "value": "3"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "DDD"
+                    },
+                    {
+                      "type": "int",
+                      "value": "4"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "EEE"
+                    },
+                    {
+                      "type": "int",
+                      "value": "5"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "FFF"
+                    },
+                    {
+                      "type": "int",
+                      "value": "6"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "GGG"
+                    },
+                    {
+                      "type": "int",
+                      "value": "7"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "HHH"
+                    },
+                    {
+                      "type": "int",
+                      "value": "8"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "III"
+                    },
+                    {
+                      "type": "int",
+                      "value": "9"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "JJJ"
+                    },
+                    {
+                      "type": "int",
+                      "value": "10"
+                    }
+                  ]
+                ]
               }
             }
           }

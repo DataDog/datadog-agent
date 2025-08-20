@@ -43,6 +43,11 @@ const (
 	// defaultBTFOutputDir is the default path for extracted BTF
 	defaultBTFOutputDir = "/var/tmp/datadog-agent/system-probe/btf"
 
+	// defaultDynamicInstrumentationDebugInfoDir is the default path for debug
+	// info for dynamic instrumentation this is the directory where the debug
+	// info is decompressed into during processing.
+	defaultDynamicInstrumentationDebugInfoDir = "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
+
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
 
@@ -64,7 +69,7 @@ var (
 )
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
-func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
+func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_thp"), true)
@@ -169,12 +174,17 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "zypper_repos_dir"), suffixHostEtc(defaultZypperReposDirSuffix), "DD_ZYPPER_REPOS_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "attach_kprobes_with_kprobe_events_abi"), false, "DD_ATTACH_KPROBES_WITH_KPROBE_EVENTS_ABI")
 
-	// User Tracer
+	// Dynamic Instrumentation settings
 	cfg.BindEnvAndSetDefault(join(diNS, "enabled"), false, "DD_DYNAMIC_INSTRUMENTATION_ENABLED")
 	cfg.BindEnvAndSetDefault(join(diNS, "offline_mode"), false, "DD_DYNAMIC_INSTRUMENTATION_OFFLINE_MODE")
 	cfg.BindEnvAndSetDefault(join(diNS, "probes_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_PROBES_FILE_PATH")
 	cfg.BindEnvAndSetDefault(join(diNS, "snapshot_output_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_SNAPSHOT_FILE_PATH")
 	cfg.BindEnvAndSetDefault(join(diNS, "diagnostics_output_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_FILE_PATH")
+	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "enabled"), true)
+	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "dir"), defaultDynamicInstrumentationDebugInfoDir)
+	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "max_total_bytes"), int64(2<<30 /* 2GiB */))
+	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_bytes"), int64(512<<20 /* 512MiB */))
+	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_percent"), float64(0.0))
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -301,6 +311,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
 	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
+
+	cfg.BindEnvAndSetDefault(join(spNS, "expected_tags_duration"), 5*time.Minute, "DD_SYSTEM_PROBE_EXPECTED_TAGS_DURATION")
 
 	// list of DNS query types to be recorded
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})
@@ -436,13 +448,15 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "enable_fatbin_parsing"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "fatbin_request_queue_size"), 100)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ring_buffer_pages_per_device"), 32) // 32 pages = 128KB by default per device
-	cfg.BindEnvAndSetDefault(join(gpuNS, "max_kernel_launches_per_stream"), 1000)
-	cfg.BindEnvAndSetDefault(join(gpuNS, "max_mem_alloc_events_per_stream"), 1000)
-	cfg.BindEnvAndSetDefault(join(gpuNS, "max_streams"), 100)
-	cfg.BindEnvAndSetDefault(join(gpuNS, "max_stream_inactivity_seconds"), 30) // 30 seconds by default, includes two checks at the default interval of 15 seconds
+	cfg.BindEnvAndSetDefault(join(gpuNS, "attacher_detailed_logs"), false)
 
-	// Software Inventory
-	cfg.BindEnvAndSetDefault(join(swNS, "enabled"), false)
+	// gpu - stream config
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_kernel_launches"), 1000)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_mem_alloc_events"), 1000)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_pending_kernel_spans"), 1000)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_pending_memory_spans"), 1000)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_active"), 100)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "timeout_seconds"), 30) // 30 seconds by default, includes two checks at the default interval of 15 seconds
 
 	initCWSSystemProbeConfig(cfg)
 }
@@ -461,7 +475,7 @@ func suffixHostEtc(suffix string) string {
 // eventMonitorBindEnvAndSetDefault is a helper function that generates both "DD_RUNTIME_SECURITY_CONFIG_" and "DD_EVENT_MONITORING_CONFIG_"
 // prefixes from a key. We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix, but we want to
 // support both for backwards compatibility.
-func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, val interface{}) {
+func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
 	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
@@ -472,7 +486,7 @@ func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, 
 }
 
 // eventMonitorBindEnv is the same as eventMonitorBindEnvAndSetDefault, but without setting a default.
-func eventMonitorBindEnv(config pkgconfigmodel.Config, key string) {
+func eventMonitorBindEnv(config pkgconfigmodel.Setup, key string) {
 	emConfigKey := "DD_" + strings.ReplaceAll(strings.ToUpper(key), ".", "_")
 	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
 

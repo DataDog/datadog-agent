@@ -383,17 +383,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupManager(ev, ev.CGroupContext)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1708,17 +1697,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "container.runtime":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "container.tags":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -2027,17 +2005,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "exec.cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Exec.Process.CGroup)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3239,17 +3206,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "exit.cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Exit.Process.CGroup)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7318,32 +7274,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
-	case "process.ancestors.cgroup.manager":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
-				if regID != "" {
-					element := iterator.At(ctx, regID, ctx.Registers[regID])
-					if element == nil {
-						return nil
-					}
-					result := ev.FieldHandlers.ResolveCGroupManager(ev, &element.ProcessContext.Process.CGroup)
-					return []string{result}
-				}
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
-				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveCGroupManager(ev, &current.ProcessContext.Process.CGroup)
-				})
-				ctx.StringCache[field] = results
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-			Offset: offset,
-		}, nil
 	case "process.ancestors.cgroup.version":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -9697,17 +9627,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "process.cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "process.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -10731,20 +10650,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "process.parent.cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				if !ev.BaseEvent.ProcessContext.HasParent() {
-					return ""
-				}
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -12348,32 +12253,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
 					return ev.FieldHandlers.ResolveCGroupID(ev, &current.ProcessContext.Process.CGroup)
-				})
-				ctx.StringCache[field] = results
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-			Offset: offset,
-		}, nil
-	case "ptrace.tracee.ancestors.cgroup.manager":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
-				if regID != "" {
-					element := iterator.At(ctx, regID, ctx.Registers[regID])
-					if element == nil {
-						return nil
-					}
-					result := ev.FieldHandlers.ResolveCGroupManager(ev, &element.ProcessContext.Process.CGroup)
-					return []string{result}
-				}
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
-				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveCGroupManager(ev, &current.ProcessContext.Process.CGroup)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -14734,17 +14613,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "ptrace.tracee.cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.PTrace.Tracee.Process.CGroup)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "ptrace.tracee.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -15768,20 +15636,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Parent.CGroup)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "ptrace.tracee.parent.cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				if !ev.PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.PTrace.Tracee.Parent.CGroup)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -18640,32 +18494,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
-	case "setrlimit.target.ancestors.cgroup.manager":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
-				if regID != "" {
-					element := iterator.At(ctx, regID, ctx.Registers[regID])
-					if element == nil {
-						return nil
-					}
-					result := ev.FieldHandlers.ResolveCGroupManager(ev, &element.ProcessContext.Process.CGroup)
-					return []string{result}
-				}
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
-				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveCGroupManager(ev, &current.ProcessContext.Process.CGroup)
-				})
-				ctx.StringCache[field] = results
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-			Offset: offset,
-		}, nil
 	case "setrlimit.target.ancestors.cgroup.version":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -21019,17 +20847,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "setrlimit.target.cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Setrlimit.Target.Process.CGroup)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "setrlimit.target.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -22053,20 +21870,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Setrlimit.Target.Parent.CGroup)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "setrlimit.target.parent.cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				if !ev.Setrlimit.Target.HasParent() {
-					return ""
-				}
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Setrlimit.Target.Parent.CGroup)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -23453,6 +23256,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setsockopt.used_immediates":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSetSockOptUsedImmediates(ev, &ev.SetSockOpt)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setuid.euid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -24136,32 +23950,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
 					return ev.FieldHandlers.ResolveCGroupID(ev, &current.ProcessContext.Process.CGroup)
-				})
-				ctx.StringCache[field] = results
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-			Offset: offset,
-		}, nil
-	case "signal.target.ancestors.cgroup.manager":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
-				if regID != "" {
-					element := iterator.At(ctx, regID, ctx.Registers[regID])
-					if element == nil {
-						return nil
-					}
-					result := ev.FieldHandlers.ResolveCGroupManager(ev, &element.ProcessContext.Process.CGroup)
-					return []string{result}
-				}
-				if result, ok := ctx.StringCache[field]; ok {
-					return result
-				}
-				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveCGroupManager(ev, &current.ProcessContext.Process.CGroup)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -26522,17 +26310,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "signal.target.cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Signal.Target.Process.CGroup)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "signal.target.cgroup.version":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -27556,20 +27333,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Parent.CGroup)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "signal.target.parent.cgroup.manager":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				if !ev.Signal.Target.HasParent() {
-					return ""
-				}
-				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Signal.Target.Parent.CGroup)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -29879,7 +29642,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"cgroup.file.inode",
 		"cgroup.file.mount_id",
 		"cgroup.id",
-		"cgroup.manager",
 		"cgroup.version",
 		"cgroup_write.file.change_time",
 		"cgroup_write.file.extension",
@@ -29998,7 +29760,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"connect.retval",
 		"container.created_at",
 		"container.id",
-		"container.runtime",
 		"container.tags",
 		"dns.id",
 		"dns.question.class",
@@ -30027,7 +29788,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.cgroup.file.inode",
 		"exec.cgroup.file.mount_id",
 		"exec.cgroup.id",
-		"exec.cgroup.manager",
 		"exec.cgroup.version",
 		"exec.comm",
 		"exec.container.id",
@@ -30125,7 +29885,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.cgroup.file.inode",
 		"exit.cgroup.file.mount_id",
 		"exit.cgroup.id",
-		"exit.cgroup.manager",
 		"exit.cgroup.version",
 		"exit.code",
 		"exit.comm",
@@ -30447,7 +30206,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.cgroup.file.inode",
 		"process.ancestors.cgroup.file.mount_id",
 		"process.ancestors.cgroup.id",
-		"process.ancestors.cgroup.manager",
 		"process.ancestors.cgroup.version",
 		"process.ancestors.comm",
 		"process.ancestors.container.id",
@@ -30536,7 +30294,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.cgroup.file.inode",
 		"process.cgroup.file.mount_id",
 		"process.cgroup.id",
-		"process.cgroup.manager",
 		"process.cgroup.version",
 		"process.comm",
 		"process.container.id",
@@ -30615,7 +30372,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.cgroup.file.inode",
 		"process.parent.cgroup.file.mount_id",
 		"process.parent.cgroup.id",
-		"process.parent.cgroup.manager",
 		"process.parent.cgroup.version",
 		"process.parent.comm",
 		"process.parent.container.id",
@@ -30714,7 +30470,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.cgroup.file.inode",
 		"ptrace.tracee.ancestors.cgroup.file.mount_id",
 		"ptrace.tracee.ancestors.cgroup.id",
-		"ptrace.tracee.ancestors.cgroup.manager",
 		"ptrace.tracee.ancestors.cgroup.version",
 		"ptrace.tracee.ancestors.comm",
 		"ptrace.tracee.ancestors.container.id",
@@ -30803,7 +30558,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.cgroup.file.inode",
 		"ptrace.tracee.cgroup.file.mount_id",
 		"ptrace.tracee.cgroup.id",
-		"ptrace.tracee.cgroup.manager",
 		"ptrace.tracee.cgroup.version",
 		"ptrace.tracee.comm",
 		"ptrace.tracee.container.id",
@@ -30882,7 +30636,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.cgroup.file.inode",
 		"ptrace.tracee.parent.cgroup.file.mount_id",
 		"ptrace.tracee.parent.cgroup.id",
-		"ptrace.tracee.parent.cgroup.manager",
 		"ptrace.tracee.parent.cgroup.version",
 		"ptrace.tracee.parent.comm",
 		"ptrace.tracee.parent.container.id",
@@ -31093,7 +30846,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.cgroup.file.inode",
 		"setrlimit.target.ancestors.cgroup.file.mount_id",
 		"setrlimit.target.ancestors.cgroup.id",
-		"setrlimit.target.ancestors.cgroup.manager",
 		"setrlimit.target.ancestors.cgroup.version",
 		"setrlimit.target.ancestors.comm",
 		"setrlimit.target.ancestors.container.id",
@@ -31182,7 +30934,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.cgroup.file.inode",
 		"setrlimit.target.cgroup.file.mount_id",
 		"setrlimit.target.cgroup.id",
-		"setrlimit.target.cgroup.manager",
 		"setrlimit.target.cgroup.version",
 		"setrlimit.target.comm",
 		"setrlimit.target.container.id",
@@ -31261,7 +31012,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.cgroup.file.inode",
 		"setrlimit.target.parent.cgroup.file.mount_id",
 		"setrlimit.target.parent.cgroup.id",
-		"setrlimit.target.parent.cgroup.manager",
 		"setrlimit.target.parent.cgroup.version",
 		"setrlimit.target.parent.comm",
 		"setrlimit.target.parent.container.id",
@@ -31356,6 +31106,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setsockopt.socket_family",
 		"setsockopt.socket_protocol",
 		"setsockopt.socket_type",
+		"setsockopt.used_immediates",
 		"setuid.euid",
 		"setuid.euser",
 		"setuid.fsuid",
@@ -31402,7 +31153,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.cgroup.file.inode",
 		"signal.target.ancestors.cgroup.file.mount_id",
 		"signal.target.ancestors.cgroup.id",
-		"signal.target.ancestors.cgroup.manager",
 		"signal.target.ancestors.cgroup.version",
 		"signal.target.ancestors.comm",
 		"signal.target.ancestors.container.id",
@@ -31491,7 +31241,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.cgroup.file.inode",
 		"signal.target.cgroup.file.mount_id",
 		"signal.target.cgroup.id",
-		"signal.target.cgroup.manager",
 		"signal.target.cgroup.version",
 		"signal.target.comm",
 		"signal.target.container.id",
@@ -31570,7 +31319,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.cgroup.file.inode",
 		"signal.target.parent.cgroup.file.mount_id",
 		"signal.target.parent.cgroup.id",
-		"signal.target.parent.cgroup.manager",
 		"signal.target.parent.cgroup.version",
 		"signal.target.parent.comm",
 		"signal.target.parent.container.id",
@@ -31800,8 +31548,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "cgroup.file.mount_id":
 		return "", reflect.Int, "int", nil
 	case "cgroup.id":
-		return "", reflect.String, "string", nil
-	case "cgroup.manager":
 		return "", reflect.String, "string", nil
 	case "cgroup.version":
 		return "", reflect.Int, "int", nil
@@ -32039,8 +31785,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "container.id":
 		return "", reflect.String, "string", nil
-	case "container.runtime":
-		return "", reflect.String, "string", nil
 	case "container.tags":
 		return "", reflect.String, "string", nil
 	case "dns.id":
@@ -32096,8 +31840,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exec.cgroup.file.mount_id":
 		return "exec", reflect.Int, "int", nil
 	case "exec.cgroup.id":
-		return "exec", reflect.String, "string", nil
-	case "exec.cgroup.manager":
 		return "exec", reflect.String, "string", nil
 	case "exec.cgroup.version":
 		return "exec", reflect.Int, "int", nil
@@ -32292,8 +32034,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exit.cgroup.file.mount_id":
 		return "exit", reflect.Int, "int", nil
 	case "exit.cgroup.id":
-		return "exit", reflect.String, "string", nil
-	case "exit.cgroup.manager":
 		return "exit", reflect.String, "string", nil
 	case "exit.cgroup.version":
 		return "exit", reflect.Int, "int", nil
@@ -32937,8 +32677,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "process.ancestors.cgroup.id":
 		return "", reflect.String, "string", nil
-	case "process.ancestors.cgroup.manager":
-		return "", reflect.String, "string", nil
 	case "process.ancestors.cgroup.version":
 		return "", reflect.Int, "int", nil
 	case "process.ancestors.comm":
@@ -33115,8 +32853,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "process.cgroup.id":
 		return "", reflect.String, "string", nil
-	case "process.cgroup.manager":
-		return "", reflect.String, "string", nil
 	case "process.cgroup.version":
 		return "", reflect.Int, "int", nil
 	case "process.comm":
@@ -33272,8 +33008,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.parent.cgroup.file.mount_id":
 		return "", reflect.Int, "int", nil
 	case "process.parent.cgroup.id":
-		return "", reflect.String, "string", nil
-	case "process.parent.cgroup.manager":
 		return "", reflect.String, "string", nil
 	case "process.parent.cgroup.version":
 		return "", reflect.Int, "int", nil
@@ -33471,8 +33205,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ancestors.cgroup.id":
 		return "ptrace", reflect.String, "string", nil
-	case "ptrace.tracee.ancestors.cgroup.manager":
-		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.cgroup.version":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ancestors.comm":
@@ -33649,8 +33381,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.cgroup.id":
 		return "ptrace", reflect.String, "string", nil
-	case "ptrace.tracee.cgroup.manager":
-		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.cgroup.version":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.comm":
@@ -33806,8 +33536,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "ptrace.tracee.parent.cgroup.file.mount_id":
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.parent.cgroup.id":
-		return "ptrace", reflect.String, "string", nil
-	case "ptrace.tracee.parent.cgroup.manager":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.cgroup.version":
 		return "ptrace", reflect.Int, "int", nil
@@ -34229,8 +33957,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ancestors.cgroup.id":
 		return "setrlimit", reflect.String, "string", nil
-	case "setrlimit.target.ancestors.cgroup.manager":
-		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.cgroup.version":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ancestors.comm":
@@ -34407,8 +34133,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.cgroup.id":
 		return "setrlimit", reflect.String, "string", nil
-	case "setrlimit.target.cgroup.manager":
-		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.cgroup.version":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.comm":
@@ -34564,8 +34288,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "setrlimit.target.parent.cgroup.file.mount_id":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.parent.cgroup.id":
-		return "setrlimit", reflect.String, "string", nil
-	case "setrlimit.target.parent.cgroup.manager":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.cgroup.version":
 		return "setrlimit", reflect.Int, "int", nil
@@ -34755,6 +34477,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.socket_type":
 		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.used_immediates":
+		return "setsockopt", reflect.Int, "int", nil
 	case "setuid.euid":
 		return "setuid", reflect.Int, "int", nil
 	case "setuid.euser":
@@ -34846,8 +34570,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.ancestors.cgroup.file.mount_id":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.ancestors.cgroup.id":
-		return "signal", reflect.String, "string", nil
-	case "signal.target.ancestors.cgroup.manager":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.cgroup.version":
 		return "signal", reflect.Int, "int", nil
@@ -35025,8 +34747,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.cgroup.id":
 		return "signal", reflect.String, "string", nil
-	case "signal.target.cgroup.manager":
-		return "signal", reflect.String, "string", nil
 	case "signal.target.cgroup.version":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.comm":
@@ -35182,8 +34902,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "signal.target.parent.cgroup.file.mount_id":
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.parent.cgroup.id":
-		return "signal", reflect.String, "string", nil
-	case "signal.target.parent.cgroup.manager":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.cgroup.version":
 		return "signal", reflect.Int, "int", nil
@@ -35627,11 +35345,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.CGroupContext.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "cgroup.manager":
-		if ev.CGroupContext == nil {
-			ev.CGroupContext = &CGroupContext{}
-		}
-		return ev.setStringFieldValue("cgroup.manager", &ev.CGroupContext.CGroupManager, value)
 	case "cgroup.version":
 		if ev.CGroupContext == nil {
 			ev.CGroupContext = &CGroupContext{}
@@ -35887,11 +35600,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
-	case "container.runtime":
-		if ev.BaseEvent.ContainerContext == nil {
-			ev.BaseEvent.ContainerContext = &ContainerContext{}
-		}
-		return ev.setStringFieldValue("container.runtime", &ev.BaseEvent.ContainerContext.Runtime, value)
 	case "container.tags":
 		if ev.BaseEvent.ContainerContext == nil {
 			ev.BaseEvent.ContainerContext = &ContainerContext{}
@@ -35959,8 +35667,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "exec.cgroup.manager":
-		return ev.setStringFieldValue("exec.cgroup.manager", &ev.Exec.Process.CGroup.CGroupManager, value)
 	case "exec.cgroup.version":
 		return ev.setIntFieldValue("exec.cgroup.version", &ev.Exec.Process.CGroup.CGroupVersion, value)
 	case "exec.comm":
@@ -36285,11 +35991,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exit.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "exit.cgroup.manager":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
-		return ev.setStringFieldValue("exit.cgroup.manager", &ev.Exit.Process.CGroup.CGroupManager, value)
 	case "exit.cgroup.version":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -37320,8 +37021,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "process.ancestors.cgroup.manager":
-		return ev.setStringFieldValue("process.ancestors.cgroup.manager", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupManager, value)
 	case "process.ancestors.cgroup.version":
 		return ev.setIntFieldValue("process.ancestors.cgroup.version", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupVersion, value)
 	case "process.ancestors.comm":
@@ -37592,8 +37291,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "process.cgroup.manager":
-		return ev.setStringFieldValue("process.cgroup.manager", &ev.BaseEvent.ProcessContext.Process.CGroup.CGroupManager, value)
 	case "process.cgroup.version":
 		return ev.setIntFieldValue("process.cgroup.version", &ev.BaseEvent.ProcessContext.Process.CGroup.CGroupVersion, value)
 	case "process.comm":
@@ -37844,8 +37541,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "process.parent.cgroup.manager":
-		return ev.setStringFieldValue("process.parent.cgroup.manager", &ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupManager, value)
 	case "process.parent.cgroup.version":
 		return ev.setIntFieldValue("process.parent.cgroup.version", &ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupVersion, value)
 	case "process.parent.comm":
@@ -38208,14 +37903,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "ptrace.tracee.ancestors.cgroup.manager":
-		if ev.PTrace.Tracee == nil {
-			ev.PTrace.Tracee = &ProcessContext{}
-		}
-		if ev.PTrace.Tracee.Ancestor == nil {
-			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
-		}
-		return ev.setStringFieldValue("ptrace.tracee.ancestors.cgroup.manager", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupManager, value)
 	case "ptrace.tracee.ancestors.cgroup.version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -38978,11 +38665,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "ptrace.tracee.cgroup.manager":
-		if ev.PTrace.Tracee == nil {
-			ev.PTrace.Tracee = &ProcessContext{}
-		}
-		return ev.setStringFieldValue("ptrace.tracee.cgroup.manager", &ev.PTrace.Tracee.Process.CGroup.CGroupManager, value)
 	case "ptrace.tracee.cgroup.version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39503,14 +39185,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "ptrace.tracee.parent.cgroup.manager":
-		if ev.PTrace.Tracee == nil {
-			ev.PTrace.Tracee = &ProcessContext{}
-		}
-		if ev.PTrace.Tracee.Parent == nil {
-			ev.PTrace.Tracee.Parent = &Process{}
-		}
-		return ev.setStringFieldValue("ptrace.tracee.parent.cgroup.manager", &ev.PTrace.Tracee.Parent.CGroup.CGroupManager, value)
 	case "ptrace.tracee.parent.cgroup.version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40574,14 +40248,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "setrlimit.target.ancestors.cgroup.manager":
-		if ev.Setrlimit.Target == nil {
-			ev.Setrlimit.Target = &ProcessContext{}
-		}
-		if ev.Setrlimit.Target.Ancestor == nil {
-			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
-		}
-		return ev.setStringFieldValue("setrlimit.target.ancestors.cgroup.manager", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupManager, value)
 	case "setrlimit.target.ancestors.cgroup.version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41344,11 +41010,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Setrlimit.Target.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "setrlimit.target.cgroup.manager":
-		if ev.Setrlimit.Target == nil {
-			ev.Setrlimit.Target = &ProcessContext{}
-		}
-		return ev.setStringFieldValue("setrlimit.target.cgroup.manager", &ev.Setrlimit.Target.Process.CGroup.CGroupManager, value)
 	case "setrlimit.target.cgroup.version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41869,14 +41530,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Setrlimit.Target.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "setrlimit.target.parent.cgroup.manager":
-		if ev.Setrlimit.Target == nil {
-			ev.Setrlimit.Target = &ProcessContext{}
-		}
-		if ev.Setrlimit.Target.Parent == nil {
-			ev.Setrlimit.Target.Parent = &Process{}
-		}
-		return ev.setStringFieldValue("setrlimit.target.parent.cgroup.manager", &ev.Setrlimit.Target.Parent.CGroup.CGroupManager, value)
 	case "setrlimit.target.parent.cgroup.version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42631,6 +42284,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("setsockopt.socket_protocol", &ev.SetSockOpt.SocketProtocol, value)
 	case "setsockopt.socket_type":
 		return ev.setUint16FieldValue("setsockopt.socket_type", &ev.SetSockOpt.SocketType, value)
+	case "setsockopt.used_immediates":
+		switch rv := value.(type) {
+		case int:
+			ev.SetSockOpt.UsedImmediates = append(ev.SetSockOpt.UsedImmediates, int(rv))
+		case []int:
+			for _, i := range rv {
+				ev.SetSockOpt.UsedImmediates = append(ev.SetSockOpt.UsedImmediates, int(i))
+			}
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.used_immediates"}
+		}
+		return nil
 	case "setuid.euid":
 		return ev.setUint32FieldValue("setuid.euid", &ev.SetUID.EUID, value)
 	case "setuid.euser":
@@ -42800,14 +42465,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "signal.target.ancestors.cgroup.manager":
-		if ev.Signal.Target == nil {
-			ev.Signal.Target = &ProcessContext{}
-		}
-		if ev.Signal.Target.Ancestor == nil {
-			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
-		}
-		return ev.setStringFieldValue("signal.target.ancestors.cgroup.manager", &ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupManager, value)
 	case "signal.target.ancestors.cgroup.version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -43570,11 +43227,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "signal.target.cgroup.manager":
-		if ev.Signal.Target == nil {
-			ev.Signal.Target = &ProcessContext{}
-		}
-		return ev.setStringFieldValue("signal.target.cgroup.manager", &ev.Signal.Target.Process.CGroup.CGroupManager, value)
 	case "signal.target.cgroup.version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44095,14 +43747,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
-	case "signal.target.parent.cgroup.manager":
-		if ev.Signal.Target == nil {
-			ev.Signal.Target = &ProcessContext{}
-		}
-		if ev.Signal.Target.Parent == nil {
-			ev.Signal.Target.Parent = &Process{}
-		}
-		return ev.setStringFieldValue("signal.target.parent.cgroup.manager", &ev.Signal.Target.Parent.CGroup.CGroupManager, value)
 	case "signal.target.parent.cgroup.version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}

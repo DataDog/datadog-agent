@@ -12,11 +12,12 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/CycloneDX/cyclonedx-go"
 	trivycore "github.com/aquasecurity/trivy/pkg/sbom/core"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func Test_UpdateSBOMRepoMetadata(t *testing.T) {
@@ -48,9 +49,9 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			args: args{
 				sbom: &workloadmeta.SBOM{
 					Status: workloadmeta.Success,
-					CycloneDXBOM: &cyclonedx.BOM{
-						Metadata: &cyclonedx.Metadata{
-							Component: &cyclonedx.Component{Properties: nil},
+					CycloneDXBOM: &cyclonedx_v1_4.Bom{
+						Metadata: &cyclonedx_v1_4.Metadata{
+							Component: &cyclonedx_v1_4.Component{Properties: nil},
 						},
 					},
 				},
@@ -59,9 +60,9 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			},
 			want: &workloadmeta.SBOM{
 				Status: workloadmeta.Success,
-				CycloneDXBOM: &cyclonedx.BOM{
-					Metadata: &cyclonedx.Metadata{
-						Component: &cyclonedx.Component{Properties: nil},
+				CycloneDXBOM: &cyclonedx_v1_4.Bom{
+					Metadata: &cyclonedx_v1_4.Metadata{
+						Component: &cyclonedx_v1_4.Component{Properties: nil},
 					},
 				},
 			},
@@ -71,12 +72,12 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			args: args{
 				sbom: &workloadmeta.SBOM{
 					Status: workloadmeta.Success,
-					CycloneDXBOM: &cyclonedx.BOM{
-						Metadata: &cyclonedx.Metadata{
-							Component: &cyclonedx.Component{
-								Properties: &[]cyclonedx.Property{
-									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest2"},
-									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag2"},
+					CycloneDXBOM: &cyclonedx_v1_4.Bom{
+						Metadata: &cyclonedx_v1_4.Metadata{
+							Component: &cyclonedx_v1_4.Component{
+								Properties: []*cyclonedx_v1_4.Property{
+									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: pointer.Ptr("digest2")},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: pointer.Ptr("tag2")},
 								},
 							},
 						},
@@ -87,14 +88,14 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			},
 			want: &workloadmeta.SBOM{
 				Status: workloadmeta.Success,
-				CycloneDXBOM: &cyclonedx.BOM{
-					Metadata: &cyclonedx.Metadata{
-						Component: &cyclonedx.Component{
-							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
-								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest2"},
-								{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag1"},
-								{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag2"},
+				CycloneDXBOM: &cyclonedx_v1_4.Bom{
+					Metadata: &cyclonedx_v1_4.Metadata{
+						Component: &cyclonedx_v1_4.Component{
+							Properties: []*cyclonedx_v1_4.Property{
+								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: pointer.Ptr("digest1")},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: pointer.Ptr("digest2")},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: pointer.Ptr("tag1")},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: pointer.Ptr("tag2")},
 							},
 						},
 					},
@@ -106,12 +107,12 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			args: args{
 				sbom: &workloadmeta.SBOM{
 					Status: workloadmeta.Success,
-					CycloneDXBOM: &cyclonedx.BOM{
-						Metadata: &cyclonedx.Metadata{
-							Component: &cyclonedx.Component{
-								Properties: &[]cyclonedx.Property{
-									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag1"},
-									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
+					CycloneDXBOM: &cyclonedx_v1_4.Bom{
+						Metadata: &cyclonedx_v1_4.Metadata{
+							Component: &cyclonedx_v1_4.Component{
+								Properties: []*cyclonedx_v1_4.Property{
+									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: pointer.Ptr("tag1")},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: pointer.Ptr("digest1")},
 								},
 							},
 						},
@@ -122,12 +123,12 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			},
 			want: &workloadmeta.SBOM{
 				Status: workloadmeta.Success,
-				CycloneDXBOM: &cyclonedx.BOM{
-					Metadata: &cyclonedx.Metadata{
-						Component: &cyclonedx.Component{
-							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
-								{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag1"},
+				CycloneDXBOM: &cyclonedx_v1_4.Bom{
+					Metadata: &cyclonedx_v1_4.Metadata{
+						Component: &cyclonedx_v1_4.Component{
+							Properties: []*cyclonedx_v1_4.Property{
+								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: pointer.Ptr("digest1")},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: pointer.Ptr("tag1")},
 							},
 						},
 					},
@@ -139,12 +140,12 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			args: args{
 				sbom: &workloadmeta.SBOM{
 					Status: workloadmeta.Success,
-					CycloneDXBOM: &cyclonedx.BOM{
-						Metadata: &cyclonedx.Metadata{
-							Component: &cyclonedx.Component{
-								Properties: &[]cyclonedx.Property{
-									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag1"},
-									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
+					CycloneDXBOM: &cyclonedx_v1_4.Bom{
+						Metadata: &cyclonedx_v1_4.Metadata{
+							Component: &cyclonedx_v1_4.Component{
+								Properties: []*cyclonedx_v1_4.Property{
+									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: pointer.Ptr("tag1")},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: pointer.Ptr("digest1")},
 								},
 							},
 						},
@@ -154,11 +155,11 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			},
 			want: &workloadmeta.SBOM{
 				Status: workloadmeta.Success,
-				CycloneDXBOM: &cyclonedx.BOM{
-					Metadata: &cyclonedx.Metadata{
-						Component: &cyclonedx.Component{
-							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
+				CycloneDXBOM: &cyclonedx_v1_4.Bom{
+					Metadata: &cyclonedx_v1_4.Metadata{
+						Component: &cyclonedx_v1_4.Component{
+							Properties: []*cyclonedx_v1_4.Property{
+								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: pointer.Ptr("digest1")},
 							},
 						},
 					},
@@ -170,13 +171,13 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			args: args{
 				sbom: &workloadmeta.SBOM{
 					Status: workloadmeta.Success,
-					CycloneDXBOM: &cyclonedx.BOM{
-						Metadata: &cyclonedx.Metadata{
-							Component: &cyclonedx.Component{
-								Properties: &[]cyclonedx.Property{
-									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag1"},
-									{Name: "prop1", Value: "tag1"},
-									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
+					CycloneDXBOM: &cyclonedx_v1_4.Bom{
+						Metadata: &cyclonedx_v1_4.Metadata{
+							Component: &cyclonedx_v1_4.Component{
+								Properties: []*cyclonedx_v1_4.Property{
+									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: pointer.Ptr("tag1")},
+									{Name: "prop1", Value: pointer.Ptr("tag1")},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: pointer.Ptr("digest1")},
 								},
 							},
 						},
@@ -186,12 +187,12 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			},
 			want: &workloadmeta.SBOM{
 				Status: workloadmeta.Success,
-				CycloneDXBOM: &cyclonedx.BOM{
-					Metadata: &cyclonedx.Metadata{
-						Component: &cyclonedx.Component{
-							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
-								{Name: "prop1", Value: "tag1"},
+				CycloneDXBOM: &cyclonedx_v1_4.Bom{
+					Metadata: &cyclonedx_v1_4.Metadata{
+						Component: &cyclonedx_v1_4.Component{
+							Properties: []*cyclonedx_v1_4.Property{
+								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: pointer.Ptr("digest1")},
+								{Name: "prop1", Value: pointer.Ptr("tag1")},
 							},
 						},
 					},
@@ -209,10 +210,10 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 				got.CycloneDXBOM.Metadata.Component != nil &&
 				got.CycloneDXBOM.Metadata.Component.Properties != nil {
 				// Sort properties to ensure consistent ordering for tests
-				props := *got.CycloneDXBOM.Metadata.Component.Properties
+				props := got.CycloneDXBOM.Metadata.Component.Properties
 				sort.Slice(props, func(i, j int) bool {
 					if props[i].Name == props[j].Name {
-						return props[i].Value < props[j].Value
+						return *props[i].Value < *props[j].Value
 					}
 					return props[i].Name < props[j].Name
 				})

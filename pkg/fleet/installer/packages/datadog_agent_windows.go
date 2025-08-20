@@ -7,6 +7,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -111,6 +112,7 @@ func preStartExperimentDatadogAgent(_ HookContext) error {
 	if err != nil {
 		return fmt.Errorf("cannot start remote update: %w", err)
 	}
+
 	return nil
 }
 
@@ -379,13 +381,17 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	additionalArgs = append(additionalArgs, args...)
 	opts = append(opts, msi.WithAdditionalArgs(additionalArgs))
 	cmd, err := msi.Cmd(opts...)
-
-	var output []byte
-	if err == nil {
-		output, err = cmd.Run(ctx)
-	}
 	if err != nil {
-		return fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s\n%s", target, err, logFile, string(output))
+		return fmt.Errorf("failed to create MSI command: %w", err)
+	}
+	err = cmd.Run(ctx)
+	if err != nil {
+		err = fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s", target, err, logFile)
+		var msiErr *msi.MsiexecError
+		if errors.As(err, &msiErr) {
+			err = fmt.Errorf("%w\n%s", err, msiErr.ProcessedLog)
+		}
+		return err
 	}
 	return nil
 }
@@ -525,11 +531,16 @@ func getWatchdogTimeout() time.Duration {
 func getenv() *env.Env {
 	env := env.FromEnv()
 
-	// fallback to registry for agent user
+	// This function prefers values from the environment, with a fallback if not set, for values:
+	//   - Agent user name (fallback to service user)
+	//   - Project location
+	//   - Application data directory
+	//
+	// Using service allows for remote updates to work when the hostname changes
 	if env.MsiParams.AgentUserName == "" {
-		user, err := windowsuser.GetAgentUserNameFromRegistry()
+		user, err := windowsuser.GetAgentUserFromService()
 		if err != nil {
-			log.Warnf("Could not read Agent user from registry: %v", err)
+			log.Warnf("Could not read Agent user from service: %v", err)
 		} else {
 			env.MsiParams.AgentUserName = user
 		}
