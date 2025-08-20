@@ -61,5 +61,5 @@ datadog_otel_components_ocb_build:
     - echo "see artifacts for job logs"
   rules:
     - !reference [.except_mergequeue]
-    - when: on_success
+    - when: never
   timeout: 15 minutes

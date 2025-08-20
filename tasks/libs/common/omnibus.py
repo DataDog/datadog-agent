@@ -42,6 +42,7 @@ ENV_PASSHTROUGH = {
     'RUBY_VERSION': 'Used by Omnibus / Gemspec',
     'S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS': 'Use to determine whether Omnibus can write to the artifact cache',
     'S3_OMNIBUS_CACHE_BUCKET': 'Points at bucket used for Omnibus source artifacts',
+    'SSH_AUTH_SOCK': 'Developer environments configure Git to use SSH authentication',
     'rvm_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_bin_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
@@ -116,6 +117,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'RPM_SIGNING_PASSPHRASE',
         'S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS',
         'SIGN_WINDOWS_DD_WCS',
+        'SSH_AUTH_SOCK',
         'SYSTEMDRIVE',
         'SYSTEMROOT',
         'SSL_CERT_FILE',
@@ -163,7 +165,7 @@ def get_dd_api_key(ctx):
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:
-        cmd = f'vault kv get -field=token kv/k8s/{os.environ.get('POD_NAMESPACE', 'gitlab-runner')}/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
+        cmd = f'vault kv get -field=token kv/k8s/{os.environ["POD_NAMESPACE"]}/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     return ctx.run(cmd, hide=True).stdout.strip()
 
 
