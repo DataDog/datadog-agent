@@ -98,18 +98,6 @@ powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
                     os.remove(f)
 
 
-@task
-def convert_coverage_folder_to_txt(
-    ctx: Context,
-    coverage_folder: str,
-    coverage_file: str,
-):
-    """
-    Convert the coverage folder to a txt file.
-    """
-    ctx.run(f"go tool covdata textfmt -i={coverage_folder} -o={coverage_file}")
-
-
 @task(iterable=['extra_tag'])
 def upload_to_codecov(
     ctx: Context,
