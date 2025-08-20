@@ -156,7 +156,7 @@ func (d *safeDeviceImpl) GetMemoryInfo() (nvml.Memory, error) {
 	return memInfo, NewNvmlAPIErrorOrNil("GetMemoryInfo", ret)
 }
 
-func (d *safeDeviceImpl) GetMemoryInfo_v2() (nvml.Memory_v2, error) {
+func (d *safeDeviceImpl) GetMemoryInfoV2() (nvml.Memory_v2, error) {
 	if err := d.lib.lookup(toNativeName("GetMemoryInfo_v2")); err != nil {
 		return nvml.Memory_v2{}, err
 	}

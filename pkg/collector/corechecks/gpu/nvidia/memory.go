@@ -34,7 +34,7 @@ var memoryAPICallFactory = []memoryAPICall{
 	{
 		name: "device_memory_v2",
 		testFunc: func(d ddnvml.Device) error {
-			_, err := d.GetMemoryInfo_v2()
+			_, err := d.GetMemoryInfoV2()
 			return err
 		},
 		callFunc: (*memoryCollector).collectDeviceMemoryV2Metrics,
@@ -139,7 +139,7 @@ func (c *memoryCollector) collectBAR1MemoryMetrics() ([]Metric, error) {
 
 // collectDeviceMemoryV2Metrics collects device memory metrics using v2 API (includes reserved memory)
 func (c *memoryCollector) collectDeviceMemoryV2Metrics() ([]Metric, error) {
-	memInfo, err := c.device.GetMemoryInfo_v2()
+	memInfo, err := c.device.GetMemoryInfoV2()
 	if err != nil {
 		return nil, err
 	}
