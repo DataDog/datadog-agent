@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 	"go.opentelemetry.io/collector/component"
@@ -23,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -87,13 +87,21 @@ type createConsumerFunc func(enricher tagenricher, extraTags []string, apmReceiv
 // Serializer exporter should never receive APM stats in Agent OTLP ingestion.
 func NewFactoryForAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, store TelemetryStore) exp.Factory {
 	cfgType := component.MustNewType(TypeStr)
-	return newFactoryForAgentWithType(s, enricher, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), store, agentOTLPIngest)
+	return newFactoryForAgentWithType(s, enricher, hostGetter, nil, cfgType, otel.NewDisabledGatewayUsage(), store, nil, agentOTLPIngest)
 }
 
 // NewFactoryForOTelAgent creates a new serializer exporter factory for the embedded collector.
-func NewFactoryForOTelAgent(s serializer.MetricSerializer, enricher tagenricher, hostGetter SourceProviderFunc, statsIn chan []byte, gatewayusage otel.GatewayUsage, store TelemetryStore) exp.Factory {
+func NewFactoryForOTelAgent(
+	s serializer.MetricSerializer,
+	enricher tagenricher,
+	hostGetter SourceProviderFunc,
+	statsIn chan []byte,
+	gatewayusage otel.GatewayUsage,
+	store TelemetryStore,
+	reporter *inframetadata.Reporter,
+) exp.Factory {
 	cfgType := component.MustNewType("datadog") // this is called in datadog exporter (NOT serializer exporter) in embedded collector
-	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, cfgType, gatewayusage, store, ddot)
+	return newFactoryForAgentWithType(s, enricher, hostGetter, statsIn, cfgType, gatewayusage, store, reporter, ddot)
 }
 
 func newFactoryForAgentWithType(
@@ -104,6 +112,7 @@ func newFactoryForAgentWithType(
 	typ component.Type,
 	gatewayUsage otel.GatewayUsage,
 	store TelemetryStore,
+	reporter *inframetadata.Reporter,
 	ipath ingestionPath,
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
@@ -130,6 +139,13 @@ func newFactoryForAgentWithType(
 		gatewayUsage: gatewayUsage,
 		ipath:        ipath,
 		store:        store,
+	}
+
+	if reporter != nil {
+		// reporter is initialized in datadogexporter.NewFactory in DDOT, no need to initialize it again
+		f.onceReporter.Do(func() {
+			f.reporter = reporter
+		})
 	}
 
 	return exp.NewFactory(
@@ -178,11 +194,10 @@ func NewFactory() exp.Factory {
 }
 
 // Reporter builds and returns an *inframetadata.Reporter.
-func (f *factory) Reporter(params exp.Settings, forwarder defaultforwarder.Forwarder, reporterPeriod time.Duration) (*inframetadata.Reporter, error) {
+func (f *factory) Reporter(params exp.Settings, s serializer.MetricSerializer, reporterPeriod time.Duration) (*inframetadata.Reporter, error) {
 	var reporterErr error
 	f.onceReporter.Do(func() {
-		pusher := &hostMetadataPusher{forwarder: forwarder}
-		f.reporter, reporterErr = inframetadata.NewReporter(params.Logger, pusher, reporterPeriod)
+		f.reporter, reporterErr = inframetadata.NewReporter(params.Logger, NewPusher(s), reporterPeriod)
 		if reporterErr == nil {
 			params.Logger.Info("Starting host metadata reporter")
 			go func() {
@@ -214,7 +229,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 	}
 	var forwarder *defaultforwarder.DefaultForwarder
 	if f.s == nil {
-		f.s, forwarder, err = initSerializer(params.Logger, cfg, f.hostProvider)
+		f.s, forwarder, err = InitSerializer(params.Logger, cfg, f.hostProvider)
 		if err != nil {
 			return nil, err
 		}
@@ -244,7 +259,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 
 	var reporter *inframetadata.Reporter
 	if cfg.HostMetadata.Enabled {
-		reporter, err = f.Reporter(params, forwarder, cfg.HostMetadata.ReporterPeriod)
+		reporter, err = f.Reporter(params, f.s, cfg.HostMetadata.ReporterPeriod)
 		if err != nil {
 			return nil, err
 		}

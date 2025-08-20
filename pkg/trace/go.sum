@@ -4,8 +4,8 @@ github.com/DataDog/go-sqllexer v0.1.6 h1:skEXpWEVCpeZFIiydoIa2f2rf+ymNpjiIMqpW4w
 github.com/DataDog/go-sqllexer v0.1.6/go.mod h1:GGpo1h9/BVSN+6NJKaEcJ9Jn44Hqc63Rakeb+24Mjgo=
 github.com/DataDog/go-tuf v1.1.0-0.5.2 h1:4CagiIekonLSfL8GMHRHcHudo1fQnxELS9g4tiAupQ4=
 github.com/DataDog/go-tuf v1.1.0-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1 h1:RoHver8/fv4qKZtmb11TJ/zcOMd0SqOKT8H9ZQIjjPA=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1/go.mod h1:yN8VBQrExGN/nbIpn8E2jrMJn94e69mnq8a5PDCKY/g=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0 h1:GAjMnaFCUT2Q+4jVFJ+r3SYIupqCc66NkU1Gm6AvHIg=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0/go.mod h1:A3oj/VbBPuJ0ssrZS3B7hv0IuF7hy854TQ2XMjHwPnw=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/rum v0.32.0 h1:QP4slKRG4IcS+rFLWq8jd0n2wuWpf0IXvek0fqlpQ0Q=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/rum v0.32.0/go.mod h1:BnOP/S6r1h4rNbmmyuug1PzYpX8KTjI8oxV6Tp9FJX4=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=
@@ -136,8 +136,8 @@ github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0t
 github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/secure-systems-lab/go-securesystemslib v0.9.0 h1:rf1HIbL64nUpEIZnjLZ3mcNEL9NBPB0iuVjyxvq3LZc=
 github.com/secure-systems-lab/go-securesystemslib v0.9.0/go.mod h1:DVHKMcZ+V4/woA/peqr+L0joiRXbPpQ042GgJckkFgw=
-github.com/shirou/gopsutil/v4 v4.25.6 h1:kLysI2JsKorfaFPcYmcJqbzROzsBWEOAtw6A7dIfqXs=
-github.com/shirou/gopsutil/v4 v4.25.6/go.mod h1:PfybzyydfZcN+JMMjkF6Zb8Mq1A/VcogFFg7hj50W9c=
+github.com/shirou/gopsutil/v4 v4.25.8-0.20250809033336-ffcdc2b7662f h1:S+PHRM3lk96X0/cGEGUukqltzkX/ekUx0F9DoCGK1G0=
+github.com/shirou/gopsutil/v4 v4.25.8-0.20250809033336-ffcdc2b7662f/go.mod h1:4f4j4w8HLMPWEFs3BO2UBBLigKAaWYwkSkbIt/6Q4Ss=
 github.com/sirupsen/logrus v1.7.0/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=
 github.com/spf13/cobra v1.9.1 h1:CXSaggrXdbHK9CF+8ywj8Amf7PBRmPCOJugH954Nnlo=
 github.com/spf13/cobra v1.9.1/go.mod h1:nDyEzZ8ogv936Cinf6g1RU9MRY64Ir93oCnqb9wxYW0=

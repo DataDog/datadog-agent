@@ -28,10 +28,10 @@ $ dda env dev
 │ cache   Manage the cache                                             │
 │ code    Open a code editor for the developer environment             │
 │ gui     Access a developer environment through a graphical interface │
-│ ls      List the available developer environments                    │
 │ remove  Remove a developer environment                               │
 │ run     Run a command within a developer environment                 │
 │ shell   Spawn a shell within a developer environment                 │
+│ show    Show the available developer environments                    │
 │ start   Start a developer environment                                │
 │ status  Check the status of a developer environment                  │
 │ stop    Stop a developer environment                                 │

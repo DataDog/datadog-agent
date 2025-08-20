@@ -119,7 +119,7 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	c.apmstats = append(c.apmstats, body)
 }
 
-func (c *serializerConsumer) ConsumeSketch(ctx context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, qsketch *quantile.Sketch) {
+func (c *serializerConsumer) ConsumeSketch(ctx context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
@@ -128,7 +128,7 @@ func (c *serializerConsumer) ConsumeSketch(ctx context.Context, dimensions *otlp
 		Name:     dimensions.Name(),
 		Tags:     tagset.CompositeTagsFromSlice(c.enricher.Enrich(ctx, c.extraTags, dimensions)),
 		Host:     dimensions.Host(),
-		Interval: 0, // OTLP metrics do not have an interval.
+		Interval: interval,
 		Points: []metrics.SketchPoint{{
 			Ts:     int64(ts / 1e9),
 			Sketch: qsketch,
@@ -147,7 +147,7 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 	panic(fmt.Sprintf("unreachable: received non-count non-gauge type: %d", typ))
 }
 
-func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, value float64) {
+func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, interval int64, value float64) {
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
@@ -159,7 +159,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *
 			Tags:     tagset.CompositeTagsFromSlice(c.enricher.Enrich(ctx, c.extraTags, dimensions)),
 			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
-			Interval: 0, // OTLP metrics do not have an interval.
+			Interval: interval,
 			Source:   msrc,
 		},
 	)
