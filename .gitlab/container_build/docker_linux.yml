@@ -61,7 +61,7 @@
       fi
     # Build image, use target none label to avoid replication
     - |-
-      docker buildx build --push --pull --platform linux/$ARCH \
+      docker buildx build --push --pull --load --platform linux/$ARCH \
         ${CACHE_SOURCE} \
         ${DOCKER_NO_CACHE} \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
