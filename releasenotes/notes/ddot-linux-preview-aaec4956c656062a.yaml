@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Deploying the DDOT Collector on Linux-based bare-metal hosts and virtual machines is now in Preview. Sign up here to join this Preview: https://www.datadoghq.com/product-preview/ddot-for-linux-based-hosts-or-vms/?_gl=1*1p2e4lr*_gcl_aw*R0NMLjE3NTU2Mzc0NTIuQ2owS0NRand3WkRGQmhDcEFSSXNBQjk1cU8xQ0Q1VEdUanh6MFAzN0wxanRNbk5MSDNKU1BHdE13UVJfV210bFQ1SDU0d25VeVh0eHFJOGFBblhvRUFMd193Y0I.*_gcl_au*MjAwMTQ3ODg2OS4xNzUyNTAwMjg0LjIwNDE1NTM3MzkuMTc1MzQ1MjA5OC4xNzUzNDUyMTIz*_ga*MTk1MjQ3NzI1Ny4xNzA5NTYzMTQz*_ga_KN80RDFSQK*czE3NTU3MTQ5MDEkbzIwOCRnMSR0MTc1NTcxNTExMSRqMzAkbDAkaDIxMDQ5ODg3NDk.*_fplc*UXVLRjZ1bURCckJCemllT1dqZUpGZzNIQyUyRkx6WmRWaWxFczhOb0ZnQ1hIZnZ3S2RCQ1pGN1dCTjBUYmRsbUslMkJyN2RvbFZySDZtOHdYOSUyRnY4eG5EcjM0aE1SJTJCeEFZMXZYek11N2g2YzBoMFpybk1OVjVjcWR5YmE3S2x1THclM0QlM0Q.
+
+    If you are looking to use DDOT in Kubernetes, it is already GA. Check the documentation to get started: https://docs.datadoghq.com/opentelemetry/setup/ddot_collector/#get-started.
