@@ -105,7 +105,7 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 					SecurityAgentYAML    json.RawMessage `json:"security-agent.yaml,omitempty"`
 					SystemProbeYAML      json.RawMessage `json:"system-probe.yaml,omitempty"`
 					APMLibrariesYAML     json.RawMessage `json:"application_monitoring.yaml,omitempty"`
-					APMWorkloadSelection json.RawMessage `json:"apm_workload_selection.yaml,omitempty"`
+					APMWorkloadSelection json.RawMessage `json:"apm_workload_selection.json,omitempty"`
 					OTelConfigYAML       json.RawMessage `json:"otel-config.yaml,omitempty"`
 				} `json:"configs"`
 			}
@@ -131,7 +131,7 @@ func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.Ra
 				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/otel-config.yaml", Contents: legacyConfigs.Configs.OTelConfigYAML})
 			}
 			if len(legacyConfigs.Configs.APMWorkloadSelection) > 0 {
-				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/apm_workload_selection.yaml", Contents: legacyConfigs.Configs.APMWorkloadSelection})
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/apm_workload_selection.json", Contents: legacyConfigs.Configs.APMWorkloadSelection})
 			}
 			installerConfigs[installerConfig.ID] = installerConfig
 		}

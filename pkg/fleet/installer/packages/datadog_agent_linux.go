@@ -53,7 +53,7 @@ const (
 
 	// TODO: generate these from context?
 	ddCompilePolicyPath            = "/opt/datadog-packages/datadog-apm-inject/experiment/dd-compile-policy"
-	apmWorkloadSelectionInputPath  = "/etc/datadog-agent/managed/datadog-agent/experiment/apm_workload_selection.yaml"
+	apmWorkloadSelectionInputPath  = "/etc/datadog-agent/managed/datadog-agent/experiment/apm_workload_selection.json"
 	apmWorkloadSelectionOutputPath = "/etc/datadog-agent/managed/datadog-agent/experiment/apm_workload_selection.bin"
 )
 
@@ -712,7 +712,7 @@ func compileAPMWorkloadSelection(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(ctx, ddCompilePolicyPath, string(contents), apmWorkloadSelectionOutputPath)
+	cmd := exec.CommandContext(ctx, ddCompilePolicyPath, "compile", "--input-json", string(contents), "--output", apmWorkloadSelectionOutputPath)
 	stderr := &bytes.Buffer{}
 	cmd.Stderr = stderr
 	err = cmd.Run()
