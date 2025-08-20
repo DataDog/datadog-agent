@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    Remote tagger is now activated by default in Datadog cluster check
+    Remote tagger is now enabled by default in Datadog cluster check
     runners, resulting in better tag support and coverage for metrics
     running in the cluster check runners such as `kube_state_core` check
     when configured to run in cluster check runners.
