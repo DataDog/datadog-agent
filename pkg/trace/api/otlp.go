@@ -6,9 +6,12 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"net/http"
@@ -41,6 +44,7 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/rum"
 )
 
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
@@ -61,6 +65,7 @@ type OTLPReceiver struct {
 	statsd             statsd.ClientInterface
 	timing             timing.Reporter
 	grpcMaxRecvMsgSize int
+	httpClient         HTTPClient
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
@@ -98,7 +103,23 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
 		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
 	}
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize, httpClient: nil}
+}
+
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+func NewOTLPReceiverWithHTTPClient(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter, client HTTPClient) *OTLPReceiver {
+	otlpReceiver := NewOTLPReceiver(out, cfg, statsd, timing)
+	otlpReceiver.httpClient = client
+	if client == nil {
+		client = &http.Client{
+			Timeout: 10 * time.Second,
+		}
+	}
+
+	return otlpReceiver
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -224,10 +245,16 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	if o.conf.HasFeature("disable_receive_resource_spans_v2") {
 		return o.receiveResourceSpansV1(ctx, rspans, httpHeader, hostFromAttributesHandler)
 	}
-	return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)), hostFromAttributesHandler)
+	// TODO(otel-2752): configure rumIntakeURL and pass it to receiveResourceSpansV2
+	src, err := o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)), hostFromAttributesHandler, "")
+	if err != nil {
+		log.Error("failed to receive resource spans: %v", err)
+		return source.Source{}
+	}
+	return src
 }
 
-func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler, rumIntakeURL string) (source.Source, error) {
 	otelres := rspans.Resource()
 	resourceAttributes := otelres.Attributes()
 
@@ -238,6 +265,64 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(i)
 		for j := 0; j < libspans.Spans().Len(); j++ {
 			otelspan := libspans.Spans().At(j)
+			if rumIntakeURL != "" {
+				if o.httpClient == nil {
+					log.Error("httpClient is nil, skipping RUM payload")
+					continue
+				}
+
+				if _, isRum := otelspan.Attributes().Get("session.id"); isRum {
+					rattr := otelres.Attributes()
+					sattr := otelspan.Attributes()
+
+					// build the Datadog intake URL
+					pathAndParams := rum.BuildIntakeUrlPathAndParameters(rattr, sattr)
+					if pathAndParams == "" {
+						return source.Source{}, fmt.Errorf("failed to build intake URL parameters")
+					}
+					outUrlString := rumIntakeURL + pathAndParams
+
+					rumPayload := rum.ConstructRumPayloadFromOTLP(sattr)
+					byts, err := json.Marshal(rumPayload)
+					if err != nil {
+						return source.Source{}, err
+					}
+					req, err := http.NewRequest("POST", outUrlString, bytes.NewBuffer(byts))
+					if err != nil {
+						return source.Source{}, fmt.Errorf("failed to create request: %v", err)
+					}
+
+					// add X-Forwarded-For header containing the request client IP address
+					ip, ok := sattr.Get("client.address")
+					if ok {
+						req.Header.Add("X-Forwarded-For", ip.AsString())
+					}
+					req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
+					// send the request to the Datadog intake URL
+					resp, err := o.httpClient.Do(req)
+					if err != nil {
+						return source.Source{}, fmt.Errorf("failed to send request: %v", err)
+					}
+					defer func(Body io.ReadCloser) {
+						err := Body.Close()
+						if err != nil {
+						}
+					}(resp.Body)
+
+					// read the response body
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return source.Source{}, fmt.Errorf("failed to read response: %v", err)
+					}
+
+					// check the status code of the response
+					if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+						return source.Source{}, fmt.Errorf("received non-OK response: status: %s, body: %s", resp.Status, body)
+					}
+					fmt.Println("Response:", string(body))
+					continue
+				}
+			}
 			spancount++
 			traceID := traceutil.OTelTraceIDToUint64(otelspan.TraceID())
 			if tracesByID[traceID] == nil {
@@ -338,7 +423,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	}
 
 	o.out <- &p
-	return src
+	return src, nil
 }
 
 func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {

@@ -6,11 +6,13 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -787,6 +789,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 
 	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
 		testOTLPReceiveResourceSpans(true, t)
+		testReceiveResourceSpansV2WithRUMRouting(t)
 	})
 }
 
@@ -1160,6 +1163,80 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 			require.True(p.ClientComputedTopLevel)
 		}))
 	})
+}
+
+type mockHTTPClient struct{}
+
+func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	body := io.NopCloser(bytes.NewReader([]byte(`{"ok": true}`)))
+	return &http.Response{
+		StatusCode: http.StatusAccepted,
+		Body:       body,
+	}, nil
+}
+
+func testReceiveResourceSpansV2WithRUMRouting(t *testing.T) {
+	cfg := NewTestConfig(t)
+	out := make(chan *Payload, 1)
+	rcv := NewOTLPReceiverWithHTTPClient(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}, &mockHTTPClient{})
+
+	rspans := ptrace.NewResourceSpans()
+
+	resource := rspans.Resource()
+	resource.Attributes().PutStr("service.name", "test-service")
+	resource.Attributes().PutStr("service.version", "1.0.0")
+	resource.Attributes().PutStr("_dd.sdk_version", "test-sdk")
+	resource.Attributes().PutStr("env", "test-env")
+	resource.Attributes().PutStr("source", "test-source")
+	// Remove client.address from resource attributes as it's not used there
+
+	scopeSpans := rspans.ScopeSpans().AppendEmpty()
+	scope := scopeSpans.Scope()
+	scope.SetName("test-scope")
+	scope.SetVersion("1.0.0")
+
+	// Create a RUM span with session.id
+	rumSpan := scopeSpans.Spans().AppendEmpty()
+	rumSpan.SetName("rum-span")
+	rumSpan.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+	rumSpan.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
+	rumSpan.SetStartTimestamp(pcommon.Timestamp(1000000000))
+	rumSpan.SetEndTimestamp(pcommon.Timestamp(2000000000))
+	rumSpan.Attributes().PutStr("session.id", "test-session-123")
+	rumSpan.Attributes().PutStr("user.id", "test-user-456")
+	rumSpan.Attributes().PutStr("view.id", "test-view-789")
+	rumSpan.Attributes().PutStr("action.id", "test-action-101")
+	rumSpan.Attributes().PutStr("client.address", "111.111.1.1")
+
+	// Test with RUM intake URL - should not error
+	rumIntakeURL := "https://test-intake-datadoghq.com"
+	rcv.receiveResourceSpansV2(context.Background(), rspans, false, nil, rumIntakeURL)
+	timeout := time.After(500 * time.Millisecond)
+	select {
+	case <-timeout:
+		t.Fatal("timed out")
+	case p := <-out:
+		require.NotNil(t, p)
+	}
+
+	// Test without RUM intake URL - should not error
+	rcv.receiveResourceSpansV2(context.Background(), rspans, false, nil, "")
+	select {
+	case <-timeout:
+		t.Fatal("timed out")
+	case p := <-out:
+		require.NotNil(t, p)
+	}
+
+	// Test with nil HTTP client - should log error but not crash
+	rcv.httpClient = nil
+	rcv.receiveResourceSpansV2(context.Background(), rspans, false, nil, rumIntakeURL)
+	select {
+	case <-timeout:
+		t.Fatal("timed out")
+	case p := <-out:
+		require.NotNil(t, p)
+	}
 }
 
 func TestOTLPSetAttributes(t *testing.T) {

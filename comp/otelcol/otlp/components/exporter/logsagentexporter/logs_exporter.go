@@ -11,11 +11,12 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"go.uber.org/zap"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	logsmapping "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs"
@@ -53,7 +54,7 @@ func NewExporterWithGatewayUsage(
 	attributesTranslator *attributes.Translator,
 	gatewaysUsage otel.GatewayUsage,
 ) (*Exporter, error) {
-	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
+	translator, err := logsmapping.NewTranslatorWithHTTPClient(set, attributesTranslator, cfg.OtelSource, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +82,10 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		}
 	}()
 
-	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
+	payloads, err := e.translator.MapLogsAndRouteRUMEvents(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler(), false, "")
+	if err != nil {
+		return err
+	}
 	for _, ddLog := range payloads {
 		tags := strings.Split(ddLog.GetDdtags(), ",")
 		// Tags are set in the message origin instead
