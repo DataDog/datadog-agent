@@ -20,6 +20,11 @@ func TestNewWrapper(t *testing.T) {
 }
 
 func TestWrapperMethods(t *testing.T) {
+	// reset buffer state
+	logsBuffer = []func(){}
+	logger.Store(nil)
+	jmxLogger.Store(nil)
+
 	// create buffer to capture logs from the wrapper
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
