@@ -34,9 +34,6 @@ func TestGetAvailableHelpers(t *testing.T) {
 		DownloadEnabled: cfg.EnableKernelHeaderDownload,
 		Dirs:            cfg.KernelHeadersDirs,
 		DownloadDir:     cfg.KernelHeadersDownloadDir,
-		AptConfigDir:    cfg.AptConfigDir,
-		YumReposDir:     cfg.YumReposDir,
-		ZypperReposDir:  cfg.ZypperReposDir,
 	}
 	kernelHeaders := headers.GetKernelHeaders(opts)
 	fns, err := getAvailableHelpers(kernelHeaders)
