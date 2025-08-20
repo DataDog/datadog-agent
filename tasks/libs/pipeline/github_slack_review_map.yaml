@@ -53,3 +53,4 @@
 '@datadog/telemetry-and-analytics': '#instrumentation-telemetry'
 '@datadog/universal-service-monitoring': '#universal-service-monitoring'
 '@datadog/windows-products': '#windows-products-reviews'
+'@datadog/data-streams-monitoring': '#data-streams-monitoring'
