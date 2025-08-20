@@ -10,6 +10,7 @@ package uploader
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"io"
 	"mime"
@@ -256,7 +257,7 @@ func TestSymDBUploader(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				scopes := createPackageScopes()
-				err := uploader.Upload(scopes)
+				err := uploader.Upload(context.Background(), scopes)
 				if injectError {
 					assert.Error(t, err)
 				} else {
