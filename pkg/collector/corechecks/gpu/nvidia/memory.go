@@ -111,7 +111,7 @@ func (c *memoryCollector) Collect() ([]Metric, error) {
 	return allMetrics, multiErr
 }
 
-// collectBAR1MemoryMetrics collects BAR1 memory metrics with a single API call
+// collectBAR1MemoryMetrics collects BAR1 memory metrics
 func (c *memoryCollector) collectBAR1MemoryMetrics() ([]Metric, error) {
 	bar1Info, err := c.device.GetBAR1MemoryInfo()
 	if err != nil {
@@ -146,11 +146,6 @@ func (c *memoryCollector) collectDeviceMemoryV2Metrics() ([]Metric, error) {
 
 	return []Metric{
 		{
-			Name:  "memory.total",
-			Value: float64(memInfo.Total),
-			Type:  metrics.GaugeType,
-		},
-		{
 			Name:  "memory.free",
 			Value: float64(memInfo.Free),
 			Type:  metrics.GaugeType,
@@ -168,7 +163,7 @@ func (c *memoryCollector) collectDeviceMemoryV2Metrics() ([]Metric, error) {
 	}, nil
 }
 
-// collectDeviceMemoryV1Metrics collects device memory metrics using v1 API (fallback)
+// collectDeviceMemoryV1Metrics collects device memory metrics using v1 API
 func (c *memoryCollector) collectDeviceMemoryV1Metrics() ([]Metric, error) {
 	memInfo, err := c.device.GetMemoryInfo()
 	if err != nil {
@@ -176,11 +171,6 @@ func (c *memoryCollector) collectDeviceMemoryV1Metrics() ([]Metric, error) {
 	}
 
 	return []Metric{
-		{
-			Name:  "memory.total",
-			Value: float64(memInfo.Total),
-			Type:  metrics.GaugeType,
-		},
 		{
 			Name:  "memory.free",
 			Value: float64(memInfo.Free),
@@ -191,6 +181,5 @@ func (c *memoryCollector) collectDeviceMemoryV1Metrics() ([]Metric, error) {
 			Value: float64(memInfo.Used),
 			Type:  metrics.GaugeType,
 		},
-		// Note: v1 API doesn't provide reserved memory, so we don't emit that metric
 	}, nil
 }
