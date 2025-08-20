@@ -815,11 +815,12 @@ def test_merge_queue(ctx):
 @task
 def compare_to_itself(ctx):
     """
-    Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline
+    Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline.
+    This is used to verify that the gitlab ci is not broken by the changes when merged on the base branch.
     """
     if not gitlab_configuration_is_modified(ctx):
         print("No modification in the gitlab configuration, ignoring this test.")
-        # return
+        return
     agent = get_gitlab_repo()
     gh = GithubAPI()
     current_branch = os.environ["CI_COMMIT_REF_NAME"]
