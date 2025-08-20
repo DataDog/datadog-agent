@@ -531,11 +531,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.sync_flushing") {
 		c.SynchronousFlushing = core.GetBool("apm_config.sync_flushing")
 	}
-	if core.IsConfigured("apm_config.client_stats_flush_interval") {
-		c.ClientStatsFlushInterval = getDuration(core.GetInt("apm_config.client_stats_flush_interval"))
-	} else {
-		c.ClientStatsFlushInterval = 1 * time.Second
-	}
 
 	// undocumented deprecated
 	if core.IsSet("apm_config.analyzed_rate_by_service") {
