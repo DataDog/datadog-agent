@@ -859,7 +859,7 @@ def compare_to_itself(ctx):
         for attempt in range(max_attempts):
             print(f"[{datetime.now()}] Waiting 10s for the branch to be created {attempt + 1}/{max_attempts}")
             time.sleep(10)
-            if agent.branches.get(new_branch):
+            if agent.branches.get(new_branch, raise_exception=False):
                 branch_created = True
                 break
 
