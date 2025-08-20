@@ -163,6 +163,9 @@ func TestCreateContainerService(t *testing.T) {
 		Ready: false,
 	}
 
+	podWithTolerateUnreadyAnnotation := pod.DeepCopy().(*workloadmeta.KubernetesPod)
+	podWithTolerateUnreadyAnnotation.Annotations["ad.datadoghq.com/tolerate-unready"] = "true"
+
 	// Define a container excluded by the "container_exclude" config setting
 	containerExcludeConfigSetting := []string{"image:gcr.io/excluded:.*"}
 	mockConfig := configmock.New(t)
@@ -294,7 +297,28 @@ func TestCreateContainerService(t *testing.T) {
 						},
 						hosts: map[string]string{"pod": pod.IP},
 						ports: []ContainerPort{},
-						ready: pod.Ready,
+						ready: false, // Pod not ready and no tolerate-unready annotation
+					},
+				},
+			},
+		},
+		{
+			name:      "pod with tolerate-unready annotation",
+			container: kubernetesContainer,
+			pod:       podWithTolerateUnreadyAnnotation,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foo": {
+					service: &service{
+						tagger: taggerComponent,
+						entity: kubernetesContainer,
+						adIdentifiers: []string{
+							"docker://foo",
+							"gcr.io/foobar",
+							"foobar",
+						},
+						hosts: map[string]string{"pod": pod.IP},
+						ports: []ContainerPort{},
+						ready: true, // Because of the tolerate-unready annotation
 					},
 				},
 			},

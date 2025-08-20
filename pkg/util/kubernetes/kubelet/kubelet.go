@@ -403,9 +403,6 @@ func IsPodReady(pod *Pod) bool {
 		return false
 	}
 
-	if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
-		return true
-	}
 	for _, status := range pod.Status.Conditions {
 		if status.Type == "Ready" && status.Status == "True" {
 			return true

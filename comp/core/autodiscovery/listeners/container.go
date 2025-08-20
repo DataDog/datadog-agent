@@ -129,7 +129,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	if pod != nil {
 		svc.hosts = map[string]string{"pod": pod.IP}
-		svc.ready = pod.Ready
+		svc.ready = pod.Ready || shouldSkipPodReadiness(pod)
 
 		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
 			workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)),
