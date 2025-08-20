@@ -374,7 +374,14 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 	// not be able to inject them. For example, if we use the scanner from filesystem or
 	// if the `imgMeta` object does not contain all the metadata when it is sent.
 	// We add them here to make sure they are present.
-	wlmImage.SBOM = sbomutil.UpdateSBOMRepoMetadata(sbom, wlmImage.RepoTags, wlmImage.RepoDigests)
+	sbom = sbomutil.UpdateSBOMRepoMetadata(sbom, wlmImage.RepoTags, wlmImage.RepoDigests)
+
+	csbom, err := sbomutil.CompressSBOM(sbom)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compress SBOM for image %s: %v", wlmImage.ID, err)
+	}
+	wlmImage.SBOM = csbom
+
 	return &wlmImage, nil
 }
 

@@ -29,6 +29,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -74,7 +75,7 @@ func TestProcessEvents(t *testing.T) {
 							"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 						},
-						SBOM: &workloadmeta.SBOM{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
 							CycloneDXBOM: &cyclonedx_v1_4.Bom{
 								SpecVersion: cyclonedx.SpecVersion1_4.String(),
 								Version:     pointer.Ptr(int32(42)),
@@ -93,7 +94,7 @@ func TestProcessEvents(t *testing.T) {
 							GenerationTime:     sbomGenerationTime,
 							GenerationDuration: 10 * time.Second,
 							Status:             workloadmeta.Success,
-						},
+						}),
 					},
 				},
 			},
@@ -242,7 +243,7 @@ func TestProcessEvents(t *testing.T) {
 							// Notice that there's a repo tag for gcr.io, but no repo digest.
 							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 						},
-						SBOM: &workloadmeta.SBOM{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
 							CycloneDXBOM: &cyclonedx_v1_4.Bom{
 								SpecVersion: cyclonedx.SpecVersion1_4.String(),
 								Version:     pointer.Ptr(int32(42)),
@@ -261,7 +262,7 @@ func TestProcessEvents(t *testing.T) {
 							GenerationTime:     sbomGenerationTime,
 							GenerationDuration: 10 * time.Second,
 							Status:             workloadmeta.Success,
-						},
+						}),
 					},
 				},
 			},
@@ -321,7 +322,7 @@ func TestProcessEvents(t *testing.T) {
 						RepoTags: []string{
 							"my-image:latest",
 						},
-						SBOM: &workloadmeta.SBOM{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
 							CycloneDXBOM: &cyclonedx_v1_4.Bom{
 								SpecVersion: cyclonedx.SpecVersion1_4.String(),
 								Version:     pointer.Ptr(int32(42)),
@@ -340,7 +341,7 @@ func TestProcessEvents(t *testing.T) {
 							GenerationTime:     sbomGenerationTime,
 							GenerationDuration: 10 * time.Second,
 							Status:             workloadmeta.Success,
-						},
+						}),
 					},
 				},
 			},
@@ -393,7 +394,7 @@ func TestProcessEvents(t *testing.T) {
 						},
 						RepoTags:    []string{"datadog/agent:7-rc"},
 						RepoDigests: []string{"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409"},
-						SBOM: &workloadmeta.SBOM{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
 							CycloneDXBOM: &cyclonedx_v1_4.Bom{
 								SpecVersion: cyclonedx.SpecVersion1_4.String(),
 								Version:     pointer.Ptr(int32(42)),
@@ -401,7 +402,7 @@ func TestProcessEvents(t *testing.T) {
 							GenerationTime:     sbomGenerationTime,
 							GenerationDuration: 10 * time.Second,
 							Status:             workloadmeta.Success,
-						},
+						}),
 					},
 				},
 				{
@@ -498,9 +499,9 @@ func TestProcessEvents(t *testing.T) {
 							"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 						},
-						SBOM: &workloadmeta.SBOM{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
 							Status: workloadmeta.Pending,
-						},
+						}),
 					},
 				},
 			},
@@ -590,10 +591,10 @@ func TestProcessEvents(t *testing.T) {
 							"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 						},
-						SBOM: &workloadmeta.SBOM{
+						SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
 							Status: workloadmeta.Failed,
 							Error:  "error",
-						},
+						}),
 					},
 				},
 			},
@@ -751,4 +752,13 @@ func TestProcessEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustCompressSBOM(t *testing.T, sbom *workloadmeta.SBOM) *workloadmeta.CompressedSBOM {
+	t.Helper()
+
+	csbom, err := sbomutil.CompressSBOM(sbom)
+	assert.Nil(t, err)
+
+	return csbom
 }

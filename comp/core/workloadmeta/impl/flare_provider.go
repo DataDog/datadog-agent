@@ -12,7 +12,9 @@ import (
 	"github.com/samber/lo"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
@@ -27,7 +29,12 @@ func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
 	images := w.ListImages()
 
 	fields := lo.SliceToMap(images, func(image *wmdef.ContainerImageMetadata) (string, *wmdef.SBOM) {
-		return image.ID, image.SBOM
+		sbom, err := sbomutil.UncompressSBOM(image.SBOM)
+		if err != nil {
+			log.Errorf("Failed to uncompress SBOM for image %s: %v", image.ID, err)
+		}
+
+		return image.ID, sbom
 	})
 
 	// Using indent or splitting the file is necessary. Otherwise the scrubber will understand

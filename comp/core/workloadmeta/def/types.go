@@ -1327,7 +1327,7 @@ type ContainerImageMetadata struct {
 	Architecture string
 	Variant      string
 	Layers       []ContainerImageLayer
-	SBOM         *SBOM
+	SBOM         *CompressedSBOM
 }
 
 // ContainerImageLayer represents a layer of a container image
