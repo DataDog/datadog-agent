@@ -9,7 +9,7 @@ toolchain go1.23.8
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.147
+	github.com/DataDog/agent-payload/v5 v5.0.162
 	github.com/DataDog/datadog-agent/pkg/util/option v0.66.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.66.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.66.1
