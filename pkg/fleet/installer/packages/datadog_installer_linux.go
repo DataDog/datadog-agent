@@ -11,10 +11,11 @@ import (
 	"os"
 	"os/exec"
 
+	"log/slog"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
-	"log/slog"
 )
 
 var datadogInstallerPackage = hooks{
@@ -56,7 +57,7 @@ func preInstallDatadogInstaller(ctx HookContext) error {
 func postInstallDatadogInstaller(ctx HookContext) (err error) {
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup installer, reverting: %s", err)
+			slog.ErrorContext(ctx, "Failed to setup installer, reverting", "error", err)
 			err = preRemoveDatadogInstaller(ctx)
 		}
 	}()
@@ -80,12 +81,12 @@ func postInstallDatadogInstaller(ctx HookContext) (err error) {
 		return fmt.Errorf("error creating symlink /var/run/datadog-installer: %w", err)
 	}
 	// 3. Install the installer systemd units
-	systemdRunning, err := systemd.IsRunning()
+	systemdRunning, err := systemd.IsRunning(ctx)
 	if err != nil {
 		return fmt.Errorf("error checking if systemd is running: %w", err)
 	}
 	if !systemdRunning {
-		log.Infof("Installer: systemd is not running, skipping unit setup")
+		slog.InfoContext(ctx, "Installer: systemd is not running, skipping unit setup")
 		return nil
 	}
 	if err = writeEmbeddedUnitsAndReload(ctx, installerUnits...); err != nil {
@@ -133,7 +134,7 @@ func preRemoveDatadogInstaller(ctx HookContext) error {
 
 	// Remove symlink
 	if err := os.Remove("/usr/bin/datadog-installer"); err != nil {
-		slog.WarnContext(ctx, "Failed to remove /usr/bin/datadog-installer: %s", err)
+		slog.WarnContext(ctx, "Failed to remove /usr/bin/datadog-installer", "error", err)
 	}
 
 	// TODO: return error to caller?

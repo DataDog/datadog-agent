@@ -24,7 +24,7 @@ const (
 // NewLocalAPI returns a new LocalAPI.
 func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 	// Prevent daemon from running in insecure directories
-	err := paths.IsInstallerDataDirSecure()
+	err := paths.IsInstallerDataDirSecure(context.Background())
 	if err != nil {
 		return nil, err
 	}
