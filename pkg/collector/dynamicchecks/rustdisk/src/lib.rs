@@ -45,7 +45,7 @@ pub extern "C" fn Run() -> *mut Result {
         metrics: vec![Metric {
             r#type: "gauge".into(),
             name: "system.disk.total".into(),
-            value,
+            value: value as f64,
             tags,
         }],
     };
