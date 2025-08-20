@@ -42,13 +42,14 @@ func TestKeyvaultBackend(t *testing.T) {
 			"key2": "{\"foo\":\"bar\"}",
 		},
 	}
-	getKeyvaultClient = func(_ string) (keyvaultClient, error) {
+	getKeyvaultClient = func(_, _ string) (keyvaultClient, error) {
 		return mockClient, nil
 	}
 
 	keyvaultBackendParams := map[string]interface{}{
 		"backend_type": "azure.keyvault",
 		"keyvaulturl":  "https://my-vault.vault.azure.com/",
+		"clientid":     "123abc45-123a-abcd-123a-123abc456def",
 	}
 	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)
@@ -72,12 +73,13 @@ func TestKeyVaultBackend_issue39434(t *testing.T) {
 			"key1": "{\\\"foo\\\":\\\"bar\\\"}",
 		},
 	}
-	getKeyvaultClient = func(_ string) (keyvaultClient, error) {
+	getKeyvaultClient = func(_, _ string) (keyvaultClient, error) {
 		return mockClient, nil
 	}
 
 	keyvaultBackendParams := map[string]interface{}{
 		"backend_type": "azure.keyvault",
+		"clientid":     "123abc45-123a-abcd-123a-123abc456def",
 	}
 	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)

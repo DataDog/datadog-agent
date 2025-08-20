@@ -29,8 +29,9 @@ type keyvaultClient interface {
 
 // getKeyvaultClient is a variable that holds the function to create a new keyvaultClient
 // it will be overwritten in tests
-var getKeyvaultClient = func(keyVaultURL string) (keyvaultClient, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+var getKeyvaultClient = func(keyVaultURL, clientID string) (keyvaultClient, error) {
+	opts := azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(clientID)}
+	cred, err := azidentity.NewManagedIdentityCredential(&opts)
 	if err != nil {
 		return nil, fmt.Errorf("getting default credentials: %s", err)
 	}
@@ -45,7 +46,7 @@ var getKeyvaultClient = func(keyVaultURL string) (keyvaultClient, error) {
 type KeyVaultBackendConfig struct {
 	BackendType string `mapstructure:"backend_type"`
 	KeyVaultURL string `mapstructure:"keyvaulturl"`
-	SecretID    string `mapstructure:"secret_id"`
+	ClientID    string `mapstructure:"clientid"`
 }
 
 // KeyVaultBackend is a backend to fetch secrets from Azure
@@ -62,7 +63,11 @@ func NewKeyVaultBackend(bc map[string]interface{}) (*KeyVaultBackend, error) {
 		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
-	client, err := getKeyvaultClient(backendConfig.KeyVaultURL)
+	if backendConfig.ClientID == "" {
+		return nil, fmt.Errorf("the managed identity's clientID was not provided")
+	}
+
+	client, err := getKeyvaultClient(backendConfig.KeyVaultURL, backendConfig.ClientID)
 	if err != nil {
 		return nil, err
 	}
