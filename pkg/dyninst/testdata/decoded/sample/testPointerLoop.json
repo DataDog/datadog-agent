@@ -33,7 +33,7 @@
           {
             "function": "runtime.main",
             "fileName": "runtime/proc.go",
-            "lineNumber": 283
+            "lineNumber": "[lineNumber]"
           },
           {
             "function": "runtime.goexit",
@@ -60,7 +60,8 @@
                   },
                   "b": {
                     "type": "*main.node",
-                    "address": "[addr]"
+                    "address": "[addr]",
+                    "notCapturedReason": "circular reference"
                   }
                 }
               }

@@ -48,13 +48,24 @@ theme:
 nav:
 - Home:
   - About: index.md
-  - Setup: setup.md
+  - Setup:
+    - Required: setup/required.md
+    - Optional: setup/optional.md
+    - Manual: setup/manual.md
+- How-to:
+  - Build:
+    - Standalone agents: how-to/build/standalone.md
+  - Test:
+    - Unit tests: how-to/test/unit.md
+    - Static analysis: how-to/test/static-analysis.md
+  - Go:
+    - Add module: how-to/go/add-module.md
+- Tutorials:
+  - Develop:
+    - Environment usage: tutorials/dev/env.md
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md
-- How-to:
-  - Go:
-    - Add module: how-to/go/add-module.md
 - Components:
   - Overview: components/overview.md
   - Components:
@@ -77,6 +88,10 @@ nav:
 - Architecture:
   - DogStatsD:
     - Internals: architecture/dogstatsd/internals.md
+- Reference:
+  - Images:
+    - Developer environment: reference/images/dev.md
+    - Builders: reference/images/builders.md
 
 watch:
 - .go-version
@@ -97,6 +112,9 @@ plugins:
   git-revision-date-localized:
     type: date
     strict: false
+  redirects:
+    redirect_maps:
+      setup.md: setup/required.md
 
 markdown_extensions:
 # Built-in
