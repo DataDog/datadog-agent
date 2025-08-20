@@ -527,6 +527,28 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 		WithIdentity(identity)
 }
 
+// TestContinueExperimentAfter1612Error tests that an experiment will continue after a 1612 error
+func (s *testAgentUpgradeSuite) TestContinueExperimentAfter1612Error() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	s.removeWindowsInstallerCache()
+
+	// Act
+	s.MustStartExperimentPreviousVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasDatadogInstaller().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		})
+}
+
 func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout to timeout
 	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", timeout)
@@ -732,4 +754,10 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 func (s *testAgentUpgradeSuite) setExperimentMSIArgs(args []string) {
 	err := windowscommon.SetRegistryMultiString(s.Env().RemoteHost, `HKLM:SOFTWARE\Datadog\Datadog Agent`, "StartExperimentMSIArgs", args)
 	s.Require().NoError(err)
+}
+
+// removeWindowsInstallerCache clears the Windows Installer directory
+// This will allow us to induce a 1612 error when running an experiment
+func (s *testAgentUpgradeSuite) removeWindowsInstallerCache() {
+	s.Env().RemoteHost.RemoveAll("C:\\Windows\\Installer\\*")
 }
