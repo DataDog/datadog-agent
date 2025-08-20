@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixed truncation telemetry to record service and source values correctly by moving metrics recording to tailer layer. 
+    Fixed truncation telemetry so it records service and source values correctly, by moving metrics recording to the tailer layer. 
