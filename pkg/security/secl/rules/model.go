@@ -370,9 +370,10 @@ type HookPointArg struct {
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version string             `yaml:"version,omitempty" json:"version"`
-	Macros  []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
-	Rules   []*RuleDefinition  `yaml:"rules" json:"rules"`
+	Version         string             `yaml:"version,omitempty" json:"version"`
+	ReplacePolicyID string             `yaml:"replace_policy_id,omitempty" json:"replace_policy_id,omitempty"`
+	Macros          []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
+	Rules           []*RuleDefinition  `yaml:"rules" json:"rules"`
 }
 
 // HumanReadableDuration represents a duration that can unmarshalled from YAML from a human readable format (like `10m`)

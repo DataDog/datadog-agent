@@ -186,6 +186,8 @@ type PolicyInfo struct {
 	Type PolicyType
 	// Version is the version of the policy, this field is copied from the policy definition
 	Version string
+	// ReplacePolicyID is the ID that this policy should replace
+	ReplacePolicyID string
 	// IsInternal is true if the policy is internal
 	IsInternal bool
 }
@@ -347,6 +349,7 @@ RULES:
 func LoadPolicyFromDefinition(info *PolicyInfo, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	if def != nil && def.Version != "" {
 		info.Version = def.Version
+		info.ReplacePolicyID = def.ReplacePolicyID
 	}
 
 	p := &Policy{
