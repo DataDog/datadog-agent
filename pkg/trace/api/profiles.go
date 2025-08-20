@@ -17,6 +17,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -173,11 +174,12 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 	// overlap with other timeouts or periodicities. It provides sufficient buffer time compared to 60, whilst still
 	// allowing connection reuse for tracer setups that upload multiple profiles per minute.
 	transport.IdleConnTimeout = 47 * time.Second
+	ptransport := newProfilingTransport(transport)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "profiling.Proxy: ", 0),
-		Transport: &multiTransport{transport, targets, keys},
+		Transport: &multiTransport{ptransport, targets, keys},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			// Extract useful context for logging
 			var payloadSize int64
@@ -265,7 +267,12 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 	}()
 	if len(m.targets) == 1 {
 		setTarget(req, m.targets[0], m.keys[0])
-		return m.rt.RoundTrip(req)
+		rresp, rerr = m.rt.RoundTrip(req)
+		// Avoid sub-sequent requests from getting a use of closed network connection error
+		if rerr != nil && req.Body != nil {
+			req.Body.Close()
+		}
+		return rresp, rerr
 	}
 	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -291,4 +298,60 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		}
 	}
 	return rresp, rerr
+}
+
+// profilingTransport wraps an *http.Transport to improve connection hygiene after
+// response body copy errors by flushing idle connections and forcing the next
+// outbound request to close instead of reusing a possibly bad connection.
+
+type profilingTransport struct {
+	base           *http.Transport
+	forceCloseNext atomic.Bool
+}
+
+func newProfilingTransport(base *http.Transport) *profilingTransport {
+	return &profilingTransport{base: base}
+}
+
+func (p *profilingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// If a previous response body read error occurred, force this request to not reuse connections.
+	if p.forceCloseNext.Load() {
+		// Clone to avoid mutating caller's request.
+		req = req.Clone(req.Context())
+		req.Close = true
+		req.Header.Set("Connection", "close")
+		p.forceCloseNext.Store(false)
+	}
+
+	resp, err := p.base.RoundTrip(req)
+	if err != nil || resp == nil || resp.Body == nil {
+		return resp, err
+	}
+
+	// Wrap the response body to detect mid-stream read errors during reverse proxy copy.
+	origBody := resp.Body
+	resp.Body = &readTrackingBody{
+		ReadCloser: origBody,
+		onReadError: func(rerr error) {
+			if rerr != nil && rerr != io.EOF {
+				p.base.CloseIdleConnections()
+				p.forceCloseNext.Store(true)
+				log.Warnf("profiling proxy: upstream body read error detected, flushed idle conns and will force close on next request: %v", rerr)
+			}
+		},
+	}
+	return resp, nil
+}
+
+type readTrackingBody struct {
+	io.ReadCloser
+	onReadError func(error)
+}
+
+func (b *readTrackingBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if err != nil && err != io.EOF && b.onReadError != nil {
+		b.onReadError(err)
+	}
+	return n, err
 }
