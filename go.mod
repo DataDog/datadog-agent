@@ -46,9 +46,9 @@ require (
 	github.com/DataDog/ebpf-manager v0.7.14
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.29.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.29.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.31.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.31.0
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
@@ -624,7 +624,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.67.0
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.67.0
-	github.com/DataDog/datadog-agent/pkg/proto v0.69.0-devel
+	github.com/DataDog/datadog-agent/pkg/proto v0.70.0-devel
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0
 	github.com/DataDog/datadog-agent/pkg/serializer v0.67.0
 	github.com/DataDog/datadog-agent/pkg/status/health v0.67.0
