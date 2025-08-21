@@ -628,7 +628,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
 
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions
-        # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
+        # TODO(team:agent-delivery): make it possible to do Agent 6-only or Agent 7-only tags?
         tag_version(ctx, version=str(new_version), force=False, start_qual=start_qual)
         tag_modules(ctx, version=str(new_version), force=False)
 
@@ -693,11 +693,10 @@ def set_release_json(ctx, key, value, release_branch=None, skip_checkout=False, 
         release_json = load_release_json()
         path = key.split('::')
         current_node = release_json
-        for key_idx in range(len(path)):
-            key = path[key_idx]
+        for idx, key in enumerate(path):
             if key not in current_node:
                 raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
-            if key_idx == len(path) - 1:
+            if idx == len(path) - 1:
                 current_node[key] = value
                 break
             else:
@@ -766,8 +765,7 @@ def create_and_update_release_branch(
             _main()
 
 
-# TODO: unfreeze is the former name of this task, kept for backward compatibility. Remove in a few weeks.
-@task(help={'upstream': "Remote repository name (default 'origin')"}, aliases=["unfreeze"])
+@task(help={'upstream': "Remote repository name (default 'origin')"})
 def create_release_branches(
     ctx, commit, base_directory="~/dd", major_version: int = 7, upstream="origin", check_state=True
 ):
