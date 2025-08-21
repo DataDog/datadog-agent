@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,10 +108,18 @@ func getParConfig(component config.Component) (*parconfig.Config, error) {
 	if encodedPrivateKey == "" {
 		return nil, fmt.Errorf("private action runner not configured: either run enrollment or provide privateactionrunner.private_key")
 	}
-
 	privateKey, err := utils.Base64ToJWK(encodedPrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode privateactionrunner.private_key: %w", err)
+	}
+
+	if urn == "" {
+		return nil, fmt.Errorf("private action runner not configured: URN is required")
+	}
+
+	orgId, runnerId, err := parseURN(urn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URN: %w", err)
 	}
 
 	return &parconfig.Config{
@@ -137,9 +146,9 @@ func getParConfig(component config.Component) (*parconfig.Config, error) {
 		AllowIMDSEndpoint:         component.GetBool("privateactionrunner.allow_imds_endpoint"),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     strings.Split(component.GetString("privateactionrunner.modes"), ","),
-		OrgId:                     component.GetInt64("privateactionrunner.org_id"),
+		OrgId:                     orgId,
 		PrivateKey:                privateKey.Key.(*ecdsa.PrivateKey),
-		RunnerId:                  component.GetString("privateactionrunner.runner_id"),
+		RunnerId:                  runnerId,
 		Urn:                       urn,
 		DatadogSite:               ddSite,
 	}, nil
@@ -165,4 +174,29 @@ func (r *runnerImpl) Stop(ctx context.Context) error {
 	r.log.Info("Stopping private action runner")
 	r.WorkflowRunner.Close(ctx)
 	return nil
+}
+
+// parseURN parses a URN in the format urn:dd:apps:on-prem-runner:{region}:{org_id}:{runner_id}
+// and returns the org_id and runner_id
+func parseURN(urn string) (int64, string, error) {
+	parts := strings.Split(urn, ":")
+	if len(parts) != 6 {
+		return 0, "", fmt.Errorf("invalid URN format: expected 6 parts separated by ':', got %d", len(parts))
+	}
+
+	if parts[0] != "urn" || parts[1] != "dd" || parts[2] != "apps" || parts[3] != "on-prem-runner" {
+		return 0, "", fmt.Errorf("invalid URN format: expected 'urn:dd:apps:on-prem-runner', got '%s:%s:%s:%s'", parts[0], parts[1], parts[2], parts[3])
+	}
+
+	orgId, err := strconv.ParseInt(parts[4], 10, 64)
+	if err != nil {
+		return 0, "", fmt.Errorf("invalid org_id in URN: %w", err)
+	}
+
+	runnerId := parts[5]
+	if runnerId == "" {
+		return 0, "", fmt.Errorf("runner_id cannot be empty in URN")
+	}
+
+	return orgId, runnerId, nil
 }
