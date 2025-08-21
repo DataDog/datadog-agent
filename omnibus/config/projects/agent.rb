@@ -319,6 +319,12 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\process-agent.exe",
     "#{install_dir}\\bin\\agent\\system-probe.exe"
   ]
+
+  if not fips_mode?
+    # TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
+    GO_BINARIES << "#{install_dir}\\bin\\agent\\secret-generic-connector.exe"
+  end
+
   if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
   end

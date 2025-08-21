@@ -9,9 +9,6 @@ include:
   before_script:
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
-    - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
@@ -52,7 +49,7 @@ include:
   extends: .package_rpm_common
   script:
     - !reference [.package_rpm_common, script]
-    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && mv $OMNIBUS_PACKAGE_DIR/*.rpm $OMNIBUS_PACKAGE_DIR_SUSE/
+    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && mv $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE/
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -202,9 +199,6 @@ installer_suse_rpm-arm64:
     - when: on_success
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
-    - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
