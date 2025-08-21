@@ -97,6 +97,10 @@
          <lastmod>2020-02-02</lastmod>
     </url>
     <url>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/languages/go/</loc>
+         <lastmod>2020-02-02</lastmod>
+    </url>
+    <url>
          <loc>https://datadoghq.dev/datadog-agent/hostname/hostname_force_config_as_canonical/</loc>
          <lastmod>2020-02-02</lastmod>
     </url>
