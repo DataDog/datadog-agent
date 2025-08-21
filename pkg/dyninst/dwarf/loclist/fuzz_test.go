@@ -11,7 +11,7 @@ import "testing"
 
 func FuzzParseInstructions(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte, ptrSize uint8, totalByteSize uint32) {
-		parsed, err := ParseInstructions(data, ptrSize, totalByteSize)
+		_, err := ParseInstructions(data, ptrSize, totalByteSize)
 		if err != nil {
 			return
 		}
