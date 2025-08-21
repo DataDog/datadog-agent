@@ -148,7 +148,6 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	// modify the config then release the lock to avoid deadlocks while notifying
 	var receivers []model.NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
 	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
@@ -158,6 +157,8 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceID++
 	}
+
+	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
