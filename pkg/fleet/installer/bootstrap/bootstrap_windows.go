@@ -146,7 +146,7 @@ func getInstallerFromMSI(ctx context.Context, tmpDir string) (string, error) {
 	cmd, err := msi.Cmd(
 		msi.AdministrativeInstall(),
 		msi.WithMsi(msis[0]),
-		msi.WithAdditionalArgs([]string{fmt.Sprintf(`TARGETDIR="%s"`, strings.ReplaceAll(adminInstallDir, "/", `\`))}),
+		msi.WithProperties(map[string]string{"TARGETDIR": strings.ReplaceAll(adminInstallDir, "/", `\`)}),
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create MSI command: %w", err)
