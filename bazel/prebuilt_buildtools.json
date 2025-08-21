@@ -9,7 +9,7 @@
         "os": "macos",
         "cpu": "x86_64",
         "size": 7776816,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636654"
       },
       {
@@ -19,7 +19,7 @@
         "os": "macos",
         "cpu": "arm64",
         "size": 7717890,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636658"
       },
       {
@@ -29,7 +29,7 @@
         "os": "linux",
         "cpu": "x86_64",
         "size": 7882884,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636637"
       },
       {
@@ -39,7 +39,7 @@
         "os": "linux",
         "cpu": "arm64",
         "size": 7755744,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636641"
       },
       {
@@ -49,7 +49,7 @@
         "os": "windows",
         "cpu": "x86_64",
         "size": 8020480,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636662"
       }
     ]
@@ -64,7 +64,7 @@
         "os": "macos",
         "cpu": "x86_64",
         "size": 7400336,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636688"
       },
       {
@@ -74,7 +74,7 @@
         "os": "macos",
         "cpu": "arm64",
         "size": 7346642,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636689"
       },
       {
@@ -84,7 +84,7 @@
         "os": "linux",
         "cpu": "x86_64",
         "size": 7504497,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636664"
       },
       {
@@ -94,7 +94,7 @@
         "os": "linux",
         "cpu": "arm64",
         "size": 7317501,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636667"
       },
       {
@@ -104,7 +104,7 @@
         "os": "windows",
         "cpu": "x86_64",
         "size": 7638528,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636693"
       }
     ]
@@ -119,7 +119,7 @@
         "os": "macos",
         "cpu": "x86_64",
         "size": 7522640,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636728"
       },
       {
@@ -129,7 +129,7 @@
         "os": "macos",
         "cpu": "arm64",
         "size": 7490290,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636734"
       },
       {
@@ -139,7 +139,7 @@
         "os": "linux",
         "cpu": "x86_64",
         "size": 7630272,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636705"
       },
       {
@@ -149,7 +149,7 @@
         "os": "linux",
         "cpu": "arm64",
         "size": 7493388,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636708"
       },
       {
@@ -159,7 +159,7 @@
         "os": "windows",
         "cpu": "x86_64",
         "size": 7759872,
-        "published_at": "",
+        "published_at": "2025-06-10T13:25:35Z",
         "asset_url": "https://api.github.com/repos/bazelbuild/buildtools/releases/assets/262636744"
       }
     ]
