@@ -15,6 +15,7 @@ Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/expe
 RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 Restart=no
 ExecStart=/usr/bin/timeout --kill-after=15s 3000s /opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 ExecStopPost=/bin/false

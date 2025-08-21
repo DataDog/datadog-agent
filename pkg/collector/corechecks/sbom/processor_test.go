@@ -75,10 +75,10 @@ func TestProcessEvents(t *testing.T) {
 							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 						},
 						SBOM: &workloadmeta.SBOM{
-							CycloneDXBOM: &cyclonedx.BOM{
-								SpecVersion: cyclonedx.SpecVersion1_4,
-								Version:     42,
-								Components: &[]cyclonedx.Component{
+							CycloneDXBOM: &cyclonedx_v1_4.Bom{
+								SpecVersion: cyclonedx.SpecVersion1_4.String(),
+								Version:     pointer.Ptr(int32(42)),
+								Components: []*cyclonedx_v1_4.Component{
 									{
 										Name: "Foo",
 									},
@@ -243,10 +243,10 @@ func TestProcessEvents(t *testing.T) {
 							"public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 						},
 						SBOM: &workloadmeta.SBOM{
-							CycloneDXBOM: &cyclonedx.BOM{
-								SpecVersion: cyclonedx.SpecVersion1_4,
-								Version:     42,
-								Components: &[]cyclonedx.Component{
+							CycloneDXBOM: &cyclonedx_v1_4.Bom{
+								SpecVersion: cyclonedx.SpecVersion1_4.String(),
+								Version:     pointer.Ptr(int32(42)),
+								Components: []*cyclonedx_v1_4.Component{
 									{
 										Name: "Foo",
 									},
@@ -322,10 +322,10 @@ func TestProcessEvents(t *testing.T) {
 							"my-image:latest",
 						},
 						SBOM: &workloadmeta.SBOM{
-							CycloneDXBOM: &cyclonedx.BOM{
-								SpecVersion: cyclonedx.SpecVersion1_4,
-								Version:     42,
-								Components: &[]cyclonedx.Component{
+							CycloneDXBOM: &cyclonedx_v1_4.Bom{
+								SpecVersion: cyclonedx.SpecVersion1_4.String(),
+								Version:     pointer.Ptr(int32(42)),
+								Components: []*cyclonedx_v1_4.Component{
 									{
 										Name: "Foo",
 									},
@@ -394,9 +394,9 @@ func TestProcessEvents(t *testing.T) {
 						RepoTags:    []string{"datadog/agent:7-rc"},
 						RepoDigests: []string{"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409"},
 						SBOM: &workloadmeta.SBOM{
-							CycloneDXBOM: &cyclonedx.BOM{
-								SpecVersion: cyclonedx.SpecVersion1_4,
-								Version:     42,
+							CycloneDXBOM: &cyclonedx_v1_4.Bom{
+								SpecVersion: cyclonedx.SpecVersion1_4.String(),
+								Version:     pointer.Ptr(int32(42)),
 							},
 							GenerationTime:     sbomGenerationTime,
 							GenerationDuration: 10 * time.Second,

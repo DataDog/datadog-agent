@@ -27,14 +27,15 @@ func NewSECLRuleFilter(model eval.Model) *SECLRuleFilter {
 	}
 }
 
-func mergeFilterExpressions(filters []string) (expression string) {
+func mergeFilterExpressions(filters []string) string {
+	var expression string
 	for i, filter := range filters {
 		if i != 0 {
 			expression += " || "
 		}
 		expression += "(" + filter + ")"
 	}
-	return
+	return expression
 }
 
 func (r *SECLRuleFilter) newEvalContext() eval.Context {

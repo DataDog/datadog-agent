@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/skydive-project/go-debouncer"
@@ -34,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
 const (
@@ -84,7 +84,7 @@ func (s *SBOM) IsComputed() bool {
 }
 
 // SetReport sets the SBOM report
-func (s *SBOM) setReport(report *trivy.Report) {
+func (s *SBOM) setReport(report *types.Report) {
 	// build file cache
 	s.data.files = newFileQuerier(report)
 }
@@ -267,11 +267,11 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 }
 
 // generateSBOM calls Trivy to generate the SBOM of a sbom
-func (r *Resolver) generateSBOM(root string) (*trivy.Report, error) {
+func (r *Resolver) generateSBOM(root string) (*types.Report, error) {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	report, err := r.sbomCollector.DirectScan(context.Background(), root)
+	report, err := r.sbomCollector.DirectScanForTrivyReport(context.Background(), root)
 	if err != nil {
 		r.failedSBOMGenerations.Inc()
 		return nil, fmt.Errorf("failed to generate SBOM for %s: %w", root, err)
@@ -279,19 +279,14 @@ func (r *Resolver) generateSBOM(root string) (*trivy.Report, error) {
 
 	seclog.Infof("SBOM successfully generated from %s", root)
 
-	trivyReport, ok := report.(*trivy.Report)
-	if !ok {
-		return nil, fmt.Errorf("failed to convert report for %s", root)
-	}
-
-	return trivyReport, nil
+	return report, nil
 }
 
-func (r *Resolver) doScan(sbom *SBOM) (*trivy.Report, error) {
+func (r *Resolver) doScan(sbom *SBOM) (*types.Report, error) {
 	var (
 		lastErr error
 		scanned bool
-		report  *trivy.Report
+		report  *types.Report
 	)
 
 	cfs := utils.DefaultCGroupFS()
