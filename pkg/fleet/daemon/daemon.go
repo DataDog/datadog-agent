@@ -257,6 +257,21 @@ func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
 	return catalogPackage, nil
 }
 
+func (d *daemonImpl) getConfig(version string) (installerConfig, error) {
+	d.m.Lock()
+	defer d.m.Unlock()
+	configs := d.configs
+	if len(d.configsOverride) > 0 {
+		configs = d.configsOverride
+	}
+
+	config, ok := configs[version]
+	if !ok {
+		return installerConfig{}, fmt.Errorf("config version %s not found in available configs", version)
+	}
+	return config, nil
+}
+
 // SetCatalog sets the catalog.
 func (d *daemonImpl) SetCatalog(c catalog) {
 	d.m.Lock()
@@ -442,54 +457,28 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, version string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startConfigExperiment(ctx, url, version, []experimentConfigAction{
-		{ActionType: "remove_all"},
-		{ActionType: "write", ConfigID: version},
-	})
+	config, err := d.getConfig(version)
+	if err != nil {
+		return fmt.Errorf("could not get config: %w", err)
+	}
+	var configActions []installer.ConfigAction
+	for _, file := range config.Files {
+		configActions = append(configActions, installer.ConfigAction{
+			ActionType: "write",
+			Path:       file.Path,
+		})
+	}
+	return d.startConfigExperiment(ctx, url, version, configActions)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string, configActions []experimentConfigAction) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string, configActions []installer.ConfigAction) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting config experiment version %s for package %s", version, pkg)
-	configs := d.configs
-	if len(d.configsOverride) > 0 {
-		configs = d.configsOverride
-	}
-
-	serializedConfigs := make([][]byte, 0, len(configActions))
-	for i, configAction := range configActions {
-		var convertedAction convertedExperimentConfigAction
-
-		// When ConfigID is set, we look at the config version
-		if configAction.ConfigID != "" {
-			config, ok := configs[configAction.ConfigID]
-			if !ok {
-				return fmt.Errorf("config version %s not found in available configs", configAction.ConfigID)
-			}
-			convertedAction = convertedExperimentConfigAction{
-				ActionType: configAction.ActionType,
-				Files:      config.Files,
-			}
-		} else {
-			// When ConfigID is not set, we only look at the path
-			convertedAction = convertedExperimentConfigAction{
-				ActionType: configAction.ActionType,
-				Files:      []installerConfigFile{{Path: configAction.Path}},
-			}
-		}
-
-		serializedConfig, err := json.Marshal(convertedAction)
-		if err != nil {
-			return fmt.Errorf("failed to serialize config action %d: %w", i, err)
-		}
-		serializedConfigs = append(serializedConfigs, serializedConfig)
-	}
-
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigs, []string{})
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, configActions)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
@@ -649,11 +638,21 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		}
 		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
 
-		// Single config case
+		config, err := d.getConfig(params.Version)
+		if err != nil {
+			return installerErrors.Wrap(
+				installerErrors.ErrConfigNotFound,
+				err,
+			)
+		}
+		// Backward compatibility with previous backend, only a configuration is sent
 		if len(params.Actions) == 0 {
-			return d.startConfigExperiment(ctx, request.Package, params.Version, []experimentConfigAction{
-				{ActionType: "write", ConfigID: params.Version},
-			})
+			for _, file := range config.Files {
+				params.Actions = append(params.Actions, experimentConfigAction{
+					ActionType: "write",
+					Path:       file.Path,
+				})
+			}
 		}
 		return d.startConfigExperiment(ctx, request.Package, params.Version, params.Actions)
 

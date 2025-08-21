@@ -8,18 +8,14 @@ package installer
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -61,9 +57,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(
-		ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string,
-	) error
+	InstallConfigExperiment(ctx context.Context, pkg string, version string, configActions []ConfigAction) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -88,11 +82,6 @@ type installerImpl struct {
 
 	packagesDir    string
 	userConfigsDir string
-}
-
-type experimentConfigAction struct {
-	ActionType configFileAction `json:"action_type"`
-	Files      []configFile     `json:"files"`
 }
 
 // NewInstaller returns a new Package Manager.
@@ -501,10 +490,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-// TODO: remove the last parameter (configOrder)
-func (i *installerImpl) InstallConfigExperiment(
-	ctx context.Context, pkg string, version string, rawConfigs [][]byte, _ []string,
-) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, configActions []ConfigAction) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -527,14 +513,22 @@ func (i *installerImpl) InstallConfigExperiment(
 		)
 	}
 
-	err = i.writeConfig(tmpDir, rawConfigs)
+	configRoot, err := os.OpenRoot(configRepo.StablePath())
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not write agent config: %w", err),
+			fmt.Errorf("could not open config root: %w", err),
 		)
 	}
-
+	for _, action := range configActions {
+		err = action.apply(configRoot)
+		if err != nil {
+			return installerErrors.Wrap(
+				installerErrors.ErrFilesystemIssue,
+				fmt.Errorf("could not write agent config: %w", err),
+			)
+		}
+	}
 	err = configRepo.SetExperiment(ctx, version, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -592,10 +586,6 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 			installerErrors.ErrFilesystemIssue,
 			fmt.Errorf("could not promote experiment: %w", err),
 		)
-	}
-	err = writeConfigSymlinks(paths.ConfigsPath, repository.StablePath())
-	if err != nil {
-		log.Warnf("could not write user-facing config symlinks: %v", err)
 	}
 	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
 }
@@ -813,158 +803,6 @@ func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err 
 	err = i.configs.Create(ctx, pkg, "empty", tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not create %s repository: %w", pkg, err)
-	}
-	return nil
-}
-
-var (
-	allowedConfigFiles = []string{
-		"/datadog.yaml",
-		"/otel-config.yaml",
-		"/security-agent.yaml",
-		"/system-probe.yaml",
-		"/application_monitoring.yaml",
-		"/conf.d/*.yaml",
-		"/conf.d/*.d/*.yaml",
-	}
-)
-
-func configNameAllowed(file string) bool {
-	for _, allowedFile := range allowedConfigFiles {
-		match, err := filepath.Match(allowedFile, file)
-		if err != nil {
-			return false
-		}
-		if match {
-			return true
-		}
-	}
-	return false
-}
-
-func cleanConfigName(p string) string {
-	// intentionally not using filepath.Clean so that the
-	// path maintains forward slashes on Windows
-	return path.Clean(p)
-}
-
-type configFileAction string
-
-const (
-	configFileActionUnknown   configFileAction = ""
-	configFileActionWrite     configFileAction = "write"
-	configFileActionRemove    configFileAction = "remove"
-	configFileActionRemoveAll configFileAction = "remove_all"
-)
-
-type configFile struct {
-	Path     string          `json:"path"`
-	Contents json.RawMessage `json:"contents"`
-}
-
-func (i *installerImpl) writeConfig(dir string, rawConfigActions [][]byte) error {
-	for _, rawConfigAction := range rawConfigActions {
-		var configAction experimentConfigAction
-		err := json.Unmarshal(rawConfigAction, &configAction)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal config files: %w (raw: %s)", err, string(rawConfigAction))
-		}
-
-		switch configAction.ActionType {
-		case configFileActionRemoveAll:
-			// Remove all the files and directory under `dir`, but not `dir` itself
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				return fmt.Errorf("could not read config directory: %w", err)
-			}
-			for _, entry := range entries {
-				entryPath := filepath.Join(dir, entry.Name())
-				err = os.RemoveAll(entryPath)
-				if err != nil {
-					return fmt.Errorf("could not remove config file/directory %s: %w", entryPath, err)
-				}
-			}
-		case configFileActionRemove:
-			for _, file := range configAction.Files {
-				file.Path = cleanConfigName(file.Path)
-
-				if !configNameAllowed(file.Path) {
-					return fmt.Errorf("config file %s is not allowed", file)
-				}
-
-				err = os.Remove(filepath.Join(dir, file.Path))
-				if err != nil {
-					if os.IsNotExist(err) {
-						log.Warnf("config file %s does not exist, skipping", file.Path)
-						continue
-					}
-					return fmt.Errorf("could not remove config file: %w", err)
-				}
-			}
-		case configFileActionWrite:
-			for _, file := range configAction.Files {
-				file.Path = cleanConfigName(file.Path)
-
-				if !configNameAllowed(file.Path) {
-					return fmt.Errorf("config file %s is not allowed", file)
-				}
-
-				var c interface{}
-				err = json.Unmarshal(file.Contents, &c)
-				if err != nil {
-					return fmt.Errorf("could not unmarshal config file contents: %w", err)
-				}
-				serialized, err := yaml.Marshal(c)
-				if err != nil {
-					return fmt.Errorf("could not serialize config file contents: %w", err)
-				}
-				if len(serialized) == 0 {
-					return fmt.Errorf("config file %s has no contents, skipping", file.Path)
-				}
-				err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
-				if err != nil {
-					return fmt.Errorf("could not create config file directory: %w", err)
-				}
-				err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
-				if err != nil {
-					return fmt.Errorf("could not write config file: %w", err)
-				}
-			}
-		default:
-			return fmt.Errorf("unknown config file action: %s", configAction.ActionType)
-		}
-	}
-	return nil
-}
-
-// writeConfigSymlinks writes `.override` symlinks to help surface configurations to the user
-func writeConfigSymlinks(userDir string, fleetDir string) error {
-	userFiles, err := os.ReadDir(userDir)
-	if err != nil {
-		return fmt.Errorf("could not list user config files: %w", err)
-	}
-	for _, userFile := range userFiles {
-		if userFile.Type()&os.ModeSymlink != 0 && strings.HasSuffix(userFile.Name(), ".override") {
-			err = os.Remove(filepath.Join(userDir, userFile.Name()))
-			if err != nil {
-				return fmt.Errorf("could not remove existing symlink: %w", err)
-			}
-		}
-	}
-	var files []string
-	fleetFiles, err := os.ReadDir(fleetDir)
-	if err != nil {
-		return fmt.Errorf("could not list fleet config files: %w", err)
-	}
-	for _, fleetFile := range fleetFiles {
-		files = append(files, fleetFile.Name())
-	}
-	for _, file := range files {
-		overrideFile := file + ".override"
-		err = os.Symlink(filepath.Join(fleetDir, file), filepath.Join(userDir, overrideFile))
-		if err != nil {
-			return fmt.Errorf("could not create symlink: %w", err)
-		}
 	}
 	return nil
 }
