@@ -120,7 +120,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	}
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
 		"DD_API_KEY":               s.getAPIKey(),
-		"TESTING_KEYS_URL":         "apttesting.datad0g.com/test-keys-vault",
+		"TESTING_KEYS_URL":         "apttesting.datad0g.com/test-keys",
 		"TESTING_APT_URL":          fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID")),
 		"TESTING_APT_REPO_VERSION": fmt.Sprintf("stable-%s 7", s.arch),
 		"TESTING_YUM_URL":          "s3.amazonaws.com/yumtesting.datad0g.com",
