@@ -11,9 +11,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 	"github.com/DataDog/datadog-secret-backend/secret"
@@ -30,11 +32,20 @@ type keyvaultClient interface {
 // getKeyvaultClient is a variable that holds the function to create a new keyvaultClient
 // it will be overwritten in tests
 var getKeyvaultClient = func(keyVaultURL, clientID string) (keyvaultClient, error) {
-	opts := azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(clientID)}
-	cred, err := azidentity.NewManagedIdentityCredential(&opts)
-	if err != nil {
-		return nil, fmt.Errorf("getting default credentials: %s", err)
+	var err error
+	var cred azcore.TokenCredential
+	if clientID == "" {
+		cred, err = azidentity.NewDefaultAzureCredential(nil)
+	} else {
+		opts := azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(clientID)}
+		cred, err = azidentity.NewManagedIdentityCredential(&opts)
 	}
+	if err != nil && clientID == "" {
+		return nil, fmt.Errorf("clientID not provided, could not get credentials: %s", err)
+	} else if err != nil {
+		return nil, fmt.Errorf("getting identity credentials: %s", err)
+	}
+
 	client, err := azsecrets.NewClient(keyVaultURL, cred, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %v", err)
@@ -63,11 +74,19 @@ func NewKeyVaultBackend(bc map[string]interface{}) (*KeyVaultBackend, error) {
 		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
-	if backendConfig.ClientID == "" {
-		return nil, fmt.Errorf("the managed identity's clientID was not provided")
+	// Get clientID of the identity in this order:
+	// 1. clientID sent over stdin
+	// 2. from the env var AZURE_CLIENT_ID
+	// If neither is provided, we'll use the DefaultAzureCredential which sometimes
+	// picks up the Managed Identity attached to the running VM
+	clientID := backendConfig.ClientID
+	if clientID == "" {
+		if env, found := os.LookupEnv("AZURE_CLIENT_ID"); found {
+			clientID = env
+		}
 	}
 
-	client, err := getKeyvaultClient(backendConfig.KeyVaultURL, backendConfig.ClientID)
+	client, err := getKeyvaultClient(backendConfig.KeyVaultURL, clientID)
 	if err != nil {
 		return nil, err
 	}
