@@ -208,6 +208,12 @@ var defaultProfiles = `
       metrics:
         - name: dogstatsd.udp_packets_bytes
         - name: dogstatsd.uds_packets_bytes
+        - name: dogstatsd.metric_type_count
+          aggregate_tags:
+            - metric_type
+        - name: aggregator.dogstatsd_contexts_by_mtype
+          aggregate_tags:
+            - metric_type
         - name: logs.bytes_missed
         - name: logs.bytes_sent
         - name: logs.decoded

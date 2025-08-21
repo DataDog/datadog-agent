@@ -398,6 +398,8 @@ type AgentConfig struct {
 	HTTPClientFunc func() *http.Client `json:"-"`
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
 	HTTPTransportFunc func() *http.Transport `json:"-"`
+	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
+	ClientStatsFlushInterval time.Duration
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -581,10 +583,11 @@ func New() *AgentConfig {
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
 
-		StatsWriter:             new(WriterConfig),
-		TraceWriter:             new(WriterConfig),
-		ConnectionResetInterval: 0, // disabled
-		MaxSenderRetries:        4,
+		StatsWriter:              new(WriterConfig),
+		TraceWriter:              new(WriterConfig),
+		ConnectionResetInterval:  0, // disabled
+		MaxSenderRetries:         4,
+		ClientStatsFlushInterval: 1 * time.Second,
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,
