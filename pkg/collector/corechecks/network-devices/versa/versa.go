@@ -40,6 +40,7 @@ type checkCfg struct {
 	AnalyticsEndpoint                     string   `yaml:"analytics_endpoint"`
 	Username                              string   `yaml:"username"`
 	Password                              string   `yaml:"password"`
+	AuthMethod                            string   `yaml:"auth_method"`
 	MaxAttempts                           int      `yaml:"max_attempts"`
 	MaxPages                              int      `yaml:"max_pages"`
 	MaxCount                              int      `yaml:"max_count"`
@@ -65,6 +66,8 @@ type checkCfg struct {
 	CollectSiteMetrics                    *bool    `yaml:"collect_site_metrics"`
 	CollectInterfaceMetrics               *bool    `yaml:"collect_interface_metrics"`
 	SendInterfaceMetadataFromAnalytics    *bool    `yaml:"send_interface_metadata_from_analytics"`
+	ClientID                              string   `yaml:"client_id"`
+	ClientSecret                          string   `yaml:"client_secret"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -84,7 +87,15 @@ func (v *VersaCheck) Run() error {
 		return err
 	}
 
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP, clientOptions...)
+	authConfig := client.AuthConfig{
+		Method:       v.config.AuthMethod,
+		Username:     v.config.Username,
+		Password:     v.config.Password,
+		ClientID:     v.config.ClientID,
+		ClientSecret: v.config.ClientSecret,
+	}
+
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.UseHTTP, authConfig, clientOptions...)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
@@ -437,10 +448,6 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 
 	if v.config.MinCollectionInterval != 0 {
 		v.interval = time.Second * time.Duration(v.config.MinCollectionInterval)
-	}
-
-	if v.config.DirectorPort == 0 {
-		v.config.DirectorPort = defaultDirectorPort
 	}
 
 	v.metricsSender = report.NewSender(sender, v.config.Namespace)
