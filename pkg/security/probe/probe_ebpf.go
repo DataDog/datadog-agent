@@ -716,7 +716,7 @@ func (p *EBPFProbe) applyRawPacketActionFilters() error {
 		opts.MaxProgSize = 1_000_000
 	}
 
-	seclog.Errorf("generate rawpacket filter programs with a limit of %d max instructions", opts.MaxProgSize)
+	seclog.Debugf("generate rawpacket filter programs with a limit of %d max instructions", opts.MaxProgSize)
 
 	rawPacketEventMap, routerMap, err := p.getRawPacketMaps()
 	if err != nil {
@@ -2267,7 +2267,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 	}
 
 	// check if there is a network packet action
-	if isRawPacketActionPresent(rs) {
+	if isRawPacketActionPresent(rs) && p.config.RuntimeSecurity.EnforcementEnabled {
 		if !slices.Contains(eventTypes, model.RawPacketActionEventType.String()) {
 			eventTypes = append(eventTypes, model.RawPacketActionEventType.String())
 		}
@@ -2297,9 +2297,11 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		}
 
 		// reset action filter
-		p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
-		if err := p.applyRawPacketActionFilters(); err != nil {
-			seclog.Errorf("unable to load raw packet action programs: %v", err)
+		if p.config.RuntimeSecurity.EnforcementEnabled {
+			p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
+			if err := p.applyRawPacketActionFilters(); err != nil {
+				seclog.Errorf("unable to load raw packet action programs: %v", err)
+			}
 		}
 	}
 
@@ -3117,6 +3119,10 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.NetworkFilter != nil:
+			if !p.config.RuntimeSecurity.EnforcementEnabled {
+				return
+			}
+
 			var policy rawpacket.Policy
 			policy.Parse(action.Def.NetworkFilter.Policy)
 
