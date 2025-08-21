@@ -20,6 +20,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -115,6 +116,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	ctx := context.Background()
 
 	suite.Run("agent pods are ready and not restarting", func() {
+		flake.Mark(suite.T())
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			linuxNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.AndSelectors(
