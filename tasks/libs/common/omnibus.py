@@ -22,7 +22,9 @@ ENV_PASSHTROUGH = {
     'DD_CXX': 'Points at c++ compiler',
     'DD_CMAKE_TOOLCHAIN': 'Points at cmake toolchain',
     'DDA_NO_DYNAMIC_DEPS': 'Variable affecting dda behavior',
+    'E2E_COVERAGE_PIPELINE': 'Used to do a special build of the agent to generate coverage data',
     'DEPLOY_AGENT': 'Used to apply higher compression level for deployed artifacts',
+    'FORCED_PACKAGE_COMPRESSION_LEVEL': 'Used as an override for the compression level of artifacts',
     'GEM_HOME': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'GEM_PATH': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'HOME': 'Home directory might be used by invoked programs such as git',
@@ -41,6 +43,7 @@ ENV_PASSHTROUGH = {
     'RUBY_VERSION': 'Used by Omnibus / Gemspec',
     'S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS': 'Use to determine whether Omnibus can write to the artifact cache',
     'S3_OMNIBUS_CACHE_BUCKET': 'Points at bucket used for Omnibus source artifacts',
+    'SSH_AUTH_SOCK': 'Developer environments configure Git to use SSH authentication',
     'rvm_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_bin_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
@@ -75,6 +78,7 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'DEB_GPG_KEY': 'Used to sign packages',
         'DEB_GPG_KEY_NAME': 'Used to sign packages',
         'DEB_SIGNING_PASSPHRASE': 'Used to sign packages',
+        'LD_PRELOAD': 'Needed to fake armv7l architecture (via libfakearmv7l.so, see Dockerfile for rpm_armhf buildimage)',
         'RPM_GPG_KEY': 'Used to sign packages',
         'RPM_GPG_KEY_NAME': 'Used to sign packages',
         'RPM_SIGNING_PASSPHRASE': 'Used to sign packages',
@@ -101,6 +105,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'GEM_PATH',
         'HOME',
         'JARSIGN_JAR',
+        'LD_PRELOAD',
         'LOCALAPPDATA',
         'MY_RUBY_HOME',
         'OMNIBUS_GIT_CACHE_DIR',
@@ -113,6 +118,7 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'RPM_SIGNING_PASSPHRASE',
         'S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS',
         'SIGN_WINDOWS_DD_WCS',
+        'SSH_AUTH_SOCK',
         'SYSTEMDRIVE',
         'SYSTEMROOT',
         'SSL_CERT_FILE',
@@ -160,7 +166,7 @@ def get_dd_api_key(ctx):
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:
-        cmd = f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
+        cmd = f'vault kv get -field=token kv/k8s/{os.environ["POD_NAMESPACE"]}/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     return ctx.run(cmd, hide=True).stdout.strip()
 
 

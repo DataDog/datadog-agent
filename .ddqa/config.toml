@@ -94,6 +94,13 @@ jira_statuses = ["Backlog", "In Progress", "Done"]
 github_team = "networks"
 github_labels = ["team/networks"]
 
+[teams."Cloud Network Monitoring"]
+jira_project = "CNM"
+jira_issue_type = "Task"
+jira_statuses = ["Backlog", "In Progress", "Done"]
+github_team = "cloud-network-monitoring"
+github_labels = ["team/cloud-network-monitoring"]
+
 [teams."OpenTelemetry"]
 jira_project = "OTEL"
 jira_issue_type = "Task"
@@ -155,12 +162,12 @@ github_team = "container-platform"
 github_labels = ["team/container-platform"]
 exclude_members = ["clamoriniere"]
 
-[teams."Container Ecosystems"]
-jira_project = "CECO"
+[teams."Agent Onboarding"]
+jira_project = "AGENTONB"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "container-ecosystems"
-github_labels = ["team/container-ecosystems"]
+github_team = "agent-onboarding"
+github_labels = ["team/agent-onboarding"]
 
 [teams."Security And Compliance Agent"]
 jira_project = "CWS"
@@ -231,3 +238,10 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "debugger-go"
 github_labels = ["team/dynamic-instrumentation"]
+
+[teams."Data Streams Monitoring"]
+jira_project = "DSMON"
+jira_issue_type = "Task"
+jira_statuses = ["To do", "In Development", "Done"]
+github_team = "data-streams-monitoring"
+github_labels = ["team/data-streams-monitoring"]

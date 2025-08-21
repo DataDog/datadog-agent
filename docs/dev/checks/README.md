@@ -176,7 +176,8 @@ In order for python to find this package, we must do two things:
 correctly.
 
 #### Example for virtualenv
-(see also the notes in [../agent_dev_env.md](../agent_dev_env.md#python-dependencies)):
+
+(see also the notes in [manual setup](https://datadoghq.dev/datadog-agent/setup/manual/#python-dependencies)):
 
 1. `python3 -m pip install virtualenv`
 1. `virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv`

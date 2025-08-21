@@ -58,7 +58,7 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
     } else {
         entry = fill_process_context(&event.process);
     }
-    fill_container_context(entry, &event.container);
+    fill_cgroup_context(entry, &event.cgroup);
     fill_span_context(&event.span);
 
     // Check if we should sample this event for activity dumps
@@ -80,9 +80,8 @@ HOOK_SYSCALL_EXIT(connect) {
 
 HOOK_ENTRY("security_socket_connect")
 int hook_security_socket_connect(ctx_t *ctx) {
-    struct socket *sk = (struct socket *)CTX_PARM1(ctx);
+    struct socket *sock = (struct socket *)CTX_PARM1(ctx);
     struct sockaddr *address = (struct sockaddr *)CTX_PARM2(ctx);
-    short socket_type = 0;
 
     // fill syscall_cache if necessary
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
@@ -102,15 +101,9 @@ int hook_security_socket_connect(ctx_t *ctx) {
         bpf_probe_read(&syscall->connect.port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
         bpf_probe_read(&syscall->connect.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
-
-    bpf_probe_read(&socket_type, sizeof(socket_type), &sk->type);
-
-    // We only handle TCP and UDP sockets for now
-    if (socket_type == SOCK_STREAM) {
-        syscall->connect.protocol = IPPROTO_TCP;
-    } else if (socket_type == SOCK_DGRAM) {
-        syscall->connect.protocol = IPPROTO_UDP;
-    }
+    
+    struct sock *sk = get_sock_from_socket(sock);
+    syscall->connect.protocol = get_protocol_from_sock(sk);
     return 0;
 }
 

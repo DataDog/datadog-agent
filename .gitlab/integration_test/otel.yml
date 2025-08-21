@@ -4,7 +4,7 @@
 
 integration_tests_otel:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: ["go_deps"]
   script:
@@ -16,14 +16,12 @@ integration_tests_otel:
     - !reference [.except_mergequeue]
     - when: on_success
 
-
 docker_image_build_otel:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  needs: ["go_deps","integration_tests_otel"]
+  needs: ["integration_tests_otel"]
   tags: ["docker-in-docker:amd64"]
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - mkdir -p /tmp/otel-ci
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
     - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
@@ -45,7 +43,7 @@ docker_image_build_otel:
 
 datadog_otel_components_ocb_build:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: ["go_deps"]
   artifacts:
@@ -62,5 +60,5 @@ datadog_otel_components_ocb_build:
     - echo "see artifacts for job logs"
   rules:
     - !reference [.except_mergequeue]
-    - when: on_success
+    - when: never
   timeout: 15 minutes

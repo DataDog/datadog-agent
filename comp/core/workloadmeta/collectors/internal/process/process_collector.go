@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
@@ -123,7 +124,10 @@ type dependencies struct {
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewProcessCollectorProvider(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	// process probe is not yet componentized, so we can't use fx injection for that
-	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), deps.Config, deps.Sysconfig)
+	probe := procutil.NewProcessProbe(
+		procutil.WithIgnoreZombieProcesses(deps.Config.GetBool("process_config.ignore_zombie_processes")),
+	)
+	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), probe, deps.Config, deps.Sysconfig)
 	return workloadmeta.CollectorProvider{
 		Collector: &collector,
 	}, nil
@@ -149,10 +153,17 @@ func (c *collector) isLanguageCollectionEnabled() bool {
 	return c.config.GetBool("language_detection.enabled")
 }
 
-// collectionIntervalConfig returns the configured collection interval
-func (c *collector) collectionIntervalConfig() time.Duration {
-	// TODO: read configured collection interval once implemented
-	return time.Second * 10
+// processCollectionIntervalConfig returns the configured collection interval
+func (c *collector) processCollectionIntervalConfig() time.Duration {
+	processCollectionInterval := checks.GetInterval(c.config, checks.ProcessCheckName)
+	// service discovery data will be incorrect/empty if the process collection interval > service collection interval
+	// therefore, the service collection interval must be the max interval for process collection
+	if processCollectionInterval > serviceCollectionInterval {
+		log.Warnf("process collection interval %v cannot be larger than the service collection interval %v. falling back to service collection interval",
+			processCollectionInterval, serviceCollectionInterval)
+		return serviceCollectionInterval
+	}
+	return processCollectionInterval
 }
 
 // Start starts the collector. The collector should run until the context
@@ -180,7 +191,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	c.store = store
 
 	if c.isProcessCollectionEnabled() {
-		go c.collectProcesses(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
+		go c.collectProcesses(ctx, c.clock.Ticker(c.processCollectionIntervalConfig()))
 	}
 
 	if c.isServiceDiscoveryEnabled() {
@@ -411,7 +422,8 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		TracerMetadata:           modelService.TracerMetadata,
 		DDService:                modelService.DDService,
 		DDServiceInjected:        modelService.DDServiceInjected,
-		Ports:                    modelService.Ports,
+		TCPPorts:                 modelService.TCPPorts,
+		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
 		LogFiles:                 modelService.LogFiles,

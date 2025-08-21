@@ -10,6 +10,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -43,7 +45,10 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	defer os.RemoveAll(tmpDir)
 	cmd, err := downloadInstaller(ctx, env, url, tmpDir)
 	if err != nil {
-		return err
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			err,
+		)
 	}
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)
@@ -53,6 +58,36 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 
 // downloadInstaller downloads the installer package from the registry and returns the path to the executable.
 func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
+	downloader := oci.NewDownloader(env, env.HTTPClient())
+	downloadedPackage, err := downloader.Download(ctx, url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download installer package: %w", err)
+	}
+	if downloadedPackage.Name != AgentPackage {
+		// Only the Agent package uses the new installer each update, others use
+		// the currently installed datadog-installer.exe
+		return getLocalInstaller(env)
+	}
+
+	// Download just datadog-installer.exe from its own layer
+	installerBinPath := filepath.Join(tmpDir, "datadog-installer.exe")
+	err = downloadedPackage.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract layers: %w", err)
+	}
+	if _, err := os.Stat(installerBinPath); err != nil {
+		// Fallback to the old method if the file/layer doesn't exist
+		// this is expected for versions earlier than 7.70
+		return downloadInstallerOld(ctx, env, url, tmpDir)
+	}
+	return iexec.NewInstallerExec(env, installerBinPath), nil
+}
+
+// downloadInstallerOld downloads the installer package from the registry and returns the path to the executable.
+//
+// Should only be called for versions earlier than 7.70. This downloads the layer containing the MSI and then
+// uses MSI admin install to extract `datadog-installer.exe` from the MSI.
+func downloadInstallerOld(ctx context.Context, env *env.Env, url string, tmpDir string) (*iexec.InstallerExec, error) {
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
@@ -111,16 +146,22 @@ func getInstallerFromMSI(ctx context.Context, tmpDir string) (string, error) {
 	cmd, err := msi.Cmd(
 		msi.AdministrativeInstall(),
 		msi.WithMsi(msis[0]),
-		msi.WithAdditionalArgs([]string{fmt.Sprintf(`TARGETDIR="%s"`, strings.ReplaceAll(adminInstallDir, "/", `\`))}),
+		msi.WithProperties(map[string]string{"TARGETDIR": strings.ReplaceAll(adminInstallDir, "/", `\`)}),
 	)
-	var output []byte
-	if err == nil {
-		output, err = cmd.Run(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to create MSI command: %w", err)
 	}
 
+	err = cmd.Run(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to install the Datadog Installer: %w\n%s", err, string(output))
+		err = fmt.Errorf("failed to extract Datadog Installer from the MSI: %w", err)
+		var msiErr *msi.MsiexecError
+		if errors.As(err, &msiErr) {
+			err = fmt.Errorf("%w\n%s", err, msiErr.ProcessedLog)
+		}
+		return "", err
 	}
+
 	return paths.GetAdminInstallerBinaryPath(adminInstallDir), nil
 
 }

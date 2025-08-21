@@ -90,11 +90,9 @@ func TestDyninst(t *testing.T) {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
-		for _, cfg := range cfgs {
-			t.Run(fmt.Sprintf("%s-%s", svc, cfg), func(t *testing.T) {
-				runIntegrationTestSuite(t, svc, cfg, rewrite, sem)
-			})
-		}
+		t.Run(svc, func(t *testing.T) {
+			runIntegrationTestSuite(t, svc, rewrite, sem, cfgs...)
+		})
 	}
 }
 
@@ -250,8 +248,8 @@ func testDyninst(
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
 	symbolTable, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab.Data,
-		goDebugSections.GoFunc.Data,
+		goDebugSections.PcLnTab.Data(),
+		goDebugSections.GoFunc.Data(),
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,
@@ -315,14 +313,10 @@ type probeOutputs map[string][]json.RawMessage
 func runIntegrationTestSuite(
 	t *testing.T,
 	service string,
-	cfg testprogs.Config,
 	rewrite bool,
 	sem dyninsttest.Semaphore,
+	cfgs ...testprogs.Config,
 ) {
-	if cfg.GOARCH != runtime.GOARCH {
-		t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
-		return
-	}
 	var outputs = struct {
 		sync.Mutex
 		byTest map[string]probeOutputs // testName -> probeID -> [redacted JSON]
@@ -344,33 +338,42 @@ func runIntegrationTestSuite(
 		expectedOutput, err = getExpectedDecodedOutputOfProbes(service)
 		require.NoError(t, err)
 	}
-	bin := testprogs.MustGetBinary(t, service, cfg)
-	for _, debug := range []bool{false, true} {
-		runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
-			t.Parallel()
-			actual := testDyninst(
-				t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
-			)
-			if t.Failed() {
+	for _, cfg := range cfgs {
+		t.Run(cfg.String(), func(t *testing.T) {
+			if cfg.GOARCH != runtime.GOARCH {
+				t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
 				return
 			}
-			outputs.Lock()
-			defer outputs.Unlock()
-			outputs.byTest[t.Name()] = actual
-		}
-		t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
-			if debug && testing.Short() {
-				t.Skip("skipping debug with short")
-			}
 			t.Parallel()
-			t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
-			for i := range probes {
-				probeID := probes[i].GetID()
-				t.Run(probeID, func(t *testing.T) {
-					if testing.Short() {
-						t.Skip("skipping individual probe with short")
+			bin := testprogs.MustGetBinary(t, service, cfg)
+			for _, debug := range []bool{false, true} {
+				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
+					t.Parallel()
+					actual := testDyninst(
+						t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
+					)
+					if t.Failed() {
+						return
 					}
-					runTest(t, probes[i:i+1])
+					outputs.Lock()
+					defer outputs.Unlock()
+					outputs.byTest[t.Name()] = actual
+				}
+				t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
+					if debug && testing.Short() {
+						t.Skip("skipping debug with short")
+					}
+					t.Parallel()
+					t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
+					for i := range probes {
+						probeID := probes[i].GetID()
+						t.Run(probeID, func(t *testing.T) {
+							if testing.Short() {
+								t.Skip("skipping individual probe with short")
+							}
+							runTest(t, probes[i:i+1])
+						})
+					}
 				})
 			}
 		})
