@@ -495,8 +495,7 @@ class TestDockerImageInfo(unittest.TestCase):
     def test_docker_image_info_creation_valid(self):
         """Test creating a valid DockerImageInfo instance."""
         image_info = DockerImageInfo(
-            image_id="sha256:abc123def456",
-            image_tags=["myapp:latest", "myapp:v1.0"],
+            image_ref="sha256:abc123def456",
             architecture="amd64",
             os="linux",
             layers=self.sample_layers,
@@ -504,8 +503,7 @@ class TestDockerImageInfo(unittest.TestCase):
             manifest_size=512,
         )
 
-        self.assertEqual(image_info.image_id, "sha256:abc123def456")
-        self.assertEqual(image_info.image_tags, ["myapp:latest", "myapp:v1.0"])
+        self.assertEqual(image_info.image_ref, "sha256:abc123def456")
         self.assertEqual(image_info.architecture, "amd64")
         self.assertEqual(image_info.os, "linux")
         self.assertEqual(len(image_info.layers), 4)
@@ -516,8 +514,7 @@ class TestDockerImageInfo(unittest.TestCase):
         """Test DockerImageInfo validation with empty image_id."""
         with self.assertRaises(ValueError) as cm:
             DockerImageInfo(
-                image_id="",
-                image_tags=["test:latest"],
+                image_ref="",
                 architecture="amd64",
                 os="linux",
                 layers=[],
@@ -526,27 +523,11 @@ class TestDockerImageInfo(unittest.TestCase):
             )
         self.assertIn("image_id cannot be empty", str(cm.exception))
 
-    def test_docker_image_info_validation_empty_tags(self):
-        """Test DockerImageInfo validation with empty image_tags."""
-        # Note: Current implementation doesn't validate empty tags, so this test
-        # verifies the current behavior. This could be a future enhancement.
-        image_info = DockerImageInfo(
-            image_id="sha256:test123",
-            image_tags=[],
-            architecture="amd64",
-            os="linux",
-            layers=[],
-            config_size=1024,
-            manifest_size=512,
-        )
-        self.assertEqual(image_info.image_tags, [])
-
     def test_docker_image_info_validation_negative_config_size(self):
         """Test DockerImageInfo validation with negative config_size."""
         with self.assertRaises(ValueError) as cm:
             DockerImageInfo(
-                image_id="sha256:test123",
-                image_tags=["test:latest"],
+                image_ref="sha256:test123",
                 architecture="amd64",
                 os="linux",
                 layers=[],
@@ -559,8 +540,7 @@ class TestDockerImageInfo(unittest.TestCase):
         """Test DockerImageInfo validation with negative manifest_size."""
         with self.assertRaises(ValueError) as cm:
             DockerImageInfo(
-                image_id="sha256:test123",
-                image_tags=["test:latest"],
+                image_ref="sha256:test123",
                 architecture="amd64",
                 os="linux",
                 layers=[],
@@ -572,8 +552,7 @@ class TestDockerImageInfo(unittest.TestCase):
     def test_docker_image_info_total_layers_size(self):
         """Test calculation of total layers size."""
         image_info = DockerImageInfo(
-            image_id="sha256:test123",
-            image_tags=["test:latest"],
+            image_ref="sha256:test123",
             architecture="amd64",
             os="linux",
             layers=self.sample_layers,
@@ -588,8 +567,7 @@ class TestDockerImageInfo(unittest.TestCase):
     def test_docker_image_info_non_empty_layers(self):
         """Test filtering of non-empty layers."""
         image_info = DockerImageInfo(
-            image_id="sha256:test123",
-            image_tags=["test:latest"],
+            image_ref="sha256:test123",
             architecture="amd64",
             os="linux",
             layers=self.sample_layers,
@@ -606,8 +584,7 @@ class TestDockerImageInfo(unittest.TestCase):
     def test_docker_image_info_largest_layers(self):
         """Test ordering of largest layers."""
         image_info = DockerImageInfo(
-            image_id="sha256:test123",
-            image_tags=["test:latest"],
+            image_ref="sha256:test123",
             architecture="amd64",
             os="linux",
             layers=self.sample_layers,
@@ -626,8 +603,7 @@ class TestDockerImageInfo(unittest.TestCase):
     def test_docker_image_info_immutability(self):
         """Test that DockerImageInfo is immutable (frozen dataclass)."""
         image_info = DockerImageInfo(
-            image_id="sha256:test123",
-            image_tags=["test:latest"],
+            image_ref="sha256:test123",
             architecture="amd64",
             os="linux",
             layers=[],
@@ -636,7 +612,7 @@ class TestDockerImageInfo(unittest.TestCase):
         )
 
         with self.assertRaises(AttributeError):
-            image_info.image_id = "new_id"
+            image_info.image_ref = "new_id"
 
         with self.assertRaises(AttributeError):
             image_info.architecture = "arm64"
@@ -682,8 +658,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         ]
         # Mock Docker metadata
         mock_docker_info = DockerImageInfo(
-            image_id="sha256:test123456789",
-            image_tags=["test:latest"],
+            image_ref="sha256:test123456789",
             architecture="amd64",
             os="linux",
             layers=[
@@ -728,7 +703,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         self.assertEqual(report.build_job_name, "test_build")
         self.assertEqual(len(report.file_inventory), 2)
         self.assertIsNotNone(report.docker_info)
-        self.assertEqual(report.docker_info.image_id, "sha256:test123456789")
+        self.assertEqual(report.docker_info.image_ref, "sha256:test123456789")
 
         # Verify mocks were called
         mock_ensure_available.assert_called_once()
@@ -792,8 +767,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         mock_file_inventory = [FileInfo("app/main", 1048576, "sha256:test123")]
         # Mock minimal Docker metadata (no layers)
         mock_docker_info = DockerImageInfo(
-            image_id="sha256:minimal123",
-            image_tags=["minimal:latest"],
+            image_ref="sha256:minimal123",
             architecture="arm64",
             os="linux",
             layers=[],
@@ -837,8 +811,7 @@ class TestInPlaceDockerMeasurer(unittest.TestCase):
         ]
 
         sample_docker_info = DockerImageInfo(
-            image_id="sha256:save_test123",
-            image_tags=["save_test:latest"],
+            image_ref="sha256:save_test123",
             architecture="amd64",
             os="linux",
             layers=[],
