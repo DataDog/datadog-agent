@@ -15,19 +15,21 @@ import (
 	"testing"
 	"time"
 
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
 )
 
 const (
@@ -39,232 +41,6 @@ const (
 )
 
 var baseTime = time.Date(2025, 1, 12, 1, 0, 0, 0, time.UTC) // 12th of January 2025, 1am UTC
-
-// startTestServer creates a system-probe test server that returns the specified response or error
-func startTestServer(t *testing.T, response *model.ServicesEndpointResponse, shouldError bool) (string, *httptest.Server) {
-	t.Helper()
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/discovery/services" {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
-		if shouldError {
-			w.WriteHeader(http.StatusNotImplemented)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-
-		responseBytes, _ := json.Marshal(response)
-		w.Write(responseBytes)
-	})
-
-	socketPath := testutil.SystemProbeSocketPath(t, "")
-	server, err := testutil.NewSystemProbeTestServer(handler, socketPath)
-	require.NoError(t, err)
-	require.NotNil(t, server)
-	server.Start()
-	t.Cleanup(server.Close)
-
-	return socketPath, server
-}
-
-func makeModelService(pid int32, name string) model.Service {
-	return model.Service{
-		PID:                      int(pid),
-		GeneratedName:            name + "-model",
-		GeneratedNameSource:      "process",
-		AdditionalGeneratedNames: []string{name + "-model-alt"},
-		TracerMetadata: []tracermetadata.TracerMetadata{
-			{
-				TracerLanguage: "python",
-				TracerVersion:  "1.0.0",
-				ServiceName:    name + "-service",
-			},
-		},
-		DDService:          "dd-model-" + name,
-		DDServiceInjected:  false,
-		TCPPorts:           []uint16{3000, 4000},
-		APMInstrumentation: "manual",
-		Language:           "python",
-		Type:               "database",
-		CommandLine:        []string{"python", "-m", "myservice"},
-		StartTimeMilli:     uint64(baseTime.Add(-1 * time.Minute).UnixMilli()),
-		LogFiles:           []string{"/var/log/" + name + ".log"},
-	}
-}
-
-func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
-	return &workloadmeta.Process{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindProcess,
-			ID:   strconv.Itoa(int(pid)),
-		},
-		Pid: pid,
-		Service: &workloadmeta.Service{
-			GeneratedName:            name + "-model",
-			GeneratedNameSource:      "process",
-			AdditionalGeneratedNames: []string{name + "-model-alt"},
-			TracerMetadata: []tracermetadata.TracerMetadata{
-				{
-					TracerLanguage: "python",
-					TracerVersion:  "1.0.0",
-					ServiceName:    name + "-service",
-				},
-			},
-			DDService:          "dd-model-" + name,
-			DDServiceInjected:  false,
-			TCPPorts:           []uint16{3000, 4000},
-			APMInstrumentation: "manual",
-			Type:               "database",
-			LogFiles:           []string{"/var/log/" + name + ".log"},
-		},
-	}
-}
-
-func makeProcessEntity(pid int32, createTime time.Time) *workloadmeta.Process {
-	proc := makeProcess(pid, createTime.UnixMilli())
-	return &workloadmeta.Process{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindProcess,
-			ID:   strconv.Itoa(int(pid)),
-		},
-		CreationTime: time.UnixMilli(proc.Stats.CreateTime).UTC(),
-		Pid:          proc.Pid,
-		Ppid:         proc.Ppid,
-		NsPid:        proc.NsPid,
-		Name:         proc.Name,
-		Cwd:          proc.Cwd,
-		Exe:          proc.Exe,
-		Comm:         proc.Comm,
-		Cmdline:      proc.Cmdline,
-		Language:     proc.Language,
-		Uids:         proc.Uids,
-		Gids:         proc.Gids,
-	}
-}
-
-func makeProcessEntityWithService(pid int32, createTime time.Time, name string) *workloadmeta.Process {
-	process := makeProcessEntity(pid, createTime)
-	process.Service = makeProcessEntityService(pid, name).Service
-	return process
-}
-
-func makeProcess(pid int32, createTime int64) *procutil.Process {
-	return &procutil.Process{
-		Pid:      pid,
-		Ppid:     6,
-		NsPid:    2,
-		Name:     "some name",
-		Cwd:      "some_directory/path",
-		Exe:      "test",
-		Comm:     "",
-		Cmdline:  []string{"python3", "--version"},
-		Language: &languagemodels.Language{Name: languagemodels.Python},
-		Uids:     []int32{1, 2, 3, 4},
-		Gids:     []int32{1, 2, 3, 4, 5},
-		Stats: &procutil.Stats{
-			CreateTime: createTime,
-		},
-	}
-}
-
-func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []*workloadmeta.Process) {
-	for _, expectedProcess := range expected {
-		if expectedProcess == nil {
-			continue
-		}
-
-		assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
-			entity, err := store.GetProcess(expectedProcess.Pid)
-			assert.NoError(collectT, err)
-			assert.NotNil(collectT, entity)
-
-			if expectedProcess.Service == nil {
-				assert.Nil(collectT, entity.Service)
-			} else {
-				require.NotNil(collectT, entity.Service)
-				// Verify all service fields match expected values
-				assert.Equal(collectT, expectedProcess.Service.GeneratedName, entity.Service.GeneratedName)
-				assert.Equal(collectT, expectedProcess.Service.GeneratedNameSource, entity.Service.GeneratedNameSource)
-				assert.Equal(collectT, expectedProcess.Service.AdditionalGeneratedNames, entity.Service.AdditionalGeneratedNames)
-				assert.Equal(collectT, expectedProcess.Service.TracerMetadata, entity.Service.TracerMetadata)
-				assert.Equal(collectT, expectedProcess.Service.DDService, entity.Service.DDService)
-				assert.Equal(collectT, expectedProcess.Service.DDServiceInjected, entity.Service.DDServiceInjected)
-				assert.Equal(collectT, expectedProcess.Service.TCPPorts, entity.Service.TCPPorts)
-				assert.Equal(collectT, expectedProcess.Service.UDPPorts, entity.Service.UDPPorts)
-				assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)
-				assert.Equal(collectT, expectedProcess.Service.Type, entity.Service.Type)
-				assert.Equal(collectT, expectedProcess.Service.LogFiles, entity.Service.LogFiles)
-			}
-		}, 2*time.Second, 100*time.Millisecond)
-	}
-}
-
-func assertProcessWithoutServices(t *testing.T, store workloadmetamock.Mock, pids []int32) {
-	if len(pids) == 0 {
-		return
-	}
-
-	// Verify that processes exist but have no service data
-	assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
-		for _, pid := range pids {
-			entity, err := store.GetProcess(pid)
-			assert.NoError(collectT, err, "PID %d should exist in store", pid)
-			assert.NotNil(collectT, entity, "PID %d should exist in store", pid)
-			// Process should exist but have no service data
-			assert.Nil(collectT, entity.Service, "PID %d should not have service data", pid)
-		}
-	}, 1*time.Second, 100*time.Millisecond)
-}
-
-func assertNoEntitiesForPids(t *testing.T, store workloadmetamock.Mock, pids []int32) {
-	if len(pids) == 0 {
-		return
-	}
-
-	assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
-		for _, pid := range pids {
-			entity, err := store.GetProcess(pid)
-			assert.Error(collectT, err, "PID %d should not exist in store", pid)
-			assert.Nil(collectT, entity, "PID %d should exist in store", pid)
-		}
-	}, 1*time.Second, 100*time.Millisecond)
-}
-
-func assertProcessData(t *testing.T, store workloadmetamock.Mock, expectedProcesses []*workloadmeta.Process) {
-	if len(expectedProcesses) == 0 {
-		procs := store.ListProcesses()
-		assert.Len(t, procs, 0)
-		return
-	}
-
-	// Verify that processes exist (regardless of service data)
-	assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
-		for _, expectedProcess := range expectedProcesses {
-			entity, err := store.GetProcess(expectedProcess.Pid)
-			assert.NoError(collectT, err, "PID %d should exist in store", expectedProcess.Pid)
-			require.NotNil(collectT, entity, "PID %d should exist in store", expectedProcess.Pid)
-			assert.Equal(collectT, expectedProcess.Pid, entity.Pid)
-			assert.Equal(collectT, expectedProcess.NsPid, entity.NsPid)
-			assert.Equal(collectT, expectedProcess.Ppid, entity.Ppid)
-			assert.Equal(collectT, expectedProcess.Name, entity.Name)
-			assert.Equal(collectT, expectedProcess.Cwd, entity.Cwd)
-			assert.Equal(collectT, expectedProcess.Exe, entity.Exe)
-			assert.Equal(collectT, expectedProcess.Comm, entity.Comm)
-			assert.Equal(collectT, expectedProcess.Cmdline, entity.Cmdline)
-			assert.Equal(collectT, expectedProcess.Uids, entity.Uids)
-			assert.Equal(collectT, expectedProcess.Gids, entity.Gids)
-			assert.Equal(collectT, expectedProcess.ContainerID, entity.ContainerID)
-			assert.Equal(collectT, expectedProcess.CreationTime, entity.CreationTime)
-			assert.Equal(collectT, expectedProcess.Language, entity.Language)
-			assert.Equal(collectT, expectedProcess.Owner, entity.Owner)
-		}
-	}, 1*time.Second, 100*time.Millisecond)
-}
 
 func TestFilterPidsToRequest(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
@@ -333,17 +109,21 @@ func TestFilterPidsToRequest(t *testing.T) {
 	require.Nil(t, pidsToService[pidStaleService])
 }
 
+// TestServiceStoreLifetimeProcessCollectionDisabled tests service discovery collection when process collection and language detection are disabled
 func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 	const collectionInterval = 1 * time.Minute
 
 	configOverrides := map[string]interface{}{
 		"process_config.process_collection.enabled": false,
+		"language_detection.enabled":                false,
 		"process_config.process_collection.use_wlm": true,
-		"language_detection.enabled":                true,
 	}
 
 	sysConfigOverrides := map[string]interface{}{
 		"discovery.enabled": true,
+	}
+	languagePython := &languagemodels.Language{
+		Name: languagemodels.Python,
 	}
 
 	tests := []struct {
@@ -360,24 +140,24 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 		{
 			name: "new service discovered",
 			processesToCollect: map[int32]*procutil.Process{
-				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli()),
+				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
 			},
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{makeModelService(pidNewService, "new-service")},
 			},
-			expectStored: []*workloadmeta.Process{makeProcessEntityWithService(pidNewService, baseTime.Add(-2*time.Minute), "new-service")},
+			expectStored: []*workloadmeta.Process{makeProcessEntityWithService(pidNewService, baseTime.Add(-2*time.Minute), languagePython, "new-service")},
 		},
 		{
 			name: "http error handled",
 			processesToCollect: map[int32]*procutil.Process{
-				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli()),
+				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
 			},
 			shouldError: true,
 		},
 		{
 			name: "ignored pid skipped",
 			processesToCollect: map[int32]*procutil.Process{
-				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli()),
+				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
 			},
 			ignoredPids: []int32{pidIgnoredService},
 			httpResponse: &model.ServicesEndpointResponse{
@@ -387,12 +167,12 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 		{
 			name: "fresh vs stale services",
 			existingProcesses: []*workloadmeta.Process{
-				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), "fresh-existing"),
-				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), "stale-existing"),
+				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing"),
+				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-existing"),
 			},
 			processesToCollect: map[int32]*procutil.Process{
-				pidFreshService: makeProcess(pidFreshService, baseTime.Add(-5*time.Minute).UnixMilli()),
-				pidStaleService: makeProcess(pidStaleService, baseTime.Add(-20*time.Minute).UnixMilli()),
+				pidFreshService: makeProcess(pidFreshService, baseTime.Add(-5*time.Minute).UnixMilli(), nil),
+				pidStaleService: makeProcess(pidStaleService, baseTime.Add(-20*time.Minute).UnixMilli(), nil),
 			},
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{
@@ -400,8 +180,8 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				},
 			},
 			expectStored: []*workloadmeta.Process{
-				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), "fresh-existing"),
-				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), "stale-service"),
+				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing"),
+				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-service"),
 			},
 			pidHeartbeats: map[int32]time.Time{
 				pidFreshService: baseTime.Add(-5 * time.Minute),
@@ -414,7 +194,7 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				// The service collector runs after advancing the mock clock by 60s.
 				// To ensure the process is considered "young" (< 1 minute old) at that time,
 				// set its start time to baseTime + 30s so that now - start = 30s when the tick fires.
-				pidRecentService: makeProcess(pidRecentService, baseTime.Add(30*time.Second).UnixMilli()),
+				pidRecentService: makeProcess(pidRecentService, baseTime.Add(30*time.Second).UnixMilli(), nil),
 			},
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{makeModelService(pidRecentService, "recent-service")},
@@ -491,6 +271,10 @@ func TestServiceStoreLifetime(t *testing.T) {
 		"discovery.enabled": true,
 	}
 
+	languagePython := &languagemodels.Language{
+		Name: languagemodels.Python,
+	}
+
 	tests := []struct {
 		name                string
 		shouldError         bool
@@ -505,47 +289,47 @@ func TestServiceStoreLifetime(t *testing.T) {
 		{
 			name: "new service discovered and stored",
 			processesToCollect: map[int32]*procutil.Process{
-				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli()),
+				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), languagePython),
 			},
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{makeModelService(pidNewService, "new-service")},
 			},
-			expectStored: []*workloadmeta.Process{makeProcessEntityWithService(pidNewService, baseTime.Add(-2*time.Minute), "new-service")},
+			expectStored: []*workloadmeta.Process{makeProcessEntityWithService(pidNewService, baseTime.Add(-2*time.Minute), languagePython, "new-service")},
 		},
 		{
 			name: "http error handled gracefully",
 			processesToCollect: map[int32]*procutil.Process{
-				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli()),
+				pidNewService: makeProcess(pidNewService, baseTime.Add(-2*time.Minute).UnixMilli(), languagePython),
 			},
 			shouldError: true,
 			// expectStored should have no service data should be stored when HTTP error occurs
-			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute))},
+			expectStored: []*workloadmeta.Process{makeProcessEntity(pidNewService, baseTime.Add(-2*time.Minute), languagePython)},
 		},
 		{
 			name: "ignored pid is skipped",
 			processesToCollect: map[int32]*procutil.Process{
-				pidIgnoredService: makeProcess(pidIgnoredService, baseTime.Add(-2*time.Minute).UnixMilli()),
+				pidIgnoredService: makeProcess(pidIgnoredService, baseTime.Add(-2*time.Minute).UnixMilli(), languagePython),
 			},
 			ignoredPids: []int32{pidIgnoredService},
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{makeModelService(pidIgnoredService, "ignored-service")},
 			},
 			// Process should exist but have no service data
-			expectStored: []*workloadmeta.Process{makeProcessEntity(pidIgnoredService, baseTime.Add(-2*time.Minute))},
+			expectStored: []*workloadmeta.Process{makeProcessEntity(pidIgnoredService, baseTime.Add(-2*time.Minute), languagePython)},
 		},
 		{
 			name: "fresh service not updated, stale service updated",
 			existingProcessData: []*workloadmeta.Process{
-				makeProcessEntity(pidFreshService, baseTime.Add(-5*time.Minute)),  // Recent
-				makeProcessEntity(pidStaleService, baseTime.Add(-20*time.Minute)), // Stale (> 15min)
+				makeProcessEntity(pidFreshService, baseTime.Add(-5*time.Minute), languagePython),  // Recent
+				makeProcessEntity(pidStaleService, baseTime.Add(-20*time.Minute), languagePython), // Stale (> 15min)
 			},
 			existingServiceData: []*workloadmeta.Process{
 				makeProcessEntityService(pidFreshService, "fresh-existing"), // Recent
 				makeProcessEntityService(pidStaleService, "stale-existing"), // Stale (> 15min)
 			},
 			processesToCollect: map[int32]*procutil.Process{
-				pidFreshService: makeProcess(pidFreshService, baseTime.Add(-5*time.Minute).UnixMilli()),
-				pidStaleService: makeProcess(pidStaleService, baseTime.Add(-20*time.Minute).UnixMilli()),
+				pidFreshService: makeProcess(pidFreshService, baseTime.Add(-5*time.Minute).UnixMilli(), languagePython),
+				pidStaleService: makeProcess(pidStaleService, baseTime.Add(-20*time.Minute).UnixMilli(), languagePython),
 			},
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{
@@ -553,8 +337,8 @@ func TestServiceStoreLifetime(t *testing.T) {
 				},
 			},
 			expectStored: []*workloadmeta.Process{
-				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), "fresh-existing"),
-				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), "stale-service"),
+				makeProcessEntityWithService(pidFreshService, baseTime.Add(-5*time.Minute), languagePython, "fresh-existing"),
+				makeProcessEntityWithService(pidStaleService, baseTime.Add(-20*time.Minute), languagePython, "stale-service"),
 			},
 			pidHeartbeats: map[int32]time.Time{
 				pidFreshService: baseTime.Add(-5 * time.Minute),  // Fresh (5 minutes ago)
@@ -566,13 +350,13 @@ func TestServiceStoreLifetime(t *testing.T) {
 			processesToCollect: map[int32]*procutil.Process{
 				// The test runs 2 collection intervals, so at the time of the second collection interval
 				// 30 seconds ago = 1 minute and 30 seconds from now
-				pidRecentService: makeProcess(pidRecentService, baseTime.Add(time.Minute+30*time.Second).UnixMilli()),
+				pidRecentService: makeProcess(pidRecentService, baseTime.Add(time.Minute+30*time.Second).UnixMilli(), languagePython),
 			},
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{makeModelService(pidRecentService, "recent-service")},
 			},
 			// Process should exist but have no service data
-			expectStored: []*workloadmeta.Process{makeProcessEntity(pidRecentService, baseTime.Add(time.Minute+30*time.Second))},
+			expectStored: []*workloadmeta.Process{makeProcessEntity(pidRecentService, baseTime.Add(time.Minute+30*time.Second), languagePython)},
 		},
 	}
 
@@ -704,4 +488,248 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 	c.mockClock.Add(collectionInterval)
 
 	assertNoEntitiesForPids(t, c.mockStore, []int32{pidFreshService})
+}
+
+func TestServiceLanguageToWLMLanguageMapping(t *testing.T) {
+	for _, tc := range []struct {
+		serviceLanguage string
+		expected        *languagemodels.Language
+	}{
+		{string(language.Java), &languagemodels.Language{Name: languagemodels.Java}},
+		{string(language.Node), &languagemodels.Language{Name: languagemodels.Node}},
+		{string(language.Python), &languagemodels.Language{Name: languagemodels.Python}},
+		{string(language.Ruby), &languagemodels.Language{Name: languagemodels.Ruby}},
+		{string(language.DotNet), &languagemodels.Language{Name: languagemodels.Dotnet}},
+		{string(language.Go), &languagemodels.Language{Name: languagemodels.Go}},
+		{string(language.CPlusPlus), &languagemodels.Language{Name: languagemodels.CPP}},
+		{string(language.Unknown), &languagemodels.Language{Name: languagemodels.Unknown}},
+		{"RANDOM", &languagemodels.Language{Name: languagemodels.Unknown}},
+	} {
+		assert.Equal(t, tc.expected, convertServiceLanguageToWLMLanguage(tc.serviceLanguage))
+	}
+}
+
+// startTestServer creates a system-probe test server that returns the specified response or error
+func startTestServer(t *testing.T, response *model.ServicesEndpointResponse, shouldError bool) (string, *httptest.Server) {
+	t.Helper()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/discovery/services" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if shouldError {
+			w.WriteHeader(http.StatusNotImplemented)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		responseBytes, _ := json.Marshal(response)
+		w.Write(responseBytes)
+	})
+
+	socketPath := testutil.SystemProbeSocketPath(t, "")
+	server, err := testutil.NewSystemProbeTestServer(handler, socketPath)
+	require.NoError(t, err)
+	require.NotNil(t, server)
+	server.Start()
+	t.Cleanup(server.Close)
+
+	return socketPath, server
+}
+
+func makeModelService(pid int32, name string) model.Service {
+	return model.Service{
+		PID:                      int(pid),
+		GeneratedName:            name + "-model",
+		GeneratedNameSource:      "process",
+		AdditionalGeneratedNames: []string{name + "-model-alt"},
+		TracerMetadata: []tracermetadata.TracerMetadata{
+			{
+				TracerLanguage: "python",
+				TracerVersion:  "1.0.0",
+				ServiceName:    name + "-service",
+			},
+		},
+		DDService:          "dd-model-" + name,
+		DDServiceInjected:  false,
+		TCPPorts:           []uint16{3000, 4000},
+		APMInstrumentation: "manual",
+		Language:           "python",
+		Type:               "database",
+		CommandLine:        []string{"python", "-m", "myservice"},
+		StartTimeMilli:     uint64(baseTime.Add(-1 * time.Minute).UnixMilli()),
+		LogFiles:           []string{"/var/log/" + name + ".log"},
+	}
+}
+
+func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
+	return &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(pid)),
+		},
+		Pid: pid,
+		Service: &workloadmeta.Service{
+			GeneratedName:            name + "-model",
+			GeneratedNameSource:      "process",
+			AdditionalGeneratedNames: []string{name + "-model-alt"},
+			TracerMetadata: []tracermetadata.TracerMetadata{
+				{
+					TracerLanguage: "python",
+					TracerVersion:  "1.0.0",
+					ServiceName:    name + "-service",
+				},
+			},
+			DDService:          "dd-model-" + name,
+			DDServiceInjected:  false,
+			TCPPorts:           []uint16{3000, 4000},
+			APMInstrumentation: "manual",
+			Type:               "database",
+			LogFiles:           []string{"/var/log/" + name + ".log"},
+		},
+	}
+}
+
+func makeProcessEntity(pid int32, createTime time.Time, language *languagemodels.Language) *workloadmeta.Process {
+	proc := makeProcess(pid, createTime.UnixMilli(), language)
+	return &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(pid)),
+		},
+		CreationTime: time.UnixMilli(proc.Stats.CreateTime).UTC(),
+		Pid:          proc.Pid,
+		Ppid:         proc.Ppid,
+		NsPid:        proc.NsPid,
+		Name:         proc.Name,
+		Cwd:          proc.Cwd,
+		Exe:          proc.Exe,
+		Comm:         proc.Comm,
+		Cmdline:      proc.Cmdline,
+		Language:     proc.Language,
+		Uids:         proc.Uids,
+		Gids:         proc.Gids,
+	}
+}
+
+func makeProcessEntityWithService(pid int32, createTime time.Time, language *languagemodels.Language, name string) *workloadmeta.Process {
+	process := makeProcessEntity(pid, createTime, language)
+	process.Service = makeProcessEntityService(pid, name).Service
+	return process
+}
+
+func makeProcess(pid int32, createTime int64, language *languagemodels.Language) *procutil.Process {
+	return &procutil.Process{
+		Pid:      pid,
+		Ppid:     6,
+		NsPid:    2,
+		Name:     "some name",
+		Cwd:      "some_directory/path",
+		Exe:      "test",
+		Comm:     "",
+		Cmdline:  []string{"python3", "--version"},
+		Language: language,
+		Uids:     []int32{1, 2, 3, 4},
+		Gids:     []int32{1, 2, 3, 4, 5},
+		Stats: &procutil.Stats{
+			CreateTime: createTime,
+		},
+	}
+}
+
+func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []*workloadmeta.Process) {
+	for _, expectedProcess := range expected {
+		if expectedProcess == nil {
+			continue
+		}
+
+		assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
+			entity, err := store.GetProcess(expectedProcess.Pid)
+			assert.NoError(collectT, err)
+			assert.NotNil(collectT, entity)
+			if expectedProcess.Service == nil {
+				assert.Nil(collectT, entity.Service)
+			} else {
+				require.NotNil(collectT, entity.Service)
+				// Verify all service fields match expected values
+				assert.Equal(collectT, expectedProcess.Service.GeneratedName, entity.Service.GeneratedName)
+				assert.Equal(collectT, expectedProcess.Service.GeneratedNameSource, entity.Service.GeneratedNameSource)
+				assert.Equal(collectT, expectedProcess.Service.AdditionalGeneratedNames, entity.Service.AdditionalGeneratedNames)
+				assert.Equal(collectT, expectedProcess.Service.TracerMetadata, entity.Service.TracerMetadata)
+				assert.Equal(collectT, expectedProcess.Service.DDService, entity.Service.DDService)
+				assert.Equal(collectT, expectedProcess.Service.DDServiceInjected, entity.Service.DDServiceInjected)
+				assert.Equal(collectT, expectedProcess.Service.TCPPorts, entity.Service.TCPPorts)
+				assert.Equal(collectT, expectedProcess.Service.UDPPorts, entity.Service.UDPPorts)
+				assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)
+				assert.Equal(collectT, expectedProcess.Service.Type, entity.Service.Type)
+				assert.Equal(collectT, expectedProcess.Service.LogFiles, entity.Service.LogFiles)
+			}
+		}, 2*time.Second, 100*time.Millisecond)
+	}
+}
+
+func assertProcessWithoutServices(t *testing.T, store workloadmetamock.Mock, pids []int32) {
+	if len(pids) == 0 {
+		return
+	}
+
+	// Verify that processes exist but have no service data
+	assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		for _, pid := range pids {
+			entity, err := store.GetProcess(pid)
+			assert.NoError(collectT, err, "PID %d should exist in store", pid)
+			assert.NotNil(collectT, entity, "PID %d should exist in store", pid)
+			// Process should exist but have no service data
+			assert.Nil(collectT, entity.Service, "PID %d should not have service data", pid)
+		}
+	}, 1*time.Second, 100*time.Millisecond)
+}
+
+func assertNoEntitiesForPids(t *testing.T, store workloadmetamock.Mock, pids []int32) {
+	if len(pids) == 0 {
+		return
+	}
+
+	assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		for _, pid := range pids {
+			entity, err := store.GetProcess(pid)
+			assert.Error(collectT, err, "PID %d should not exist in store", pid)
+			assert.Nil(collectT, entity, "PID %d should exist in store", pid)
+		}
+	}, 1*time.Second, 100*time.Millisecond)
+}
+
+func assertProcessData(t *testing.T, store workloadmetamock.Mock, expectedProcesses []*workloadmeta.Process) {
+	if len(expectedProcesses) == 0 {
+		procs := store.ListProcesses()
+		assert.Len(t, procs, 0)
+		return
+	}
+
+	// Verify that processes exist (regardless of service data)
+	assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		for _, expectedProcess := range expectedProcesses {
+			entity, err := store.GetProcess(expectedProcess.Pid)
+			assert.NoError(collectT, err, "PID %d should exist in store", expectedProcess.Pid)
+			require.NotNil(collectT, entity, "PID %d should exist in store", expectedProcess.Pid)
+			assert.Equal(collectT, expectedProcess.Pid, entity.Pid)
+			assert.Equal(collectT, expectedProcess.NsPid, entity.NsPid)
+			assert.Equal(collectT, expectedProcess.Ppid, entity.Ppid)
+			assert.Equal(collectT, expectedProcess.Name, entity.Name)
+			assert.Equal(collectT, expectedProcess.Cwd, entity.Cwd)
+			assert.Equal(collectT, expectedProcess.Exe, entity.Exe)
+			assert.Equal(collectT, expectedProcess.Comm, entity.Comm)
+			assert.Equal(collectT, expectedProcess.Cmdline, entity.Cmdline)
+			assert.Equal(collectT, expectedProcess.Uids, entity.Uids)
+			assert.Equal(collectT, expectedProcess.Gids, entity.Gids)
+			assert.Equal(collectT, expectedProcess.ContainerID, entity.ContainerID)
+			assert.Equal(collectT, expectedProcess.CreationTime, entity.CreationTime)
+			assert.Equal(collectT, expectedProcess.Language, entity.Language)
+			assert.Equal(collectT, expectedProcess.Owner, entity.Owner)
+		}
+	}, 1*time.Second, 100*time.Millisecond)
 }
