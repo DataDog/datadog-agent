@@ -359,7 +359,7 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
-		metricNames := []string{"gpu.core.usage"}
+		metricNames := []string{"gpu.process.core.usage"}
 
 		var usageMetricTags []string
 		for _, metricName := range metricNames {
@@ -367,7 +367,7 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 
-			if metricName == "gpu.core.usage" && len(metrics) > 0 {
+			if metricName == "gpu.process.core.usage" && len(metrics) > 0 {
 				usageMetricTags = metrics[0].Tags
 			}
 		}
