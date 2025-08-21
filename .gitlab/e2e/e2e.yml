@@ -90,6 +90,7 @@
     - |
       if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
         dda inv -- -e coverage.process-e2e-coverage-folders $E2E_COVERAGE_OUT_DIR
+        dda inv -- -e dyntest.compute-and-upload-job-index --bucket-uri $S3_PERMANENT_ARTIFACTS_URI --coverage-folder $E2E_COVERAGE_OUT_DIR --commit-sha $CI_COMMIT_SHA --job-id $CI_JOB_ID
       fi
   artifacts:
     expire_in: 2 weeks
