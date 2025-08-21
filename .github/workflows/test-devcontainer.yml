@@ -37,7 +37,7 @@ jobs:
       run: |
         git clone https://github.com/DataDog/datadog-agent-buildimages.git
         cd datadog-agent-buildimages
-        dda run build devcontainer --tag legacy-devenv
+        dda run build devcontainer legacy-devenv
 
     - name: Create Dev Container config
       run: dda inv -- devcontainer.setup --image legacy-devenv
