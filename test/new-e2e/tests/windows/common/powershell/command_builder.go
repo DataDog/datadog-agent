@@ -240,3 +240,18 @@ func (ps *powerShellCommandBuilder) Execute(host *components.RemoteHost) (string
 func (ps *powerShellCommandBuilder) Compile() string {
 	return strings.Join(ps.cmds, ";")
 }
+
+// EnableTestSigning creates a command that enables TestSigning
+func (ps *powerShellCommandBuilder) EnableTestSigning() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, `
+$result = bcdedit.exe | findstr "testsigning" | findstr "Yes"
+if ($result -eq $null) {
+	bcdedit.exe /set testsigning on
+	Restart-Computer -Force
+}
+else {
+	Write-Host "TestSigning is already enabled"
+}
+`)
+	return ps
+}

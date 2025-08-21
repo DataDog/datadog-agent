@@ -16,6 +16,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import running_in_ci
 from tasks.libs.package.size import InfraError
+from tasks.static_quality_gates.experimental_gates import measure_package_local as _measure_package_local
 from tasks.static_quality_gates.gates import (
     GateMetricHandler,
     QualityGateFactory,
@@ -413,3 +414,47 @@ def exception_threshold_bump(ctx, pipeline_id):
                 )
             )
             raise Exit(code=1)
+
+
+@task
+def measure_package_local(
+    ctx,
+    package_path,
+    gate_name,
+    config_path="test/static/static_quality_gates.yml",
+    output_path=None,
+    build_job_name="local_test",
+    max_files=20000,
+    no_checksums=False,
+    debug=False,
+):
+    """
+    Run the in-place package measurer locally for testing and development.
+
+    This task allows you to test the measurement functionality on local packages
+    without requiring a full CI environment.
+
+    Args:
+        package_path: Path to the package file to measure
+        gate_name: Quality gate name from the configuration file
+        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        output_path: Path to save the measurement report (default: {gate_name}_report.yml)
+        build_job_name: Simulated build job name (default: local_test)
+        max_files: Maximum number of files to process in inventory (default: 10000)
+        no_checksums: Skip checksum generation for faster processing (default: false)
+        debug: Enable debug logging for troubleshooting (default: false)
+
+    Example:
+        dda inv quality-gates.measure-package-local --package-path /path/to/package.deb --gate-name static_quality_gate_agent_deb_amd64
+    """
+    return _measure_package_local(
+        ctx=ctx,
+        package_path=package_path,
+        gate_name=gate_name,
+        config_path=config_path,
+        output_path=output_path,
+        build_job_name=build_job_name,
+        max_files=max_files,
+        no_checksums=no_checksums,
+        debug=debug,
+    )

@@ -225,7 +225,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
 		if runtime.GOOS == "windows" {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "secret-generic-connector.exe")
+			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
 		} else {
 			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
 		}
@@ -679,7 +679,8 @@ func (r *secretResolver) getDebugInfo(w io.Writer) {
 
 	permissions := "OK, the executable has the correct permissions"
 	if !r.embeddedBackendPermissiveRights {
-		if err := checkRights(r.backendCommand, r.commandAllowGroupExec); err != nil {
+		err = checkRights(r.backendCommand, r.commandAllowGroupExec)
+		if err != nil {
 			permissions = "error: the executable does not have the correct permissions"
 		}
 	} else {

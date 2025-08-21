@@ -8,8 +8,10 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
+	"reflect"
 	"runtime/debug"
 	"strconv"
 	"sync"
@@ -68,6 +70,7 @@ func (s *Span) Finish(err error) {
 		s.span.Meta = map[string]string{
 			"error.message": err.Error(),
 			"error.stack":   string(debug.Stack()),
+			"error.type":    getRootErrorType(err),
 		}
 	}
 	globalTracer.finishSpan(s)
@@ -147,4 +150,15 @@ func getSpanIDsFromContext(ctx context.Context) (spanIDs, bool) {
 
 func setSpanIDsInContext(ctx context.Context, span *Span) context.Context {
 	return context.WithValue(ctx, spanKey, spanIDs{traceID: span.span.TraceID, spanID: span.span.SpanID})
+}
+
+func getRootErrorType(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	for u := errors.Unwrap(err); u != nil; u = errors.Unwrap(u) {
+		err = u
+	}
+	return reflect.TypeOf(err).String()
 }
