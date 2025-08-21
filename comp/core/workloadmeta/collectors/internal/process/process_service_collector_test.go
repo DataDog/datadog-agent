@@ -72,21 +72,6 @@ func startTestServer(t *testing.T, response *model.ServicesEndpointResponse, sho
 	return socketPath, server
 }
 
-func makeProcessMap(pids []int32, createTimes map[int32]time.Time) map[int32]*procutil.Process {
-	procs := make(map[int32]*procutil.Process)
-	for _, pid := range pids {
-		createTime := baseTime.Add(-2 * time.Minute) // Default: process started 2 minutes before baseTime
-		if t, exists := createTimes[pid]; exists {
-			createTime = t
-		}
-		procs[pid] = &procutil.Process{
-			Pid:   pid,
-			Stats: &procutil.Stats{CreateTime: createTime.UnixMilli()},
-		}
-	}
-	return procs
-}
-
 func makeModelService(pid int32, name string) model.Service {
 	return model.Service{
 		PID:                      int(pid),
@@ -185,11 +170,6 @@ func makeProcess(pid int32, createTime int64) *procutil.Process {
 			CreateTime: createTime,
 		},
 	}
-}
-
-func makeProcessEntityServiceProcessCollectionDisabled(pid int32, name string) *workloadmeta.Process {
-	process := makeProcessEntityService(pid, name)
-	return process
 }
 
 func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []*workloadmeta.Process) {
