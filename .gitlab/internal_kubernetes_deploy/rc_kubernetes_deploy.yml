@@ -24,7 +24,7 @@ rc_kubernetes_deploy:
       artifacts: false
       optional: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   # TODO: @agent-delivery to update this job when concuctor changes are properly verified
   allow_failure: true
   variables:

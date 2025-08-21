@@ -23,7 +23,7 @@ upload_dependencies_sysprobe_arm64:
 .pull_test_dockers:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: []
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   stage: kernel_matrix_testing_prepare
   script:
@@ -55,7 +55,7 @@ pull_test_dockers_arm64:
 .upload_minimized_btfs:
   stage: kernel_matrix_testing_prepare
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   script:
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
@@ -173,7 +173,7 @@ upload_sysprobe_tests_x64:
   needs:
     ["go_deps", "prepare_sysprobe_ebpf_functional_tests_x64", "tests_ebpf_x64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
@@ -205,7 +205,7 @@ kmt_run_sysprobe_tests_x64:
   extends:
     - .kmt_run_sysprobe_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs:
     - kmt_setup_env_sysprobe_x64
     - upload_dependencies_sysprobe_x64

@@ -4,7 +4,7 @@
 
 run_codeql_scan:
   image: registry.ddbuild.io/code-scanning:v62112110-4faa53b-datadog-agent 
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   stage: source_test
   rules:
   - !reference [.on_scheduled_main]
