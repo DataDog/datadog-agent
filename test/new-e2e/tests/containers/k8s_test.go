@@ -453,6 +453,47 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Log(stdout)
 		}
 	})
+
+	suite.Run("cluster-agent autoscaling workload-list --local-store", func() {
+		// Wait for some workload metrics to be collected in the local store
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			// Execute the CLI command to list workload metrics from local store
+			stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
+				"datadog",
+				leaderDcaPodName,
+				"cluster-agent",
+				[]string{"datadog-cluster-agent", "autoscaling", "workload-list", "--local-store"},
+			)
+			if !assert.NoError(c, err, "Failed to execute workload-list command: %s", stderr) {
+				return
+			}
+			// The output should contain workload metrics information
+			// Format: Namespace: <ns>, PodOwner: <owner>, MetricName: <metric>, Datapoints: <count>
+			assert.NotEmpty(c, stdout, "workload-list --local-store should return data")
+
+			suite.T().Logf("workload-list --local-store raw output:\n%s", stdout)
+			validEntryCount := 0
+			lines := strings.Split(stdout, "\n")
+
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "" {
+					continue
+				}
+
+				// Each line should have the format: "Namespace: ..., PodOwner: ..., MetricName: ..., Datapoints: ..."
+				if strings.Contains(line, "Namespace:") &&
+					strings.Contains(line, "PodOwner:") &&
+					strings.Contains(line, "MetricName:") &&
+					strings.Contains(line, "Datapoints:") {
+					validEntryCount++
+					assert.NotContains(c, line, "kube-system", "kube-system namespace should be filtered")
+					assert.NotContains(c, line, "datadog", "datadog namespace should be filtered")
+				}
+			}
+			assert.GreaterOrEqual(c, validEntryCount, 10, "Should have at least 10 workload entries in local store, but got %d", validEntryCount)
+		}, 3*time.Minute, 10*time.Second, "Failed to get workload metrics from local store")
+	})
 }
 
 func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) string {
