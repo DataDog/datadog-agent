@@ -106,7 +106,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 
 		// Initialize service discovery fields
 		sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-		startTime:      clock.Now(),
+		startTime:      clock.Now().UTC(),
 		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
 		serviceRetries: make(map[int32]uint),
 		ignoredPids:    make(core.PidSet),
@@ -298,7 +298,7 @@ func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemo
 // system-probe. This map is useful to know for which pids we have not received
 // service info and that needs to be handled by the retry mechanism.
 func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]int32, map[int32]*model.Service) {
-	now := c.clock.Now()
+	now := c.clock.Now().UTC()
 	pidsToRequest := make([]int32, 0, len(alivePids))
 	pidsToService := make(map[int32]*model.Service, len(alivePids))
 
@@ -388,7 +388,7 @@ func (c *collector) handleServiceRetries(pid int32) {
 // getProcessEntitiesFromServices creates Process entities with service discovery data
 func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService map[int32]*model.Service) []*workloadmeta.Process {
 	entities := make([]*workloadmeta.Process, 0, len(pids))
-	now := c.clock.Now()
+	now := c.clock.Now().UTC()
 
 	for _, pid := range pids {
 		service := pidsToService[pid]
@@ -505,7 +505,7 @@ func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32
 // getProcessDataForServices returns alive pids and processes
 func (c *collector) getProcessDataForServices() (core.PidSet, map[int32]*procutil.Process, error) {
 	// If process collection is disabled, scan processes ourselves
-	procs, err := c.processProbe.ProcessesByPID(c.clock.Now(), false)
+	procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -600,7 +600,7 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 		select {
 		case <-collectionTicker.C:
 			// fetch process data and submit events to streaming channel for asynchronous processing
-			procs, err := c.processProbe.ProcessesByPID(c.clock.Now(), false)
+			procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
 			if err != nil {
 				log.Errorf("Error getting processes by pid: %v", err)
 				return

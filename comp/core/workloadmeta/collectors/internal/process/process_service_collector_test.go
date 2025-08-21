@@ -186,7 +186,7 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 			if expectedProcess.Service == nil {
 				assert.Nil(collectT, entity.Service)
 			} else {
-				assert.NotNil(collectT, entity.Service)
+				require.NotNil(collectT, entity.Service)
 				// Verify all service fields match expected values
 				assert.Equal(collectT, expectedProcess.Service.GeneratedName, entity.Service.GeneratedName)
 				assert.Equal(collectT, expectedProcess.Service.GeneratedNameSource, entity.Service.GeneratedNameSource)
@@ -247,7 +247,7 @@ func assertProcessData(t *testing.T, store workloadmetamock.Mock, expectedProces
 		for _, expectedProcess := range expectedProcesses {
 			entity, err := store.GetProcess(expectedProcess.Pid)
 			assert.NoError(collectT, err, "PID %d should exist in store", expectedProcess.Pid)
-			assert.NotNil(collectT, entity, "PID %d should exist in store", expectedProcess.Pid)
+			require.NotNil(collectT, entity, "PID %d should exist in store", expectedProcess.Pid)
 			assert.Equal(collectT, expectedProcess.Pid, entity.Pid)
 			assert.Equal(collectT, expectedProcess.NsPid, entity.NsPid)
 			assert.Equal(collectT, expectedProcess.Ppid, entity.Ppid)
