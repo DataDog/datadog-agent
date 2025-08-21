@@ -13,6 +13,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
+	github.com/DataDog/go-tuf v1.1.1-0.5.2
 	github.com/Masterminds/semver v1.5.0
 	github.com/benbjohnson/clock v1.3.5
 	github.com/coreos/go-semver v0.3.1
@@ -52,7 +53,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1
-	github.com/DataDog/go-tuf v1.1.0-0.5.2
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
