@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"go.opentelemetry.io/collector/pdata/plog"
-	semconv "go.opentelemetry.io/collector/semconv/v1.5.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.5.0"
 )
 
 // ToLogs converts a RUM payload to OpenTelemetry Logs
@@ -17,7 +17,7 @@ func ToLogs(payload map[string]any, req *http.Request) plog.Logs {
 	results := plog.NewLogs()
 	rl := results.ResourceLogs().AppendEmpty()
 	rl.SetSchemaUrl(semconv.SchemaURL)
-	rl.Resource().Attributes().PutStr(semconv.AttributeServiceName, "browser-rum-sdk")
+	rl.Resource().Attributes().PutStr(string(semconv.ServiceNameKey), "browser-rum-sdk")
 	parseDDForwardIntoResource(rl.Resource().Attributes(), req.URL.Query().Get("ddforward"))
 
 	in := rl.ScopeLogs().AppendEmpty()

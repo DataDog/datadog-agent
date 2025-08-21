@@ -11,7 +11,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.5.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.5.0"
 	"go.uber.org/zap"
 )
 
@@ -20,7 +20,7 @@ func ToTraces(logger *zap.Logger, payload map[string]any, req *http.Request) (pt
 	results := ptrace.NewTraces()
 	rs := results.ResourceSpans().AppendEmpty()
 	rs.SetSchemaUrl(semconv.SchemaURL)
-	rs.Resource().Attributes().PutStr(semconv.AttributeServiceName, "browser-rum-sdk")
+	rs.Resource().Attributes().PutStr(string(semconv.ServiceNameKey), "browser-rum-sdk")
 	parseDDForwardIntoResource(rs.Resource().Attributes(), req.URL.Query().Get("ddforward"))
 
 	in := rs.ScopeSpans().AppendEmpty()
