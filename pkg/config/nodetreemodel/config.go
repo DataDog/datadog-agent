@@ -102,9 +102,10 @@ type ntmConfig struct {
 	envKeyReplacer *strings.Replacer
 	envTransform   map[string]func(string) interface{}
 
-	notificationReceivers []model.NotificationReceiver
-	notificationChannel   chan model.ConfigChangeNotification
-	sequenceID            uint64
+	notificationReceivers    []model.NotificationReceiver
+	notificationChannel      chan model.ConfigChangeNotification
+	processNotificationsDone chan struct{}
+	sequenceID               uint64
 
 	// Proxy settings
 	proxies *model.Proxy
@@ -143,6 +144,7 @@ type NodeTreeConfig interface {
 }
 
 func (c *ntmConfig) processNotifications() {
+	defer close(c.processNotificationsDone)
 	for notification := range c.notificationChannel {
 		// notifying all receivers about the updated setting
 		for _, receiver := range notification.Receivers {
@@ -1008,26 +1010,27 @@ func (c *ntmConfig) Object() model.Reader {
 // NewNodeTreeConfig returns a new Config object.
 func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
 	config := ntmConfig{
-		ready:               atomic.NewBool(false),
-		allowDynamicSchema:  atomic.NewBool(false),
-		sequenceID:          0,
-		configEnvVars:       map[string][]string{},
-		knownKeys:           map[string]struct{}{},
-		allSettings:         []string{},
-		unknownKeys:         map[string]struct{}{},
-		schema:              newInnerNode(nil),
-		defaults:            newInnerNode(nil),
-		file:                newInnerNode(nil),
-		unknown:             newInnerNode(nil),
-		envs:                newInnerNode(nil),
-		runtime:             newInnerNode(nil),
-		localConfigProcess:  newInnerNode(nil),
-		remoteConfig:        newInnerNode(nil),
-		fleetPolicies:       newInnerNode(nil),
-		cli:                 newInnerNode(nil),
-		envTransform:        make(map[string]func(string) interface{}),
-		configName:          "datadog",
-		notificationChannel: make(chan model.ConfigChangeNotification, 1000),
+		ready:                    atomic.NewBool(false),
+		allowDynamicSchema:       atomic.NewBool(false),
+		sequenceID:               0,
+		configEnvVars:            map[string][]string{},
+		knownKeys:                map[string]struct{}{},
+		allSettings:              []string{},
+		unknownKeys:              map[string]struct{}{},
+		schema:                   newInnerNode(nil),
+		defaults:                 newInnerNode(nil),
+		file:                     newInnerNode(nil),
+		unknown:                  newInnerNode(nil),
+		envs:                     newInnerNode(nil),
+		runtime:                  newInnerNode(nil),
+		localConfigProcess:       newInnerNode(nil),
+		remoteConfig:             newInnerNode(nil),
+		fleetPolicies:            newInnerNode(nil),
+		cli:                      newInnerNode(nil),
+		envTransform:             make(map[string]func(string) interface{}),
+		configName:               "datadog",
+		notificationChannel:      make(chan model.ConfigChangeNotification, 1000),
+		processNotificationsDone: make(chan struct{}),
 	}
 
 	config.SetConfigName(name)
@@ -1052,4 +1055,9 @@ func (c *ntmConfig) GetSequenceID() uint64 {
 	c.RLock()
 	defer c.RUnlock()
 	return c.sequenceID
+}
+
+// Close shuts down the processNotifications goroutine
+func (c *ntmConfig) Close() {
+	close(c.notificationChannel)
 }

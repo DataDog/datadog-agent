@@ -19,14 +19,17 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
-	"github.com/stretchr/testify/assert"
 )
 
-func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(model.Setup)) (model.BuildableConfig, model.BuildableConfig) {
+func constructBothConfigs(t *testing.T, content string, dynamicSchema bool, setupFunc func(model.Setup)) (model.BuildableConfig, model.BuildableConfig) {
 	viperConf := viperconfig.NewViperConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	ntmConf := NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_"))            // nolint: forbidigo // legit use case
+	t.Cleanup(func() { viperConf.Close() })
+	t.Cleanup(func() { ntmConf.Close() })
 
 	if dynamicSchema {
 		viperConf.SetTestOnlyDynamicSchema(true)
@@ -53,12 +56,12 @@ func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(mod
 
 func TestCompareGetInt(t *testing.T) {
 	dataYaml := `port: 345`
-	viperConf, ntmConf := constructBothConfigs(dataYaml, true, nil)
+	viperConf, ntmConf := constructBothConfigs(t, dataYaml, true, nil)
 
 	assert.Equal(t, 345, viperConf.GetInt("port"))
 	assert.Equal(t, 345, ntmConf.GetInt("port"))
 
-	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+	viperConf, ntmConf = constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 		cfg.SetKnown("port")
 	})
 	assert.Equal(t, 345, viperConf.GetInt("port"))
@@ -67,18 +70,18 @@ func TestCompareGetInt(t *testing.T) {
 
 func TestCompareIsSet(t *testing.T) {
 	dataYaml := `port: 345`
-	viperConf, ntmConf := constructBothConfigs(dataYaml, true, nil)
+	viperConf, ntmConf := constructBothConfigs(t, dataYaml, true, nil)
 	assert.Equal(t, true, viperConf.IsSet("port"))
 	assert.Equal(t, true, ntmConf.IsSet("port"))
 
-	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+	viperConf, ntmConf = constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 		cfg.SetKnown("port")
 	})
 	assert.Equal(t, true, viperConf.IsSet("port"))
 	assert.Equal(t, true, ntmConf.IsSet("port"))
 
 	dataYaml = ``
-	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+	viperConf, ntmConf = constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 		cfg.SetDefault("port", 123)
 	})
 	assert.Equal(t, 123, viperConf.GetInt("port"))
@@ -87,7 +90,7 @@ func TestCompareIsSet(t *testing.T) {
 	assert.Equal(t, true, ntmConf.IsSet("port"))
 
 	t.Setenv("TEST_PORT", "789")
-	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+	viperConf, ntmConf = constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 		cfg.BindEnv("port", "TEST_PORT")
 	})
 	assert.Equal(t, 789, viperConf.GetInt("port"))
@@ -96,7 +99,7 @@ func TestCompareIsSet(t *testing.T) {
 	assert.Equal(t, true, ntmConf.IsSet("port"))
 
 	t.Setenv("TEST_PORT", "")
-	viperConf, ntmConf = constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+	viperConf, ntmConf = constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 		cfg.BindEnv("port", "TEST_PORT")
 	})
 	assert.Equal(t, 0, viperConf.GetInt("port"))
@@ -111,7 +114,7 @@ func TestCompareAllSettingsWithoutDefault(t *testing.T) {
   1: banana
   2: cherry
 `
-	viperConf, ntmConf := constructBothConfigs(dataYaml, true, nil)
+	viperConf, ntmConf := constructBothConfigs(t, dataYaml, true, nil)
 
 	expectedYaml := `additional_endpoints:
   "0": apple
@@ -138,7 +141,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 	dataYaml := `unknown_setting: 123`
 
 	t.Run("With BindEnv", func(t *testing.T) {
-		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 			cfg.BindEnv("port", "TEST_PORT")
 			cfg.BindEnv("host", "TEST_HOST")
 			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
@@ -160,14 +163,14 @@ func TestCompareGetEnvVars(t *testing.T) {
 	})
 
 	t.Run("Without BindEnv", func(t *testing.T) {
-		viperConf, ntmConf := constructBothConfigs(dataYaml, false, nil)
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, false, nil)
 
 		assert.Empty(t, viperConf.GetEnvVars(), "viper should return no env vars without BindEnv")
 		assert.Empty(t, ntmConf.GetEnvVars(), "ntm should return no env vars without BindEnv")
 	})
 
 	t.Run("With EnvPrefix", func(t *testing.T) {
-		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvPrefix("MYAPP")
 			cfg.BindEnv("port") // No explicit name — will use prefix
 		})
@@ -179,7 +182,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 	})
 
 	t.Run("With EnvKeyReplacer", func(t *testing.T) {
-		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 			cfg.BindEnv("log.level")
 		})
@@ -191,7 +194,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 	})
 
 	t.Run("With EnvPrefix and EnvKeyReplacer", func(t *testing.T) {
-		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 			cfg.SetEnvPrefix("MYAPP")
 			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 			cfg.BindEnv("db.connection.url")
@@ -204,7 +207,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 	})
 
 	t.Run("Adding an unknown setting in the yaml", func(t *testing.T) {
-		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 			cfg.SetKnown("PORT")
 			cfg.SetDefault("HOST", "localhost")
 			cfg.BindEnv("log_level")
@@ -224,7 +227,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 
 func TestCompareGetKnownKeysLowercased(t *testing.T) {
 	t.Run("Includes SetKnown keys", func(t *testing.T) {
-		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, "", false, func(cfg model.Setup) {
 			cfg.SetKnown("PORT")
 			cfg.SetKnown("host")
 		})
@@ -236,7 +239,7 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 	})
 
 	t.Run("Includes defaults", func(t *testing.T) {
-		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, "", false, func(cfg model.Setup) {
 			cfg.SetDefault("TIMEOUT", 30)
 		})
 
@@ -247,7 +250,7 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 
 	t.Run("Includes environment bindings", func(t *testing.T) {
 		t.Setenv("TEST_LOG_LEVEL", "debug")
-		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, "", false, func(cfg model.Setup) {
 			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
 		})
 
@@ -258,7 +261,7 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 
 	t.Run("Combined known/default/env", func(t *testing.T) {
 		t.Setenv("TEST_LOG_LEVEL", "debug")
-		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, "", false, func(cfg model.Setup) {
 			cfg.SetKnown("PORT")
 			cfg.SetDefault("TIMEOUT", 30)
 			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
@@ -275,7 +278,7 @@ port: 8080
 customKey1: 8080
 customKey2: unused
 `
-		viperConf, ntmConf := constructBothConfigs(yamlData, true, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, yamlData, true, func(cfg model.Setup) {
 			cfg.SetKnown("port") // unrelated known key
 		})
 
@@ -292,7 +295,7 @@ customKey2: unused
 		dataYaml := `
 port: 8080
 `
-		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, true, func(cfg model.Setup) {
 			cfg.SetKnown("port")
 		})
 		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
@@ -313,7 +316,7 @@ host: localhost
 log:
   level: info
 `
-		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, true, func(cfg model.Setup) {
 			cfg.SetKnown("port")
 			cfg.SetKnown("host")
 			cfg.SetKnown("log.level")
@@ -325,7 +328,7 @@ log:
 	})
 
 	t.Run("Keys from defaults", func(t *testing.T) {
-		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, "", false, func(cfg model.Setup) {
 			cfg.SetDefault("PORT", 8080)
 			cfg.SetDefault("HOST", "localhost")
 			cfg.SetDefault("log.level", "info")
@@ -340,7 +343,7 @@ log:
 		t.Setenv("TEST_API_KEY", "12345")
 
 		dataYaml := `port: 8080`
-		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, false, func(cfg model.Setup) {
 			cfg.SetKnown("port")
 			cfg.SetDefault("HOST", "localhost")
 			cfg.BindEnv("api_key", "TEST_API_KEY")
@@ -359,7 +362,7 @@ customKey1:
 customKey2: unused
 `
 
-		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, true, func(cfg model.Setup) {
 			cfg.SetKnown("port")
 			cfg.SetKnown("host")
 		})
@@ -373,7 +376,7 @@ customKey2: unused
 		dataYaml := `
 port: 8080
 `
-		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(t, dataYaml, true, func(cfg model.Setup) {
 			cfg.SetKnown("port")
 		})
 		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
@@ -393,7 +396,7 @@ apm_config:
 `
 	t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL", "https://example.com/endpoint/")
 
-	viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+	viperConf, ntmConf := constructBothConfigs(t, dataYaml, true, func(cfg model.Setup) {
 		cfg.SetKnown("apm_config.telemetry.dd_url")
 		cfg.SetKnown("database_monitoring.samples.dd_url")
 		cfg.SetKnown("runtime_security_config.endpoints.dd_url")
@@ -427,7 +430,7 @@ func TestCompareConflictDataType(t *testing.T) {
 a: orange
 c: 1234
 `
-	viperConf, ntmConf := constructBothConfigs(yamlPayload, true, func(cfg model.Setup) {
+	viperConf, ntmConf := constructBothConfigs(t, yamlPayload, true, func(cfg model.Setup) {
 		cfg.SetDefault("a", "apple")
 		cfg.SetDefault("c.d", true)
 	})
@@ -447,7 +450,7 @@ c: 1234
 }
 
 func TestCompareTimeDuration(t *testing.T) {
-	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+	viperConf, ntmConf := constructBothConfigs(t, "", false, func(cfg model.Setup) {
 		cfg.SetDefault("provider.interval", 5*time.Second)
 		cfg.SetDefault("lookup_timeout", 30*time.Millisecond)
 	})
@@ -469,7 +472,7 @@ func TestReadConfigReset(t *testing.T) {
 	initialYAML := `port: 1234`
 	overrideYAML := `host: localhost`
 
-	viperConf, ntmConf := constructBothConfigs(initialYAML, true, func(cfg model.Setup) {
+	viperConf, ntmConf := constructBothConfigs(t, initialYAML, true, func(cfg model.Setup) {
 		cfg.SetKnown("port")
 		cfg.SetKnown("host")
 	})
@@ -511,7 +514,9 @@ func TestReadInConfigResetsPreviousConfig(t *testing.T) {
 
 	// Set up Viper and NTM with configA loaded via ReadInConfig
 	viperConf := viperconfig.NewViperConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer viperConf.Close()
 	ntmConf := NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer ntmConf.Close()
 
 	viperConf.SetTestOnlyDynamicSchema(true)
 	ntmConf.SetTestOnlyDynamicSchema(true)

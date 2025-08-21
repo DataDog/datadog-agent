@@ -12,9 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 var confYaml = `
@@ -56,6 +57,7 @@ func writeTempFile(t *testing.T, name string, data string) string {
 
 func TestReadConfig(t *testing.T) {
 	cfg := NewNodeTreeConfig("datadog", "DD", nil)
+	defer cfg.Close()
 	setupDefault(t, cfg)
 
 	err := cfg.ReadConfig(strings.NewReader(confYaml))
@@ -83,6 +85,7 @@ func TestReadSingleFile(t *testing.T) {
 	confPath := writeTempFile(t, "datadog.yaml", confYaml)
 
 	cfg := NewNodeTreeConfig("datadog", "DD", nil)
+	defer cfg.Close()
 	cfg.SetConfigFile(confPath)
 	setupDefault(t, cfg)
 
@@ -98,6 +101,7 @@ func TestReadSingleFile(t *testing.T) {
 
 func TestReadFilePathError(t *testing.T) {
 	cfg := NewNodeTreeConfig("datadog", "DD", nil)
+	defer cfg.Close()
 	cfg.SetConfigFile("does_not_exist.yaml")
 
 	err := cfg.ReadInConfig()
@@ -115,12 +119,14 @@ func TestReadInvalidYAML(t *testing.T) {
 	confPath := writeTempFile(t, "datadog.yaml", "some invalid YAML")
 
 	cfg := NewNodeTreeConfig("datadog", "DD", nil)
+	defer cfg.Close()
 	cfg.SetConfigFile(confPath)
 
 	err := cfg.ReadInConfig()
 	require.Error(t, err)
 
 	cfg = NewNodeTreeConfig("datadog", "DD", nil)
+	defer cfg.Close()
 	err = cfg.ReadConfig(strings.NewReader("some invalid YAML"))
 	require.Error(t, err)
 }
@@ -130,6 +136,7 @@ func TestReadExtraFile(t *testing.T) {
 	confPath2 := writeTempFile(t, "datadog_second.yaml", confYaml2)
 
 	cfg := NewNodeTreeConfig("datadog", "DD", nil)
+	defer cfg.Close()
 	cfg.SetConfigFile(confPath)
 	cfg.AddExtraConfigPaths([]string{confPath2})
 	setupDefault(t, cfg)
@@ -151,6 +158,7 @@ c:
   d: 1234
 `
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	defer cfg.Close()
 
 	cfg.SetDefault("a", "apple")
 	cfg.SetDefault("b", 123)
@@ -195,6 +203,7 @@ c:
   unknown: key
 `
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	defer cfg.Close()
 
 	cfg.SetDefault("a", "apple")
 	cfg.SetDefault("c.d", true)
@@ -228,6 +237,7 @@ a: orange
 c: 1234
 `
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	defer cfg.Close()
 
 	cfg.SetDefault("a", "apple")
 	cfg.SetDefault("c.d", true)
@@ -304,11 +314,13 @@ func TestToMapStringInterface(t *testing.T) {
 
 func TestReadConfigBeforeReady(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	defer cfg.Close()
 	err := cfg.ReadConfig(strings.NewReader(""))
 	require.Error(t, err)
 	assert.Equal(t, "attempt to ReadConfig before config is constructed", err.Error())
 
 	cfg = NewNodeTreeConfig("test", "TEST", nil)
+	defer cfg.Close()
 	err = cfg.ReadInConfig()
 	require.Error(t, err)
 	assert.Equal(t, "attempt to ReadInConfig before config is constructed", err.Error())
@@ -316,6 +328,7 @@ func TestReadConfigBeforeReady(t *testing.T) {
 
 func TestReadConfigInvalidPath(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	defer cfg.Close()
 	cfg.SetConfigFile("does not exists")
 	cfg.BuildSchema()
 
@@ -325,6 +338,7 @@ func TestReadConfigInvalidPath(t *testing.T) {
 
 func TestReadConfigInvalidYaml(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	defer cfg.Close()
 	cfg.BuildSchema()
 
 	err := cfg.ReadConfig(strings.NewReader("123"))

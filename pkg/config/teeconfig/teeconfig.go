@@ -47,6 +47,12 @@ func (t *teeConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 	return t
 }
 
+// Close closes the config
+func (t *teeConfig) Close() {
+	t.baseline.Close()
+	t.compare.Close()
+}
+
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.

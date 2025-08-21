@@ -6,6 +6,7 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
@@ -41,8 +42,9 @@ type configDependencies interface {
 type dependencies struct {
 	fx.In
 
-	Params Params
-	Secret option.Option[secrets.Component]
+	Lifecycle fx.Lifecycle
+	Params    Params
+	Secret    option.Option[secrets.Component]
 }
 
 func (d dependencies) getParams() *Params {
@@ -71,11 +73,21 @@ func NewServerlessConfig(path string) (Component, error) {
 	}
 
 	d := dependencies{Params: NewParams(path, options...)}
-	return newConfig(d)
+	p, err := newComponent(d)
+	return p.Comp, err
 }
 
 func newComponent(deps dependencies) (provides, error) {
 	c, err := newConfig(deps)
+	if err == nil && deps.Lifecycle != nil {
+		deps.Lifecycle.Append(fx.Hook{
+			OnStop: func(context.Context) error {
+				// Needed to stop the processNotifications goroutine
+				c.Close()
+				return nil
+			},
+		})
+	}
 	return provides{
 		Comp:          c,
 		FlareProvider: flaretypes.NewProvider(c.fillFlare),

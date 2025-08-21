@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -51,6 +52,10 @@ type LoadConfigMocked struct {
 
 func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
 	return nil, fmt.Errorf("error")
+}
+
+func (l *LoadConfigMocked) Get() model.Config {
+	return nil
 }
 
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {

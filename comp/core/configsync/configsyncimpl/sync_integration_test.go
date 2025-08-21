@@ -90,6 +90,7 @@ func TestRunWithChan(t *testing.T) {
 func TestRunWithInterval(t *testing.T) {
 	// Legitimate use for NewConfig case where we want to have 2 independent config object mimicing 2 process communicating
 	configCore := create.NewConfig("test")
+	defer configCore.Close()
 	configCore.SetTestOnlyDynamicSchema(true)
 	configCore.Set("api_key", "api_key_core1", pkgconfigmodel.SourceFile)
 

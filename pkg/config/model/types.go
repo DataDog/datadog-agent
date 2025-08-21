@@ -282,6 +282,9 @@ type Compound interface {
 	// NOTE: This method should not be used by any new callsites, it is needed
 	// currently because of the unique requirements of OTel's configuration.
 	RevertFinishedBackToBuilder() BuildableConfig
+
+	// Shutdown the processNotifications goroutine
+	Close()
 }
 
 // Config is an interface that can read/write the config after it has been

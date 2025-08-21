@@ -49,6 +49,7 @@ func New(t testing.TB) model.BuildableConfig {
 
 	// Configure Datadog global configuration
 	newCfg := create.NewConfig("datadog")
+	t.Cleanup(func() { newCfg.Close() })
 	// Configuration defaults
 	setup.SetDatadog(newCfg) // nolint forbidigo legitimate use of SetDatadog
 	setup.InitConfig(newCfg)
@@ -99,7 +100,9 @@ func NewSystemProbe(t testing.TB) model.BuildableConfig {
 	}
 
 	// Configure Datadog global configuration
-	setup.SetSystemProbe(create.NewConfig("system-probe")) // nolint forbidigo legitimate use of SetSystemProbe
+	newCfg := create.NewConfig("system-probe")
+	t.Cleanup(func() { newCfg.Close() })
+	setup.SetSystemProbe(newCfg) // nolint forbidigo legitimate use of SetSystemProbe
 	// Configuration defaults
 	setup.InitSystemProbeConfig(setup.GlobalSystemProbeConfigBuilder())
 	setup.SystemProbe().SetTestOnlyDynamicSchema(true)

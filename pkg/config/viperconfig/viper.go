@@ -41,9 +41,10 @@ type safeConfig struct {
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
 
-	notificationReceivers []model.NotificationReceiver
-	notificationChannel   chan model.ConfigChangeNotification
-	sequenceID            uint64
+	notificationReceivers    []model.NotificationReceiver
+	notificationChannel      chan model.ConfigChangeNotification
+	processNotificationsDone chan struct{}
+	sequenceID               uint64
 
 	// ready is whether the schema has been built, which marks the config as ready for use
 	ready *atomic.Bool
@@ -833,14 +834,15 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 // NewViperConfig returns a new Config object.
 func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
 	config := safeConfig{
-		Viper:                viper.New(),
-		configSources:        map[model.Source]*viper.Viper{},
-		sequenceID:           0,
-		ready:                atomic.NewBool(false),
-		configEnvVars:        map[string]struct{}{},
-		unknownKeys:          map[string]struct{}{},
-		notificationChannel:  make(chan model.ConfigChangeNotification, 1000),
-		existingTransformers: make(map[string]bool),
+		Viper:                    viper.New(),
+		configSources:            map[model.Source]*viper.Viper{},
+		sequenceID:               0,
+		ready:                    atomic.NewBool(false),
+		configEnvVars:            map[string]struct{}{},
+		unknownKeys:              map[string]struct{}{},
+		notificationChannel:      make(chan model.ConfigChangeNotification, 1000),
+		processNotificationsDone: make(chan struct{}),
+		existingTransformers:     make(map[string]bool),
 	}
 
 	// load one Viper instance per source of setting change
@@ -904,10 +906,15 @@ func (c *safeConfig) GetSequenceID() uint64 {
 }
 
 func (c *safeConfig) processNotifications() {
+	defer close(c.processNotificationsDone)
 	for notification := range c.notificationChannel {
 		// notifying all receivers about the updated setting
 		for _, receiver := range notification.Receivers {
 			receiver(notification.Key, notification.Source, notification.PreviousValue, notification.NewValue, notification.SequenceID)
 		}
 	}
+}
+
+func (c *safeConfig) Close() {
+	close(c.notificationChannel)
 }

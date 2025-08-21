@@ -1596,6 +1596,7 @@ yet_another_key: "********"`
 
 func TestLoadProxyFromEnv(t *testing.T) {
 	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	defer cfg.Close()
 	cfg.SetKnown("proxy.http")
 	cfg.SetKnown("proxy.https")
 	cfg.SetKnown("proxy.no_proxy")

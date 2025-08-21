@@ -47,12 +47,14 @@ type ServerlessTraceAgent interface {
 // Load abstracts the file configuration loading
 type Load interface {
 	Load() (*config.AgentConfig, error)
+	Get() model.Config
 }
 
 // LoadConfig is implementing Load to retrieve the config
 type LoadConfig struct {
 	Path   string
 	Tagger tagger.Component
+	Config model.Config
 }
 
 // httpURLMetaKey is the key of the span meta containing the HTTP URL
@@ -93,8 +95,14 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	l.Config = c.(model.Config)
 
 	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger, authtokennoneimpl.NewNoopIPC().Comp)
+}
+
+// Get returns the underlying config
+func (l *LoadConfig) Get() model.Config {
+	return l.Config
 }
 
 // StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
@@ -145,6 +153,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			return &serverlessTraceAgent{
 				ta:     ta,
 				cancel: cancel,
+				cfg:    args.LoadConfig.Get(),
 			}
 		}
 	} else {
@@ -170,6 +179,7 @@ func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc 
 type serverlessTraceAgent struct {
 	ta     *agent.Agent
 	cancel context.CancelFunc
+	cfg    model.Config
 }
 
 // Flush performs a synchronous flushing in the trace agent
@@ -197,6 +207,9 @@ func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
 // Stop stops the trace agent
 func (t *serverlessTraceAgent) Stop() {
 	t.cancel()
+	if t.cfg != nil {
+		t.cfg.Close() // fx isn't used, so we need to close the config manually
+	}
 }
 
 // SetTargetTPS sets the target TPS to the trace agent.

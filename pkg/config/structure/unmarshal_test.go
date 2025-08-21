@@ -45,8 +45,9 @@ type trapsConfig struct {
 // newEmptyMockConf returns an empty config appropriate for running tests
 // we can't use pkg/config/mock here because that package depends upon this one, so
 // this avoids a circular dependency
-func newEmptyMockConf(_ *testing.T) model.BuildableConfig {
+func newEmptyMockConf(t *testing.T) model.BuildableConfig {
 	cfg := create.NewConfig("test")
+	t.Cleanup(func() { cfg.Close() })
 	cfg.SetTestOnlyDynamicSchema(true)
 	return cfg
 }
