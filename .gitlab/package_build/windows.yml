@@ -146,8 +146,9 @@ windows_ddot_oci:
     - $ErrorActionPreference = 'Stop'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg\pipeline-$CI_PIPELINE_ID | Out-Null
-    - py -3 -m pip install invoke
-    - inv otel-agent.build
+    - if (Get-Command py -ErrorAction SilentlyContinue) { $pyExe = "py"; $pyArgs = @("-3") } elseif (Get-Command python -ErrorAction SilentlyContinue) { $pyExe = "python"; $pyArgs = @() } else { throw "Python not found on PATH" }
+    - '$pipArgs = @($pyArgs + @("-m","pip","install","--upgrade","pip","invoke")); & $pyExe @pipArgs'
+    - '$invArgs = @($pyArgs + @("-m","invoke","otel-agent.build")); & $pyExe @invArgs'
     - pwsh -File tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-agent-ddot -version "$(dda inv agent.version --url-safe)-1" -omnibusOutput "$(Get-Location)\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID" -CleanupStaging
     - Get-ChildItem omnibus\pkg\pipeline-$CI_PIPELINE_ID
   artifacts:
