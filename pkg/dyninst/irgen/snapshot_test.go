@@ -52,7 +52,7 @@ func TestSnapshotTesting(t *testing.T) {
 func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 	binPath := testprogs.MustGetBinary(t, prog, cfg)
 	probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
-	obj, err := object.OpenElfFile(binPath)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 	ir, err := irgen.GenerateIR(1, obj, probesCfgs)

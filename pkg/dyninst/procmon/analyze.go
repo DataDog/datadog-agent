@@ -299,9 +299,10 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 	}
 	defer elfFile.Close() // no-op, but why not
 
-	var symtabSection *safeelf.Section
+	var symtabSection *safeelf.SectionHeader
 	var hasDebugInfo, hasGoSections bool
-	for _, section := range elfFile.Elf.Sections {
+	sectionHeaders := elfFile.SectionHeaders()
+	for _, section := range sectionHeaders {
 		if _, ok := goSections[section.Name]; ok {
 			hasGoSections = true
 		}
@@ -326,11 +327,11 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 	// find the string table for the symbol table and then scan it for the
 	// strings corresponding to the symbols we might care about.
 	symtabStringsSectionIdx := symtabSection.Link
-	if symtabStringsSectionIdx >= uint32(len(elfFile.Elf.Sections)) {
+	if symtabStringsSectionIdx >= uint32(len(sectionHeaders)) {
 		return false, nil
 	}
-	symtabStringsSection := elfFile.Elf.Sections[symtabStringsSectionIdx]
-	symtabStrings, err := elfFile.MMap(symtabStringsSection, 0, symtabStringsSection.Size)
+	symtabStringsSection := sectionHeaders[symtabStringsSectionIdx]
+	symtabStrings, err := elfFile.SectionData(symtabStringsSection)
 	if err != nil {
 		return false, fmt.Errorf("failed to get symbols: %w", err)
 	}

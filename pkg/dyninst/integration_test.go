@@ -233,17 +233,17 @@ func testDyninst(
 
 	t.Logf("processing output")
 	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	obj, err := object.OpenElfFile(servicePath)
+	obj, err := object.OpenElfFileWithDwarf(servicePath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 
-	moduledata, err := object.ParseModuleData(obj.Underlying)
+	moduledata, err := object.ParseModuleData(obj)
 	require.NoError(t, err)
 
-	goVersion, err := object.ReadGoVersion(obj.Underlying)
+	goVersion, err := object.ReadGoVersion(obj)
 	require.NoError(t, err)
 
-	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
+	goDebugSections, err := moduledata.GoDebugSections(obj)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 

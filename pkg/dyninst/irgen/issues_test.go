@@ -25,7 +25,7 @@ func TestMissingProbeIssue(t *testing.T) {
 	bin := testprogs.MustGetBinary(t, testProg, cfg)
 	probes := testprogs.MustGetProbeDefinitions(t, testProg)
 
-	obj, err := object.OpenElfFile(bin)
+	obj, err := object.OpenElfFileWithDwarf(bin)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 	probes = probes[:len(probes):len(probes)] // so appends realloc
