@@ -109,6 +109,20 @@ type Tailer struct {
 
 	lastSince string
 	mutex     sync.Mutex
+
+	messageForwarder messageForwarder
+}
+
+type messageForwarder interface {
+	forward()
+}
+
+type kubeletMessageForwarder struct {
+	tailer *Tailer
+}
+
+type dockerMessageForwarder struct {
+	tailer *Tailer
 }
 
 // NewAPITailer returns a new Tailer that streams logs by querying the Kubelet's API
@@ -122,7 +136,7 @@ func NewAPITailer(
 	tagger tagger.Component,
 	registry auditor.Registry,
 ) *Tailer {
-	return &Tailer{
+	tailer := &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
 		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
@@ -137,6 +151,9 @@ func NewAPITailer(
 		reader:             newSafeReader(),
 		registry:           registry,
 	}
+
+	tailer.messageForwarder = &kubeletMessageForwarder{tailer: tailer}
+	return tailer
 }
 
 // NewDockerTailer returns a new Tailer that streams logs by connecting directly to the Docker socket
@@ -150,7 +167,7 @@ func NewDockerTailer(
 	tagger tagger.Component,
 	registry auditor.Registry,
 ) *Tailer {
-	return &Tailer{
+	tailer := &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
 		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
@@ -165,6 +182,9 @@ func NewDockerTailer(
 		reader:             newSafeReader(),
 		registry:           registry,
 	}
+
+	tailer.messageForwarder = &dockerMessageForwarder{tailer: tailer}
+	return tailer
 }
 
 // Identifier returns a string that uniquely identifies a source
@@ -266,7 +286,7 @@ func (t *Tailer) tail(since string) error {
 	// - readForever, which reads data from the docker API and passes it to..
 	// - the decoder, which runs in its own goroutine(s) and passes messages to..
 	// - forwardMessage, which writes messages to t.outputChan.
-	go t.forwardMessages()
+	go t.messageForwarder.forward()
 	t.decoder.Start()
 	go t.readForever()
 
@@ -365,32 +385,87 @@ func (t *Tailer) read(buffer []byte, timeout time.Duration) (int, error) {
 	return n, err
 }
 
-// forwardMessages forwards decoded messages to the next pipeline,
+// buildMessage builds a new log message.Message, enriching it with tags and metadata
+func buildMessage(tailer *Tailer, output *message.Message) *message.Message {
+	origin := message.NewOrigin(tailer.Source)
+	origin.Offset = output.ParsingExtra.Timestamp
+	tailer.setLastSince(output.ParsingExtra.Timestamp)
+	origin.Identifier = tailer.Identifier()
+
+	var tags []string
+	tags = append(tags, output.ParsingExtra.Tags...)
+	tags = append(tags, tailer.tagProvider.GetTags()...)
+	origin.SetTags(tags)
+
+	// XXX(remy): is it OK recreating a message here?
+	// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
+	return message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+}
+
+// forward forwards decoded messages to the next pipeline,
 // adding a bit of meta information
 // Note: For docker container logs, we ask for the timestamp
 // to store the time of the last processed line, it's part of the ParsingExtra
 // struct of the message.Message.
 // As a result, we need to remove this timestamp from the log
 // message before forwarding it
-func (t *Tailer) forwardMessages() {
+func (d *dockerMessageForwarder) forward() {
 	defer func() {
 		// the decoder has successfully been flushed
-		t.done <- struct{}{}
+		d.tailer.done <- struct{}{}
 	}()
-	for output := range t.decoder.OutputChan {
+	for output := range d.tailer.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
-			origin := message.NewOrigin(t.Source)
-			origin.Offset = output.ParsingExtra.Timestamp
-			t.setLastSince(output.ParsingExtra.Timestamp)
-			origin.Identifier = t.Identifier()
-			tags := []string{}
-			tags = append(tags, output.ParsingExtra.Tags...)
-			tags = append(tags, t.tagProvider.GetTags()...)
-			origin.SetTags(tags)
-			// XXX(remy): is it OK recreating a message here?
-			// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
-			msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
-			t.outputChan <- msg
+			msg := buildMessage(d.tailer, output)
+			d.tailer.outputChan <- msg
+		}
+	}
+}
+
+/*
+Example Kubelet Log Timeline
+
+10:30:45.000Z  |*........| 10:30:46.000Z
+                ↑
+            Log arrives at 10:30:45.100Z
+            Agent stores: lastSince = 10:30:45.100Z
+
+10:30:45.000Z  |*........| 10:30:46.000Z
+                         ↑
+            Connection is reset at 10:30:46.000Z
+
+10:30:45.000Z  |*........| 10:30:46.000Z
+                 ↑
+            Agent queries logs from:
+            lastSince + 1 nanosecond = 10:30:45.100000001Z
+
+10:30:45.000Z  |*........| 10:30:46.000Z
+               ↑
+            Kubelet truncates query to 10:30:45.000Z
+            (drops nanoseconds, doesn't support sub-second granularity)
+
+            RESULT: Original log returned as duplicate
+*/
+
+// forward (kubelet) functions the same as the dockerMessageForwarder.forward
+// but it includes an additional timestamp check to drop logs that have already been processed
+func (k *kubeletMessageForwarder) forward() {
+	defer func() {
+		// the decoder has successfully been flushed
+		k.tailer.done <- struct{}{}
+	}()
+	for output := range k.tailer.decoder.OutputChan {
+		if len(output.GetContent()) > 0 {
+			// Because the kubelet API only does not support sub-second granularity we run the risk of logging duplicates
+			// we check the timestamp to drop logs that have already been processed
+			logTime, _ := time.Parse(time.RFC3339Nano, output.ParsingExtra.Timestamp)
+			if logTime.Before(k.tailer.getLastSince()) {
+				log.Infof("Dropping message %s because its timestamp %s is before %s", string(output.GetContent()), output.ParsingExtra.Timestamp, k.tailer.getLastSince().String())
+				continue
+			}
+
+			msg := buildMessage(k.tailer, output)
+			k.tailer.outputChan <- msg
 		}
 	}
 }
