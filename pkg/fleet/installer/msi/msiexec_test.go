@@ -249,7 +249,7 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 	t.Run("install with args", func(t *testing.T) {
 		mockRunner := &mockCmdRunner{}
 
-		expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1=value1 ARG2=value2 DDAGENTUSER_NAME=ddagent DDAGENTUSER_PASSWORD=password MSIFASTINSTALL=7`, msiexecPath)
+		expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1=value1 ARG2="value2" DDAGENTUSER_NAME="ddagent" DDAGENTUSER_PASSWORD="password" MSIFASTINSTALL="7"`, msiexecPath)
 		mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
 
 		cmd, err := Cmd(
@@ -258,7 +258,10 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 			WithLogFile("test.log"),
 			WithDdAgentUserName("ddagent"),
 			WithDdAgentUserPassword("password"),
-			WithAdditionalArgs([]string{"ARG1=value1", "ARG2=value2"}),
+			// Expect WithAdditionalArgs to be verbatim
+			WithAdditionalArgs([]string{"ARG1=value1"}),
+			// Expect WithProperties to quote the values
+			WithProperties(map[string]string{"ARG2": "value2"}),
 			withCmdRunner(mockRunner),
 		)
 		require.NoError(t, err)
@@ -300,6 +303,51 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = cmd.Run(t.Context())
+		assert.NoError(t, err)
+		mockRunner.AssertExpectations(t)
+	})
+
+	t.Run("install args with spaces", func(t *testing.T) {
+		mockRunner := &mockCmdRunner{}
+
+		expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1="value 1" ARG2="value2" DDAGENTUSER_NAME="NT AUTHORITY\SYSTEM" DDAGENTUSER_PASSWORD="password is long" MSIFASTINSTALL="7"`, msiexecPath)
+		mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
+
+		cmd, err := Cmd(
+			Install(),
+			WithMsi("test.msi"),
+			WithLogFile("test.log"),
+			WithDdAgentUserName(`NT AUTHORITY\SYSTEM`),
+			WithDdAgentUserPassword("password is long"),
+			WithProperties(map[string]string{"ARG1": "value 1", "ARG2": "value2"}),
+			withCmdRunner(mockRunner),
+		)
+		require.NoError(t, err)
+
+		err = cmd.Run(t.Context())
+		assert.NoError(t, err)
+		mockRunner.AssertExpectations(t)
+	})
+
+	t.Run("install args with escaped quotes", func(t *testing.T) {
+		mockRunner := &mockCmdRunner{}
+
+		expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1="value has ""quotes""" ARG2="value2" DDAGENTUSER_NAME="NT AUTHORITY\SYSTEM" DDAGENTUSER_PASSWORD="password has ""quotes""" MSIFASTINSTALL="7"`, msiexecPath)
+		mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
+
+		cmd, err := Cmd(
+			Install(),
+			WithMsi("test.msi"),
+			WithLogFile("test.log"),
+			WithDdAgentUserName(`NT AUTHORITY\SYSTEM`),
+			WithDdAgentUserPassword(`password has "quotes"`),
+			// Expect quotes to be double escaped
+			WithProperties(map[string]string{"ARG1": `value has "quotes"`, "ARG2": "value2"}),
+			withCmdRunner(mockRunner),
+		)
+		require.NoError(t, err)
+
+		err = cmd.Run(t.Context())
 		assert.NoError(t, err)
 		mockRunner.AssertExpectations(t)
 	})
