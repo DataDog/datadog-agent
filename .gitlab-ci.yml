@@ -39,8 +39,6 @@ include:
   - .gitlab/scan/windows.yml
   - .gitlab/fuzz/infra.yaml
 
-# TODO: Remove me, I'm there to trigger the job
-
 default:
   retry:
     max: 2
