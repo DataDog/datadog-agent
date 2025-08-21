@@ -456,7 +456,7 @@ func (k *kubeletMessageForwarder) forward() {
 	}()
 	for output := range k.tailer.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
-			// Because the kubelet API only does not support sub-second granularity we run the risk of logging duplicates
+			// Because the kubelet API does not support sub-second granularity we run the risk of logging duplicates
 			// we check the timestamp to drop logs that have already been processed
 			logTime, _ := time.Parse(time.RFC3339Nano, output.ParsingExtra.Timestamp)
 			if logTime.Before(k.tailer.getLastSince()) {
