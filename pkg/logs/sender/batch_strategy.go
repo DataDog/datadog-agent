@@ -9,6 +9,7 @@ package sender
 import (
 	"bytes"
 	"io"
+	"math/rand/v2"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -243,6 +244,14 @@ func (s *batchStrategy) flushBuffer(b *batch, outputChan chan *message.Payload) 
 	}
 
 	s.utilization.Start()
+
+	if num := rand.IntN(500); num == 500 {
+		log.Warn("RETURNING EARLY, SEEING IF THIS CAUSES A THING")
+		s.resetBatch(b)
+		s.utilization.Stop()
+		return
+	}
+
 	if err := b.serializer.Finish(b.writeCounter); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
 		s.resetBatch(b)
