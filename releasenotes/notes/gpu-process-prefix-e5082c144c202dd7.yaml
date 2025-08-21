@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - "gpu: `gpu.core.usage` and `gpu.memory.usage` metrics are renamed to `gpu.process.core/memory.usage`"
+  - "gpu: Renamed `gpu.core.usage` and `gpu.memory.usage` to `gpu.process.core/memory.usage`"
