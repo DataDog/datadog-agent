@@ -1,90 +1,70 @@
 ---
 .deploy_packages:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  stage: deploy_packages
   tags: ["arch:amd64"]
+  rules:
+    !reference [.on_deploy]
+  variables:
+    DD_PKG_ARCH: x86_64
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
     # Make job fail if there no files to upload are found
     - ls ${OMNIBUS_PACKAGE_DIR}/${ARTIFACT_NAME_PATTERN}
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "$ARTIFACT_NAME_PATTERN" "$OMNIBUS_PACKAGE_DIR" "${S3_RELEASE_ARTIFACTS_URI}/${PACKAGE_TYPE}/${PACKAGE_ARCH}/"
+    - !reference [.setup_dd_pkg]
+    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" "${DD_PKG_EXTRA_ARGS}"
 
 .deploy_packages_deb:
   extends: .deploy_packages
-  stage: deploy_packages
   resource_group: deb_bucket
-  rules:
-    !reference [.on_deploy]
   variables:
-    PACKAGE_TYPE: deb
     ARTIFACT_NAME_PATTERN: "*_7.*${PACKAGE_ARCH}.deb"
-
-.deploy_packages_dmg:
-  extends: .deploy_packages
-  stage: deploy_packages
-  rules:
-    !reference [.on_deploy]
-  variables:
-    PACKAGE_TYPE: dmg
-    ARTIFACT_NAME_PATTERN: "datadog-agent-7*.dmg"
 
 .deploy_packages_rpm:
   extends: .deploy_packages
-  stage: deploy_packages
   resource_group: rpm_bucket
-  rules:
-    !reference [.on_deploy]
   variables:
-    PACKAGE_TYPE: rpm
     ARTIFACT_NAME_PATTERN: "*-7.*${PACKAGE_ARCH}.rpm"
 
 .deploy_packages_suse_rpm:
   extends: .deploy_packages_rpm
-  stage: deploy_packages
-  rules:
-    !reference [.on_deploy]
   variables:
-    PACKAGE_TYPE: suse_rpm
-    ARTIFACT_NAME_PATTERN: "*-7.*${PACKAGE_ARCH}.rpm"
+    DD_PKG_EXTRA_ARGS: --suse
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
+
+.deploy_packages_dmg:
+  extends: .deploy_packages
+  variables:
+    PACKAGE_TYPE: dmg
+    ARTIFACT_NAME_PATTERN: "datadog-agent-7*.dmg"
+  # Overwrite the script for dmg, not supported by dd-pkg
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "$ARTIFACT_NAME_PATTERN" "$OMNIBUS_PACKAGE_DIR" "${S3_RELEASE_ARTIFACTS_URI}/${PACKAGE_TYPE}/${PACKAGE_ARCH}/"
 
 # Datadog Installer
 .deploy_installer_deb:
+  extends: .deploy_packages
   rules:
     !reference [.on_deploy_installer]
   resource_group: deb_bucket
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  stage: deploy_packages
-  tags: ["arch:amd64"]
   variables:
-    DD_PKG_ARCH: x86_64
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - !reference [.setup_dd_pkg]
-    # --signed is used here since Omnibus is still signing the packages when building, this should be dropped when we stop signing in Omnibus
-    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" --project-name "datadog-installer" --signed
+    DD_PKG_EXTRA_ARGS: '--project-name "datadog-installer"'
+    ARTIFACT_NAME_PATTERN: "*_7.*${PACKAGE_ARCH}.deb"
 
 .deploy_installer_rpm:
+  extends: .deploy_packages
   rules:
     !reference [.on_deploy_installer]
   resource_group: rpm_bucket
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  stage: deploy_packages
-  tags: ["arch:amd64"]
   variables:
-    DD_PKG_ARCH: x86_64
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - !reference [.setup_dd_pkg]
-    # --signed is used here since Omnibus is still signing the packages when building, this should be dropped when we stop signing in Omnibus
-    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" --project-name "datadog-installer" --signed "${DD_PKG_EXTRA_ARGS}"
+    DD_PKG_EXTRA_ARGS: '--project-name "datadog-installer"'
+    ARTIFACT_NAME_PATTERN: "*-7.*${PACKAGE_ARCH}.rpm"
 
 .deploy_installer_suse_rpm:
   extends: .deploy_installer_rpm
   variables:
-    DD_PKG_EXTRA_ARGS: --suse
+    DD_PKG_EXTRA_ARGS: '--suse --project-name "datadog-installer"'
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
 
 deploy_installer_install_scripts:
