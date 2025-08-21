@@ -232,6 +232,20 @@ func WithDDDevForward() Option {
 	}
 }
 
+// withSqlitePath sets the sqlite file path to store the received data.
+func WithSqlitePath(path string) Option {
+	return func(fi *Server) {
+		// sql store uses env variable to chose stlite filepath
+		_, exits := os.LookupEnv(serverstore.SqliteDbPathEnv)
+
+		// env variable takes over the command line argument
+		// only set the command line value if env is not set
+		if !exits {
+			os.Setenv(serverstore.SqliteDbPathEnv, path)
+		}
+	}
+}
+
 // WihDDDevAPIKey sets the API key to use when forwarding to DDDev, useful for testing
 //
 //nolint:unused // this function is used in the tests

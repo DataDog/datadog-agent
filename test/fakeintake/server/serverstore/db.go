@@ -20,7 +20,8 @@ import (
 )
 
 const (
-	defaultDBPath = "payloads.db"
+	SqliteDbPathEnv = "SQLITE_DB_PATH"
+	defaultDBPath   = "payloads.db"
 
 	metricsTicker = 30 * time.Second
 )
@@ -47,7 +48,7 @@ type sqlMetrics struct {
 
 // newSQLStore initializes a new payloads store with an SQLite DB
 func newSQLStore() *sqlStore {
-	p := os.Getenv("SQLITE_DB_PATH")
+	p := os.Getenv(SqliteDbPathEnv)
 	if p == "" {
 		f, err := os.CreateTemp("", defaultDBPath)
 		if err != nil {
