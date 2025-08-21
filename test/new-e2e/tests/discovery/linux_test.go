@@ -267,9 +267,9 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 			},
 		},
 	} {
-		t.Run(tc.description, func(t *testing.T) {
+		ok := t.Run(tc.description, func(t *testing.T) {
 			var payloads []*aggregator.ProcessPayload
-			ok := assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
 				payloads, err = s.Env().FakeIntake.Client().GetProcesses()
 				assert.NoError(c, err, "failed to get process payloads from fakeintake")
 				// Wait for two payloads, as processes must be detected in two check runs to be returned
@@ -279,15 +279,14 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 				assert.NotEmpty(c, procs, "'%s' process not found in payloads: \n%+v", tc.processName, payloads)
 				assertProcessServiceDiscoveryData(t, c, procs, tc.expectedLanguage, tc.expectedPortInfo, tc.expectedService)
 			}, 2*time.Minute, 10*time.Second)
-			if !ok {
-				t.Logf("process payloads: %+v", payloads)
-				// This is very useful for debugging, but we probably don't want to decode
-				// and assert based on this in this E2E test since this is an internal
-				// interface between the agent and system-probe.
-				discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
-				t.Log("system-probe services", discoveredServices)
-			}
 		})
+		if !ok {
+			// This is very useful for debugging, but we probably don't want to decode
+			// and assert based on this in this E2E test since this is an internal
+			// interface between the agent and system-probe.
+			discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
+			t.Log("system-probe services", discoveredServices)
+		}
 	}
 
 }
@@ -407,9 +406,10 @@ func assertProcessServiceDiscoveryData(t *testing.T, c *assert.CollectT, procs [
 			break
 		}
 	}
-	assert.True(c, hasServiceDiscovery, "no process was found with expected service discovery data")
+	assert.True(c, hasServiceDiscovery, "no process was found with expected service discovery data, processes: %+v", procs)
 }
 
+// noopt is an empty struct that implements the Errorf method of the error interface so we can reuse testify functions
 type noopt struct{}
 
 func (t noopt) Errorf(string, ...interface{}) {}
