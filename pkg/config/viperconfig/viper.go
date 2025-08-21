@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -42,7 +43,6 @@ type safeConfig struct {
 	envKeyReplacer *strings.Replacer
 
 	notificationReceivers []model.NotificationReceiver
-	notificationChannel   chan model.ConfigChangeNotification
 	sequenceID            uint64
 
 	// ready is whether the schema has been built, which marks the config as ready for use
@@ -77,21 +77,10 @@ func (c *safeConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
-func (c *safeConfig) sendNotification(key string, source model.Source, oldValue, newValue interface{}, sequenceID uint64) {
-	if len(c.notificationReceivers) == 0 {
-		return
-	}
-
-	notification := model.ConfigChangeNotification{
-		Key:           key,
-		Source:        source,
-		PreviousValue: oldValue,
-		NewValue:      newValue,
-		SequenceID:    sequenceID,
-		Receivers:     slices.Clone(c.notificationReceivers),
-	}
-
-	c.notificationChannel <- notification
+func getCallerLocation(nbStack int) string {
+	_, file, line, _ := runtime.Caller(nbStack + 1)
+	fileParts := strings.Split(file, "DataDog/datadog-agent/")
+	return fmt.Sprintf("%s:%d", fileParts[len(fileParts)-1], line)
 }
 
 // Set wraps Viper for concurrent access
@@ -101,8 +90,9 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 		return
 	}
 
+	// modify the config then release the lock to avoid deadlocks while notifying
+	var receivers []model.NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
 	oldValue := c.Viper.Get(key)
 
 	// First we check if the layer changed
@@ -113,6 +103,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	} else {
 		// nothing changed:w
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
+		c.Unlock()
 		return
 	}
 
@@ -121,13 +112,21 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	latestValue := c.Viper.Get(key)
 	if !reflect.DeepEqual(oldValue, latestValue) {
 		log.Debugf("Updating setting '%s' for source '%s' with new value. notifying %d listeners", key, source, len(c.notificationReceivers))
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
 	} else {
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
 		return
 	}
 	// Increment the sequence ID only if the value has changed
 	c.sequenceID++
-	c.sendNotification(key, source, oldValue, latestValue, c.sequenceID)
+	c.Unlock()
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range receivers {
+		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
+		receiver(key, source, oldValue, latestValue, c.sequenceID)
+	}
 }
 
 // SetWithoutSource sets the given value using source Unknown
@@ -145,15 +144,23 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 
 // UnsetForSource unsets a config entry for a given source
 func (c *safeConfig) UnsetForSource(key string, source model.Source) {
+	// modify the config then release the lock to avoid deadlocks while notifying
+	var receivers []model.NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
 	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
 	if previousValue != nil && !reflect.DeepEqual(previousValue, newValue) {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceID++
-		c.sendNotification(key, source, previousValue, newValue, c.sequenceID)
+	}
+	c.Unlock()
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range receivers {
+		receiver(key, source, previousValue, newValue, c.sequenceID)
 	}
 }
 
@@ -839,7 +846,6 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 		ready:                atomic.NewBool(false),
 		configEnvVars:        map[string]struct{}{},
 		unknownKeys:          map[string]struct{}{},
-		notificationChannel:  make(chan model.ConfigChangeNotification, 1000),
 		existingTransformers: make(map[string]bool),
 	}
 
@@ -852,8 +858,6 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 	config.SetConfigName(name)
 	config.SetEnvPrefix(envPrefix)
 	config.SetEnvKeyReplacer(envKeyReplacer)
-
-	go config.processNotifications()
 
 	return &config
 }
@@ -901,13 +905,4 @@ func (c *safeConfig) GetSequenceID() uint64 {
 	c.RLock()
 	defer c.RUnlock()
 	return c.sequenceID
-}
-
-func (c *safeConfig) processNotifications() {
-	for notification := range c.notificationChannel {
-		// notifying all receivers about the updated setting
-		for _, receiver := range notification.Receivers {
-			receiver(notification.Key, notification.Source, notification.PreviousValue, notification.NewValue, notification.SequenceID)
-		}
-	}
 }
