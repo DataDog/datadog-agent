@@ -121,7 +121,7 @@ def go_deps(
 
     if not baseline_ref:
         base_branch = _get_release_json_value("base_branch")
-        baseline_ref = ctx.run(f"git merge-base {commit_sha} origin/{base_branch}", hide=True).stdout.strip()
+        baseline_ref = ctx.run(f"git merge-base {commit_sha} origin/{base_branch}").stdout.strip()
 
     diffs = {}
     dep_cmd = "go list -f '{{ range .Deps }}{{ printf \"%s\\n\" . }}{{end}}'"

@@ -32,12 +32,12 @@ import (
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/datastreams"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
@@ -93,6 +93,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -245,6 +246,7 @@ func run(log log.Component,
 	_ replay.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
+	filterStore workloadfilter.Component,
 	taggerComp tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
@@ -330,6 +332,7 @@ func run(log log.Component,
 		sysprobeconfig,
 		server,
 		wmeta,
+		filterStore,
 		taggerComp,
 		ac,
 		rcclient,
@@ -547,6 +550,7 @@ func startAgent(
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	wmeta workloadmeta.Component,
+	filterStore workloadfilter.Component,
 	tagger tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
@@ -655,7 +659,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry, rcclient, flare)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

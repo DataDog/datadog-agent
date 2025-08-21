@@ -603,6 +603,7 @@ func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
 api_key: `+apiKey+`
 site: datadoghq.com
 remote_updates: true
+log_level: debug
 `))
 }
 
@@ -637,6 +638,11 @@ func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version strin
 // For example, used to verify that "stop-experiment" does not reinstall stable when it is already installed.
 func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
 	s.T().Helper()
+
+	// service must be running before we can get the PID
+	// might be redundant in some cases but we keep forgetting to ensure it
+	// in others and it keeps causing flakes.
+	s.Require().NoError(s.WaitForInstallerService("Running"))
 
 	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)

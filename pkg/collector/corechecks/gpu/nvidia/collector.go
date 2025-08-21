@@ -42,6 +42,7 @@ const (
 	field        CollectorName = "fields"
 	clock        CollectorName = "clocks"
 	device       CollectorName = "device"
+	memory       CollectorName = "memory"
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
 	process      CollectorName = "process"
@@ -82,6 +83,7 @@ var factory = map[CollectorName]subsystemBuilder{
 	device:       newDeviceCollector,
 	field:        newFieldsCollector,
 	gpm:          newGPMCollector,
+	memory:       newMemoryCollector,
 	nvlink:       newNVLinkCollector,
 	process:      newProcessCollector,
 	remappedRows: newRemappedRowsCollector,
@@ -122,6 +124,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 
 	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
 	if spCache != nil {
+		log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
 		for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
 			spCollector, err := newEbpfCollector(dev, spCache)
 			if err != nil {

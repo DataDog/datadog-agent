@@ -903,74 +903,58 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   //   }
   // } break;
 
-  // case SM_OP_ENQUEUE_GO_HMAP_HEADER: {
-  //   // https://github.com/golang/go/blob/8d04110c/src/runtime/map.go#L105
-  //   const uint8_t same_size_grow = 8;
+  case SM_OP_PROCESS_GO_HMAP: {
+    // https://github.com/golang/go/blob/8d04110c/src/runtime/map.go#L105
+    const uint8_t same_size_grow = 8;
 
-  //   type_t buckets_array_type = (type_t)sm_read_program_uint32(sm);
-  //   uint32_t bucket_byte_len = sm_read_program_uint32(sm);
+    type_t buckets_array_type = (type_t)sm_read_program_uint32(sm);
+    uint32_t bucket_byte_len = sm_read_program_uint32(sm);
 
-  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-  //     return 1;
-  //   }
-  //   uint8_t flags = *(uint8_t*)&((*buf)[sm->buf_offset_0]);
+    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    uint8_t flags = *(uint8_t*)&((*buf)[sm->buf_offset_0]);
 
-  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-  //     return 1;
-  //   }
-  //   uint8_t b = *(uint8_t*)&((*buf)[sm->buf_offset_0]);
+    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    uint8_t b = *(uint8_t*)&((*buf)[sm->buf_offset_0]);
 
-  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-  //     return 1;
-  //   }
-  //   target_ptr_t buckets_addr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
+    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    target_ptr_t buckets_addr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
 
-  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-  //     return 1;
-  //   }
-  //   target_ptr_t oldbuckets_addr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
+    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    target_ptr_t oldbuckets_addr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
 
-  //   // We might have to chase two sets of buckets. Stack variable controls
-  //   // jumping to repeat this op.
-  //   uint32_t stack_top = sm->data_stack_pointer - 1;
-  //   if (stack_top >= ENQUEUE_STACK_DEPTH) {
-  //     LOG(2, "enqueue: stack out of bounds %d", stack_top);
-  //     return 1;
-  //   }
-  //   uint32_t* stage = &sm->data_stack[stack_top];
+    if (buckets_addr != 0) {
+      uint32_t num_buckets = 1 << b;
+      uint32_t buckets_size = num_buckets * bucket_byte_len;
+      if (!sm_record_pointer(ctx, buckets_array_type, buckets_addr, false,
+                             buckets_size)) {
+        LOG(3, "enqueue: failed map chase (new buckets)");
+      }
+    }
 
-  //   if (*stage == 2) {
-  //     // This is first iteration.
-  //     *stage = 1;
-  //     if (buckets_addr != 0) {
-  //       uint32_t num_buckets = 1 << b;
-  //       uint32_t buckets_size = num_buckets * bucket_byte_len;
-  //       if (!sm_record_pointer(ctx, buckets_array_type, buckets_addr,
-  //                              buckets_size)) {
-  //         LOG(3, "enqueue: failed map chase (new buckets)");
-  //       }
-  //       break;
-  //     }
-  //   }
-
-  //   // This is second iteration, or there were no new buckets.
-  //   *stage = 0;
-  //   if (oldbuckets_addr != 0) {
-  //     uint32_t num_buckets = 1 << b;
-  //     if ((flags & same_size_grow) == 0) {
-  //       num_buckets >>= 1;
-  //     }
-  //     uint32_t buckets_size = num_buckets * bucket_byte_len;
-  //     if (!sm_record_pointer(ctx, buckets_array_type, oldbuckets_addr,
-  //                            buckets_size)) {
-  //       LOG(3, "enqueue: failed map chase (old buckets)");
-  //     }
-  //   }
-  // } break;
+    if (oldbuckets_addr != 0) {
+      uint32_t num_buckets = 1 << b;
+      if ((flags & same_size_grow) == 0) {
+        num_buckets >>= 1;
+      }
+      uint32_t buckets_size = num_buckets * bucket_byte_len;
+      if (!sm_record_pointer(ctx, buckets_array_type, oldbuckets_addr, false,
+                             buckets_size)) {
+        LOG(3, "enqueue: failed map chase (old buckets)");
+      }
+    }
+  } break;
 
   case SM_OP_PROCESS_GO_SWISS_MAP: {
     type_t table_ptr_slice_type = (type_t)sm_read_program_uint32(sm);

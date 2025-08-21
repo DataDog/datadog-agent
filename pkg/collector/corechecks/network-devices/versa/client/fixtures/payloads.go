@@ -600,4 +600,110 @@ const GetTunnelMetrics = `
             12345.0
         ]
     ]
-}`
+}
+`
+
+// GetPathQoSMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetPathQoSMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,test-branch-2C",
+            "test-branch-2B",
+			"test-branch-2C",
+            1000.0,
+            50.0,
+            2000.0,
+            25.0,
+            1500.0,
+            75.0,
+            500.0,
+            10.0,
+            8000000.0,
+            16000000.0,
+            12000000.0,
+            4000000.0,
+            5000.0,
+            160.0,
+            3.2,
+            40000000.0
+        ]
+    ]
+}
+`
+
+// GetDIAMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetDIAMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,DIA-1,192.168.1.1",
+            "test-branch-2B",
+            "DIA-1",
+            "192.168.1.1",
+            15000.0,
+            12000.0,
+            150000.0,
+            120000.0
+        ]
+    ]
+}
+`
+
+// GetAnalyticsInterfaceMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetAnalyticsInterfaceMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,INET-1,ge-0/0/1",
+            "test-branch-2B",
+            "INET-1",
+            "ge-0/0/1",
+            25.5,
+            18.3,
+            1024000.0,
+            768000.0,
+            1792000.0,
+            8192.0,
+            6144.0,
+            14336.0
+        ]
+    ]
+}
+`
+
+// GetSiteMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetSiteMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B",
+            "123 Main St, Anytown, USA",
+            "40.7128",
+            "-74.0060",
+            "GPS",
+            15000.0,
+            12000.0,
+            150000.0,
+            120000.0,
+            99.5
+        ]
+    ]
+}
+`

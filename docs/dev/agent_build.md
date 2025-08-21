@@ -43,7 +43,7 @@ This is the complete list of the available components:
 * `kubeapiserver`: enable interaction with Kubernetes API server (required by the cluster Agent)
 
 Please note you might need to provide some extra dependencies in your dev
-environment to build certain bits (see [development environment][dev-env]).
+environment to build certain bits (see [manual setup](https://datadoghq.dev/datadog-agent/setup/manual/)).
 
 Also note that the trace agent needs to be built and run separately. For more information, see [the trace agent README](../trace-agent/README.md).
 
@@ -94,5 +94,3 @@ For this to work properly, two things are important:
 - You need to run the invoke task with the proper embedded path `dda inv -e agent.build -e /opt/datadog-agent/embedded`.
 
 **Note**: This makes `invoke` install the build's artifacts in the `/opt/datadog-agent/embedded` folder. Make sure the folder exists and the current user has write permissions.
-
-[dev-env]: agent_dev_env.md
