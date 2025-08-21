@@ -112,7 +112,7 @@ single_machine_performance-regression_detector-merge_base_check:
     - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
     # Download smp binary and prepare it for use
-    - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
+    - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
     - chmod +x smp
     - source regression_detector.env
     - echo "Baseline SHA is ${BASELINE_SHA}"
@@ -282,7 +282,8 @@ single-machine-performance-regression_detector:
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: 0.23.5
+    SMP_VERSION: v0.23.5
+
 
 single-machine-performance-metal-runners-regression_detector:
   extends:
