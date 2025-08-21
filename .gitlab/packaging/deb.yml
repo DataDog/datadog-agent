@@ -177,6 +177,7 @@ iot_agent_deb-armhf:
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
     - !reference [.setup_deb_signing_key]
+    # Use custom built dpkg for armhf packaging since we're on armv8/arm64
     - PATH="/opt/dpkg-armhf/bin:$PATH" dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
     - !reference [.create_signature_and_lint_linux_packages]
 
