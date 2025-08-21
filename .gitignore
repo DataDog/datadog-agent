@@ -62,8 +62,6 @@ pkg/status/template.go
 /.idea/
 /.ijwb/
 
-.cursor
-
 # Ignore debs from the root of the project.
 datadog-agent*_amd64.deb
 
@@ -231,3 +229,9 @@ flake-finder-gitlab-ci.yml
 
 # go.work.sum is always changing, we should not need it since we tidy each module individually
 go.work.sum
+
+
+#### Cursor related files
+
+# Personal rules
+**/.cursor/rules/personal/
