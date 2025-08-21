@@ -52,7 +52,7 @@ static __always_inline void http_batch_enqueue_wrapper(void *ctx, conn_tuple_t *
     LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
     
     long perf_ret;
-    if (ringbuffers_enabled > 0) {
+    if (ringbuffers_enabled) {
         perf_ret = bpf_ringbuf_output(&http_batch_events, event, sizeof(http_event_t), 0);
     } else {
         u32 cpu = bpf_get_smp_processor_id();
