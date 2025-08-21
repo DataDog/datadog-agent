@@ -999,6 +999,8 @@ generate-fips-e2e-pipeline:
     - qa_dogstatsd
     - qa_agent
     - qa_agent_full
+    - qa_agent_fips
+    - qa_agent_fips_jmx
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:
