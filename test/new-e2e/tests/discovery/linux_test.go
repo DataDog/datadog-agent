@@ -39,9 +39,6 @@ var agentProcessConfigStr string
 //go:embed testdata/config/agent_process_disabled_config.yaml
 var agentProcessDisabledConfigStr string
 
-//go:embed testdata/config/system_probe_process_config.yaml
-var systemProbeProcessConfigStr string
-
 type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
@@ -148,11 +145,11 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
-	s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeProcessConfigStr)
+	s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfigStr)
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryProcessCollectionDisabled() {
-	s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeProcessConfigStr)
+	s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigStr)
 }
 
 func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr string, systemProbeConfigStr string) {
