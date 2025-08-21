@@ -2279,7 +2279,7 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
         has_finished = True
         for setup_job in matching_jobs:
             setup_job.refresh()
-            info(f"[+] Status for job {setup_job.name}: {setup_job.status}")
+            info(f"[+] Status for job {setup_job.name} ({setup_job.id}): {setup_job.status}")
             if not setup_job.status.has_finished():
                 has_finished = False
 
@@ -2288,7 +2288,7 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
     loop_status(_check_status, timeout_sec=timeout_sec)
 
     for setup_job in matching_jobs:
-        info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
+        info(f"[+] Setup job {setup_job.name} ({setup_job.id}) finished with status {setup_job.status}")
 
 
 # by default the PyYaml dumper does not indent lists correctly using to problem when
