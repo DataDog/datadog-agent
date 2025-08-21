@@ -116,6 +116,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 		receivers = slices.Clone(c.notificationReceivers)
 	} else {
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
+		c.Unlock()
 		return
 	}
 	// Increment the sequence ID only if the value has changed
@@ -147,6 +148,7 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	// modify the config then release the lock to avoid deadlocks while notifying
 	var receivers []model.NotificationReceiver
 	c.Lock()
+	defer c.Unlock()
 	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
@@ -156,7 +158,6 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceID++
 	}
-	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {

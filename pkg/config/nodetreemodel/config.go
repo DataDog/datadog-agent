@@ -216,6 +216,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	key = strings.ToLower(key)
 
 	c.Lock()
+	defer c.Unlock()
 	previousValue := c.leafAtPathFromNode(key, c.root).Get()
 
 	parts := splitKey(key)
@@ -234,17 +235,16 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	// if no value has changed we don't notify
 	if !updated || reflect.DeepEqual(previousValue, newValue) {
-		c.Unlock()
 		return
 	}
 
 	c.sequenceID++
-	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		receiver(key, source, previousValue, newValue, c.sequenceID)
 	}
+
 }
 
 // SetWithoutSource assigns the value to the given key using source Unknown
