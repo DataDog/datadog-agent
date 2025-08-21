@@ -25,6 +25,10 @@ func IsBusybox(pathname string) bool {
 	return pathname == "/bin/busybox" || pathname == "/usr/bin/busybox"
 }
 
+func IsThroughSymLink(entry *model.ProcessCacheEntry) bool {
+	return entry.Process.IsThroughSymLink
+}
+
 func setPathname(fileEvent *model.FileEvent, pathnameStr string) {
 	baseName := path.Base(pathnameStr)
 	if fileEvent.FileFields.IsFileless() {

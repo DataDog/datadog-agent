@@ -86,6 +86,7 @@ struct process_event_t {
     u64 envs_id;
     u32 args_truncated;
     u32 envs_truncated;
+    u32 is_through_symlink;
 };
 
 struct exit_event_t {

@@ -774,6 +774,8 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // syscall context
     event->syscall_ctx.id = syscall->ctx_id;
 
+    // Through symlink
+    event->is_through_symlink = syscall->exec.is_through_symlink;
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 
@@ -800,3 +802,12 @@ int hook_mprotect_fixup(ctx_t *ctx) {
 }
 
 #endif
+HOOK_ENTRY("security_inode_follow_link")
+int hook_security_inode_follow_link(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+    syscall->exec.is_through_symlink = 1;    
+    return 0;
+}

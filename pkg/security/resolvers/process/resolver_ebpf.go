@@ -790,7 +790,7 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 // SetProcessSymlink resolves process file symlink path
 func (p *EBPFResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 	// TODO: busybox workaround only for now
-	if IsBusybox(entry.FileEvent.PathnameStr) {
+	if IsBusybox(entry.FileEvent.PathnameStr) || IsThroughSymLink(entry) {
 		arg0, _ := GetProcessArgv0(&entry.Process)
 		base := path.Base(arg0)
 

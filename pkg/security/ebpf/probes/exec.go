@@ -172,6 +172,12 @@ func getExecProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_cgroup1_tasks_write",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_security_inode_follow_link",
+			},
+		},
 	}
 
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{

@@ -377,6 +377,8 @@ type Process struct {
 	// lineage
 	hasValidLineage *bool `field:"-"`
 	lineageError    error `field:"-"`
+
+	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
 }
 
 // SetAncestorFields force the process cache entry to be valid

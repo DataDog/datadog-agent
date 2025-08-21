@@ -2453,3 +2453,43 @@ func TestProcessFilelessExecution(t *testing.T) {
 		})
 	}
 }
+
+func TestSymLinkResolution(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping in docker, not sharing the same pid ns and doesn't have a container ID")
+	}
+
+	ncPath, err := exec.Command("which", "nc").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("nc path resolved by shell: %s", ncPath)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "symlink_nc_exec",
+			Expression: `exec.file.name == "nc"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("exec nc via symlink", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command("nc")
+			cmd.Stdout = io.Discard
+			cmd.Stderr = io.Discard
+			_ = cmd.Run()
+			return nil
+		}, func(ev *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "symlink_nc_exec")
+		})
+		assert.NoError(t, err)
+	})
+}
