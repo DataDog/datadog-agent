@@ -13,6 +13,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,60 +40,62 @@ type injector struct {
 	opts       libRequirementOptions
 }
 
-func sourceVolume(medium corev1.StorageMedium) volume {
+func sourceVolume(medium corev1.StorageMedium, sizeLimit *resource.Quantity) volume {
 	return volume{
 		Volume: corev1.Volume{
 			Name: volumeName,
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{
-					Medium: medium,
+					Medium:    medium,
+					SizeLimit: sizeLimit,
 				},
 			},
 		},
 	}
 }
 
-func v1VolumeMount(medium corev1.StorageMedium) volumeMount {
-	return sourceVolume(medium).mount(corev1.VolumeMount{
+func v1VolumeMount(medium corev1.StorageMedium, sizeLimit *resource.Quantity) volumeMount {
+	return sourceVolume(medium, sizeLimit).mount(corev1.VolumeMount{
 		MountPath: mountPath,
 	})
 }
 
-func v2VolumeMountInjector(medium corev1.StorageMedium) volumeMount {
-	return sourceVolume(medium).mount(corev1.VolumeMount{
+func v2VolumeMountInjector(medium corev1.StorageMedium, sizeLimit *resource.Quantity) volumeMount {
+	return sourceVolume(medium, sizeLimit).mount(corev1.VolumeMount{
 		MountPath: asAbs(injectPackageDir),
 		SubPath:   injectPackageDir,
 	})
 }
 
-func v2VolumeMountLibrary(medium corev1.StorageMedium) volumeMount {
-	return sourceVolume(medium).mount(corev1.VolumeMount{
+func v2VolumeMountLibrary(medium corev1.StorageMedium, sizeLimit *resource.Quantity) volumeMount {
+	return sourceVolume(medium, sizeLimit).mount(corev1.VolumeMount{
 		MountPath: asAbs(libraryPackagesDir),
 		SubPath:   libraryPackagesDir,
 	})
 }
 
-func etcVolume(medium corev1.StorageMedium) volume {
+func etcVolume(medium corev1.StorageMedium, sizeLimit *resource.Quantity) volume {
 	return volume{
 		Volume: corev1.Volume{
 			Name: "datadog-auto-instrumentation-etc",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{
-					Medium: medium,
+					Medium:    medium,
+					SizeLimit: sizeLimit,
 				},
 			},
 		},
 	}
 }
 
-func volumeMountETCDPreloadInitContainer(medium corev1.StorageMedium) volumeMount {
-	return etcVolume(medium).mount(corev1.VolumeMount{
+func volumeMountETCDPreloadInitContainer(medium corev1.StorageMedium, sizeLimit *resource.Quantity) volumeMount {
+	return etcVolume(medium, sizeLimit).mount(corev1.VolumeMount{
 		MountPath: "/datadog-etc",
 	})
 }
 
-func volumeMountETCDPreloadAppContainer(medium corev1.StorageMedium) volumeMount {
-	return etcVolume(medium).mount(corev1.VolumeMount{
+func volumeMountETCDPreloadAppContainer(medium corev1.StorageMedium, sizeLimit *resource.Quantity) volumeMount {
+	return etcVolume(medium, sizeLimit).mount(corev1.VolumeMount{
 		MountPath: "/etc/ld.so.preload",
 		SubPath:   "ld.so.preload",
 		ReadOnly:  true,
@@ -104,8 +107,8 @@ func (i *injector) initContainer() initContainer {
 		name  = "datadog-init-apm-inject"
 		mount = corev1.VolumeMount{
 			MountPath: "/datadog-inject",
-			SubPath:   v2VolumeMountInjector(i.opts.libraryStorageMedium).SubPath,
-			Name:      v2VolumeMountInjector(i.opts.libraryStorageMedium).Name,
+			SubPath:   v2VolumeMountInjector(i.opts.libraryStorageMedium, i.opts.libraryStorageLimit).SubPath,
+			Name:      v2VolumeMountInjector(i.opts.libraryStorageMedium, i.opts.libraryStorageLimit).Name,
 		}
 		tsFilePath = mount.MountPath + "/c-init-time." + name
 	)
@@ -128,7 +131,7 @@ func (i *injector) initContainer() initContainer {
 			},
 			VolumeMounts: []corev1.VolumeMount{
 				mount,
-				volumeMountETCDPreloadInitContainer(i.opts.libraryStorageMedium).VolumeMount,
+				volumeMountETCDPreloadInitContainer(i.opts.libraryStorageMedium, i.opts.libraryStorageLimit).VolumeMount,
 			},
 		},
 	}
@@ -139,12 +142,12 @@ func (i *injector) requirements() libRequirement {
 		libRequirementOptions: i.opts,
 		initContainers:        []initContainer{i.initContainer()},
 		volumes: []volume{
-			sourceVolume(i.opts.libraryStorageMedium),
-			etcVolume(i.opts.libraryStorageMedium),
+			sourceVolume(i.opts.libraryStorageMedium, i.opts.libraryStorageLimit),
+			etcVolume(i.opts.libraryStorageMedium, i.opts.libraryStorageLimit),
 		},
 		volumeMounts: []volumeMount{
-			volumeMountETCDPreloadAppContainer(i.opts.libraryStorageMedium).prepended(),
-			v2VolumeMountInjector(i.opts.libraryStorageMedium).prepended(),
+			volumeMountETCDPreloadAppContainer(i.opts.libraryStorageMedium, i.opts.libraryStorageLimit).prepended(),
+			v2VolumeMountInjector(i.opts.libraryStorageMedium, i.opts.libraryStorageLimit).prepended(),
 		},
 		envVars: append(
 			[]envVar{
