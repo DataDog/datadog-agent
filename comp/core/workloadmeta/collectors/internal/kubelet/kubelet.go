@@ -46,11 +46,21 @@ type dependencies struct {
 type collector struct {
 	id                         string
 	catalog                    workloadmeta.AgentType
-	watcher                    *kubelet.PodWatcher
 	store                      workloadmeta.Component
-	lastExpire                 time.Time
-	expireFreq                 time.Duration
 	collectEphemeralContainers bool
+
+	// These fields are only used when querying the Kubelet directly
+	kubeUtil             kubelet.KubeUtilInterface
+	lastSeenPodUIDs      map[string]time.Time
+	lastSeenContainerIDs map[string]time.Time
+
+	// usePodWatcher indicates whether to use the pod watcher for collecting
+	// pods. The new implementation queries the Kubelet directly instead. This
+	// option is only here as a fallback in case the new implementation causes
+	// issues.
+	usePodWatcher bool
+	watcher       *kubelet.PodWatcher // only used if usePodWatcher is true
+	lastExpire    time.Time           // only used if usePodWatcher is true
 }
 
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
@@ -60,6 +70,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			id:                         collectorID,
 			catalog:                    workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
+			usePodWatcher:              deps.Config.GetBool("kubelet_use_pod_watcher"),
 		},
 	}, nil
 }
@@ -74,20 +85,146 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
+	c.store = store
+
 	var err error
 
-	c.store = store
-	c.lastExpire = time.Now()
-	c.expireFreq = expireFreq
-	c.watcher, err = kubelet.NewPodWatcher(expireFreq)
-	if err != nil {
-		return err
+	if c.usePodWatcher {
+		c.watcher, err = kubelet.NewPodWatcher(expireFreq)
+		if err != nil {
+			return err
+		}
+		c.lastExpire = time.Now()
+	} else {
+		c.kubeUtil, err = kubelet.GetKubeUtil()
+		if err != nil {
+			return err
+		}
+		c.lastSeenPodUIDs = make(map[string]time.Time)
+		c.lastSeenContainerIDs = make(map[string]time.Time)
 	}
 
 	return nil
 }
 
 func (c *collector) Pull(ctx context.Context) error {
+	if c.usePodWatcher {
+		return c.pullUsingPodWatcher(ctx)
+	}
+
+	return c.pullFromKubelet(ctx)
+}
+
+func (c *collector) pullFromKubelet(ctx context.Context) error {
+	podList, err := c.kubeUtil.GetLocalPodList(ctx)
+	if err != nil {
+		return err
+	}
+
+	events := parsePods(podList, c.collectEphemeralContainers)
+
+	// Mark return pods and containers as seen now
+	now := time.Now()
+	for _, pod := range podList {
+		if pod.Metadata.UID != "" {
+			c.lastSeenPodUIDs[pod.Metadata.UID] = now
+		}
+		for _, container := range pod.Status.GetAllContainers() {
+			if container.ID != "" {
+				c.lastSeenContainerIDs[container.ID] = now
+			}
+		}
+	}
+
+	expireEvents := c.eventsForExpiredEntities(now)
+	events = append(events, expireEvents...)
+
+	c.store.Notify(events)
+
+	return nil
+}
+
+// eventsForExpiredEntities returns a list of workloadmeta.CollectorEvent
+// containing events for expired pods and containers.
+// The old implementation based on a pod watcher expired pods and containers
+// at a set frequency (expireFreq). Instead, we could delete them on every
+// pull by keeping a list of items from the last pull and removing those
+// not seen in the current one. That would be simpler and likely safe,
+// but to avoid unexpected issues, we’ll keep the old behavior for now.
+func (c *collector) eventsForExpiredEntities(now time.Time) []workloadmeta.CollectorEvent {
+	var events []workloadmeta.CollectorEvent
+
+	// Find expired pods
+	var expiredPodUIDs []string
+	for uid, lastSeen := range c.lastSeenPodUIDs {
+		if now.Sub(lastSeen) > expireFreq {
+			expiredPodUIDs = append(expiredPodUIDs, uid)
+			delete(c.lastSeenPodUIDs, uid)
+		}
+	}
+
+	// Find expired containers
+	var expiredContainerIDs []string
+	for containerID, lastSeen := range c.lastSeenContainerIDs {
+		if now.Sub(lastSeen) > expireFreq {
+			expiredContainerIDs = append(expiredContainerIDs, containerID)
+			delete(c.lastSeenContainerIDs, containerID)
+		}
+	}
+
+	events = append(events, parseExpiredPods(expiredPodUIDs)...)
+	events = append(events, parseExpiredContainers(expiredContainerIDs)...)
+
+	return events
+}
+
+func parseExpiredPods(expiredPodUIDs []string) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(expiredPodUIDs))
+
+	for _, uid := range expiredPodUIDs {
+		entity := &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   uid,
+			},
+			FinishedAt: time.Now(),
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceNodeOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: entity,
+		})
+	}
+
+	return events
+}
+
+func parseExpiredContainers(expiredContainerIDs []string) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(expiredContainerIDs))
+
+	for _, containerID := range expiredContainerIDs {
+		// Split the container ID to get just the ID part (remove runtime prefix like "docker://")
+		_, id := containers.SplitEntityName(containerID)
+
+		entity := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   id,
+			},
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceNodeOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: entity,
+		})
+	}
+
+	return events
+}
+
+func (c *collector) pullUsingPodWatcher(ctx context.Context) error {
 	updatedPods, err := c.watcher.PullChanges(ctx)
 	if err != nil {
 		return err
@@ -95,7 +232,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	events := parsePods(updatedPods, c.collectEphemeralContainers)
 
-	if time.Since(c.lastExpire) >= c.expireFreq {
+	if time.Since(c.lastExpire) >= expireFreq {
 		var expiredIDs []string
 		expiredIDs, err = c.watcher.Expire()
 		if err == nil {

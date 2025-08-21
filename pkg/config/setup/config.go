@@ -1874,6 +1874,11 @@ func kubernetes(config pkgconfigmodel.Setup) {
 		defaultPodresourcesSocket = `\\.\pipe\kubelet-pod-resources`
 	}
 	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", defaultPodresourcesSocket)
+
+	// Temporary option. When enabled, workloadmeta uses the Kubelet pod watcher
+	// to fetch pod information (old behavior). Useful as a fallback if the new
+	// behavior causes issues. This option will be removed.
+	config.BindEnvAndSetDefault("kubelet_use_pod_watcher", false)
 }
 
 func podman(config pkgconfigmodel.Setup) {
