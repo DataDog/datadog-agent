@@ -2274,18 +2274,21 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
     kmt_pipeline = KMTPipeline(pipeline_id)
     kmt_pipeline.retrieve_jobs()
     matching_jobs = [j for j in kmt_pipeline.setup_jobs if j.arch == arch.kmt_arch and j.component == component]
-    if len(matching_jobs) != 1:
-        raise Exit(f"Search for setup_job for {arch} {component} failed: result = {matching_jobs}")
-
-    setup_job = matching_jobs[0]
 
     def _check_status(_):
-        setup_job.refresh()
-        info(f"[+] Status for job {setup_job.name}: {setup_job.status}")
-        return setup_job.status.has_finished(), None
+        has_finished = True
+        for setup_job in matching_jobs:
+            setup_job.refresh()
+            info(f"[+] Status for job {setup_job.name}: {setup_job.status}")
+            if not setup_job.status.has_finished():
+                has_finished = False
+
+        return has_finished, None
 
     loop_status(_check_status, timeout_sec=timeout_sec)
-    info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
+
+    for setup_job in matching_jobs:
+        info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
 
 
 # by default the PyYaml dumper does not indent lists correctly using to problem when
