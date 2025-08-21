@@ -5,7 +5,7 @@
 
 //go:build !trivy
 
-package util
+package sbomutil
 
 import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

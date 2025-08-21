@@ -53,9 +53,10 @@ import (
 
 const (
 	// key used to display a warning message on the agent status
-	invalidProcessingRules = "invalid_global_processing_rules"
-	invalidEndpoints       = "invalid_endpoints"
-	intakeTrackType        = "logs"
+	invalidProcessingRules   = "invalid_global_processing_rules"
+	invalidEndpoints         = "invalid_endpoints"
+	invalidFingerprintConfig = "invalid_fingerprint_config"
+	intakeTrackType          = "logs"
 
 	// Log messages
 	multiLineWarning = "multi_line processing rules are not supported as global processing rules."
@@ -229,7 +230,14 @@ func (a *logAgent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
-	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs)
+	fingerprintConfig, err := config.GlobalFingerprintConfig(a.config)
+	if err != nil {
+		message := fmt.Sprintf("Invalid fingerprinting config: %v", err)
+		status.AddGlobalError(invalidFingerprintConfig, message)
+		return errors.New(message)
+	}
+
+	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
 	return nil
 }
 
