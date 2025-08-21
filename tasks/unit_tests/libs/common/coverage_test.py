@@ -196,7 +196,3 @@ class TestUploadCodecov(unittest.TestCase):
         self.mock_context.run.assert_called_once_with(
             "codecov -f coverage.out -F ubuntu -F  -F valid-tag -F ", warn=True, timeout=2 * 60
         )
-
-
-if __name__ == '__main__':
-    unittest.main()
