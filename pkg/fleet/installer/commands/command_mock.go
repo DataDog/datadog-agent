@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -101,7 +102,7 @@ func (m *installerMock) PromoteExperiment(_ context.Context, _ string) error {
 }
 
 func (m *installerMock) InstallConfigExperiment(
-	_ context.Context, _ string, _ string, _ [][]byte, _ []string,
+	_ context.Context, _ string, _ string, _ []config.ConfigAction,
 ) error {
 	return nil
 }

@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -116,12 +117,6 @@ func (i *installerCmd) stop(err error) {
 type telemetryConfigFields struct {
 	APIKey string `yaml:"api_key"`
 	Site   string `yaml:"site"`
-}
-
-// configAction represents a configuration action with action_type and files
-type configAction struct {
-	ActionType string        `json:"action_type"`
-	Files      []interface{} `json:"files"`
 }
 
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
@@ -377,7 +372,7 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version> <config1> <config2> ...",
+		Use:     "install-config-experiment <package> <version> <config_action1> <config_action2> ...",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
 		Args:    cobra.MinimumNArgs(3),
@@ -390,36 +385,16 @@ func installConfigExperimentCommand() *cobra.Command {
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
 
-			configs := make([][]byte, len(args)-2)
-			// Case for backward compatibility with the previous version of the config
-			// where the config was {"id":"config-1","files":[{"path": "path/to/config", "contents": "contents"}]}
-			if len(args) == 3 {
-				var configMap configAction
-				err := json.Unmarshal([]byte(args[2]), &configMap)
+			var actions []config.ConfigAction
+			for _, action := range args[2:] {
+				var config config.ConfigAction
+				err := json.Unmarshal([]byte(action), &config)
 				if err != nil {
 					return err
 				}
-				if configMap.ActionType == "" {
-					// Old configs
-					configMap = configAction{
-						ActionType: "write",
-						Files:      configMap.Files,
-					}
-					actionBytes, err := json.Marshal(configMap)
-					if err != nil {
-						return err
-					}
-					configs = [][]byte{actionBytes}
-				} else {
-					configs = [][]byte{[]byte(args[2])}
-				}
-			} else {
-				for i, config := range args[2:] {
-					configs[i] = []byte(config)
-				}
+				actions = append(actions, config)
 			}
-
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs, []string{})
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], actions)
 		},
 	}
 	return cmd

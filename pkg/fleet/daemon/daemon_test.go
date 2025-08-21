@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -103,8 +104,8 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
-func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string) error {
-	args := m.Called(ctx, pkg, version, rawConfigs, configOrder)
+func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, version string, configActions []config.ConfigAction) error {
+	args := m.Called(ctx, pkg, version, configActions)
 	return args.Error(0)
 }
 

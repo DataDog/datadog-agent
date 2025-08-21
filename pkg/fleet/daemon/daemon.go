@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
+	iconfig "github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -461,9 +462,9 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, vers
 	if err != nil {
 		return fmt.Errorf("could not get config: %w", err)
 	}
-	var configActions []installer.ConfigAction
+	var configActions []iconfig.ConfigAction
 	for _, file := range config.Files {
-		configActions = append(configActions, installer.ConfigAction{
+		configActions = append(configActions, iconfig.ConfigAction{
 			ActionType: "write",
 			Path:       file.Path,
 		})
@@ -471,7 +472,7 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, vers
 	return d.startConfigExperiment(ctx, url, version, configActions)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string, configActions []installer.ConfigAction) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string, configActions []iconfig.ConfigAction) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -654,7 +655,14 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 				})
 			}
 		}
-		return d.startConfigExperiment(ctx, request.Package, params.Version, params.Actions)
+		var configActions []iconfig.ConfigAction
+		for _, file := range config.Files {
+			configActions = append(configActions, iconfig.ConfigAction{
+				ActionType: "write",
+				Path:       file.Path,
+			})
+		}
+		return d.startConfigExperiment(ctx, request.Package, params.Version, configActions)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)

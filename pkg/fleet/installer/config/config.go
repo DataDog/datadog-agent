@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package installer
+// Package config contains the logic to manage the config of the packages.
+package config
 
 import (
 	"fmt"
@@ -36,7 +37,8 @@ type ConfigAction struct {
 	IgnoredFields []string         `json:"ignored_fields"`
 }
 
-func (a *ConfigAction) apply(root *os.Root) error {
+// Apply applies the action to the root.
+func (a *ConfigAction) Apply(root *os.Root) error {
 	if !configNameAllowed(a.Path) {
 		return fmt.Errorf("modifying config file %s is not allowed", a.Path)
 	}

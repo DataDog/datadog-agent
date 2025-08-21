@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
@@ -57,7 +58,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string, configActions []ConfigAction) error
+	InstallConfigExperiment(ctx context.Context, pkg string, version string, configActions []config.ConfigAction) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -490,7 +491,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, configActions []ConfigAction) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, configActions []config.ConfigAction) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -521,7 +522,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		)
 	}
 	for _, action := range configActions {
-		err = action.apply(configRoot)
+		err = action.Apply(configRoot)
 		if err != nil {
 			return installerErrors.Wrap(
 				installerErrors.ErrFilesystemIssue,
