@@ -759,5 +759,7 @@ func (s *testAgentUpgradeSuite) setExperimentMSIArgs(args []string) {
 // removeWindowsInstallerCache clears the Windows Installer directory
 // This will allow us to induce a 1612 error when running an experiment
 func (s *testAgentUpgradeSuite) removeWindowsInstallerCache() {
-	s.Env().RemoteHost.RemoveAll("C:\\Windows\\Installer\\*")
+	stdout, err := s.Env().RemoteHost.Execute("Remove-Item -Path C:\\Windows\\Installer\\* -Recurse -Force")
+	s.Require().NoError(err)
+	s.T().Logf("Removed Windows Installer cache: %s", stdout)
 }

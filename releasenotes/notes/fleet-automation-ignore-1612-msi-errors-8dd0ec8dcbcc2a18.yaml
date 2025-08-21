@@ -1,0 +1,6 @@
+
+enhancements:
+  - |
+    Remote Agent Management on Windows now automatically continues when an MSI
+    error 1612 occurs during an upgrade. The installer will run the MSI to
+    install the Agent.
