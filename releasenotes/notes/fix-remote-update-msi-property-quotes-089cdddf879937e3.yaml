@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Remote updates on Windows now quotes and escapes MSI property values.
+    This fixes an issue that caused remote updates to fail when the Agent username
+    contains whitespace, for example ``DDAGENTUSER_NAME=NT AUTHORITY\SYSTEM``.
