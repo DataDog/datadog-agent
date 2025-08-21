@@ -66,13 +66,9 @@ single_machine_performance-regression_detector-merge_base_check:
     - echo "BASELINE_SHA=${BASELINE_SHA}" > regression_detector.env
     - echo "Merge-base check passed. Baseline SHA saved to artifact."
 
-single-machine-performance-regression_detector:
+.single-machine-performance-run_regression_detector:
   stage: functional_test
   timeout: 1h10m
-  rules:
-    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
-    - !reference [.on_dev_branches]
-    - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64"]
   needs:
@@ -91,8 +87,6 @@ single-machine-performance-regression_detector:
       - outputs/report.json # for debugging, also on S3
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
-  variables:
-    SMP_VERSION: 0.23.5
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   retry: !reference [.retry_only_infra_failure, retry]
@@ -110,8 +104,8 @@ single-machine-performance-regression_detector:
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
-    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT agent_team_id) || exit $?
-    - SMP_API=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT api_url) || exit $?
+    - SMP_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT "${SMP_TEAM_NAME}_team_id") || exit $?
+    - SMP_API=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT $SMP_API_URL) || exit $?
     - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || exit $?
     - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || exit $?
     - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
@@ -124,17 +118,17 @@ single-machine-performance-regression_detector:
     - echo "Baseline SHA is ${BASELINE_SHA}"
     # Copy the baseline SHA to SMP for debugging purposes later
     - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
-    - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/"
-    - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-full-amd64
+    - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_TEAM_ID}-smp-artifacts/information/"
+    - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_TEAM_ID}-agent:${BASELINE_SHA}-7-full-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
-    - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-full-amd64
+    - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-full-amd64
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
     - SMP_TAGS="ci_pipeline_id=${CI_PIPELINE_ID},ci_job_id=${CI_JOB_ID},ci_commit_branch=${CI_COMMIT_BRANCH},purpose=agent_ci"
     - echo "Tags passed through SMP are ${SMP_TAGS}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
     - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
       job submit \
       --baseline-image ${BASELINE_IMAGE} \
       --comparison-image ${COMPARISON_IMAGE} \
@@ -155,7 +149,7 @@ single-machine-performance-regression_detector:
     - datadog-ci tag --level job --tags smp_job_id:${SMP_JOB_ID}
     # Wait for job to complete.
     - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
       job status \
       --wait \
       --wait-delay-seconds 60 \
@@ -167,7 +161,7 @@ single-machine-performance-regression_detector:
       }
     # Now that the job is completed pull the analysis report, output it to stdout.
     - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
       job sync \
       --submission-metadata submission_metadata \
       --output-path outputs || {
@@ -193,7 +187,7 @@ single-machine-performance-regression_detector:
     # For consistency we start by tagging with smp_optimization_goal:passed and overwrite to failed if a failure is detected.
     - datadog-ci tag --level job --tags smp_optimization_goal:"passed"
     - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
         job result \
         --submission-metadata submission_metadata --signal regression-detector || {
         exit_code=$?
@@ -204,7 +198,7 @@ single-machine-performance-regression_detector:
     # For consistency we start by tagging with smp_bounds_check:passed and overwrite to failed if a failure is detected.
     - datadog-ci tag --level job --tags smp_bounds_check:"passed"
     - |
-      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
+      RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
         job result \
         --submission-metadata submission_metadata --signal bounds-check || {
         exit_code=$?
@@ -276,6 +270,31 @@ single-machine-performance-regression_detector:
       EOF
     # If we make it here that means quality gates must not have failed.
     - datadog-ci tag --level job --tags smp_quality_gates:"passed"
+
+
+single-machine-performance-regression_detector:
+  extends:
+    - .single-machine-performance-run_regression_detector
+  rules:
+    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
+    - !reference [.on_dev_branches]
+    - when: on_success
+  variables:
+    SMP_TEAM_NAME: agent
+    SMP_API_URL: api_url
+    SMP_VERSION: 0.23.5
+
+single-machine-performance-metal-runners-regression_detector:
+  extends:
+    - .single-machine-performance-run_regression_detector
+  rules:
+    - !reference [.manual]
+    - when: on_success
+  variables:
+    SMP_TEAM_NAME: metal-runners
+    SMP_API_URL: metal-runners_api_url
+    SMP_VERSION: dev-pr3369-beb99699
+
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
