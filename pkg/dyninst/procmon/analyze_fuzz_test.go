@@ -98,9 +98,7 @@ func FuzzAnalyzeProcess(f *testing.F) {
 			if result.exe.Path != "" {
 				// Open the exe file to test cache behavior
 				if exeFile, openErr := os.Open(result.exe.Path); openErr == nil {
-					// Test cache hit
 					_, _ = analyzer.isInteresting(exeFile, result.exe.Key)
-					// Test checkFileKeyCache
 					_, _ = analyzer.checkFileKeyCache(result.exe.Key)
 					exeFile.Close()
 				}

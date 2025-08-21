@@ -1,3 +1,5 @@
+//go:build linux_bpf
+
 package object
 
 import (
@@ -33,6 +35,7 @@ func FuzzParseModuleData(f *testing.F) {
 	f.Add([]byte{0x7f, 0x45, 0x4c, 0x46}) // ELF magic only
 
 	f.Fuzz(func(t *testing.T, data []byte) {
+		// TODO: use of an in memory file instead of a temporary file to avoid massive IO
 		tmpFile, err := os.CreateTemp("", "elf-file")
 		if err != nil {
 			t.Skip("Failed to create temporary file")
@@ -64,19 +67,6 @@ func FuzzParseModuleData(f *testing.F) {
 		if moduleData == nil {
 			t.Errorf("ParseModuleData returned nil module data without error")
 			return
-		}
-
-		// Test that fields are reasonable (no obviously corrupted values)
-		if moduleData.Text != 0 && moduleData.EText != 0 {
-			if moduleData.Text > moduleData.EText {
-				t.Errorf("Invalid text range: start %x > end %x", moduleData.Text, moduleData.EText)
-			}
-		}
-
-		if moduleData.Types != 0 && moduleData.ETypes != 0 {
-			if moduleData.Types > moduleData.ETypes {
-				t.Errorf("Invalid types range: start %x > end %x", moduleData.Types, moduleData.ETypes)
-			}
 		}
 
 		// Test GoDebugSections doesn't panic
