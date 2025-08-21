@@ -47,7 +47,7 @@
   retry: !reference [.retry_only_infra_failure, retry]
 
 .linux_x64:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
 
 tests_deb-x64-py3:
@@ -80,6 +80,27 @@ tests_nodetreemodel:
     CONDA_ENV: ddpy3
     # This env var enables the NTM config implementation
     DD_CONF_NODETREEMODEL: enable
+  allow_failure: true
+
+tests_nodetreemodel_unmarshal:
+  # Tests are currently not passing
+  # They are being fixed, and we want to track progress on this work
+  extends:
+    - .rtloader_tests
+    - .linux_tests
+    - .linux_x64
+  after_script:
+    # Don't upload junit results, which prevents e2e tests from running (they will fail)
+    - !reference [.upload_coverage]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+  variables:
+    CONDA_ENV: ddpy3
+    # This env var enables the pkg/config/structure to unmarshal config
+    DD_CONF_NODETREEMODEL: unmarshal
   allow_failure: true
 
 tests_flavor_iot_deb-x64:
@@ -135,7 +156,7 @@ tests_deb-arm64-py3:
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$CI_IMAGE_DEB_ARM64_SUFFIX:$CI_IMAGE_DEB_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   variables:
     CONDA_ENV: ddpy3

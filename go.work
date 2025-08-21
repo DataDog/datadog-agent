@@ -1,4 +1,4 @@
-go 1.24.5
+go 1.24.6
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -109,6 +109,7 @@ use (
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
+	pkg/logs/types
 	pkg/logs/util/testutils
 	pkg/metrics
 	pkg/network/payload
@@ -120,6 +121,7 @@ use (
 	pkg/opentelemetry-mapping-go/otlp/attributes
 	pkg/opentelemetry-mapping-go/otlp/logs
 	pkg/opentelemetry-mapping-go/otlp/metrics
+	pkg/opentelemetry-mapping-go/otlp/rum
 	pkg/orchestrator/model
 	pkg/process/util/api
 	pkg/proto

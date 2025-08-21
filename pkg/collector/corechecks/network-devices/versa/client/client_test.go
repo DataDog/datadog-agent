@@ -462,6 +462,105 @@ func TestGetLinkStatusMetrics(t *testing.T) {
 	require.Equal(t, expectedLinkStatusMetrics, linkStatusMetrics)
 }
 
+func TestGetQoSMetrics(t *testing.T) {
+	expectedQoSMetrics := []QoSMetrics{
+		{
+			DrillKey:             "test-branch-2B,test-branch-2C",
+			LocalSiteName:        "test-branch-2B",
+			RemoteSiteName:       "test-branch-2C",
+			BestEffortTx:         1000.0,
+			BestEffortTxDrop:     50.0,
+			ExpeditedForwardTx:   2000.0,
+			ExpeditedForwardDrop: 25.0,
+			AssuredForwardTx:     1500.0,
+			AssuredForwardDrop:   75.0,
+			NetworkControlTx:     500.0,
+			NetworkControlDrop:   10.0,
+			BestEffortBandwidth:  8000000.0,
+			ExpeditedForwardBW:   16000000.0,
+			AssuredForwardBW:     12000000.0,
+			NetworkControlBW:     4000000.0,
+			VolumeTx:             5000.0,
+			TotalDrop:            160.0,
+			PercentDrop:          3.2,
+			Bandwidth:            40000000.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	qosMetrics, err := client.GetPathQoSMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(qosMetrics), 1)
+	require.Equal(t, expectedQoSMetrics, qosMetrics)
+}
+func TestGetDIAMetrics(t *testing.T) {
+	expectedDIAMetrics := []DIAMetrics{
+		{
+			DrillKey:      "test-branch-2B,DIA-1,192.168.1.1",
+			Site:          "test-branch-2B",
+			AccessCircuit: "DIA-1",
+			IP:            "192.168.1.1",
+			VolumeTx:      15000.0,
+			VolumeRx:      12000.0,
+			BandwidthTx:   150000.0,
+			BandwidthRx:   120000.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	diaMetrics, err := client.GetDIAMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(diaMetrics), 1)
+	require.Equal(t, expectedDIAMetrics, diaMetrics)
+}
+
+func TestGetSiteMetrics(t *testing.T) {
+	expectedSiteMetrics := []SiteMetrics{
+		{
+			Site:           "test-branch-2B",
+			Address:        "123 Main St, Anytown, USA",
+			Latitude:       "40.7128",
+			Longitude:      "-74.0060",
+			LocationSource: "GPS",
+			VolumeTx:       15000.0,
+			VolumeRx:       12000.0,
+			BandwidthTx:    150000.0,
+			BandwidthRx:    120000.0,
+			Availability:   99.5,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	siteMetrics, err := client.GetSiteMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(siteMetrics), 1)
+	require.Equal(t, expectedSiteMetrics, siteMetrics)
+}
+
 func TestGetApplicationsByAppliance(t *testing.T) {
 	expectedApplicationsByApplianceMetrics := []ApplicationsByApplianceMetrics{
 		{
@@ -678,4 +777,49 @@ func TestGetSLAMetricsPaginationEmptyResponse(t *testing.T) {
 
 	// Should get all available data in first page and stop
 	require.Equal(t, 3, len(slaMetrics)) // Total of 3 items across all pages
+}
+
+func TestGetAnalyticsInterfaces(t *testing.T) {
+	expectedAnalyticsInterfaceMetrics := []AnalyticsInterfaceMetrics{
+		{
+			DrillKey:    "test-branch-2B,INET-1,ge-0/0/1",
+			Site:        "test-branch-2B",
+			AccessCkt:   "INET-1",
+			Interface:   "ge-0/0/1",
+			RxUtil:      25.5,
+			TxUtil:      18.3,
+			VolumeRx:    1024000.0,
+			VolumeTx:    768000.0,
+			Volume:      1792000.0,
+			BandwidthRx: 8192.0,
+			BandwidthTx: 6144.0,
+			Bandwidth:   14336.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	analyticsInterfaceMetrics, err := client.GetAnalyticsInterfaces("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(analyticsInterfaceMetrics), 1)
+	require.Equal(t, expectedAnalyticsInterfaceMetrics, analyticsInterfaceMetrics)
+}
+
+func TestGetAnalyticsInterfacesEmptyTenant(t *testing.T) {
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	_, err = client.GetAnalyticsInterfaces("")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "tenant cannot be empty")
 }

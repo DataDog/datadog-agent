@@ -186,7 +186,7 @@ func TestMsiexec_Run_RetryThenSuccess(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = cmd.Run(t.Context())
+	err = cmd.Run(t.Context())
 	assert.NoError(t, err)
 
 	// Verify mock was called the expected number of times
@@ -216,7 +216,7 @@ func TestMsiexec_Run_RetryableErrorInLog(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = cmd.Run(t.Context())
+	err = cmd.Run(t.Context())
 	assert.NoError(t, err)
 
 	// Verify mock was called the expected number of times
@@ -236,7 +236,7 @@ func TestMsiexec_Run_NonRetryableError(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = cmd.Run(t.Context())
+	err = cmd.Run(t.Context())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "exit status 1603")
 
@@ -249,7 +249,7 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 	t.Run("install with args", func(t *testing.T) {
 		mockRunner := &mockCmdRunner{}
 
-		expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1=value1 ARG2=value2 DDAGENTUSER_NAME=ddagent DDAGENTUSER_PASSWORD=password MSIFASTINSTALL=7`, msiexecPath)
+		expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1=value1 ARG2="value2" DDAGENTUSER_NAME="ddagent" DDAGENTUSER_PASSWORD="password" MSIFASTINSTALL="7"`, msiexecPath)
 		mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
 
 		cmd, err := Cmd(
@@ -258,12 +258,15 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 			WithLogFile("test.log"),
 			WithDdAgentUserName("ddagent"),
 			WithDdAgentUserPassword("password"),
-			WithAdditionalArgs([]string{"ARG1=value1", "ARG2=value2"}),
+			// Expect WithAdditionalArgs to be verbatim
+			WithAdditionalArgs([]string{"ARG1=value1"}),
+			// Expect WithProperties to quote the values
+			WithProperties(map[string]string{"ARG2": "value2"}),
 			withCmdRunner(mockRunner),
 		)
 		require.NoError(t, err)
 
-		_, err = cmd.Run(t.Context())
+		err = cmd.Run(t.Context())
 		assert.NoError(t, err)
 		mockRunner.AssertExpectations(t)
 	})
@@ -281,7 +284,7 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = cmd.Run(t.Context())
+		err = cmd.Run(t.Context())
 		assert.NoError(t, err)
 		mockRunner.AssertExpectations(t)
 	})
@@ -299,7 +302,52 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = cmd.Run(t.Context())
+		err = cmd.Run(t.Context())
+		assert.NoError(t, err)
+		mockRunner.AssertExpectations(t)
+	})
+
+	t.Run("install args with spaces", func(t *testing.T) {
+		mockRunner := &mockCmdRunner{}
+
+		expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1="value 1" ARG2="value2" DDAGENTUSER_NAME="NT AUTHORITY\SYSTEM" DDAGENTUSER_PASSWORD="password is long" MSIFASTINSTALL="7"`, msiexecPath)
+		mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
+
+		cmd, err := Cmd(
+			Install(),
+			WithMsi("test.msi"),
+			WithLogFile("test.log"),
+			WithDdAgentUserName(`NT AUTHORITY\SYSTEM`),
+			WithDdAgentUserPassword("password is long"),
+			WithProperties(map[string]string{"ARG1": "value 1", "ARG2": "value2"}),
+			withCmdRunner(mockRunner),
+		)
+		require.NoError(t, err)
+
+		err = cmd.Run(t.Context())
+		assert.NoError(t, err)
+		mockRunner.AssertExpectations(t)
+	})
+
+	t.Run("install args with escaped quotes", func(t *testing.T) {
+		mockRunner := &mockCmdRunner{}
+
+		expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1="value has ""quotes""" ARG2="value2" DDAGENTUSER_NAME="NT AUTHORITY\SYSTEM" DDAGENTUSER_PASSWORD="password has ""quotes""" MSIFASTINSTALL="7"`, msiexecPath)
+		mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
+
+		cmd, err := Cmd(
+			Install(),
+			WithMsi("test.msi"),
+			WithLogFile("test.log"),
+			WithDdAgentUserName(`NT AUTHORITY\SYSTEM`),
+			WithDdAgentUserPassword(`password has "quotes"`),
+			// Expect quotes to be double escaped
+			WithProperties(map[string]string{"ARG1": `value has "quotes"`, "ARG2": "value2"}),
+			withCmdRunner(mockRunner),
+		)
+		require.NoError(t, err)
+
+		err = cmd.Run(t.Context())
 		assert.NoError(t, err)
 		mockRunner.AssertExpectations(t)
 	})
@@ -332,6 +380,42 @@ func TestCmd_MissingRequiredArgs(t *testing.T) {
 			assert.Nil(t, cmd)
 		})
 	}
+}
+
+// TestMsiexecError_ErrorHandling tests that Run returns an MsiexecError that contains the processed log and exit code.
+func TestMsiexecError_ErrorHandling(t *testing.T) {
+	mockRunner := &mockCmdRunner{}
+	mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&mockExitError{code: 1603}).Once()
+
+	// Create a temporary log file with some test content
+	testLogContent := "CA: Test error occurred\nDatadog.CustomActions error\nSystem.Exception details"
+	logFile := createTestLogFile(t, "test.log", []byte(testLogContent))
+
+	cmd, err := Cmd(
+		Install(),
+		WithMsi("test.msi"),
+		WithLogFile(logFile),
+		withCmdRunner(mockRunner),
+	)
+	require.NoError(t, err)
+
+	err = cmd.Run(t.Context())
+	assert.Error(t, err)
+
+	// Check that the error is of type MsiexecError
+	var msiErr *MsiexecError
+	assert.ErrorAs(t, err, &msiErr)
+	// Check that the log file bytes are included
+	assert.NotEmpty(t, msiErr.ProcessedLog)
+	assert.Contains(t, msiErr.ProcessedLog, "Datadog.CustomActions")
+
+	// Check that the error message is preserved
+	assert.Contains(t, msiErr.Error(), "exit status 1603", "error message should be preserved")
+	var exitError exitCodeError
+	assert.ErrorAs(t, msiErr, &exitError)
+	assert.Equal(t, 1603, exitError.ExitCode())
+
+	mockRunner.AssertExpectations(t)
 }
 
 // createTestLogFile creates a test log file with the given filename and log data and returns the path.

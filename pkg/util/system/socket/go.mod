@@ -4,7 +4,7 @@ go 1.23.0
 
 require github.com/Microsoft/go-winio v0.6.2
 
-require golang.org/x/sys v0.34.0 // indirect
+require golang.org/x/sys v0.35.0 // indirect
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
@@ -104,6 +104,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../pkg/network/payload

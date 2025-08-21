@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 	"testing"
 
@@ -108,7 +107,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestActionKillExcludeBinary",
 			"~TestActionKillDisarm",
 			"~TestProcessInterpreter",
-			"~TestConnectEvent/io-uring",
+			"~TestConnectEventAFInetIOUring",
 			"TestAcceptEvent/accept-af-inet-any-tcp-success-sockaddrin-io-uring",
 			"TestOpenTree",
 		}
@@ -152,10 +151,13 @@ func getPIDCGroup(pid uint32) (string, error) {
 
 func preTestsHook() {
 	if trace {
-		args := slices.DeleteFunc(os.Args, func(arg string) bool {
-			return arg == "-trace"
-		})
-		args = append(args, "-ebpfless")
+		args := make([]string, len(os.Args))
+		copy(args, os.Args)
+		for i, arg := range args {
+			if arg == "-trace" {
+				args[i] = "-ebpfless"
+			}
+		}
 
 		os.Setenv(ptracer.EnvPasswdPathOverride, fakePasswdPath)
 		os.Setenv(ptracer.EnvGroupPathOverride, fakeGroupPath)

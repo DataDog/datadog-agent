@@ -23,6 +23,8 @@ import (
 )
 
 const (
+	defaultBasicPort   = 9182
+	defaultOAuthPort   = 9183
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
 	defaultMaxCount    = "2000"
@@ -40,11 +42,17 @@ type Client struct {
 	directorEndpoint  string
 	directorAPIPort   int
 	analyticsEndpoint string
-	// TODO: replace with OAuth
-	token               string
-	tokenExpiry         time.Time
+	// OAuth token for Director API endpoints
+	directorToken       string
+	directorTokenExpiry time.Time
+	// Session token for Analytics endpoints (always uses session auth)
+	sessionToken        string
+	sessionTokenExpiry  time.Time
 	username            string
 	password            string
+	clientID            string
+	clientSecret        string
+	authMethod          authMethod
 	authenticationMutex *sync.Mutex
 	maxAttempts         int
 	maxPages            int
@@ -56,10 +64,25 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
-	err := validateParams(directorEndpoint, directorPort, analyticsEndpoint, username, password)
+func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, useHTTP bool, authConfig AuthConfig, options ...ClientOptions) (*Client, error) {
+	err := validateParams(directorEndpoint, directorPort, analyticsEndpoint)
 	if err != nil {
 		return nil, err
+	}
+
+	// Process authentication configuration (validate and parse)
+	authMethod, err := processAuthConfig(authConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set default port based on authentication method if not provided
+	if directorPort == 0 {
+		if authMethod == authMethodOAuth {
+			directorPort = defaultOAuthPort
+		} else {
+			directorPort = defaultBasicPort
+		}
 	}
 
 	cookieJar, err := cookiejar.New(nil)
@@ -92,8 +115,11 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		directorEndpoint:    directorEndpointURL.String(),
 		directorAPIPort:     directorPort,
 		analyticsEndpoint:   analyticsEndpointURL.String(),
-		username:            username,
-		password:            password,
+		authMethod:          authMethod,
+		username:            authConfig.Username,
+		password:            authConfig.Password,
+		clientID:            authConfig.ClientID,
+		clientSecret:        authConfig.ClientSecret,
 		authenticationMutex: &sync.Mutex{},
 		maxAttempts:         defaultMaxAttempts,
 		maxPages:            defaultMaxPages,
@@ -108,21 +134,15 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 	return client, nil
 }
 
-func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint, username, password string) error {
+func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint string) error {
 	if directorEndpoint == "" {
 		return fmt.Errorf("invalid director endpoint")
 	}
-	if directorPort == 0 {
-		return fmt.Errorf("invalid director port")
+	if directorPort < 0 {
+		return fmt.Errorf("invalid director port: %d", directorPort)
 	}
 	if analyticsEndpoint == "" {
 		return fmt.Errorf("invalid analytics endpoint")
-	}
-	if username == "" {
-		return fmt.Errorf("invalid username")
-	}
-	if password == "" {
-		return fmt.Errorf("invalid password")
 	}
 	return nil
 }
@@ -431,6 +451,8 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 		"SDWAN",
 		client.lookback,
 		"slam(localsite,remotesite,localaccckt,remoteaccckt,fc)",
+		"",
+		"",
 		[]string{
 			"delay",
 			"fwdDelayVar",
@@ -443,6 +465,38 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 	)
 }
 
+// GetPathQoSMetrics retrieves QoS (Class of Service) metrics from the Versa Analytics API
+func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"pathcos(localsitename,remotesitename)",
+		"",
+		"",
+		[]string{
+			"betx",        // best effort bytes
+			"betxdrop",    // best effort dropped
+			"eftx",        // expedited forwarding bytes
+			"eftxdrop",    // expedited forwarding dropped
+			"aftx",        // assured forwarding bytes
+			"aftxdrop",    // assured forwarding dropped
+			"nctx",        // network control bytes
+			"nctxdrop",    // network control dropped
+			"bebandwidth", // best effort bps
+			"efbandwidth", // expedited forwarding bw bps
+			"afbandwidth", // assured forwarding bw bps
+			"ncbandwidth", // network control bw bps
+			"volume-tx",   // total volume bytes
+			"totaldrop",   // total drops bytes
+			"percentdrop", // percent drop bytes
+			"bandwidth",   // total bandwidth bps
+		},
+		parsePathQoSMetrics,
+	)
+}
+
 // GetLinkStatusMetrics retrieves link status metrics from the Versa Analytics API
 func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, error) {
 	return getPaginatedAnalytics(
@@ -451,6 +505,8 @@ func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, 
 		"SDWAN",
 		client.lookback,
 		"linkstatus(site,accckt)",
+		"",
+		"",
 		[]string{
 			"availability",
 		},
@@ -466,6 +522,8 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 		"SDWAN",
 		client.lookback,
 		"linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,accckt.ip,accckt.isp)",
+		"",
+		"",
 		[]string{
 			"volume-tx",
 			"volume-rx",
@@ -473,6 +531,27 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 			"bw-rx",
 		},
 		parseLinkUsageMetrics,
+	)
+}
+
+// GetSiteMetrics gets site metrics for a Versa tenant
+func (client *Client) GetSiteMetrics(tenant string) ([]SiteMetrics, error) {
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"linkusage(site,site.address,site.latitude,site.longitude,site.locationSource)",
+		"",
+		"siteStatus",
+		[]string{
+			"volume-tx",
+			"volume-rx",
+			"bw-tx",
+			"bw-rx",
+			"availability",
+		},
+		parseSiteMetrics,
 	)
 }
 
@@ -485,6 +564,8 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 		"SDWAN",
 		"1daysAgo",
 		"app(site,appId)",
+		"",
+		"",
 		[]string{
 			"sessions",
 			"volume-tx",
@@ -506,6 +587,8 @@ func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
 		"SDWAN",
 		"1daysAgo",
 		"appUser(site,user)",
+		"",
+		"",
 		[]string{
 			"sessions",
 			"volume-tx",
@@ -530,6 +613,8 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 		"SYSTEM",
 		client.lookback,
 		"tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)",
+		"",
+		"",
 		[]string{
 			"volume-tx",
 			"volume-rx",
@@ -538,18 +623,76 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 	)
 }
 
+// GetDIAMetrics retrieves DIA (Direct Internet Access) metrics from the Versa Analytics API
+func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
+	if tenant == "" {
+		return nil, fmt.Errorf("tenant cannot be empty")
+	}
+
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		"1daysAgo",
+		"usage(site,accckt,accckt.ip)",
+		"(accessType:DIA)",
+		"",
+		[]string{
+			"volume-tx",
+			"volume-rx",
+			"bw-tx",
+			"bw-rx",
+		},
+		parseDIAMetrics,
+	)
+}
+
+// GetAnalyticsInterfaces retrieves interface utilization metrics from the Versa Analytics API
+func (client *Client) GetAnalyticsInterfaces(tenant string) ([]AnalyticsInterfaceMetrics, error) {
+	if tenant == "" {
+		return nil, fmt.Errorf("tenant cannot be empty")
+	}
+
+	return getPaginatedAnalytics(
+		client,
+		tenant,
+		"SDWAN",
+		client.lookback,
+		"intfUtil(site,accCkt,intf)",
+		"",
+		"",
+		[]string{
+			"rxUtil",
+			"txUtil",
+			"volume-rx",
+			"volume-tx",
+			"volume",
+			"bw-rx",
+			"bw-tx",
+			"bandwidth",
+		},
+		parseAnalyticsInterfaceMetrics,
+	)
+}
+
 // buildAnalyticsPath constructs a Versa Analytics query path in a cleaner way so multiple metrics can be added.
+// TODO: maybe this becomes a struct function. Modifications will be easier and the function signature will be
+// much cleaner
 //
 // Parameters:
 //   - tenant: tenant name within the environment (e.g., "datadog")
-//   - feature: category of analytics metrics (e.g., "SDWAN, "SYSTEM", "CGNAT", etc.).
-//   - lookback: relative start date (e.g., "15minutesAgo", "1h", "24h").
-//   - query: Versa query expression (e.g., "slam(...columns...)").
-//   - queryType: type of query (e.g., "tableData", "table", "summary").
-//   - metrics: list of metric strings (e.g., "delay", "fwdLossRatio").
+//   - feature: category of analytics metrics (e.g., "SDWAN, "SYSTEM", "CGNAT", etc.)
+//   - lookback: relative start date (e.g., "15minutesAgo", "1h", "24h")
+//   - query: Versa query expression (e.g., "slam(...columns...)")
+//   - queryType: type of query (e.g., "tableData", "table", "summary")
+//   - filterQuery: filter query (e.g. "(accessType:DIA)")
+//   - joinQuery: table to join from (e.g. "siteStatus")
+//   - metrics: list of metric strings (e.g., "delay", "fwdLossRatio")
+//   - count: number of rows to retrieve (similar to limit)
+//   - fromCount: row to start at (similar to offset)
 //
 // Returns the full encoded URL string.
-func buildAnalyticsPath(tenant string, feature string, lookback string, query string, queryType string, metrics []string, count int, fromCount int) string {
+func buildAnalyticsPath(tenant string, feature string, lookback string, query string, queryType string, filterQuery string, joinQuery string, metrics []string, count int, fromCount int) string {
 	baseAnalyticsPath := "/versa/analytics/v1.0.0/data/provider"
 	path := fmt.Sprintf("%s/tenants/%s/features/%s", baseAnalyticsPath, tenant, feature)
 	params := url.Values{
@@ -559,6 +702,16 @@ func buildAnalyticsPath(tenant string, feature string, lookback string, query st
 		"ds":         []string{"aggregate"}, // this seems to be the only datastore supported (from docs)
 		"count":      []string{strconv.Itoa(count)},
 		"from-count": []string{strconv.Itoa(fromCount)},
+	}
+	// filterQuery is not required for most calls
+	// only include in the params if needed
+	if filterQuery != "" {
+		params.Add("fq", filterQuery)
+	}
+	// joinQuery is not required for most calls
+	// only include in the params if needed
+	if joinQuery != "" {
+		params.Add("jq", joinQuery)
 	}
 	for _, m := range metrics {
 		params.Add("metrics", m)
