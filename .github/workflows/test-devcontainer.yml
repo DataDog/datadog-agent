@@ -26,7 +26,6 @@ jobs:
     - name: Install dda
       uses: ./.github/actions/install-dda
       with:
-        version: "0.13.0"
         features: legacy-tasks
 
     - name: Build image
