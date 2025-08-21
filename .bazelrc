@@ -6,8 +6,9 @@ build --verbose_failures
 build --incompatible_strict_action_env
 
 # Caching
-common --config=cache
 common:cache --remote_instance_name=remote-caching
 common:cache --remote_cache=grpc://bazel-buildbarn-frontend.ddbuild.io:443
 common:cache --remote_timeout=60
 common:cache --remote_retries=1
+
+try-import user.bazelrc
