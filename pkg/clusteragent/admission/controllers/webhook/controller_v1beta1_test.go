@@ -199,8 +199,6 @@ func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
 
 func TestGenerateTemplatesV1beta1(t *testing.T) {
 	mockConfig := configmock.New(t)
-	ctrl := gomock.NewController(t)
-	mockRemoteConfig := rcmock.NewMockRemoteClient(ctrl)
 	defaultReinvocationPolicy := admiv1beta1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
