@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package aggregator
+package hosttags
 
 import (
 	"testing"
@@ -57,7 +57,7 @@ func TestHostTagProviderExpectedTags(t *testing.T) {
 	mockConfig.SetWithoutSource("expected_tags_duration", "5s")
 	defer mockConfig.SetWithoutSource("expected_tags_duration", "0")
 
-	p := newHostTagProviderWithClock(mockClock)
+	p := newHostTagProviderWithClock(mockClock, pkgconfigsetup.Datadog().GetDuration("expected_tags_duration"))
 
 	tagList := p.GetHostTags()
 

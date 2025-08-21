@@ -27,7 +27,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.147 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.162 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.66.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.66.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.66.1 // indirect
