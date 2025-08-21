@@ -52,3 +52,26 @@ func (t *Tailer) DidRotate() (bool, error) {
 
 	return recreated || truncated, nil
 }
+
+// DidRotateViaFingerprint returns true if the file has been log-rotated via fingerprint.
+//
+// On *nix, when a log rotation occurs, the file can be either:
+// - renamed and recreated
+// - removed and recreated
+// - truncated
+func (t *Tailer) DidRotateViaFingerprint(fingerprinter *Fingerprinter) (bool, error) {
+	newFingerprint, err := fingerprinter.ComputeFingerprint(t.file)
+
+	// If computing the fingerprint led to an error there was likely an IO issue, handle this appropriately below.
+	if err != nil {
+		return false, err
+	}
+	// If the original fingerprint is nil, we can't detect rotation
+	if t.fingerprint == nil {
+		return false, nil
+	}
+
+	// If fingerprints are different, it means the file was rotated.
+	// This is also true if the new fingerprint is invalid (Value=0), which means the file was truncated.
+	return !t.fingerprint.Equals(newFingerprint), nil
+}

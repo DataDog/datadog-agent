@@ -40,6 +40,10 @@ import (
 const (
 	metricName             string = "metric name"
 	errNoBucketsNoSumCount string = "no buckets mode and no send count sum are incompatible"
+
+	// intervalTolerance is the tolerance for interval calculation in seconds
+	// We use 0.05 seconds as tolerance to allow for some jitter.
+	intervalTolerance float64 = 0.05
 )
 
 var (
@@ -61,6 +65,32 @@ var (
 		"kafka.log.flush_rate.rate":                       {},
 	}
 )
+
+// inferDeltaInterval calculates the interval for Datadog counts from OTLP delta sums.
+// It returns the interval in seconds if the time difference between start and end timestamps
+// is close to a whole number of seconds (within intervalTolerance), otherwise returns 0.
+func inferDeltaInterval(startTimestamp, timestamp uint64) int64 {
+	if startTimestamp == 0 {
+		// We can't infer the interval without the startTimestamp
+		return 0
+	}
+
+	if startTimestamp > timestamp {
+		// malformed data
+		return 0
+	}
+
+	// Convert nanoseconds to seconds
+	deltaSeconds := float64(timestamp-startTimestamp) / 1e9
+	roundedDelta := math.Round(deltaSeconds)
+
+	if math.Abs(roundedDelta-deltaSeconds) < intervalTolerance {
+		return int64(roundedDelta)
+	}
+
+	// delta is outside of tolerance range
+	return 0
+}
 
 var _ source.Provider = (*noSourceProvider)(nil)
 
@@ -169,7 +199,13 @@ func (t *Translator) mapNumberMetrics(
 			continue
 		}
 
-		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), 0, val)
+		// Calculate interval for Count type metrics (from OTLP delta sums)
+		var interval int64
+		if t.cfg.InferDeltaInterval && dt == Count {
+			interval = inferDeltaInterval(uint64(p.StartTimestamp()), uint64(p.Timestamp()))
+		}
+
+		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), interval, val)
 	}
 }
 
@@ -417,7 +453,11 @@ func (t *Translator) getSketchBuckets(
 			sketch.Basic.Max = math.Min(p.Max(), sketch.Basic.Max)
 		}
 
-		consumer.ConsumeSketch(ctx, pointDims, ts, 0, sketch)
+		var interval int64
+		if t.cfg.InferDeltaInterval && delta {
+			interval = inferDeltaInterval(startTs, ts)
+		}
+		consumer.ConsumeSketch(ctx, pointDims, ts, interval, sketch)
 	}
 	return nil
 }
