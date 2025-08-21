@@ -460,7 +460,8 @@ func (k *kubeletMessageForwarder) forward() {
 			// we check the timestamp to drop logs that have already been processed
 			logTime, _ := time.Parse(time.RFC3339Nano, output.ParsingExtra.Timestamp)
 			if logTime.Before(k.tailer.getLastSince()) {
-				log.Infof("Dropping message %s because its timestamp %s is before %s", string(output.GetContent()), output.ParsingExtra.Timestamp, k.tailer.getLastSince().String())
+				log.Debugf("Skipping log to avoid duplicates, %s has already been processed",
+					output.ParsingExtra.Timestamp)
 				continue
 			}
 
