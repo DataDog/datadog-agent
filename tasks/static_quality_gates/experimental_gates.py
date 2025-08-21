@@ -119,10 +119,10 @@ class DockerImageInfo:
         """Total size of all layers in bytes"""
         return sum(layer.size_bytes for layer in self.layers)
 
-    @property
-    def total_layers_size_mb(self) -> float:
-        """Total size of all layers in megabytes"""
-        return self.total_layers_size_bytes / (1024 * 1024)
+    # @property
+    # def total_layers_size_mb(self) -> float:
+    #    """Total size of all layers in megabytes"""
+    #    return self.total_layers_size_bytes / (1024 * 1024)
 
     @property
     def non_empty_layers(self) -> list[DockerLayerInfo]:
@@ -472,7 +472,7 @@ class UniversalArtifactMeasurer:
         """
         self.processor = processor
         self.config_manager = ConfigurationManager(config_path)
-        self.file_utils = FileUtilities()
+        # self.file_utils = FileUtilities()
         self.report_builder = ReportBuilder()
 
     def measure_artifact(

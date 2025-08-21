@@ -42,6 +42,7 @@ const (
 	field        CollectorName = "fields"
 	clock        CollectorName = "clocks"
 	device       CollectorName = "device"
+	memory       CollectorName = "memory"
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
 	process      CollectorName = "process"
@@ -82,6 +83,7 @@ var factory = map[CollectorName]subsystemBuilder{
 	device:       newDeviceCollector,
 	field:        newFieldsCollector,
 	gpm:          newGPMCollector,
+	memory:       newMemoryCollector,
 	nvlink:       newNVLinkCollector,
 	process:      newProcessCollector,
 	remappedRows: newRemappedRowsCollector,
