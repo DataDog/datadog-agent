@@ -1215,13 +1215,13 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     with agent_context(ctx, release_branch):
         next_version = next_rc_version(ctx, release_branch)
         repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
-        changes = 'false'
+        return_code = 0  # no changes
         message = [f":warning: Please add the `{next_version}` tag on the head of `{release_branch}` for:\n"]
         for repo_name, repo in repo_data.items():
             head_commit = get_last_commit(ctx, repo_name, repo['branch'])
             last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
             if last_tag_commit != "" and last_tag_commit != head_commit:
-                changes = 'true'
+                return_code = 69
                 print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
                 if warning_mode:
                     team = "agent-integrations"
@@ -1235,7 +1235,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                 # This repo has changes, the next check is not needed
                 continue
             if repo_name != "datadog-agent" and last_tag_name != repo['previous_tag']:
-                changes = 'true'
+                return_code = 69
                 print(
                     f"{repo_name} has a new tag {last_tag_name} since last release candidate (was {repo['previous_tag']})",
                     file=sys.stderr,
@@ -1245,7 +1245,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
             message.append("Make sure to tag them before merging the next RC PR.")
             warn_new_tags("".join(message))
         # Send a value for the create_rc_pr.yml workflow
-        print(changes)
+        sys.exit(return_code)
 
 
 @task
