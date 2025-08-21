@@ -50,6 +50,7 @@ func TestNewController(t *testing.T) {
 		nil,
 		datadogConfig,
 		nil,
+		nil,
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -66,6 +67,7 @@ func TestNewController(t *testing.T) {
 		wmeta,
 		nil,
 		datadogConfig,
+		nil,
 		nil,
 	)
 
@@ -138,7 +140,7 @@ func TestAutoInstrumentation(t *testing.T) {
 			))
 
 			// Create APM webhook.
-			apm, err := generateAutoInstrumentationWebhook(wmeta, mockConfig)
+			apm, err := generateAutoInstrumentationWebhook(wmeta, mockConfig, nil, nil)
 			assert.NoError(t, err)
 
 			// Create request.

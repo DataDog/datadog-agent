@@ -97,7 +97,8 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	return NewConfigWithRemoteConfigClient(datadogConfig, nil)
 }
 
-// NewConfigWithRemoteConfigClient creates a new Config from the datadog config and a remote config client. It returns an error if the configuration is invalid.
+// NewConfigWithRemoteConfigClient creates a new Config from the datadog config with a remote config client.
+// It returns an error if the configuration is invalid.
 func NewConfigWithRemoteConfigClient(datadogConfig config.Component, rcClient *rcclient.Client) (*Config, error) {
 	instrumentationConfig, err := NewInstrumentationConfig(datadogConfig)
 	if err != nil {

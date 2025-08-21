@@ -58,15 +58,58 @@ type ResolvedImage struct {
 	CanonicalVersion string
 }
 
+// processUpdate handles remote configuration updates for image tag resolution.
+//
+// IMPORTANT: This function replaces the entire cache with the new state because
+// the 'update' parameter contains ALL current configurations for this product,
+// not just the changed ones. This is the correct behavior for remote config:
+//
+// - Remote config maintains a complete state of all active configurations
+// - When processUpdate is called, it receives the complete current state via GetConfigs()
+// - If a repository is not in the update, it means it's no longer active
+// - Therefore, replacing the entire cache ensures we stay in sync with remote config
 func (tr *TagResolver) processUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	/*
+		Example of processed cache:
+		{
+			"dd-lib-python-init": {
+				"repository_name": "gcr.io/project/image",
+				"repository_url": "gcr.io/project/image",
+				"images": {
+					"latest": {
+						"digest": "sha256:abc123...",
+						"canonical_version": "1.0.0"
+					},
+					"1": {
+						"digest": "sha256:def456...",
+						"canonical_version": "1.0.0"
+					},
+					"1.0": {
+						"digest": "sha256:ghi789...",
+						"canonical_version": "1.0.0"
+					}
+				}
+			},
+			"dd-lib-java-init": {
+				"repository_name": "gcr.io/project/image",
+				"repository_url": "gcr.io/project/image",
+				"images": {
+					"latest": {
+						"digest": "sha256:abc123...",
+						"canonical_version": "2.1.3"
+					}
+				}
+			}
+		}
+	*/
 	tr.mu.Lock()
 	defer tr.mu.Unlock()
 
 	newCache := make(map[string]map[string]ResolvedImage)
 
 	for configKey, rawConfig := range update {
-		var repositories []RepositoryConfig
-		if err := json.Unmarshal(rawConfig.Config, &repositories); err != nil {
+		var repo RepositoryConfig
+		if err := json.Unmarshal(rawConfig.Config, &repo); err != nil {
 			log.Errorf("TagResolver: Failed to unmarshal repository config for %s: %v", configKey, err)
 			applyStateCallback(configKey, state.ApplyStatus{
 				State: state.ApplyStateError,
@@ -75,32 +118,31 @@ func (tr *TagResolver) processUpdate(update map[string]state.RawConfig, applySta
 			continue
 		}
 
-		for _, repo := range repositories {
-			if repo.RepositoryName == "" || repo.RepositoryURL == "" {
-				log.Errorf("TagResolver: Missing repository_name or repository_url in config %s", configKey)
-				applyStateCallback(configKey, state.ApplyStatus{
-					State: state.ApplyStateError,
-					Error: "Missing repository_name or repository_url",
-				})
+		if repo.RepositoryName == "" || repo.RepositoryURL == "" {
+			log.Errorf("TagResolver: Missing repository_name or repository_url in config %s", configKey)
+			applyStateCallback(configKey, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: "Missing repository_name or repository_url",
+			})
+			continue
+		}
+
+		tagMap := make(map[string]ResolvedImage)
+		for _, imageInfo := range repo.Images {
+			if imageInfo.Tag == "" || imageInfo.Digest == "" {
+				log.Warnf("TagResolver: Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryName)
 				continue
 			}
 
-			tagMap := make(map[string]ResolvedImage)
-			for _, imageInfo := range repo.Images {
-				if imageInfo.Tag == "" || imageInfo.Digest == "" {
-					log.Warnf("TagResolver: Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryName)
-					continue
-				}
-
-				fullImageRef := repo.RepositoryURL + "@" + imageInfo.Digest
-				tagMap[imageInfo.Tag] = ResolvedImage{
-					FullImageRef:     fullImageRef,
-					Digest:           imageInfo.Digest,
-					CanonicalVersion: imageInfo.CanonicalVersion,
-				}
+			fullImageRef := repo.RepositoryURL + "@" + imageInfo.Digest
+			tagMap[imageInfo.Tag] = ResolvedImage{
+				FullImageRef:     fullImageRef,
+				Digest:           imageInfo.Digest,
+				CanonicalVersion: imageInfo.CanonicalVersion,
 			}
-			newCache[repo.RepositoryName] = tagMap
 		}
+		newCache[repo.RepositoryName] = tagMap
+
 		applyStateCallback(configKey, state.ApplyStatus{
 			State: state.ApplyStateAcknowledged,
 		})
