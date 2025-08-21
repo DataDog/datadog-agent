@@ -304,6 +304,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
     PyObject *kwargs = NULL;
     PyObject *check_id = NULL;
     PyObject *name = NULL;
+    PyObject *py_source = NULL;
 
     char load_config[] = "load_config";
     char format[] = "(s)"; // use parentheses to force Tuple creation
@@ -397,19 +398,16 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         }
     }
 
-    // Add source parameter if provided
+    py_source = PyUnicode_FromString(source);
     if (source != NULL) {
-        PyObject *py_source = PyUnicode_FromString(source);
         if (py_source == NULL) {
             setError("error 'source' can't be initialized: " + _fetchPythonError());
             goto done;
         }
         if (PyDict_SetItemString(kwargs, "source", py_source) == -1) {
             setError("error 'source' key can't be set: " + _fetchPythonError());
-            Py_XDECREF(py_source);
             goto done;
         }
-        Py_XDECREF(py_source);
     }
 
     // call `AgentCheck` constructor
@@ -448,6 +446,7 @@ done:
     Py_XDECREF(instances);
     Py_XDECREF(agent_config);
     Py_XDECREF(args);
+    Py_XDECREF(py_source);
     Py_XDECREF(kwargs);
 
     if (py_check == NULL) {

@@ -171,7 +171,6 @@ DATADOG_AGENT_RTLOADER_API int get_check(rtloader_t *rtloader, rtloader_pyobject
     \param check_id A constant C-string unique identifier for the check instance.
     \param check_name A constant C-string with the check name.
     \param agent_config A constant C-string with the agent_config.
-    \param source A constant C-string with the configuration source for the check instance.
     \param check A rtloader_pyobject_t ** pointer to the check instantiated if successful or NULL otherwise.
     \return An integer with the success of the operation. Zero for success, non-zero for failure.
     \sa rtloader_pyobject_t, rtloader_t, get_check
@@ -180,7 +179,7 @@ DATADOG_AGENT_RTLOADER_API int get_check(rtloader_t *rtloader, rtloader_pyobject
 */
 DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class,
                                                     const char *init_config, const char *instance, const char *check_id,
-                                                    const char *check_name, const char *agent_config, const char *source,
+                                                    const char *check_name, const char *agent_config,
                                                     rtloader_pyobject_t **check);
 
 /*! \fn char *run_check(rtloader_t *, rtloader_pyobject_t *check)

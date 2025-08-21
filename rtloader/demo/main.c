@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
     // load the Directory check if available
     rtloader_pyobject_t *check;
 
-    ok = get_check(rtloader, py_class, "", "{directory: \"/\"}", "directoryID", "directory", &check);
+    ok = get_check(rtloader, py_class, "", "{directory: \"/\"}", "directoryID", "directory", "source", &check);
     if (!ok) {
         printf("warning: could not get_check with new api: trying with deprecated API\n");
         // clean error
