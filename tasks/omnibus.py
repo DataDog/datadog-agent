@@ -1,8 +1,10 @@
+import hashlib
 import os
 import re
 import sys
 import tempfile
 import warnings
+from collections import defaultdict
 from collections.abc import Iterator
 from typing import NamedTuple
 
@@ -36,7 +38,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
         if host_distribution:
             overrides.append(f"--override=host_distribution:{host_distribution}")
 
-        omnibus = f"bundle exec {"omnibus.bat" if sys.platform == "win32" else "omnibus"}"
+        omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
@@ -621,3 +623,58 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
             _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
+
+
+@task
+def deduplicate_files(ctx, directory):
+    def hash_file(filepath, chunk_size=65536):
+        """Returns the SHA-256 hash of the file's contents."""
+        hasher = hashlib.sha256()
+        with open(filepath, 'rb') as f:
+            while chunk := f.read(chunk_size):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+
+    def find_duplicates(root_dir):
+        """Finds and returns duplicates as a map of hash -> list of files with that hash."""
+        hash_to_files = defaultdict(list)
+        for dirpath, _, filenames in os.walk(root_dir):
+            for name in filenames:
+                full_path = os.path.join(dirpath, name)
+                if not os.path.islink(full_path):  # Skip symlinks
+                    try:
+                        file_hash = hash_file(full_path)
+                        hash_to_files[file_hash].append(full_path)
+                    except Exception as e:
+                        print(f"Error hashing {full_path}: {e}")
+        return {h: paths for h, paths in hash_to_files.items() if len(paths) > 1}
+
+    def replace_with_symlinks(duplicates):
+        """Replaces all duplicates with symlinks to the first original."""
+        for files in duplicates.values():
+            files.sort()
+            original = files[0]
+            for dup in files[1:]:
+                try:
+                    os.remove(dup)
+                    rel_path = os.path.relpath(original, os.path.dirname(dup))
+                    if not rel_path.startswith("."):
+                        rel_path = f"./{rel_path}"
+                    os.symlink(rel_path, dup)
+                    print(f"Replaced {dup} with symlink to {original}")
+                except Exception as e:
+                    print(f"Failed to replace {dup}: {e}")
+
+    root = os.path.abspath(directory)
+    if not os.path.isdir(root):
+        print(f"{root} is not a valid directory.")
+        return
+
+    print(f"Scanning for duplicates in: {root}")
+    duplicates = find_duplicates(root)
+
+    if not duplicates:
+        return
+
+    print(f"Found {sum(len(v) - 1 for v in duplicates.values())} duplicate files.")
+    replace_with_symlinks(duplicates)

@@ -163,6 +163,9 @@ build do
             # Most postgres binaries are removed in postgres' own software
             # recipe, but we need pg_config to build psycopq.
             delete "#{install_dir}/embedded/bin/pg_config"
+
+            # Deduplicate files using symlinks
+            command "dda inv -- omnibus.deduplicate-files --directory #{install_dir}/embedded", cwd: Dir.pwd
         end
 
         if osx_target?
