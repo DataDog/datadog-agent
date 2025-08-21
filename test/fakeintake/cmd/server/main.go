@@ -23,7 +23,7 @@ func main() {
 	dddevForward := flag.Bool("dddev-forward", false, "Forward POST payloads to dddev, using the env variable DD_API_KEY as API key")
 	storeTypePtr := flag.String("store", "memory", "Store type, possible values: memory, sqlite")
 	retentionPeriodPtr := flag.Duration("retention-period", 15*time.Minute, "data retention period (use format: 1m, 10s, 1h), default: 15 minutes")
-	sqlLitePathPtr := flag.String("sqlite-path", "", "SQLite path to store data, can be overriden using env variable ")
+	sqlLitePathPtr := flag.String("sqlite-path", "", "SQLite path to store data, can be overridden using env variable ")
 
 	flag.Parse()
 

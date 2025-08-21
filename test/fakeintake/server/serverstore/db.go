@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	// SqliteDbPathEnv sets the env variable name to read sqlite db pathß
 	SqliteDbPathEnv = "SQLITE_DB_PATH"
 	defaultDBPath   = "payloads.db"
 

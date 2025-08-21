@@ -232,9 +232,9 @@ func WithDDDevForward() Option {
 	}
 }
 
-// withSqlitePath sets the sqlite file path to store the received data.
+// WithSqlitePath sets the sqlite file path to store the received data.
 func WithSqlitePath(path string) Option {
-	return func(fi *Server) {
+	return func(_ *Server) {
 		// sql store uses env variable to chose stlite filepath
 		_, exits := os.LookupEnv(serverstore.SqliteDbPathEnv)
 
