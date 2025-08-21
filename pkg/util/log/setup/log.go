@@ -7,7 +7,6 @@
 package logs
 
 import (
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -44,8 +43,6 @@ const (
 	logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
 )
 
-var syslogTLSConfig *tls.Config
-
 var (
 	seelogConfig          *seelogCfg.Config
 	jmxSeelogConfig       *seelogCfg.Config
@@ -63,29 +60,6 @@ func createQuoteMsgFormatter(_ string) seelog.FormatterFunc {
 	return func(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
 		return strconv.Quote(message)
 	}
-}
-
-func getSyslogTLSKeyPair(cfg pkgconfigmodel.Reader) (*tls.Certificate, error) {
-	var syslogTLSKeyPair *tls.Certificate
-	if cfg.IsSet("syslog_pem") && cfg.IsSet("syslog_key") {
-		cert := cfg.GetString("syslog_pem")
-		key := cfg.GetString("syslog_key")
-
-		if cert == "" && key == "" {
-			return nil, nil
-		} else if cert == "" || key == "" {
-			return nil, fmt.Errorf("Both a PEM certificate and key must be specified to enable TLS")
-		}
-
-		keypair, err := tls.LoadX509KeyPair(cert, key)
-		if err != nil {
-			return nil, err
-		}
-
-		syslogTLSKeyPair = &keypair
-	}
-
-	return syslogTLSKeyPair, nil
 }
 
 // SetupLogger sets up a logger with the specified logger name and log level
@@ -138,28 +112,23 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	return nil
 }
 
-// SetupJMXLogger sets up a logger with JMX logger name and log level
+// BuildJMXLogger sets up a logger with JMX logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
+func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
 	seelogLogLevel, err := log.ValidateLogLevel("info")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	jmxSeelogConfig, err = buildLoggerConfig(JMXLoggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	jmxLoggerInterface, err := GenerateLoggerInterface(jmxSeelogConfig)
-	if err != nil {
-		return err
-	}
-	log.SetupJMXLogger(jmxLoggerInterface, seelogLogLevel)
-	return nil
+	return GenerateLoggerInterface(jmxSeelogConfig)
 }
 
 // SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
@@ -207,19 +176,7 @@ func buildLoggerConfig(loggerName LoggerName, seelogLogLevel, logFile, syslogURI
 	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("log_file_max_size"), uint(cfg.GetInt("log_file_max_rolls")))
 
 	if syslogURI != "" { // non-blank uri enables syslog
-		syslogTLSKeyPair, err := getSyslogTLSKeyPair(cfg)
-		if err != nil {
-			return nil, err
-		}
-		var useTLS bool
-		if syslogTLSKeyPair != nil {
-			useTLS = true
-			syslogTLSConfig = &tls.Config{
-				Certificates:       []tls.Certificate{*syslogTLSKeyPair},
-				InsecureSkipVerify: cfg.GetBool("syslog_tls_verify"),
-			}
-		}
-		config.ConfigureSyslog(syslogURI, useTLS)
+		config.ConfigureSyslog(syslogURI)
 	}
 	return config, nil
 }
@@ -360,11 +317,10 @@ func createSyslogHeaderFormatter(params string) seelog.FormatterFunc {
 type SyslogReceiver struct {
 	enabled bool
 	uri     *url.URL
-	tls     bool
 	conn    net.Conn
 }
 
-func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
+func getSyslogConnection(uri *url.URL) (net.Conn, error) {
 	var conn net.Conn
 	var err error
 
@@ -393,11 +349,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 		case "udp":
 			conn, err = net.Dial(uri.Scheme, uri.Host)
 		case "tcp":
-			if secure {
-				conn, err = tls.Dial("tcp", uri.Host, syslogTLSConfig)
-			} else {
-				conn, err = net.Dial("tcp", uri.Host)
-			}
+			conn, err = net.Dial("tcp", uri.Host)
 		}
 		if err == nil {
 			return conn, nil
@@ -425,7 +377,7 @@ func (s *SyslogReceiver) ReceiveMessage(message string, _ seelog.LogLevel, _ see
 	if s.conn != nil {
 		s.conn.Close()
 	}
-	conn, err := getSyslogConnection(s.uri, s.tls)
+	conn, err := getSyslogConnection(s.uri)
 	if err != nil {
 		return err
 	}
@@ -453,19 +405,11 @@ func (s *SyslogReceiver) AfterParse(initArgs seelog.CustomReceiverInitArgs) erro
 		s.uri = url
 	}
 
-	tls, ok := initArgs.XmlCustomAttrs["tls"]
-	if ok {
-		// if certificate specified it should already be in pool
-		if tls == "true" {
-			s.tls = true
-		}
-	}
-
 	if !s.enabled {
 		return errors.New("bad syslog receiver configuration - disabling")
 	}
 
-	conn, err = getSyslogConnection(s.uri, s.tls)
+	conn, err = getSyslogConnection(s.uri)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		return nil

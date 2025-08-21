@@ -4,7 +4,7 @@
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   script:
@@ -12,7 +12,6 @@
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    - !reference [.setup_deb_signing_key]
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --flavor heroku
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.create_signature_and_lint_linux_packages]

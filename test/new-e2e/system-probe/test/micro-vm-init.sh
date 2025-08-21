@@ -1,6 +1,10 @@
 #!/bin/bash
 set -eEuo pipefail
 
+# The agent detects its install path by using os.Executable(), and then tries to fetch system-probe dependencies
+# like clang-bpf relatively. This doesn't work here as os.Executable() is actually the test file's, but
+# dependencies are expected to always be in the same directory.
+export DD_TEST_INSTALL_PATH_OVERRIDE="/opt/datadog-agent"
 docker_dir=/kmt-dockers
 
 # Add provisioning steps here !

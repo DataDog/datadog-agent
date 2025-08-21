@@ -55,6 +55,7 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 
 	if jobNameVal != "" {
 		tags[cloudRunJobNamespace+jobNameTag] = jobNameVal
+		tags[jobNameTag] = jobNameVal
 	}
 
 	if executionNameVal != "" {

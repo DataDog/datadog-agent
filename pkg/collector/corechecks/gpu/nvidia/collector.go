@@ -25,6 +25,16 @@ import (
 // errUnsupportedDevice is returned when the device does not support the given collector
 var errUnsupportedDevice = errors.New("device does not support the given collector")
 
+// MetricPriority represents the priority level of a metric
+type MetricPriority int
+
+const (
+	// Low priority is the default priority level (0)
+	Low MetricPriority = 0
+	// High priority level (10)
+	High MetricPriority = 10
+)
+
 // CollectorName is the name of the nvml sub-collectors
 type CollectorName string
 
@@ -32,6 +42,7 @@ const (
 	field        CollectorName = "fields"
 	clock        CollectorName = "clocks"
 	device       CollectorName = "device"
+	memory       CollectorName = "memory"
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
 	process      CollectorName = "process"
@@ -45,8 +56,8 @@ type Metric struct {
 	Name     string  // Name holds the name of the metric.
 	Value    float64 // Value holds the value of the metric.
 	Type     metrics.MetricType
-	Priority int      // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. 0 (default) is the lowest priority.
-	Tags     []string // Tags holds optional metric-specific tags (e.g., process ID).
+	Priority MetricPriority // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. Low (default) is the lowest priority.
+	Tags     []string       // Tags holds optional metric-specific tags (e.g., process ID).
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
@@ -72,6 +83,7 @@ var factory = map[CollectorName]subsystemBuilder{
 	device:       newDeviceCollector,
 	field:        newFieldsCollector,
 	gpm:          newGPMCollector,
+	memory:       newMemoryCollector,
 	nvlink:       newNVLinkCollector,
 	process:      newProcessCollector,
 	remappedRows: newRemappedRowsCollector,
@@ -112,6 +124,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 
 	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
 	if spCache != nil {
+		log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
 		for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
 			spCollector, err := newEbpfCollector(dev, spCache)
 			if err != nil {
@@ -200,11 +213,11 @@ func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
 
 	// For each metric name, pick all matching metrics from the collector with the highest-priority metric of that name
 	for _, collectorMetrics := range nameToCollectorMetrics {
-		maxPriority := -1
+		maxPriority := Low
 		var winningCollectorID CollectorName
 		for collectorID, metrics := range collectorMetrics {
 			for _, m := range metrics {
-				if m.Priority > maxPriority {
+				if m.Priority >= maxPriority {
 					maxPriority = m.Priority
 					winningCollectorID = collectorID
 				}
