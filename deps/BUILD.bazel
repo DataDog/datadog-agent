@@ -1,4 +1,4 @@
-# Empty file to act as package marker
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 # Do not depend on this.
 # This is a temporary target to make it easy to force build dependencies
@@ -6,14 +6,78 @@
 filegroup(
     name = "smoketest",
     srcs = [
+        "@bzip2",
         "@bzip2//:bz2",
-        "@bzip2//:bzip2",
-        "@libyaml//:libyaml",
+        "@libyaml",
         "@lua//:liblua",
-        "@sqlite3//:sqlite3",
+        "@sqlite3",
+        "@xz",
         "@xz//:lzma",
-        "@xz//:xz",
-        "@zlib//:zlib",
+        "@zlib",
     ],
-    visibility = ["//visibility:private",],
+    visibility = ["//visibility:private"],
+)
+
+configure_make(
+    name = "openssl",
+    # TODO: Find a better way to utilize more than 1 core
+    args = [
+        "-j 16",
+    ],
+    configure_command = select({
+        "@platforms//os:linux": "config",
+        "@platforms//os:macos": "Configure",
+        # Windows build isn't guaranteed to work.
+        # This is a preliminary structure.
+        "@platforms//os:windows": "perl.exe ./Configure",
+    }),
+    configure_options = select({
+        "//:macos_arm64": [
+            "darwin64-arm64-cc",
+        ],
+        "//:macos_x86_64": [
+            "darwin64-x86_64-cc",
+        ],
+        "//conditions:default": [],
+    }) + [
+        "no-idea",
+        "no-mdc2",
+        "no-rc5",
+        "shared",
+        "no-ssl3",
+        "no-gost",
+        # Probably not needed if bazel can copy the file wherever it is
+        "--libdir=lib",
+        "zlib",
+    ],
+    env = select({
+        "@platforms//os:macos": {
+            # For some reason AR is set to libtool on macos
+            # and that breaks the build.
+            "AR": "ar",
+        },
+        "//conditions:default": {},
+    }),
+    lib_source = "@openssl//:all",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libssl.so",
+            "libssl.so.3",
+            "libcrypto.so",
+            "libcrypto.so.3",
+        ],
+        "@platforms//os:macos": [
+            "libssl.dylib",
+            "libssl.3.dylib",
+            "libcrypto.dylib",
+            "libcrypto.3.dylib",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@bzip2//:bz2",
+        "@xz//:lzma",
+        "@zlib",
+    ],
 )
