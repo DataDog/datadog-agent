@@ -59,7 +59,7 @@ func (m *mockThrottleConfig) GetThrottleBudget() int64    { return 100 }
 // mockSymbolicator implements symbol.Symbolicator for testing
 type mockSymbolicator struct{}
 
-func (m *mockSymbolicator) Symbolicate(stack []uint64, stackHash uint64) ([]symbol.StackFrame, error) {
+func (m *mockSymbolicator) Symbolicate(stack []uint64, _ uint64) ([]symbol.StackFrame, error) {
 	frames := make([]symbol.StackFrame, len(stack))
 	for i := range stack {
 		frames[i] = symbol.StackFrame{
@@ -268,7 +268,7 @@ func FuzzDecode(f *testing.F) {
 
 	symbolicator := &mockSymbolicator{}
 
-	f.Fuzz(func(t *testing.T, eventData []byte, serviceName string) {
+	f.Fuzz(func(_ *testing.T, eventData []byte, serviceName string) {
 		event := Event{
 			Event:       output.Event(eventData),
 			ServiceName: serviceName,

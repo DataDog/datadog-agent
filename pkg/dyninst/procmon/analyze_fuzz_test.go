@@ -17,7 +17,7 @@ import (
 )
 
 // createFuzzProcFS creates a proc filesystem structure for fuzzing
-func createFuzzProcFS(t *testing.T, pid uint32, environ []byte, exeContent []byte, withExe bool, exeLinkTarget string) (string, string, func()) {
+func createFuzzProcFS(t *testing.T, pid uint32, environ []byte, exeContent []byte, exeLinkTarget string) (string, string, func()) {
 	tmpDir := t.TempDir()
 	procRoot := filepath.Join(tmpDir, "proc")
 
@@ -65,7 +65,7 @@ func FuzzAnalyzeProcess(f *testing.F) {
 	f.Fuzz(func(t *testing.T, pid uint32, environData []byte, exeContent []byte) {
 		analyzer := makeExecutableAnalyzer(10)
 		exeLinkTarget := "exe"
-		_, procRoot, cleanup := createFuzzProcFS(t, pid, environData, exeContent, true, exeLinkTarget)
+		_, procRoot, cleanup := createFuzzProcFS(t, pid, environData, exeContent, exeLinkTarget)
 		defer cleanup()
 
 		procDir := filepath.Join(procRoot, strconv.Itoa(int(pid)))
