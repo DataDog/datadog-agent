@@ -10,7 +10,7 @@ The imports defined in the `imports ( ... )` block of each Go file should be sep
 1. External packages (e.g. `github.com/stretchr/testify/assert`, `github.com/DataDog/datadog-agent/pkg/util/log`)
 1. [Internal](#public-apis) packages (e.g. `github.com/DataDog/datadog-agent/<parent>/internal`)
 
-This is not verified by our [static analysis](../../how-to/test/static-analysis.md) as doing so is very inefficient. Instead, configure your editor to keep imports properly sorted.
+This is not verified by our [static analysis](../../how-to/test/static-analysis.md) during CI. Instead, we suggest configuring your editor to keep imports properly sorted.
 
 /// details | Editor setup
 The [goimports](https://pkg.go.dev/golang.org/x/tools/cmd/goimports) tool supports a "local packages" section. Use the flag `-local github.com/DataDog/datadog-agent`.
@@ -52,16 +52,19 @@ When adding new code, carefully consider what API is exported by both taking car
 /// details | Example
 Sometimes one wants to hide private fields of a struct from other code in the same package to enforce a particular code invariant. In this case, the struct should be moved to a different folder within the same package **making this folder `internal`**.
 
-Consider a module named `example.com` where you want to move `exampleStruct` from the `a` package to a subfolder to hide its private fields from `a`'s code.
+Consider a module named `example` where you want to move `exampleStruct` from the `a` package to a subfolder to hide its private fields from `a`'s code.
 
 Before the refactor, the code will look like this:
 
-//// tab | :octicons-file-code-16: example.com/a/code.go
+//// tab | :octicons-file-code-16: example/a/code.go
 ```go
 package a
 
 type exampleStruct struct {
-    // some fields
+    // Public
+    Foo string
+    // Private
+    bar string
 }
 
 func doSomethingWithExampleStruct(e exampleStruct) {
@@ -72,27 +75,30 @@ func doSomethingWithExampleStruct(e exampleStruct) {
 
 After the refactor, you should move `exampleStruct` to an `a/internal/b` directory:
 
-//// tab | :octicons-file-code-16: example.com/a/internal/b/examplestruct.go
+//// tab | :octicons-file-code-16: example/a/internal/b/examplestruct.go
 ```go
 package b
 
 type ExampleStruct struct {
-    // some fields
+    // Public
+    Foo string
+    // Private
+    bar string
 }
 ```
 ////
 
 and import this package from `a/code.go`:
 
-//// tab | :octicons-file-code-16: example.com/a/code.go
+//// tab | :octicons-file-code-16: example/a/code.go
 ```go
 package a
 
 import (
-    "example.com/a/internal/b"
+    "example/a/internal/b"
 )
 
-func doSomethingWithExampleStruct(e b.exampleStruct) {
+func doSomethingWithExampleStruct(e b.ExampleStruct) {
     // some code goes here
 }
 ```
