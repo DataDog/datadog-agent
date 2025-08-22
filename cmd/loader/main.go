@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
