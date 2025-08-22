@@ -155,7 +155,7 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 
 // InstallConfigExperiment installs an experiment.
 func (i *InstallerExec) InstallConfigExperiment(
-	ctx context.Context, pkg string, version string, configActions []config.ConfigAction,
+	ctx context.Context, pkg string, version string, configActions []config.Action,
 ) (err error) {
 	if len(configActions) == 0 {
 		return fmt.Errorf("no configs provided")

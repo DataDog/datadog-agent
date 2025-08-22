@@ -94,7 +94,7 @@ func TestMerge_Maps(t *testing.T) {
 }
 
 func TestMerge_NilBase(t *testing.T) {
-	var base any = nil
+	var base any
 	override := map[string]any{
 		"foo": "bar",
 	}
@@ -107,7 +107,7 @@ func TestMerge_NilOverride(t *testing.T) {
 	base := map[string]any{
 		"foo": "bar",
 	}
-	var override any = nil
+	var override any
 	result, err := merge(base, override)
 	assert.NoError(t, err)
 	assert.Nil(t, result)
@@ -153,10 +153,10 @@ func TestConfigActionApply_Write(t *testing.T) {
 	assert.NoError(t, err)
 	defer root.Close()
 
-	path := "test.yaml"
+	path := "/datadog.yaml"
 	val := map[string]any{"foo": "bar"}
-	action := &ConfigAction{
-		ActionType: ConfigActionTypeWrite,
+	action := &Action{
+		ActionType: ActionTypeWrite,
 		Path:       path,
 		Value:      val,
 	}
@@ -178,7 +178,7 @@ func TestConfigActionApply_Merge(t *testing.T) {
 	assert.NoError(t, err)
 	defer root.Close()
 
-	path := "merge.yaml"
+	path := "/datadog.yaml"
 	// Write initial file
 	initial := map[string]any{"a": 1, "b": 2}
 	initialBytes, _ := yaml.Marshal(initial)
@@ -186,8 +186,8 @@ func TestConfigActionApply_Merge(t *testing.T) {
 	assert.NoError(t, err)
 
 	override := map[string]any{"b": 3, "c": 4}
-	action := &ConfigAction{
-		ActionType: ConfigActionTypeMerge,
+	action := &Action{
+		ActionType: ActionTypeMerge,
 		Path:       path,
 		Value:      override,
 	}
@@ -210,11 +210,11 @@ func TestConfigActionApply_Delete(t *testing.T) {
 	assert.NoError(t, err)
 	defer root.Close()
 
-	path := "delete.yaml"
+	path := "/datadog.yaml"
 	_ = os.WriteFile(filepath.Join(tmpDir, path), []byte("foo: bar"), 0644)
 
-	action := &ConfigAction{
-		ActionType: ConfigActionTypeDelete,
+	action := &Action{
+		ActionType: ActionTypeDelete,
 		Path:       path,
 	}
 	err = action.Apply(root)

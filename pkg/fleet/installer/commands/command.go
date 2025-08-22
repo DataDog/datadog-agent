@@ -385,9 +385,9 @@ func installConfigExperimentCommand() *cobra.Command {
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
 
-			var actions []config.ConfigAction
+			var actions []config.Action
 			for _, action := range args[2:] {
-				var config config.ConfigAction
+				var config config.Action
 				err := json.Unmarshal([]byte(action), &config)
 				if err != nil {
 					return err

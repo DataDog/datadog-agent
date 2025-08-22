@@ -96,11 +96,6 @@ type daemonImpl struct {
 	taskDB          *taskDB
 }
 
-type convertedExperimentConfigAction struct {
-	ActionType string                `json:"action_type"`
-	Files      []installerConfigFile `json:"files"`
-}
-
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
 	return func(env *env.Env) installer.Installer {
 		return exec.NewInstallerExec(env, installerBin)
@@ -462,17 +457,17 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, vers
 	if err != nil {
 		return fmt.Errorf("could not get config: %w", err)
 	}
-	var configActions []iconfig.ConfigAction
+	var configActions []iconfig.Action
 	for _, file := range config.Files {
-		configActions = append(configActions, iconfig.ConfigAction{
-			ActionType: "write",
+		configActions = append(configActions, iconfig.Action{
+			ActionType: iconfig.ActionTypeWrite,
 			Path:       file.Path,
 		})
 	}
 	return d.startConfigExperiment(ctx, url, version, configActions)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string, configActions []iconfig.ConfigAction) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string, configActions []iconfig.Action) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -650,16 +645,16 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		if len(params.Actions) == 0 {
 			for _, file := range config.Files {
 				params.Actions = append(params.Actions, experimentConfigAction{
-					ActionType: "write",
+					ActionType: string(iconfig.ActionTypeWrite),
 					Path:       file.Path,
 				})
 			}
 		}
-		var configActions []iconfig.ConfigAction
-		for _, file := range config.Files {
-			configActions = append(configActions, iconfig.ConfigAction{
-				ActionType: "write",
-				Path:       file.Path,
+		var configActions []iconfig.Action
+		for _, action := range params.Actions {
+			configActions = append(configActions, iconfig.Action{
+				ActionType: iconfig.ActionType(action.ActionType),
+				Path:       action.Path,
 			})
 		}
 		return d.startConfigExperiment(ctx, request.Package, params.Version, configActions)

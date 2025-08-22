@@ -102,7 +102,7 @@ func (m *installerMock) PromoteExperiment(_ context.Context, _ string) error {
 }
 
 func (m *installerMock) InstallConfigExperiment(
-	_ context.Context, _ string, _ string, _ []config.ConfigAction,
+	_ context.Context, _ string, _ string, _ []config.Action,
 ) error {
 	return nil
 }

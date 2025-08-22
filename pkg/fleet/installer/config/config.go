@@ -17,34 +17,35 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ConfigActionType is the type of action to perform on the config.
-type ConfigActionType string
+// ActionType is the type of action to perform on the config.
+type ActionType string
 
 const (
-	// ConfigActionTypeWrite sets the value of the config.
-	ConfigActionTypeWrite ConfigActionType = "write"
-	// ConfigActionTypeMerge merges the current config with the override config.
-	ConfigActionTypeMerge ConfigActionType = "merge"
-	// ConfigActionTypeDelete deletes the current config.
-	ConfigActionTypeDelete ConfigActionType = "delete"
+	// ActionTypeWrite sets the value of the config.
+	ActionTypeWrite ActionType = "write"
+	// ActionTypeMerge merges the current config with the override config.
+	ActionTypeMerge ActionType = "merge"
+	// ActionTypeDelete deletes the current config.
+	ActionTypeDelete ActionType = "delete"
 )
 
-// ConfigAction is the action to perform on a config.
-type ConfigAction struct {
-	ActionType    ConfigActionType `json:"action_type"`
-	Path          string           `json:"path"`
-	Value         any              `json:"value"`
-	IgnoredFields []string         `json:"ignored_fields"`
+// Action is the action to perform on a config.
+type Action struct {
+	ActionType    ActionType `json:"action_type"`
+	Path          string     `json:"path"`
+	Value         any        `json:"value"`
+	IgnoredFields []string   `json:"ignored_fields"`
 }
 
 // Apply applies the action to the root.
-func (a *ConfigAction) Apply(root *os.Root) error {
+func (a *Action) Apply(root *os.Root) error {
 	if !configNameAllowed(a.Path) {
 		return fmt.Errorf("modifying config file %s is not allowed", a.Path)
 	}
+	path := strings.TrimPrefix(a.Path, "/")
 	switch a.ActionType {
-	case ConfigActionTypeWrite:
-		file, err := root.OpenFile(a.Path, os.O_CREATE|os.O_WRONLY, 0644)
+	case ActionTypeWrite:
+		file, err := root.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
@@ -55,8 +56,8 @@ func (a *ConfigAction) Apply(root *os.Root) error {
 		}
 		_, err = file.Write(rawValue)
 		return err
-	case ConfigActionTypeMerge:
-		file, err := root.OpenFile(a.Path, os.O_CREATE|os.O_RDWR, 0644)
+	case ActionTypeMerge:
+		file, err := root.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			return err
 		}
@@ -88,8 +89,8 @@ func (a *ConfigAction) Apply(root *os.Root) error {
 		}
 		_, err = file.Write(rawMergedValue)
 		return err
-	case ConfigActionTypeDelete:
-		return root.Remove(a.Path)
+	case ActionTypeDelete:
+		return root.Remove(path)
 	}
 	return nil
 }
@@ -174,7 +175,8 @@ func merge(base any, override any) (any, error) {
 	if isMap(base) && isMap(override) {
 		return mergeMap(base.(map[string]any), override.(map[string]any))
 	}
-	return nil, fmt.Errorf("could not merge %T with %T", base, override)
+	// if the types are different, use the override
+	return override, nil
 }
 
 func mergeMap(base, override map[string]any) (map[string]any, error) {
