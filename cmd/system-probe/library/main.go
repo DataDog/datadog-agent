@@ -10,65 +10,22 @@ package main
 
 import "C"
 import (
-	"context"
+	"time"
 
-	systemproberun "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/run"
+	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-var (
-	systemProbeErrCh <-chan error
-	stopCtx          context.Context
-	stopCancel       context.CancelFunc
-)
-
-//export StartSystemProbe
-func StartSystemProbe(configPath *C.char, fleetPoliciesDirPath *C.char, pidPath *C.char) C.int {
-	// Set flavor
+//export RunSystemProbe
+func RunSystemProbe() C.int {
 	flavor.SetFlavor(flavor.SystemProbe)
-
-	// Create context for system probe management
-	stopCtx, stopCancel = context.WithCancel(context.Background())
-	ctxChan := make(chan context.Context, 1)
-
-	// Start system probe with defaults
-	var err error
-	systemProbeErrCh, err = systemproberun.StartSystemProbeWithDefaults(ctxChan)
-	if err != nil {
-		return 1 // Failed to start
-	}
-
-	// Send context to system probe so it knows how to stop
-	ctxChan <- stopCtx
-
-	return 0 // Started successfully
-}
-
-//export StopSystemProbe
-func StopSystemProbe() C.int {
-	if stopCancel != nil {
-		stopCancel() // This will cause the system probe to shut down
-
-		// Wait for system probe to actually stop
-		if systemProbeErrCh != nil {
-			err := <-systemProbeErrCh
-			if err != nil {
-				return 1 // Error during shutdown
-			}
-		}
-	}
-	return 0 // Stopped successfully
-}
-
-//export WaitForSystemProbe
-func WaitForSystemProbe() C.int {
-	if systemProbeErrCh != nil {
-		err := <-systemProbeErrCh
-		if err != nil {
-			return 1 // System probe exited with error
-		}
-	}
-	return 0 // System probe exited cleanly
+	rootCmd := command.MakeCommand(subcommands.SysprobeSubcommands())
+	command.SetDefaultCommandIfNonePresent(rootCmd)
+	time.Sleep(10 * time.Minute)
+	exitCode := runcmd.Run(rootCmd)
+	return C.int(exitCode)
 }
 
 func main() {}
