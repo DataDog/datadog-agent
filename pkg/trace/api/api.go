@@ -556,7 +556,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	in := &pb.ClientStatsPayload{}
 	if err := msgp.Decode(rd, in); err != nil {
 		log.Errorf("Error decoding pb.ClientStatsPayload: %v", err)
-		tags := append(r.tagStats(V06, req.Header, "").AsTags(), fmt.Sprintf("reason:decode"))
+		tags := append(r.tagStats(V06, req.Header, "").AsTags(), "reason:decode")
 		_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload_rejected", 1, tags, 1)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w, r.statsd)
 		return
@@ -584,7 +584,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	defer cancel()
 	if err := r.statsProcessor.ProcessStats(ctx, in, lang, tracerVersion, containerID, obfuscationVersion); err != nil {
 		log.Errorf("Error processing pb.ClientStatsPayload: %v", err)
-		tags := append(ts.AsTags(), fmt.Sprintf("reason:timeout"))
+		tags := append(ts.AsTags(), "reason:timeout")
 		_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload_rejected", 1, tags, 1)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w, r.statsd)
 	}
