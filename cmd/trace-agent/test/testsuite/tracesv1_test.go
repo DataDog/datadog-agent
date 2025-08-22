@@ -106,60 +106,53 @@ func TestTracesV1(t *testing.T) {
 		})
 	})
 
-	// 	t.Run("filter_tags", func(t *testing.T) {
-	// 		if err := r.RunAgent([]byte(`apm_config:
-	//   filter_tags:
-	//     require: ["env:prod", "db:mysql"]
-	//     reject: ["outcome:success"]
-	//   filter_tags_regex:
-	//     require: ["env:^prod[0-9]{1}$", "priority:^high$"]
-	//     reject: ["outcome:^success[0-9]{1}$", "bad-key:^bad-value$"]`)); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		defer r.KillAgent()
+	t.Run("filter_tags", func(t *testing.T) {
+		if err := r.RunAgent([]byte(`apm_config:
+  filter_tags:
+    require: ["env:prod", "db:mysql"]
+    reject: ["outcome:success"]
+  filter_tags_regex:
+    require: ["env:^prod[0-9]{1}$", "priority:^high$"]
+    reject: ["outcome:^success[0-9]{1}$", "bad-key:^bad-value$"]`)); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
 
-	// 		p := testutil.GeneratePayload(4, &testutil.TraceConfig{
-	// 			MinSpans: 4,
-	// 			Keep:     true,
-	// 		}, nil)
-	// 		for _, span := range p[0] {
-	// 			span.Meta = map[string]string{
-	// 				"env":      "prod",
-	// 				"db":       "mysql",
-	// 				"priority": "high",
-	// 			}
-	// 		}
-	// 		for _, span := range p[1] {
-	// 			span.Meta = map[string]string{
-	// 				"env":      "prod",
-	// 				"db":       "mysql",
-	// 				"priority": "high",
-	// 				"outcome":  "success1",
-	// 			}
-	// 		}
-	// 		for _, span := range p[2] {
-	// 			span.Meta = map[string]string{
-	// 				"env":      "prod",
-	// 				"db":       "mysql",
-	// 				"priority": "high",
-	// 				"outcome":  "success",
-	// 			}
-	// 		}
-	// 		for _, span := range p[3] {
-	// 			span.Meta = map[string]string{
-	// 				"env":      "prod",
-	// 				"db":       "mysql",
-	// 				"priority": "high",
-	// 				"bad-key":  "bad-value",
-	// 			}
-	// 		}
-	// 		if err := r.Post(p); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-	// 			payloadsEqual(t, p[:2], v)
-	// 		})
-	// 	})
+		p := testutil.GeneratePayloadV1(4, &testutil.TraceConfig{
+			MinSpans: 4,
+			Keep:     true,
+		}, nil)
+		for _, span := range p.Chunks[0].Spans {
+			span.SetAttributeFromString("env", "prod")
+			span.SetAttributeFromString("db", "mysql")
+			span.SetAttributeFromString("priority", "high")
+		}
+		for _, span := range p.Chunks[1].Spans {
+			span.SetAttributeFromString("env", "prod")
+			span.SetAttributeFromString("db", "mysql")
+			span.SetAttributeFromString("priority", "high")
+			span.SetAttributeFromString("outcome", "success1")
+		}
+		for _, span := range p.Chunks[2].Spans {
+			span.SetAttributeFromString("env", "prod")
+			span.SetAttributeFromString("db", "mysql")
+			span.SetAttributeFromString("priority", "high")
+			span.SetAttributeFromString("outcome", "success")
+		}
+		for _, span := range p.Chunks[3].Spans {
+			span.SetAttributeFromString("env", "prod")
+			span.SetAttributeFromString("db", "mysql")
+			span.SetAttributeFromString("priority", "high")
+			span.SetAttributeFromString("bad-key", "bad-value")
+		}
+		if err := r.PostV1(p); err != nil {
+			t.Fatal(err)
+		}
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
+			assert.Len(t, v.IdxTracerPayloads, 1)
+			assert.Len(t, v.IdxTracerPayloads[0].Chunks, 2)
+		})
+	})
 
 	t.Run("normalize, obfuscate", func(t *testing.T) {
 		if err := r.RunAgent(nil); err != nil {

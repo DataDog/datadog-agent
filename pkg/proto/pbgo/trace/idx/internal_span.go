@@ -749,6 +749,7 @@ func (s *InternalSpan) SetFloat64Attribute(key string, value float64) {
 // SetAttributeFromString sets the attribute from a string, attempting to use the most backwards compatible type possible
 // for the attribute value. Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
 func (s *InternalSpan) SetAttributeFromString(key, value string) {
+	// TODO: do we need to resolve "env" and similar?
 	setAttribute(key, FromString(s.Strings, value), s.Strings, s.span.Attributes)
 }
 
