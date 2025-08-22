@@ -105,7 +105,7 @@ def get_omnibus_env(
                 del env[var]
 
     else:
-        # if driver any of windows vars set in env keep them
+        # if any of windows vars set in env keep them
         for key in windows_only_vars:
             value = os.environ.get(key)
             # Only overrides the env var if the value is a non-empty string.
