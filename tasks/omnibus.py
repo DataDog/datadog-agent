@@ -636,13 +636,15 @@ def deduplicate_files(ctx, directory):
         return hasher.hexdigest()
 
     def find_duplicates(root_dir):
-        """Finds and returns duplicates as a map of hash -> list of files with that hash."""
+        """Finds and returns duplicates as a map of hash -> list of files with that hash, excluding empty files."""
         hash_to_files = defaultdict(list)
         for dirpath, _, filenames in os.walk(root_dir):
             for name in filenames:
                 full_path = os.path.join(dirpath, name)
                 if not os.path.islink(full_path):  # Skip symlinks
                     try:
+                        if os.path.getsize(full_path) == 0:
+                            continue  # Exclude empty files
                         file_hash = hash_file(full_path)
                         hash_to_files[file_hash].append(full_path)
                     except Exception as e:
