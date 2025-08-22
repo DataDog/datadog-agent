@@ -17,9 +17,10 @@ from collections import defaultdict
 from collections.abc import Callable, Iterable
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import gitlab
+import gitlab.exceptions
 import yaml
 from invoke.context import Context
 from invoke.tasks import task
@@ -48,6 +49,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_get_stack_or_exit, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
+from tasks.kernel_matrix_testing.types import PlatformInfo, component_from_str
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import (
@@ -56,7 +58,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     post_process_gitlab_ci_configuration,
     resolve_gitlab_ci_configuration,
 )
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
@@ -95,14 +97,6 @@ try:
     from tabulate import tabulate
 except ImportError:
     tabulate = None
-
-
-try:
-    from termcolor import colored
-except ImportError:
-
-    def colored(text: str, color: str | None) -> str:  # noqa: U100
-        return text
 
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
@@ -774,7 +768,7 @@ def ninja_copy_ebpf_files(
 @task
 def kmt_secagent_prepare(
     ctx: Context,
-    stack: str | None = None,
+    stack: str,
     arch: Arch | str = "local",
     packages: str | None = None,
     verbose: bool = True,
@@ -842,6 +836,9 @@ def prepare(
     if ci:
         stack = "ci"
         return _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only)
+
+    if stack is None:
+        raise Exit("stack is required")
 
     domains = None
     if not compile_only:
@@ -933,6 +930,9 @@ def _prepare(
 
     if ci or compile_only:
         return
+
+    if domains is None:
+        raise Exit("domains is required when not in CI or compile_only mode")
 
     info(f"[+] Preparing VMs in stack {stack} for {arch_obj}")
 
@@ -1197,6 +1197,9 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
     not_matches = []
     for tag in platforms[arch]:
         platinfo = platforms[arch][tag]
+        if 'os_id' not in platinfo or 'os_version' not in platinfo:
+            continue
+
         vmid = f"{platinfo['os_id']}_{platinfo['os_version']}"
 
         check_tag = False
@@ -1310,6 +1313,7 @@ def test(
     stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
     domains = get_target_domains(ctx, stack, ssh_key, None, vms, alien_vms)
     used_archs = get_archs_in_domains(domains)
+    component = component_from_str(component)
 
     if alien_vms is not None:
         err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
@@ -1608,21 +1612,23 @@ def status(ctx: Context, stack: str | None = None, all=False, ssh_key: str | Non
             else:
                 instance_id = ec2_instance_ids(ctx, [instance.ip])
                 if len(instance_id) == 0:
-                    status[stack].append(f"· {arch} AWS instance {instance.ip} - {colored('not running', 'red')}")
+                    status[stack].append(
+                        f"· {arch} AWS instance {instance.ip} - {color_message('not running', Color.RED)}"
+                    )
                     instances_down += 1
                 else:
                     status[stack].append(
-                        f"· {arch} AWS instance {instance.ip} - {colored('running', 'green')} - ID {instance_id[0]}"
+                        f"· {arch} AWS instance {instance.ip} - {color_message('running', Color.GREEN)} - ID {instance_id[0]}"
                     )
                     instances_up += 1
 
             for vm in instance.microvms:
                 vm_id = f"{vm.tag:14} | IP {vm.ip}"
                 if vm.check_reachable(ctx):
-                    status[stack].append(f"  - {vm_id} - {colored('up', 'green')}")
+                    status[stack].append(f"  - {vm_id} - {color_message('up', Color.GREEN)}")
                     vms_up += 1
                 else:
-                    status[stack].append(f"  - {vm_id} - {colored('down', 'red')}")
+                    status[stack].append(f"  - {vm_id} - {color_message('down', Color.RED)}")
                     vms_down += 1
 
             stack_status[stack] = (instances_down, instances_up, vms_down, vms_up)
@@ -1633,22 +1639,22 @@ def status(ctx: Context, stack: str | None = None, all=False, ssh_key: str | Non
         instances_down, instances_up, vms_down, vms_up = stack_status[stack]
 
         if instances_down == 0 and instances_up == 0:
-            status_str = colored("Empty", "grey")
+            status_str = color_message("Empty", Color.GREY)
         elif instances_up == 0:
-            status_str = colored("Hosts down", "red")
+            status_str = color_message("Hosts down", Color.RED)
         elif instances_down == 0:
-            status_str = colored("Hosts active", "green")
+            status_str = color_message("Hosts active", Color.GREEN)
         else:
-            status_str = colored("Hosts partially active", "yellow")
+            status_str = color_message("Hosts partially active", Color.ORANGE)
 
         if vms_down == 0 and vms_up == 0:
-            vm_status_str = colored("No VMs defined", "grey")
+            vm_status_str = color_message("No VMs defined", Color.GREY)
         elif vms_up == 0:
-            vm_status_str = colored("All VMs down", "red")
+            vm_status_str = color_message("All VMs down", Color.RED)
         elif vms_down == 0:
-            vm_status_str = colored("All VMs up", "green")
+            vm_status_str = color_message("All VMs up", Color.GREEN)
         else:
-            vm_status_str = colored("Some VMs down", "yellow")
+            vm_status_str = color_message("Some VMs down", Color.ORANGE)
 
         print(f"Stack {stack} - {status_str} - {vm_status_str}")
         for line in lines:
@@ -1728,23 +1734,17 @@ def update_platform_info(
                 warn(f"[!] Image {image_name} matches the exclude filter, skipping")
                 continue
 
-            manifest_to_platinfo_keys = {
+            manifest_to_platinfo_keys: dict[str, Literal['os_name', 'os_id', 'kernel', 'os_version']] = {
                 'NAME': 'os_name',
                 'ID': 'os_id',
                 'KERNEL_VERSION': 'kernel',
                 'VERSION_ID': 'os_version',
             }
 
-            if image_name not in platforms[arch.kmt_arch]:
-                platforms[arch.kmt_arch][image_name] = {}
-            img_data = platforms[arch.kmt_arch][image_name]
-
+            img_data = PlatformInfo(image=image_filename + ".xz", image_version=version)
             for mkey, pkey in manifest_to_platinfo_keys.items():
                 if mkey in keyvals:
                     img_data[pkey] = keyvals[mkey]
-
-            img_data['image'] = image_filename + ".xz"
-            img_data['image_version'] = version
 
             if 'VERSION_CODENAME' in keyvals:
                 altname = keyvals['VERSION_CODENAME']
@@ -1754,6 +1754,11 @@ def update_platform_info(
                     altnames.append(altname)
 
                 img_data['alt_version_names'] = altnames
+
+            if image_name not in platforms[arch.kmt_arch]:
+                platforms[arch.kmt_arch][image_name] = img_data
+            else:
+                platforms[arch.kmt_arch][image_name].update(img_data)
 
     info(f"[+] Writing output to {platforms_file}...")
 
@@ -2133,10 +2138,10 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
             total_by_vm[vm_name] = tuple(x + y for x, y in zip(result_tuple, total_by_vm[vm_name], strict=True))  # type: ignore
 
     def _color_result(result: tuple[int, int, int, int]) -> str:
-        success = colored(str(result[0]), "green" if result[0] > 0 else None)
-        success_on_retry = colored(str(result[1]), "blue" if result[1] > 0 else None)
-        failures = colored(str(result[2]), "red" if result[2] > 0 else None)
-        skipped = colored(str(result[3]), "yellow" if result[3] > 0 else None)
+        success = color_message(str(result[0]), Color.GREEN if result[0] > 0 else Color.GREY)
+        success_on_retry = color_message(str(result[1]), Color.BLUE if result[1] > 0 else Color.GREY)
+        failures = color_message(str(result[2]), Color.RED if result[2] > 0 else Color.GREY)
+        skipped = color_message(str(result[3]), Color.ORANGE if result[3] > 0 else Color.GREY)
 
         return f"{success}/{success_on_retry}/{failures}/{skipped}"
 
@@ -2334,6 +2339,9 @@ def install_ddagent(
         with open("release.json") as f:
             release = json.load(f)
         version = release["last_stable"]["7"]
+
+    if version is None:
+        raise Exit("version is required")
 
     match = VERSION_RE.match(version)
     if not match:
