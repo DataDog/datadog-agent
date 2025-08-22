@@ -7,18 +7,12 @@ package cert
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/big"
 	"net"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,46 +22,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// createTestCA creates a test CA certificate and private key for testing
-func createTestCA(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey) {
-	// Generate CA private key
-	caPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-
-	// Create CA certificate template
-	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	require.NoError(t, err)
-
-	caTemplate := x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization:  []string{"Test CA"},
-			Country:       []string{"US"},
-			Province:      []string{""},
-			Locality:      []string{"New York City"},
-			StreetAddress: []string{""},
-			PostalCode:    []string{""},
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
-		IsCA:                  true,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-	}
-
-	// Create the CA certificate
-	caCertDER, err := x509.CreateCertificate(rand.Reader, &caTemplate, &caTemplate, &caPrivKey.PublicKey, caPrivKey)
-	require.NoError(t, err)
-
-	// Parse the CA certificate
-	caCert, err := x509.ParseCertificate(caCertDER)
-	require.NoError(t, err)
-
-	return caCert, caPrivKey
-}
+// The following certificate and key are used for testing purposes only.
+// They have been generated using the following command:
+//
+//	openssl req -x509 -newkey ec:<(openssl ecparam -name prime256v1) -keyout key.pem -out cert.pem -days 3650 \
+//	  -subj "/O=Datadog, Inc." \
+//	  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+//	  -addext "keyUsage=keyCertSign" \
+//	  -addext "extendedKeyUsage=serverAuth,clientAuth" \
+//	  -addext "basicConstraints=CA:TRUE" \
+//	  -nodes
+var (
+	clusterCAcert = []byte(`-----BEGIN CERTIFICATE-----
+MIIBzTCCAXKgAwIBAgIUWTX/Wlc/ovPPsG5bhU5RzAUb7qYwCgYIKoZIzj0EAwIw
+GDEWMBQGA1UECgwNRGF0YWRvZywgSW5jLjAeFw0yNTA4MjIwOTAyNDRaFw0zNTA4
+MjAwOTAyNDRaMBgxFjAUBgNVBAoMDURhdGFkb2csIEluYy4wWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAAQ68kYT6H8kzjyqCiFHzwWolffAejhBmNbFDRNR694b9MAo
+ekrdHSAjlfwHAFxC7SBPfyEn723NvJA+9AWjkEpEo4GZMIGWMB0GA1UdDgQWBBTL
+OxLYXEuBE9eiNozfCNVkYw6szjAfBgNVHSMEGDAWgBTLOxLYXEuBE9eiNozfCNVk
+Yw6szjAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8AAAEwCwYDVR0PBAQDAgEGMB0G
+A1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNVHRMEBTADAQH/MAoGCCqG
+SM49BAMCA0kAMEYCIQDl7HfsTM2NBJp5HGH2rpnxI6ULLG3GAf7PjOF6FJLYSgIh
+AO4uOH/M1w5tJcHFMxW9D6vmn4tTgLPkHjt57EUJWDYG
+-----END CERTIFICATE-----
+`)
+	clusterCAkey = []byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgdGXwlnGYZNIAggVO
+26xbChsNii0Peja4sNuyRpFSJZihRANCAAQ68kYT6H8kzjyqCiFHzwWolffAejhB
+mNbFDRNR694b9MAoekrdHSAjlfwHAFxC7SBPfyEn723NvJA+9AWjkEpE
+-----END PRIVATE KEY-----
+`)
+)
 
 // setupTempConfig creates a temporary directory and mock config for testing
 func setupTempConfig(t *testing.T) (model.Config, string) {
+	t.Helper()
+
 	tempDir := t.TempDir()
 
 	config := mock.New(t)
@@ -84,27 +74,24 @@ func setupTempConfig(t *testing.T) (model.Config, string) {
 }
 
 // setupTempConfigWithCA creates config with CA files set up
-func setupTempConfigWithCA(t *testing.T, caCert *x509.Certificate, caPrivKey *ecdsa.PrivateKey) (model.Config, string) {
+// This function returns:
+// - config: the mock config
+// - tempDir: the temporary directory
+// - caCert: the CA certificate
+// - caPrivKey: the CA private key
+func setupTempConfigWithCA(t *testing.T) (model.Config, string, *x509.Certificate, any) {
+	t.Helper()
+
 	tempDir := t.TempDir()
 
 	// Write CA cert file
 	caCertPath := filepath.Join(tempDir, "ca_cert.pem")
-	caCertPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: caCert.Raw,
-	})
-	err := os.WriteFile(caCertPath, caCertPEM, 0644)
+	err := os.WriteFile(caCertPath, clusterCAcert, 0644)
 	require.NoError(t, err)
 
 	// Write CA key file
-	caKeyBytes, err := x509.MarshalPKCS8PrivateKey(caPrivKey)
-	require.NoError(t, err)
-	caKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: caKeyBytes,
-	})
 	caKeyPath := filepath.Join(tempDir, "ca_key.pem")
-	err = os.WriteFile(caKeyPath, caKeyPEM, 0644)
+	err = os.WriteFile(caKeyPath, clusterCAkey, 0644)
 	require.NoError(t, err)
 
 	config := mock.New(t)
@@ -117,15 +104,26 @@ func setupTempConfigWithCA(t *testing.T, caCert *x509.Certificate, caPrivKey *ec
 	config.SetWithoutSource("clc_runner_host", "")
 	config.SetWithoutSource("auth_token_file_path", "")
 
-	return config, tempDir
+	// Decode the certificate PEM
+	block, _ := pem.Decode(clusterCAcert)
+	require.NotNil(t, block, "Failed to decode clusterCAcert PEM")
+	require.Equal(t, "CERTIFICATE", block.Type, "Expected CERTIFICATE PEM block")
+	cert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err, "Failed to parse clusterCAcert")
+
+	// Decode the private key PEM
+	block, _ = pem.Decode(clusterCAkey)
+	require.NotNil(t, block, "Failed to decode clusterCAkey PEM")
+	// The key is in PKCS8 format
+	privKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	require.NoError(t, err, "Failed to parse clusterCAkey as PKCS8")
+
+	return config, tempDir, cert, privKey
 }
 
 func TestFetchOrCreateIPCCert_WithClusterCA(t *testing.T) {
-	// Create test CA
-	caCert, caPrivKey := createTestCA(t)
-
 	// Setup config with CA files
-	config, tempDir := setupTempConfigWithCA(t, caCert, caPrivKey)
+	config, tempDir, caCert, _ := setupTempConfigWithCA(t)
 
 	// Generate certificate using cluster CA from config
 	ctx := context.Background()
@@ -228,11 +226,8 @@ func TestFetchOrCreateIPCCert_WithCLCRunnerHost(t *testing.T) {
 }
 
 func TestFetchOrCreateIPCCert_WithCAAndCLCRunner(t *testing.T) {
-	// Create test CA
-	caCert, caPrivKey := createTestCA(t)
-
 	// Setup config with CA files
-	config, tempDir := setupTempConfigWithCA(t, caCert, caPrivKey)
+	config, tempDir, caCert, _ := setupTempConfigWithCA(t)
 
 	// Fake to be a CLC Runner
 	config.SetWithoutSource("clc_runner_enabled", true)
@@ -397,11 +392,8 @@ func TestFetchOrCreateIPCCert_CertificateReuse(t *testing.T) {
 
 // TestFetchIPCCert tests the FetchIPCCert function (load-only, no create)
 func TestFetchIPCCert(t *testing.T) {
-	// Create test CA
-	caCert, caPrivKey := createTestCA(t)
-
 	// Setup config with CA files
-	config, _ := setupTempConfigWithCA(t, caCert, caPrivKey)
+	config, _, _, _ := setupTempConfigWithCA(t)
 
 	// First, create a certificate using FetchOrCreateIPCCert so we have something to fetch
 	ctx := context.Background()
@@ -470,7 +462,7 @@ func TestReadClusterCA_ErrorCases(t *testing.T) {
 	missingCertPath := filepath.Join(tempDir, "missing_cert.pem")
 	missingKeyPath := filepath.Join(tempDir, "missing_key.pem")
 
-	_, _, err := ReadClusterCA(missingCertPath, missingKeyPath)
+	_, _, err := readClusterCA(missingCertPath, missingKeyPath)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to read cluster CA cert file")
 
@@ -483,30 +475,19 @@ func TestReadClusterCA_ErrorCases(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a valid key file for the test
-	caCert, caPrivKey := createTestCA(t)
-	caKeyBytes, err := x509.MarshalPKCS8PrivateKey(caPrivKey)
-	require.NoError(t, err)
-	caKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: caKeyBytes,
-	})
-	err = os.WriteFile(validKeyPath, caKeyPEM, 0644)
+	err = os.WriteFile(validKeyPath, clusterCAkey, 0644)
 	require.NoError(t, err)
 
-	_, _, err = ReadClusterCA(invalidCertPath, validKeyPath)
+	_, _, err = readClusterCA(invalidCertPath, validKeyPath)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to decode cluster CA cert PEM")
 
 	// Test case 3: Valid cert but missing key file
 	validCertPath := filepath.Join(tempDir, "valid_cert.pem")
-	caCertPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: caCert.Raw,
-	})
-	err = os.WriteFile(validCertPath, caCertPEM, 0644)
+	err = os.WriteFile(validCertPath, clusterCAcert, 0644)
 	require.NoError(t, err)
 
-	_, _, err = ReadClusterCA(validCertPath, missingKeyPath)
+	_, _, err = readClusterCA(validCertPath, missingKeyPath)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to read cluster CA key file")
 }
@@ -517,11 +498,8 @@ func TestFetchOrCreateIPCCert_ClusterAgentFlavor(t *testing.T) {
 	flavor.SetFlavor(flavor.ClusterAgent)
 	defer flavor.SetFlavor(flavor.DefaultAgent)
 
-	// Create test CA
-	caCert, caPrivKey := createTestCA(t)
-
 	// Setup config with CA files
-	config, tempDir := setupTempConfigWithCA(t, caCert, caPrivKey)
+	config, tempDir, caCert, _ := setupTempConfigWithCA(t)
 
 	// Mocking cluster agent URL configuration is required for ClusterAgent flavor
 	// This is needed because ClusterAgent flavor tries to get the cluster agent endpoint

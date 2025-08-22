@@ -6,14 +6,9 @@
 package ipcimpl
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/big"
 	"os"
 	"path"
 	"testing"
@@ -124,64 +119,58 @@ func TestDeadline(t *testing.T) {
 	assert.LessOrEqual(t, duration, mockConfig.GetDuration("auth_init_timeout")+time.Second)
 }
 
+// The following certificate and key are used for testing purposes only.
+// They have been generated using the following command:
+//
+//	openssl req -x509 -newkey ec:<(openssl ecparam -name prime256v1) -keyout key.pem -out cert.pem -days 3650 \
+//	  -subj "/O=Datadog, Inc." \
+//	  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+//	  -addext "keyUsage=keyCertSign" \
+//	  -addext "extendedKeyUsage=serverAuth,clientAuth" \
+//	  -addext "basicConstraints=CA:TRUE" \
+//	  -nodes
+var (
+	clusterCAcert = []byte(`-----BEGIN CERTIFICATE-----
+MIIBzTCCAXKgAwIBAgIUWTX/Wlc/ovPPsG5bhU5RzAUb7qYwCgYIKoZIzj0EAwIw
+GDEWMBQGA1UECgwNRGF0YWRvZywgSW5jLjAeFw0yNTA4MjIwOTAyNDRaFw0zNTA4
+MjAwOTAyNDRaMBgxFjAUBgNVBAoMDURhdGFkb2csIEluYy4wWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAAQ68kYT6H8kzjyqCiFHzwWolffAejhBmNbFDRNR694b9MAo
+ekrdHSAjlfwHAFxC7SBPfyEn723NvJA+9AWjkEpEo4GZMIGWMB0GA1UdDgQWBBTL
+OxLYXEuBE9eiNozfCNVkYw6szjAfBgNVHSMEGDAWgBTLOxLYXEuBE9eiNozfCNVk
+Yw6szjAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8AAAEwCwYDVR0PBAQDAgEGMB0G
+A1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNVHRMEBTADAQH/MAoGCCqG
+SM49BAMCA0kAMEYCIQDl7HfsTM2NBJp5HGH2rpnxI6ULLG3GAf7PjOF6FJLYSgIh
+AO4uOH/M1w5tJcHFMxW9D6vmn4tTgLPkHjt57EUJWDYG
+-----END CERTIFICATE-----
+`)
+	clusterCAkey = []byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgdGXwlnGYZNIAggVO
+26xbChsNii0Peja4sNuyRpFSJZihRANCAAQ68kYT6H8kzjyqCiFHzwWolffAejhB
+mNbFDRNR694b9MAoekrdHSAjlfwHAFxC7SBPfyEn723NvJA+9AWjkEpE
+-----END PRIVATE KEY-----
+`)
+)
+
 // createTestCA creates a test CA certificate and private key files for testing cluster trust chain
 func createTestCA(t *testing.T) (string, string, *x509.Certificate) {
-	// Generate CA private key
-	caPrivKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
+	t.Helper()
 
-	// Create CA certificate template
-	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	require.NoError(t, err)
+	// Parse the cluster CA cert
+	block, _ := pem.Decode(clusterCAcert)
+	require.NotNil(t, block, "Failed to decode cluster CA cert PEM")
 
-	caTemplate := x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization:  []string{"Test CA"},
-			Country:       []string{"US"},
-			Province:      []string{""},
-			Locality:      []string{"New York City"},
-			StreetAddress: []string{""},
-			PostalCode:    []string{""},
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
-		IsCA:                  true,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-	}
-
-	// Create the CA certificate
-	caCertDER, err := x509.CreateCertificate(rand.Reader, &caTemplate, &caTemplate, &caPrivKey.PublicKey, caPrivKey)
-	require.NoError(t, err)
-
-	// Parse the CA certificate
-	caCert, err := x509.ParseCertificate(caCertDER)
-	require.NoError(t, err)
-
-	// Convert to PEM format
-	caCertPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: caCertDER,
-	})
-
-	caPrivKeyDER, err := x509.MarshalECPrivateKey(caPrivKey)
-	require.NoError(t, err)
-
-	caPrivKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "EC PRIVATE KEY",
-		Bytes: caPrivKeyDER,
-	})
+	caCert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err, "Failed to parse cluster CA cert file")
 
 	// Write files to temporary directory
 	tmpDir := t.TempDir()
 	caCertPath := path.Join(tmpDir, "ca.crt")
 	caKeyPath := path.Join(tmpDir, "ca.key")
 
-	err = os.WriteFile(caCertPath, caCertPEM, 0600)
+	err = os.WriteFile(caCertPath, clusterCAcert, 0600)
 	require.NoError(t, err)
 
-	err = os.WriteFile(caKeyPath, caPrivKeyPEM, 0600)
+	err = os.WriteFile(caKeyPath, clusterCAkey, 0600)
 	require.NoError(t, err)
 
 	return caCertPath, caKeyPath, caCert
@@ -189,6 +178,8 @@ func createTestCA(t *testing.T) (string, string, *x509.Certificate) {
 
 // setupBasicIPCConfig creates a basic IPC configuration for testing
 func setupBasicIPCConfig(t *testing.T) model.Config {
+	t.Helper()
+
 	mockConfig := configmock.New(t)
 	tmpDir := t.TempDir()
 
