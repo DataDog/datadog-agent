@@ -5,7 +5,7 @@ max_retries=10
 parameter_name="$1"
 parameter_field="$2"
 
-set +x
+set -x
 
 while [[ $retry_count -lt $max_retries ]]; do
     if [ -n "$parameter_field" ]; then
