@@ -180,7 +180,7 @@ func (r *runnerImpl) Stop(ctx context.Context) error {
 // and returns the org_id and runner_id
 func parseURN(urn string) (int64, string, error) {
 	parts := strings.Split(urn, ":")
-	if len(parts) != 6 {
+	if len(parts) != 7 {
 		return 0, "", fmt.Errorf("invalid URN format: expected 6 parts separated by ':', got %d", len(parts))
 	}
 
@@ -188,12 +188,12 @@ func parseURN(urn string) (int64, string, error) {
 		return 0, "", fmt.Errorf("invalid URN format: expected 'urn:dd:apps:on-prem-runner', got '%s:%s:%s:%s'", parts[0], parts[1], parts[2], parts[3])
 	}
 
-	orgId, err := strconv.ParseInt(parts[4], 10, 64)
+	orgId, err := strconv.ParseInt(parts[5], 10, 64)
 	if err != nil {
 		return 0, "", fmt.Errorf("invalid org_id in URN: %w", err)
 	}
 
-	runnerId := parts[5]
+	runnerId := parts[6]
 	if runnerId == "" {
 		return 0, "", fmt.Errorf("runner_id cannot be empty in URN")
 	}
