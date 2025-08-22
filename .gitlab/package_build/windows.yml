@@ -146,6 +146,8 @@ windows_ddot_oci:
     - $ErrorActionPreference = 'Stop'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg\pipeline-$CI_PIPELINE_ID | Out-Null
+    - Write-Host "WINBUILDIMAGE=${env:WINBUILDIMAGE}"
+    - docker --version
     - >
       docker run --rm
       -m 8192M
