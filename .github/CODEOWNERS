@@ -374,6 +374,7 @@
 # pkg
 /pkg/                                   @DataDog/agent-runtimes
 /pkg/api/                               @DataDog/agent-runtimes
+/pkg/api/security/cert/cert_getter_dca.go   @DataDog/agent-runtimes @DataDog/container-platform
 /pkg/aggregator/                        @DataDog/agent-metric-pipelines
 /pkg/collector/                         @DataDog/agent-runtimes
 /pkg/commonchecks/                      @DataDog/agent-runtimes
