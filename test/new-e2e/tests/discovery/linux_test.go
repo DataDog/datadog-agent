@@ -383,8 +383,16 @@ func matchingServiceNames(expectedServiceNames []*agentmodel.ServiceName, actual
 }
 
 func matchingPortInfo(expectedPortInfo *agentmodel.PortInfo, actualPortInfo *agentmodel.PortInfo) bool {
-	diff := cmp.Diff(expectedPortInfo.Tcp, actualPortInfo.Tcp, cmpopts.EquateEmpty(), cmpopts.SortSlices(func(a, b int32) bool { return a < b }))
-	return diff == ""
+	if expectedPortInfo == nil {
+		return actualPortInfo == nil
+	} else if actualPortInfo == nil {
+		// expectedPortInfo is not nil so actualPortInfo should not be
+		return false
+	}
+
+	diffTCP := cmp.Diff(expectedPortInfo.Tcp, actualPortInfo.Tcp, cmpopts.EquateEmpty(), cmpopts.SortSlices(func(a, b int32) bool { return a < b }))
+	diffUDP := cmp.Diff(expectedPortInfo.Udp, actualPortInfo.Udp, cmpopts.EquateEmpty(), cmpopts.SortSlices(func(a, b int32) bool { return a < b }))
+	return diffTCP == "" && diffUDP == ""
 }
 
 func matchingTracerMetadata(expectedTracerMetadata []*agentmodel.TracerMetadata, actualTracerMetadata []*agentmodel.TracerMetadata) bool {
