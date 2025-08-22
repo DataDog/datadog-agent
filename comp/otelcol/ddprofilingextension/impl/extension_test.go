@@ -15,32 +15,35 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/impl"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	ossconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	extsource "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	otlpattributes "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	otlpsource "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 )
 
 type testComponent struct {
 	*pkgagent.Agent
 }
 
-func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
+func (c testComponent) SetOTelAttributeTranslator(attrstrans *otlpattributes.Translator) {
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler otlpattributes.HostFromAttributesHandler) otlpsource.Source {
 	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, hostFromAttributesHandler)
 }
 
@@ -183,8 +186,8 @@ func TestOSSExtension(t *testing.T) {
 
 type fargateSourceProvider struct{}
 
-func (*fargateSourceProvider) Source(_ context.Context) (source.Source, error) {
-	return source.Source{
+func (*fargateSourceProvider) Source(_ context.Context) (extsource.Source, error) {
+	return extsource.Source{
 		Kind:       "task_arn",
 		Identifier: "arn:aws:ecs:us-east-1:123456789012:cluster/default",
 	}, nil
@@ -242,8 +245,8 @@ func TestOSSExtensionFargate(t *testing.T) {
 
 type hostSourceProvider struct{}
 
-func (*hostSourceProvider) Source(_ context.Context) (source.Source, error) {
-	return source.Source{
+func (*hostSourceProvider) Source(_ context.Context) (extsource.Source, error) {
+	return extsource.Source{
 		Kind:       "host",
 		Identifier: "i-123456789",
 	}, nil
