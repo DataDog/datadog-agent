@@ -11,6 +11,7 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -103,13 +104,12 @@ func (a *Action) Apply(root *os.Root) error {
 	return nil
 }
 
-func ensureDir(root *os.Root, path string) error {
-	dir := filepath.Dir(path)
+func ensureDir(root *os.Root, filePath string) error {
+	dir := path.Dir(filePath)
 	if dir == "." {
 		return nil
 	}
-	parts := strings.Split(dir, "/")
-	for _, part := range parts {
+	for part := range strings.SplitSeq(dir, "/") {
 		if part == "" {
 			continue
 		}
