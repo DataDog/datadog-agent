@@ -9,7 +9,7 @@ filegroup(
 
 configure_make(
     name = "openssl",
-    # TODO: Find a better way to utilize more than 1 core
+    # TODO(team:agent-build): Find a better way to utilize more than 1 core
     args = [
         "-j 16",
     ],
