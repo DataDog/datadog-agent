@@ -12,8 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
 
 func TestAnnotationExtractor(t *testing.T) {

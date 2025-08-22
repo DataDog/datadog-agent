@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -585,4 +586,57 @@ func TestLibraryStorageMedium(t *testing.T) {
 			require.Equal(t, tt.expected, actual.libraryStorageMedium)
 		})
 	}
+}
+
+func TestLibraryStorageLimit(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputString string
+		expected    *resource.Quantity
+		shouldErr   bool
+	}{
+		{
+			name:        "limit 100Mi",
+			inputString: "100Mi",
+			expected:    quantityPtr("100Mi"),
+			shouldErr:   false,
+		},
+		{
+			name:        "limit empty",
+			inputString: "",
+			expected:    nil,
+			shouldErr:   false,
+		},
+		{
+			name:        "limit invalid",
+			inputString: "invalid",
+			shouldErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+
+			if tt.inputString != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.volume.empty_dir_storage_limit", tt.inputString)
+			}
+
+			actual, err := NewConfig(mockConfig)
+			if tt.shouldErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, actual.libraryStorageLimit)
+		})
+	}
+}
+
+func quantityPtr(s string) *resource.Quantity {
+	if s == "" {
+		return nil
+	}
+	q := resource.MustParse(s)
+	return &q
 }

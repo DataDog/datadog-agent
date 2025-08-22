@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    A new configuration option has been added to control the library storage limit for the auto-instrumentation webhook.
+    This will allow customers to set a limit for their emptyDir size. To enable limits for the SDK emptyDir, set the
+    following configuration option for the Cluster Agent:
+
+    ```yaml
+    clusterAgent:
+      env:
+        - name: "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_VOLUME_EMPTY_DIR_STORAGE_LIMIT"
+          value: "100Mi"
+    ```

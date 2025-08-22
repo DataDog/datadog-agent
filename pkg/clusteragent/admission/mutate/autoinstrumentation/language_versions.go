@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 )
@@ -155,7 +156,7 @@ type libInfo struct {
 
 func (i libInfo) podMutator(v version, opts libRequirementOptions) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		reqs, ok := i.libRequirement(v, opts.libraryStorageMedium)
+		reqs, ok := i.libRequirement(v, opts.libraryStorageMedium, opts.libraryStorageLimit)
 		if !ok {
 			return fmt.Errorf(
 				"language %q is not supported. Supported languages are %v",
@@ -175,7 +176,7 @@ func (i libInfo) podMutator(v version, opts libRequirementOptions) podMutator {
 
 // initContainers is which initContainers we are injecting
 // into the pod that runs for this language.
-func (i libInfo) initContainers(v version, libraryStorageMedium corev1.StorageMedium) []initContainer {
+func (i libInfo) initContainers(v version, libraryStorageMedium corev1.StorageMedium, libraryStorageLimit *resource.Quantity) []initContainer {
 	var (
 		args, command []string
 		mounts        []corev1.VolumeMount
@@ -186,14 +187,14 @@ func (i libInfo) initContainers(v version, libraryStorageMedium corev1.StorageMe
 		mounts = []corev1.VolumeMount{
 			// we use the library mount on its lang-based sub-path
 			{
-				MountPath: v1VolumeMount(libraryStorageMedium).MountPath,
-				SubPath:   v2VolumeMountLibrary(libraryStorageMedium).SubPath + "/" + string(i.lang),
-				Name:      sourceVolume(libraryStorageMedium).Name,
+				MountPath: v1VolumeMount(libraryStorageMedium, libraryStorageLimit).MountPath,
+				SubPath:   v2VolumeMountLibrary(libraryStorageMedium, libraryStorageLimit).SubPath + "/" + string(i.lang),
+				Name:      sourceVolume(libraryStorageMedium, libraryStorageLimit).Name,
 			},
 			// injector mount for the timestamps
-			v2VolumeMountInjector(libraryStorageMedium).VolumeMount,
+			v2VolumeMountInjector(libraryStorageMedium, libraryStorageLimit).VolumeMount,
 		}
-		tsFilePath := v2VolumeMountInjector(libraryStorageMedium).MountPath + "/c-init-time." + cName
+		tsFilePath := v2VolumeMountInjector(libraryStorageMedium, libraryStorageLimit).MountPath + "/c-init-time." + cName
 		command = []string{"/bin/sh", "-c", "--"}
 		args = []string{
 			fmt.Sprintf(
@@ -202,7 +203,7 @@ func (i libInfo) initContainers(v version, libraryStorageMedium corev1.StorageMe
 			),
 		}
 	} else {
-		mounts = []corev1.VolumeMount{v1VolumeMount(libraryStorageMedium).VolumeMount}
+		mounts = []corev1.VolumeMount{v1VolumeMount(libraryStorageMedium, libraryStorageLimit).VolumeMount}
 		command = []string{"sh", "copy-lib.sh", mounts[0].MountPath}
 	}
 
@@ -219,12 +220,12 @@ func (i libInfo) initContainers(v version, libraryStorageMedium corev1.StorageMe
 	}
 }
 
-func (i libInfo) volumeMount(v version, libraryStorageMedium corev1.StorageMedium) volumeMount {
+func (i libInfo) volumeMount(v version, libraryStorageMedium corev1.StorageMedium, libraryStorageLimit *resource.Quantity) volumeMount {
 	if v.usesInjector() {
-		return v2VolumeMountLibrary(libraryStorageMedium)
+		return v2VolumeMountLibrary(libraryStorageMedium, libraryStorageLimit)
 	}
 
-	return v1VolumeMount(libraryStorageMedium)
+	return v1VolumeMount(libraryStorageMedium, libraryStorageLimit)
 }
 
 func (i libInfo) envVars(v version) []envVar {
@@ -298,15 +299,15 @@ func (i libInfo) envVars(v version) []envVar {
 	}
 }
 
-func (i libInfo) libRequirement(v version, libraryStorageMedium corev1.StorageMedium) (libRequirement, bool) {
+func (i libInfo) libRequirement(v version, libraryStorageMedium corev1.StorageMedium, libraryStorageLimit *resource.Quantity) (libRequirement, bool) {
 	if !i.lang.isSupported() {
 		return libRequirement{}, false
 	}
 
 	return libRequirement{
 		envVars:        i.envVars(v),
-		initContainers: i.initContainers(v, libraryStorageMedium),
-		volumeMounts:   []volumeMount{i.volumeMount(v, libraryStorageMedium)},
-		volumes:        []volume{sourceVolume(libraryStorageMedium)},
+		initContainers: i.initContainers(v, libraryStorageMedium, libraryStorageLimit),
+		volumeMounts:   []volumeMount{i.volumeMount(v, libraryStorageMedium, libraryStorageLimit)},
+		volumes:        []volume{sourceVolume(libraryStorageMedium, libraryStorageLimit)},
 	}, true
 }

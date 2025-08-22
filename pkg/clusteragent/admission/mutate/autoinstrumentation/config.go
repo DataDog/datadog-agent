@@ -73,6 +73,9 @@ type Config struct {
 
 	// libraryStorageMedium is the storage medium to use for the library storage volume emptyDir.
 	libraryStorageMedium corev1.StorageMedium
+
+	// libraryStorageLimit is the limit for the library storage volume emptyDir.
+	libraryStorageLimit *resource.Quantity
 }
 
 var excludedContainerNames = map[string]bool{
@@ -111,6 +114,11 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		return nil, err
 	}
 
+	libraryStorageLimit, err := parseLibraryStorageLimit(datadogConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	defaultResourceRequirements, err := initDefaultResources(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse init-container's resources from configuration: %w", err)
@@ -130,6 +138,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		containerFilter:               excludedContainerNamesContainerFilter,
 		version:                       version,
 		libraryStorageMedium:          libraryStorageMedium,
+		libraryStorageLimit:           libraryStorageLimit,
 	}, nil
 }
 
@@ -372,6 +381,21 @@ func getOptionalBoolValue(datadogConfig config.Component, key string) *bool {
 	}
 
 	return value
+}
+
+func parseLibraryStorageLimit(datadogConfig config.Component) (*resource.Quantity, error) {
+	confKey := "admission_controller.auto_instrumentation.volume.empty_dir_storage_limit"
+	if !datadogConfig.IsSet(confKey) {
+		return nil, nil
+	}
+
+	confValue := datadogConfig.GetString(confKey)
+	quantity, err := resource.ParseQuantity(confValue)
+	if err != nil {
+		return nil, fmt.Errorf("invalid library storage limit: %w", err)
+	}
+
+	return &quantity, nil
 }
 
 func parseLibraryStorageMedium(datadogConfig config.Component) (corev1.StorageMedium, error) {

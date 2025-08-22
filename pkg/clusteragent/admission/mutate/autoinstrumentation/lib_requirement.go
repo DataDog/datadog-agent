@@ -9,6 +9,7 @@ package autoinstrumentation
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 type libRequirementOptions struct {
@@ -17,6 +18,7 @@ type libRequirementOptions struct {
 	podMutators           []podMutator
 	containerFilter       containerFilter
 	libraryStorageMedium  corev1.StorageMedium
+	libraryStorageLimit   *resource.Quantity
 }
 
 type libRequirement struct {
