@@ -48,16 +48,21 @@ type sqlMetrics struct {
 }
 
 // newSQLStore initializes a new payloads store with an SQLite DB
-func newSQLStore() *sqlStore {
-	p := os.Getenv(SqliteDbPathEnv)
-	if p == "" {
-		f, err := os.CreateTemp("", defaultDBPath)
-		if err != nil {
-			log.Fatal(err)
-		}
-		p = f.Name()
+func newSQLStore(sqliteDbPath string) *sqlStore {
+	envOverrideDbPath := os.Getenv(SqliteDbPathEnv)
+
+	if envOverrideDbPath != "" {
+		sqliteDbPath = envOverrideDbPath
+	} else if sqliteDbPath == "" {
+		sqliteDbPath = defaultDBPath
 	}
-	db, err := sql.Open("sqlite", p)
+
+	f, err := os.CreateTemp("", sqliteDbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	sqliteDbPath = f.Name()
+	db, err := sql.Open("sqlite", sqliteDbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,7 +77,7 @@ func newSQLStore() *sqlStore {
 	}
 
 	s := &sqlStore{
-		path:   p,
+		path:   sqliteDbPath,
 		db:     db,
 		stopCh: make(chan struct{}),
 
