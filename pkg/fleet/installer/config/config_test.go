@@ -224,3 +224,33 @@ func TestConfigActionApply_Delete(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
 }
+
+func TestConfigActionApply_WriteInSubdirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	path := "/conf.d/apache.d/apache-1.yaml"
+	value := map[string]any{"foo": "bar"}
+	action := &Action{
+		ActionType: ActionTypeWrite,
+		Path:       path,
+		Value:      value,
+	}
+	err = action.Apply(root)
+	assert.NoError(t, err)
+
+	// Check that the file exists and contains the expected value
+	content, err := os.ReadFile(filepath.Join(tmpDir, path))
+	assert.NoError(t, err)
+	var out map[string]any
+	err = yaml.Unmarshal(content, &out)
+	assert.NoError(t, err)
+	assert.Equal(t, value, out)
+
+	// Check that the directories were created
+	dirInfo, err := os.Stat(filepath.Join(tmpDir, "/conf.d/apache.d"))
+	assert.NoError(t, err)
+	assert.True(t, dirInfo.IsDir())
+}

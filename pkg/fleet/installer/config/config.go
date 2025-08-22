@@ -45,6 +45,10 @@ func (a *Action) Apply(root *os.Root) error {
 	path := strings.TrimPrefix(a.Path, "/")
 	switch a.ActionType {
 	case ActionTypeWrite:
+		err := ensureDir(root, path)
+		if err != nil {
+			return err
+		}
 		file, err := root.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
@@ -57,6 +61,10 @@ func (a *Action) Apply(root *os.Root) error {
 		_, err = file.Write(rawValue)
 		return err
 	case ActionTypeMerge:
+		err := ensureDir(root, path)
+		if err != nil {
+			return err
+		}
 		file, err := root.OpenFile(path, os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			return err
@@ -91,6 +99,28 @@ func (a *Action) Apply(root *os.Root) error {
 		return err
 	case ActionTypeDelete:
 		return root.Remove(path)
+	}
+	return nil
+}
+
+func ensureDir(root *os.Root, path string) error {
+	dir := filepath.Dir(path)
+	if dir == "." {
+		return nil
+	}
+	parts := strings.Split(dir, "/")
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		err := root.Mkdir(part, 0755)
+		if err != nil && !os.IsExist(err) {
+			return err
+		}
+		root, err = root.OpenRoot(part)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
