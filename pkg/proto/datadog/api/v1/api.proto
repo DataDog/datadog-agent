@@ -7,7 +7,6 @@ import "datadog/remoteagent/remoteagent.proto";
 import "datadog/remoteconfig/remoteconfig.proto";
 import "datadog/workloadmeta/workloadmeta.proto";
 import "datadog/autodiscovery/autodiscovery.proto";
-import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 
 option go_package = "pkg/proto/pbgo/core"; // golang
