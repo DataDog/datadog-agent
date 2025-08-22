@@ -29,8 +29,6 @@ import (
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
