@@ -563,6 +563,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.70.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.70.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0-rc.6
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.67.0
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.70.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx v0.70.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.70.0-rc.6
