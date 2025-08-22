@@ -132,9 +132,9 @@ func (is *ddotInstallSuite) TestDDOTInstall() {
 
 func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestClient) {
 	is.T().Run("add config file", func(t *testing.T) {
-		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: aaaaaaaaaaaaaaaa/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"printf 'otelcollector:\\n  enabled: true\\n' >> /etc/datadog-agent/datadog.yaml\"")
-		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml.example > /etc/datadog-agent/otel-config.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed -e 's/\\${env:DD_API_KEY}/aaaaaaaaaaaaaaaa/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml.example > /etc/datadog-agent/otel-config.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/otel-config.yaml && chmod 640 /etc/datadog-agent/otel-config.yaml\"")
 		if (*platform == "ubuntu" && is.osVersion == 14.04) || (*platform == "centos" && is.osVersion == 6.10) {

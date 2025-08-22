@@ -112,28 +112,23 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	return nil
 }
 
-// SetupJMXLogger sets up a logger with JMX logger name and log level
+// BuildJMXLogger sets up a logger with JMX logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
+func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
 	seelogLogLevel, err := log.ValidateLogLevel("info")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	jmxSeelogConfig, err = buildLoggerConfig(JMXLoggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	jmxLoggerInterface, err := GenerateLoggerInterface(jmxSeelogConfig)
-	if err != nil {
-		return err
-	}
-	log.SetupJMXLogger(jmxLoggerInterface, seelogLogLevel)
-	return nil
+	return GenerateLoggerInterface(jmxSeelogConfig)
 }
 
 // SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
