@@ -5,6 +5,7 @@ exporters:
       fail_on_invalid_key: false
       key: "[REDACTED]"
       site: datadoghq.com
+    force_attempt_http2: true
     headers: {}
     host_metadata:
       enabled: true

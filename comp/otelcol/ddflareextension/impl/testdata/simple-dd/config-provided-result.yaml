@@ -11,6 +11,7 @@ exporters:
       hostname_source: config_or_system
       reporter_period: 30m0s
       tags: []
+    force_attempt_http2: true
     hostname: ""
     hostname_detection_timeout: 25s
     idle_conn_timeout: "1m30s"
