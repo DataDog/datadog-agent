@@ -18,7 +18,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.31.0
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -219,6 +219,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/types => ../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../pkg/network/payload

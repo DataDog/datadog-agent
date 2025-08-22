@@ -11,6 +11,8 @@ package ecs
 import (
 	"fmt"
 
+	"github.com/benbjohnson/clock"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
@@ -75,6 +77,7 @@ func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interf
 			ClusterID:        rcfg.ClusterID,
 			CollectorTags:    nil,
 			AgentVersion:     rcfg.AgentVersion,
+			Clock:            clock.New(),
 		},
 		AWSAccountID: rcfg.AWSAccountID,
 		ClusterName:  rcfg.ClusterName,
