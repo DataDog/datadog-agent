@@ -40,10 +40,6 @@ type component struct {
 	subComponents   []healthplatform.SubComponent
 	subComponentsMu sync.RWMutex
 
-	// issues storage
-	issues map[string]healthplatform.Issue
-	mu     sync.RWMutex
-
 	// lifecycle management
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -59,7 +55,6 @@ func NewComponent(deps Dependencies) healthplatform.Component {
 		cfg:       deps.Config,
 		hostname:  deps.Hostname,
 		forwarder: deps.Forwarder,
-		issues:    make(map[string]healthplatform.Issue),
 		hostInfo: healthplatform.HostInfo{
 			AgentVersion: version.AgentVersion,
 			ParIDs:       []string{}, // Will be populated later
