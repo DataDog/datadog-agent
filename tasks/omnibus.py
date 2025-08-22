@@ -36,7 +36,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
         if host_distribution:
             overrides.append(f"--override=host_distribution:{host_distribution}")
 
-        omnibus = f"bundle exec {"omnibus.bat" if sys.platform == "win32" else "omnibus"}"
+        omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,

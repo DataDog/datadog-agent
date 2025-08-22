@@ -49,20 +49,13 @@
     - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
-    # Setup authanywhere to interact with agent ci api and trigger stack cleaner
-    - |
-      if [ $(uname -m) = x86_64 ]; then
-        AAA="amd64";
-      else
-        AAA="arm64";
-      fi;
-      curl -OL "binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}" || exit $?
-      mv "authanywhere-linux-${AAA}" /bin/authanywhere || exit $?
-      chmod +x /bin/authanywhere || exit $?
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
     - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    # set the environment variables for the windows test signing
+    - export WINDOWS_DDNPM_DRIVER=$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDNPM_DRIVER" --no-worktree)
+    - export WINDOWS_DDPROCMON_DRIVER=$(dda inv release.get-release-json-value "dependencies::WINDOWS_DDPROCMON_DRIVER" --no-worktree)
   variables:
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
@@ -92,7 +85,12 @@
   script:
     - dda inv -- -e new-e2e-tests.run $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
+    - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV token) || exit $?; export CODECOV_TOKEN
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
+    - |
+      if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
+        dda inv -- -e coverage.process-e2e-coverage-folders $E2E_COVERAGE_OUT_DIR
+      fi
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -1041,6 +1039,8 @@ generate-fips-e2e-pipeline:
     - qa_dogstatsd
     - qa_agent
     - qa_agent_full
+    - qa_agent_fips
+    - qa_agent_fips_jmx
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:
@@ -1084,11 +1084,19 @@ new-e2e-cleanup-on-failure:
     # Use S3 backend
     - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
-    - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "ci-init-$CI_PIPELINE_ID-.*" --pulumi-backend=dd-pulumi-state
+    - |
+      if [ "$REMOTE_STACK_CLEANING" = "true" ]; then
+        # If destroy locally, check only the eks stacks
+        STACK_REGEX="ci-init-$CI_PIPELINE_ID.*eks.*"
+      else
+        STACK_REGEX="ci-init-$CI_PIPELINE_ID-.*"
+      fi
+    - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "$STACK_REGEX" --pulumi-backend=dd-pulumi-state
   variables:
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
+    REMOTE_STACK_CLEANING: "true"
   rules:
     - !reference [.except_mergequeue]
     - when: always
