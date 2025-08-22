@@ -43,6 +43,7 @@ from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
 SHARED_LIB_PATH = os.path.join(BIN_DIR, "libsystemprobe.so")
+SERVICE_DISCOVERY_LIB_PATH = os.path.join(BIN_DIR, "libservicediscovery.so")
 WRAPPER_PATH = os.path.join(BIN_DIR, "system-probe-wrapper")
 
 BPF_TAG = "linux_bpf"
@@ -1079,6 +1080,188 @@ def build_with_wrapper(
     print(f"Copied wrapper to main binary location: {BIN_PATH}")
     print(f"Shared library available at: {SHARED_LIB_PATH}")
     print("Set DD_SYSTEM_PROBE_ENABLED=1 to enable full system-probe functionality")
+
+
+@task
+def build_service_discovery_library(
+    ctx,
+    major_version='7',
+    go_mod="readonly",
+    arch: str = CURRENT_ARCH,
+    strip_binary=False,
+    fips_mode=False,
+    static=False,
+) -> None:
+    """
+    Build the service-discovery as a shared library for dynamic loading
+    """
+    if is_windows:
+        print("Service discovery shared library build not supported on Windows")
+        return
+
+    arch_obj = Arch.from_str(arch)
+
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        major_version=major_version,
+        arch=arch_obj,
+        static=static,
+    )
+
+    # Use minimal build tags for service discovery
+    build_tags = ["linux"]  # Basic tags only
+    build_tags = add_fips_tags(build_tags, fips_mode)
+
+    if strip_binary:
+        ldflags += ' -s -w'
+
+    if static:
+        build_tags.extend(["osusergo", "netgo", "static"])
+        build_tags = list(set(build_tags).difference({"netcgo"}))
+
+    if os.path.exists(SERVICE_DISCOVERY_LIB_PATH):
+        os.remove(SERVICE_DISCOVERY_LIB_PATH)
+
+    # Build as shared library using -buildmode=c-shared
+    cmd = "go build -buildmode=c-shared"
+    if go_mod:
+        cmd += f" -mod={go_mod}"
+    if build_tags:
+        cmd += f" -tags \"{' '.join(build_tags)}\""
+    if gcflags:
+        cmd += f" -gcflags=\"{gcflags}\""
+    if ldflags:
+        cmd += f" -ldflags=\"{ldflags}\""
+    cmd += f" -o {SERVICE_DISCOVERY_LIB_PATH}"
+    cmd += " -trimpath"
+    cmd += f" {REPO_PATH}/cmd/service-discovery/library"
+
+    ctx.run(cmd, env=env)
+
+
+@task
+def build_dual_wrapper(
+    ctx,
+    race=False,
+    rebuild=False,
+    major_version='7',
+    go_mod="readonly",
+    arch: str = CURRENT_ARCH,
+    bundle_ebpf=False,
+    kernel_release=None,
+    debug=False,
+    strip_object_files=False,
+    strip_binary=False,
+    with_unit_test=False,
+    static=False,
+    fips_mode=False,
+    glibc=True,
+):
+    """
+    Build both system-probe and service-discovery shared libraries with smart wrapper
+    """
+    if is_windows:
+        print("Dual wrapper build not supported on Windows, falling back to regular build")
+        return build(
+            ctx,
+            race=race,
+            rebuild=rebuild,
+            major_version=major_version,
+            go_mod=go_mod,
+            arch=arch,
+            bundle_ebpf=bundle_ebpf,
+            kernel_release=kernel_release,
+            debug=debug,
+            strip_object_files=strip_object_files,
+            strip_binary=strip_binary,
+            with_unit_test=with_unit_test,
+            static=static,
+            fips_mode=fips_mode,
+            glibc=glibc,
+        )
+
+    if not is_macos:
+        build_object_files(
+            ctx,
+            major_version=major_version,
+            kernel_release=kernel_release,
+            debug=debug,
+            strip_object_files=strip_object_files,
+            with_unit_test=with_unit_test,
+            bundle_ebpf=bundle_ebpf,
+        )
+
+    # Build both shared libraries
+    build_shared_library(
+        ctx,
+        major_version=major_version,
+        go_mod=go_mod,
+        arch=arch,
+        bundle_ebpf=bundle_ebpf,
+        strip_binary=strip_binary,
+        fips_mode=fips_mode,
+        static=static,
+        glibc=glibc,
+    )
+
+    build_service_discovery_library(
+        ctx,
+        major_version=major_version,
+        go_mod=go_mod,
+        arch=arch,
+        strip_binary=strip_binary,
+        fips_mode=fips_mode,
+        static=static,
+    )
+
+    # Build the dual wrapper
+    build_dual_wrapper_binary(
+        ctx,
+        arch=arch,
+        strip_binary=strip_binary,
+    )
+
+    # Copy wrapper to the main system-probe binary location
+    if os.path.exists(BIN_PATH):
+        os.remove(BIN_PATH)
+
+    import shutil
+
+    shutil.copy2(WRAPPER_PATH, BIN_PATH)
+    print(f"Copied dual wrapper to main binary location: {BIN_PATH}")
+    print(f"System probe shared library: {SHARED_LIB_PATH}")
+    print(f"Service discovery shared library: {SERVICE_DISCOVERY_LIB_PATH}")
+    print()
+    print("Usage:")
+    print("  Default:                     service-discovery (lightweight)")
+    print("  DD_SYSTEM_PROBE_*=<value>:  full system-probe")
+
+
+@task
+def build_dual_wrapper_binary(
+    ctx,
+    arch: str = CURRENT_ARCH,
+    strip_binary=False,
+) -> None:
+    """
+    Build the dual wrapper that chooses between system-probe and service-discovery
+    """
+    if is_windows:
+        print("Dual wrapper build not supported on Windows")
+        return
+
+    if os.path.exists(WRAPPER_PATH):
+        os.remove(WRAPPER_PATH)
+
+    # We'll need to update the wrapper source to handle both binaries
+    wrapper_src = os.path.join("cmd", "system-probe", "wrapper", "main.c")
+
+    cc_flags = "-O2 -Wall"
+    if strip_binary:
+        cc_flags += " -s"
+
+    ctx.run(f"gcc {cc_flags} -o {WRAPPER_PATH} {wrapper_src} -ldl")
+    print(f"Built dual wrapper: {WRAPPER_PATH}")
 
 
 def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):

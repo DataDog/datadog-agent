@@ -10,8 +10,6 @@ package main
 
 import "C"
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/subcommands"
@@ -23,7 +21,6 @@ func RunSystemProbe() C.int {
 	flavor.SetFlavor(flavor.SystemProbe)
 	rootCmd := command.MakeCommand(subcommands.SysprobeSubcommands())
 	command.SetDefaultCommandIfNonePresent(rootCmd)
-	time.Sleep(10 * time.Minute)
 	exitCode := runcmd.Run(rootCmd)
 	return C.int(exitCode)
 }
