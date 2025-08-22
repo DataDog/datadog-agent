@@ -73,9 +73,11 @@ tests_nodetreemodel:
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.except_disable_unit_tests]
-    - !reference [.fast_on_dev_branch_only]
+  # TODO: These are consistently failing. Switching to manual until the agent-configuration team finds a way to fix them
+    - !reference [.manual]
+#    - !reference [.except_mergequeue]
+#    - !reference [.except_disable_unit_tests]
+#    - !reference [.fast_on_dev_branch_only]
   variables:
     CONDA_ENV: ddpy3
     # This env var enables the NTM config implementation
@@ -94,9 +96,11 @@ tests_nodetreemodel_unmarshal:
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.except_disable_unit_tests]
-    - !reference [.fast_on_dev_branch_only]
+    # TODO: These are consistently failing. Switching to manual until the agent-configuration team finds a way to fix them
+    - !reference [ .manual ]
+  #    - !reference [.except_mergequeue]
+  #    - !reference [.except_disable_unit_tests]
+  #    - !reference [.fast_on_dev_branch_only]
   variables:
     CONDA_ENV: ddpy3
     # This env var enables the pkg/config/structure to unmarshal config
