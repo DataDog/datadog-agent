@@ -11,6 +11,7 @@ package cgroup
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -45,8 +46,8 @@ const (
 type ResolverInterface interface {
 	Start(context.Context)
 	AddPID(*model.ProcessCacheEntry)
-	GetWorkload(containerutils.ContainerID) (*cgroupModel.CacheEntry, bool)
 	DelPID(uint32)
+	GetWorkload(containerutils.ContainerID) (*cgroupModel.CacheEntry, bool)
 	Len() int
 	RegisterListener(Event, utils.Listener[*cgroupModel.CacheEntry]) error
 }
@@ -55,6 +56,7 @@ type ResolverInterface interface {
 type Resolver struct {
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
 	sync.Mutex
+	cgroupFS           *utils.CGroupFS
 	statsdClient       statsd.ClientInterface
 	cgroups            *simplelru.LRU[model.PathKey, *model.CGroupContext]
 	hostWorkloads      *simplelru.LRU[containerutils.CGroupID, *cgroupModel.CacheEntry]
@@ -66,6 +68,7 @@ func NewResolver(statsdClient statsd.ClientInterface) (*Resolver, error) {
 	cr := &Resolver{
 		Notifier:     utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
 		statsdClient: statsdClient,
+		cgroupFS:     utils.DefaultCGroupFS(),
 	}
 
 	cleanup := func(value *cgroupModel.CacheEntry) {
@@ -106,32 +109,76 @@ func NewResolver(statsdClient statsd.ClientInterface) (*Resolver, error) {
 func (cr *Resolver) Start(_ context.Context) {
 }
 
-// AddPID associates a container id and a pid which is expected to be the pid 1
-func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
-	cr.Lock()
-	defer cr.Unlock()
+func (cr *Resolver) removeCgroup(cgroup *cgroupModel.CacheEntry) {
+	cr.cgroups.Remove(cgroup.CGroupFile)
+	cr.hostWorkloads.Remove(cgroup.CGroupID)
+	if cgroup.ContainerID != "" {
+		cr.containerWorkloads.Remove(cgroup.ContainerID)
+	}
+}
 
-	if process.ContainerID != "" {
-		entry, exists := cr.containerWorkloads.Get(process.ContainerID)
-		if exists {
-			entry.AddPID(process.Pid)
-			return
+func (cr *Resolver) syncOrDeleteCgroup(cgroup *cgroupModel.CacheEntry, deletedPid uint32) {
+	// check if the cgroup still contains pids
+	pids, err := cr.cgroupFS.GetCgroupPids(string(cgroup.CGroupContext.CGroupID))
+	if err != nil {
+		seclog.Errorf("GetCgroupPids for cgroup %+v, ERROR: %v", cgroup.CGroupContext, err)
+		return
+	}
+
+	// if there is no pid left, or the only one being the one we want to delete,
+	// remove the cgroup from the caches
+	if len(pids) == 0 || (len(pids) == 1 && pids[0] == deletedPid) {
+		cr.removeCgroup(cgroup)
+		return
+	}
+
+	// otherwise sync it with new values
+	pids = slices.DeleteFunc(pids, func(todel uint32) bool {
+		return todel == deletedPid
+	})
+	for _, pid := range pids {
+		cgroup.PIDs[pid] = true
+	}
+
+	// then, ensure those pids are not part of other cgroups
+	cr.cleanupPidsWithMultipleCgroups(pids, cgroup)
+}
+
+func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup *cgroupModel.CacheEntry) {
+	for _, cgroup := range cr.containerWorkloads.Values() {
+		if cgroup.CGroupFile == currentCgroup.CGroupFile {
+			continue
+		}
+		for _, pid := range pids {
+			delete(cgroup.PIDs, pid)
+		}
+		if len(cgroup.PIDs) == 0 {
+			// No double check here to ensure that the cgroup is REALLY empty,
+			// because we already are in such a double check for another cgroup.
+			// No need to introduce a recursion here.
+			cr.removeCgroup(cgroup)
 		}
 	}
 
-	entry, exists := cr.hostWorkloads.Get(process.CGroup.CGroupID)
-	if exists {
-		entry.AddPID(process.Pid)
-		return
+	for _, cgroup := range cr.hostWorkloads.Values() {
+		if cgroup.CGroupFile == currentCgroup.CGroupFile {
+			continue
+		}
+		for _, pid := range pids {
+			delete(cgroup.PIDs, pid)
+		}
+		if len(cgroup.PIDs) == 0 {
+			// No double check here to ensure that the cgroup is REALLY empty,
+			// because we already are in such a double check for another cgroup.
+			// No need to introduce a recursion here.
+			cr.removeCgroup(cgroup)
+		}
 	}
+}
 
-	var err error
+func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	// create new entry now
-	newCGroup, err := cgroupModel.NewCacheEntry(process.ContainerID, &process.CGroup, process.Pid)
-	if err != nil {
-		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
-		return
-	}
+	newCGroup := cgroupModel.NewCacheEntry(process.ContainerID, &process.CGroup, process.Pid)
 	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
@@ -145,6 +192,42 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	cr.NotifyListeners(CGroupCreated, newCGroup)
 }
 
+// AddPID update the cgroup cache to associates a cgroup and a pid
+func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
+	cr.Lock()
+	defer cr.Unlock()
+
+	found := false
+
+	for _, cgroup := range cr.hostWorkloads.Values() {
+		if cgroup.CGroupFile == process.CGroup.CGroupFile {
+			cgroup.PIDs[process.Pid] = true
+			found = true
+		} else if _, exist := cgroup.PIDs[process.Pid]; exist {
+			delete(cgroup.PIDs, process.Pid)
+			if len(cgroup.PIDs) == 0 {
+				cr.syncOrDeleteCgroup(cgroup, process.Pid)
+			}
+		}
+	}
+
+	for _, cgroup := range cr.containerWorkloads.Values() {
+		if cgroup.CGroupFile == process.CGroup.CGroupFile {
+			cgroup.PIDs[process.Pid] = true
+			found = true
+		} else if _, exist := cgroup.PIDs[process.Pid]; exist {
+			delete(cgroup.PIDs, process.Pid)
+			if len(cgroup.PIDs) == 0 {
+				cr.syncOrDeleteCgroup(cgroup, process.Pid)
+			}
+		}
+	}
+
+	if !found {
+		cr.pushNewCacheEntry(process)
+	}
+}
+
 // GetCGroupContext returns the cgroup context with the specified path key
 func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupContext, bool) {
 	cr.Lock()
@@ -153,11 +236,17 @@ func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupCon
 	return cr.cgroups.Get(cgroupPath)
 }
 
-// GetContainerWorkloads returns the container workloads
-func (cr *Resolver) GetContainerWorkloads() *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry] {
+// Iterate iterates on all cached cgroups
+func (cr *Resolver) Iterate(cb func(*cgroupModel.CacheEntry)) {
 	cr.Lock()
 	defer cr.Unlock()
-	return cr.containerWorkloads
+
+	for _, cgroup := range cr.hostWorkloads.Values() {
+		cb(cgroup)
+	}
+	for _, cgroup := range cr.containerWorkloads.Values() {
+		cb(cgroup)
+	}
 }
 
 // GetWorkload returns the workload referenced by the provided ID
@@ -187,20 +276,21 @@ func (cr *Resolver) DelPID(pid uint32) {
 }
 
 // deleteWorkloadPID removes a PID from a workload
-func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEntry) {
+func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEntry) bool {
 	workload.Lock()
 	defer workload.Unlock()
+
+	if _, exist := workload.PIDs[pid]; !exist {
+		return false
+	}
 
 	delete(workload.PIDs, pid)
 
 	// check if the workload should be deleted
-	if len(workload.PIDs) <= 0 {
-		cr.cgroups.Remove(workload.CGroupFile)
-		cr.hostWorkloads.Remove(workload.CGroupID)
-		if workload.ContainerID != "" {
-			cr.containerWorkloads.Remove(workload.ContainerID)
-		}
+	if len(workload.PIDs) == 0 {
+		cr.syncOrDeleteCgroup(workload, pid)
 	}
+	return true
 }
 
 // Len return the number of entries
