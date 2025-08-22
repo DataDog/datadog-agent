@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/hostmetadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 
@@ -49,11 +48,7 @@ func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, c
 	}
 	var sourceProvider source.Provider
 	if f.traceAgent == nil {
-		var err error
-		sourceProvider, err = hostmetadata.GetSourceProvider(set.TelemetrySettings, "", 0)
-		if err != nil {
-			return nil, err
-		}
+		sourceProvider = nil // hostmetadata capability commented out
 	}
 
 	return NewExtension(config, set.BuildInfo, f.traceAgent, f.log, sourceProvider)

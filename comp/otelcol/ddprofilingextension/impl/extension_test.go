@@ -23,8 +23,6 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	extsource "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
-
 	log "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	otlpattributes "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -155,7 +153,7 @@ func TestOSSExtension(t *testing.T) {
 		ProfilerOptions: ProfilerOptions{
 			Period: 1,
 		},
-	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &fargateSourceProvider{})
+	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), nil)
 	assert.NoError(t, err)
 
 	host := newHostWithExtensions(
@@ -184,15 +182,6 @@ func TestOSSExtension(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-type fargateSourceProvider struct{}
-
-func (*fargateSourceProvider) Source(_ context.Context) (extsource.Source, error) {
-	return extsource.Source{
-		Kind:       "task_arn",
-		Identifier: "arn:aws:ecs:us-east-1:123456789012:cluster/default",
-	}, nil
-}
-
 func TestOSSExtensionFargate(t *testing.T) {
 	// fake intake
 	got := make(chan string, 1)
@@ -214,7 +203,7 @@ func TestOSSExtensionFargate(t *testing.T) {
 		ProfilerOptions: ProfilerOptions{
 			Period: 1,
 		},
-	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &fargateSourceProvider{})
+	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), nil)
 	assert.NoError(t, err)
 
 	host := newHostWithExtensions(
@@ -235,21 +224,12 @@ func TestOSSExtensionFargate(t *testing.T) {
 	timeout := time.After(15 * time.Second)
 	select {
 	case out := <-got:
-		assert.Equal(t, "agent_version:7.64.0,source:oss-ddprofilingextension,orchestrator:fargate_ecs,task_arn:arn:aws:ecs:us-east-1:123456789012:cluster/default", out)
+		assert.Equal(t, "agent_version:7.64.0,source:oss-ddprofilingextension", out)
 	case <-timeout:
 		t.Fatal("Timed out")
 	}
 	err = ext.Shutdown(context.Background())
 	assert.NoError(t, err)
-}
-
-type hostSourceProvider struct{}
-
-func (*hostSourceProvider) Source(_ context.Context) (extsource.Source, error) {
-	return extsource.Source{
-		Kind:       "host",
-		Identifier: "i-123456789",
-	}, nil
 }
 
 func TestOSSExtensionHost(t *testing.T) {
@@ -273,7 +253,7 @@ func TestOSSExtensionHost(t *testing.T) {
 		ProfilerOptions: ProfilerOptions{
 			Period: 1,
 		},
-	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), &hostSourceProvider{})
+	}, component.BuildInfo{}, nil, log.NewTemporaryLoggerWithoutInit(), nil)
 	assert.NoError(t, err)
 
 	host := newHostWithExtensions(
@@ -294,7 +274,7 @@ func TestOSSExtensionHost(t *testing.T) {
 	timeout := time.After(15 * time.Second)
 	select {
 	case out := <-got:
-		assert.Equal(t, "agent_version:7.64.0,source:oss-ddprofilingextension,host:i-123456789", out)
+		assert.Equal(t, "agent_version:7.64.0,source:oss-ddprofilingextension", out)
 	case <-timeout:
 		t.Fatal("Timed out")
 	}
