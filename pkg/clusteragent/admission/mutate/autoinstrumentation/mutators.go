@@ -105,6 +105,26 @@ func (i initContainer) mutatePod(pod *corev1.Pod) error {
 	return nil
 }
 
+type sleepContainer struct {
+	corev1.Container
+	Prepend bool
+}
+
+var _ podMutator = (*sleepContainer)(nil)
+
+func (s sleepContainer) mutatePod(pod *corev1.Pod) error {
+	container := s.Container
+	for idx, c := range pod.Spec.Containers {
+		if c.Name == container.Name {
+			pod.Spec.Containers[idx] = container
+			return nil
+		}
+	}
+
+	pod.Spec.Containers = appendOrPrepend(container, pod.Spec.Containers, s.Prepend)
+	return nil
+}
+
 // volume is a podMutator which adds the volume to a pod.
 //
 // It will only add the volume one time based on the volume name.
