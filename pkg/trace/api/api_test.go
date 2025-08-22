@@ -615,6 +615,7 @@ func TestReceiverV1DecodingError(t *testing.T) {
 	data := []byte("invalid msgpack")
 	var client http.Client
 	req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+	assert.NoError(err)
 	traceCount := 10
 	req.Header.Set(header.TraceCount, strconv.Itoa(traceCount))
 	req.Header.Set("Content-Type", "application/msgpack")
@@ -1032,7 +1033,9 @@ func TestHandleTracesV1(t *testing.T) {
 
 	handler.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusOK, rr.Result().StatusCode)
+	result := rr.Result()
+	defer result.Body.Close()
+	assert.Equal(t, http.StatusOK, result.StatusCode)
 	select {
 	case p := <-receiver.outV1:
 		assert.Equal(t, "python", p.TracerPayload.LanguageName())

@@ -418,7 +418,7 @@ func GetTestSpan() *pb.Span {
 	return trace[0]
 }
 
-// GetTestSpan returns a Span with different fields set
+// GetTestSpanV1 returns a Span with different fields set
 func GetTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
 	return idx.NewInternalSpan(strings, &idx.Span{
 		SpanID:      52,
@@ -429,12 +429,12 @@ func GetTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
 		Start:       9223372036854775807,
 		Duration:    9223372036854775807,
 		Attributes: map[uint32]*idx.AnyValue{
-			strings.Add("http.host"): &idx.AnyValue{
+			strings.Add("http.host"): {
 				Value: &idx.AnyValue_StringValueRef{
 					StringValueRef: strings.Add("192.168.0.1"),
 				},
 			},
-			strings.Add("http.monitor"): &idx.AnyValue{
+			strings.Add("http.monitor"): {
 				Value: &idx.AnyValue_DoubleValue{
 					DoubleValue: 41.99,
 				},
@@ -445,12 +445,12 @@ func GetTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
 				TraceID: []byte{42},
 				SpanID:  52,
 				Attributes: map[uint32]*idx.AnyValue{
-					strings.Add("a1"): &idx.AnyValue{
+					strings.Add("a1"): {
 						Value: &idx.AnyValue_StringValueRef{
 							StringValueRef: strings.Add("v1"),
 						},
 					},
-					strings.Add("a2"): &idx.AnyValue{
+					strings.Add("a2"): {
 						Value: &idx.AnyValue_StringValueRef{
 							StringValueRef: strings.Add("v2"),
 						},

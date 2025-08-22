@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// SampledChunksV1 is a wrapper around an InternalTracerPayload that contains the size of the payload, the number of spans, and the number of events
 type SampledChunksV1 struct {
 	TracerPayload *idx.InternalTracerPayload
 	Size          int
@@ -64,7 +65,7 @@ type TraceWriterV1 struct {
 	compressor compression.Component
 }
 
-// NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
+// NewTraceWriterV1 returns a new TraceWriterV1. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
 func NewTraceWriterV1(
 	cfg *config.AgentConfig,

@@ -87,7 +87,7 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
 	return keep
 }
 
-// Sample a trace given the chunk's root span, returns true if the trace should be kept
+// SampleV1 a trace given the chunk's root span, returns true if the trace should be kept
 func (ps *ProbabilisticSampler) SampleV1(traceID []byte, root *idx.InternalSpan) bool {
 	if !ps.enabled {
 		return false

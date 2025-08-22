@@ -88,7 +88,7 @@ func (s *ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env 
 	return sampled
 }
 
-// Sample counts an incoming trace and tells if it is a sample which has to be kept
+// SampleV1 counts an incoming trace and tells if it is a sample which has to be kept
 func (s *ScoreSampler) SampleV1(now time.Time, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, env string) bool {
 	if s.disabled {
 		return false

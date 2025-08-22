@@ -91,7 +91,7 @@ func (p *Processor) Process(pt *traceutil.ProcessedTrace) (numEvents, numExtract
 	return numEvents, numExtracted, events
 }
 
-// Process takes a processed trace, extracts events from it and samples them, returning a collection of
+// ProcessV1 takes a processed trace, extracts events from it and samples them, returning a collection of
 // sampled events along with the total count of events.
 // numEvents is the number of sampled events found in the trace
 // numExtracted is the number of events found in the trace

@@ -58,6 +58,8 @@ const (
 	tagDecisionMaker = "_dd.p.dm"
 )
 
+// Writer is an interface that provides the base functionality of a writing component
+// Concrete implementations will generally use the TraceWriter, or TraceWriterV1 interface
 type Writer interface {
 	// Stop stops the Writer and attempts to flush whatever is left in the senders buffers.
 	Stop()

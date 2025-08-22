@@ -117,15 +117,15 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 }
 
 func computeSpanHashV1(span *idx.InternalSpan, env string, withResource bool) spanHash {
-	error := 0
+	spanError := 0
 	if span.Error() {
-		error = 1
+		spanError = 1
 	}
 	h := new32a()
 	h.Write([]byte(env))
 	h.Write([]byte(span.Service()))
 	h.Write([]byte(span.Name()))
-	h.WriteChar(byte(error))
+	h.WriteChar(byte(spanError))
 	if withResource {
 		h.Write([]byte(span.Resource()))
 	}

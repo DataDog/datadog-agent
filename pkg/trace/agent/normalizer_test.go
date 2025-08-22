@@ -67,17 +67,17 @@ func newTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
 		Start:       1448466874000000000,
 		Duration:    10000000,
 		Attributes: map[uint32]*idx.AnyValue{
-			strings.Add("user"): &idx.AnyValue{
+			strings.Add("user"): {
 				Value: &idx.AnyValue_StringValueRef{
 					StringValueRef: strings.Add("leo"),
 				},
 			},
-			strings.Add("pool"): &idx.AnyValue{
+			strings.Add("pool"): {
 				Value: &idx.AnyValue_StringValueRef{
 					StringValueRef: strings.Add("fondue"),
 				},
 			},
-			strings.Add("cheese_weight"): &idx.AnyValue{
+			strings.Add("cheese_weight"): {
 				Value: &idx.AnyValue_DoubleValue{
 					DoubleValue: 100000.0,
 				},
@@ -88,7 +88,7 @@ func newTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
 				TraceID: []byte{42},
 				SpanID:  1,
 				Attributes: map[uint32]*idx.AnyValue{
-					strings.Add("link.name"): &idx.AnyValue{
+					strings.Add("link.name"): {
 						Value: &idx.AnyValue_StringValueRef{
 							StringValueRef: strings.Add("name"),
 						},

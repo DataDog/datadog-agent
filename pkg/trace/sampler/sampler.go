@@ -107,6 +107,8 @@ func GetSamplingPriority(t *pb.TraceChunk) (SamplingPriority, bool) {
 	return SamplingPriority(t.Priority), true
 }
 
+// GetSamplingPriorityV1 returns the value of the sampling priority metric set on this span and a boolean indicating if
+// such a metric was actually found or not.
 func GetSamplingPriorityV1(t *idx.InternalTraceChunk) (SamplingPriority, bool) {
 	// TODO: would this be PriorityNone?
 	if t.Priority == int32(PriorityNone) {
@@ -135,7 +137,7 @@ func GetClientRate(s *pb.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateClient, 1.0)
 }
 
-// GetClientRate gets the rate at which the trace this span belongs to was sampled by the tracer.
+// GetClientRateV1 gets the rate at which the trace this span belongs to was sampled by the tracer.
 // NOTE: This defaults to 1 if no rate is stored.
 func GetClientRateV1(s *idx.InternalSpan) float64 {
 	return getMetricDefaultV1(s, KeySamplingRateClient, 1.0)
@@ -167,7 +169,7 @@ func GetPreSampleRate(s *pb.Span) float64 {
 	return getMetricDefault(s, KeySamplingRatePreSampler, 1.0)
 }
 
-// GetPreSampleRate returns the rate at which the trace this span belongs to was sampled by the agent's presampler.
+// GetPreSampleRateV1 returns the rate at which the trace this span belongs to was sampled by the agent's presampler.
 // NOTE: This defaults to 1 if no rate is stored.
 func GetPreSampleRateV1(s *idx.InternalSpan) float64 {
 	return getMetricDefaultV1(s, KeySamplingRatePreSampler, 1.0)
@@ -234,7 +236,7 @@ func SetMaxEPSRate(s *pb.Span, rate float64) {
 	}
 }
 
-// SetMaxEPSRate sets the rate at which this event was sampled by the max eps event sampler.
+// SetMaxEPSRateV1 sets the rate at which this event was sampled by the max eps event sampler.
 func SetMaxEPSRateV1(s *idx.InternalSpan, rate float64) {
 	if rate < 1 {
 		s.SetFloat64Attribute(KeySamplingRateMaxEPSSampler, rate)
@@ -249,7 +251,7 @@ func SetAnalyzedSpan(s *pb.Span) {
 	setMetric(s, KeyAnalyzedSpans, 1)
 }
 
-// SetAnalyzedSpan marks a span analyzed
+// SetAnalyzedSpanV1 marks a span analyzed
 func SetAnalyzedSpanV1(s *idx.InternalSpan) {
 	s.SetFloat64Attribute(KeyAnalyzedSpans, 1)
 }
@@ -335,7 +337,7 @@ func SingleSpanSampling(pt *traceutil.ProcessedTrace) bool {
 	return false
 }
 
-// SingleSpanSampling does single span sampling on the trace, returning true if the trace was modified
+// SingleSpanSamplingV1 does single span sampling on the trace, returning true if the trace was modified
 func SingleSpanSamplingV1(pt *traceutil.ProcessedTraceV1) bool {
 	ssSpans := getSingleSpanSampledSpansV1(pt)
 	if len(ssSpans) > 0 {

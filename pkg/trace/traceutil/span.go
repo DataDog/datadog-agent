@@ -36,7 +36,7 @@ func HasTopLevelMetrics(metrics map[string]float64) bool {
 	return metrics[topLevelKey] == 1 || metrics[tracerTopLevelKey] == 1
 }
 
-// HasTopLevelMetrics returns true if the provided metrics map indicates the span is top-level.
+// HasTopLevelMetricsV1 returns true if the provided metrics map indicates the span is top-level.
 func HasTopLevelMetricsV1(s *idx.InternalSpan) bool {
 	topLevel, ok := s.GetAttributeAsFloat64(topLevelKey)
 	if ok && topLevel == 1 {
@@ -53,7 +53,7 @@ func UpdateTracerTopLevel(s *pb.Span) {
 	}
 }
 
-// UpdateTracerTopLevel sets _top_level tag on spans flagged by the tracer
+// UpdateTracerTopLevelV1 sets _top_level tag on spans flagged by the tracer
 func UpdateTracerTopLevelV1(s *idx.InternalSpan) {
 	topLevel, ok := s.GetAttributeAsFloat64(tracerTopLevelKey)
 	if ok && topLevel == 1 {

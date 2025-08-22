@@ -61,7 +61,7 @@ func (a *Agent) Truncate(s *pb.Span) {
 	}
 }
 
-// Truncate checks that the span resource, meta and metrics are within the max length
+// TruncateV1 checks that the span resource, meta and metrics are within the max length
 // and modifies them if they are not
 func (a *Agent) TruncateV1(s *idx.InternalSpan) {
 	//TODO: This function knows too much about the internal span structure, we should refactor it

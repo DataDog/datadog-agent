@@ -128,7 +128,7 @@ func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 	return traces
 }
 
-// GetTestTraces returns a []Trace that is composed by “traceN“ number
+// GetTestTracesV1 returns a []Trace that is composed by “traceN“ number
 // of traces, each one composed by “size“ number of spans.
 func GetTestTracesV1(traceN, size int, realisticIDs bool) *idx.InternalTracerPayload {
 	strings := idx.NewStringTable()
@@ -164,7 +164,7 @@ func GetTestTracesV1(traceN, size int, realisticIDs bool) *idx.InternalTracerPay
 	return traces
 }
 
-// GetTestTraceChunks returns a []TraceChunk that is composed by “traceN“ number
+// GetTestTraceChunksV1 returns a []TraceChunk that is composed by “traceN“ number
 // of traces, each one composed by “size“ number of spans.
 func GetTestTraceChunksV1(traceN, size int, realisticIDs bool) []*idx.InternalTraceChunk {
 	traces := GetTestTracesV1(traceN, size, realisticIDs)
@@ -235,7 +235,7 @@ func TracerPayloadWithChunk(chunk *pb.TraceChunk) *pb.TracerPayload {
 	}
 }
 
-// TracerPayloadWithChunk wraps `chunk` with pb.TraceChunk
+// TracerPayloadV1WithChunk wraps `chunk` with pb.TraceChunk
 func TracerPayloadV1WithChunk(chunk *idx.InternalTraceChunk) *idx.InternalTracerPayload {
 	return &idx.InternalTracerPayload{
 		Strings: chunk.Strings,

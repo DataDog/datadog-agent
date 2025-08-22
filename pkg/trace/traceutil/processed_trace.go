@@ -67,7 +67,7 @@ func (pt *ProcessedTrace) Clone() *ProcessedTrace {
 	return ptClone
 }
 
-// CloneV1 creates a copy of ProcessedTraceV1, cloning p, p.TraceChunk, and p.Root.
+// Clone creates a copy of ProcessedTraceV1, cloning p, p.TraceChunk, and p.Root.
 // TODO: can we avoid needing this at all?
 func (pt *ProcessedTraceV1) Clone() *ProcessedTraceV1 {
 	if pt == nil {

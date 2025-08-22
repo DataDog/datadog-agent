@@ -161,7 +161,7 @@ func (a *Agent) validateAndFixHTTPStatusCode(ts *info.TagStats, sc string) (stri
 }
 
 // normalizeSpanLinks handles span links normalization for both pb.Span and idx.InternalSpan
-func (a *Agent) normalizeSpanLinks(ts *info.TagStats, links []*pb.SpanLink) {
+func (a *Agent) normalizeSpanLinks(links []*pb.SpanLink) {
 	for _, link := range links {
 		if val, ok := link.Attributes["link.name"]; ok {
 			newName, err := normalizeutil.NormalizeName(val)
@@ -199,7 +199,7 @@ func (a *Agent) validateAndFixStartTimeV1(ts *info.TagStats, start uint64, durat
 }
 
 // normalizeSpanLinksV1 handles span links normalization for idx.InternalSpan
-func (a *Agent) normalizeSpanLinksV1(ts *info.TagStats, links []*idx.InternalSpanLink) {
+func (a *Agent) normalizeSpanLinksV1(links []*idx.InternalSpanLink) {
 	for _, link := range links {
 		if val, ok := link.GetAttributeAsString("link.name"); ok {
 			newName, err := normalizeutil.NormalizeName(val)
@@ -269,7 +269,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 
 	if len(s.SpanLinks) > 0 {
-		a.normalizeSpanLinks(ts, s.SpanLinks)
+		a.normalizeSpanLinks(s.SpanLinks)
 	}
 	return nil
 }
@@ -329,7 +329,7 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 	}
 
 	if s.LenLinks() > 0 {
-		a.normalizeSpanLinksV1(ts, s.Links())
+		a.normalizeSpanLinksV1(s.Links())
 	}
 	return nil
 }

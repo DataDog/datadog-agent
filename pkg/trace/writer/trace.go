@@ -13,7 +13,6 @@ import (
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -273,36 +272,6 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		TracerPayloads:     payloads,
-	}
-	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
-
-	w.serialize(&p)
-}
-
-// w does not need to be locked during flushPayloads.
-func (w *TraceWriter) flushPayloadsV1(payloads []*idx.InternalTracerPayload) {
-	w.flushTicker.Reset(w.tick) // reset the flush timer whenever we flush
-	if len(payloads) == 0 {
-		// nothing to do
-		return
-	}
-
-	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
-
-	protoPayloads := make([]*idx.TracerPayload, len(payloads))
-	for i, payload := range payloads {
-		protoPayloads[i] = payload.ToProto()
-	}
-
-	log.Debugf("Serializing %d tracer payloads.", len(payloads))
-	p := pb.AgentPayload{
-		AgentVersion:       w.agentVersion,
-		HostName:           w.hostname,
-		Env:                w.env,
-		TargetTPS:          w.prioritySampler.GetTargetTPS(),
-		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
-		RareSamplerEnabled: w.rareSampler.IsEnabled(),
-		IdxTracerPayloads:  protoPayloads,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 

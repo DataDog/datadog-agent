@@ -116,7 +116,7 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	return sampled
 }
 
-// Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
+// SampleV1 counts an incoming trace and returns the trace sampling decision and the applied sampling rate
 func (s *PrioritySampler) SampleV1(now time.Time, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, tracerEnv string, clientDroppedP0sWeight float64) bool {
 	// Extra safety, just in case one trace is empty
 	if len(chunk.Spans) == 0 {

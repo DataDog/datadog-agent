@@ -71,13 +71,13 @@ func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 
 // Sample a trace and returns true if trace was sampled (should be kept)
 func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
-
 	if !e.enabled.Load() {
 		return false
 	}
 	return e.handleTrace(now, env, t)
 }
 
+// SampleV1 samples a trace and returns true if trace was sampled (should be kept)
 func (e *RareSampler) SampleV1(now time.Time, chunk *idx.InternalTraceChunk, env string) bool {
 	if !e.enabled.Load() {
 		return false

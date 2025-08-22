@@ -159,7 +159,7 @@ func GenerateSpan(c *SpanConfig) *pb.Span {
 	return s
 }
 
-// GeneratePayload generates a new payload.
+// GeneratePayloadV1 generates a new payload.
 // The last span of a generated trace is the "root" of that trace
 func GeneratePayloadV1(n int, tc *TraceConfig, sc *SpanConfig) *idx.InternalTracerPayload {
 	if n == 0 {
@@ -181,7 +181,7 @@ func GeneratePayloadV1(n int, tc *TraceConfig, sc *SpanConfig) *idx.InternalTrac
 	return payload
 }
 
-// GenerateTrace generates a valid trace using the given config.
+// GenerateTraceV1 generates a valid trace using the given config.
 func GenerateTraceV1(strings *idx.StringTable, tc *TraceConfig, sc *SpanConfig) *idx.InternalTraceChunk {
 	if tc == nil {
 		tc = &TraceConfig{}
@@ -236,7 +236,7 @@ func GenerateTraceV1(strings *idx.StringTable, tc *TraceConfig, sc *SpanConfig) 
 	return chunk
 }
 
-// GenerateSpan generates a random root span with all fields filled in.
+// GenerateSpanV1 generates a random root span with all fields filled in.
 func GenerateSpanV1(strings *idx.StringTable, c *SpanConfig) *idx.InternalSpan {
 	id := uint64(rand.Int63())
 	duration := 1 + rand.Int63n(1_000_000_000) // between 1ns and 1s
@@ -264,6 +264,7 @@ func GenerateSpanV1(strings *idx.StringTable, c *SpanConfig) *idx.InternalSpan {
 		VersionRef:   strings.Add(pickString(versions)),
 		ComponentRef: strings.Add(pickString(components)),
 		Kind:         idx.SpanKind_SPAN_KIND_UNSPECIFIED,
+		Events:       events,
 	})
 	ntags := c.MinTags
 	if c.MaxTags > c.MinTags {

@@ -81,7 +81,7 @@ func (f Replacer) Replace(trace pb.Trace) {
 	}
 }
 
-// Replace replaces all tags matching the Replacer's rules.
+// ReplaceV1 replaces all tags matching the Replacer's rules.
 func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 	for _, rule := range f.rules {
 		key, str, re := rule.Name, rule.Repl, rule.Re

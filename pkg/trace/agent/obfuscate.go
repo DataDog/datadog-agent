@@ -185,40 +185,40 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 		if !a.conf.Obfuscation.Memcached.Enabled {
 			return
 		}
-		if v, ok := span.GetAttributeAsString(tagMemcachedCommand); !ok || v == "" {
+		v, ok := span.GetAttributeAsString(tagMemcachedCommand)
+		if !ok || v == "" {
 			return
-		} else {
-			span.SetStringAttribute(tagMemcachedCommand, o.ObfuscateMemcachedString(v))
 		}
+		span.SetStringAttribute(tagMemcachedCommand, o.ObfuscateMemcachedString(v))
 	case "web", "http":
-		if v, ok := span.GetAttributeAsString(tagHTTPURL); !ok || v == "" {
+		v, ok := span.GetAttributeAsString(tagHTTPURL)
+		if !ok || v == "" {
 			return
-		} else {
-			span.SetStringAttribute(tagHTTPURL, o.ObfuscateURLString(v))
 		}
+		span.SetStringAttribute(tagHTTPURL, o.ObfuscateURLString(v))
 	case "mongodb":
 		if !a.conf.Obfuscation.Mongo.Enabled {
 			return
 		}
-		if v, ok := span.GetAttributeAsString(tagMongoDBQuery); !ok || v == "" {
+		v, ok := span.GetAttributeAsString(tagMongoDBQuery)
+		if !ok || v == "" {
 			return
-		} else {
-			span.SetStringAttribute(tagMongoDBQuery, o.ObfuscateMongoDBString(v))
 		}
+		span.SetStringAttribute(tagMongoDBQuery, o.ObfuscateMongoDBString(v))
 	case "elasticsearch", "opensearch":
 		if a.conf.Obfuscation.ES.Enabled {
-			if v, ok := span.GetAttributeAsString(tagElasticBody); !ok || v == "" {
+			v, ok := span.GetAttributeAsString(tagElasticBody)
+			if !ok || v == "" {
 				return
-			} else {
-				span.SetStringAttribute(tagElasticBody, o.ObfuscateElasticSearchString(v))
 			}
+			span.SetStringAttribute(tagElasticBody, o.ObfuscateElasticSearchString(v))
 		}
 		if a.conf.Obfuscation.OpenSearch.Enabled {
-			if v, ok := span.GetAttributeAsString(tagOpenSearchBody); !ok || v == "" {
+			v, ok := span.GetAttributeAsString(tagOpenSearchBody)
+			if !ok || v == "" {
 				return
-			} else {
-				span.SetStringAttribute(tagOpenSearchBody, o.ObfuscateOpenSearchString(v))
 			}
+			span.SetStringAttribute(tagOpenSearchBody, o.ObfuscateOpenSearchString(v))
 		}
 	}
 }
