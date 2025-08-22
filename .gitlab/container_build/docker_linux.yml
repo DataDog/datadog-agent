@@ -13,6 +13,10 @@
       fi
     - AGENT_BASE_IMAGE_TAG=registry.ddbuild.io/ci/datadog-agent/agent-base-image${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-$ARCH
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
+    # Test section
+    - export VAULT_ADDR=https://vault.us1.ddbuild.io
+    - vault login -method=aws -no-print
+    # End of test section
     - !reference [.login_to_docker_readonly]
     # Caching setup
     - DOCKER_CACHE_REGISTRY_TARGET="${IMAGE}${TAG_SUFFIX}-${ARCH}:cache"

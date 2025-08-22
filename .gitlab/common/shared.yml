@@ -64,12 +64,6 @@
     fi
   - dd-pkg sign --key-id "${PIPELINE_KEY_ALIAS}" "${OMNIBUS_PACKAGE_DIR}"
 
-.vault_login:
-  # Point the CLI to our internal vault
-  - export VAULT_ADDR=https://vault.us1.ddbuild.io
-  - vault login -method=aws -no-print
-
-
 # Login to docker with read-only credentials to avoid rate-limiting
 .login_to_docker_readonly:
   - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
