@@ -49,7 +49,7 @@
     !reference [.on_deploy_installer]
   resource_group: deb_bucket
   variables:
-    DD_PKG_EXTRA_ARGS: --project-name "datadog-installer"
+    DD_PKG_EXTRA_ARGS: --project-name datadog-installer
     ARTIFACT_NAME_PATTERN: "*_7.*${PACKAGE_ARCH}.deb"
 
 .deploy_installer_rpm:
@@ -58,13 +58,13 @@
     !reference [.on_deploy_installer]
   resource_group: rpm_bucket
   variables:
-    DD_PKG_EXTRA_ARGS: --project-name "datadog-installer"
+    DD_PKG_EXTRA_ARGS: --project-name datadog-installer
     ARTIFACT_NAME_PATTERN: "*-7.*${PACKAGE_ARCH}.rpm"
 
 .deploy_installer_suse_rpm:
   extends: .deploy_installer_rpm
   variables:
-    DD_PKG_EXTRA_ARGS: --suse --project-name "datadog-installer"
+    DD_PKG_EXTRA_ARGS: --suse --project-name datadog-installer
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
 
 deploy_installer_install_scripts:
