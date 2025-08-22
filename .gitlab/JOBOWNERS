@@ -48,6 +48,7 @@ generate_minimized_btfs_*            @DataDog/ebpf-platform
 
 # Package build
 *agent_dmg*                          @DataDog/agent-build
+bazel:*                              @DataDog/agent-build
 datadog-agent-*                      @DataDog/agent-build
 datadog-ot-agent-*                   @DataDog/agent-build
 dogstatsd-*                          @DataDog/agent-build
