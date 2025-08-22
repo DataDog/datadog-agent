@@ -18,14 +18,15 @@ In order to ease/speed up our review, here are some items you can check/improve 
 
 /// tab | Contributor Checklist
 - [X] Have a proper commit history (we advise you to rebase if needed) with clear commit messages.
+- [X] Sign your commits.
 - [X] Write tests for the code you wrote.
 - [X] Preferably make sure that all tests pass locally.
-- [X] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.
+- [X] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.  Commit titles should be prefixed with general area of pull request's change.
 - [X] Use [Reno](#reno) to create a release note.
-- [X] Open your PR against the `main` branch.
+- [X] Open your PR as a Draft against the `main` branch.
 - [X] Sign the Contributor Licence Agreement.
-- [X] Sign your commits.
 - [X] Provide adequate QA/testing plan information.
+- [X] When the tests all pass, change your PR from "Draft" to "Ready for review".
 ///
 
 /// tab | Reviewer Checklist
@@ -39,7 +40,9 @@ In order to ease/speed up our review, here are some items you can check/improve 
 Adding GitHub labels is only possible for contributors with write access.
 ///
 
-Your pull request must pass all CI tests before we will merge it. If you're seeing an error and don't think it's your fault, it may not be! [Join us on Slack](https://chat.datadoghq.com) or [send us an email](mailto:support@datadoghq.com), and together we'll get it sorted out.
+**If your PR changes behavior, you must create or update any relevant tests.**
+
+**Your pull request must pass all CI tests before we will merge it**. If you're seeing an error and don't think it's your fault, it may not be! [Join us on Slack](https://chat.datadoghq.com) or [send us an email](mailto:support@datadoghq.com), and together we'll get it sorted out.
 
 ### Merge protection
 
@@ -88,6 +91,18 @@ The goals ordered by priority are:
 - On the `main` branch, have a meaningful commit history that allows understanding (even years later) what each commit does, and why.
 
 You must open the PR when the code is reviewable or you must set the PR as draft if you want to share code before it's ready for actual reviews.
+
+#### Write a good PR description
+
+Reviewers and future maintainers will not see your individual commit history, so the PR description should incorporate everything that they will need.
+
+- A description of what is changed.
+- Often, a reason why the change is made. Pointing to an issue is usually a good reason.
+- When testing had to include work not covered by test suites, a description of how you validated your change.
+- Any relevant benchmarks.
+- Additional notes that make code understanding easier.
+  - If this is part of a chain of PRs, point to the predecessors.
+  - If there are drawbacks or tradeoffs to consider, raise them here.
 
 #### Before the first PR review
 
