@@ -732,6 +732,12 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
 
+### [comp/privateactionrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner)
+
+*Datadog Team*: action-platform
+
+Package privateactionrunner implements a component to run private actions in the Private Action Runner.
+
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
 *Datadog Team*: ndm-integrations
