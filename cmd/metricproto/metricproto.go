@@ -147,6 +147,7 @@ func mapStat[T any](what string, m map[string]map[string]T) {
 type interner struct {
 	si map[string]int64
 	s  []string
+	sf map[string]int64
 
 	ti map[string]int64
 	t  [][]int64
@@ -157,6 +158,7 @@ type interner struct {
 func newInterner() interner {
 	return interner{
 		si: make(map[string]int64),
+		sf: make(map[string]int64),
 		ti: make(map[string]int64),
 		g:  make(map[string]string),
 	}
@@ -185,6 +187,8 @@ func (i *interner) serialize(ps *molecule.ProtoStream) error {
 }
 
 func (i *interner) intern(s string) int64 {
+	i.sf[s]++
+
 	if k, ok := i.si[s]; ok {
 		return k
 	}
@@ -264,7 +268,34 @@ func (i *interner) internTags3(s string) int64 {
 		}
 	}
 
+	if false {
+		if len(is) > 2 {
+			prev := is[0]
+			for ix := 1; ix < len(is); ix++ {
+				if prev == is[ix] {
+					fmt.Printf("duplicate tag %d %q in tagset %q\n", prev, i.s[prev], s)
+					panic("bugs")
+				}
+				prev = is[ix]
+			}
+		}
+	}
+
 	return i.internTagset(s, is)
+}
+
+func (i *interner) sort() {
+	slices.Sort(i.s)
+	for j, s := range i.s {
+		i.si[s] = int64(j)
+	}
+}
+
+func (i *interner) sortByFreq() {
+	slices.SortFunc(i.s, func(n, m string) int { return int(i.sf[m] - i.sf[n]) })
+	for j, s := range i.s {
+		i.si[s] = int64(j)
+	}
 }
 
 func deltaEncode[T int64 | int32](is []T) {
@@ -2165,6 +2196,134 @@ func (b *bucket) serialize15(w *bytes.Buffer) error {
 	return nil
 }
 
+/*
+like serialize07, don't pre-sort metrics, but pre-build and sort the dictionary.
+*/
+func (b *bucket) serialize16(w *bytes.Buffer, sort int) error {
+	i := newInterner()
+
+	type record struct {
+		name   string
+		tags   string
+		kind   int
+		value  float64
+		sketch sketch
+	}
+
+	recs := []record{}
+	for k1, l1 := range b.gauges {
+		for k2, val := range l1 {
+			recs = append(recs, record{name: k1, tags: k2, kind: gaugeKind, value: val})
+		}
+	}
+	for k1, l1 := range b.counts {
+		for k2, val := range l1 {
+			recs = append(recs, record{name: k1, tags: k2, kind: countKind, value: val})
+		}
+	}
+	for k1, l1 := range b.sketches {
+		for k2, val := range l1 {
+			recs = append(recs, record{name: k1, tags: k2, kind: sketchKind, sketch: val})
+		}
+	}
+
+	if false {
+		slices.SortFunc(recs, func(a, b record) int {
+			if a.name < b.name {
+				return -1
+			}
+			if a.name > b.name {
+				return 1
+			}
+			if a.tags < b.tags {
+				return -1
+			}
+			if a.tags > b.tags {
+				return 1
+			}
+			return 0
+		})
+	}
+
+	names := []int64{}
+	tags := []int64{}
+	types := []int64{}
+	floats := []float64{}
+	skcnts := []int64{}
+	sklens := []int64{}
+	skks := []int32{}
+	skns := []uint32{}
+
+	for _, r := range recs {
+		i.intern(r.name)
+		i.internTags(r.tags)
+	}
+
+	switch sort {
+	case 0:
+	case 1:
+		i.sort()
+	case 2:
+		i.sortByFreq()
+	}
+
+	for _, r := range recs {
+		names = append(names, i.intern(r.name))
+		tags = append(tags, i.internTags3(r.tags))
+		types = append(types, int64(r.kind)+int64(r.sketch.mode))
+		switch r.kind {
+		case gaugeKind, countKind:
+			floats = append(floats, r.value)
+		case sketchKind:
+			sk := r.sketch.sk.Finish()
+			b := sk.Basic
+			k, n := sk.Cols()
+			deltaEncode(k)
+			floats = append(floats, b.Min, b.Max, b.Avg, b.Sum)
+			skcnts = append(skcnts, b.Cnt)
+			sklens = append(sklens, int64(len(k)))
+			skks = append(skks, k...)
+			skns = append(skns, n...)
+		}
+	}
+
+	deltaEncode(names)
+	deltaEncode(tags)
+
+	fmt.Printf("-- %d metrics\n", len(names))
+
+	ps := molecule.NewProtoStream(w)
+	ps.String(2, b.containerId)
+	ps.Embedded(4, i.serialize)
+
+	lenHeader := w.Len()
+	fmt.Printf("-- %d header bytes\n", lenHeader)
+
+	ps.Int64(5, int64(len(names)))
+	ps.Sint64Packed(10, names)
+	ps.Sint64Packed(11, tags)
+	ps.Int64Packed(12, types)
+	ps.DoublePacked(13, floats)
+	ps.Int64Packed(14, skcnts)
+	ps.Int64Packed(15, sklens)
+	ps.Sint32Packed(16, skks)
+	ps.Uint32Packed(17, skns)
+
+	fmt.Printf("-- %d metric bytes\n", w.Len()-lenHeader)
+
+	return nil
+}
+
+func (b *bucket) serialize16a(w *bytes.Buffer) error {
+	return b.serialize16(w, 0)
+}
+func (b *bucket) serialize16b(w *bytes.Buffer) error {
+	return b.serialize16(w, 1)
+}
+func (b *bucket) serialize16c(w *bytes.Buffer) error {
+	return b.serialize16(w, 2)
+}
+
 func iszero(v float64) int {
 	if v == 0 {
 		return 1
@@ -2211,7 +2370,7 @@ func (a *agg) read(ts_ns int64, pid int, line string) {
 			field := fields[i]
 			if ts, ok := strings.CutPrefix(field, "#"); ok {
 				list := strings.Split(ts, ",")
-				sort.UniqInPlace(list)
+				list = sort.UniqInPlace(list)
 				tags = strings.Join(list, ",")
 			}
 			if id, ok := strings.CutPrefix(field, "c:"); ok {
@@ -2302,20 +2461,23 @@ func main() {
 		name string
 		fn   func(*bucket, *bytes.Buffer) error
 	}{
-		{"serialize01", (*bucket).serialize01},
-		{"serialize02", (*bucket).serialize02},
-		{"serialize03", (*bucket).serialize03},
-		{"serialize04", (*bucket).serialize04},
-		{"serialize06", (*bucket).serialize06},
+		// {"serialize01", (*bucket).serialize01},
+		// {"serialize02", (*bucket).serialize02},
+		// {"serialize03", (*bucket).serialize03},
+		// {"serialize04", (*bucket).serialize04},
+		// {"serialize06", (*bucket).serialize06},
 		{"serialize07", (*bucket).serialize07},
-		{"serialize08", (*bucket).serialize08},
-		{"serialize09", (*bucket).serialize09},
-		{"serialize10", (*bucket).serialize10},
-		{"serialize11", (*bucket).serialize11},
-		{"serialize12", (*bucket).serialize12},
-		{"serialize13", (*bucket).serialize13},
-		{"serialize14", (*bucket).serialize14},
-		{"serialize15", (*bucket).serialize15},
+		// {"serialize08", (*bucket).serialize08},
+		// {"serialize09", (*bucket).serialize09},
+		// {"serialize10", (*bucket).serialize10},
+		// {"serialize11", (*bucket).serialize11},
+		// {"serialize12", (*bucket).serialize12},
+		// {"serialize13", (*bucket).serialize13},
+		// {"serialize14", (*bucket).serialize14},
+		// {"serialize15", (*bucket).serialize15},
+		{"serialize16_no", (*bucket).serialize16a},
+		{"serialize16_lex", (*bucket).serialize16b},
+		{"serialize16_frq", (*bucket).serialize16c},
 	}
 
 	timestamps := slices.Sorted(maps.Keys(a.buckets))
