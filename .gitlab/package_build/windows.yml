@@ -136,11 +136,11 @@ windows_zip_ddot_x64:
 
 # build Windows DDOT OCI tar and publish into pipeline artifacts so ddot_oci can merge it
 windows_ddot_oci:
-  stage: packaging
+  stage: package_build
   extends: .windows_docker_default
-  needs: ["go_deps", "windows_zip_ddot_x64"]
   variables:
     ARCH: "x64"
+  needs: ["go_deps", "windows_zip_ddot_x64"]
   script:
     - $ErrorActionPreference = 'Stop'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
