@@ -2,7 +2,7 @@
 Description=Datadog Agent
 After=network.target
 Conflicts=datadog-agent-exp.service
-Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service
+Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service datadog-agent-ddot.service
 
 [Service]
 Type=simple
@@ -13,6 +13,7 @@ Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stab
 RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 Restart=on-failure
 ExecStart=/opt/datadog-packages/datadog-agent/stable/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/stable/run/agent.pid
 

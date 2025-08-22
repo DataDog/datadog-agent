@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -92,26 +93,28 @@ func (p *FileHasher) HandleProcessExited(event *model.Event) {
 }
 
 // HashAndReport hash and report, returns true if the hash computation is supported for the given event
-func (p *FileHasher) HashAndReport(rule *rules.Rule, ev *model.Event) bool {
+func (p *FileHasher) HashAndReport(rule *rules.Rule, action *rules.HashDefinition, ev *model.Event) bool {
 	eventType := ev.GetEventType()
 
 	if !p.cfg.RuntimeSecurity.HashResolverEnabled {
 		return false
 	}
 
-	// only open and exec events are supported
-	var fileEvent *model.FileEvent
-	switch eventType {
-	case model.FileOpenEventType:
-		fileEvent = &ev.Open.File
-	case model.ExecEventType:
-		fileEvent = &ev.Exec.FileEvent
-	default:
+	fileEvent, err := ev.GetFileField(action.Field)
+	if err != nil {
+		seclog.Errorf("failed to get file field %s: %v", action.Field, err)
 		return false
 	}
 
 	if ev.ProcessContext.Pid == utils.Getpid() {
 		return false
+	}
+
+	switch ev.Origin {
+	case EBPFOrigin:
+		if fileEvent.IsFileless() {
+			return false
+		}
 	}
 
 	report := &HashActionReport{

@@ -31,11 +31,6 @@ from tasks.kernel_matrix_testing.vars import VMCONFIG
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
 
-try:
-    import libvirt
-except ImportError:
-    libvirt = None
-
 X86_INSTANCE_TYPE = "m5d.metal"
 ARM_INSTANCE_TYPE = "m6gd.metal"
 
@@ -194,7 +189,13 @@ def check_env(ctx: Context):
 
 
 def launch_stack(
-    ctx: Context, stack: str | None, ssh_key: str | None, x86_ami: str, arm_ami: str, provision_microvms: bool
+    ctx: Context,
+    stack: str | None,
+    ssh_key: str | None,
+    x86_ami: str,
+    arm_ami: str,
+    provision_microvms: bool,
+    with_gdb: bool,
 ):
     stack = check_and_get_stack_or_exit(stack)
 
@@ -239,6 +240,7 @@ def launch_stack(
         vmconfig=vm_config,
         stack_name=stack,
         local=local,
+        with_gdb=with_gdb,
     )
 
     prefix = ""
@@ -294,6 +296,7 @@ def start_microvms_cmd(
     provision_microvms=False,
     run_agent=False,
     agent_version=None,
+    with_gdb=False,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -313,6 +316,7 @@ def start_microvms_cmd(
         f"--agent-version {agent_version}" if agent_version else "",
         "--provision-instance" if provision_instance else "",
         "--provision-microvms" if provision_microvms else "",
+        "--setup-gdb" if with_gdb else "",
     ]
     go_args = ' '.join(filter(lambda x: x != "", args))
     return f"./test/new-e2e/start-microvms {go_args}"
@@ -387,6 +391,8 @@ def destroy_stack_force(ctx: Context, stack: str):
     vm_config = os.path.join(stack_dir, VMCONFIG)
 
     if os.path.exists(vm_config) and local_vms_in_config(vm_config):
+        import libvirt
+
         conn = libvirt.open(get_kmt_os().libvirt_socket)
         if not conn:
             raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
@@ -437,6 +443,8 @@ def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | 
 
 
 def pause_stack(stack: str | None = None):
+    import libvirt
+
     stack = check_and_get_stack_or_exit(stack)
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     pause_domains(conn, stack)
@@ -444,6 +452,8 @@ def pause_stack(stack: str | None = None):
 
 
 def resume_stack(stack=None):
+    import libvirt
+
     stack = check_and_get_stack_or_exit(stack)
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     resume_domains(conn, stack)
@@ -451,6 +461,8 @@ def resume_stack(stack=None):
 
 
 def read_libvirt_sock():
+    import libvirt
+
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("read_libvirt_sock: Failed to open connection to qemu:///system")
@@ -479,6 +491,8 @@ testPoolXML = """
 
 
 def write_libvirt_sock():
+    import libvirt
+
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("write_libvirt_sock: Failed to open connection to qemu:///system")

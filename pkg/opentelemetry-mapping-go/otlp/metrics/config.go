@@ -29,6 +29,7 @@ type translatorConfig struct {
 	InitialCumulMonoValueMode            InitialCumulMonoValueMode
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
+	InferDeltaInterval                   bool
 
 	originProduct OriginProduct
 
@@ -208,7 +209,8 @@ func WithStatsOut(statsOut chan<- []byte) TranslatorOption {
 
 // InitialCumulMonoValueMode defines what the exporter should do with the initial value
 // of a cumulative monotonic sum when under the 'cumulative_to_delta' mode.
-// It is not used when the mode is 'raw_value'.
+// It also affects the count field for summary metrics.
+// It is not used for cumulative monotonic sums when the mode is 'raw_value'.
 type InitialCumulMonoValueMode string
 
 const (
@@ -228,6 +230,15 @@ const (
 func WithInitialCumulMonoValueMode(mode InitialCumulMonoValueMode) TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.InitialCumulMonoValueMode = mode
+		return nil
+	}
+}
+
+// WithInferDeltaInterval infers the interval for delta sums.
+// By default the interval is set to 0.
+func WithInferDeltaInterval() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.InferDeltaInterval = true
 		return nil
 	}
 }

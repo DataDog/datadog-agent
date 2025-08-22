@@ -16,14 +16,17 @@ default_version jmxfetch_version
 
 source sha256: jmxfetch_hash
 
-if jmxfetch_snapshot_version = Regexp.new('(?<current_version>\d+\.\d+\.\d+)[-]').freeze.match(jmxfetch_version)
+if jmxfetch_parsed_version = Regexp.new('(?<snapshot_version>(?<base_version>\d+\.\d+\.\d+)-[^-]*)-(?<timestamp>.*)').freeze.match(jmxfetch_version)
     license_file_version = 'master'
-    jmxfetch_snapshot_version = jmxfetch_snapshot_version['current_version']
-    source url: "https://oss.sonatype.org/content/repositories/snapshots/com/datadoghq/jmxfetch/#{jmxfetch_snapshot_version}-SNAPSHOT/jmxfetch-#{version}-jar-with-dependencies.jar",
+    jmxfetch_base_version = jmxfetch_parsed_version['base_version']
+    jmxfetch_snapshot_version = jmxfetch_parsed_version['snapshot_version']
+    jmxfetch_timestamp = jmxfetch_parsed_version['timestamp']
+    jmxfetch_timestamped_version = "#{jmxfetch_base_version}-#{jmxfetch_timestamp}"
+    source url: "https://central.sonatype.com/repository/maven-snapshots/com/datadoghq/jmxfetch/#{jmxfetch_snapshot_version}/jmxfetch-#{jmxfetch_timestamped_version}-jar-with-dependencies.jar",
            target_filename: "jmxfetch.jar"
 else
     license_file_version = jmxfetch_version
-    source url: "https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/#{version}/jmxfetch-#{version}-jar-with-dependencies.jar",
+    source url: "https://repo1.maven.org/maven2/com/datadoghq/jmxfetch/#{version}/jmxfetch-#{version}-jar-with-dependencies.jar",
            target_filename: "jmxfetch.jar"
 end
 

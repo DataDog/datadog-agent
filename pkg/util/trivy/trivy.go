@@ -94,6 +94,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 
 	option := artifact.Option{
 		Offline:           true,
+		OfflineJar:        true,
 		NoProgress:        true,
 		DisabledAnalyzers: DefaultDisabledCollectors(opts.Analyzers),
 		Parallel:          parallel,
@@ -123,11 +124,13 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",
 			"/var/lib/rpm/*",
+			"/usr/share/rpm/*",
 			"/aarch64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
 			"/aarch64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
 			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/lib/*",
 			"/x86_64-bottlerocket-linux-gnu/sys-root/usr/share/bottlerocket/*",
 		}
+		option.WalkerOption.OnlyDirs = append(option.WalkerOption.OnlyDirs, opts.AdditionalDirs...)
 	} else if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
 		option.WalkerOption.SkipDirs = append(
 			option.WalkerOption.SkipDirs,
@@ -140,6 +143,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/run/**",
 			"/sbin/**",
 			"/sys/**",
+			"/sysroot/**",
 			"/tmp/**",
 			"/usr/bin/**",
 			"/usr/sbin/**",
@@ -147,6 +151,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/var/lib/containerd/**",
 			"/var/lib/containers/**",
 			"/var/lib/docker/**",
+			"/var/lib/kubelet/pods/**",
 			"/var/lib/libvirt/**",
 			"/var/lib/snapd/**",
 			"/var/log/**",
@@ -311,8 +316,8 @@ func (fa *artifactWithType) Clean(ref artifact.Reference) error {
 	return fa.inner.Clean(ref)
 }
 
-// ScanFilesystem scans the specified directory and logs detailed scan steps.
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (sbom.Report, error) {
+// ScanFSTrivyReport scans the specified directory and logs detailed scan steps.
+func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*types.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
@@ -330,7 +335,12 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 		wrapper.forceType = artifact.TypeFilesystem
 	}
 
-	trivyReport, err := c.scan(ctx, wrapper, applier.NewApplier(cache))
+	return c.scan(ctx, wrapper, applier.NewApplier(cache))
+}
+
+// ScanFilesystem scans the specified directory and logs detailed scan steps.
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (sbom.Report, error) {
+	trivyReport, err := c.ScanFSTrivyReport(ctx, path, scanOptions, removeLayers)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
@@ -342,7 +352,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	}
 
 	hash := "sha256:" + base64.StdEncoding.EncodeToString(hasher.Sum(nil))
-	return c.buildReport(trivyReport, hash), nil
+	return c.buildReport(trivyReport, hash)
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {
@@ -362,7 +372,7 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 	return &trivyReport, nil
 }
 
-func (c *Collector) buildReport(trivyReport *types.Report, id string) *Report {
+func (c *Collector) buildReport(trivyReport *types.Report, id string) (*Report, error) {
 	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
 	pkgCount := 0
 	for _, results := range trivyReport.Results {
@@ -370,11 +380,7 @@ func (c *Collector) buildReport(trivyReport *types.Report, id string) *Report {
 	}
 	log.Debugf("Found %d packages", pkgCount)
 
-	return &Report{
-		Report:    trivyReport,
-		id:        id,
-		marshaler: c.marshaler,
-	}
+	return newReport(id, trivyReport, c.marshaler)
 }
 
 func looselyCompareAnalyzers(given []string, against []string) bool {

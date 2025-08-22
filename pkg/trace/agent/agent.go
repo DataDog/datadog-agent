@@ -245,6 +245,7 @@ func (a *Agent) Run() {
 		go a.workV1()
 	}
 
+	log.Infof("trace-agent running...")
 	a.loop()
 }
 
@@ -309,6 +310,9 @@ func (a *Agent) loop() {
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}
+	// All receivers have stopped, now safe to close the In channel
+	close(a.In)
+	close(a.InV1)
 
 	//Wait to process any leftover payloads in flight before closing components that might be needed
 	a.processWg.Wait()
@@ -822,8 +826,13 @@ func mergeDuplicates(s *pb.ClientStatsBucket) {
 }
 
 // ProcessStats processes incoming client stats in from the given tracer.
-func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) {
-	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID, obfuscationVersion)
+func (a *Agent) ProcessStats(ctx context.Context, in *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfuscationVersion string) error {
+	select {
+	case a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion, containerID, obfuscationVersion):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept
@@ -972,19 +981,24 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 
 	if a.conf.ProbabilisticSamplerEnabled {
 		samplerName = sampler.NameProbabilistic
+		probKeep := false
+
 		if rare {
 			samplerName = sampler.NameRare
-			return true, true
-		}
-		if a.ProbabilisticSampler.Sample(pt.Root) {
+			probKeep = true
+		} else if a.ProbabilisticSampler.Sample(pt.Root) {
 			pt.TraceChunk.Tags[tagDecisionMaker] = probabilitySampling
-			return true, true
-		}
-		if traceContainsError(pt.TraceChunk.Spans, false) {
+			probKeep = true
+		} else if traceContainsError(pt.TraceChunk.Spans, false) {
 			samplerName = sampler.NameError
-			return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
+			probKeep = a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 		}
-		return false, true
+		if probKeep {
+			pt.TraceChunk.Priority = int32(sampler.PriorityAutoKeep)
+		} else {
+			pt.TraceChunk.Priority = int32(sampler.PriorityAutoDrop)
+		}
+		return probKeep, true
 	}
 
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)

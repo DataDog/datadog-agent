@@ -1981,6 +1981,41 @@ func TestSampling(t *testing.T) {
 	}
 }
 
+func TestProbSamplerSetsChunkPriority(t *testing.T) {
+	now := time.Now()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	statsd := mockStatsd.NewMockClientInterface(ctrl)
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{}), ProbabilisticSamplerEnabled: true, ProbabilisticSamplerSamplingPercentage: 100}
+	root := &pb.Span{
+		Service:  "serv1",
+		Start:    now.UnixNano(),
+		Duration: (100 * time.Millisecond).Nanoseconds(),
+		Metrics:  map[string]float64{"_top_level": 1},
+		Meta:     map[string]string{},
+	}
+	chunk := testutil.TraceChunkWithSpan(root)
+	pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
+	pt.TraceChunk.Priority = int32(-128)
+
+	a := &Agent{
+		NoPrioritySampler:    sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:        sampler.NewErrorsSampler(cfg),
+		PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:          sampler.NewRareSampler(config.New()),
+		ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg),
+		EventProcessor:       newEventProcessor(cfg, statsd),
+		SamplerMetrics:       sampler.NewMetrics(statsd),
+		conf:                 cfg,
+	}
+
+	keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	assert.True(t, keep)
+	// In order to ensure intake keeps this chunk we must override whatever priority was previously set on this chunk
+	// This is especially an issue for incoming OTLP spans where the chunk priority may have the "unset" value of -128
+	assert.Equal(t, int32(1), pt.TraceChunk.Priority)
+}
+
 func TestSampleTrace(t *testing.T) {
 	now := time.Now()
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
@@ -3233,6 +3268,79 @@ func TestMergeDuplicates(t *testing.T) {
 	}
 	mergeDuplicates(in)
 	assert.Equal(t, expected, in)
+}
+
+func TestProcessStatsTimeout(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	statsPayload := testutil.StatsPayloadSample()
+
+	t.Run("context_timeout", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload) // unbuffered channel, will block
+
+		start := time.Now()
+		err := agnt.ProcessStats(ctx, statsPayload, "go", "v1.2.3", "test-container", "v1")
+		elapsed := time.Since(start)
+
+		assert.Error(t, err)
+		assert.Equal(t, context.DeadlineExceeded, err)
+
+		// Should timeout around 50ms, not hang indefinitely
+		assert.Less(t, elapsed, 100*time.Millisecond, "ProcessStats should respect context timeout")
+		assert.Greater(t, elapsed, 45*time.Millisecond, "ProcessStats should wait for context timeout")
+	})
+
+	t.Run("context_cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload) // unbuffered channel, will block
+
+		// Cancel the context after a short delay
+		go func() {
+			time.Sleep(30 * time.Millisecond)
+			cancel()
+		}()
+
+		start := time.Now()
+		err := agnt.ProcessStats(ctx, statsPayload, "go", "v1.2.3", "test-container", "v1")
+		elapsed := time.Since(start)
+
+		assert.Error(t, err)
+		assert.Equal(t, context.Canceled, err)
+
+		// Should be cancelled around 30ms
+		assert.Less(t, elapsed, 60*time.Millisecond, "ProcessStats should respect context cancellation")
+		assert.Greater(t, elapsed, 25*time.Millisecond, "ProcessStats should wait for context cancellation")
+	})
+
+	t.Run("successful_processing", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+
+		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload, 10)
+
+		err := agnt.ProcessStats(ctx, statsPayload, "go", "v1.2.3", "test-container", "v1")
+
+		// Should succeed without error
+		assert.NoError(t, err)
+
+		// Verify stats were actually processed
+		select {
+		case stats := <-agnt.ClientStatsAggregator.In:
+			assert.NotNil(t, stats)
+			assert.Equal(t, "go", stats.Lang)
+			assert.Equal(t, "test-container", stats.ContainerID)
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("Expected stats to be sent to ClientStatsAggregator.In channel")
+		}
+	})
 }
 
 func TestSampleWithPriorityNone(t *testing.T) {

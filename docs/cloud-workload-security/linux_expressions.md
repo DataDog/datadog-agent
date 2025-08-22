@@ -68,6 +68,59 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
 | `utimes` | File | Change file access/modification times | 7.27 |
 
+## FIM triggers
+
+In addition to regular triggers, `fim.write.file.*` fields allow to write rules that fire
+on all file events.
+
+For example, the following rule:
+
+{{< code-block lang="javascript" >}}
+(fim.write.file.path == "/tmp/test" || fim.write.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+{{< /code-block >}}
+
+will expand into the following rules under the hood:
+
+{{< code-block lang="javascript" >}}
+open: ((open.file.path == "/tmp/test" || open.file.name == "abc")
+  && open.flags & (O_CREAT|O_TRUNC|O_APPEND|O_RDWR|O_WRONLY) > 0
+  && process.file.name == "def"
+  && container.id != "")
+
+chmod: (chmod.file.path == "/tmp/test" || chmod.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+chown: (chown.file.path == "/tmp/test" || chown.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+link: (link.file.path == "/tmp/test" || link.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+rename: (rename.file.path == "/tmp/test" || rename.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+rename: (rename.file.destination.path == "/tmp/test" || rename.file.destination.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+unlink: (unlink.file.path == "/tmp/test" || unlink.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+
+utimes: (utimes.file.path == "/tmp/test" || utimes.file.name == "abc")
+  && process.file.name == "def"
+  && container.id != ""
+{{< /code-block >}}
+
+and match on all file-related events matching the path provided in the rule. Common fields are retained across all
+expanded rules.
+
 ## Variables
 SECL variables are predefined variables that can be used as values or as part of values.
 
@@ -128,11 +181,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
-| [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
@@ -153,7 +204,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -166,6 +216,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`process.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -194,6 +245,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`process.ancestors.group`](#common-credentials-group-doc) | Group of the process |
 | [`process.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.ancestors.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -240,7 +292,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`process.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.id`](#common-process-container-id-doc) | Container ID |
@@ -253,6 +304,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`process.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -281,6 +333,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`process.group`](#common-credentials-group-doc) | Group of the process |
 | [`process.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -317,7 +370,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`process.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -330,6 +382,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`process.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -358,6 +411,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`process.parent.group`](#common-credentials-group-doc) | Group of the process |
 | [`process.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.parent.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -459,6 +513,7 @@ A process migrated another process to a cgroup
 | Property | Definition |
 | -------- | ------------- |
 | [`cgroup_write.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`cgroup_write.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`cgroup_write.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`cgroup_write.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`cgroup_write.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -491,6 +546,7 @@ A process changed the current directory
 | Property | Definition |
 | -------- | ------------- |
 | [`chdir.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`chdir.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`chdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`chdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`chdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -524,6 +580,7 @@ A file's permissions were changed
 | [`chmod.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`chmod.file.destination.mode`](#chmod-file-destination-mode-doc) | New mode of the chmod-ed file |
 | [`chmod.file.destination.rights`](#chmod-file-destination-rights-doc) | New rights of the chmod-ed file |
+| [`chmod.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`chmod.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`chmod.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`chmod.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -560,6 +617,7 @@ A file's owner was changed
 | [`chown.file.destination.group`](#chown-file-destination-group-doc) | New group of the chown-ed file's owner |
 | [`chown.file.destination.uid`](#chown-file-destination-uid-doc) | New UID of the chown-ed file's owner |
 | [`chown.file.destination.user`](#chown-file-destination-user-doc) | New user of the chown-ed file's owner |
+| [`chown.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`chown.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`chown.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`chown.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -644,7 +702,6 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`exec.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
@@ -657,6 +714,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`exec.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`exec.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exec.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exec.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exec.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exec.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -693,6 +751,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`exec.group`](#common-credentials-group-doc) | Group of the process |
 | [`exec.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exec.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exec.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exec.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exec.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -747,7 +806,6 @@ A process was terminated
 | [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`exit.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`exit.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
@@ -761,6 +819,7 @@ A process was terminated
 | [`exit.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`exit.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`exit.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exit.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exit.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exit.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exit.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -789,6 +848,7 @@ A process was terminated
 | [`exit.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`exit.group`](#common-credentials-group-doc) | Group of the process |
 | [`exit.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exit.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exit.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exit.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exit.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -857,6 +917,7 @@ Create a new name/alias for a file
 | -------- | ------------- |
 | [`link.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`link.file.destination.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`link.file.destination.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`link.file.destination.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`link.file.destination.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`link.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -878,6 +939,7 @@ Create a new name/alias for a file
 | [`link.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`link.file.destination.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`link.file.destination.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`link.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`link.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`link.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`link.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -913,6 +975,7 @@ A new kernel module was loaded
 | [`load_module.args_truncated`](#load_module-args_truncated-doc) | Indicates if the arguments were truncated or not |
 | [`load_module.argv`](#load_module-argv-doc) | Parameters (as an array) of the new kernel module |
 | [`load_module.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`load_module.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`load_module.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`load_module.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`load_module.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -947,6 +1010,7 @@ A directory was created
 | [`mkdir.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`mkdir.file.destination.mode`](#mkdir-file-destination-mode-doc) | Mode of the new directory |
 | [`mkdir.file.destination.rights`](#mkdir-file-destination-rights-doc) | Rights of the new directory |
+| [`mkdir.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`mkdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`mkdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`mkdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -979,6 +1043,7 @@ A mmap command was executed
 | Property | Definition |
 | -------- | ------------- |
 | [`mmap.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`mmap.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`mmap.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`mmap.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`mmap.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1062,6 +1127,7 @@ A file was opened
 | -------- | ------------- |
 | [`open.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`open.file.destination.mode`](#open-file-destination-mode-doc) | Mode of the created file |
+| [`open.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`open.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`open.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`open.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1129,7 +1195,6 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1142,6 +1207,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`ptrace.tracee.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1170,6 +1236,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`ptrace.tracee.ancestors.group`](#common-credentials-group-doc) | Group of the process |
 | [`ptrace.tracee.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1216,7 +1283,6 @@ A ptrace command was executed
 | [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1229,6 +1295,7 @@ A ptrace command was executed
 | [`ptrace.tracee.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`ptrace.tracee.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1257,6 +1324,7 @@ A ptrace command was executed
 | [`ptrace.tracee.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`ptrace.tracee.group`](#common-credentials-group-doc) | Group of the process |
 | [`ptrace.tracee.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1293,7 +1361,6 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`ptrace.tracee.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1306,6 +1373,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`ptrace.tracee.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1334,6 +1402,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`ptrace.tracee.parent.group`](#common-credentials-group-doc) | Group of the process |
 | [`ptrace.tracee.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.parent.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1386,6 +1455,7 @@ Remove extended attributes
 | [`removexattr.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`removexattr.file.destination.name`](#common-setxattrevent-file-destination-name-doc) | Name of the extended attribute |
 | [`removexattr.file.destination.namespace`](#common-setxattrevent-file-destination-namespace-doc) | Namespace of the extended attribute |
+| [`removexattr.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`removexattr.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`removexattr.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`removexattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1417,6 +1487,7 @@ A file/directory was renamed
 | -------- | ------------- |
 | [`rename.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`rename.file.destination.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`rename.file.destination.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`rename.file.destination.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`rename.file.destination.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`rename.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1438,6 +1509,7 @@ A file/directory was renamed
 | [`rename.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
 | [`rename.file.destination.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`rename.file.destination.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`rename.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`rename.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`rename.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`rename.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1470,6 +1542,7 @@ A directory was removed
 | Property | Definition |
 | -------- | ------------- |
 | [`rmdir.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`rmdir.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`rmdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`rmdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`rmdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1540,7 +1613,6 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`setrlimit.target.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`setrlimit.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1553,6 +1625,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`setrlimit.target.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1581,6 +1654,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`setrlimit.target.ancestors.group`](#common-credentials-group-doc) | Group of the process |
 | [`setrlimit.target.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.ancestors.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1627,7 +1701,6 @@ A setrlimit command was executed
 | [`setrlimit.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`setrlimit.target.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`setrlimit.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1640,6 +1713,7 @@ A setrlimit command was executed
 | [`setrlimit.target.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`setrlimit.target.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1668,6 +1742,7 @@ A setrlimit command was executed
 | [`setrlimit.target.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`setrlimit.target.group`](#common-credentials-group-doc) | Group of the process |
 | [`setrlimit.target.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1704,7 +1779,6 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setrlimit.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`setrlimit.target.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`setrlimit.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1717,6 +1791,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`setrlimit.target.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1745,6 +1820,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`setrlimit.target.parent.group`](#common-credentials-group-doc) | Group of the process |
 | [`setrlimit.target.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setrlimit.target.parent.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setrlimit.target.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setrlimit.target.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1804,6 +1880,7 @@ A setsockopt was executed
 | [`setsockopt.socket_family`](#setsockopt-socket_family-doc) | Socket family |
 | [`setsockopt.socket_protocol`](#setsockopt-socket_protocol-doc) | Socket protocol |
 | [`setsockopt.socket_type`](#setsockopt-socket_type-doc) | Socket type |
+| [`setsockopt.used_immediates`](#setsockopt-used_immediates-doc) | List of immediate values used in the filter |
 
 ### Event `setuid`
 
@@ -1827,6 +1904,7 @@ Set exteneded attributes
 | [`setxattr.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`setxattr.file.destination.name`](#common-setxattrevent-file-destination-name-doc) | Name of the extended attribute |
 | [`setxattr.file.destination.namespace`](#common-setxattrevent-file-destination-namespace-doc) | Namespace of the extended attribute |
+| [`setxattr.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setxattr.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setxattr.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setxattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1870,7 +1948,6 @@ A signal was sent
 | [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1883,6 +1960,7 @@ A signal was sent
 | [`signal.target.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`signal.target.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1911,6 +1989,7 @@ A signal was sent
 | [`signal.target.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`signal.target.ancestors.group`](#common-credentials-group-doc) | Group of the process |
 | [`signal.target.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.ancestors.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1957,7 +2036,6 @@ A signal was sent
 | [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
@@ -1970,6 +2048,7 @@ A signal was sent
 | [`signal.target.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`signal.target.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -1998,6 +2077,7 @@ A signal was sent
 | [`signal.target.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`signal.target.group`](#common-credentials-group-doc) | Group of the process |
 | [`signal.target.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -2034,7 +2114,6 @@ A signal was sent
 | [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
-| [`signal.target.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | [Experimental] Lifecycle manager of the cgroup |
 | [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
@@ -2047,6 +2126,7 @@ A signal was sent
 | [`signal.target.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
 | [`signal.target.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -2075,6 +2155,7 @@ A signal was sent
 | [`signal.target.parent.gid`](#common-credentials-gid-doc) | GID of the process |
 | [`signal.target.parent.group`](#common-credentials-group-doc) | Group of the process |
 | [`signal.target.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.parent.interpreter.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -2126,6 +2207,7 @@ A splice command was executed
 | Property | Definition |
 | -------- | ------------- |
 | [`splice.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`splice.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`splice.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`splice.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`splice.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -2173,6 +2255,7 @@ A file was deleted
 | Property | Definition |
 | -------- | ------------- |
 | [`unlink.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`unlink.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`unlink.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`unlink.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`unlink.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -2216,6 +2299,7 @@ Change file access/modification times
 | Property | Definition |
 | -------- | ------------- |
 | [`utimes.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`utimes.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`utimes.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`utimes.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`utimes.file.group`](#common-filefields-group-doc) | Group of the file's owner |
@@ -2483,6 +2567,15 @@ Definition: Effective user of the process
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.extension` {#common-fileevent-extension-doc}
+Type: string
+
+Definition: File's extension
+
+`*.extension` has 46 possible prefixes:
+`cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
 ### `*.file.destination.name` {#common-setxattrevent-file-destination-name-doc}
 Type: string
 
@@ -2730,15 +2823,6 @@ Definition: Length of the corresponding element
 
 `*.length` has 98 possible prefixes:
 `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
-
-
-### `*.manager` {#common-cgroupcontext-manager-doc}
-Type: string
-
-Definition: [Experimental] Lifecycle manager of the cgroup
-
-`*.manager` has 15 possible prefixes:
-`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `setrlimit.target.ancestors.cgroup` `setrlimit.target.cgroup` `setrlimit.target.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
 
 
 ### `*.mode` {#common-filefields-mode-doc}
@@ -3261,13 +3345,6 @@ Definition: Timestamp of the creation of the container
 Type: string
 
 Definition: ID of the container
-
-
-
-### `container.runtime` {#container-runtime-doc}
-Type: string
-
-Definition: Runtime managing the container
 
 
 
@@ -3976,6 +4053,13 @@ Definition: Socket protocol
 Type: int
 
 Definition: Socket type
+
+
+
+### `setsockopt.used_immediates` {#setsockopt-used_immediates-doc}
+Type: int
+
+Definition: List of immediate values used in the filter
 
 
 

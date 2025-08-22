@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // TODO(OASIS-79): fix data race then remove !race
-//go:build otlp && !race
+//go:build otlp && test && !race
 
 package integrationtest
 
@@ -15,6 +15,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -36,12 +37,15 @@ import (
 
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
@@ -82,8 +86,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
-	return fxutil.Run(
+func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pidfilePath string) (*fx.App, error) {
+	return fxutil.TestRunWithApp(
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		logtrace.Module(),
 		inventoryagentimpl.Module(),
@@ -143,7 +147,9 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		orchestratorimpl.MockModule(),
-		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component]) {
+		pidimpl.Module(),
+		fx.Supply(pidimpl.NewParams(pidfilePath)),
+		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
 		}),
 		taggerfx.Module(),
 		noopsimpl.Module(),
@@ -161,10 +167,14 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			PIDFilePath: "",
 		}),
 		tracecomp.Bundle(),
+		agenttelemetryfx.Module(),
 	)
 }
 
 func TestIntegration(t *testing.T) {
+	var app *fx.App
+	var err error
+
 	// 1. Set up mock Datadog server
 	// See also https://github.com/DataDog/datadog-agent/blob/49c16e0d4deab396626238fa1d572b684475a53f/cmd/trace-agent/test/backend.go
 	apmstatsRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.APMStatsEndpoint, ReqChan: make(chan []byte)}
@@ -179,12 +189,17 @@ func TestIntegration(t *testing.T) {
 		ConfigName: "datadog-otel",
 		LoggerName: "OTELCOL",
 	}
+	pidfilePath := "test_pid"
 	go func() {
-		if err := runTestOTelAgent(context.Background(), params); err != nil {
+		if app, err = runTestOTelAgent(context.Background(), params, pidfilePath); err != nil {
 			log.Fatal("failed to start otel agent ", err)
 		}
 	}()
 	waitForReadiness()
+
+	// 3. Validate that pid file was created
+	_, err = os.Stat(pidfilePath)
+	require.NoError(t, err)
 
 	// 3. Generate and send traces
 	sendTraces(t)
@@ -230,6 +245,11 @@ func TestIntegration(t *testing.T) {
 	// Verify we don't receive more than the expected numbers
 	assert.Len(t, spans, 5)
 	assert.Len(t, stats, 10)
+
+	// Verify that DDOT stops gracefully
+	stopCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	require.NoError(t, app.Stop(stopCtx))
 }
 
 func waitForReadiness() {

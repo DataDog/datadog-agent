@@ -33,11 +33,11 @@ type sampleMetric struct {
 }
 
 type samplesCollector struct {
-	device           ddnvml.SafeDevice
+	device           ddnvml.Device
 	samplesToCollect []sampleMetric
 }
 
-func newSamplesCollector(device ddnvml.SafeDevice) (Collector, error) {
+func newSamplesCollector(device ddnvml.Device) (Collector, error) {
 	c := &samplesCollector{
 		device: device,
 	}
@@ -52,8 +52,7 @@ func newSamplesCollector(device ddnvml.SafeDevice) (Collector, error) {
 }
 
 func (c *samplesCollector) DeviceUUID() string {
-	uuid, _ := c.device.GetUUID()
-	return uuid
+	return c.device.GetDeviceInfo().UUID
 }
 
 func (c *samplesCollector) removeUnsupportedSamples() {
@@ -105,13 +104,13 @@ func (c *samplesCollector) Collect() ([]Metric, error) {
 			continue
 		}
 
-		// We have to do a time-based average, as not all of the samples are collected in the same period
+		// We have to do a time-based average, as not all the samples are collected in the same period
 		total := 0.0
 		lastTimestamp := prevTimestamp
 
-		// We're assuming "samples" is always sorted. Here we traverse the list of samples
+		// We're assuming "samples" is a sorted array by time. Here we traverse the list of samples
 		// and compute the average over time, which means weighing each sample by the time
-		// it passed since the last sample.
+		// it passed from the last run of this collector.
 		for _, sample := range samples {
 			if sample.TimeStamp < lastTimestamp {
 				// some samples have a timestamp of 0, which we take as

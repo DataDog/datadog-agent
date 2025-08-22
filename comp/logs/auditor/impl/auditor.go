@@ -19,6 +19,7 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -38,6 +39,7 @@ type RegistryEntry struct {
 	Offset             string
 	TailingMode        string
 	IngestionTimestamp int64
+	Fingerprint        types.Fingerprint
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -155,6 +157,16 @@ func (a *registryAuditor) closeChannels() {
 	a.inputChan = nil
 }
 
+// GetFingerprint returns the fingerprint for a given identifier,
+// returns nil if it doesn't exist.
+func (a *registryAuditor) GetFingerprint(identifier string) *types.Fingerprint {
+	entry, exists := a.readOnlyRegistryEntryCopy(identifier)
+	if !exists {
+		return nil
+	}
+	return &entry.Fingerprint
+}
+
 // Channel returns the channel to use to communicate with the auditor or nil
 // if the auditor is currently stopped.
 func (a *registryAuditor) Channel() chan *message.Payload {
@@ -211,6 +223,23 @@ func (a *registryAuditor) SetTailed(identifier string, isTailed bool) {
 	}
 }
 
+// SetOffset allows direct setting of an offset for an identifier, marking it as tailed
+func (a *registryAuditor) SetOffset(identifier string, offset string) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if entry, exists := a.registry[identifier]; exists {
+		entry.Offset = offset
+		entry.LastUpdated = time.Now().UTC()
+	} else {
+		// Create a new entry if it doesn't exist
+		a.registry[identifier] = &RegistryEntry{
+			LastUpdated: time.Now().UTC(),
+			Offset:      offset,
+			TailingMode: "", // Default to empty, can be set later
+		}
+	}
+}
+
 // run keeps up to date the registry on different events
 func (a *registryAuditor) run() {
 	cleanUpTicker := time.NewTicker(defaultCleanupPeriod)
@@ -234,7 +263,11 @@ func (a *registryAuditor) run() {
 			}
 			// update the registry with the new entry
 			for _, msg := range payload.MessageMetas {
-				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp)
+				var fingerprint types.Fingerprint
+				if msg.Origin.Fingerprint != nil {
+					fingerprint = *msg.Origin.Fingerprint
+				}
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, fingerprint)
 			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from the registry
@@ -292,8 +325,8 @@ func (a *registryAuditor) cleanupRegistry() {
 	}
 }
 
-// updateRegistry updates the registry entry matching identifier with the new offset and timestamp
-func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64) {
+// updateRegistry updates the registry with a new entry
+func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, fingerprint types.Fingerprint) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -310,12 +343,12 @@ func (a *registryAuditor) updateRegistry(identifier string, offset string, taili
 			return
 		}
 	}
-
 	a.registry[identifier] = &RegistryEntry{
 		LastUpdated:        time.Now().UTC(),
 		Offset:             offset,
 		TailingMode:        tailingMode,
 		IngestionTimestamp: ingestionTimestamp,
+		Fingerprint:        fingerprint,
 	}
 }
 

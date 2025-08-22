@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -39,7 +40,7 @@ type ClusterRoleCollector struct {
 // NewClusterRoleCollector creates a new collector for the Kubernetes
 // ClusterRole resource.
 func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCollector {
-	resourceType := getResourceType(clusterRoleName, clusterRoleVersion)
+	resourceType := utilTypes.GetResourceType(utilTypes.ClusterRoleName, utilTypes.ClusterRoleVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -50,10 +51,10 @@ func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCo
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 clusterRoleName,
+			Name:                                 utilTypes.ClusterRoleName,
 			Kind:                                 kubernetes.ClusterRoleKind,
 			NodeType:                             orchestrator.K8sClusterRole,
-			Version:                              clusterRoleVersion,
+			Version:                              utilTypes.ClusterRoleVersion,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

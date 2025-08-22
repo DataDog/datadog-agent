@@ -881,11 +881,30 @@ api_key:
 ## @env DD_SECRET_BACKEND_CONFIG - map - optional
 ## This feature is in preview.
 ##
-## The section contains information required to resolved secrets.
+## The section contains configuration required by `secret_backend_type` to resolve secrets.
+## The necessary configuration depends upon which type is used.
 ## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_config:
 #   <KEY_1>: <VALUE_1>
+
+## @param secret_refresh_interval - integer - optional - default 0
+## @env DD_SECRET_REFRESH_INTERVAL - integer - optional - default 0
+##
+## `secret_refresh_interval` is the interval (in seconds) at which api/app key secrets are refreshed. A 0 value means the feature is disabled.
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
+##
+#
+# secret_refresh_interval: 0
+
+## @param secret_refresh_scatter - boolean - optional - default true
+## @env DD_SECRET_REFRESH_SCATTER - boolean - optional - default true
+##
+## `secret_refresh_scatter`, if set to true, will randomize the first secret refresh. `secret_refresh_interval` needs to be set
+## for this to take effect. This prevents a fleet of Agents from refreshing their secrets at the same time.
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
+##
+# secret_refresh_scatter: true
 
 ## @param secret_backend_command - string - optional
 ## @env DD_SECRET_BACKEND_COMMAND - string - optional
@@ -894,7 +913,7 @@ api_key:
 ##
 ## This option take precedence over `secret_backend_type`.
 ##
-## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_command: <COMMAND_PATH>
 
@@ -1023,10 +1042,16 @@ api_key:
 
   ## @param force_use_http - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_HTTP - boolean - optional - default: false
-  ## By default, the Agent sends logs in HTTPS batches to port 443 if HTTPS connectivity can
-  ## be established at Agent startup, and falls back to TCP otherwise. Set this parameter to `true` to
-  ## always send logs via HTTP protocol (recommended).
-  ## Warning: force_use_http means HTTP over TCP, not HTTP over HTTPS. Please use logs_no_ssl for HTTP over HTTPS.
+  ## Set this parameter to `true` to always send logs via HTTP(S) protocol and never fall back to
+  ## raw TCP forwarding (recommended).
+  ##
+  ## By default, the Agent sends logs in HTTPS batches if HTTPS connectivity can
+  ## be established at Agent startup, and falls back to TCP otherwise. This parameter
+  ## can be used to override this fallback behavior. It is recommended, but not the default, to
+  ## maintain compatibility with previous Agent versions.
+  ##
+  ## Note, the logs are forwarded via HTTPS (encrypted) by default. Please use `logs_no_ssl` if you
+  ## need unencrypted HTTP instead.
   #
   # force_use_http: true
 
@@ -1620,6 +1645,14 @@ api_key:
     ## Enables or disables Error Tracking Standalone
     # enabled: false
 
+
+  ## @param profiling_receiver_timeout - integer - optional - default: 5
+  ## @env DD_APM_PROFILING_RECEIVER_TIMEOUT - integer - optional - default: 5
+  ## The timeout in seconds for receiving profile upload requests from client applications.
+  ## This timeout applies to the HTTP request timeout for profile uploads to the agent.
+  ## Increase this value if you experience timeouts with large profile uploads.
+  #
+  # profiling_receiver_timeout: 5
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
@@ -3080,6 +3113,12 @@ api_key:
   #
   # advanced_dispatching_enabled: false
 
+  ## @param rebalance_with_utilization - boolean - optional - default: false
+  ## @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: false
+  ## If rebalance_with_utilization is true, the cluster-agent will rebalance cluster checks using node utilization.
+  #
+  # rebalance_with_utilization: false
+
   ## @param clc_runners_port - integer - optional - default: 5005
   ## @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005
   ## Set the "clc_runners_port" used by the cluster-agent client to reach cluster level
@@ -3605,14 +3644,6 @@ api_key:
 ## Set a custom Client key file path.
 #
 # kubelet_client_key: <CLIENT_KEY_FILE_PATH>
-
-## @param kubelet_wait_on_missing_container - integer - optional - default: 0
-## @env DD_KUBELET_WAIT_ON_MISSING_CONTAINER - integer - optional - default: 0
-## On some kubelet versions, containers can take up to a second to
-## register in the podlist. This option allows to wait for up to a given
-## number of seconds (in 250ms chunks) when a container does not exist in the podlist.
-#
-# kubelet_wait_on_missing_container: 0
 
 ## @param kubelet_cache_pods_duration - integer - optional - default: 5
 ## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 5
@@ -4805,7 +4836,7 @@ api_key:
 ##   2. Environment variables
 ##   3. Local config file
 ##      (etc/datadog-agent/application_monitoring.yaml)
-# apm_configuration_rules:
+# apm_configuration_default:
 
   ## @param DD_APM_TRACING_ENABLED - boolean - optional - default: true
   ## Enable Datadog tracing.

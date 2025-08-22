@@ -146,7 +146,7 @@ func (c *ntmConfig) processNotifications() {
 	for notification := range c.notificationChannel {
 		// notifying all receivers about the updated setting
 		for _, receiver := range notification.Receivers {
-			receiver(notification.Key, notification.PreviousValue, notification.NewValue, notification.SequenceID)
+			receiver(notification.Key, notification.Source, notification.PreviousValue, notification.NewValue, notification.SequenceID)
 		}
 	}
 }
@@ -160,13 +160,14 @@ func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
-func (c *ntmConfig) sendNotification(key string, oldValue, newValue interface{}, sequenceID uint64) {
+func (c *ntmConfig) sendNotification(key string, source model.Source, oldValue, newValue interface{}, sequenceID uint64) {
 	if len(c.notificationReceivers) == 0 {
 		return
 	}
 
 	notification := model.ConfigChangeNotification{
 		Key:           key,
+		Source:        source,
 		PreviousValue: oldValue,
 		NewValue:      newValue,
 		SequenceID:    sequenceID,
@@ -212,6 +213,14 @@ func (c *ntmConfig) SetTestOnlyDynamicSchema(allow bool) {
 	c.allowDynamicSchema.Store(allow)
 }
 
+// RevertFinishedBackToBuilder returns an interface that can build more on the current
+// config, instead of treating it as sealed
+// NOTE: Only used by OTel, no new uses please!
+func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
+	c.ready.Store(false)
+	return c
+}
+
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	c.maybeRebuild()
@@ -255,7 +264,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	c.sequenceID++
-	c.sendNotification(key, previousValue, newValue, c.sequenceID)
+	c.sendNotification(key, source, previousValue, newValue, c.sequenceID)
 
 }
 
@@ -368,7 +377,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	c.sequenceID++
-	c.sendNotification(key, previousValue, newValue, c.sequenceID)
+	c.sendNotification(key, source, previousValue, newValue, c.sequenceID)
 
 }
 
@@ -591,6 +600,9 @@ func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval stri
 func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -598,6 +610,9 @@ func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) 
 func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -605,6 +620,9 @@ func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map
 func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -612,6 +630,9 @@ func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[s
 func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.Lock()
 	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
@@ -733,6 +754,7 @@ func (c *ntmConfig) GetNode(key string) (Node, error) {
 func (c *ntmConfig) SetEnvPrefix(in string) {
 	c.Lock()
 	defer c.Unlock()
+	c.envTransform = make(map[string]func(string) interface{})
 	c.envPrefix = in
 }
 
@@ -984,7 +1006,7 @@ func (c *ntmConfig) Object() model.Reader {
 }
 
 // NewNodeTreeConfig returns a new Config object.
-func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
+func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.BuildableConfig {
 	config := ntmConfig{
 		ready:               atomic.NewBool(false),
 		allowDynamicSchema:  atomic.NewBool(false),

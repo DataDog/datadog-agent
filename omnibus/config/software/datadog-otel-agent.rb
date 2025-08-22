@@ -41,14 +41,23 @@ build do
     # include embedded path (mostly for `pkg-config` binary)
     env = with_standard_compiler_flags(with_embedded_path(env))
 
-    conf_dir = "/etc/datadog-agent"
+    if windows_target?
+      conf_dir = "#{install_dir}/etc/datadog-agent"
+    else
+      conf_dir = "/etc/datadog-agent"
+    end
     embedded_bin_dir = "#{install_dir}/embedded/bin"
 
     mkdir conf_dir
     mkdir embedded_bin_dir
 
     command "dda inv -- -e otel-agent.build", :env => env
-    copy 'bin/otel-agent/otel-agent', embedded_bin_dir
+
+    if windows_target?
+      copy 'bin/otel-agent/otel-agent.exe', embedded_bin_dir
+    else
+      copy 'bin/otel-agent/otel-agent', embedded_bin_dir
+    end
 
     move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
 end

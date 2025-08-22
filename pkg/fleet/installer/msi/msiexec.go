@@ -13,6 +13,7 @@
 package msi
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -29,6 +31,22 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sys/windows"
 )
+
+// MsiexecError provides the processed log file content and the underlying error.
+type MsiexecError struct {
+	err error
+	// LogFileBytes contains the processed log file content with error-relevant information
+	// see openAndProcessLogFile for more details
+	ProcessedLog string
+}
+
+func (e *MsiexecError) Error() string {
+	return e.err.Error()
+}
+
+func (e *MsiexecError) Unwrap() error {
+	return e.err
+}
 
 // exitCodeError interface for errors that have an exit code
 //
@@ -146,7 +164,28 @@ func WithLogFile(logFile string) MsiexecOption {
 	}
 }
 
-// WithAdditionalArgs specifies additional arguments for msiexec
+// WithProperties specifies additional MSI properties as Key=Value entries.
+// In the final command line, values are always quoted and any embedded quotes are escaped by doubling them.
+// Properties are appended in sorted key order to ensure deterministic command line construction.
+func WithProperties(props map[string]string) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		if len(props) == 0 {
+			return nil
+		}
+		keys := make([]string, 0, len(props))
+		for k := range props {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			a.additionalArgs = append(a.additionalArgs, formatPropertyArg(k, props[k]))
+		}
+		return nil
+	}
+}
+
+// WithAdditionalArgs specifies raw additional arguments for msiexec, e.g. []string{"PROP=VALUE", "WIXUI_DONTVALIDATEPATH=1"}
+// These are appended as-is without additional quoting. Use WithProperties for MSI properties to ensure they are properly quoted.
 func WithAdditionalArgs(additionalArgs []string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.additionalArgs = append(a.additionalArgs, additionalArgs...)
@@ -173,10 +212,7 @@ func WithDdAgentUserPassword(ddagentUserPassword string) MsiexecOption {
 // HideControlPanelEntry passes a flag to msiexec so that the installed program
 // does not show in the Control Panel "Add/Remove Software"
 func HideControlPanelEntry() MsiexecOption {
-	return func(a *msiexecArgs) error {
-		a.additionalArgs = append(a.additionalArgs, "ARPSYSTEMCOMPONENT=1")
-		return nil
-	}
+	return WithProperties(map[string]string{"ARPSYSTEMCOMPONENT": "1"})
 }
 
 // withCmdRunner overrides how msiexec commands are executed.
@@ -319,6 +355,11 @@ func isRetryableExitCode(err error) bool {
 	var exitError exitCodeError
 	if errors.As(err, &exitError) {
 		if exitError.ExitCode() == int(windows.ERROR_INSTALL_ALREADY_RUNNING) {
+			// another MSI is already running, we have to wait for it to finish.
+			return true
+		} else if exitError.ExitCode() == int(windows.ERROR_INSTALL_SERVICE_FAILURE) {
+			// could not connect to msiserver service.
+			// it should auto start when the MSI is run, but maybe it failed or was too slow to start.
 			return true
 		}
 	}
@@ -326,8 +367,26 @@ func isRetryableExitCode(err error) bool {
 	return false
 }
 
+// containsRetryableError returns true if the input contains a retryable error message
+//
+// This function expects to be used on the post-processed log file, which is significantly
+// smaller than the original log file.
+func containsRetryableError(b []byte) bool {
+	// This case seems to be similar to when msiexec returns 1601, but the connection failure appears
+	// to occur during a custom action, and the MSI exit code is 1603 instead.
+	// Example log lines:
+	//   Action start 17:48:55: WixSharp_InitRuntime_Action.
+	//   CustomAction WixSharp_InitRuntime_Action returned actual error code 1601 (note this may not be 100% accurate if translation happened inside sandbox)
+	//   MSI (s) (E4:18) [17:48:56:009]: Product: Datadog Agent -- Error 1719. The Windows Installer Service could not be accessed. This can occur if you are running Windows in safe mode, or if the Windows Installer is not correctly installed. Contact your support personnel for assistance.
+	if bytes.Contains(b, []byte("returned actual error code 1601")) &&
+		bytes.Contains(b, []byte("Error 1719")) {
+		return true
+	}
+	return false
+}
+
 // Run runs msiexec synchronously with retry logic
-func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
+func (m *Msiexec) Run(ctx context.Context) error {
 	var attemptCount int
 
 	operation := func() (any, err error) {
@@ -341,7 +400,15 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 			span.SetTag("params.logfile", m.args.logFile)
 			span.SetTag("attempt_count", attemptCount)
 			if err != nil {
-				span.SetTag("is_error_retryable", isRetryableExitCode(err))
+				var perm *backoff.PermanentError
+				span.SetTag("is_error_retryable", !errors.As(err, &perm))
+				// include the processed log data in the span, but only on error (msiexec failed)
+				// this way we get the error log on each attempt, in case it changes before the final error
+				// is reported by the caller.
+				var msiError *MsiexecError
+				if errors.As(err, &msiError) {
+					span.SetTag("log", msiError.ProcessedLog)
+				}
 			}
 			span.Finish(err)
 		}()
@@ -350,13 +417,29 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 
 		// Execute the command
 		err = m.cmdRunner.Run(m.execPath, m.cmdLine)
-
-		// Return permanent error for non-retryable exit codes
-		if err != nil && !isRetryableExitCode(err) {
+		if err != nil {
+			// Process log file to extract error messages
+			logFileBytes, logErr := m.openAndProcessLogFile()
+			if logErr != nil {
+				err = errors.Join(err, logErr)
+			}
+			err = &MsiexecError{
+				err:          err,
+				ProcessedLog: string(logFileBytes),
+			}
+			// An error occurred, check if it's retryable or permanent
+			if isRetryableExitCode(err) {
+				return nil, err
+			}
+			// Exit code is not retryable, check the processed log for retryable errors
+			if containsRetryableError(logFileBytes) {
+				return nil, err
+			}
+			// No retryable errors found
 			return nil, backoff.Permanent(err)
 		}
 
-		return nil, err
+		return nil, nil
 	}
 
 	// Execute with retry
@@ -364,18 +447,12 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 		backoff.WithBackOff(m.backoff),
 	)
 
-	// Process log file once after all retries are complete
-	logFileBytes, logErr := m.openAndProcessLogFile()
-	if logErr != nil {
-		err = errors.Join(err, logErr)
-	}
-
 	// Execute post-execution actions
 	for _, p := range m.postExecActions {
 		p()
 	}
 
-	return logFileBytes, err
+	return err
 }
 
 // Cmd creates a new Msiexec wrapper around cmd.Exec that will call msiexec
@@ -402,14 +479,23 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 			_ = os.RemoveAll(tempDir)
 		})
 	}
+
+	// Add MSI properties to the command line
+	properties := map[string]string{}
 	if a.ddagentUserName != "" {
-		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
+		properties["DDAGENTUSER_NAME"] = a.ddagentUserName
 	}
 	if a.ddagentUserPassword != "" {
-		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", a.ddagentUserPassword))
+		properties["DDAGENTUSER_PASSWORD"] = a.ddagentUserPassword
 	}
 	if a.msiAction == "/i" {
-		a.additionalArgs = append(a.additionalArgs, "MSIFASTINSTALL=7")
+		properties["MSIFASTINSTALL"] = "7"
+	}
+	if len(properties) > 0 {
+		err := WithProperties(properties)(a)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cmd.logFile = a.logFile
@@ -452,4 +538,13 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	}
 
 	return cmd, nil
+}
+
+// formatPropertyArg returns an MSI property formatted as: Key="Value" with
+// any embedded quotes in Value doubled per MSI escaping requirements.
+func formatPropertyArg(key, value string) string {
+	// Escape embedded quotes by doubling them
+	// https://learn.microsoft.com/en-us/windows/win32/msi/command-line-options
+	escaped := strings.ReplaceAll(value, `"`, `""`)
+	return fmt.Sprintf(`%s="%s"`, key, escaped)
 }

@@ -6,7 +6,10 @@
 package procutil
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/gopsutil/cpu"
+
 	// using process.FilledProcess
 	"github.com/DataDog/gopsutil/process"
 )
@@ -24,8 +27,16 @@ type Process struct {
 	Username string // (Windows only)
 	Uids     []int32
 	Gids     []int32
+	Language *languagemodels.Language
 
-	Stats *Stats
+	// ports are stored on the process because they may/should be collected by default in the future
+	// however, currently this data is collected by service discovery collection
+	PortsCollected bool
+	TCPPorts       []uint16
+	UDPPorts       []uint16
+
+	Stats   *Stats
+	Service *Service
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -47,13 +58,14 @@ func (p *Process) GetCmdline() []string {
 func (p *Process) DeepCopy() *Process {
 	//nolint:revive // TODO(PROC) Fix revive linter
 	copy := &Process{
-		Pid:      p.Pid,
-		Ppid:     p.Ppid,
-		NsPid:    p.NsPid,
-		Name:     p.Name,
-		Cwd:      p.Cwd,
-		Exe:      p.Exe,
-		Username: p.Username,
+		Pid:            p.Pid,
+		Ppid:           p.Ppid,
+		NsPid:          p.NsPid,
+		Name:           p.Name,
+		Cwd:            p.Cwd,
+		Exe:            p.Exe,
+		Username:       p.Username,
+		PortsCollected: p.PortsCollected,
 	}
 	copy.Cmdline = make([]string, len(p.Cmdline))
 	for i := range p.Cmdline {
@@ -67,6 +79,14 @@ func (p *Process) DeepCopy() *Process {
 	for i := range p.Gids {
 		copy.Gids[i] = p.Gids[i]
 	}
+	copy.TCPPorts = make([]uint16, len(p.TCPPorts))
+	for i := range p.TCPPorts {
+		copy.TCPPorts[i] = p.TCPPorts[i]
+	}
+	copy.UDPPorts = make([]uint16, len(p.UDPPorts))
+	for i := range p.UDPPorts {
+		copy.UDPPorts[i] = p.UDPPorts[i]
+	}
 	if p.Stats != nil {
 		copy.Stats = p.Stats.DeepCopy()
 	}
@@ -75,11 +95,16 @@ func (p *Process) DeepCopy() *Process {
 
 // Stats holds all relevant stats metrics of a process
 type Stats struct {
-	CreateTime int64
-	// Status returns the process status.
-	// Return value could be one of these.
-	// R: Running S: Sleep T: Stop I: Idle
-	// Z: Zombie W: Wait L: Lock
+	CreateTime int64 // milliseconds
+	// Status returns the process status. https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html
+	// Supported return values:
+	// U: unknown state
+	// D: uninterruptible sleep
+	// R: running
+	// S: interruptible sleep
+	// T: stopped
+	// W: waiting (todo: potentially removable, W = paging only before Linux 2.6.0, waking Linux 2.6.33 to 3.13 only)
+	// Z: zombie
 	// The character is the same within all supported platforms.
 	Status      string
 	Nice        int32
@@ -92,6 +117,27 @@ type Stats struct {
 	IOStat      *IOCountersStat
 	IORateStat  *IOCountersRateStat
 	CtxSwitches *NumCtxSwitchesStat
+}
+
+// Service holds service discovery data for a process
+type Service struct {
+	// GeneratedName is the name generated from the process info
+	GeneratedName string
+
+	// GeneratedNameSource indicates the source of the generated name
+	GeneratedNameSource string
+
+	// AdditionalGeneratedNames contains other potential names for the service
+	AdditionalGeneratedNames []string
+
+	// TracerMetadata contains APM tracer metadata
+	TracerMetadata []tracermetadata.TracerMetadata
+
+	// DDService is the value from DD_SERVICE environment variable
+	DDService string
+
+	// APMInstrumentation indicates the APM instrumentation status
+	APMInstrumentation string
 }
 
 // DeepCopy creates a deep copy of Stats

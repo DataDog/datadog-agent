@@ -9,8 +9,12 @@ package dyninst_test
 
 import (
 	"bytes"
+	"cmp"
+	"encoding/json"
 	"errors"
 	"io"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -26,10 +30,43 @@ type replacer interface {
 	replace(jsontext.Value) jsontext.Value
 }
 
-type replacerFunc func(jsontext.Value) jsontext.Value
+type regexpReplacer regexp.Regexp
 
-func (f replacerFunc) replace(v jsontext.Value) jsontext.Value {
-	return f(v)
+func newRegexpReplacer(re string) *regexpReplacer {
+	return (*regexpReplacer)(regexp.MustCompile(re))
+}
+
+func (r *regexpReplacer) replace(v jsontext.Value) jsontext.Value {
+	re := (*regexp.Regexp)(r)
+	if v.Kind() != '"' {
+		return v
+	}
+	var s string
+	_ = json.Unmarshal(v, &s)
+	match := re.FindStringSubmatchIndex(s)
+	if len(match) == 0 {
+		return v
+	}
+	var offset int
+	var sb strings.Builder
+	names := re.SubexpNames()
+	for i := 2; i < len(match); i += 2 {
+		if match[i] < 0 {
+			return jsontext.Value(`"invalid match: overlaps"`)
+		}
+		sb.WriteString(s[offset:match[i]])
+		if name := names[i/2]; name != "" {
+			sb.WriteRune('[')
+			sb.WriteString(name)
+			sb.WriteRune(']')
+		} else {
+			sb.WriteString(s[match[i]:match[i+1]])
+		}
+		offset = match[i+1]
+	}
+	sb.WriteString(s[offset:])
+	marshalled, _ := json.Marshal(sb.String())
+	return jsontext.Value(marshalled)
 }
 
 type jsonRedactor struct {
@@ -43,6 +80,12 @@ func (m exactMatcher) matches(ptr jsontext.Pointer) bool {
 	return string(ptr) == string(m)
 }
 
+type reMatcher regexp.Regexp
+
+func (m *reMatcher) matches(ptr jsontext.Pointer) bool {
+	return (*regexp.Regexp)(m).MatchString(string(ptr))
+}
+
 type replacement jsontext.Value
 
 func (r replacement) replace(jsontext.Value) jsontext.Value {
@@ -51,9 +94,19 @@ func (r replacement) replace(jsontext.Value) jsontext.Value {
 
 type prefixSuffixMatcher [2]string
 
+func prefixMatcher(prefix string) prefixSuffixMatcher {
+	return prefixSuffixMatcher{prefix, ""}
+}
+
 func (m prefixSuffixMatcher) matches(ptr jsontext.Pointer) bool {
 	return strings.HasPrefix(string(ptr), m[0]) &&
 		strings.HasSuffix(string(ptr), m[1])
+}
+
+type replacerFunc func(jsontext.Value) jsontext.Value
+
+func (f replacerFunc) replace(v jsontext.Value) jsontext.Value {
+	return f(v)
 }
 
 func redactor(matcher matcher, replacer replacer) jsonRedactor {
@@ -63,10 +116,79 @@ func redactor(matcher matcher, replacer replacer) jsonRedactor {
 	}
 }
 
+type entriesSorter struct{}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+var notCapturedReason = []byte(`"notCapturedReason"`)
+
+func compareNotCapturedReason(a, b []byte) int {
+	return cmp.Compare(
+		boolToInt(bytes.Contains(a, notCapturedReason)),
+		boolToInt(bytes.Contains(b, notCapturedReason)),
+	)
+}
+
+func (e entriesSorter) replace(v jsontext.Value) jsontext.Value {
+	var entries [][2]jsontext.Value
+	if err := json.Unmarshal(v, &entries); err != nil {
+		return v // Return original value if unmarshal fails
+	}
+	slices.SortFunc(entries, func(a, b [2]jsontext.Value) int {
+		return cmp.Or(
+			compareNotCapturedReason(a[0], b[0]),
+			bytes.Compare(a[0], b[0]),
+		)
+	})
+	sorted, err := json.Marshal(entries)
+	if err != nil {
+		return v // Return original value if marshal fails
+	}
+	return sorted
+}
+
+type stackFrame struct {
+	Function   string `json:"function"`
+	FileName   string `json:"fileName"`
+	LineNumber any    `json:"lineNumber"`
+}
+
+func redactStackFrame(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '{' {
+		return v
+	}
+	d := json.NewDecoder(bytes.NewReader(v))
+	d.UseNumber()
+	var f stackFrame
+	err := d.Decode(&f)
+	if err != nil {
+		return v
+	}
+	isAsm := strings.HasPrefix(f.FileName, "runtime/asm_")
+	isRuntime := strings.HasPrefix(f.FileName, "runtime/")
+	if !isAsm && !isRuntime {
+		return v
+	}
+	if isAsm {
+		f.FileName = "runtime/asm_[arch].s"
+	}
+	f.LineNumber = "[lineNumber]"
+	buf, err := json.Marshal(f)
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
+}
+
 var defaultRedactors = []jsonRedactor{
 	redactor(
-		exactMatcher(`/debugger/snapshot/stack`),
-		replacement(`"[stack-unredact-me]"`),
+		(*reMatcher)(regexp.MustCompile(`^/debugger/snapshot/stack/[[:digit:]]+$`)),
+		replacerFunc(redactStackFrame),
 	),
 	redactor(
 		exactMatcher(`/debugger/snapshot/id`),
@@ -84,33 +206,93 @@ var defaultRedactors = []jsonRedactor{
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/address"},
 		replacement(`"[addr]"`),
 	),
+	redactor(
+		prefixSuffixMatcher{"/debugger/snapshot/captures/entry/arguments/redactMyEntries", "/entries"},
+		replacement(`"[redacted-entries]"`),
+	),
+	redactor(
+		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/entries"},
+		entriesSorter{},
+	),
+	redactor(
+		(*reMatcher)(regexp.MustCompile(`^/debugger/snapshot/captures/entry/arguments/.*`)),
+		replacerFunc(redactMutex),
+	),
 }
 
-func redactJSON(t *testing.T, input []byte, redactors []jsonRedactor) (redacted []byte) {
+func redactMutex(v jsontext.Value) jsontext.Value {
+	var t = struct {
+		Type string `json:"type"`
+	}{}
+	if err := json.Unmarshal(v, &t); err != nil {
+		return v
+	}
+	if t.Type != "sync.Mutex" {
+		return v
+	}
+	return jsontext.Value(`"[sync.Mutex (different in different versions)]"`)
+}
+
+func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactors []jsonRedactor) []byte {
 	d := jsontext.NewDecoder(bytes.NewReader(input))
 	var buf bytes.Buffer
 	e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
-	for {
+	ptrPrefix = jsontext.Pointer(strings.TrimSuffix(string(ptrPrefix), "/"))
+	stackPtr := func() jsontext.Pointer {
+		return jsontext.Pointer(
+			string(ptrPrefix) + "/" +
+				strings.TrimPrefix(string(d.StackPointer()), "/"))
+	}
+	copyToken := func() (done bool) {
 		tok, err := d.ReadToken()
 		if errors.Is(err, io.EOF) {
-			break
+			return true
 		}
-		require.NoError(t, err)
-		kind, idx := d.StackIndex(d.StackDepth())
 		err = e.WriteToken(tok)
 		require.NoError(t, err)
-		if kind != '{' || idx%2 == 0 {
-			continue
-		}
-		ptr := d.StackPointer()
-		for _, redactor := range redactors {
-			if redactor.matcher.matches(ptr) {
-				v, err := d.ReadValue()
-				require.NoError(t, err)
-				err = e.WriteValue(redactor.replacer.replace(v))
-				require.NoError(t, err)
+		return false
+	}
+	for {
+		kind, idx := d.StackIndex(d.StackDepth())
+		if kind == 0 {
+			if copyToken() {
 				break
 			}
+			continue
+		}
+		// If we're in an object and this is a key, copy it across.
+		switch d.PeekKind() {
+		case ']', '}':
+			require.False(t, copyToken(), "unexpected EOF")
+			continue
+		}
+		if kind == '{' && idx%2 == 0 {
+			require.False(t, copyToken(), "unexpected EOF")
+		}
+
+		ptr := stackPtr()
+		var redacted []byte
+		for _, redactor := range redactors {
+			if redactor.matcher.matches(ptr) {
+				if redacted == nil {
+					v, err := d.ReadValue()
+					require.NoError(t, err)
+					redacted = v
+				}
+				redacted = redactor.replacer.replace(redacted)
+			}
+		}
+
+		// If we read a whole value, recursively redact it and write that out,
+		// otherwise just copy the token across.
+		if redacted != nil {
+			switch jsontext.Value(redacted).Kind() {
+			case '{', '[': // apply recursive redaction
+				redacted = redactJSON(t, ptr, redacted, redactors)
+			}
+			require.NoError(t, e.WriteValue(redacted))
+		} else if copyToken() {
+			break
 		}
 	}
 	return bytes.TrimSpace(buf.Bytes())

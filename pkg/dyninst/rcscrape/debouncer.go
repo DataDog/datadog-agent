@@ -38,9 +38,10 @@ func makeDebouncer(idlePeriod time.Duration) debouncer {
 
 type debouncerProcess struct {
 	procmon.ProcessUpdate
-	runtimeID   string
-	lastUpdated time.Time
-	files       []remoteConfigFile
+	runtimeID    string
+	lastUpdated  time.Time
+	files        []remoteConfigFile
+	symdbEnabled bool
 }
 
 func (c *debouncer) track(
@@ -55,14 +56,39 @@ func (c *debouncer) untrack(processID actuator.ProcessID) {
 	delete(c.processes, processID)
 }
 
+func (c *debouncer) addSymdbEnabled(
+	now time.Time,
+	processID actuator.ProcessID,
+	runtimeID string,
+	symdbEnabled bool,
+) {
+	p, ok := c.processes[processID]
+	if !ok {
+		// Update corresponds to an untracked process.
+		return
+	}
+	p.lastUpdated = now
+	if p.runtimeID != "" && p.runtimeID != runtimeID {
+		log.Warnf(
+			"rcscrape: process %v: runtime ID mismatch: %s != %s",
+			p.ProcessID, p.runtimeID, runtimeID,
+		)
+	}
+	p.runtimeID = runtimeID
+	p.symdbEnabled = symdbEnabled
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef(
+			"rcscrape: process %v: symdb enabled: %t",
+			p.ProcessID, symdbEnabled,
+		)
+	}
+}
+
 func (c *debouncer) addInFlight(
 	now time.Time,
 	processID actuator.ProcessID,
 	file remoteConfigFile,
 ) {
-	if file.ConfigContent == "" {
-		return
-	}
 	p, ok := c.processes[processID]
 	if !ok {
 		// Update corresponds to an untracked process.
@@ -77,6 +103,9 @@ func (c *debouncer) addInFlight(
 		clear(p.files)
 	}
 	p.runtimeID = file.RuntimeID
+	if file.ConfigContent == "" {
+		return
+	}
 	p.files = append(p.files, file)
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef(
@@ -97,9 +126,10 @@ func (c *debouncer) coalesceInFlight(now time.Time) []ProcessUpdate {
 		probes := computeProbeDefinitions(procID, process.files)
 		process.files, process.lastUpdated = nil, time.Time{}
 		updates = append(updates, ProcessUpdate{
-			ProcessUpdate: process.ProcessUpdate,
-			Probes:        probes,
-			RuntimeID:     process.runtimeID,
+			ProcessUpdate:     process.ProcessUpdate,
+			Probes:            probes,
+			RuntimeID:         process.runtimeID,
+			ShouldUploadSymDB: process.symdbEnabled,
 		})
 	}
 	slices.SortFunc(updates, func(a, b ProcessUpdate) int {

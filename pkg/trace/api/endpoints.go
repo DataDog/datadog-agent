@@ -99,8 +99,9 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(V10, r.handleTraces) },
 	},
 	{
-		Pattern: "/profiling/v1/input",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
+		Pattern:         "/profiling/v1/input",
+		Handler:         func(r *HTTPReceiver) http.Handler { return r.profileProxyHandler() },
+		TimeoutOverride: getConfiguredProfilingRequestTimeoutDuration,
 	},
 	{
 		Pattern: "/telemetry/proxy/",

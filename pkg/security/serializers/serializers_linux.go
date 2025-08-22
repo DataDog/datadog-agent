@@ -36,6 +36,8 @@ type FileSerializer struct {
 	Path string `json:"path,omitempty"`
 	// File basename
 	Name string `json:"name,omitempty"`
+	// File extension
+	Extension string `json:"extension,omitempty"`
 	// Error message from path resolution
 	PathResolutionError string `json:"path_resolution_error,omitempty"`
 	// File inode number
@@ -764,6 +766,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		Path:                e.FieldHandlers.ResolveFilePath(e, fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.FieldHandlers.ResolveFileBasename(e, fe),
+		Extension:           e.FieldHandlers.ResolveFileExtension(e, fe),
 		Inode:               createNumPointer(inode),
 		MountID:             createNumPointer(fe.MountID),
 		Filesystem:          e.FieldHandlers.ResolveFileFilesystem(e, fe),
@@ -902,8 +905,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 		if len(ps.CGroup.CGroupID) > 0 {
 			psSerializer.CGroup = &CGroupContextSerializer{
-				ID:      string(ps.CGroup.CGroupID),
-				Manager: ps.CGroup.CGroupManager,
+				ID: string(ps.CGroup.CGroupID),
 			}
 		}
 
@@ -1417,10 +1419,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	}
 
 	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
-		manager := event.FieldHandlers.ResolveCGroupManager(event, event.CGroupContext)
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.CGroupContext.CGroupID),
-			Manager:   manager,
 			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}

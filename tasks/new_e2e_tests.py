@@ -37,7 +37,7 @@ from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_on
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
-from tasks.tools.e2e_stacks import destroy_remote_stack
+from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stack_local
 
 
 class TestState:
@@ -64,7 +64,7 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         binary_path = output_path / binary_name
 
         # Build test binary
-        cmd = f"go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
 
         result = ctx.run(cmd, hide=True)
         if result.ok:
@@ -592,6 +592,12 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
     if not running_in_ci():
         raise Exit("This task should be run in CI only", 1)
 
+    remote_stack_cleaning = os.getenv("REMOTE_STACK_CLEANING") == "true"
+    if remote_stack_cleaning:
+        print("Using remote stack cleaning")
+    else:
+        print("Using local stack cleaning")
+
     stack_regex = re.compile(stack_regex)
 
     # Ideally we'd use the pulumi CLI to list all the stacks. However we have way too much stacks in the bucket so the commands hang forever.
@@ -624,15 +630,16 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
 
     print("About to delete the following stacks:", to_delete_stacks)
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
-        res = pool.map(destroy_remote_stack, to_delete_stacks)
+        destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
+        res = pool.map(destroy_func, to_delete_stacks)
         destroyed_stack = set()
         failed_stack = set()
-        for r, stack in res:
-            if r.returncode != 0:
+        for exit_code, stdout, stderr, stack in res:
+            if exit_code != 0:
                 failed_stack.add(stack)
             else:
                 destroyed_stack.add(stack)
-            print(f"Stack {stack}: {r.stdout} {r.stderr}")
+            print(f"Stack {stack}: {stdout} {stderr}")
 
     for stack in destroyed_stack:
         print(f"Stack {stack} destroyed successfully")
@@ -807,7 +814,9 @@ def deps(ctx, verbose=False):
 
 
 def _get_default_env():
-    return {"PULUMI_SKIP_UPDATE_CHECK": "true"}
+    return {
+        "PULUMI_SKIP_UPDATE_CHECK": "true",
+    }
 
 
 def _get_home_dir():
@@ -911,12 +920,16 @@ def _destroy_stack(ctx: Context, stack: str):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored. It is expected to fail on stacks existing locally
     # with resources removed by agent-sandbox clean up job
+
+    destroy_env = _get_default_env()
+    destroy_env["PULUMI_K8S_DELETE_UNREACHABLE"] = "true"
+
     with ctx.cd(tempfile.gettempdir()):
         ret = ctx.run(
             f"pulumi destroy --stack {stack} --yes --remove --skip-preview",
             warn=True,
             hide=True,
-            env=_get_default_env(),
+            env=destroy_env,
         )
         if ret is not None and ret.exited != 0:
             if "No valid credential sources found" in ret.stdout:
@@ -936,7 +949,7 @@ def _destroy_stack(ctx: Context, stack: str):
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
                 warn=True,
                 hide=True,
-                env=_get_default_env(),
+                env=destroy_env,
             )
         if ret is not None and ret.exited != 0:
             raise Exit(

@@ -14,7 +14,33 @@
         "id": "[id]",
         "timestamp": "[ts]",
         "language": "go",
-        "stack": "[stack-unredact-me]",
+        "stack": [
+          {
+            "function": "main.testVeryLargeSlice",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
+            "lineNumber": 65
+          },
+          {
+            "function": "main.executeSliceFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
+            "lineNumber": 82
+          },
+          {
+            "function": "main.main",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 31
+          },
+          {
+            "function": "runtime.main",
+            "fileName": "runtime/proc.go",
+            "lineNumber": "[lineNumber]"
+          },
+          {
+            "function": "runtime.goexit",
+            "fileName": "runtime/asm_[arch].s",
+            "lineNumber": "[lineNumber]"
+          }
+        ],
         "probe": {
           "id": "testVeryLargeSlice",
           "location": {
@@ -26,7 +52,12 @@
             "arguments": {
               "xs": {
                 "type": "[]uint",
+                "size": "10000",
                 "elements": [
+                  {
+                    "type": "uint",
+                    "value": "0"
+                  },
                   {
                     "type": "uint",
                     "value": "1"
@@ -282,6 +313,770 @@
                   {
                     "type": "uint",
                     "value": "64"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "65"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "66"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "67"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "68"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "69"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "70"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "71"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "72"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "73"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "74"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "75"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "76"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "77"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "78"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "79"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "80"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "81"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "82"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "83"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "84"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "85"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "86"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "87"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "88"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "89"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "90"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "91"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "92"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "93"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "94"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "95"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "96"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "97"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "98"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "99"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "100"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "101"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "102"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "103"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "104"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "105"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "106"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "107"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "108"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "109"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "110"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "111"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "112"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "113"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "114"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "115"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "116"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "117"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "118"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "119"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "120"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "121"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "122"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "123"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "124"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "125"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "126"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "127"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "128"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "129"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "130"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "131"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "132"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "133"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "134"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "135"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "136"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "137"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "138"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "139"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "140"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "141"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "142"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "143"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "144"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "145"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "146"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "147"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "148"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "149"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "150"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "151"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "152"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "153"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "154"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "155"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "156"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "157"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "158"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "159"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "160"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "161"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "162"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "163"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "164"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "165"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "166"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "167"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "168"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "169"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "170"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "171"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "172"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "173"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "174"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "175"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "176"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "177"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "178"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "179"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "180"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "181"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "182"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "183"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "184"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "185"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "186"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "187"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "188"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "189"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "190"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "191"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "192"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "193"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "194"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "195"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "196"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "197"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "198"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "199"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "200"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "201"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "202"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "203"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "204"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "205"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "206"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "207"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "208"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "209"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "210"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "211"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "212"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "213"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "214"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "215"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "216"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "217"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "218"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "219"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "220"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "221"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "222"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "223"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "224"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "225"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "226"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "227"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "228"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "229"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "230"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "231"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "232"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "233"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "234"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "235"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "236"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "237"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "238"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "239"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "240"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "241"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "242"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "243"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "244"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "245"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "246"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "247"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "248"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "249"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "250"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "251"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "252"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "253"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "254"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "255"
                   }
                 ],
                 "notCapturedReason": "collectionSize"

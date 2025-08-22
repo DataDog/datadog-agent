@@ -30,6 +30,9 @@ import (
 )
 
 func TestIRGenAllProbes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
 	programs := testprogs.MustGetPrograms(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	var objcopy string
@@ -43,10 +46,6 @@ func TestIRGenAllProbes(t *testing.T) {
 		switch pkg {
 		case "simple", "sample":
 		default:
-			// TODO: The generation for programs that link dd-trace-go is
-			// very slow due to accidentally quadratic behavior when processing
-			// the line programs. We should fix this, but for now we skip these
-			// programs.
 			t.Logf("skipping %s", pkg)
 			continue
 		}

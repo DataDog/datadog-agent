@@ -53,7 +53,9 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _, _, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ context.Context, _ *pb.ClientStatsPayload, _, _, _, _ string) error {
+	return nil
+}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
@@ -244,6 +246,18 @@ func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
 	defer r.Stop()
 	data := []byte{0x96, 0x97, 0xa4, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x96, 0x94, 0x9c, 0x00, 0x00, 0x00, 0x30, 0x30, 0xd1, 0x30, 0x30, 0x30, 0x30, 0x30, 0xdf, 0x30, 0x30, 0x30, 0x30}
 
+	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestTracesDecodeSlowDecodeInvalid(t *testing.T) {
+	r := newTestReceiverFromConfig(newTestReceiverConfig())
+	r.Start()
+	defer r.Stop()
+	data := []byte("\x96\x90\xdd\x01\x7D\x78\x3F")
 	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
 	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
 	require.NoError(t, err)
@@ -849,9 +863,13 @@ type mockStatsProcessor struct {
 	lastTracerVersion string
 	containerID       string
 	obfVersion        string
+
+	// processingLantency is used to mock a busy processor.
+	// use this variable to control how long the processor should 'wait' for the work to be done.
+	processingLantency time.Duration
 }
 
-func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfVersion string) {
+func (m *mockStatsProcessor) ProcessStats(ctx context.Context, p *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfVersion string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
@@ -859,6 +877,13 @@ func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracer
 	m.lastTracerVersion = tracerVersion
 	m.containerID = containerID
 	m.obfVersion = obfVersion
+
+	select {
+	case <-time.After(m.processingLantency):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
@@ -904,6 +929,31 @@ func TestHandleStats(t *testing.T) {
 
 		_, ok := rcv.Stats.Stats[info.Tags{Lang: "lang1", EndpointVersion: "v0.6", Service: "service", TracerVersion: "0.1.0"}]
 		assert.True(t, ok)
+	})
+	t.Run("timeout", func(t *testing.T) {
+		cfg := newTestReceiverConfig()
+		rcv := newTestReceiverFromConfig(cfg)
+		mockProcessor := &mockStatsProcessor{processingLantency: 1100 * time.Millisecond}
+		rcv.statsProcessor = mockProcessor
+		mux := rcv.buildMux()
+		server := httptest.NewServer(mux)
+
+		var buf bytes.Buffer
+		if err := msgp.Encode(&buf, p); err != nil {
+			t.Fatal(err)
+		}
+		req, _ := http.NewRequest("POST", server.URL+"/v0.6/stats", &buf)
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(header.Lang, "lang1")
+		req.Header.Set(header.TracerVersion, "0.1.0")
+		req.Header.Set(header.ContainerID, "abcdef123789456")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+
+		assert.Equal(t, resp.StatusCode, http.StatusRequestTimeout)
 	})
 }
 

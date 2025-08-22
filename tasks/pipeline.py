@@ -414,6 +414,7 @@ def is_system_probe(owners, files):
         ("TEAM", "@DataDog/universal-service-monitoring"),
         ("TEAM", "@DataDog/ebpf-platform"),
         ("TEAM", "@DataDog/agent-security"),
+        ("TEAM", "@DataDog/cloud-network-monitoring"),
     }
     for f in files:
         match_teams = set(owners.of(f)) & target
@@ -457,8 +458,8 @@ def changelog(ctx, new_commit_sha):
     empty_changelog_msg = "No new System Probe related commits in this release :cricket:"
     no_commits_msg = "No new commits in this release :cricket:"
     slack_message = (
-        "The nightly deployment is rolling out to Staging :siren: \n"
-        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+        f"The nightly deployment is rolling out to Staging :siren: \n"
+        f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
     )
 
     if old_commit_sha == new_commit_sha:
@@ -747,7 +748,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
             print('You might want to run these commands to restore the current state:')
             print('\n'.join(restore_commands))
 
-            exit(1)
+            raise Exit(code=1)
 
     # Show links
     repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
@@ -815,7 +816,8 @@ def test_merge_queue(ctx):
 @task
 def compare_to_itself(ctx):
     """
-    Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline
+    Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline.
+    This is used to verify that the gitlab ci is not broken by the changes when merged on the base branch.
     """
     if not gitlab_configuration_is_modified(ctx):
         print("No modification in the gitlab configuration, ignoring this test.")
@@ -851,34 +853,25 @@ def compare_to_itself(ctx):
 
     ctx.run("git commit -am 'Commit to compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
-    max_attempts = 6
-    compare_to_pipeline = None
-    for attempt in range(max_attempts):
-        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created {attempt + 1}/{max_attempts}")
-        time.sleep(30)
-        pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
-        for pipeline in pipelines:
-            commit = agent.commits.get(pipeline.sha)
-            if commit.author_name == BOT_NAME and commit.title == "Commit to compare to itself":
-                if pipeline.status == "skipped":
-                    # DDCI: we need to trigger the pipeline
-                    print(f"Triggering the CI execution for {new_branch}")
-                    trigger_agent_pipeline(repo=agent, ref=new_branch)
-                    continue
-                else:
-                    compare_to_pipeline = pipeline
-                    print(f"Test pipeline found: {pipeline.web_url}")
-        if compare_to_pipeline:
-            break
-        if attempt == max_attempts - 1:
-            # Clean up the branch and possible pipelines
-            for pipeline in pipelines:
-                cancel_pipeline(pipeline)
-            ctx.run(f"git checkout {current_branch}", hide=True)
-            ctx.run(f"git branch -D {new_branch}", hide=True)
-            ctx.run(f"git push origin :{new_branch}", hide=True)
-            raise RuntimeError(f"No pipeline found for {new_branch}")
+
     try:
+        max_attempts = 18
+        compare_to_pipeline = None
+        for attempt in range(max_attempts):
+            print(f"[{datetime.now()}] Waiting 10s for the branch to be created {attempt + 1}/{max_attempts}")
+            time.sleep(10)
+            if agent.branches.get(new_branch, raise_exception=False):
+                break
+        else:
+            print(f"{color_message('ERROR', Color.RED)}: Branch {new_branch} not created", file=sys.stderr)
+            raise RuntimeError(f"No branch found for {new_branch}")
+
+        print('Branch created, triggering the pipeline')
+
+        # Trigger the pipeline on the last commit of this branch
+        compare_to_pipeline = agent.pipelines.create({'ref': new_branch})
+        print(f"Pipeline created: {compare_to_pipeline.web_url}")
+
         if len(compare_to_pipeline.jobs.list(get_all=False)) == 0:
             print(
                 f"[{color_message('ERROR', Color.RED)}] Failed to generate a pipeline for {new_branch}, please check {compare_to_pipeline.web_url}"
@@ -887,8 +880,8 @@ def compare_to_itself(ctx):
         else:
             print(f"Pipeline correctly created, {color_message('congrats', Color.GREEN)}")
     finally:
-        # Clean up
-        print("Cleaning up the pipelines")
+        pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
+        print(f"Cleaning up the pipelines: {' '.join([str(p.id) for p in pipelines])}")
         for pipeline in pipelines:
             cancel_pipeline(pipeline)
         print("Cleaning up git")
