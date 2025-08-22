@@ -42,6 +42,8 @@ from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
+SHARED_LIB_PATH = os.path.join(BIN_DIR, "libsystemprobe.so")
+WRAPPER_PATH = os.path.join(BIN_DIR, "system-probe-wrapper")
 
 BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
@@ -894,6 +896,189 @@ def build_sysprobe_binary(
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
     )
+
+
+@task
+def build_shared_library(
+    ctx,
+    major_version='7',
+    go_mod="readonly",
+    arch: str = CURRENT_ARCH,
+    bundle_ebpf=False,
+    strip_binary=False,
+    fips_mode=False,
+    static=False,
+    glibc=True,
+) -> None:
+    """
+    Build the system-probe as a shared library for dynamic loading
+    """
+    if is_windows:
+        print("Shared library build not supported on Windows")
+        return
+
+    arch_obj = Arch.from_str(arch)
+
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        major_version=major_version,
+        arch=arch_obj,
+        static=static,
+    )
+
+    build_tags = get_default_build_tags(build="system-probe")
+    build_tags = add_fips_tags(build_tags, fips_mode)
+    if bundle_ebpf:
+        build_tags.append(BUNDLE_TAG)
+    if strip_binary:
+        ldflags += ' -s -w'
+
+    if static:
+        build_tags.extend(["osusergo", "netgo", "static"])
+        build_tags = list(set(build_tags).difference({"netcgo"}))
+
+    if not glibc:
+        build_tags = list(set(build_tags).difference({"nvml"}))
+
+    if "pcap" in build_tags:
+        build_libpcap(ctx)
+        cgo_flags = get_libpcap_cgo_flags(ctx, None)
+        for k, v in cgo_flags.items():
+            if k in env:
+                env[k] += f" {v}"
+            else:
+                env[k] = v
+
+    if os.path.exists(SHARED_LIB_PATH):
+        os.remove(SHARED_LIB_PATH)
+
+    # Build as shared library using -buildmode=c-shared
+    cmd = "go build -buildmode=c-shared"
+    if go_mod:
+        cmd += f" -mod={go_mod}"
+    if build_tags:
+        cmd += f" -tags \"{' '.join(build_tags)}\""
+    if gcflags:
+        cmd += f" -gcflags=\"{gcflags}\""
+    if ldflags:
+        cmd += f" -ldflags=\"{ldflags}\""
+    cmd += f" -o {SHARED_LIB_PATH}"
+    cmd += " -trimpath"
+    cmd += f" {REPO_PATH}/cmd/system-probe/library"
+
+    ctx.run(cmd, env=env)
+
+
+@task
+def build_wrapper(
+    ctx,
+    arch: str = CURRENT_ARCH,
+    strip_binary=False,
+) -> None:
+    """
+    Build the lightweight C wrapper for system-probe
+    """
+    if is_windows:
+        print("C wrapper build not supported on Windows")
+        return
+
+    if os.path.exists(WRAPPER_PATH):
+        os.remove(WRAPPER_PATH)
+
+    # Compile the C wrapper
+    wrapper_src = os.path.join("cmd", "system-probe", "wrapper", "main.c")
+
+    cc_flags = "-O2 -Wall"
+    if strip_binary:
+        cc_flags += " -s"
+
+    ctx.run(f"gcc {cc_flags} -o {WRAPPER_PATH} {wrapper_src} -ldl")
+    print(f"Built system-probe wrapper: {WRAPPER_PATH}")
+
+
+@task
+def build_with_wrapper(
+    ctx,
+    race=False,
+    rebuild=False,
+    major_version='7',
+    go_mod="readonly",
+    arch: str = CURRENT_ARCH,
+    bundle_ebpf=False,
+    kernel_release=None,
+    debug=False,
+    strip_object_files=False,
+    strip_binary=False,
+    with_unit_test=False,
+    static=False,
+    fips_mode=False,
+    glibc=True,
+):
+    """
+    Build both the lightweight wrapper (as main binary) and shared library
+    """
+    if is_windows:
+        print("Wrapper build not supported on Windows, falling back to regular build")
+        return build(
+            ctx,
+            race=race,
+            rebuild=rebuild,
+            major_version=major_version,
+            go_mod=go_mod,
+            arch=arch,
+            bundle_ebpf=bundle_ebpf,
+            kernel_release=kernel_release,
+            debug=debug,
+            strip_object_files=strip_object_files,
+            strip_binary=strip_binary,
+            with_unit_test=with_unit_test,
+            static=static,
+            fips_mode=fips_mode,
+            glibc=glibc,
+        )
+
+    if not is_macos:
+        build_object_files(
+            ctx,
+            major_version=major_version,
+            kernel_release=kernel_release,
+            debug=debug,
+            strip_object_files=strip_object_files,
+            with_unit_test=with_unit_test,
+            bundle_ebpf=bundle_ebpf,
+        )
+
+    # Build the shared library first
+    build_shared_library(
+        ctx,
+        major_version=major_version,
+        go_mod=go_mod,
+        arch=arch,
+        bundle_ebpf=bundle_ebpf,
+        strip_binary=strip_binary,
+        fips_mode=fips_mode,
+        static=static,
+        glibc=glibc,
+    )
+
+    # Build the C wrapper
+    build_wrapper(
+        ctx,
+        arch=arch,
+        strip_binary=strip_binary,
+    )
+
+    # Copy wrapper to the main system-probe binary location
+    # This makes the wrapper the default system-probe binary
+    if os.path.exists(BIN_PATH):
+        os.remove(BIN_PATH)
+
+    import shutil
+
+    shutil.copy2(WRAPPER_PATH, BIN_PATH)
+    print(f"Copied wrapper to main binary location: {BIN_PATH}")
+    print(f"Shared library available at: {SHARED_LIB_PATH}")
+    print("Set DD_SYSTEM_PROBE_ENABLED=1 to enable full system-probe functionality")
 
 
 def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
