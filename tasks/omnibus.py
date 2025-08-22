@@ -641,7 +641,7 @@ def deduplicate_files(ctx, directory):
         for dirpath, _, filenames in os.walk(root_dir):
             for name in filenames:
                 full_path = os.path.join(dirpath, name)
-                if not os.path.islink(full_path):  # Skip symlinks
+                if os.path.isfile(full_path) and not os.path.islink(full_path):  # Skip symlinks
                     try:
                         if os.path.getsize(full_path) == 0:
                             continue  # Exclude empty files
@@ -654,14 +654,12 @@ def deduplicate_files(ctx, directory):
     def replace_with_symlinks(duplicates):
         """Replaces all duplicates with symlinks to the first original."""
         for files in duplicates.values():
-            files.sort()
+            files.sort(key=lambda p: (len(p), p))  # Sort by shorted path
             original = files[0]
             for dup in files[1:]:
                 try:
                     os.remove(dup)
                     rel_path = os.path.relpath(original, os.path.dirname(dup))
-                    if not rel_path.startswith("."):
-                        rel_path = f"./{rel_path}"
                     os.symlink(rel_path, dup)
                     print(f"Replaced {dup} with symlink to {original}")
                 except Exception as e:
