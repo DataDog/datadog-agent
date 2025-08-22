@@ -25,6 +25,7 @@ func IsBusybox(pathname string) bool {
 	return pathname == "/bin/busybox" || pathname == "/usr/bin/busybox"
 }
 
+// IsThroughSymLink returns true if the process is accessing a file through a symlink
 func IsThroughSymLink(entry *model.ProcessCacheEntry) bool {
 	return entry.Process.IsThroughSymLink
 }

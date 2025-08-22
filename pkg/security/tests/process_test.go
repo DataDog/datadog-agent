@@ -2487,7 +2487,7 @@ func TestSymLinkResolution(t *testing.T) {
 			cmd.Stderr = io.Discard
 			_ = cmd.Run()
 			return nil
-		}, func(ev *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "symlink_nc_exec")
 		})
 		assert.NoError(t, err)
