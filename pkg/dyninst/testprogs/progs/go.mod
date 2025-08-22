@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
 
-go 1.23.1
-
-toolchain go1.24.4
+go 1.24.0
 
 require (
 	github.com/DataDog/dd-trace-go/contrib/net/http/v2 v2.0.1
