@@ -9,10 +9,11 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v5"
@@ -23,6 +24,7 @@ func Base64ToJWK(privateKey string) (jwk jose.JSONWebKey, err error) {
 	if err != nil {
 		return jose.JSONWebKey{}, fmt.Errorf("error decoding private key: %+v", err)
 	}
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
 	if err = json.Unmarshal(decodedKeyBytes, &jwk); err != nil {
 		return jose.JSONWebKey{}, fmt.Errorf("error converting private key to JWK: %+v", err)
 	}

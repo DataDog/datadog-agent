@@ -10,10 +10,11 @@ import (
 	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"sync"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -95,6 +96,7 @@ func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfi
 
 func (k *keysManager) decode(rawConfig state.RawConfig) (types.DecodedKey, error) {
 	var rawKey types.RawKey
+	json := jsoniter.ConfigCompatibleWithStandardLibrary
 	err := json.Unmarshal(rawConfig.Config, &rawKey)
 	if err != nil {
 		return nil, fmt.Errorf("json decoding error: %w", err)

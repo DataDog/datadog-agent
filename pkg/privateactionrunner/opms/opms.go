@@ -8,7 +8,6 @@ package opms
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +15,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -32,6 +33,8 @@ const (
 	healthCheckPath = "/api/v2/on-prem-management-service/runner/health-check"
 	enrollmentPath  = "/api/v2/on-prem-management-service/enrollments/complete"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type PublishTaskUpdateJSONRequestPayload struct {
 	Branch       string                            `json:"branch,omitempty"`
