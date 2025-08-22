@@ -20,9 +20,9 @@ if TYPE_CHECKING:
     nargs=-1,
 )
 @click.option(
-    "--config",
-    "-c",
-    "config_filepath",
+    "--owners",
+    "-f",
+    "owners_filepath",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Path to JOBOWNERS file",
     default=".gitlab/JOBOWNERS",
@@ -34,14 +34,13 @@ if TYPE_CHECKING:
     help="Format the output as JSON",
 )
 @pass_app
-def cmd(app: Application, jobs: tuple[str, ...], *, config_filepath: Path, json: bool) -> None:
+def cmd(app: Application, jobs: tuple[str, ...], *, owners_filepath: Path, json: bool) -> None:
     """
     Gets the owners for the specified GitLab CI jobs.
     """
     import codeowners
 
-    with config_filepath.open(encoding="utf-8") as f:
-        owners = codeowners.CodeOwners(f.read())
+    owners = codeowners.CodeOwners(owners_filepath.read_text(encoding="utf-8"))
 
     res = {job: [owner[1] for owner in owners.of(job)] for job in jobs}
 
