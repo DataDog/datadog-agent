@@ -222,6 +222,7 @@ func (a *Agent) Run() {
 		go a.work()
 	}
 
+	log.Infof("trace-agent running...")
 	a.loop()
 }
 

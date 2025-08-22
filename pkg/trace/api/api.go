@@ -580,7 +580,8 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	obfuscationVersion := req.Header.Get(header.TracerObfuscationVersion)
 	containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
 
-	ctx, cancel := context.WithTimeout(req.Context(), time.Duration(r.conf.ReceiverTimeout)*time.Second)
+	timeout := getConfiguredRequestTimeoutDuration(r.conf)
+	ctx, cancel := context.WithTimeout(req.Context(), timeout)
 	defer cancel()
 	if err := r.statsProcessor.ProcessStats(ctx, in, lang, tracerVersion, containerID, obfuscationVersion); err != nil {
 		log.Errorf("Error processing pb.ClientStatsPayload: %v", err)
