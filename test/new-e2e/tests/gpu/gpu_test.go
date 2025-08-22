@@ -354,6 +354,7 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 	// Docker access to GPUs is flaky sometimes. We haven't been able to reproduce why this happens, but it
 	// seems it's always the same error code.
 	flake.MarkOnLog(v.T(), "error code no CUDA-capable device is detected")
+	flake.MarkOnLog(v.T(), "error code CUDA-capable device(s) is/are busy or unavailable")
 	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
