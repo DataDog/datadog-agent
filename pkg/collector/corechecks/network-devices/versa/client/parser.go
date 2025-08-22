@@ -374,3 +374,43 @@ func parseDIAMetrics(data [][]interface{}) ([]DIAMetrics, error) {
 	}
 	return rows, nil
 }
+
+// parseAnalyticsInterfaceMetrics parses the raw AaData response into AnalyticsInterfaceMetrics structs
+func parseAnalyticsInterfaceMetrics(data [][]interface{}) ([]AnalyticsInterfaceMetrics, error) {
+	var rows []AnalyticsInterfaceMetrics
+	for _, row := range data {
+		m := AnalyticsInterfaceMetrics{}
+		if len(row) != 12 {
+			return nil, fmt.Errorf("expected 12 columns, got %d", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for DrillKey")
+		}
+		if m.Site, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for Site")
+		}
+		if m.AccessCkt, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for AccessCkt")
+		}
+		if m.Interface, ok = row[3].(string); !ok {
+			return nil, fmt.Errorf("expected string for Interface")
+		}
+
+		// Floats from index 4–11 (8 float fields)
+		floatFields := []*float64{
+			&m.RxUtil, &m.TxUtil, &m.VolumeRx, &m.VolumeTx,
+			&m.Volume, &m.BandwidthRx, &m.BandwidthTx, &m.Bandwidth,
+		}
+		for i, ptr := range floatFields {
+			if val, ok := row[i+4].(float64); ok {
+				*ptr = val
+			} else {
+				return nil, fmt.Errorf("expected float64 at index %d", i+4)
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
+}

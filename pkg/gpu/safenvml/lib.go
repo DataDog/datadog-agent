@@ -50,6 +50,7 @@ func getNonCriticalAPIs() []string {
 		"nvmlGpmSampleGet",
 		toNativeName("GetArchitecture"),
 		toNativeName("GetAttributes"),
+		toNativeName("GetBAR1MemoryInfo"),
 		toNativeName("GetClockInfo"),
 		toNativeName("GetComputeRunningProcesses"),
 		toNativeName("GetCurrentClocksThrottleReasons"),

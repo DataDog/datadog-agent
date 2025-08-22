@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -62,4 +63,27 @@ type ScanResult struct {
 	Duration  time.Duration
 	ImgMeta   *workloadmeta.ContainerImageMetadata
 	RequestID string
+}
+
+// ConvertScanResultToSBOM converts an SBOM scan result to a workloadmeta SBOM.
+func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
+	status := workloadmeta.Success
+	reportedError := ""
+	var report *cyclonedx_v1_4.Bom
+
+	if result.Error != nil {
+		log.Errorf("SBOM generation failed for image: %v", result.Error)
+		status = workloadmeta.Failed
+		reportedError = result.Error.Error()
+	} else {
+		report = result.Report.ToCycloneDX()
+	}
+
+	return &workloadmeta.SBOM{
+		CycloneDXBOM:       report,
+		GenerationTime:     result.CreatedAt,
+		GenerationDuration: result.Duration,
+		Status:             status,
+		Error:              reportedError,
+	}
 }
