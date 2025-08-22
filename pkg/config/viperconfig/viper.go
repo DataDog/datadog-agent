@@ -130,8 +130,16 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	c.sendNotification(key, source, oldValue, latestValue, c.sequenceID)
 }
 
-// SetWithoutSource sets the given value using source Unknown
+// SetWithoutSource sets the given value using source Unknown, may only be called from tests
 func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
+	c.assertIsTest("SetWithoutSource")
+	v := reflect.ValueOf(value)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	if v.Kind() == reflect.Struct {
+		panic("SetWithoutSource cannot assign struct to a setting")
+	}
 	c.Set(key, value, model.SourceUnknown)
 }
 

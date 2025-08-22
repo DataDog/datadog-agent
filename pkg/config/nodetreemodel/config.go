@@ -268,11 +268,15 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 }
 
-// SetWithoutSource assigns the value to the given key using source Unknown
+// SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
+	c.assertIsTest("SetWithoutSource")
 	v := reflect.ValueOf(value)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
 	if v.Kind() == reflect.Struct {
-		panic("You cannot set a struct as a value")
+		panic("SetWithoutSource cannot assign struct to a setting")
 	}
 	c.Set(key, value, model.SourceUnknown)
 	keySet := make(map[string]struct{}, len(c.allSettings))
