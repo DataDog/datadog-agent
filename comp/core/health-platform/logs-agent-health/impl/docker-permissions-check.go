@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -24,10 +23,6 @@ const (
 
 	// IssueIDDockerFileTailingDisabled is the ID for the Docker file tailing disabled issue
 	IssueIDDockerFileTailingDisabled = "docker-file-tailing-disabled"
-	// IssueIDDockerNotAccessible is the ID for Docker daemon not accessible issue
-	IssueIDDockerNotAccessible = "docker-not-accessible"
-	// IssueIDDockerNonJSONLogging is the ID for Docker non-JSON logging driver issue
-	IssueIDDockerNonJSONLogging = "docker-non-json-logging"
 )
 
 // DockerPermissionsCheck groups all Docker-related permission and access checks
@@ -43,195 +38,74 @@ func (d *DockerPermissionsCheck) Name() string {
 	return "docker-permissions"
 }
 
-// Check performs all Docker-related permission and access health checks
-func (d *DockerPermissionsCheck) Check(ctx context.Context) ([]healthplatform.Issue, error) {
+// Check performs Docker file tailing permission health checks
+func (d *DockerPermissionsCheck) Check(_ context.Context) ([]healthplatform.Issue, error) {
 	var issues []healthplatform.Issue
 
-	// Check Docker daemon accessibility
-	if issue := d.checkDockerAccessibility(ctx); issue != nil {
+	// Check Docker file tailing permissions
+	if issue := d.checkDockerFileTailing(); issue != nil {
 		issues = append(issues, *issue)
-	}
-
-	// Only check file-related permissions if Docker is accessible
-	if len(issues) == 0 {
-		// Check Docker file tailing permissions
-		if issue := d.checkDockerFileTailing(); issue != nil {
-			issues = append(issues, *issue)
-		}
-
-		// Check Docker logging driver configuration
-		if issue := d.checkDockerLoggingDriver(ctx); issue != nil {
-			issues = append(issues, *issue)
-		}
 	}
 
 	return issues, nil
 }
 
-// checkDockerAccessibility checks if Docker is running and accessible
-func (d *DockerPermissionsCheck) checkDockerAccessibility(ctx context.Context) *healthplatform.Issue {
-	// Try to run a simple Docker command
-	cmd := exec.CommandContext(ctx, "docker", "version")
-	if err := cmd.Run(); err != nil {
-		return &healthplatform.Issue{
-			ID:                 IssueIDDockerNotAccessible,
-			IssueName:          "docker_not_accessible",
-			Title:              "Docker Daemon Not Accessible",
-			Description:        "Docker daemon is not accessible. Log collection may be affected.",
-			Category:           "connectivity",
-			Location:           "logs-agent",
-			Severity:           "high",
-			DetectedAt:         "", // Will be filled by the platform
-			Integration:        nil,
-			Extra:              "Docker daemon is not accessible. Log collection may be affected.",
-			IntegrationFeature: "logs",
-			Remediation: &healthplatform.Remediation{
-				Summary: "Check Docker daemon status and ensure it's running and accessible.",
-				Steps: []healthplatform.RemediationStep{
-					{Order: 1, Text: "Check if Docker service is running: systemctl status docker"},
-					{Order: 2, Text: "Verify Docker socket permissions: ls -la /var/run/docker.sock"},
-					{Order: 3, Text: "Ensure user has access to Docker group: groups $USER"},
-				},
-				Script: &healthplatform.Script{
-					Language:     "bash",
-					Filename:     "fix_docker_access.sh",
-					RequiresRoot: true,
-					Content:      "systemctl start docker && usermod -aG docker $USER && systemctl restart docker",
-				},
-			},
-			Tags: []string{"docker", "connectivity", "logs", "urgent"},
-		}
-	}
-	return nil
-}
-
 // checkDockerFileTailing checks if Docker file tailing is disabled due to permission issues
 func (d *DockerPermissionsCheck) checkDockerFileTailing() *healthplatform.Issue {
-	// Check if Docker logs directory exists and check permissions
+	// Check if Docker logs directory exists
 	if _, err := os.Stat(DockerLogsDir); os.IsNotExist(err) {
-		// Docker logs directory doesn't exist
-		return nil
-	}
-
-	// Check if the agent is running as root or has access to Docker logs
-	if _, err := os.Stat(DockerLogsDir); err != nil {
-		log.Debugf("Could not stat Docker logs directory: %v", err)
+		// Docker logs directory doesn't exist, no issue to report
 		return nil
 	}
 
 	// Check if the current process has read access to the directory
 	if _, err := os.Open(DockerLogsDir); err != nil {
-		// Check if this is a host install with permission issues
+		// Check if this is a permission denied error
 		if strings.Contains(err.Error(), "permission denied") {
-			return &healthplatform.Issue{
-				ID:                 IssueIDDockerFileTailingDisabled,
-				IssueName:          "docker_logs_readable",
-				Title:              "Agent Cannot Read Docker Log Files",
-				Description:        fmt.Sprintf("Docker logs directory %s is not accessible due to permission restrictions. The agent will fall back to socket tailing, which may hit limits with high volume logs.", DockerLogsDir),
-				Category:           "permissions",
-				Location:           "logs-agent",
-				Severity:           "medium",
-				DetectedAt:         "", // Will be filled by the platform
-				Integration:        nil,
-				Extra:              fmt.Sprintf("Docker logs directory %s is not accessible due to permission restrictions. The agent will fall back to socket tailing, which may hit limits with high volume logs.", DockerLogsDir),
-				IntegrationFeature: "logs",
-				Remediation: &healthplatform.Remediation{
-					Summary: "Grant the agent read access to Docker logs and restart the agent.",
-					Steps: []healthplatform.RemediationStep{
-						{Order: 1, Text: "Add the agent user to the docker group: usermod -aG docker $USER"},
-						{Order: 2, Text: "Ensure log file permissions allow group read: chmod -R g+rX /var/lib/docker/containers"},
-						{Order: 3, Text: "Restart the log-agent service: systemctl restart datadog-agent"},
-					},
-					Script: &healthplatform.Script{
-						Language:     "bash",
-						Filename:     "fix_docker_log_access.sh",
-						RequiresRoot: true,
-						Content:      "usermod -aG docker $USER && chmod -R g+rX /var/lib/docker/containers && systemctl restart datadog-agent",
-					},
-				},
-				Tags: []string{"docker", "logs", "permissions", "attention"},
-			}
+			return d.createDockerFileTailingIssue()
 		}
 	}
 
-	// Check if we can read files in the directory
+	// Check if we can actually read Docker log files
 	if !d.canReadDockerLogs() {
-		return &healthplatform.Issue{
-			ID:                 IssueIDDockerFileTailingDisabled,
-			IssueName:          "docker_logs_readable",
-			Title:              "Agent Cannot Read Docker Log Files",
-			Description:        fmt.Sprintf("Docker logs directory %s is not accessible. The agent will fall back to socket tailing, which may hit limits with high volume logs.", DockerLogsDir),
-			Category:           "permissions",
-			Location:           "logs-agent",
-			Severity:           "medium",
-			DetectedAt:         "", // Will be filled by the platform
-			Integration:        nil,
-			Extra:              fmt.Sprintf("Docker logs directory %s is not accessible. The agent will fall back to socket tailing, which may hit limits with high volume logs.", DockerLogsDir),
-			IntegrationFeature: "logs",
-			Remediation: &healthplatform.Remediation{
-				Summary: "Grant the agent read access to Docker logs and restart the agent.",
-				Steps: []healthplatform.RemediationStep{
-					{Order: 1, Text: "Add the agent user to the docker group: usermod -aG docker $USER"},
-					{Order: 2, Text: "Ensure log file permissions allow group read: chmod -R g+rX /var/lib/docker/containers"},
-					{Order: 3, Text: "Restart the log-agent service: systemctl restart datadog-agent"},
-				},
-				Script: &healthplatform.Script{
-					Language:     "bash",
-					Filename:     "fix_docker_log_access.sh",
-					RequiresRoot: true,
-					Content:      "usermod -aG docker $USER && chmod -R g+rX /var/lib/docker/containers && systemctl restart datadog-agent",
-				},
-			},
-			Tags: []string{"docker", "logs", "permissions", "attention"},
-		}
+		return d.createDockerFileTailingIssue()
 	}
 
 	return nil
 }
 
-// checkDockerLoggingDriver checks Docker logging driver configuration
-func (d *DockerPermissionsCheck) checkDockerLoggingDriver(ctx context.Context) *healthplatform.Issue {
-	// Check if Docker is configured to use json-file logging driver
-	cmd := exec.CommandContext(ctx, "docker", "info", "--format", "{{.LoggingDriver}}")
-	output, err := cmd.Output()
-	if err != nil {
-		log.Debugf("Could not check Docker logging driver: %v", err)
-		return nil
-	}
-
-	loggingDriver := strings.TrimSpace(string(output))
-	if loggingDriver != "json-file" {
-		return &healthplatform.Issue{
-			ID:                 IssueIDDockerNonJSONLogging,
-			IssueName:          "docker_non_json_logging",
-			Title:              "Docker Using Non-JSON Logging Driver",
-			Description:        fmt.Sprintf("Docker is using '%s' logging driver instead of 'json-file'. This may affect log collection capabilities.", loggingDriver),
-			Category:           "configuration",
-			Location:           "logs-agent",
-			Severity:           "low",
-			DetectedAt:         "", // Will be filled by the platform
-			Integration:        nil,
-			Extra:              fmt.Sprintf("Docker is using '%s' logging driver instead of 'json-file'. This may affect log collection capabilities.", loggingDriver),
-			IntegrationFeature: "logs",
-			Remediation: &healthplatform.Remediation{
-				Summary: "Configure Docker to use json-file logging driver for optimal log collection.",
-				Steps: []healthplatform.RemediationStep{
-					{Order: 1, Text: "Edit Docker daemon configuration: /etc/docker/daemon.json"},
-					{Order: 2, Text: "Add logging driver configuration: {\"log-driver\": \"json-file\"}"},
-					{Order: 3, Text: "Restart Docker daemon: systemctl restart docker"},
-				},
-				Script: &healthplatform.Script{
-					Language:     "bash",
-					Filename:     "fix_docker_logging.sh",
-					RequiresRoot: true,
-					Content:      "echo '{\"log-driver\": \"json-file\"}' >> /etc/docker/daemon.json && systemctl restart docker",
-				},
+// createDockerFileTailingIssue creates the issue for Docker file tailing being disabled
+func (d *DockerPermissionsCheck) createDockerFileTailingIssue() *healthplatform.Issue {
+	return &healthplatform.Issue{
+		ID:                 IssueIDDockerFileTailingDisabled,
+		IssueName:          "docker_file_tailing_disabled",
+		Title:              "Host Agent Cannot Tail Docker Log Files",
+		Description:        fmt.Sprintf("Docker file tailing is enabled by default but cannot work on this host install. The directory %s is owned by the root group, causing the agent to fall back to socket tailing. This becomes problematic with high volume Docker logs as socket tailing can hit limits.", DockerLogsDir),
+		Category:           "permissions",
+		Location:           "logs-agent",
+		Severity:           "medium",
+		DetectedAt:         "", // Will be filled by the platform
+		Integration:        nil,
+		Extra:              fmt.Sprintf("Docker logs directory %s is not accessible due to permission restrictions. The agent will fall back to socket tailing, which may hit limits with high volume logs.", DockerLogsDir),
+		IntegrationFeature: "logs",
+		Remediation: &healthplatform.Remediation{
+			Summary: "⚠️  WARNING: Add the dd-agent user to the root group to enable Docker file tailing. This gives the agent root privileges and should only be used when necessary.",
+			Steps: []healthplatform.RemediationStep{
+				{Order: 1, Text: "⚠️  WARNING: Adding the dd-agent user to the root group gives the agent root privileges. This should only be done when Docker file tailing is essential and socket tailing is hitting limits."},
+				{Order: 2, Text: "Add the dd-agent user to the root group: usermod -aG root dd-agent"},
+				{Order: 3, Text: "Verify the user was added to the root group: groups dd-agent"},
+				{Order: 4, Text: "Restart the datadog-agent service: systemctl restart datadog-agent"},
+				{Order: 5, Text: "Verify Docker file tailing is working by checking agent logs"},
 			},
-			Tags: []string{"docker", "logs", "configuration", "info"},
-		}
+			Script: &healthplatform.Script{
+				Language:     "bash",
+				Filename:     "fix_docker_file_tailing.sh",
+				RequiresRoot: true,
+				Content:      "usermod -aG root dd-agent && systemctl restart datadog-agent",
+			},
+		},
+		Tags: []string{"docker", "logs", "permissions", "file-tailing", "socket-tailing", "host-install"},
 	}
-
-	return nil
 }
 
 // canReadDockerLogs checks if we can read Docker log files
@@ -239,6 +113,7 @@ func (d *DockerPermissionsCheck) canReadDockerLogs() bool {
 	// Try to find and read a Docker log file
 	entries, err := os.ReadDir(DockerLogsDir)
 	if err != nil {
+		log.Debugf("Could not read Docker logs directory: %v", err)
 		return false
 	}
 
