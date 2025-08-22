@@ -122,3 +122,41 @@ build_processed_btfhub_archive:
     - dda inv -- -e system-probe.process-btfhub-archive --branch $BTFHUB_ARCHIVE_BRANCH
     - $S3_CP_CMD btfs-x86_64.tar $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-x86_64.tar --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
     - $S3_CP_CMD btfs-arm64.tar $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-arm64.tar --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+
+.bazel:build-deps:
+  extends: .bazel:defs
+  rules:
+    - !reference [ .except_mergequeue ]
+    - when: on_success
+  stage: deps_build
+
+bazel:build-deps:linux-amd64:
+  extends: [ .bazel:build-deps, .linux_x64 ]
+  tags: [ "arch:amd64", "specific:true" ]
+  script:
+    - bazel build //deps/...
+
+bazel:build-deps:linux-arm64:
+  extends: [ .bazel:build-deps, .linux_arm64 ]
+  tags: [ "arch:arm64", "specific:true" ]
+  script:
+    - bazel build //deps/...
+
+bazel:build-deps:macos-amd64:
+  extends: .bazel:build-deps
+  tags: [ "macos:ventura-amd64", "specific:true" ]
+  script:
+    - bazel build //deps/...
+
+bazel:build-deps:macos-arm64:
+  extends: .bazel:build-deps
+  tags: [ "macos:ventura-arm64", "specific:true" ]
+  script:
+    - bazel build //deps/...
+
+bazel:build-deps:windows-amd64:
+  extends: [ .bazel:build-deps, .bazel:ext:windows ]
+  variables:
+    ARCH: x64
+    SCRIPT: |-
+      bazel build @bzip2//...
