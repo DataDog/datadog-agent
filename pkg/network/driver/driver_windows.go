@@ -12,8 +12,6 @@ import (
 	"sync"
 
 	"go.uber.org/atomic"
-
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // ErrDriverNotInitialized is returned when you attempt to use the driver without calling Init
@@ -27,7 +25,7 @@ type driver struct {
 }
 
 // Init configures the driver and will disable it if closed source is not allowed
-func Init(*sysconfigtypes.Config) error {
+func Init() error {
 	driverInit.Do(func() {
 		driverRef = &driver{
 			inuse: atomic.NewUint32(0),
