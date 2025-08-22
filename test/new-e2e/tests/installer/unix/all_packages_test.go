@@ -51,6 +51,7 @@ var (
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
+		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 	}
@@ -240,7 +241,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 			s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 		}
 		err := s.RunInstallScriptWithError(params...)
-		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
+		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"))
 	case InstallMethodAnsible:
 		// Install ansible then install the agent
 		var ansiblePrefix string
@@ -291,7 +292,7 @@ func envForceVersion(pkg, version string) string {
 
 func (s *packageBaseSuite) Purge() {
 	// Reset the systemctl failed counter, best effort as they may not be loaded
-	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP} {
+	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP} {
 		s.Env().RemoteHost.Execute(fmt.Sprintf("sudo systemctl reset-failed %s", service))
 	}
 

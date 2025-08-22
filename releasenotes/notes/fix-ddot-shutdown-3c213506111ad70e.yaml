@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+fixes:
   - |
-    Adds `psycopg_binary.libs` to the whitelist for the `datadog-agent-integrations-py3` package.
+    Fixes a bug in the Trace Agent that prevented DDOT from shutting down gracefully.

@@ -9,6 +9,8 @@ package procmon
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,9 +18,10 @@ import (
 
 func TestStateMachine(t *testing.T) {
 	type step struct {
-		ev      event
-		analyze []uint32         // nil if no build expected after this step
-		update  *ProcessesUpdate // nil if no update expected after this step
+		ev       event
+		analyze  []uint32         // nil if no build expected after this step
+		update   *ProcessesUpdate // nil if no update expected after this step
+		expAlive *[]uint32
 	}
 
 	type opt func(*step)
@@ -50,6 +53,12 @@ func TestStateMachine(t *testing.T) {
 	analyze := func(procPids ...uint32) opt {
 		return func(s *step) {
 			s.analyze = append(s.analyze, procPids...)
+		}
+	}
+
+	alive := func(procPids ...uint32) opt {
+		return func(s *step) {
+			s.expAlive = &procPids
 		}
 	}
 
@@ -85,56 +94,53 @@ func TestStateMachine(t *testing.T) {
 		{
 			name: "simple exec interested",
 			steps: []step{
-				s(exec(1), analyze(1)),
-				s(res(1, true, nil), upd(1)),
+				s(exec(1), analyze(1), alive(1)),
+				s(res(1, true, nil), upd(1), alive(1)),
 			},
 		},
 		{
 			name: "exec then exit before build done",
 			steps: []step{
-				s(exec(2), analyze(2)),
-				s(exit(2)),
-				s(interesting(2)),
+				s(exec(2), analyze(2), alive(2)),
+				s(exit(2), alive()),
+				s(interesting(2), alive()),
 			},
 		},
 		{
 			name: "exec not interesting",
 			steps: []step{
-				s(exec(3), analyze(3)),
-				s(uninteresting(3)),
+				s(exec(3), analyze(3), alive(3)),
+				s(uninteresting(3), alive()),
 			},
 		},
 		{
 			name: "reported then removed",
 			steps: []step{
-				s(exec(4), analyze(4)),
-				s(interesting(4), upd(4)),
-				s(exit(4), rem(4)),
+				s(exec(4), analyze(4), alive(4)),
+				s(interesting(4), upd(4), alive(4)),
+				s(exit(4), rem(4), alive()),
 			},
 		},
 		{
 			name: "queueing delays reporting",
 			steps: []step{
-				s(exec(5), analyze(5)),
-				s(exec(6)),
-				s(exec(7)),
-				s(exec(8)),
-				s(interesting(5), analyze(6)),
-				s(uninteresting(6), analyze(7)),
+				s(exec(5), analyze(5), alive(5)),
+				s(exec(6), alive(5, 6)),
+				s(exec(7), alive(5, 6, 7)),
+				s(exec(8), alive(5, 6, 7, 8)),
+				s(interesting(5), analyze(6), alive(5, 6, 7, 8)),
+				s(uninteresting(6), analyze(7), alive(5, 7, 8)),
 				s(interesting(7), analyze(8)),
-				s(failed(8, fmt.Errorf("test error")), upd(5, 7)),
+				s(failed(8, fmt.Errorf("test error")), upd(5, 7), alive(5, 7)),
 				s(exit(6)),
-				s(exit(7), rem(7)),
-				s(exit(8)),
+				s(exit(7), rem(7), alive(5)),
+				s(exit(8), alive(5)),
 			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.name != "queueing delays reporting" {
-				t.Skipf("skipping %q != %q", tc.name, "queueing delays reporting")
-			}
 			st := newState()
 			for i, s := range tc.steps {
 				if !t.Run(fmt.Sprint(i), func(t *testing.T) {
@@ -150,6 +156,15 @@ func TestStateMachine(t *testing.T) {
 						require.Empty(t, mock.updates)
 					}
 					require.Equal(t, s.analyze, mock.builds)
+					if s.expAlive != nil {
+						require.ElementsMatch(
+							t,
+							*s.expAlive,
+							slices.Collect(maps.Keys(st.alive)),
+						)
+					}
+					// Ensure that pending is always a subset of alive.
+					require.Subset(t, st.alive, st.pending)
 				}) {
 					break
 				}

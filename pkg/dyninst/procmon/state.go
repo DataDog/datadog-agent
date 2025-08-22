@@ -57,12 +57,19 @@ type effects interface {
 }
 
 type state struct {
-	alive    map[uint32]struct{}
-	queued   []uint32
+	// The set of processes that we have reported as alive, or that we are
+	// currently analyzing.
+	alive map[uint32]struct{}
+	// The set of processes that we have queued for analysis (excluding
+	// processes that are currently being analyzed).
+	queued []uint32
+	// True if we are currently analyzing a process.
 	inFlight bool
 
 	// The processes that are in the current update being built but have
-	// not yet been reported.
+	// not yet been reported. This map should only ever contain processes
+	// that are queued for analysis or in the update that is currently
+	// being built.
 	pending map[uint32]struct{}
 
 	updates  []ProcessUpdate
@@ -94,12 +101,15 @@ func (s *state) handle(ev event, eff effects) {
 					s.removals = append(s.removals, pid)
 				}
 			}
+			delete(s.pending, e.pid)
 		}
 	case *analysisResult:
 		s.inFlight = false
 		if e.err != nil || !e.interesting {
 			delete(s.alive, uint32(e.pid))
-		} else {
+			delete(s.pending, uint32(e.pid))
+		} else if _, ok := s.alive[e.pid]; ok {
+			delete(s.pending, e.pid)
 			s.updates = append(s.updates, ProcessUpdate{
 				ProcessID: ProcessID{
 					PID: int32(e.pid),
@@ -126,8 +136,6 @@ func (s *state) handle(ev event, eff effects) {
 	if !shouldReport {
 		return
 	}
-
-	clear(s.pending)
 
 	// Drop updates for processes that exited before we finished building.
 	isDead := func(pid uint32) bool { _, ok := s.alive[pid]; return !ok }

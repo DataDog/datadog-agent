@@ -653,6 +653,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
+      - EXTRA_PARAMS: --run "TestUpgradeWithMissingPassword$/TestUpgradeWithMissingPassword$"
       # agent config experiment
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
@@ -998,6 +999,8 @@ generate-fips-e2e-pipeline:
     - qa_dogstatsd
     - qa_agent
     - qa_agent_full
+    - qa_agent_fips
+    - qa_agent_fips_jmx
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64"]
   script:

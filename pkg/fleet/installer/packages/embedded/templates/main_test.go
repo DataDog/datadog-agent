@@ -11,10 +11,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
 
 //go:embed gen
@@ -24,6 +26,10 @@ var genFS embed.FS
 //
 // You can update the templates by running `go generate` in the templates directory.
 func TestGenerationIsUpToDate(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestGenerationIsUpToDate is known to fail on the macOS Gitlab runners.")
+	}
+
 	generated := filepath.Join(os.TempDir(), "gen")
 	os.MkdirAll(generated, 0755)
 

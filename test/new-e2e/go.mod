@@ -8,12 +8,12 @@ go 1.24.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.158
-	github.com/DataDog/datadog-agent/pkg/util/option v0.69.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.69.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.69.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/version v0.69.0-rc.2
-	github.com/DataDog/datadog-agent/test/fakeintake v0.69.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/option v0.69.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.69.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.69.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.69.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/version v0.69.3-rc.1
+	github.com/DataDog/datadog-agent/test/fakeintake v0.69.3-rc.1
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.41.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -21,12 +21,12 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.4-0.20250710131718-7cdc477d053f
-	github.com/aws/aws-sdk-go-v2 v1.36.5
-	github.com/aws/aws-sdk-go-v2/config v1.29.17
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.226.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.66.1
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.59.3
+	github.com/DataDog/test-infra-definitions v0.0.4-0.20250804075139-b324348d0857
+	github.com/aws/aws-sdk-go-v2 v1.36.6
+	github.com/aws/aws-sdk-go-v2/config v1.29.18
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.236.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.66.2
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.60.2
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/cli v27.5.0+incompatible
 	github.com/docker/docker v28.1.1+incompatible
@@ -58,8 +58,8 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.69.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.69.0-rc.2
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.69.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.69.3-rc.1
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -72,21 +72,21 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.11 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.70 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.32 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.36 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.36 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.71 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.33 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.37 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.37 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.36 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.42.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.58.0
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.58.1
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.7.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.17 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.25.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.25.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.34.1 // indirect
 	github.com/aws/smithy-go v1.22.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
@@ -236,23 +236,23 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.69.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.69.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/metrics v0.69.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.69.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/trace v0.69.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.69.3-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.69.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/metrics v0.69.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.69.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.69.3-rc.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.81.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/hairyhenderson/go-codeowners v0.7.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.69.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.69.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/network/payload v0.69.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/tagger/types v0.69.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.69.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.69.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/network/payload v0.69.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.69.3-rc.1 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/charmbracelet/x/ansi v0.6.0 // indirect

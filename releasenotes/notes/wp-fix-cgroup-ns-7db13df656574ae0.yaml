@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    Host SBOMs now include support for languages scanners, reporting more
-    vulnerabilities about binaries and libraries used in your environment.
+    Fix Cgroup namespace not properly detected in Workload Protection,
+    leading to incorrect container ID resolution and misqualified detections.

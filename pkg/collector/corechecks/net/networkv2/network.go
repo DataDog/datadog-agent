@@ -44,13 +44,24 @@ const (
 var (
 	filesystem = afero.NewOsFs()
 
-	ethtoolObject     = ethtool.Ethtool{}
-	getEthtoolDrvInfo = ethtoolObject.DriverInfo
-	getEthtoolStats   = ethtoolObject.Stats
+	getNewEthtool = newEthtool
 
 	runCommandFunction  = runCommand
 	ssAvailableFunction = checkSSExecutable
 )
+
+type ethtoolInterface interface {
+	DriverInfo(intf string) (ethtool.DrvInfo, error)
+	Stats(intf string) (map[string]uint64, error)
+	Close()
+}
+
+var _ ethtoolInterface = (*ethtool.Ethtool)(nil)
+
+func newEthtool() (ethtoolInterface, error) {
+	eth, err := ethtool.NewEthtool()
+	return eth, err
+}
 
 // NetworkCheck represent a network check
 type NetworkCheck struct {
@@ -67,7 +78,9 @@ type networkInstanceConfig struct {
 	ExcludedInterfaces        []string `yaml:"excluded_interfaces"`
 	ExcludedInterfaceRe       string   `yaml:"excluded_interface_re"`
 	ExcludedInterfacePattern  *regexp.Regexp
-	CollectEthtoolStats       bool     `yaml:"collect_ethtool_stats"`
+	CollectEthtoolStats       bool
+	CollectEthtoolMetrics     bool     `yaml:"collect_ethtool_metrics"`
+	CollectEnaMetrics         bool     `yaml:"collect_aws_ena_metrics"`
 	ConntrackPath             string   `yaml:"conntrack_path"`
 	UseSudoConntrack          bool     `yaml:"use_sudo_conntrack"`
 	BlacklistConntrackMetrics []string `yaml:"blacklist_conntrack_metrics"`
@@ -160,11 +173,18 @@ func (c *NetworkCheck) Run() error {
 
 	submitInterfaceSysMetrics(sender)
 
+	ethtoolObject, err := getNewEthtool()
+	if err != nil {
+		log.Errorf("Failed to create ethtool object: %s", err)
+		return err
+	}
+	defer ethtoolObject.Close()
+
 	for _, interfaceIO := range ioByInterface {
-		if !c.isDeviceExcluded(interfaceIO.Name) {
+		if !c.isInterfaceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
 			if c.config.instance.CollectEthtoolStats {
-				err = handleEthtoolStats(sender, interfaceIO)
+				err = handleEthtoolStats(sender, ethtoolObject, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
 				if err != nil {
 					return err
 				}
@@ -186,12 +206,14 @@ func (c *NetworkCheck) Run() error {
 	return nil
 }
 
-func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
-	if slices.Contains(c.config.instance.ExcludedInterfaces, deviceName) {
+func (c *NetworkCheck) isInterfaceExcluded(interfaceName string) bool {
+	if slices.Contains(c.config.instance.ExcludedInterfaces, interfaceName) {
+		log.Debugf("Skipping network interface %s", interfaceName)
 		return true
 	}
-	if c.config.instance.ExcludedInterfacePattern != nil {
-		return c.config.instance.ExcludedInterfacePattern.MatchString(deviceName)
+	if c.config.instance.ExcludedInterfacePattern != nil && c.config.instance.ExcludedInterfacePattern.MatchString(interfaceName) {
+		log.Debugf("Skipping network interface from match: %s", interfaceName)
+		return true
 	}
 	return false
 }
@@ -257,22 +279,21 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) error {
-	ethtoolObjectPtr, err := ethtool.NewEthtool()
-	if err != nil {
-		log.Errorf("Failed to create ethtool object: %s", err)
-		return err
+func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
+	if interfaceIO.Name == "lo" || interfaceIO.Name == "lo0" {
+		// Skip loopback ifaces as they don't support SIOCETHTOOL
+		log.Debugf("Skipping loopbackinterface %s", interfaceIO.Name)
+		return nil
 	}
-	ethtoolObject = *ethtoolObjectPtr
 
 	// Preparing the interface name and copy it into the request
-	ifaceBytes := []byte(interfaceIO.Name)
-	if len(ifaceBytes) > 15 {
-		ifaceBytes = ifaceBytes[:15]
+	iface := interfaceIO.Name
+	if len(iface) > 15 {
+		iface = iface[:15]
 	}
 
 	// Fetch driver information (ETHTOOL_GDRVINFO)
-	drvInfo, err := getEthtoolDrvInfo(string(ifaceBytes))
+	drvInfo, err := ethtoolObject.DriverInfo(iface)
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("driver info is not supported for interface: %s", interfaceIO.Name)
@@ -286,7 +307,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) er
 	driverVersion := replacer.Replace(drvInfo.Version)
 
 	// Fetch ethtool stats values (ETHTOOL_GSTATS)
-	statsMap, err := getEthtoolStats(string(ifaceBytes))
+	statsMap, err := ethtoolObject.Stats(iface)
 	if err != nil {
 		if err == unix.ENOTTY || err == unix.EOPNOTSUPP {
 			log.Debugf("ethtool stats are not supported for interface: %s", interfaceIO.Name)
@@ -295,22 +316,53 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) er
 		}
 	}
 
-	processedMap := getEthtoolMetrics(driverName, statsMap)
-	for extraTag, keyValuePairing := range processedMap {
+	if collectEnaMetrics {
+		enaMetrics := getEnaMetrics(statsMap)
 		tags := []string{
-			"interface:" + interfaceIO.Name,
+			"device:" + interfaceIO.Name,
 			"driver_name:" + driverName,
 			"driver_version:" + driverVersion,
-			extraTag,
 		}
 
-		for metricName, metricValue := range keyValuePairing {
+		count := 0
+		for metricName, metricValue := range enaMetrics {
 			metricName := fmt.Sprintf("system.net.%s", metricName)
-			sender.MonotonicCount(metricName, float64(metricValue), "", tags)
+			sender.Gauge(metricName, float64(metricValue), "", tags)
+			count++
+		}
+		log.Debugf("tracked %d network ena metrics for interface %s", count, interfaceIO.Name)
+	}
+
+	if collectEthtoolMetrics {
+		processedMap := getEthtoolMetrics(driverName, statsMap)
+		for extraTag, keyValuePairing := range processedMap {
+			tags := []string{
+				"device:" + interfaceIO.Name,
+				"driver_name:" + driverName,
+				"driver_version:" + driverVersion,
+				extraTag,
+			}
+
+			for metricName, metricValue := range keyValuePairing {
+				metricName := fmt.Sprintf("system.net.%s", metricName)
+				sender.MonotonicCount(metricName, float64(metricValue), "", tags)
+			}
 		}
 	}
 
 	return nil
+}
+
+func getEnaMetrics(statsMap map[string]uint64) map[string]uint64 {
+	metrics := make(map[string]uint64)
+
+	for stat, value := range statsMap {
+		if slices.Contains(enaMetricNames, stat) {
+			metrics[enaMetricPrefix+stat] = value
+		}
+	}
+
+	return metrics
 }
 
 func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string]map[string]uint64 {
@@ -864,6 +916,10 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 		} else {
 			c.config.instance.ExcludedInterfacePattern = pattern
 		}
+	}
+
+	if c.config.instance.CollectEthtoolMetrics || c.config.instance.CollectEnaMetrics {
+		c.config.instance.CollectEthtoolStats = true
 	}
 
 	return nil

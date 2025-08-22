@@ -7,10 +7,11 @@ package agenttests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
@@ -628,7 +629,7 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	previousOCI, err := installerwindows.NewPackageConfig(
 		installerwindows.WithName(consts.AgentPackage),
 		installerwindows.WithVersion(previousVersion),
-		installerwindows.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+		installerwindows.WithRegistry("install.datad0g.com"),
 		installerwindows.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
