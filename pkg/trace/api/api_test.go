@@ -832,6 +832,7 @@ func TestHandleStats(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer resp.Body.Close()
 
 		assert.Equal(t, resp.StatusCode, http.StatusRequestTimeout)
 	})
