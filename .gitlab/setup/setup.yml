@@ -19,6 +19,8 @@ setup_agent_version:
   artifacts:
     reports:
       dotenv: build.env
+  variables:
+    GIT_STRATEGY: "clone"
 
 github_rate_limit_info:
   stage: .pre
