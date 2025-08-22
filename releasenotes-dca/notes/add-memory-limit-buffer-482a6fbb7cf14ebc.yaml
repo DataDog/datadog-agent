@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    When the Single Step Instrumentation webhook is configured with a library storage limit, the Pod now includes a
+    buffer container that requests memory for the `emptyDir`. This will allow Kubernetes to properly
+    account for the `emptyDir` usage in the Pod's memory limit.

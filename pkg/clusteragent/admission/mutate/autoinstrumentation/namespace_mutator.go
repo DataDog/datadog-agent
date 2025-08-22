@@ -15,6 +15,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -130,6 +131,29 @@ func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator) 
 	return mutatePodContainers(pod, filteredContainerMutator(m.config.containerFilter, cm))
 }
 
+func (m *mutatorCore) genSleepContainer(image string) podMutator {
+	return sleepContainer{
+		Container: corev1.Container{
+			Name:    "datadog-memory-limit-buffer",
+			Image:   image,
+			Command: []string{"/bin/sh", "-c", "--"},
+			Args: []string{
+				"sleep infinity",
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: *m.config.libraryStorageLimit,
+					corev1.ResourceCPU:    resource.MustParse("10m"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceMemory: *m.config.libraryStorageLimit,
+					corev1.ResourceCPU:    resource.MustParse("10m"),
+				},
+			},
+		},
+	}
+}
+
 func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {
 	if len(config.libs) == 0 {
 		return nil
@@ -163,6 +187,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 			containerFilter:       m.config.containerFilter,
 			initContainerMutators: initContainerMutators,
 		}
+		podMutators = []podMutator{}
 
 		injector          = m.newInjector(pod, startTime, injectorOptions)
 		containerMutators = containerMutators{
@@ -170,6 +195,10 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 			serviceNameMutator,
 		}
 	)
+
+	if m.config.libraryStorageLimit != nil {
+		podMutators = append(podMutators, m.genSleepContainer(injector.image))
+	}
 
 	// Inject env variables used for Onboarding KPIs propagation...
 	// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
@@ -196,7 +225,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 			containerFilter:       m.config.containerFilter,
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
-			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
+			podMutators:           append(podMutators, configInjector.podMutator(lib.lang)),
 			libraryStorageMedium:  m.config.libraryStorageMedium,
 			libraryStorageLimit:   m.config.libraryStorageLimit,
 		}).mutatePod(pod); err != nil {
