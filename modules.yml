@@ -240,6 +240,8 @@ modules:
     used_by_otel: true
   pkg/opentelemetry-mapping-go/otlp/metrics:
     used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/rum:
+    used_by_otel: true
   pkg/orchestrator/model:
     used_by_otel: true
   pkg/process/procutil/resources: ignored
