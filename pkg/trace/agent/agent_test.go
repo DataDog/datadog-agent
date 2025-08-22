@@ -1349,6 +1349,62 @@ func TestFilteredByTags(t *testing.T) {
 	}
 }
 
+func TestFilteredByTagsV1(t *testing.T) {
+	newSpanWithTags := func(tags map[string]string) *idx.InternalSpan {
+		s := idx.NewInternalSpan(idx.NewStringTable(), &idx.Span{
+			Attributes: make(map[uint32]*idx.AnyValue),
+		})
+		for k, v := range tags {
+			s.SetStringAttribute(k, v)
+		}
+		return s
+	}
+
+	for name, tt := range map[string]*struct {
+		require      []*config.Tag
+		reject       []*config.Tag
+		requireRegex []*config.TagRegex
+		rejectRegex  []*config.TagRegex
+		span         *idx.InternalSpan
+		drop         bool
+	}{
+		"keep-span-with-tag-from-required-list": {
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    newSpanWithTags(map[string]string{"key": "val"}),
+			drop:    false,
+		},
+		"drop-span-without-tag-from-required-list": {
+			require: []*config.Tag{{K: "key", V: "val"}},
+			span:    newSpanWithTags(map[string]string{"otherKey": "otherVal"}),
+			drop:    true,
+		},
+		"keep-span-with-tag-value-diff-rejected-list": {
+			reject: []*config.Tag{{K: "key", V: "val"}},
+			span:   newSpanWithTags(map[string]string{"key": "val4"}),
+			drop:   false,
+		},
+		"drop-span-with-wrong-env": {
+			reject: []*config.Tag{{K: "env", V: "dev"}},
+			span:   newSpanWithTags(map[string]string{"env": "dev"}),
+			drop:   true,
+		},
+		"drop-span-with-wrong-version": {
+			reject: []*config.Tag{{K: "version", V: "1.0"}},
+			span:   newSpanWithTags(map[string]string{"version": "1.0"}),
+			drop:   true,
+		},
+		"drop-span-with-wrong-component": {
+			reject: []*config.Tag{{K: "component", V: "cool-component"}},
+			span:   newSpanWithTags(map[string]string{"component": "cool-component"}),
+			drop:   true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.drop, filteredByTagsV1(tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex))
+		})
+	}
+}
+
 func BenchmarkFilteredByTags(b *testing.B) {
 	type FilteredByTagTestData struct {
 		require      []*config.Tag

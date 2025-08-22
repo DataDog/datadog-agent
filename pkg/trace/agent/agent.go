@@ -566,6 +566,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 
 	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
+	// TODO: Implement this when we support v1 on serverless
 	// a.discardSpans(p)
 
 	for i := 0; i < len(p.TracerPayload.Chunks); {

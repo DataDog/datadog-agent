@@ -707,16 +707,43 @@ func (s *InternalSpan) Kind() SpanKind {
 	return s.span.Kind
 }
 
+func (s *InternalSpan) SetSpanKind(kind SpanKind) {
+	s.span.Kind = kind
+}
+
 func (s *InternalSpan) Component() string {
 	return s.Strings.Get(s.span.ComponentRef)
+}
+
+func (s *InternalSpan) SetComponent(component string) {
+	s.Strings.DecrementReference(s.span.ComponentRef)
+	s.span.ComponentRef = s.Strings.Add(component)
 }
 
 func (s *InternalSpan) Version() string {
 	return s.Strings.Get(s.span.VersionRef)
 }
 
+func (s *InternalSpan) SetVersion(version string) {
+	s.Strings.DecrementReference(s.span.VersionRef)
+	s.span.VersionRef = s.Strings.Add(version)
+}
+
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
 func (s *InternalSpan) GetAttributeAsString(key string) (string, bool) {
+	// To maintain backwards compatibility, we need to handle some special cases where these keys used to be set as tags
+	if key == "env" {
+		return s.Env(), true
+	}
+	if key == "version" {
+		return s.Version(), true
+	}
+	if key == "component" {
+		return s.Component(), true
+	}
+	if key == "span.kind" {
+		return s.SpanKind(), true
+	}
 	return getAttributeAsString(key, s.Strings, s.span.Attributes)
 }
 
@@ -732,9 +759,14 @@ func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
 	return 0, false
 }
 
+// SetStringAttribute sets the attribute with key and value
+// For backwards compatibility, env, version, component, and span.kind will be set as fields instead of attributes
 func (s *InternalSpan) SetStringAttribute(key, value string) {
 	if s.span.Attributes == nil {
 		s.span.Attributes = make(map[uint32]*AnyValue)
+	}
+	if s.setCompatibleTags(key, value) {
+		return
 	}
 	setStringAttribute(key, value, s.Strings, s.span.Attributes)
 }
@@ -746,10 +778,57 @@ func (s *InternalSpan) SetFloat64Attribute(key string, value float64) {
 	setFloat64Attribute(key, value, s.Strings, s.span.Attributes)
 }
 
+// setCompatibleTags checks if the key is a special case that was previously a tag
+// if it is, then we set the new field and return true, otherwise we return false
+func (s *InternalSpan) setCompatibleTags(key, value string) bool {
+	if s.span.Attributes == nil {
+		s.span.Attributes = make(map[uint32]*AnyValue)
+	}
+	if key == "env" {
+		s.SetEnv(value)
+		return true
+	}
+	if key == "version" {
+		s.SetVersion(value)
+	}
+	if key == "component" {
+		s.SetComponent(value)
+		return true
+	}
+	if key == "span.kind" {
+		newKind := SpanKind_SPAN_KIND_UNSPECIFIED
+		switch value {
+		case "internal":
+			newKind = SpanKind_SPAN_KIND_INTERNAL
+		case "server":
+			newKind = SpanKind_SPAN_KIND_SERVER
+		case "client":
+			newKind = SpanKind_SPAN_KIND_CLIENT
+		case "producer":
+			newKind = SpanKind_SPAN_KIND_PRODUCER
+		case "consumer":
+			newKind = SpanKind_SPAN_KIND_CONSUMER
+		}
+		if newKind == SpanKind_SPAN_KIND_UNSPECIFIED {
+			// On an unknown span kind, we just won't set it
+			return false
+		}
+		s.SetSpanKind(newKind)
+		return true
+	}
+	return false
+}
+
 // SetAttributeFromString sets the attribute from a string, attempting to use the most backwards compatible type possible
 // for the attribute value. Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
+// For backwards compatibility, env, version, component, and span.kind will be set as fields instead of attributes
 func (s *InternalSpan) SetAttributeFromString(key, value string) {
-	// TODO: do we need to resolve "env" and similar?
+	if s.span.Attributes == nil {
+		s.span.Attributes = make(map[uint32]*AnyValue)
+	}
+	if s.setCompatibleTags(key, value) {
+		return
+	}
 	setAttribute(key, FromString(s.Strings, value), s.Strings, s.span.Attributes)
 }
 
@@ -757,9 +836,13 @@ func (s *InternalSpan) DeleteAttribute(key string) {
 	deleteAttribute(key, s.Strings, s.span.Attributes)
 }
 
+// MapStringAttributes maps over all string attributes and applies the given function to each attribute
+// Note that this will only act on true attributes, fields like env, version, component, etc are not considered
+// The provided function will receive all attributes as strings, and should return the new value for the attribute
 func (s *InternalSpan) MapStringAttributes(f func(k, v string) string) {
 	for k, v := range s.span.Attributes {
 		// TODO: we could cache the results of these transformations
+		// TODO: This is only used for CC obfuscation today, we could optimize this to reduce the overhead here
 		vString := v.AsString(s.Strings)
 		newV := f(s.Strings.Get(k), vString)
 		if newV != vString {
