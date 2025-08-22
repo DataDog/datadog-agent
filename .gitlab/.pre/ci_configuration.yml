@@ -44,6 +44,8 @@ compute_gitlab_ci_config:
     paths:
       - artifacts/
     expire_in: 1 day
+  variables:
+    GIT_STRATEGY: "clone"
 
 lint_github_actions_shellcheck:
   stage: .pre
