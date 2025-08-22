@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	dequeuePath     = "/api/v2/on-prem-management-service/workflow-tasks/dequeue"
-	taskUpdatePath  = "/api/v2/on-prem-management-service/workflow-tasks/publish-task-update"
-	heartbeat       = "/api/v2/on-prem-management-service/workflow-tasks/heartbeat"
-	healthCheckPath = "/api/v2/on-prem-management-service/runner/health-check"
-	enrollmentPath  = "/api/v2/on-prem-management-service/enrollments/complete"
+	dequeuePath        = "/api/v2/on-prem-management-service/workflow-tasks/dequeue"
+	taskUpdatePath     = "/api/v2/on-prem-management-service/workflow-tasks/publish-task-update"
+	heartbeat          = "/api/v2/on-prem-management-service/workflow-tasks/heartbeat"
+	healthCheckPath    = "/api/v2/on-prem-management-service/runner/health-check"
+	enrollmentPath     = "/api/v2/on-prem-management-service/enrollments/complete"
+	selfEnrollmentPath = "/api/v2/on-prem-management-service/self-enroll"
 )
 
 type PublishTaskUpdateJSONRequestPayload struct {
@@ -73,6 +74,11 @@ type HeartbeatJSONRequest struct {
 type EnrollmentRequest struct {
 	AccountBinding string `json:"accountBinding"`
 	PublicKey      string `json:"publicKey"`
+}
+
+// SelfEnrollmentRequest represents the self-enrollment request payload
+type SelfEnrollmentRequest struct {
+	PublicKey string `json:"publicKey"`
 }
 
 // EnrollmentResponseData represents the data section of the JSONAPI response
@@ -448,6 +454,74 @@ func (c *EnrollmentClient) SendEnrollmentJWT(ctx context.Context, jwtBody string
 	var jsonapiResp EnrollmentJSONAPIResponse
 	if err := json.Unmarshal(body, &jsonapiResp); err != nil {
 		return nil, fmt.Errorf("failed to decode JSONAPI enrollment response: %w", err)
+	}
+
+	// Convert to simplified response structure
+	enrollmentResp := &EnrollmentResponse{
+		ID:               jsonapiResp.Data.ID,
+		RunnerId:         jsonapiResp.Data.Attributes.RunnerId,
+		OrgId:            jsonapiResp.Data.Attributes.OrgId,
+		Modes:            jsonapiResp.Data.Attributes.RunnerModes,
+		ActionsAllowlist: jsonapiResp.Data.Attributes.ActionsAllowlist,
+	}
+
+	return enrollmentResp, nil
+}
+
+// SendSelfEnrollmentRequest sends a self-enrollment request using API key authentication
+func (c *EnrollmentClient) SendSelfEnrollmentRequest(ctx context.Context, apiKey, appKey, publicKeyJSON string) (*EnrollmentResponse, error) {
+	u := &url.URL{
+		Scheme: "https",
+		Host:   c.host,
+		Path:   selfEnrollmentPath,
+	}
+
+	// Create self-enrollment request payload
+	requestPayload := SelfEnrollmentRequest{
+		PublicKey: publicKeyJSON,
+	}
+
+	// Marshal request to JSON
+	jsonBody, err := json.Marshal(requestPayload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal self-enrollment request: %w", err)
+	}
+
+	// Create HTTP request
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Set headers for API key authentication
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.Header.Set("DD-API-KEY", apiKey)
+	httpReq.Header.Set("DD-APP-KEY", appKey)
+	httpReq.Header.Set(utils.VersionHeaderName, version.AgentVersion)
+
+	// Send request
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send self-enrollment request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("self-enrollment request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse JSONAPI response
+	var jsonapiResp EnrollmentJSONAPIResponse
+	if err := json.Unmarshal(body, &jsonapiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode JSONAPI self-enrollment response: %w", err)
 	}
 
 	// Convert to simplified response structure

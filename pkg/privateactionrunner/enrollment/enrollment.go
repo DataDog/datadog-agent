@@ -57,6 +57,12 @@ func ProvisionRunnerIdentityWithToken(enrollmentToken, datadogSite, _ string) er
 	return runEnrollmentToConfig(enrollmentToken, datadogSite)
 }
 
+// ProvisionRunnerIdentityWithAPIKey performs self-enrollment using API key authentication
+func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, datadogSite string) error {
+	fmt.Println("Starting runner self-enrollment...")
+	return runSelfEnrollmentToConfig(apiKey, appKey, datadogSite)
+}
+
 // generateKeys creates a new ECDSA P-256 key pair
 func generateKeys() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -145,6 +151,55 @@ func runEnrollmentToConfig(enrollmentToken, datadogSite string) error {
 	response, err := enrollmentClient.SendEnrollmentJWT(context.Background(), signedAccountBinding)
 	if err != nil {
 		return fmt.Errorf("enrollment request failed: %w", err)
+	}
+
+	// Get region for URN construction
+	region, ok := AllowedSitesToRegion[datadogSite]
+	if !ok {
+		region = "us1" // Default to us1 if site is not recognized
+		log.Infof("Unrecognized site '%s', defaulting to region 'us1'", datadogSite)
+	}
+
+	err = outputConfig(response, privateKeyJWK, region)
+	if err != nil {
+		return fmt.Errorf("failed to generate configuration: %w", err)
+	}
+
+	return nil
+}
+
+// runSelfEnrollmentToConfig performs self-enrollment with API key and outputs configuration to stdout
+func runSelfEnrollmentToConfig(apiKey, appKey, datadogSite string) error {
+	// Generate ECDSA key pair
+	privateKey, err := generateKeys()
+	if err != nil {
+		return fmt.Errorf("failed to generate keys: %w", err)
+	}
+
+	// Convert private key to JWK
+	privateKeyJWK, err := utils.EcdsaToJWK(privateKey)
+	if err != nil {
+		return fmt.Errorf("failed to convert private key to JWK: %w", err)
+	}
+
+	// Convert public key to JWK
+	publicKeyJWK, err := utils.EcdsaToJWK(&privateKey.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to convert public key to JWK: %w", err)
+	}
+
+	// Marshal public key to JSON for sending to the API
+	publicKeyJSON, err := publicKeyJWK.MarshalJSON()
+	if err != nil {
+		return fmt.Errorf("failed to marshal public key to JSON: %w", err)
+	}
+
+	// Send self-enrollment request using OPMS client with API key
+	ddHost := strings.Join([]string{"api", datadogSite}, ".")
+	enrollmentClient := opms.NewEnrollmentClient(ddHost)
+	response, err := enrollmentClient.SendSelfEnrollmentRequest(context.Background(), apiKey, appKey, string(publicKeyJSON))
+	if err != nil {
+		return fmt.Errorf("self-enrollment request failed: %w", err)
 	}
 
 	// Get region for URN construction
