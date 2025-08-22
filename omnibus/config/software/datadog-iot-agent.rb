@@ -57,10 +57,10 @@ build do
     if windows_target?
       # just builds the trace-agent, this should be moved to a separate package as it's not related to the iot agent
       platform = windows_arch_i386? ? "x86" : "x64"
-      command "invoke trace-agent.build --major-version #{major_version_arg}", :env => env
+      command "invoke -e trace-agent.build --major-version #{major_version_arg}", :env => env
 
       mkdir "#{install_dir}/bin/agent"
-      copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+      copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent/trace-agent.exe"
     end
   end
 end
