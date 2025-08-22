@@ -1,0 +1,2 @@
+fixes:
+  - Data Streams Messages: Fix Unscheduling of kafka_consumer integrations that was leading to duplicate integrations running in parallel.

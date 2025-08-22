@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -176,6 +177,7 @@ func (c *Check) Run() error {
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              c.config,
+			Clock:            clock.New(),
 			MsgGroupID:       groupID,
 			NodeType:         orchestrator.K8sPod,
 			ClusterID:        c.clusterID,

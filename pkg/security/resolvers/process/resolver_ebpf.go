@@ -98,7 +98,7 @@ type EBPFResolver struct {
 	envsTruncated             *atomic.Int64
 	envsSize                  *atomic.Int64
 	brokenLineage             *atomic.Int64
-	inodeErrStats             *atomic.Int64
+	inodeErrStats             map[string]*atomic.Int64 // inode error stats by tag
 
 	entryCache              map[uint32]*model.ProcessCacheEntry
 	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
@@ -239,9 +239,11 @@ func (p *EBPFResolver) SendStats() error {
 		}
 	}
 
-	if count := p.inodeErrStats.Swap(0); count > 0 {
-		if err := p.statsdClient.Count(metrics.MetricProcessInodeError, count, []string{}, 1.0); err != nil {
-			return fmt.Errorf("failed to send process_resolver inode error metric: %w", err)
+	for _, tag := range allInodeErrTags() {
+		if count := p.inodeErrStats[tag].Swap(0); count > 0 {
+			if err := p.statsdClient.Count(metrics.MetricProcessInodeError, count, []string{tag}, 1.0); err != nil {
+				return fmt.Errorf("failed to send process_resolver inode error metric: %w", err)
+			}
 		}
 	}
 
@@ -622,7 +624,7 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 				parent = candidate
 			} else {
 				entry.IsParentMissing = true
-				p.inodeErrStats.Inc()
+				p.inodeErrStats[inodeErrTagForkParentMissing].Inc()
 			}
 		}
 
@@ -645,7 +647,7 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 	if prev != nil {
 		if inode != 0 && prev.FileEvent.Inode != inode {
 			entry.IsParentMissing = true
-			p.inodeErrStats.Inc()
+			p.inodeErrStats[inodeErrTagExecParentMissing].Inc()
 		}
 
 		// check exec bomb, keep the prev entry and update it
@@ -1346,10 +1348,11 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 	// it may happen if the activity is from a process (same pid) that was replaced since then.
 	if inode != 0 {
 		if entry.FileEvent.Inode != inode {
-			seclog.Warnf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
+			seclog.Debugf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
 
 			entry.FileEvent.Inode = inode
 			entry.IsParentMissing = true
+			p.inodeErrStats[inodeErrTagProcfsMismatch].Inc()
 		}
 	}
 
@@ -1544,6 +1547,20 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 	return true
 }
 
+const (
+	inodeErrTagForkParentMissing = "type:fork_parent_missing"
+	inodeErrTagExecParentMissing = "type:exec_parent_missing"
+	inodeErrTagProcfsMismatch    = "type:procfs_mismatch"
+)
+
+func allInodeErrTags() []string {
+	return []string{
+		inodeErrTagForkParentMissing,
+		inodeErrTagExecParentMissing,
+		inodeErrTagProcfsMismatch,
+	}
+}
+
 // NewEBPFResolver returns a new process resolver
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
@@ -1577,7 +1594,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		envsTruncated:             atomic.NewInt64(0),
 		envsSize:                  atomic.NewInt64(0),
 		brokenLineage:             atomic.NewInt64(0),
-		inodeErrStats:             atomic.NewInt64(0),
+		inodeErrStats:             make(map[string]*atomic.Int64),
 		containerResolver:         containerResolver,
 		mountResolver:             mountResolver,
 		cgroupResolver:            cgroupResolver,
@@ -1586,9 +1603,15 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		pathResolver:              pathResolver,
 		envVarsResolver:           envVarsResolver,
 	}
+
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
 	}
+
+	for _, tag := range allInodeErrTags() {
+		p.inodeErrStats[tag] = atomic.NewInt64(0)
+	}
+
 	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.processCacheEntryCount.Dec() })
 
 	// Create rate limiter that allows for 128 pids
