@@ -421,7 +421,6 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		AdditionalGeneratedNames: modelService.AdditionalGeneratedNames,
 		TracerMetadata:           modelService.TracerMetadata,
 		DDService:                modelService.DDService,
-		DDServiceInjected:        modelService.DDServiceInjected,
 		TCPPorts:                 modelService.TCPPorts,
 		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,

@@ -100,7 +100,6 @@ func makeModelService(pid int32, name string) model.Service {
 			},
 		},
 		DDService:          "dd-model-" + name,
-		DDServiceInjected:  false,
 		TCPPorts:           []uint16{3000, 4000},
 		APMInstrumentation: "manual",
 		Language:           "python",
@@ -130,7 +129,6 @@ func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
 				},
 			},
 			DDService:          "dd-model-" + name,
-			DDServiceInjected:  false,
 			TCPPorts:           []uint16{3000, 4000},
 			APMInstrumentation: "manual",
 			Type:               "database",
@@ -165,7 +163,6 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 			assert.Equal(collectT, expectedProcess.Service.AdditionalGeneratedNames, entity.Service.AdditionalGeneratedNames)
 			assert.Equal(collectT, expectedProcess.Service.TracerMetadata, entity.Service.TracerMetadata)
 			assert.Equal(collectT, expectedProcess.Service.DDService, entity.Service.DDService)
-			assert.Equal(collectT, expectedProcess.Service.DDServiceInjected, entity.Service.DDServiceInjected)
 			assert.Equal(collectT, expectedProcess.Service.TCPPorts, entity.Service.TCPPorts)
 			assert.Equal(collectT, expectedProcess.Service.UDPPorts, entity.Service.UDPPorts)
 			assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)

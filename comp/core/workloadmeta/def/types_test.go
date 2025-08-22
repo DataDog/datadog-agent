@@ -179,7 +179,6 @@ Creation time: 2023-01-01 12:00:00 +0000 UTC
 					AdditionalGeneratedNames: []string{"java", "app"},
 					TracerMetadata:           []tracermetadata.TracerMetadata{},
 					DDService:                "java-app",
-					DDServiceInjected:        true,
 					TCPPorts:                 []uint16{8080},
 					UDPPorts:                 []uint16{8081},
 					APMInstrumentation:       "enabled",
@@ -201,7 +200,6 @@ Service Generated Name Source: binary_name
 Service Additional Generated Names: [java app]
 Service Tracer Metadata: []
 Service DD Service: java-app
-Service DD Service Injected: true
 Service TCP Ports: [8080]
 Service UDP Ports: [8081]
 Service APM Instrumentation: enabled
