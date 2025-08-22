@@ -8,9 +8,11 @@ package cert
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -22,6 +24,57 @@ type clusterCAData struct {
 	enableTLSVerification bool
 	caCert                *x509.Certificate
 	caPrivKey             any
+}
+
+// readClusterCA reads the cluster CA certificate and key from the given path
+func readClusterCA(caCertPath, caKeyPath string) (*x509.Certificate, any, error) {
+	var caCert *x509.Certificate
+
+	// Read the cluster CA cert and key
+	caCertPEM, err := os.ReadFile(caCertPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to read cluster CA cert file: %w", err)
+	}
+	caKeyPEM, err := os.ReadFile(caKeyPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to read cluster CA key file: %w", err)
+	}
+
+	// Parse the cluster CA cert
+	block, _ := pem.Decode(caCertPEM)
+	if block == nil {
+		return nil, nil, fmt.Errorf("unable to decode cluster CA cert PEM")
+	}
+	caCert, err = x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to parse cluster CA cert file: %w", err)
+	}
+
+	// Parse the cluster CA key
+	block, _ = pem.Decode(caKeyPEM)
+	if block == nil {
+		return nil, nil, fmt.Errorf("unable to decode cluster CA key PEM")
+	}
+
+	var caPrivKey any
+	var caParseErr error
+
+	switch block.Type {
+	case "PRIVATE KEY":
+		caPrivKey, caParseErr = x509.ParsePKCS8PrivateKey(block.Bytes)
+	case "EC PRIVATE KEY":
+		caPrivKey, caParseErr = x509.ParseECPrivateKey(block.Bytes)
+	case "RSA PRIVATE KEY":
+		caPrivKey, caParseErr = x509.ParsePKCS1PrivateKey(block.Bytes)
+	default:
+		return nil, nil, fmt.Errorf("unsupported cluster CA key type: %s", block.Type)
+	}
+
+	if caParseErr != nil {
+		return nil, nil, fmt.Errorf("unable to parse cluster CA key file: %w", caParseErr)
+	}
+
+	return caCert, caPrivKey, nil
 }
 
 // readClusterCAConfig reads cluster CA configuration and files from disk once
@@ -39,7 +92,7 @@ func readClusterCAConfig(config configModel.Reader) (*clusterCAData, error) {
 	}
 
 	// Read cluster CA certificate and private key from disk
-	caCert, caPrivKey, err := ReadClusterCA(clusterCAPath, clusterCAKeyPath)
+	caCert, caPrivKey, err := readClusterCA(clusterCAPath, clusterCAKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read cluster CA cert and key: %w", err)
 	}
@@ -55,25 +108,23 @@ func readClusterCAConfig(config configModel.Reader) (*clusterCAData, error) {
 // using pre-read cluster CA data
 func (c *clusterCAData) buildClusterClientTLSConfig() (*tls.Config, error) {
 	// Default to insecure configuration
-	clusterClientConfig := &tls.Config{
-		InsecureSkipVerify: true,
+	if !c.enableTLSVerification {
+		return &tls.Config{
+			InsecureSkipVerify: true,
+		}, nil
 	}
 
 	// If TLS verification is enabled, configure proper certificate validation
-	if c.enableTLSVerification {
-		// It's not possible to have TLS verification enabled without a CA certificate
-		if c.caCert == nil || c.caPrivKey == nil {
-			return nil, fmt.Errorf("cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path or cluster_trust_chain.ca_key_file_path is not set")
-		}
-
-		clusterClientCertPool := x509.NewCertPool()
-		clusterClientCertPool.AddCert(c.caCert)
-		clusterClientConfig = &tls.Config{
-			RootCAs: clusterClientCertPool,
-		}
+	// It's not possible to have TLS verification enabled without a CA certificate
+	if c.caCert == nil || c.caPrivKey == nil {
+		return nil, fmt.Errorf("cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path or cluster_trust_chain.ca_key_file_path is not set")
 	}
 
-	return clusterClientConfig, nil
+	clusterClientCertPool := x509.NewCertPool()
+	clusterClientCertPool.AddCert(c.caCert)
+	return &tls.Config{
+		RootCAs: clusterClientCertPool,
+	}, nil
 }
 
 // setupCertificateFactoryWithClusterCA configures the certificate factory with cluster CA
@@ -113,10 +164,8 @@ func (c *clusterCAData) setupCertificateFactoryWithClusterCA(config configModel.
 		if err != nil {
 			return fmt.Errorf("unable to get pod IP from cluster agent endpoint: %w", err)
 		}
-	}
-
-	// If the process is a CLC Runner, add the CLC Runner host to the SANs
-	if isCLC {
+	} else if isCLC {
+		// If the process is a CLC Runner, add the CLC Runner host to the SANs
 		clcRunnerHost := config.GetString("clc_runner_host")
 		if clcRunnerHost == "" {
 			return fmt.Errorf("clc_runner_host is not set")

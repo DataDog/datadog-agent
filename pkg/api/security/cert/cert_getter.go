@@ -14,7 +14,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -128,56 +127,6 @@ func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) (*tls.
 		return nil, nil, nil, fmt.Errorf("error while setting TLS configs: %w", err)
 	}
 	return clientConfig, serverConfig, clusterClientConfig, err
-}
-
-// ReadClusterCA reads the cluster CA certificate and key from the given path
-func ReadClusterCA(caCertPath, caKeyPath string) (*x509.Certificate, any, error) {
-	var caCert *x509.Certificate
-
-	// Read the cluster CA cert and key
-	caCertPEM, err := os.ReadFile(caCertPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to read cluster CA cert file: %w", err)
-	}
-	caKeyPEM, err := os.ReadFile(caKeyPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to read cluster CA key file: %w", err)
-	}
-
-	// Parse the cluster CA cert
-	block, _ := pem.Decode(caCertPEM)
-	if block == nil {
-		return nil, nil, fmt.Errorf("unable to decode cluster CA cert PEM")
-	}
-	caCert, err = x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse cluster CA cert file: %w", err)
-	}
-
-	// Parse the cluster CA key
-	block, _ = pem.Decode(caKeyPEM)
-	if block == nil {
-		return nil, nil, fmt.Errorf("unable to decode cluster CA key PEM")
-	}
-
-	var caPrivKey any
-
-	switch block.Type {
-	case "PRIVATE KEY":
-		caPrivKey, err = x509.ParsePKCS8PrivateKey(block.Bytes)
-	case "EC PRIVATE KEY":
-		caPrivKey, err = x509.ParseECPrivateKey(block.Bytes)
-	case "RSA PRIVATE KEY":
-		caPrivKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
-	default:
-		return nil, nil, fmt.Errorf("unsupported cluster CA key type: %s", block.Type)
-	}
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse cluster CA key file: %w", err)
-	}
-
-	return caCert, caPrivKey, nil
 }
 
 // GetTLSConfigFromCert returns the TLS configs for the client and server using the provided IPC certificate and key.
