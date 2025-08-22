@@ -332,7 +332,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
         current_branch.name,
         branch_name,
         milestone_version,
-        ["team/agent-build", "qa/skip-qa", "changelog/no-changelog"],
+        ["team/agent-build", "qa/no-code-change", "changelog/no-changelog"],
     )
 
 
