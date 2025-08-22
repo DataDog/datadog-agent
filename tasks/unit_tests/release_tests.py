@@ -535,8 +535,10 @@ class TestCheckForChanges(unittest.TestCase):
                 ),
             },
         )
-        release.check_for_changes(c, "main")
-        print_mock.assert_called_with("false")
+        with self.assertRaises(SystemExit) as e:
+            release.check_for_changes(c, "main")
+        self.assertEqual(e.exception.code, 0)
+        print_mock.assert_not_called()
 
     @patch('slack_sdk.WebClient', autospec=True)
     @patch('tasks.release.agent_context')
@@ -592,10 +594,11 @@ class TestCheckForChanges(unittest.TestCase):
                     'git push origin tag 7.55.0-rc.2': Result(""),
                 },
             )
-            release.check_for_changes(c, "main")
+            with self.assertRaises(SystemExit) as e:
+                release.check_for_changes(c, "main")
+            self.assertEqual(e.exception.code, 69)
             calls = [
                 call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("true"),
             ]
             print_mock.assert_has_calls(calls)
             client_mock.chat_postMessage.assert_called_once_with(
@@ -655,12 +658,13 @@ class TestCheckForChanges(unittest.TestCase):
                     'git push origin tag 7.55.0-rc.2': Result(""),
                 },
             )
-            release.check_for_changes(c, "main")
+            with self.assertRaises(SystemExit) as e:
+                release.check_for_changes(c, "main")
+            self.assertEqual(e.exception.code, 69)
             calls = [
                 call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
                 call("integrations-core has new commits since 7.55.0-rc.1", file=sys.stderr),
                 call("datadog-agent has new commits since 7.55.0-devel", file=sys.stderr),
-                call("true"),
             ]
             print_mock.assert_has_calls(calls)
             client_mock.chat_postMessage.assert_called_once_with(
@@ -709,16 +713,17 @@ class TestCheckForChanges(unittest.TestCase):
                 ),
             },
         )
-        release.check_for_changes(c, "main")
+        with self.assertRaises(SystemExit) as e:
+            release.check_for_changes(c, "main")
+        self.assertEqual(e.exception.code, 69)
         calls = [
-            call("true"),
             call(
                 "omnibus-ruby has a new tag 7.55.0-rc.2 since last release candidate (was 7.55.0-rc.1)",
                 file=sys.stderr,
             ),
         ]
         print_mock.assert_has_calls(calls, any_order=True)
-        self.assertEqual(print_mock.call_count, 2)
+        self.assertEqual(print_mock.call_count, 1)
 
     @patch('slack_sdk.WebClient', autospec=True)
     @patch('tasks.release.agent_context')
@@ -774,10 +779,11 @@ class TestCheckForChanges(unittest.TestCase):
                     'git push origin tag 7.55.0-rc.2': Result(""),
                 },
             )
-            release.check_for_changes(c, "7.55.x")
+            with self.assertRaises(SystemExit) as e:
+                release.check_for_changes(c, "7.55.x")
+            self.assertEqual(e.exception.code, 69)
             calls = [
                 call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
-                call("true"),
             ]
             print_mock.assert_has_calls(calls)
             client_mock.chat_postMessage.assert_called_once_with(
@@ -813,8 +819,10 @@ class TestCheckForChanges(unittest.TestCase):
                 ),
             },
         )
-        release.check_for_changes(c, "main", True)
-        print_mock.assert_called_with("false")
+        with self.assertRaises(SystemExit) as e:
+            release.check_for_changes(c, "main", True)
+        self.assertEqual(e.exception.code, 0)
+        print_mock.assert_not_called()
 
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
@@ -845,8 +853,10 @@ class TestCheckForChanges(unittest.TestCase):
                 ),
             },
         )
-        release.check_for_changes(c, "main", True)
-        print_mock.assert_called_with("false")
+        with self.assertRaises(SystemExit) as e:
+            release.check_for_changes(c, "main", True)
+        self.assertEqual(e.exception.code, 0)
+        print_mock.assert_not_called()
 
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
@@ -877,13 +887,14 @@ class TestCheckForChanges(unittest.TestCase):
                 ),
             },
         )
-        release.check_for_changes(c, "main", True)
+        with self.assertRaises(SystemExit) as e:
+            release.check_for_changes(c, "main", True)
+        self.assertEqual(e.exception.code, 69)
         calls = [
             call("integrations-core has new commits since 7.55.0-rc.1", file=sys.stderr),
-            call("true"),
         ]
         print_mock.assert_has_calls(calls)
-        self.assertEqual(print_mock.call_count, 2)
+        self.assertEqual(print_mock.call_count, 1)
 
     @patch('tasks.release.agent_context')
     @patch('builtins.print')
@@ -914,13 +925,14 @@ class TestCheckForChanges(unittest.TestCase):
                 ),
             },
         )
-        release.check_for_changes(c, "7.55.x", True)
+        with self.assertRaises(SystemExit) as e:
+            release.check_for_changes(c, "7.55.x", True)
+        self.assertEqual(e.exception.code, 69)
         calls = [
             call("integrations-core has new commits since 7.55.0-rc.1", file=sys.stderr),
-            call("true"),
         ]
         print_mock.assert_has_calls(calls)
-        self.assertEqual(print_mock.call_count, 2)
+        self.assertEqual(print_mock.call_count, 1)
 
 
 class TestUpdateModules(unittest.TestCase):
