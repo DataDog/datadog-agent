@@ -736,7 +736,7 @@ Package networkdeviceconfig provides the component for retrieving network device
 
 *Datadog Team*: action-platform
 
-Package privateactionrunner implements a component to run private actions in the Private Action Runner.
+Package privateactionrunner allows you to //TODO
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
