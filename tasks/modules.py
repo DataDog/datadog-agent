@@ -103,9 +103,9 @@ def for_each(
     """
     Run the given command in the directory of each module.
     """
-    assert not (
-        use_targets_path and use_lint_targets_path
-    ), "Only one of use_targets_path and use_lint_targets_path can be set"
+    assert not (use_targets_path and use_lint_targets_path), (
+        "Only one of use_targets_path and use_lint_targets_path can be set"
+    )
 
     for mod in get_default_modules().values():
         if skip_untagged and not mod.should_tag:
@@ -363,3 +363,34 @@ def add_all_replace(ctx: Context):
     for mod in gomods:
         if mod.should_replace_internal_modules:
             update_go_mod(mod_to_replace, mod.path)
+
+
+@task
+def check_all_replace(ctx: Context):
+    """
+    Check if all replace rules are properly added to go.mod files.
+
+    This task runs modules.add-all-replace and fails if any files are modified,
+    indicating that some replace rules were missing and need to be added.
+    """
+    from invoke.exceptions import Exit
+
+    from tasks.libs.common.color import Color, color_message
+
+    # Run the add-all-replace command
+    add_all_replace(ctx)
+
+    # Check if any go.mod files were modified
+    result = ctx.run("git diff --exit-code **/go.mod", warn=True)
+
+    if result.exited is None or result.exited > 0:
+        # Files were modified, which means replace rules were missing
+        ctx.run("git diff --name-only **/go.mod", hide=False)
+        raise Exit(
+            code=1,
+            message=color_message(
+                "ERROR: Some go.mod files are missing replace rules. "
+                "Please run 'dda inv modules.add-all-replace' to fix them.",
+                Color.RED,
+            ),
+        )

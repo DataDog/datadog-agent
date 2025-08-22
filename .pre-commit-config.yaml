@@ -90,6 +90,15 @@ repos:
       files: (\.go|^go\.mod|^go\.sum)$
       pass_filenames: false
       stages: [pre-push]
+    - id: go-mod-replace
+      name: go-mod-replace
+      description: check that all go.mod files contain replace directives from modules.yml
+      entry: bash -c 'GOTOOLCHAIN=go$(cat .go-version) dda inv modules.check-all-replace'
+      language: system
+      require_serial: true
+      files: (\.go|^go\.mod$|^go\.sum$|^modules\.yml$)
+      pass_filenames: false
+      stages: [pre-push]
     - id: go-test
       name: go-test
       description: run go test on modified packages
