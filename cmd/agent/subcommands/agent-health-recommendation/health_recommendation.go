@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/fatih/color"
 
@@ -34,153 +33,90 @@ func runHealthRecommendation(_ log.Component, healthPlatform healthplatform.Comp
 		}
 	}()
 
-	// Wait a moment for health checks to run
-	time.Sleep(2 * time.Second)
+	// Run health checks to collect issues
+	report, err := healthPlatform.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to run health checks: %w", err)
+	}
 
-	// Collect all issues
-	allIssues := collectAllIssues(ctx, healthPlatform)
-
-	// Filter issues based on flags
-	filteredIssues := filterIssues(allIssues, cliParams)
-
-	// Display results
+	// Display the health report
 	if cliParams.jsonOutput {
-		return displayJSONResults(filteredIssues)
-	}
-	return displayTextResults(filteredIssues, cliParams.verbose)
-}
-
-// collectAllIssues collects issues from the main health platform and all sub-components
-func collectAllIssues(_ context.Context, healthPlatform healthplatform.Component) []healthplatform.Issue {
-	// Get issues from the main health platform
-	mainIssues := healthPlatform.ListIssues()
-
-	// For now, we'll just return the main issues
-	// In a full implementation, we would also collect from sub-components
-	// by calling their CheckHealth methods
-	return mainIssues
-}
-
-// filterIssues filters issues based on the provided criteria
-func filterIssues(issues []healthplatform.Issue, cliParams *cliParams) []healthplatform.Issue {
-	if cliParams.severity == "" && cliParams.location == "" && cliParams.integration == "" {
-		return issues
-	}
-
-	var filtered []healthplatform.Issue
-	for _, issue := range issues {
-		if cliParams.severity != "" && issue.Severity != cliParams.severity {
-			continue
+		// Output as JSON
+		jsonData, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal health report: %w", err)
 		}
-		if cliParams.location != "" && issue.Location != cliParams.location {
-			continue
-		}
-		if cliParams.integration != "" && issue.IntegrationFeature != cliParams.integration {
-			continue
-		}
-		filtered = append(filtered, issue)
-	}
-
-	return filtered
-}
-
-// displayJSONResults outputs the results in JSON format
-func displayJSONResults(issues []healthplatform.Issue) error {
-	result := map[string]interface{}{
-		"timestamp":    time.Now().Unix(),
-		"total_issues": len(issues),
-		"issues":       issues,
-	}
-
-	encoder := json.NewEncoder(color.Output)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(result)
-}
-
-// displayTextResults outputs the results in a human-readable text format
-func displayTextResults(issues []healthplatform.Issue, verbose bool) error {
-	if len(issues) == 0 {
-		fmt.Fprintf(color.Output, "%s No health issues found. The agent appears to be healthy!\n",
-			color.GreenString("✅"))
-		return nil
-	}
-
-	// Group issues by severity
-	issuesBySeverity := make(map[string][]healthplatform.Issue)
-	for _, issue := range issues {
-		issuesBySeverity[issue.Severity] = append(issuesBySeverity[issue.Severity], issue)
-	}
-
-	// Define severity order for display
-	severityOrder := []string{"critical", "high", "medium", "low"}
-
-	fmt.Fprintf(color.Output, "%s Health Check Results - Found %d issue(s)\n\n",
-		color.CyanString("🔍"), len(issues))
-
-	for _, sev := range severityOrder {
-		if issues, exists := issuesBySeverity[sev]; exists {
-			emoji := getSeverityEmoji(sev)
-			severityColor := getSeverityColor(sev)
-
-			fmt.Fprintf(color.Output, "%s %s Severity Issues (%d):\n",
-				emoji, severityColor("%s", sev), len(issues))
-			fmt.Fprintln(color.Output, strings.Repeat("-", 50))
-
-			for _, issue := range issues {
-				fmt.Fprintf(color.Output, "  ID: %s\n", issue.ID)
-				fmt.Fprintf(color.Output, "  Description: %s\n", issue.Description)
-				fmt.Fprintf(color.Output, "  Location: %s\n", issue.Location)
-				fmt.Fprintf(color.Output, "  Integration: %s\n", issue.IntegrationFeature)
-				if issue.Extra != "" {
-					fmt.Fprintf(color.Output, "  Details: %s\n", issue.Extra)
-				}
-				if verbose {
-					fmt.Fprintf(color.Output, "  Severity: %s\n", issue.Severity)
-				}
-				fmt.Println()
-			}
-		}
-	}
-
-	// Display summary
-	fmt.Fprintln(color.Output, color.CyanString("📊 Summary:"))
-	fmt.Fprintf(color.Output, "  Total Issues: %d\n", len(issues))
-	for sev, count := range issuesBySeverity {
-		emoji := getSeverityEmoji(sev)
-		severityColor := getSeverityColor(sev)
-		fmt.Fprintf(color.Output, "  %s %s: %d\n", emoji, severityColor("%s", sev), len(count))
+		fmt.Println(string(jsonData))
+	} else {
+		// Output as formatted text
+		displayHealthReport(report)
 	}
 
 	return nil
 }
 
-// getSeverityEmoji returns the appropriate emoji for a severity level
-func getSeverityEmoji(severity string) string {
-	switch severity {
-	case "critical":
-		return "🚨"
-	case "high":
-		return "⚠️"
-	case "medium":
-		return "🔶"
-	case "low":
-		return "ℹ️"
-	default:
-		return "❓"
+// displayHealthReport displays the health report in a user-friendly format
+func displayHealthReport(report *healthplatform.HealthReport) {
+	fmt.Fprintf(color.Output, "%s Health Check Results\n", color.GreenString("✅"))
+	fmt.Fprintf(color.Output, "Host: %s (Agent Version: %s)\n", report.Host.Hostname, report.Host.AgentVersion)
+	fmt.Fprintf(color.Output, "Issues Found: %d\n\n", len(report.Issues))
+
+	if len(report.Issues) == 0 {
+		fmt.Fprintf(color.Output, "%s All health checks passed!\n", color.GreenString("🎉"))
+		return
+	}
+
+	fmt.Fprintf(color.Output, "%s Issues:\n", color.YellowString("⚠️"))
+	for i, issue := range report.Issues {
+		severityColor := getSeverityColor(issue.Severity)
+		fmt.Fprintf(color.Output, "\n%d. %s (%s)\n", i+1, issue.Title, severityColor(issue.Severity))
+		fmt.Fprintf(color.Output, "   Issue ID: %s\n", issue.ID)
+		fmt.Fprintf(color.Output, "   Category: %s\n", issue.Category)
+		fmt.Fprintf(color.Output, "   Location: %s\n", issue.Location)
+		fmt.Fprintf(color.Output, "   Description: %s\n", issue.Description)
+
+		if issue.DetectedAt != "" {
+			fmt.Fprintf(color.Output, "   Detected At: %s\n", issue.DetectedAt)
+		}
+
+		if issue.Integration != nil {
+			fmt.Fprintf(color.Output, "   Integration: %s\n", *issue.Integration)
+		}
+
+		if issue.Extra != "" {
+			fmt.Fprintf(color.Output, "   Additional Info: %s\n", issue.Extra)
+		}
+
+		if issue.Remediation != nil {
+			fmt.Fprintf(color.Output, "   Remediation: %s\n", issue.Remediation.Summary)
+			if len(issue.Remediation.Steps) > 0 {
+				fmt.Fprintf(color.Output, "   Steps:\n")
+				for _, step := range issue.Remediation.Steps {
+					fmt.Fprintf(color.Output, "     %d. %s\n", step.Order, step.Text)
+				}
+			}
+			if issue.Remediation.Script != nil {
+				fmt.Fprintf(color.Output, "   Script: %s (%s)\n", issue.Remediation.Script.Filename, issue.Remediation.Script.Language)
+			}
+		}
+
+		if len(issue.Tags) > 0 {
+			fmt.Fprintf(color.Output, "   Tags: %s\n", strings.Join(issue.Tags, ", "))
+		}
 	}
 }
 
 // getSeverityColor returns the appropriate color function for a severity level
-func getSeverityColor(severity string) func(format string, a ...interface{}) string {
+func getSeverityColor(severity string) func(string, ...interface{}) string {
 	switch severity {
 	case "critical":
 		return color.RedString
 	case "high":
-		return color.YellowString
-	case "medium":
 		return color.MagentaString
+	case "medium":
+		return color.YellowString
 	case "low":
-		return color.BlueString
+		return color.CyanString
 	default:
 		return color.WhiteString
 	}

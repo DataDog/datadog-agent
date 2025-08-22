@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"context"
-
 	"go.uber.org/fx"
 
 	healthplatform "github.com/DataDog/datadog-agent/comp/core/health-platform/def"
@@ -30,46 +28,9 @@ func Module() fxutil.Module {
 		logsagenthealthfx.Module(),
 		// Automatically register the logs agent health sub-component with the health platform
 		fx.Invoke(func(healthPlatform healthplatform.Component, logsAgentHealth logsagenthealth.Component) {
-			// Create an adapter that implements the health platform's SubComponent interface
-			adapter := &logsAgentHealthAdapter{logsAgentHealth: logsAgentHealth}
-			if err := healthPlatform.RegisterSubComponent(adapter); err != nil {
+			if err := healthPlatform.RegisterSubComponent(logsAgentHealth); err != nil {
 				log.Errorf("Failed to register logs agent health sub-component: %v", err)
 			}
 		}),
 	)
-}
-
-// logsAgentHealthAdapter adapts the logs agent health component to the health platform's SubComponent interface
-type logsAgentHealthAdapter struct {
-	logsAgentHealth logsagenthealth.Component
-}
-
-func (a *logsAgentHealthAdapter) CheckHealth(ctx context.Context) ([]healthplatform.Issue, error) {
-	issues, err := a.logsAgentHealth.CheckHealth(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert logs agent health issues to health platform issues
-	platformIssues := make([]healthplatform.Issue, len(issues))
-	for i, issue := range issues {
-		platformIssues[i] = healthplatform.Issue{
-			ID:                 issue.ID,
-			Description:        issue.Name,
-			Extra:              issue.Extra,
-			Severity:           string(issue.Severity),
-			Location:           "logs-agent",
-			IntegrationFeature: "logs",
-		}
-	}
-
-	return platformIssues, nil
-}
-
-func (a *logsAgentHealthAdapter) Start(ctx context.Context) error {
-	return a.logsAgentHealth.Start(ctx)
-}
-
-func (a *logsAgentHealthAdapter) Stop() error {
-	return a.logsAgentHealth.Stop()
 }

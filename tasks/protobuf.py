@@ -20,7 +20,6 @@ PROTO_PKGS = {
     'languagedetection': False,
     'remoteagent': False,
     'autodiscovery': False,
-    'health-platform': False,
 }
 
 # maybe put this in a separate function

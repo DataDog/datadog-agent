@@ -9,45 +9,26 @@ package logsagenthealth
 
 import (
 	"context"
+
+	healthplatform "github.com/DataDog/datadog-agent/comp/core/health-platform/def"
 )
 
 // team: agent-runtimes
+
+// SubCheck represents a single health check that can be registered with the logs agent health component
+type SubCheck interface {
+	// Check performs a single health check and returns any issues found
+	Check(ctx context.Context) ([]healthplatform.Issue, error)
+	// Name returns the name of this sub-check
+	Name() string
+}
 
 // Component is the logs agent health checker sub-component interface
 type Component interface {
 	// CheckHealth performs health checks related to logs agent health
 	// and returns any issues found
-	CheckHealth(ctx context.Context) ([]Issue, error)
+	CheckHealth(ctx context.Context) ([]healthplatform.Issue, error)
 
-	// Start begins periodic health checking
-	Start(ctx context.Context) error
-
-	// Stop stops periodic health checking
-	Stop() error
+	// RegisterSubCheck registers a new health check sub-component
+	RegisterSubCheck(check SubCheck) error
 }
-
-// Issue represents a logs agent health issue
-type Issue struct {
-	// ID is the unique identifier for the issue
-	ID string
-	// Name is the human-readable name of the issue
-	Name string
-	// Extra is optional complementary information
-	Extra string
-	// Severity indicates the impact level of the issue
-	Severity Severity
-}
-
-// Severity indicates the impact level of an issue
-type Severity string
-
-const (
-	// SeverityLow indicates a minor issue with minimal impact
-	SeverityLow Severity = "low"
-	// SeverityMedium indicates a moderate issue that may affect performance
-	SeverityMedium Severity = "medium"
-	// SeverityHigh indicates a significant issue that may cause failures
-	SeverityHigh Severity = "high"
-	// SeverityCritical indicates a critical issue that will cause failures
-	SeverityCritical Severity = "critical"
-)

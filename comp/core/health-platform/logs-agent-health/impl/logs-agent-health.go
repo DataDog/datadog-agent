@@ -9,27 +9,12 @@ package logsagenthealthimpl
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	healthplatform "github.com/DataDog/datadog-agent/comp/core/health-platform/def"
 	logsagenthealth "github.com/DataDog/datadog-agent/comp/core/health-platform/logs-agent-health/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	// DefaultCheckInterval is the default interval for health checks
-	DefaultCheckInterval = 5 * time.Minute
-
-	// DockerLogsDir is the default Docker logs directory
-	DockerLogsDir = "/var/lib/docker"
-
-	// IssueIDDockerFileTailingDisabled is the ID for the Docker file tailing disabled issue
-	IssueIDDockerFileTailingDisabled = "docker-file-tailing-disabled"
 )
 
 // Dependencies lists the dependencies for the logs agent health checker
@@ -41,23 +26,31 @@ type Dependencies struct {
 type component struct {
 	cfg config.Component
 
-	// health checking control
-	ctx    context.Context
-	cancel context.CancelFunc
-	done   chan struct{}
-
-	// check interval
-	interval time.Duration
-
-	// mutex for thread safety
-	mu sync.RWMutex
+	// sub-checks storage
+	subChecksMu sync.RWMutex
+	subChecks   []logsagenthealth.SubCheck
 }
 
 // NewComponent creates a new logs agent health checker component
 func NewComponent(deps Dependencies) logsagenthealth.Component {
-	return &component{
-		cfg:      deps.Config,
-		interval: DefaultCheckInterval,
+	comp := &component{
+		cfg:       deps.Config,
+		subChecks: make([]logsagenthealth.SubCheck, 0),
+	}
+
+	// Register default sub-checks
+	comp.registerDefaultSubChecks()
+
+	return comp
+}
+
+// registerDefaultSubChecks registers the default set of health checks
+func (c *component) registerDefaultSubChecks() {
+	// Only register Docker-related checks if logs agent is enabled
+	if c.isLogsAgentEnabled() {
+		if err := c.RegisterSubCheck(NewDockerPermissionsCheck()); err != nil {
+			log.Warnf("Failed to register Docker permissions check: %v", err)
+		}
 	}
 }
 
@@ -67,210 +60,40 @@ func (c *component) isLogsAgentEnabled() bool {
 		return false
 	}
 
-	// Check both the current and deprecated config keys
-	return c.cfg.GetBool("logs_enabled") || c.cfg.GetBool("log_enabled")
+	logsConfig := c.cfg.GetStringMap("logs")
+	return len(logsConfig) > 0
 }
 
 // CheckHealth performs health checks related to logs agent health
-func (c *component) CheckHealth(_ context.Context) ([]logsagenthealth.Issue, error) {
-	var issues []logsagenthealth.Issue
+func (c *component) CheckHealth(ctx context.Context) ([]healthplatform.Issue, error) {
+	var allIssues []healthplatform.Issue
 
-	// Check if logs agent is enabled before running health checks
-	if !c.isLogsAgentEnabled() {
-		return issues, nil // No issues to report if logs agent is disabled
+	c.subChecksMu.RLock()
+	defer c.subChecksMu.RUnlock()
+
+	// Run all registered sub-checks
+	for _, check := range c.subChecks {
+		issues, err := check.Check(ctx)
+		if err != nil {
+			log.Debugf("Sub-check %s failed: %v", check.Name(), err)
+			continue
+		}
+		allIssues = append(allIssues, issues...)
 	}
 
-	// Check if Docker file tailing is disabled due to permission issues
-	if issue := c.checkDockerFileTailing(); issue != nil {
-		issues = append(issues, *issue)
-	}
-
-	// Check if Docker is running and accessible
-	if issue := c.checkDockerAccessibility(); issue != nil {
-		issues = append(issues, *issue)
-	}
-
-	// Check Docker log volume and performance
-	if issue := c.checkDockerLogVolume(); issue != nil {
-		issues = append(issues, *issue)
-	}
-
-	return issues, nil
+	return allIssues, nil
 }
 
-// checkDockerFileTailing checks if Docker file tailing is disabled due to permission issues
-func (c *component) checkDockerFileTailing() *logsagenthealth.Issue {
-	// Check if Docker logs directory exists and check permissions
-	if _, err := os.Stat(DockerLogsDir); os.IsNotExist(err) {
-		// Docker logs directory doesn't exist, this is not a host install
-		return nil
+// RegisterSubCheck registers a new health check sub-component
+func (c *component) RegisterSubCheck(check logsagenthealth.SubCheck) error {
+	if check == nil {
+		return fmt.Errorf("sub-check cannot be nil")
 	}
 
-	// Check if the agent is running as root or has access to Docker logs
-	if _, err := os.Stat(DockerLogsDir); err != nil {
-		log.Debugf("Could not stat Docker logs directory: %v", err)
-		return nil
-	}
+	c.subChecksMu.Lock()
+	defer c.subChecksMu.Unlock()
 
-	// Check if the current process has read access to the directory
-	if _, err := os.Open(DockerLogsDir); err != nil {
-		// Check if this is a host install with permission issues
-		if strings.Contains(err.Error(), "permission denied") {
-			return &logsagenthealth.Issue{
-				ID:       IssueIDDockerFileTailingDisabled,
-				Name:     "Docker File Tailing Disabled",
-				Extra:    fmt.Sprintf("Docker logs directory %s is not accessible due to permission restrictions. The agent will fall back to socket tailing, which may hit limits with high volume logs.", DockerLogsDir),
-				Severity: logsagenthealth.SeverityMedium,
-			}
-		}
-	}
-
-	// Check if we can read files in the directory
-	if !c.canReadDockerLogs() {
-		return &logsagenthealth.Issue{
-			ID:       IssueIDDockerFileTailingDisabled,
-			Name:     "Docker File Tailing Disabled",
-			Extra:    fmt.Sprintf("Docker logs directory %s is not accessible. The agent will fall back to socket tailing, which may hit limits with high volume logs.", DockerLogsDir),
-			Severity: logsagenthealth.SeverityMedium,
-		}
-	}
-
+	c.subChecks = append(c.subChecks, check)
+	log.Debugf("Registered sub-check: %s", check.Name())
 	return nil
-}
-
-// checkDockerAccessibility checks if Docker is running and accessible
-func (c *component) checkDockerAccessibility() *logsagenthealth.Issue {
-	// Try to run a simple Docker command
-	cmd := exec.CommandContext(context.Background(), "docker", "version")
-	if err := cmd.Run(); err != nil {
-		return &logsagenthealth.Issue{
-			ID:       "docker-not-accessible",
-			Name:     "Docker Not Accessible",
-			Extra:    "Docker daemon is not accessible. Log collection may be affected.",
-			Severity: logsagenthealth.SeverityHigh,
-		}
-	}
-	return nil
-}
-
-// checkDockerLogVolume checks Docker log volume and performance
-func (c *component) checkDockerLogVolume() *logsagenthealth.Issue {
-	// Check if Docker is configured to use json-file logging driver
-	cmd := exec.CommandContext(context.Background(), "docker", "info", "--format", "{{.LoggingDriver}}")
-	output, err := cmd.Output()
-	if err != nil {
-		log.Debugf("Could not check Docker logging driver: %v", err)
-		return nil
-	}
-
-	loggingDriver := strings.TrimSpace(string(output))
-	if loggingDriver != "json-file" {
-		return &logsagenthealth.Issue{
-			ID:       "docker-non-json-logging",
-			Name:     "Docker Non-JSON Logging Driver",
-			Extra:    fmt.Sprintf("Docker is using '%s' logging driver instead of 'json-file'. This may affect log collection capabilities.", loggingDriver),
-			Severity: logsagenthealth.SeverityLow,
-		}
-	}
-
-	return nil
-}
-
-// canReadDockerLogs checks if we can read Docker log files
-func (c *component) canReadDockerLogs() bool {
-	// Try to find and read a Docker log file
-	entries, err := os.ReadDir(DockerLogsDir)
-	if err != nil {
-		return false
-	}
-
-	// Look for container directories
-	for _, entry := range entries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), "containers") {
-			containerDir := filepath.Join(DockerLogsDir, entry.Name())
-			containerEntries, err := os.ReadDir(containerDir)
-			if err != nil {
-				continue
-			}
-
-			// Look for actual container directories
-			for _, containerEntry := range containerEntries {
-				if containerEntry.IsDir() && len(containerEntry.Name()) == 64 { // Docker container IDs are 64 chars
-					logFile := filepath.Join(containerDir, containerEntry.Name(), containerEntry.Name()+"-json.log")
-					if _, err := os.Open(logFile); err == nil {
-						return true
-					}
-				}
-			}
-		}
-	}
-
-	return false
-}
-
-// Start begins periodic health checking
-func (c *component) Start(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.cancel != nil {
-		return fmt.Errorf("Docker logs health checker is already running")
-	}
-
-	c.ctx, c.cancel = context.WithCancel(ctx)
-	c.done = make(chan struct{})
-
-	// Get check interval from config
-	if c.cfg != nil {
-		if configObj := c.cfg.Object(); configObj != nil {
-			if durGetter, ok := configObj.(interface{ GetDuration(string) time.Duration }); ok {
-				if configInterval := durGetter.GetDuration("health_platform.logs_agent.interval"); configInterval > 0 {
-					c.interval = configInterval
-				}
-			}
-		}
-	}
-
-	go c.checkingLoop()
-	log.Infof("Started Docker logs health checker with interval: %v", c.interval)
-	return nil
-}
-
-// Stop stops periodic health checking
-func (c *component) Stop() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.cancel == nil {
-		return fmt.Errorf("Docker logs health checker is not running")
-	}
-
-	c.cancel()
-	<-c.done
-	c.cancel = nil
-	c.done = nil
-
-	log.Info("Stopped Docker logs health checker")
-	return nil
-}
-
-// checkingLoop handles the periodic health checking
-func (c *component) checkingLoop() {
-	defer close(c.done)
-
-	ticker := time.NewTicker(c.interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		case <-ticker.C:
-			if issues, err := c.CheckHealth(c.ctx); err != nil {
-				log.Warnf("Failed to perform Docker logs health check: %v", err)
-			} else if len(issues) > 0 {
-				log.Debugf("Docker logs health check found %d issues", len(issues))
-			}
-		}
-	}
 }
