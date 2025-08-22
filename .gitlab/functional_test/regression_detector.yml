@@ -13,6 +13,7 @@ single_machine_performance-regression_detector-merge_base_check:
       - regression_detector.env
   variables:
     GIT_DEPTH: 0  # Ensure we can fetch full history for merge-base calculation
+    GIT_STRATEGY: "clone"
   script:
     # Fetch origin to ensure we have latest main branch
     - git fetch origin
