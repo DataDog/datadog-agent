@@ -350,11 +350,11 @@ func assertProcessServiceDiscoveryData(t *testing.T, procs []*agentmodel.Process
 			continue
 		}
 
-		if !matchingServiceNames([]*agentmodel.ServiceName{expectedServiceDiscovery.DdServiceName}, []*agentmodel.ServiceName{proc.ServiceDiscovery.DdServiceName}) {
+		if !matchingServiceName(expectedServiceDiscovery.DdServiceName, proc.ServiceDiscovery.DdServiceName) {
 			continue
 		}
 
-		if !matchingServiceNames([]*agentmodel.ServiceName{expectedServiceDiscovery.GeneratedServiceName}, []*agentmodel.ServiceName{proc.ServiceDiscovery.GeneratedServiceName}) {
+		if !matchingServiceName(expectedServiceDiscovery.GeneratedServiceName, proc.ServiceDiscovery.GeneratedServiceName) {
 			continue
 		}
 
@@ -365,13 +365,16 @@ func assertProcessServiceDiscoveryData(t *testing.T, procs []*agentmodel.Process
 		if !matchingServiceNames(expectedServiceDiscovery.AdditionalGeneratedNames, proc.ServiceDiscovery.AdditionalGeneratedNames) {
 			continue
 		}
-		assert.True(t, true)
+		return
 	}
-	assert.Fail(t, "no process was found with expected service discovery data, processes: %+v", procs)
+	assert.Failf(t, "no process was found with expected service discovery data", "processes: %+v", procs)
+}
+
+func matchingServiceName(a, b *agentmodel.ServiceName) bool {
+	return matchingServiceNames([]*agentmodel.ServiceName{a}, []*agentmodel.ServiceName{b})
 }
 
 func matchingServiceNames(expectedServiceNames []*agentmodel.ServiceName, actualServiceNames []*agentmodel.ServiceName) bool {
-	// tracer metadata contains a uuid (TracerMetadata.RuntimeID), so we ignore it
 	// Sort by ServiceName so order doesn’t matter
 	sort := cmpopts.SortSlices(func(a, b *agentmodel.ServiceName) bool {
 		// handles cases where ServiceName is the same
