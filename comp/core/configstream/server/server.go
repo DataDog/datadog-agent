@@ -7,6 +7,8 @@
 package server
 
 import (
+	"time"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,7 +41,7 @@ func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.Agent
 			}
 			if err := stream.Send(event); err != nil {
 				log.Warnf("Failed to send config event to client: %v", err)
-				return err
+				time.Sleep(1 * time.Second)
 			}
 		}
 	}
