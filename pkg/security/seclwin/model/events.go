@@ -93,6 +93,8 @@ const (
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
+	// VethPairNsEventType is sent when a veth pair is moved to a new network namespace
+	VethPairNsEventType
 	// AcceptEventType Accept event
 	AcceptEventType
 	// BindEventType Bind event

@@ -135,7 +135,7 @@ type EBPFProbe struct {
 	ipc       ipc.Component
 
 	// TC Classifier & raw packets
-	newTCNetDevices           chan model.NetDevice
+	tcRequests                chan tcClassifierRequest
 	rawPacketFilterCollection *lib.Collection
 
 	// Ring
@@ -1385,13 +1385,29 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode net_device event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		p.pushNewTCClassifierRequest(event.NetDevice.Device)
-	case model.VethPairEventType:
+
+		request := tcClassifierRequest{
+			requestType: tcNewDeviceRequestType,
+			device:      event.NetDevice.Device,
+		}
+		p.pushNewTCClassifierRequest(request)
+	case model.VethPairEventType, model.VethPairNsEventType:
 		if _, err = event.VethPair.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		p.pushNewTCClassifierRequest(event.VethPair.PeerDevice)
+
+		request := tcClassifierRequest{
+			device: event.NetDevice.Device,
+		}
+
+		if eventType == model.VethPairEventType {
+			request.requestType = tcNewDeviceRequestType
+		} else {
+			request.requestType = tcDeviceUpdateRequestType
+		}
+
+		p.pushNewTCClassifierRequest(request)
 	case model.DNSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode Network Context")
@@ -1940,7 +1956,7 @@ func (p *EBPFProbe) Close() error {
 	}
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
-	close(p.newTCNetDevices)
+	close(p.tcRequests)
 
 	return p.Resolvers.Close()
 }
@@ -1980,15 +1996,27 @@ func (err QueuedNetworkDeviceError) Error() string {
 	return err.msg
 }
 
-func (p *EBPFProbe) pushNewTCClassifierRequest(device model.NetDevice) {
+type tcClassifierRequestType int
+
+const (
+	tcNewDeviceRequestType tcClassifierRequestType = iota
+	tcDeviceUpdateRequestType
+)
+
+type tcClassifierRequest struct {
+	requestType tcClassifierRequestType
+	device      model.NetDevice
+}
+
+func (p *EBPFProbe) pushNewTCClassifierRequest(request tcClassifierRequest) {
 	select {
 	case <-p.ctx.Done():
 		// the probe is stopping, do not push the new tc classifier request
 		return
-	case p.newTCNetDevices <- device:
+	case p.tcRequests <- request:
 		// do nothing
 	default:
-		seclog.Errorf("failed to slot new tc classifier request: %v", device)
+		seclog.Errorf("failed to slot new tc classifier request: %+v", request)
 	}
 }
 
@@ -1997,20 +2025,27 @@ func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
 		select {
 		case <-p.ctx.Done():
 			return
-		case netDevice, ok := <-p.newTCNetDevices:
+		case request, ok := <-p.tcRequests:
 			if !ok {
 				return
 			}
 
-			if err := p.setupNewTCClassifier(netDevice); err != nil {
+			if err := p.setupNewTCClassifier(request.device); err != nil {
 				var qnde QueuedNetworkDeviceError
 				var linkNotFound netlink.LinkNotFoundError
+
 				if errors.As(err, &qnde) {
 					seclog.Debugf("%v", err)
 				} else if errors.As(err, &linkNotFound) {
 					seclog.Debugf("link not found while setting up new tc classifier: %v", err)
+				} else if err == manager.ErrIdentificationPairInUse {
+					if request.requestType != tcDeviceUpdateRequestType {
+						seclog.Debugf("tc classifier already exists: %v", err)
+					} else {
+						seclog.Errorf("tc classifier already exists: %v", err)
+					}
 				} else {
-					seclog.Errorf("error setting up new tc classifier: %v", err)
+					seclog.Errorf("error setting up new tc classifier on %+v: %v", request.device, err)
 				}
 			}
 		}
@@ -2546,7 +2581,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
-		newTCNetDevices:      make(chan model.NetDevice, 16),
+		tcRequests:           make(chan tcClassifierRequest, 16),
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		playSnapShotState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
