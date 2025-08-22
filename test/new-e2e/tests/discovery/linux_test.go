@@ -277,7 +277,7 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 
 				procs := process.FilterProcessPayloadsByName(payloads, tc.processName)
 				assert.NotEmpty(c, procs, "'%s' process not found in payloads: \n%+v", tc.processName, payloads)
-				assertProcessServiceDiscoveryData(t, c, procs, tc.expectedLanguage, tc.expectedPortInfo, tc.expectedService)
+				assertProcessServiceDiscoveryData(t, procs, tc.expectedLanguage, tc.expectedPortInfo, tc.expectedService)
 			}, 2*time.Minute, 10*time.Second)
 		})
 		if !ok {
@@ -314,13 +314,13 @@ func assertCollectorStatusFromJSON(t *assert.CollectT, statusOutput, check strin
 	assert.Contains(t, status.RunnerStats.Checks, check)
 }
 
-// assertRunningCheck asserts that the given process agent check is running
+// assertRunningCheck asserts that the given agent check is running
 func assertRunningCheck(t *assert.CollectT, remoteHost *components.RemoteHost, check string) {
 	statusOutput := remoteHost.MustExecute("sudo datadog-agent status collector --json")
 	assertCollectorStatusFromJSON(t, statusOutput, check)
 }
 
-// assertNotRunningCheck asserts that the given process agent check is not running
+// assertNotRunningCheck asserts that the given agent check is not running
 func assertNotRunningCheck(t *assert.CollectT, remoteHost *components.RemoteHost, check string) {
 	statusOutput := remoteHost.MustExecute("sudo datadog-agent status collector --json")
 	var status collectorStatus
@@ -329,90 +329,79 @@ func assertNotRunningCheck(t *assert.CollectT, remoteHost *components.RemoteHost
 	assert.NotContains(t, status.RunnerStats.Checks, check)
 }
 
-func assertProcessServiceDiscoveryData(t *testing.T, c *assert.CollectT, procs []*agentmodel.Process, expectedLanguage agentmodel.Language, expectedPortInfo *agentmodel.PortInfo, expectedServiceDiscovery *agentmodel.ServiceDiscovery) {
+// assertProcessServiceDiscoveryData asserts that the given processes contain at least 1 process with the expected service discovery data
+// we cannot fail fast because many processes with the same name are not instrumented with service discovery data
+func assertProcessServiceDiscoveryData(t *testing.T, procs []*agentmodel.Process, expectedLanguage agentmodel.Language, expectedPortInfo *agentmodel.PortInfo, expectedServiceDiscovery *agentmodel.ServiceDiscovery) {
 	t.Helper()
 
-	var hasServiceDiscovery bool
-	// verify there is a process with the right service discovery data populated
 	for _, proc := range procs {
 		// check language
-		correctLanguage := proc.Language == expectedLanguage
+		if proc.Language != expectedLanguage {
+			continue
+		}
 
 		// check port info
-		var correctPortInfo bool
-		if expectedPortInfo != nil {
-			if proc.PortInfo == nil {
-				continue
-			}
-			correctPortInfo = assert.ElementsMatch(noopt{}, expectedPortInfo.Tcp, proc.PortInfo.Tcp) && assert.ElementsMatch(noopt{}, expectedPortInfo.Udp, proc.PortInfo.Udp)
-		} else {
-			correctPortInfo = proc.PortInfo == nil
+		if !matchingPortInfo(expectedPortInfo, proc.PortInfo) {
+			continue
 		}
 
 		// check service discovery
-		correctServiceDiscovery := expectedServiceDiscovery.ApmInstrumentation == proc.ServiceDiscovery.ApmInstrumentation
-
-		if expectedServiceDiscovery.DdServiceName != nil {
-			if proc.ServiceDiscovery.DdServiceName == nil {
-				continue
-			}
-			correctServiceDiscovery = correctServiceDiscovery && expectedServiceDiscovery.DdServiceName.Name == proc.ServiceDiscovery.DdServiceName.Name &&
-				expectedServiceDiscovery.DdServiceName.Source == proc.ServiceDiscovery.DdServiceName.Source
-		} else {
-			correctServiceDiscovery = correctServiceDiscovery && proc.ServiceDiscovery.DdServiceName == nil
+		if expectedServiceDiscovery.ApmInstrumentation != proc.ServiceDiscovery.ApmInstrumentation {
+			continue
 		}
 
-		if expectedServiceDiscovery.GeneratedServiceName != nil {
-			if proc.ServiceDiscovery.GeneratedServiceName == nil {
-				continue
-			}
-			correctServiceDiscovery = correctServiceDiscovery && expectedServiceDiscovery.GeneratedServiceName.Name == proc.ServiceDiscovery.GeneratedServiceName.Name &&
-				expectedServiceDiscovery.GeneratedServiceName.Source == proc.ServiceDiscovery.GeneratedServiceName.Source
-		} else {
-			correctServiceDiscovery = correctServiceDiscovery && proc.ServiceDiscovery.GeneratedServiceName == nil
+		if !matchingServiceNames([]*agentmodel.ServiceName{expectedServiceDiscovery.DdServiceName}, []*agentmodel.ServiceName{proc.ServiceDiscovery.DdServiceName}) {
+			continue
 		}
 
-		if len(expectedServiceDiscovery.TracerMetadata) > 0 {
-			if len(proc.ServiceDiscovery.TracerMetadata) == 0 {
-				continue
-			}
-			// tracer metadata contains a uuid (TracerMetadata.RuntimeID), so we do a manual comparison here
-			//correctServiceDiscovery = correctServiceDiscovery && assert.ElementsMatch(noopt{}, expectedServiceDiscovery.TracerMetadata, proc.ServiceDiscovery.TracerMetadata)
-			// Sort by ServiceName so order doesn’t matter
-			sortByName := cmpopts.SortSlices(func(x, y *agentmodel.TracerMetadata) bool {
-				return x.ServiceName < y.ServiceName
-			})
-
-			// Ignore RuntimeID field completely
-			ignoreID := cmpopts.IgnoreFields(agentmodel.TracerMetadata{}, "RuntimeId")
-
-			diff := cmp.Diff(proc.ServiceDiscovery.TracerMetadata, expectedServiceDiscovery.TracerMetadata, sortByName, ignoreID)
-			correctServiceDiscovery = correctServiceDiscovery && diff == ""
-		} else {
-			correctServiceDiscovery = correctServiceDiscovery && len(proc.ServiceDiscovery.TracerMetadata) == 0
+		if !matchingServiceNames([]*agentmodel.ServiceName{expectedServiceDiscovery.GeneratedServiceName}, []*agentmodel.ServiceName{proc.ServiceDiscovery.GeneratedServiceName}) {
+			continue
 		}
 
-		if len(expectedServiceDiscovery.AdditionalGeneratedNames) > 0 {
-			if len(proc.ServiceDiscovery.AdditionalGeneratedNames) == 0 {
-				continue
-			}
-			correctServiceDiscovery = correctServiceDiscovery && assert.ElementsMatch(noopt{}, expectedServiceDiscovery.AdditionalGeneratedNames, proc.ServiceDiscovery.AdditionalGeneratedNames)
-		} else {
-			correctServiceDiscovery = correctServiceDiscovery && len(proc.ServiceDiscovery.AdditionalGeneratedNames) == 0
+		if !matchingTracerMetadata(expectedServiceDiscovery.TracerMetadata, proc.ServiceDiscovery.TracerMetadata) {
+			continue
 		}
 
-		hasServiceDiscovery = correctPortInfo && correctLanguage && correctServiceDiscovery
-		if hasServiceDiscovery {
-			break
+		if !matchingServiceNames(expectedServiceDiscovery.AdditionalGeneratedNames, proc.ServiceDiscovery.AdditionalGeneratedNames) {
+			continue
 		}
+		assert.True(t, true)
 	}
-	assert.True(c, hasServiceDiscovery, "no process was found with expected service discovery data, processes: %+v", procs)
+	assert.Fail(t, "no process was found with expected service discovery data, processes: %+v", procs)
 }
 
-// noopt is an empty struct that implements the Errorf method of the error interface so we can reuse testify functions
-type noopt struct{}
+func matchingServiceNames(expectedServiceNames []*agentmodel.ServiceName, actualServiceNames []*agentmodel.ServiceName) bool {
+	// tracer metadata contains a uuid (TracerMetadata.RuntimeID), so we ignore it
+	// Sort by ServiceName so order doesn’t matter
+	sort := cmpopts.SortSlices(func(a, b *agentmodel.ServiceName) bool {
+		// handles cases where ServiceName is the same
+		return a.Name != b.Name && a.Name < b.Name ||
+			a.Source < b.Source
+	})
+	diff := cmp.Diff(expectedServiceNames, actualServiceNames, cmpopts.EquateEmpty(), sort)
+	return diff == ""
+}
 
-func (t noopt) Errorf(string, ...interface{}) {}
+func matchingPortInfo(expectedPortInfo *agentmodel.PortInfo, actualPortInfo *agentmodel.PortInfo) bool {
+	diff := cmp.Diff(expectedPortInfo.Tcp, actualPortInfo.Tcp, cmpopts.EquateEmpty(), cmpopts.SortSlices(func(a, b int32) bool { return a < b }))
+	return diff == ""
+}
+
+func matchingTracerMetadata(expectedTracerMetadata []*agentmodel.TracerMetadata, actualTracerMetadata []*agentmodel.TracerMetadata) bool {
+	// tracer metadata contains a uuid (TracerMetadata.RuntimeID), so we ignore it
+	// Sort by ServiceName so order doesn’t matter
+	sortByName := cmpopts.SortSlices(func(a, b *agentmodel.TracerMetadata) bool {
+		// handles cases where ServiceName is the same
+		return a.ServiceName != b.ServiceName && a.ServiceName < b.ServiceName ||
+			a.RuntimeId < b.RuntimeId
+	})
+
+	// Ignore RuntimeID field completely
+	ignoreID := cmpopts.IgnoreFields(agentmodel.TracerMetadata{}, "RuntimeId")
+
+	diff := cmp.Diff(expectedTracerMetadata, actualTracerMetadata, cmpopts.EquateEmpty(), ignoreID, sortByName)
+	return diff == ""
+}
 
 func (s *linuxTestSuite) provisionServer() {
 	err := s.Env().RemoteHost.CopyFolder("testdata/provision", "/home/ubuntu/e2e-test")

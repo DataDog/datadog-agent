@@ -16,16 +16,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/benbjohnson/clock"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -46,6 +47,12 @@ type collectorTest struct {
 	mockClock             *clock.Mock
 	mockStore             workloadmetamock.Mock
 	mockContainerProvider *proccontainers.MockContainerProvider
+}
+
+func (c collectorTest) cleanup() {
+	// when service discovery is enabled, we need to reset the global telemetry registry
+	// since the start function registers a new gauge every time that errors
+	telemetry.GetCompatComponent().Reset()
 }
 
 // TestBasicCreatedProcessesCollection tests the collector capturing new processes without language + container data
@@ -99,6 +106,7 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			c := setUpCollectorTest(t, configOverrides, nil, nil)
+			defer c.cleanup()
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
@@ -119,8 +127,6 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 					assert.Equal(cT, expectedProc, actualProc)
 				}
 			}, time.Second, time.Millisecond*100)
-			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
-			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
@@ -185,6 +191,7 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			c := setUpCollectorTest(t, configOverrides, nil, nil)
+			defer c.cleanup()
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
@@ -205,8 +212,6 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 					assert.Equal(cT, expectedProc, actualProc)
 				}
 			}, time.Second, time.Millisecond*100)
-			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
-			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
@@ -298,6 +303,7 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			c := setUpCollectorTest(t, configOverrides, nil, nil)
+			defer c.cleanup()
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
@@ -317,8 +323,6 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 					assert.Equal(cT, expectedProc, actualProc)
 				}
 			}, time.Second, time.Millisecond*100)
-			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
-			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
@@ -461,6 +465,7 @@ func TestProcessLifecycleCollection(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			c := setUpCollectorTest(t, configOverrides, nil, nil)
+			defer c.cleanup()
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
@@ -502,8 +507,6 @@ func TestProcessLifecycleCollection(t *testing.T) {
 
 				}
 			}, time.Second, time.Millisecond*100)
-			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
-			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
@@ -596,13 +599,12 @@ func TestStartConfiguration(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			c := setUpCollectorTest(t, tc.configOverrides, tc.sysConfigOverrides, nil)
+			defer c.cleanup()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
 			err := c.collector.Start(ctx, c.mockStore)
 			assert.Equal(t, tc.expectedError, err)
-			// needed to reset the global telemetry registry as the start function registers a new gauge when discovery is enabled for each run
-			telemetry.GetCompatComponent().Reset()
 		})
 	}
 }
