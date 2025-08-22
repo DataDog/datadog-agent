@@ -1,4 +1,4 @@
 #!/usr/bin/execlineb -P
 
 foreground { /initlog.sh "starting trace-agent" }
-trace-loader /etc/datadog-agent/datadog.yaml /opt/datadog-agent/embedded/bin/trace-agent --config=/etc/datadog-agent/datadog.yaml
+trace-loader /etc/datadog-agent/datadog.yaml "$(which trace-agent)" --config=/etc/datadog-agent/datadog.yaml
