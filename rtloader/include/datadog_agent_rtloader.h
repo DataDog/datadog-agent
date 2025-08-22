@@ -161,7 +161,7 @@ DATADOG_AGENT_RTLOADER_API int get_check(rtloader_t *rtloader, rtloader_pyobject
 
 /*! \fn int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
                                                const char *instance, const char *check_id, const char *check_name,
-                                               const char *agent_config, const char *source, rtloader_pyobject_t **check)
+                                               const char *agent_config, rtloader_pyobject_t **check)
     \brief Attempts to instantiate a datadog python check with the supplied configuration
     parameters.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.

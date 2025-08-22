@@ -262,7 +262,7 @@ int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, co
 {
     return AS_TYPE(RtLoader, rtloader)
                ->getCheck(AS_TYPE(RtLoaderPyObject, py_class), init_config, instance, check_id, check_name,
-                          agent_config, "", *AS_PTYPE(RtLoaderPyObject, check))
+                          agent_config, *AS_PTYPE(RtLoaderPyObject, check))
         ? 1
         : 0;
 }

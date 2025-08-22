@@ -104,7 +104,7 @@ extern const char *get_check_deprecated_agent_config;
 extern rtloader_pyobject_t *get_check_deprecated_check;
 
 int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
-const char *instance, const char *agent_config, const char *check_id, const char *check_name, const char *source,
+const char *instance, const char *agent_config, const char *check_id, const char *check_name,
 rtloader_pyobject_t **check);
 
 void reset_loader_mock() {
