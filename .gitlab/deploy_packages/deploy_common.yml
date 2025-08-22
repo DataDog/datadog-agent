@@ -13,7 +13,7 @@
     - ls ${OMNIBUS_PACKAGE_DIR}/${ARTIFACT_NAME_PATTERN}
   script:
     - !reference [.setup_dd_pkg]
-    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" "${DD_PKG_EXTRA_ARGS}"
+    - dd-pkg upload "${OMNIBUS_PACKAGE_DIR}" ${DD_PKG_EXTRA_ARGS}
 
 .deploy_packages_deb:
   extends: .deploy_packages
