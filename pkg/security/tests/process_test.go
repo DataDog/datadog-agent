@@ -34,6 +34,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/syndtr/gocapability/capability"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -2457,20 +2458,10 @@ func TestProcessFilelessExecution(t *testing.T) {
 func TestSymLinkResolution(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	if testEnvironment == DockerEnvironment {
-		t.Skip("skipping in docker, not sharing the same pid ns and doesn't have a container ID")
-	}
-
-	ncPath, err := exec.Command("which", "nc").Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("nc path resolved by shell: %s", ncPath)
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "symlink_nc_exec",
-			Expression: `exec.file.name == "nc"`,
+			ID:         "symlink_true_exec",
+			Expression: `exec.file.name == "true"`,
 		},
 	}
 
@@ -2480,15 +2471,19 @@ func TestSymLinkResolution(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("exec nc via symlink", func(t *testing.T) {
+	t.Run("exec true via symlink", func(t *testing.T) {
+		tmpLink := filepath.Join(t.TempDir(), "my_symlink")
+		err := os.Symlink("/bin/true", tmpLink)
+		require.NoError(t, err)
+
 		test.WaitSignal(t, func() error {
-			cmd := exec.Command("nc")
+			cmd := exec.Command(tmpLink)
 			cmd.Stdout = io.Discard
 			cmd.Stderr = io.Discard
 			_ = cmd.Run()
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "symlink_nc_exec")
+			assertTriggeredRule(t, rule, "symlink_true_exec")
 		})
 		assert.NoError(t, err)
 	})
