@@ -64,8 +64,19 @@
     fi
   - dd-pkg sign --key-id "${PIPELINE_KEY_ALIAS}" "${OMNIBUS_PACKAGE_DIR}"
 
+.vault_login:
+  # Point the CLI to our internal vault
+  - export VAULT_ADDR=https://vault.us1.ddbuild.io
+  - vault login -method=aws -no-print
+
+
 # Login to docker with read-only credentials to avoid rate-limiting
 .login_to_docker_readonly:
+  - |
+    if [[ "$CI_RUNNER_TAGS" == *"docker-in-docker:arm64"* ]]; then
+      export VAULT_ADDR=https://vault.us1.ddbuild.io
+      vault login -method=aws -no-print
+    fi
   - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | docker login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
   - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
@@ -74,7 +85,6 @@
   - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | crane auth login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
   - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
-
 
 .docker_pull_winbuildimage_instrumented:
   - $tmpfile = [System.IO.Path]::GetTempFileName()

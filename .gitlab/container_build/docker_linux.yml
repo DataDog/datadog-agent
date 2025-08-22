@@ -123,7 +123,6 @@
   #tags: ["arch:arm64"]
   variables:
     ARCH: arm64
-    VAULT_ADDR: https://vault.us1.ddbuild.io
 
 # build agent7 image
 .docker_build_agent7:
