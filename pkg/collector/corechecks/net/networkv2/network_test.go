@@ -22,11 +22,12 @@ import (
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/sys/unix"
 
+	"github.com/safchain/ethtool"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/safchain/ethtool"
 )
 
 type fakeNetworkStats struct {
@@ -106,6 +107,7 @@ func (f *MockEthtool) Stats(intf string) (map[string]uint64, error) {
 			"rx_packets[0]":      67890,
 			"cpu0_rx_xdp_tx":     123,
 			"tx_timeout":         456,
+			"tx_queue_dropped":   789, // Tests queue name parsing
 		}, nil
 	}
 
