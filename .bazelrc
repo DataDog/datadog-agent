@@ -12,4 +12,4 @@ common:cache --remote_cache=grpc://bazel-buildbarn-frontend.ddbuild.io:443
 common:cache --remote_timeout=60
 common:cache --remote_retries=1
 
-try-import user.bazelrc
+try-import %workspace%/user.bazelrc
