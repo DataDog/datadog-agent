@@ -70,6 +70,9 @@ build do
   else
     dependency "vc_redist_14"
 
+    # Apply CVE-2025-6965 patch to upgrade SQLite to 3.50.4
+    patch source: "CVE-2025-6965-sqlite-3.50.4.patch"
+
     ###############################
     # Setup openssl dependency... #
     ###############################
