@@ -491,6 +491,7 @@
 /pkg/opentelemetry-mapping-go           @DataDog/opentelemetry-agent
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes
+/pkg/privateactionrunner                @DataDog/action-platform
 /pkg/proto/                             @DataDog/agent-runtimes
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
 /pkg/proto/datadog/process              @DataDog/container-experiences
