@@ -2,7 +2,8 @@
     "base_branch": "7.69.x",
     "current_milestone": "7.69.0",
     "dependencies": {
-        "OMNIBUS_RUBY_VERSION": "c760785c93689c06da59e5f38875cdeda39438c4",
+        "INTEGRATIONS_CORE_VERSION": "7.69.0-rc.1",
+        "OMNIBUS_RUBY_VERSION": "7.69.0-rc.1",
         "JMXFETCH_VERSION": "0.50.0",
         "JMXFETCH_HASH": "4a426b206132114484d6af06297ad520f77bd143daa7d946092929bb0a776b2e",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
