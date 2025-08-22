@@ -108,7 +108,7 @@ func (s *EbpfProgramSuite) TestExpectedLibrariesAreDetected() {
 
 					require.Equal(t, tempFile, receivedEvent.String())
 					require.Equal(t, command.Process.Pid, int(receivedEvent.Pid))
-			})
+				})
 			}
 		})
 	}

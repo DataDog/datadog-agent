@@ -273,11 +273,11 @@ func TestCudaLibraryAttacherRule(t *testing.T) {
 		t.Run(library, func(t *testing.T) {
 			require.True(t, rule.MatchesLibrary(library))
 			// Test with a suffix too
-			require.True(t, rule.MatchesLibrary(library + ".10-2"))
+			require.True(t, rule.MatchesLibrary(library+".10-2"))
 
 			// And test with a path before the library name
-			require.True(t, rule.MatchesLibrary("/usr/lib/x86_64-linux-gnu/" + library))
-			require.True(t, rule.MatchesLibrary("/usr/lib/x86_64-linux-gnu/" + library + ".10-2"))
+			require.True(t, rule.MatchesLibrary("/usr/lib/x86_64-linux-gnu/"+library))
+			require.True(t, rule.MatchesLibrary("/usr/lib/x86_64-linux-gnu/"+library+".10-2"))
 		})
 	}
 }
