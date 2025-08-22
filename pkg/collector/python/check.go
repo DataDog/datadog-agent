@@ -328,7 +328,7 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 		cAgentConfig := TrackedCString(string(agentConfig))
 		defer C._free(unsafe.Pointer(cAgentConfig))
 
-		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, cSource, &check)
+		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
 		if res == 0 {
 			rtLoaderDeprecatedCheckError := getRtLoaderError()
 			if strings.Contains(rtLoaderDeprecatedCheckError.Error(), skipInstanceErrorPattern) {
