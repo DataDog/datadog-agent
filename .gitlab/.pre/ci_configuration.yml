@@ -23,6 +23,8 @@ test_gitlab_compare_to:
     - !reference [.setup_agent_github_app]
     - dda self dep sync -f legacy-tasks
     - dda inv -- pipeline.compare-to-itself
+  variables:
+    GIT_STRATEGY: "clone"
 
 # Computes and uploads the GitLab CI configuration diff as an artifact
 compute_gitlab_ci_config:
