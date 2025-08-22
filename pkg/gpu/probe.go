@@ -367,7 +367,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 	return uprobes.AttacherConfig{
 		Rules: []*uprobes.AttachRule{
 			{
-				LibraryNameRegex: regexp.MustCompile(`libcudart\.so`),
+				LibraryNameRegex: regexp.MustCompile(`lib(cudart|nd4jcuda)\.so`),
 				Targets:          uprobes.AttachToExecutable | uprobes.AttachToSharedLibraries,
 				ProbesSelector: []manager.ProbesSelector{
 					&manager.AllOf{
