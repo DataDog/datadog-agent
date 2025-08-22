@@ -8,5 +8,5 @@
 ---
 other:
   - |
-    Add `checks.delay` and `checks.runs` telemetry metrics.
+    Add `checks.delay` and `checks.runs` telemetry metrics for the agent checks.
     This enables break down and analysis by `check_name` and `state` where applicable.
