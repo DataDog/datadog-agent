@@ -9,7 +9,6 @@ package dns
 import (
 	"fmt"
 	"net/netip"
-	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -28,8 +27,12 @@ type CacheStats struct {
 
 // Resolver defines a DNS resolver
 type Resolver struct {
-	cache         *lru.Cache[netip.Addr, []string]
-	cnameCache    *lru.Cache[string, []string]
+	cache  *lru.Cache[netip.Addr, []string]
+	direct *lru.Cache[string, []netip.Addr]
+	cnames *lru.Cache[string, string]
+
+	inFlightHostnames []string
+
 	statsdClient  statsd.ClientInterface
 	resolverStats *CacheStats
 	cnameStats    *CacheStats
@@ -43,24 +46,32 @@ func NewDNSResolver(cfg *config.Config, statsdClient statsd.ClientInterface) (*R
 		cnameStats:    &CacheStats{},
 	}
 
-	cbResolver := func(netip.Addr, []string) {
+	cbCacheResolver := func(netip.Addr, []string) {
 		ret.resolverStats.cacheEvictions.Inc()
 	}
 
-	cbCname := func(string, []string) {
+	cbDirectResolver := func(string, []netip.Addr) {
+		ret.cnameStats.cacheEvictions.Inc()
+	}
+
+	cbCnamesResolver := func(string, string) {
 		ret.cnameStats.cacheEvictions.Inc()
 	}
 
 	var err error
-
-	ret.cache, err = lru.NewWithEvict[netip.Addr, []string](cfg.DNSResolverCacheSize, cbResolver)
+	ret.cache, err = lru.NewWithEvict[netip.Addr, []string](cfg.DNSResolverCacheSize, cbCacheResolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize DNS cache: %w", err)
 	}
 
-	ret.cnameCache, err = lru.NewWithEvict[string, []string](cfg.DNSResolverCacheSize, cbCname)
+	ret.direct, err = lru.NewWithEvict[string, []netip.Addr](cfg.DNSResolverCacheSize, cbDirectResolver)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize DNS cname cache: %w", err)
+		return nil, fmt.Errorf("failed to initialize DNS cache: %w", err)
+	}
+
+	ret.cnames, err = lru.NewWithEvict[string, string](cfg.DNSResolverCacheSize, cbCnamesResolver)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize DNS cache: %w", err)
 	}
 
 	return ret, nil
@@ -68,42 +79,16 @@ func NewDNSResolver(cfg *config.Config, statsdClient statsd.ClientInterface) (*R
 
 func (r *Resolver) clear() {
 	r.cache.Purge()
-	r.cnameCache.Purge()
-}
-
-// fillWithCnames Recursively fills the set with all the cname aliases for the hostname
-func (r *Resolver) fillWithCnames(hostname string, hostnames *[]string, depth int) {
-	if depth == 0 {
-		return
-	}
-
-	c, ok := r.cnameCache.Get(hostname)
-	if ok {
-		r.cnameStats.cacheHits.Inc()
-		for _, hostname := range c {
-			if !slices.Contains(*hostnames, hostname) {
-				*hostnames = append(*hostnames, hostname)
-			}
-			r.fillWithCnames(hostname, hostnames, depth-1)
-		}
-	} else {
-		r.cnameStats.cacheMisses.Inc()
-	}
+	r.direct.Purge()
+	r.cnames.Purge()
+	r.inFlightHostnames = nil
 }
 
 // HostListFromIP gets a hostname from an IP address if cached
 func (r *Resolver) HostListFromIP(addr netip.Addr) []string {
-	hostnames, ok := r.cache.Get(addr)
-	if ok {
+	if hostnames, ok := r.cache.Get(addr); ok {
 		r.resolverStats.cacheHits.Inc()
-
-		var allHosts []string
-		for _, hostname := range hostnames {
-			allHosts = append(allHosts, hostname)
-			r.fillWithCnames(hostname, &allHosts, 2)
-		}
-
-		return allHosts
+		return hostnames
 	}
 
 	r.resolverStats.cacheMisses.Inc()
@@ -112,40 +97,60 @@ func (r *Resolver) HostListFromIP(addr netip.Addr) []string {
 
 // AddNew add new ip address to the resolver cache
 func (r *Resolver) AddNew(hostname string, ip netip.Addr) {
-	hostnames, ok := r.cache.Get(ip)
-	updated := false
-
-	if !ok {
-		r.resolverStats.cacheInsertions.Inc()
-		hostnames = []string{hostname}
-		updated = true
-	} else if !slices.Contains(hostnames, hostname) {
-		hostnames = append(hostnames, hostname)
-		updated = true
-	}
-
-	if updated {
-		r.cache.Add(ip, hostnames)
-	}
+	appendLRUValue(r.direct, hostname, ip)
+	r.inFlightHostnames = append(r.inFlightHostnames, hostname)
+	r.cnameStats.cacheInsertions.Inc()
 }
 
 // AddNewCname add new cname alias to the cache
 func (r *Resolver) AddNewCname(cname string, hostname string) {
-	hostnames, ok := r.cnameCache.Get(cname)
-	updated := false
+	r.cnames.Add(hostname, cname)
+	r.inFlightHostnames = append(r.inFlightHostnames, cname, hostname)
+	r.cnameStats.cacheInsertions.Inc()
+}
 
-	if !ok {
-		r.cnameStats.cacheInsertions.Inc()
-		hostnames = []string{hostname}
-		updated = true
-	} else if !slices.Contains(hostnames, hostname) {
-		hostnames = append(hostnames, hostname)
-		updated = true
+const indirectCnameLimit = 5
+
+// CommitInFlights commits all in-flight hostnames to the reverse cache
+func (r *Resolver) CommitInFlights() {
+	for _, inFlight := range r.inFlightHostnames {
+		ips, ok := r.queryDirect(inFlight, indirectCnameLimit)
+		if !ok {
+			continue
+		}
+
+		for _, ip := range ips {
+			appendLRUValue(r.cache, ip, inFlight)
+			r.resolverStats.cacheInsertions.Inc()
+		}
 	}
 
-	if updated {
-		r.cnameCache.Add(cname, hostnames)
+	r.inFlightHostnames = nil
+}
+
+func appendLRUValue[K comparable, V any](list *lru.Cache[K, []V], key K, value V) {
+	var next []V
+	if old, ok := list.Get(key); ok {
+		next = append(old, value)
+	} else {
+		next = []V{value}
 	}
+	list.Add(key, next)
+}
+
+func (r *Resolver) queryDirect(hostname string, iterations int) ([]netip.Addr, bool) {
+	ips, ok := r.direct.Get(hostname)
+	if ok {
+		return ips, true
+	}
+
+	if iterations > 0 {
+		if next, ok := r.cnames.Get(hostname); ok {
+			return r.queryDirect(next, iterations-1)
+		}
+	}
+
+	return nil, false
 }
 
 // SendStats sends the DNS resolver metrics

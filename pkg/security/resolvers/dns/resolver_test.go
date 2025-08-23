@@ -26,6 +26,7 @@ func BenchmarkDNSResolverQuery(b *testing.B) {
 	resolver.AddNewCname("www.bbc.co.uk.pri.bbc.co.uk", "www.bbc.co.uk")
 	resolver.AddNewCname("bbc.map.fastly.net", "www.bbc.co.uk.pri.bbc.co.uk")
 	resolver.AddNew("bbc.map.fastly.net", ip)
+	resolver.CommitInFlights()
 
 	for b.Loop() {
 		_ = resolver.HostListFromIP(ip)
@@ -53,6 +54,7 @@ func BenchmarkDNSResolverInsertion(b *testing.B) {
 		resolver.AddNew("bbc.map.fastly.net", ip2)
 		resolver.AddNew("bbc.map.fastly.net", ip3)
 		resolver.AddNew("bbc.map.fastly.net", ip4)
+		resolver.CommitInFlights()
 
 		b.StopTimer()
 		resolver.clear()
