@@ -155,7 +155,7 @@ class CompilerImage:
         run_dir: PathOrStr | None = None,
         allow_fail=False,
         force_color=True,
-    ):
+    ) -> Result:
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
 
@@ -171,10 +171,13 @@ class CompilerImage:
             color_env = ""
 
         # Set FORCE_COLOR=1 so that termcolor works in the container
-        return self.ctx.run(
-            f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
-            hide=(not verbose),
-            warn=allow_fail,
+        return cast(
+            Result,
+            self.ctx.run(
+                f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
+                hide=(not verbose),
+                warn=allow_fail,
+            ),
         )
 
     def stop(self) -> Result:
