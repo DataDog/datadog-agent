@@ -10,13 +10,14 @@ package dns
 
 import (
 	"fmt"
+	"net/netip"
+	"slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
-	"net/netip"
-	"slices"
 )
 
 // CacheStats defines metrics for the LRU
