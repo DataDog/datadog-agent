@@ -135,7 +135,7 @@ windows_zip_ddot_x64:
     OMNIBUS_TARGET: ddot
 
 # build Windows DDOT OCI tar and publish into pipeline artifacts so ddot_oci can merge it
-ddot_win-x64:
+ddot_win_oci:
   stage: packaging
   extends: .windows_docker_default
   variables:
