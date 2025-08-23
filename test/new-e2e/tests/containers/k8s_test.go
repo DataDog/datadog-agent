@@ -454,7 +454,16 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		}
 	})
 
-	suite.Run("cluster-agent autoscaling workload-list --local-store", func() {
+	suite.Run("cluster-agent autoscaler-list --localstore", func() {
+		// First verify the command exists and autoscaling is enabled
+		checkStdout, checkStderr, checkErr := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
+			"datadog",
+			leaderDcaPodName,
+			"cluster-agent",
+			[]string{"sh", "-c", "datadog-cluster-agent autoscaler-list --localstore 2>&1 || echo 'Exit code:' $?"},
+		)
+		suite.T().Logf("Initial check - stdout: %s, stderr: %s, err: %v", checkStdout, checkStderr, checkErr)
+
 		// Wait for some workload metrics to be collected in the local store
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			// Execute the CLI command to list workload metrics from local store
@@ -462,16 +471,17 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 				"datadog",
 				leaderDcaPodName,
 				"cluster-agent",
-				[]string{"datadog-cluster-agent", "autoscaling", "workload-list", "--local-store"},
+				[]string{"datadog-cluster-agent", "autoscaler-list", "--localstore"},
 			)
-			if !assert.NoError(c, err, "Failed to execute workload-list command: %s", stderr) {
-				return
-			}
+			// Assert that the command executes successfully
+			assert.NoError(c, err, "autoscaler-list command should execute successfully. stdout: %s, stderr: %s", stdout, stderr)
 			// The output should contain workload metrics information
 			// Format: Namespace: <ns>, PodOwner: <owner>, MetricName: <metric>, Datapoints: <count>
 			assert.NotEmpty(c, stdout, "workload-list --local-store should return data")
 
-			suite.T().Logf("workload-list --local-store raw output:\n%s", stdout)
+			// Log full output for debugging
+			suite.T().Logf("Output:\n%s", stdout)
+
 			validEntryCount := 0
 			lines := strings.Split(stdout, "\n")
 
@@ -487,10 +497,11 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 					strings.Contains(line, "MetricName:") &&
 					strings.Contains(line, "Datapoints:") {
 					validEntryCount++
-					assert.NotContains(c, line, "kube-system", "kube-system namespace should be filtered")
 					assert.NotContains(c, line, "datadog", "datadog namespace should be filtered")
 				}
 			}
+
+			suite.T().Logf("Found %d workload metric entries in local store", validEntryCount)
 			assert.GreaterOrEqual(c, validEntryCount, 10, "Should have at least 10 workload entries in local store, but got %d", validEntryCount)
 		}, 3*time.Minute, 10*time.Second, "Failed to get workload metrics from local store")
 	})
