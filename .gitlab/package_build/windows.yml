@@ -135,7 +135,7 @@ windows_zip_ddot_x64:
     OMNIBUS_TARGET: ddot
 
 # build Windows DDOT OCI tar and publish into pipeline artifacts so ddot_oci can merge it
-windows_ddot_oci:
+ddot_win-x64:
   stage: packaging
   extends: .windows_docker_default
   variables:
@@ -150,8 +150,6 @@ windows_ddot_oci:
     - $ErrorActionPreference = 'Stop'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg\pipeline-$CI_PIPELINE_ID | Out-Null
-    - Write-Host "WINBUILDIMAGE=${env:WINBUILDIMAGE}"
-    - docker --version
     - >
       docker run --rm
       -m 8192M
@@ -171,7 +169,7 @@ windows_ddot_oci:
       -e CI_JOB_TOKEN=${CI_JOB_TOKEN}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       ${WINBUILDIMAGE}
-      powershell -NoProfile -C 'Set-Location C:\mnt; . .\tasks\winbuildscripts\common.ps1; Enable-DevEnv; Expand-ModCache -modcache modcache; Write-Host "[STEP] Install-Deps start: $(Get-Date -Format o)"; Install-Deps; dda self telemetry disable; $env:GOFLAGS=''-x -v''; Write-Host "[STEP] go env:"; go env; Write-Host "[STEP] Build otel-agent start: $(Get-Date -Format o)"; dda inv otel-agent.build; if (-not (Test-Path C:\mnt\bin\otel-agent\otel-agent.exe)) { Write-Error "otel-agent.exe not built"; exit 1 }; $ver=(dda inv -- agent.version --url-safe)+"-1"; Write-Host "[STEP] Packaging start: $(Get-Date -Format o)"; powershell -File tasks\winbuildscripts\Generate-OCIPackage.ps1 -package datadog-agent-ddot -version $ver -omnibusOutput C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID -CleanupStaging; Write-Host "[STEP] Packaging done: $(Get-Date -Format o)"'
+      powershell -NoProfile -C 'Set-Location C:\mnt; . .\tasks\winbuildscripts\common.ps1; Enable-DevEnv; Expand-ModCache -modcache modcache; Install-Deps; dda self telemetry disable; $env:GOFLAGS=''-x -v''; dda inv otel-agent.build; if (-not (Test-Path C:\mnt\bin\otel-agent\otel-agent.exe)) { Write-Error "otel-agent.exe not built"; exit 1 }; $ver=(dda inv -- agent.version --url-safe)+"-1"; powershell -File tasks\winbuildscripts\Generate-OCIPackage.ps1 -package datadog-agent-ddot -version $ver -omnibusOutput C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID -CleanupStaging'
     - Get-ChildItem omnibus\pkg\pipeline-$CI_PIPELINE_ID
   artifacts:
     expire_in: 2 weeks

@@ -103,7 +103,7 @@ installer_oci:
 
 ddot_oci:
   extends: .package_oci
-  needs: ["datadog-otel-agent-x64", "datadog-otel-agent-arm64", "go_tools_deps", ["windows_ddot_oci"]]
+  needs: ["datadog-otel-agent-x64", "datadog-otel-agent-arm64", "go_tools_deps", "ddot_win-x64"]
   variables:
     OCI_PRODUCT: "datadog-agent-ddot"
   before_script:
