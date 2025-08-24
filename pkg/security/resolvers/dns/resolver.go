@@ -66,6 +66,11 @@ func NewDNSResolver(cfg *config.Config, statsdClient statsd.ClientInterface) (*R
 	return ret, nil
 }
 
+func (r *Resolver) clear() {
+	r.cache.Purge()
+	r.cnameCache.Purge()
+}
+
 // fillWithCnames Recursively fills the set with all the cname aliases for the hostname
 func (r *Resolver) fillWithCnames(hostname string, hostnames *[]string, depth int) {
 	if depth == 0 {
