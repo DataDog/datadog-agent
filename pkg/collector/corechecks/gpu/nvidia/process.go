@@ -110,7 +110,7 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 			// Only emit memory.usage per process
 			processMetrics = append(processMetrics,
 				Metric{
-					Name:     "memory.usage",
+					Name:     "process.memory.usage",
 					Value:    float64(proc.UsedGpuMemory),
 					Type:     metrics.GaugeType,
 					Priority: High,

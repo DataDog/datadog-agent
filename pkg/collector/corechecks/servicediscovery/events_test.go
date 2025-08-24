@@ -66,7 +66,7 @@ func Test_telemetrySender(t *testing.T) {
 			{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
 			{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 		},
-		Ports:              []uint16{80, 8080},
+		TCPPorts:           []uint16{80, 8080},
 		APMInstrumentation: "injected",
 		Language:           "jvm",
 		Type:               "web_service",
@@ -334,5 +334,52 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 	gotEvents := mockSenderEvents(t, mSender)
 	if diff := cmp.Diff(wantEvents, gotEvents); diff != "" {
 		t.Errorf("event platform events mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestCombinePorts(t *testing.T) {
+	tests := []struct {
+		name     string
+		tcpPorts []uint16
+		udpPorts []uint16
+		expected []uint16
+	}{
+		{
+			name:     "empty ports",
+			tcpPorts: nil,
+			udpPorts: nil,
+			expected: nil,
+		},
+		{
+			name:     "only TCP ports",
+			tcpPorts: []uint16{8080, 8081},
+			udpPorts: nil,
+			expected: []uint16{8080, 8081},
+		},
+		{
+			name:     "only UDP ports",
+			tcpPorts: nil,
+			udpPorts: []uint16{8082, 8083},
+			expected: []uint16{8082, 8083},
+		},
+		{
+			name:     "both TCP and UDP ports",
+			tcpPorts: []uint16{8080, 8081},
+			udpPorts: []uint16{8082, 8083},
+			expected: []uint16{8080, 8081, 8082, 8083},
+		},
+		{
+			name:     "duplicate ports",
+			tcpPorts: []uint16{8080, 8081},
+			udpPorts: []uint16{8081, 8082},
+			expected: []uint16{8080, 8081, 8082},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := combinePorts(tt.tcpPorts, tt.udpPorts)
+			assert.Equal(t, tt.expected, result)
+		})
 	}
 }
