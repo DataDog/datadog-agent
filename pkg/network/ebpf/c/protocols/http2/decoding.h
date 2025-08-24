@@ -663,25 +663,45 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     pktbuf_advance(pkt, current_frame.length);
     // We're exceeding the packet boundaries, so we have a remainder.
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
-        // Special case: Don't create incomplete frame entries for PRIORITY-only HEADERS frames.
-        // These frames contain no header-block fragment to parse, so treating them as
-        // "incomplete" is incorrect and causes map growth issues.
-        if (current_frame.type == kHeadersFrame && 
-            (current_frame.flags & HTTP2_PRIORITY_FLAG) && 
-            current_frame.length == HTTP2_PRIORITY_BUFFER_LEN) {
-            // This is a PRIORITY-only frame - no need to track as incomplete
-            return;
+        // Special case: Handle HEADERS frames with PRIORITY flags to prevent map growth
+        // and dynamic table corruption.
+        if (current_frame.type == kHeadersFrame && (current_frame.flags & HTTP2_PRIORITY_FLAG)) {
+            // For PRIORITY-only frames (no header data), skip incomplete tracking entirely
+            if (current_frame.length <= HTTP2_PRIORITY_BUFFER_LEN) {
+                return;
+            }
         }
         
         incomplete_frame_t new_incomplete_frame = { 0 };
 
         // Saving the remainder.
-        new_incomplete_frame.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
+        // For HEADERS frames with PRIORITY flags, adjust the remainder calculation to account for the
+        // 5-byte priority section that will be skipped in the headers processing stage.
+        if (current_frame.type == kHeadersFrame && (current_frame.flags & HTTP2_PRIORITY_FLAG)) {
+            // Adjust remainder to account for priority section handling in headers_parser
+            __u32 adjusted_remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
+            if (adjusted_remainder <= HTTP2_PRIORITY_BUFFER_LEN) {
+                // If the remainder is small enough to be covered by priority section, don't create incomplete entry
+                return;
+            }
+            new_incomplete_frame.remainder = adjusted_remainder - HTTP2_PRIORITY_BUFFER_LEN;
+        } else {
+            new_incomplete_frame.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
+        }
         // We did find an interesting frame (as frames_count == 1), so we cache the current frame and waiting for the
         // next call.
         if (iteration_value->frames_count == 1) {
             new_incomplete_frame.header_length = HTTP2_FRAME_HEADER_SIZE;
-            bpf_memcpy(new_incomplete_frame.buf, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
+            // For HEADERS frames with PRIORITY flags, adjust the stored frame length to account for
+            // the priority section that will be handled separately
+            if (current_frame.type == kHeadersFrame && (current_frame.flags & HTTP2_PRIORITY_FLAG) && 
+                current_frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
+                http2_frame_t adjusted_frame = current_frame;
+                adjusted_frame.length -= HTTP2_PRIORITY_BUFFER_LEN;
+                bpf_memcpy(new_incomplete_frame.buf, (char *)&adjusted_frame, HTTP2_FRAME_HEADER_SIZE);
+            } else {
+                bpf_memcpy(new_incomplete_frame.buf, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
+            }
         }
 
         iteration_value->frames_count = 0;
