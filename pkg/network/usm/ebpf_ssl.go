@@ -479,6 +479,10 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 			LibraryNameRegex: regexp.MustCompile(`libgnutls.so`),
 		},
 	}
+	o := &sslProgram{
+		cfg:         c,
+		ebpfManager: m,
+	}
 	attacherConfig := uprobes.AttacherConfig{
 		ProcRoot:                       procRoot,
 		Rules:                          rules,
@@ -488,15 +492,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		EnablePeriodicScanNewProcesses: true,
 		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 		EnableDetailedLogging:          false,
-	}
-
-	o := &sslProgram{
-		cfg:         c,
-		ebpfManager: m,
-	}
-
-	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
-		attacherConfig.OnSyncCallback = o.cleanupDeadPids
+		OnSyncCallback:                 o.cleanupDeadPids,
 	}
 
 	var err error
