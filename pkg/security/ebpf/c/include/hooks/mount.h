@@ -253,7 +253,7 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
         return 0;
     }
 
-    if (syscall->type == EVENT_MOUNT || syscall->type == EVENT_OPEN_TREE) {
+    if (syscall->type == EVENT_MOUNT || syscall->type == EVENT_OPEN_TREE || syscall->type == EVENT_MOVE_MOUNT) {
         struct mount_event_t event = {
             .syscall.retval = 0,
             .syscall_ctx.id = syscall->ctx_id,
@@ -271,12 +271,18 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
             // All the other mounts are ultimately attached to the detached mount
             // That's why they aren't detached but are visible
             event.mountfields.visible = true;
-            event.source = SOURCE_MOUNT;
-            pop_syscall(EVENT_MOUNT);
+            if(syscall->type == EVENT_MOUNT) {
+                event.source = SOURCE_MOUNT;
+                pop_syscall(EVENT_MOUNT);
+            } else {
+                event.source = SOURCE_MOVE_MOUNT;
+            }
         }
-
+        if (syscall->type == EVENT_MOVE_MOUNT) {
+            send_event(ctx, EVENT_MOVE_MOUNT, event);
+            return 0;
+        }
         send_event(ctx, EVENT_MOUNT, event);
-
     } else if (syscall->type == EVENT_UNSHARE_MNTNS) {
         struct unshare_mntns_event_t event = { 0 };
 
@@ -295,9 +301,20 @@ TAIL_CALL_TRACEPOINT_FNC(dr_mount_stage_two_callback, struct tracepoint_syscalls
     return dr_mount_stage_two_callback(args);
 }
 
+HOOK_ENTRY("mnt_change_mountpoint")
+int hook_mnt_change_mountpoint(ctx_t *ctx)
+{
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MOVE_MOUNT);
+    if(!syscall) {
+        return 0;
+    }
+
+    return 0;
+}
+
 HOOK_ENTRY("attach_mnt")
 int hook_attach_mnt(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_open_tree);
+    struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_open_tree_or_move_mount);
     if (!syscall) {
         return 0;
     }
@@ -320,7 +337,7 @@ int hook_attach_mnt(ctx_t *ctx) {
 
 HOOK_ENTRY("__attach_mnt")
 int hook___attach_mnt(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_open_tree);
+    struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_open_tree_or_move_mount);
     if (!syscall) {
         return 0;
     }
@@ -342,7 +359,7 @@ int hook___attach_mnt(ctx_t *ctx) {
 
 HOOK_ENTRY("mnt_set_mountpoint")
 int hook_mnt_set_mountpoint(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
+    struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_move_mount);
     if (!syscall) {
         return 0;
     }
@@ -519,6 +536,29 @@ HOOK_SYSCALL_EXIT(fsmount) {
     if(syscall->retval >= 0) {
         handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, true);
     }
+
+    return 0;
+}
+
+HOOK_SYSCALL_ENTRY4(move_mount, int, from_dfd, const char *, from_pathname, int, to_dfd, const char *, to_pathname)
+{
+    struct syscall_cache_t syscall = {
+        .type = EVENT_MOVE_MOUNT,
+    };
+
+    cache_syscall(&syscall);
+
+    return 0;
+}
+
+
+HOOK_SYSCALL_EXIT(move_mount) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_MOVE_MOUNT);
+    if (!syscall) {
+        // should never happen
+        return 0;
+    }
+
 
     return 0;
 }
