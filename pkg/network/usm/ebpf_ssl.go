@@ -444,6 +444,12 @@ type sslProgram struct {
 	attacher    *uprobes.UprobeAttacher
 	ebpfManager *manager.Manager
 
+	sslReadArgsMapCleaner      *ddebpf.MapCleaner[uint64, http.SslReadArgs]
+	sslReadExArgsMapCleaner    *ddebpf.MapCleaner[uint64, http.SslReadExArgs]
+	sslWriteArgsMapCleaner     *ddebpf.MapCleaner[uint64, http.SslWriteArgs]
+	sslWriteExArgsMapCleaner   *ddebpf.MapCleaner[uint64, http.SslWriteExArgs]
+	bioNewSocketArgsMapCleaner *ddebpf.MapCleaner[uint64, uint32]
+
 	sslCtxByPIDTGIDMapCleaner *ddebpf.MapCleaner[uint64, uint64]
 	sslSockByCtxMapCleaner    *ddebpf.MapCleaner[uint64, http.SslSock]
 	sslCtxByTupleMapCleaner   *ddebpf.MapCleaner[http.ConnTuple, uint64]
@@ -552,6 +558,31 @@ func initMapCleaner[K, V interface{}](mgr *manager.Manager, mapName, attacherNam
 
 func (o *sslProgram) initAllMapCleaners() error {
 	var err error
+
+	o.sslReadArgsMapCleaner, err = initMapCleaner[uint64, http.SslReadArgs](o.ebpfManager, sslReadArgsMap, UsmTLSAttacherName)
+	if err != nil {
+		return err
+	}
+
+	o.sslReadExArgsMapCleaner, err = initMapCleaner[uint64, http.SslReadExArgs](o.ebpfManager, sslReadExArgsMap, UsmTLSAttacherName)
+	if err != nil {
+		return err
+	}
+
+	o.sslWriteArgsMapCleaner, err = initMapCleaner[uint64, http.SslWriteArgs](o.ebpfManager, sslWriteArgsMap, UsmTLSAttacherName)
+	if err != nil {
+		return err
+	}
+
+	o.sslWriteExArgsMapCleaner, err = initMapCleaner[uint64, http.SslWriteExArgs](o.ebpfManager, sslWriteExArgsMap, UsmTLSAttacherName)
+	if err != nil {
+		return err
+	}
+
+	o.bioNewSocketArgsMapCleaner, err = initMapCleaner[uint64, uint32](o.ebpfManager, bioNewSocketArgsMap, UsmTLSAttacherName)
+	if err != nil {
+		return err
+	}
 
 	o.sslCtxByPIDTGIDMapCleaner, err = initMapCleaner[uint64, uint64](o.ebpfManager, sslCtxByPIDTGIDMap, UsmTLSAttacherName)
 	if err != nil {
@@ -709,51 +740,38 @@ func (o *sslProgram) addProcessExitProbe(options *manager.Options) {
 	}
 }
 
-var sslPidKeyMaps = []string{
-	sslReadArgsMap,
-	sslReadExArgsMap,
-	sslWriteArgsMap,
-	sslWriteExArgsMap,
-	bioNewSocketArgsMap,
+// pidTgidCleanerCB checks if the pid (upper 32 bits of pidTgid) is in alivePIDs.
+func pidTgidCleanerCB(pidTgid uint64, alivePIDs map[uint32]struct{}) bool {
+	pid := uint32(pidTgid >> 32)
+	_, isAlive := alivePIDs[pid]
+	return !isAlive
 }
 
 // cleanupDeadPids clears maps of terminated processes, is invoked when raw tracepoints unavailable.
 func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
-	for _, mapName := range sslPidKeyMaps {
-		err := deleteDeadPidsInMap(o.ebpfManager, mapName, alivePIDs)
-		if err != nil {
-			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
-		}
-	}
+	o.sslReadArgsMapCleaner.Clean(nil, nil, func(_ int64, pidTgid uint64, _ http.SslReadArgs) bool {
+		return pidTgidCleanerCB(pidTgid, alivePIDs)
+	})
+
+	o.sslReadExArgsMapCleaner.Clean(nil, nil, func(_ int64, pidTgid uint64, _ http.SslReadExArgs) bool {
+		return pidTgidCleanerCB(pidTgid, alivePIDs)
+	})
+
+	o.sslWriteArgsMapCleaner.Clean(nil, nil, func(_ int64, pidTgid uint64, _ http.SslWriteArgs) bool {
+		return pidTgidCleanerCB(pidTgid, alivePIDs)
+	})
+
+	o.sslWriteExArgsMapCleaner.Clean(nil, nil, func(_ int64, pidTgid uint64, _ http.SslWriteExArgs) bool {
+		return pidTgidCleanerCB(pidTgid, alivePIDs)
+	})
+
+	o.bioNewSocketArgsMapCleaner.Clean(nil, nil, func(_ int64, pidTgid uint64, _ uint32) bool {
+		return pidTgidCleanerCB(pidTgid, alivePIDs)
+	})
+
 	if err := o.deleteDeadPidsInSSLCtxMap(alivePIDs); err != nil {
 		log.Debugf("SSL map %q cleanup error: %v", sslCtxByPIDTGIDMap, err)
 	}
-}
-
-// deleteDeadPidsInMap finds a map by name and deletes dead processes.
-// enters when raw tracepoint is not supported, kernel < 4.17
-func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map[uint32]struct{}) error {
-	emap, _, err := manager.GetMap(mapName)
-	if err != nil {
-		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", mapName, err)
-	}
-
-	var keysToDelete []uint64
-	var key uint64
-	value := make([]byte, emap.ValueSize())
-	iter := emap.Iterate()
-
-	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-		pid := uint32(key >> 32)
-		if _, exists := alivePIDs[pid]; !exists {
-			keysToDelete = append(keysToDelete, key)
-		}
-	}
-	for _, k := range keysToDelete {
-		_ = emap.Delete(unsafe.Pointer(&k))
-	}
-
-	return nil
 }
 
 // deleteDeadPidsInSSLCtxMap cleans up three related SSL maps in sequence:
