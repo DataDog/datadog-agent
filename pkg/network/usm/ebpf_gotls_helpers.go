@@ -321,7 +321,9 @@ func getReturnBytes(result *bininspect.Result, funcName string) (gotls.Location,
 		// See:
 		// - https://go.googlesource.com/proposal/+/refs/changes/78/248178/1/design/40724-register-calling.md#go_s-current-stack_based-abi
 		// - https://dr-knz.net/go-calling-convention-x86-64-2020.html
-		var endOfParametersOffset int64
+		// We cannot apply uretprobe in Go, so we need to use `uprobes`. Then we have the return address on the stack,
+		// followed by the return values.
+		endOfParametersOffset := int64(unsafe.Sizeof(int64(0)))
 		for _, param := range result.Functions[funcName].Parameters {
 			// This code assumes pointer alignment of each param
 			endOfParametersOffset += param.TotalSize
@@ -358,7 +360,9 @@ func getReturnError(result *bininspect.Result, funcName string) (gotls.Location,
 		}
 	case bininspect.GoABIStack:
 		var integer int
-		var endOfParametersOffset int64
+		// We cannot apply uretprobe in Go, so we need to use `uprobes`. Then we have the return address on the stack,
+		// followed by the return values.
+		endOfParametersOffset := int64(unsafe.Sizeof(int64(0)))
 		for _, param := range result.Functions[funcName].Parameters {
 			// This code assumes pointer alignment of each param
 			endOfParametersOffset += param.TotalSize
