@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"time"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -439,6 +440,13 @@ var opensslSpec = &protocols.ProtocolSpec{
 	},
 }
 
+var (
+	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
+	// and lowering it might cause constant cpu usage.
+	// Defined as a var to allow tests to override it.
+	nativeTLSScanTerminatedProcessesInterval = 30 * time.Second
+)
+
 type sslProgram struct {
 	cfg         *config.Config
 	attacher    *uprobes.UprobeAttacher
@@ -491,6 +499,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		PerformInitialScan:             true,
 		EnablePeriodicScanNewProcesses: true,
 		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
+		ScanProcessesInterval:          nativeTLSScanTerminatedProcessesInterval,
 		EnableDetailedLogging:          false,
 		OnSyncCallback:                 o.cleanupDeadPids,
 	}
