@@ -368,7 +368,7 @@ func getEnaMetrics(statsMap map[string]uint64) map[string]uint64 {
 
 var queueRegex = regexp.MustCompile(`queue_(?P<number>\d+)_(?P<part>.*)`)
 var queueRegexParts = queueRegex.SubexpNames()
-var cpuRegex = regexp.MustCompile(`cpu_(?P<number>\d+)_(?P<part>.*)`)
+var cpuRegex = regexp.MustCompile(`cpu(?P<number>\d+)_(?P<part>.*)`)
 var cpuRegexParts = cpuRegex.SubexpNames()
 var bracketRegex = regexp.MustCompile(`(?P<part>.*)\[(?P<number>\d+)]`)
 var bracketRegexParts = bracketRegex.SubexpNames()
@@ -394,17 +394,18 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 		var keyName string
 		var prefix string
 
+		// the first element of the match is the string, so we need to start getting results from index 1
 		if queuematches := queueRegex.FindStringSubmatch(key); queuematches != nil && len(queuematches) == len(queueRegexParts) {
-			tag = "queue:" + queuematches[0]
-			keyName = queuematches[1]
+			tag = "queue:" + queuematches[1]
+			keyName = queuematches[2]
 			prefix = ".queue."
 		} else if cpumatches := cpuRegex.FindStringSubmatch(key); cpumatches != nil && len(cpumatches) == len(cpuRegexParts) {
-			tag = "cpu:" + cpumatches[0]
-			keyName = cpumatches[1]
+			tag = "cpu:" + cpumatches[1]
+			keyName = cpumatches[2]
 			prefix = ".cpu."
 		} else if bracketmacthes := bracketRegex.FindStringSubmatch(key); bracketmacthes != nil && len(bracketmacthes) == len(bracketRegexParts) {
-			tag = "queue:" + bracketmacthes[1]
-			keyName = bracketmacthes[0]
+			tag = "queue:" + bracketmacthes[2]
+			keyName = bracketmacthes[1]
 			prefix = ".queue."
 		}
 
