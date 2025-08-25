@@ -119,9 +119,16 @@ func runAgent(tagger tagger.Component, compression logscompression.Component, ho
 	// Channels for ColdStartCreator
 	lambdaSpanChan := make(chan *pb.Span)
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
+	lambdaPostRuntimeMetricChan := make(chan *serverlessLogs.LambdaPostRuntimeMetric)
 	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId := random.Random.Uint64()
-	metricAgent := startMetricAgent(serverlessDaemon, logChannel, lambdaInitMetricChan, tagger)
+	metricAgent := startMetricAgent(
+		serverlessDaemon,
+		logChannel,
+		lambdaInitMetricChan,
+		lambdaPostRuntimeMetricChan,
+		tagger,
+	)
 
 	// Start RC service if remote configuration is enabled
 	rcService := serverlessRemoteConfig.StartRCService(serverlessDaemon.ExecutionContext.GetCurrentState().ARN)
@@ -139,7 +146,13 @@ func runAgent(tagger tagger.Component, compression logscompression.Component, ho
 
 	wg.Wait()
 
-	startColdStartSpanCreator(lambdaSpanChan, lambdaInitMetricChan, serverlessDaemon, coldStartSpanId)
+	startColdStartSpanCreator(
+		lambdaSpanChan,
+		lambdaInitMetricChan,
+		lambdaPostRuntimeMetricChan,
+		serverlessDaemon,
+		coldStartSpanId,
+	)
 
 	ta := serverlessDaemon.TraceAgent
 	if ta == nil {
@@ -218,14 +231,27 @@ func setupProxy(appsecProxyProcessor *httpsec.ProxyLifecycleProcessor, ta trace.
 	}
 }
 
-func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfig.ChannelMessage, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, tagger tagger.Component) *metrics.ServerlessMetricAgent {
+func startMetricAgent(
+	serverlessDaemon *daemon.Daemon,
+	logChannel chan *logConfig.ChannelMessage,
+	lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric,
+	lambdaPostRuntimeMetricChan chan *serverlessLogs.LambdaPostRuntimeMetric,
+	tagger tagger.Component,
+) *metrics.ServerlessMetricAgent {
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
 		Tagger:               tagger,
 	}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, false)
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, pkgconfigsetup.Datadog().GetBool("serverless.logs_enabled"), pkgconfigsetup.Datadog().GetBool("enhanced_metrics"), lambdaInitMetricChan)
+	serverlessDaemon.SetupLogCollectionHandler(
+		logsAPICollectionRoute,
+		logChannel,
+		pkgconfigsetup.Datadog().GetBool("serverless.logs_enabled"),
+		pkgconfigsetup.Datadog().GetBool("enhanced_metrics"),
+		lambdaInitMetricChan,
+		lambdaPostRuntimeMetricChan,
+	)
 	return metricAgent
 }
 
@@ -282,13 +308,20 @@ func setupLambdaAgentOverrides() {
 	}
 }
 
-func startColdStartSpanCreator(lambdaSpanChan chan *pb.Span, lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric, serverlessDaemon *daemon.Daemon, coldStartSpanId uint64) {
+func startColdStartSpanCreator(
+	lambdaSpanChan chan *pb.Span,
+	lambdaInitMetricChan chan *serverlessLogs.LambdaInitMetric,
+	lambdaPostRuntimeMetricChan chan *serverlessLogs.LambdaPostRuntimeMetric,
+	serverlessDaemon *daemon.Daemon,
+	coldStartSpanId uint64,
+) {
 	coldStartSpanCreator := &trace.ColdStartSpanCreator{
-		LambdaSpanChan:       lambdaSpanChan,
-		LambdaInitMetricChan: lambdaInitMetricChan,
-		TraceAgent:           serverlessDaemon.TraceAgent,
-		StopChan:             make(chan struct{}),
-		ColdStartSpanId:      coldStartSpanId,
+		LambdaSpanChan:              lambdaSpanChan,
+		LambdaInitMetricChan:        lambdaInitMetricChan,
+		LambdaPostRuntimeMetricChan: lambdaPostRuntimeMetricChan,
+		TraceAgent:                  serverlessDaemon.TraceAgent,
+		StopChan:                    make(chan struct{}),
+		ColdStartSpanId:             coldStartSpanId,
 	}
 
 	log.Debug("Starting ColdStartSpanCreator")

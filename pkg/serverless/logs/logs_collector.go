@@ -42,6 +42,10 @@ type LambdaInitMetric struct {
 	InitStartTime         time.Time
 }
 
+type LambdaPostRuntimeMetric struct {
+	PostRuntimeDurationTelemetry float64
+}
+
 // LambdaLogsCollector is the route to which the AWS environment is sending the logs
 // for the extension to collect them.
 type LambdaLogsCollector struct {
@@ -57,10 +61,11 @@ type LambdaLogsCollector struct {
 	invocationStartTime    time.Time
 	invocationEndTime      time.Time
 	//nolint:revive // TODO(SERV) Fix revive linter
-	process_once         *sync.Once
-	executionContext     *executioncontext.ExecutionContext
-	lambdaInitMetricChan chan<- *LambdaInitMetric
-	orphanLogsChan       chan []LambdaLogAPIMessage
+	process_once                *sync.Once
+	executionContext            *executioncontext.ExecutionContext
+	lambdaInitMetricChan        chan<- *LambdaInitMetric
+	lambdaPostRuntimeMetricChan chan<- *LambdaPostRuntimeMetric
+	orphanLogsChan              chan []LambdaLogAPIMessage
 
 	arn string
 
@@ -69,20 +74,30 @@ type LambdaLogsCollector struct {
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), lambdaInitMetricChan chan<- *LambdaInitMetric) *LambdaLogsCollector {
-
+func NewLambdaLogCollector(
+	out chan<- *logConfig.ChannelMessage,
+	demux aggregator.Demultiplexer,
+	extraTags *Tags,
+	logsEnabled bool,
+	enhancedMetricsEnabled bool,
+	executionContext *executioncontext.ExecutionContext,
+	handleRuntimeDone func(),
+	lambdaInitMetricChan chan<- *LambdaInitMetric,
+	lambdaPostRuntimeMetricChan chan<- *LambdaPostRuntimeMetric,
+) *LambdaLogsCollector {
 	return &LambdaLogsCollector{
-		In:                     make(chan []LambdaLogAPIMessage),
-		out:                    out,
-		demux:                  demux,
-		extraTags:              extraTags,
-		logsEnabled:            logsEnabled,
-		enhancedMetricsEnabled: enhancedMetricsEnabled,
-		executionContext:       executionContext,
-		handleRuntimeDone:      handleRuntimeDone,
-		process_once:           &sync.Once{},
-		lambdaInitMetricChan:   lambdaInitMetricChan,
-		orphanLogsChan:         make(chan []LambdaLogAPIMessage, maxBufferedLogs),
+		In:                          make(chan []LambdaLogAPIMessage),
+		out:                         out,
+		demux:                       demux,
+		extraTags:                   extraTags,
+		logsEnabled:                 logsEnabled,
+		enhancedMetricsEnabled:      enhancedMetricsEnabled,
+		executionContext:            executionContext,
+		handleRuntimeDone:           handleRuntimeDone,
+		process_once:                &sync.Once{},
+		lambdaInitMetricChan:        lambdaInitMetricChan,
+		lambdaPostRuntimeMetricChan: lambdaPostRuntimeMetricChan,
+		orphanLogsChan:              make(chan []LambdaLogAPIMessage, maxBufferedLogs),
 	}
 }
 
@@ -263,6 +278,13 @@ func (lc *LambdaLogsCollector) processMessage(
 
 	if message.logType == logTypePlatformReport {
 		message.stringRecord = createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, message)
+
+		durationMs := message.objectRecord.reportLogItem.durationMs
+		runtimeDurationMs := float64(lc.invocationEndTime.Sub(lc.invocationStartTime).Milliseconds())
+		lambdaMetric := &LambdaPostRuntimeMetric{
+			PostRuntimeDurationTelemetry: durationMs - runtimeDurationMs,
+		}
+		lc.lambdaPostRuntimeMetricChan <- lambdaMetric
 	}
 
 	proactiveInit := false
