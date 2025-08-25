@@ -613,6 +613,7 @@ def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REP
     from tasks.libs.common.slack import format_teams, header_block, markdown_block
     from tasks.libs.notify.permissions import list_permissions
 
+    print(f"Checking permissions for {name} with check {check}")
     if check == PermissionCheck.TEAM:
         gh = GithubAPI()
         root = gh.get_team(name)

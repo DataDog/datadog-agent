@@ -28,6 +28,8 @@ jobs:
       fail-fast: false
     environment:
       name: main
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -54,6 +56,8 @@ jobs:
     if: github.event.schedule == '0 4 2 * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'agent-all')
     environment:
       name: main
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
