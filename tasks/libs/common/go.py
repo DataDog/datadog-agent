@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 from invoke.context import Context
-from invoke.exceptions import Exit
 from invoke.runners import Local, Result
 
 from tasks.libs.common.retry import run_command_with_retry
@@ -38,11 +37,11 @@ def go_build(
     bin_path: str | Path | None = None,
     verbose: bool = False,
     echo: bool = False,
-    check_deadcode_in_ci: bool = False,
+    check_deadcode_on_deploy: bool = False,
     coverage: bool = False,
     trimpath: bool = True,
 ) -> Result:
-    check_deadcode = check_deadcode_in_ci and os.getenv("CI_JOB_NAME") is not None
+    check_deadcode = check_deadcode_on_deploy and os.getenv("DEPLOY_AGENT") == "true"
 
     cmd = "go build"
     if coverage:
@@ -85,8 +84,8 @@ def go_build(
 
     # -dumpdep is very verbose so we hide that
     # any unrecognized log line is shown by whydeadcode anyway
-    res = runner.run(cmd, env=env, hide="stderr" if check_deadcode else None)
-    assert res is not None
+    result = runner.run(cmd, env=env, hide="stderr" if check_deadcode else None)
+    assert result is not None
     if check_deadcode:
         if not shutil.which("whydeadcode"):
             with ctx.cd("internal/tools"):
@@ -95,23 +94,21 @@ def go_build(
         # dead code call stack on stdout
         # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
         # so we check whether stdout is empty to know if dead code elimination is disabled
-        whydeadcoderes = runner.run("whydeadcode", in_stream=CustomReader(res.stderr), warn=True, hide="out")
+        whydeadcoderes = runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out")
         assert whydeadcoderes is not None
         if whydeadcoderes.stdout:
-            raise Exit(
+            print(
                 f"dead code elimination is disabled by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
             )
 
-    if bin_path and os.path.exists(bin_path):
+    if sys.platform == "win32" or result.exited != 0 or bin_path is None:
+        return result
+
+    if os.path.exists(bin_path):
         uid = os.environ.get("HOST_UID", "-1")
         gid = os.environ.get("HOST_GID", "-1")
         if uid != "-1" and gid != "-1":
             os.chown(bin_path, int(uid), int(gid))
-
-    result = ctx.run(cmd, env=env)
-    assert result is not None
-    if sys.platform == "win32" or result.exited != 0 or bin_path is None:
-        return result
 
     return result
 

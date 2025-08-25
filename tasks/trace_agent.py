@@ -76,7 +76,7 @@ def build(
         ldflags=ldflags,
         gcflags=gcflags,
         env=env,
-        check_deadcode_in_ci=True,
+        check_deadcode_on_deploy=True,
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
 

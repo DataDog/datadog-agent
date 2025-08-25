@@ -232,7 +232,7 @@ def build(
             gcflags=gcflags,
             ldflags=ldflags,
             build_tags=build_tags,
-            check_deadcode_in_ci=sys.platform != 'win32',
+            check_deadcode_on_deploy=sys.platform != 'win32',
             coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
