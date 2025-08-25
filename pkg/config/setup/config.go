@@ -370,6 +370,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// (Linux only)
 	config.BindEnvAndSetDefault("hostname_trust_uts_namespace", false)
 
+	// Internal hostname drift detection configuration
+	// These options are not exposed to customers and are used for testing purposes
+	config.BindEnvAndSetDefault("hostname_drift_initial_delay", 20*time.Minute)
+	config.BindEnvAndSetDefault("hostname_drift_recurring_interval", 6*time.Hour)
+
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
 	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
@@ -1874,6 +1879,11 @@ func kubernetes(config pkgconfigmodel.Setup) {
 		defaultPodresourcesSocket = `\\.\pipe\kubelet-pod-resources`
 	}
 	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", defaultPodresourcesSocket)
+
+	// Temporary option. When enabled, workloadmeta uses the Kubelet pod watcher
+	// to fetch pod information (old behavior). Useful as a fallback if the new
+	// behavior causes issues. This option will be removed.
+	config.BindEnvAndSetDefault("kubelet_use_pod_watcher", false)
 }
 
 func podman(config pkgconfigmodel.Setup) {
