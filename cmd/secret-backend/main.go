@@ -44,12 +44,16 @@ func main() {
 		log.Fatalf("failed to unmarshal input: %s", err)
 	}
 
-	backend := &backend.GenericConnector{}
 	if inputPayload.Config == nil {
 		inputPayload.Config = make(map[string]interface{})
 	}
-	backend.InitBackend(inputPayload.Type, inputPayload.Config)
-	secretOutputs := backend.GetSecretOutputs(inputPayload.Secrets)
+
+	backend := backend.Get(inputPayload.Type, inputPayload.Config)
+
+	secretOutputs := make(map[string]secret.Output, 0)
+	for _, secretString := range inputPayload.Secrets {
+		secretOutputs[secretString] = backend.GetSecretOutput(secretString)
+	}
 
 	output, err := json.Marshal(secretOutputs)
 	if err != nil {

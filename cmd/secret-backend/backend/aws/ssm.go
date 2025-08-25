@@ -34,8 +34,7 @@ var getSSMClient = func(cfg aws.Config) ssmClient {
 
 // SSMParameterStoreBackendConfig is the configuration for a AWS SSM backend
 type SSMParameterStoreBackendConfig struct {
-	Session     SessionBackendConfig `mapstructure:"aws_session"`
-	BackendType string               `mapstructure:"backend_type"`
+	Session SessionBackendConfig `mapstructure:"aws_session"`
 }
 
 // SSMParameterStoreBackend represents backend for AWS SSM
@@ -52,7 +51,7 @@ func NewSSMParameterStoreBackend(bc map[string]interface{}) (*SSMParameterStoreB
 		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
-	cfg, err := NewConfigFromBackendConfig(backendConfig.Session)
+	cfg, err := newConfigFromBackendConfig(backendConfig.Session)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize aws session: %s", err)
 	}

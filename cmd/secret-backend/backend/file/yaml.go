@@ -19,8 +19,7 @@ import (
 
 // YamlBackendConfig is the configuration for a YAML backend
 type YamlBackendConfig struct {
-	BackendType string `mapstructure:"backend_type"`
-	FilePath    string `mapstructure:"file_path"`
+	FilePath string `mapstructure:"file_path"`
 }
 
 // YamlBackend represents backend for YAML file

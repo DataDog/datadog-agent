@@ -8,21 +8,20 @@ package backend
 
 import "github.com/DataDog/datadog-secret-backend/secret"
 
-// ErrorBackend links an error to its backend
-type ErrorBackend struct {
-	Error error
+// errorBackend links an error to its backend
+type errorBackend struct {
+	err string
 }
 
-// NewErrorBackend returns a new ErrorBackend
-func NewErrorBackend(e error) *ErrorBackend {
-	return &ErrorBackend{Error: e}
+// NewErrorBackend returns a new errorBackend
+func NewErrorBackend(e error) Backend {
+	return &errorBackend{err: e.Error()}
 }
 
 // GetSecretOutput returns a the value for a specific secret
-func (b *ErrorBackend) GetSecretOutput(_ string) secret.Output {
-	es := b.Error.Error()
+func (b *errorBackend) GetSecretOutput(_ string) secret.Output {
 	return secret.Output{
 		Value: nil,
-		Error: &es,
+		Error: &b.err,
 	}
 }

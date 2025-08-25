@@ -36,9 +36,7 @@ var getSecretsManagerClient = func(cfg aws.Config) secretsManagerClient {
 // SecretsManagerBackendConfig is the configuration for a AWS Secret Manager backend
 type SecretsManagerBackendConfig struct {
 	Session     SessionBackendConfig `mapstructure:"aws_session"`
-	BackendType string               `mapstructure:"backend_type"`
 	ForceString bool                 `mapstructure:"force_string"`
-	SecretID    string               `mapstructure:"secret_id"`
 }
 
 // SecretsManagerBackend represents backend for AWS Secret Manager
@@ -57,7 +55,7 @@ func NewSecretsManagerBackend(bc map[string]interface{}) (
 		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
-	cfg, err := NewConfigFromBackendConfig(backendConfig.Session)
+	cfg, err := newConfigFromBackendConfig(backendConfig.Session)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize aws session: %s", err)
 	}

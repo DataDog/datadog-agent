@@ -10,8 +10,10 @@ package akeyless
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/mitchellh/mapstructure"
@@ -20,7 +22,6 @@ import (
 // BackendConfig is the configuration for a akeyless backend
 type BackendConfig struct {
 	AkeylessSession SessionBackendConfig `mapstructure:"akeyless_session"`
-	BackendType     string               `mapstructure:"backend_type"`
 	AkeylessURL     string               `mapstructure:"akeyless_url"`
 }
 
@@ -43,6 +44,49 @@ type secretRequest struct {
 
 type secretResponse map[string]string
 
+// SessionBackendConfig is the session configuration for Akeyless
+type SessionBackendConfig struct {
+	AkeylessAccessID  string `mapstructure:"akeyless_access_id"`
+	AkeylessAccessKey string `mapstructure:"akeyless_access_key"`
+}
+
+type authRequest struct {
+	AccessID   string `json:"access-id"`
+	AccessKey  string `json:"access-key"`
+	AccessType string `json:"access-type"`
+}
+
+type authResponse struct {
+	Token string `json:"token"`
+	//	might need to add creds
+}
+
+// newAkeylessConfigFromBackendConfig returns a new config for Akeyless
+func newAkeylessConfigFromBackendConfig(akeylessURL string, sessionConfig SessionBackendConfig) (string, error) {
+	requestBody, _ := json.Marshal(authRequest{
+		AccessID:   sessionConfig.AkeylessAccessID,
+		AccessKey:  sessionConfig.AkeylessAccessKey,
+		AccessType: "access_key",
+	})
+
+	resp, err := http.Post(strings.TrimRight(akeylessURL, "/")+"/auth", "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != 200 {
+		return "", errors.New("failed to authenticate with akeyless")
+	}
+
+	defer resp.Body.Close()
+
+	var authResp authResponse
+	if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
+		return "", err
+	}
+
+	return authResp.Token, err
+}
+
 // NewAkeylessBackend returns a new Akeyless backend
 func NewAkeylessBackend(bc map[string]interface{}) (*Backend, error) {
 	backendConfig := BackendConfig{}
@@ -51,7 +95,7 @@ func NewAkeylessBackend(bc map[string]interface{}) (*Backend, error) {
 		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
-	authToken, err := NewAkeylessConfigFromBackendConfig(backendConfig.AkeylessURL, backendConfig.AkeylessSession)
+	authToken, err := newAkeylessConfigFromBackendConfig(backendConfig.AkeylessURL, backendConfig.AkeylessSession)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Akeyless session: %s", err)
 	}

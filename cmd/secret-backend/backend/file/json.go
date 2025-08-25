@@ -19,8 +19,7 @@ import (
 
 // JSONBackendConfig is the configuration for a JSON backend
 type JSONBackendConfig struct {
-	BackendType string `mapstructure:"backend_type"`
-	FilePath    string `mapstructure:"file_path"`
+	FilePath string `mapstructure:"file_path"`
 }
 
 // JSONBackend represents backend for JSON file

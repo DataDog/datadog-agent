@@ -23,76 +23,31 @@ type Backend interface {
 	GetSecretOutput(string) secret.Output
 }
 
-// GenericConnector encapsulate all known backends
-type GenericConnector struct {
-	Backend Backend
-}
+// Get initialize and return the requested backend
+func Get(backendType string, backendConfig map[string]interface{}) Backend {
+	var backend Backend
+	var err error
 
-// InitBackend initialize the backend based on their configuration
-func (g *GenericConnector) InitBackend(backendType string, backendConfig map[string]interface{}) {
-	backendConfig["backend_type"] = backendType
 	switch backendType {
 	case "aws.secrets":
-		backend, err := aws.NewSecretsManagerBackend(backendConfig)
-		if err != nil {
-			g.Backend = NewErrorBackend(err)
-		} else {
-			g.Backend = backend
-		}
+		backend, err = aws.NewSecretsManagerBackend(backendConfig)
 	case "aws.ssm":
-		backend, err := aws.NewSSMParameterStoreBackend(backendConfig)
-		if err != nil {
-			g.Backend = NewErrorBackend(err)
-		} else {
-			g.Backend = backend
-		}
+		backend, err = aws.NewSSMParameterStoreBackend(backendConfig)
 	case "azure.keyvault":
-		backend, err := azure.NewKeyVaultBackend(backendConfig)
-		if err != nil {
-			g.Backend = NewErrorBackend(err)
-		} else {
-			g.Backend = backend
-		}
+		backend, err = azure.NewKeyVaultBackend(backendConfig)
 	case "hashicorp.vault":
-		backend, err := hashicorp.NewVaultBackend(backendConfig)
-		if err != nil {
-			g.Backend = NewErrorBackend(err)
-		} else {
-			g.Backend = backend
-		}
+		backend, err = hashicorp.NewVaultBackend(backendConfig)
 	case "file.yaml":
-		backend, err := file.NewYAMLBackend(backendConfig)
-		if err != nil {
-			g.Backend = NewErrorBackend(err)
-		} else {
-			g.Backend = backend
-		}
+		backend, err = file.NewYAMLBackend(backendConfig)
 	case "file.json":
-		backend, err := file.NewJSONBackend(backendConfig)
-		if err != nil {
-			g.Backend = NewErrorBackend(err)
-		} else {
-			g.Backend = backend
-		}
+		backend, err = file.NewJSONBackend(backendConfig)
 	case "akeyless":
-		backend, err := akeyless.NewAkeylessBackend(backendConfig)
-		if err != nil {
-			g.Backend = NewErrorBackend(err)
-		} else {
-			g.Backend = backend
-		}
+		backend, err = akeyless.NewAkeylessBackend(backendConfig)
 	default:
-		g.Backend = &ErrorBackend{
-			Error: fmt.Errorf("unsupported backend type: %s", backendType),
-		}
+		err = fmt.Errorf("unsupported backend type: %s", backendType)
 	}
-}
-
-// GetSecretOutputs returns a the value for a list of given secrets of form "<secret key>"
-func (g *GenericConnector) GetSecretOutputs(secrets []string) map[string]secret.Output {
-	secretOutputs := make(map[string]secret.Output, 0)
-	for _, secretString := range secrets {
-		secretOutputs[secretString] = g.Backend.GetSecretOutput(secretString)
+	if err != nil {
+		return NewErrorBackend(err)
 	}
-	return secretOutputs
+	return backend
 }

@@ -38,7 +38,6 @@ func TestJSONBackend(t *testing.T) {
 	jsonSecretsBackend, err := NewJSONBackend(jsonSecretsBackendParams)
 	assert.NoError(t, err)
 
-	assert.Equal(t, "file.json", jsonSecretsBackend.Config.BackendType)
 	assert.Equal(t, secretsFilepath, jsonSecretsBackend.Config.FilePath)
 
 	secretOutput := jsonSecretsBackend.GetSecretOutput("key1")

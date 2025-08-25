@@ -14,14 +14,30 @@ import (
 
 	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/api/auth/approle"
+	"github.com/hashicorp/vault/api/auth/aws"
+	"github.com/hashicorp/vault/api/auth/ldap"
+	"github.com/hashicorp/vault/api/auth/userpass"
 	"github.com/mitchellh/mapstructure"
 )
+
+// VaultSessionBackendConfig is the configuration for a Hashicorp vault backend
+type VaultSessionBackendConfig struct {
+	VaultRoleID       string `mapstructure:"vault_role_id"`
+	VaultSecretID     string `mapstructure:"vault_secret_id"`
+	VaultUserName     string `mapstructure:"vault_username"`
+	VaultPassword     string `mapstructure:"vault_password"`
+	VaultLDAPUserName string `mapstructure:"vault_ldap_username"`
+	VaultLDAPPassword string `mapstructure:"vault_ldap_password"`
+	VaultAuthType     string `mapstructure:"vault_auth_type"`
+	VaultAWSRole      string `mapstructure:"vault_aws_role"`
+	AWSRegion         string `mapstructure:"aws_region"`
+}
 
 // VaultBackendConfig contains the configuration to connect to Hashicorp vault backend
 type VaultBackendConfig struct {
 	VaultSession VaultSessionBackendConfig `mapstructure:"vault_session"`
 	VaultToken   string                    `mapstructure:"vault_token"`
-	BackendType  string                    `mapstructure:"backend_type"`
 	VaultAddress string                    `mapstructure:"vault_address"`
 	VaultTLS     *VaultTLSConfig           `mapstructure:"vault_tls_config"`
 }
@@ -40,6 +56,56 @@ type VaultTLSConfig struct {
 type VaultBackend struct {
 	Config VaultBackendConfig
 	Client *api.Client
+}
+
+// newVaultConfigFromBackendConfig returns a AuthMethod for Hashicorp vault based on the configuration
+func newVaultConfigFromBackendConfig(sessionConfig VaultSessionBackendConfig) (api.AuthMethod, error) {
+	var auth api.AuthMethod
+	var err error
+	if sessionConfig.VaultRoleID != "" {
+		if sessionConfig.VaultSecretID != "" {
+			secretID := &approle.SecretID{FromString: sessionConfig.VaultSecretID}
+			auth, err = approle.NewAppRoleAuth(sessionConfig.VaultRoleID, secretID)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if sessionConfig.VaultUserName != "" {
+		if sessionConfig.VaultPassword != "" {
+			password := &userpass.Password{FromString: sessionConfig.VaultPassword}
+			auth, err = userpass.NewUserpassAuth(sessionConfig.VaultUserName, password)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if sessionConfig.VaultLDAPUserName != "" {
+		if sessionConfig.VaultLDAPPassword != "" {
+			password := &ldap.Password{FromString: sessionConfig.VaultLDAPPassword}
+			auth, err = ldap.NewLDAPAuth(sessionConfig.VaultLDAPUserName, password)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if sessionConfig.VaultAuthType == "aws" && sessionConfig.VaultAWSRole != "" {
+		opts := []aws.LoginOption{
+			aws.WithIAMAuth(),
+			aws.WithRole(sessionConfig.VaultAWSRole),
+		}
+
+		if sessionConfig.AWSRegion != "" {
+			opts = append(opts, aws.WithRegion(sessionConfig.AWSRegion))
+		}
+
+		return aws.NewAWSAuth(opts...)
+	}
+
+	return auth, err
 }
 
 // NewVaultBackend returns a new backend for Hashicorp vault
@@ -72,7 +138,7 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 		return nil, fmt.Errorf("failed to create vault client: %s", err)
 	}
 
-	authMethod, err := NewVaultConfigFromBackendConfig(backendConfig.VaultSession)
+	authMethod, err := newVaultConfigFromBackendConfig(backendConfig.VaultSession)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize vault session: %s", err)
 	}

@@ -41,7 +41,6 @@ key2: value2
 	yamlSecretsBackend, err := NewYAMLBackend(yamlSecretsBackendParams)
 	assert.NoError(t, err)
 
-	assert.Equal(t, "file.yaml", yamlSecretsBackend.Config.BackendType)
 	assert.Equal(t, secretsFilepath, yamlSecretsBackend.Config.FilePath)
 
 	secretOutput := yamlSecretsBackend.GetSecretOutput("key1")

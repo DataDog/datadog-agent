@@ -27,15 +27,8 @@ type SessionBackendConfig struct {
 	ExternalID      string `mapstructure:"aws_external_id"`
 }
 
-// NewConfigFromBackendConfig returns a new config for AWS
-func NewConfigFromBackendConfig(sessionConfig SessionBackendConfig) (
-	*aws.Config, error) {
-
-	/* add LoadDefaultConfig support for:
-	- SharedConfigFiles
-	- SharedCredentialFiles
-	*/
-
+// newConfigFromBackendConfig returns a new config for AWS
+func newConfigFromBackendConfig(sessionConfig SessionBackendConfig) (*aws.Config, error) {
 	// build slice of LoadOptionsFunc for LoadDefaultConfig overrides
 	options := make([]func(*config.LoadOptions) error, 0)
 
