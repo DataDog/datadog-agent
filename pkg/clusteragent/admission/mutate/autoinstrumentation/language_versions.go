@@ -28,6 +28,7 @@ const (
 // language is lang-library we might be injecting.
 type language string
 
+// ERIKA: Consolidate this with ImageResolver
 func (l language) defaultLibInfo(registry, ctrName string) libInfo {
 	return l.libInfo(ctrName, l.libImageName(registry, l.defaultLibVersion()))
 }

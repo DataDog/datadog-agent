@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -78,9 +77,6 @@ type Config struct {
 	// We don't expose this option to the user, and [[instrumentationV1]]
 	// is deprecated and slated for removal.
 	version version
-
-	// rcClient is the remote config client to use for the gradual rollout feature.
-	rcClient *rcclient.Client
 }
 
 var excludedContainerNames = map[string]bool{
@@ -94,12 +90,6 @@ func excludedContainerNamesContainerFilter(c *corev1.Container) bool {
 
 // NewConfig creates a new Config from the datadog config. It returns an error if the configuration is invalid.
 func NewConfig(datadogConfig config.Component) (*Config, error) {
-	return NewConfigWithRemoteConfigClient(datadogConfig, nil)
-}
-
-// NewConfigWithRemoteConfigClient creates a new Config from the datadog config with a remote config client.
-// It returns an error if the configuration is invalid.
-func NewConfigWithRemoteConfigClient(datadogConfig config.Component, rcClient *rcclient.Client) (*Config, error) {
 	instrumentationConfig, err := NewInstrumentationConfig(datadogConfig)
 	if err != nil {
 		return nil, err
@@ -139,7 +129,6 @@ func NewConfigWithRemoteConfigClient(datadogConfig config.Component, rcClient *r
 		containerFilter:               excludedContainerNamesContainerFilter,
 		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
 		version:                       version,
-		rcClient:                      rcClient,
 	}, nil
 }
 

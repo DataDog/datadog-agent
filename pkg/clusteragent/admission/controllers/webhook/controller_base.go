@@ -185,12 +185,12 @@ func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig c
 }
 
 func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, rcClient *rcclient.Client) (*autoinstrumentation.Webhook, error) {
-	config, err := autoinstrumentation.NewConfigWithRemoteConfigClient(datadogConfig, rcClient)
+	config, err := autoinstrumentation.NewConfig(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}
-
-	apm, err := autoinstrumentation.NewMutatorWithFilter(config, wmeta)
+	imageResolver := autoinstrumentation.NewImageResolver(rcClient)
+	apm, err := autoinstrumentation.NewMutatorWithFilter(config, wmeta, imageResolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
 	}

@@ -37,15 +37,10 @@ type NamespaceMutator struct {
 }
 
 // NewNamespaceMutator creates a new injector interface for the auto-instrumentation injector.
-func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*NamespaceMutator, error) {
+func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component, imageResolver ImageResolver) (*NamespaceMutator, error) {
 	filter, err := NewFilter(config)
 	if err != nil {
 		return nil, err
-	}
-
-	var tagResolver *TagResolver
-	if config.rcClient != nil {
-		tagResolver = NewTagResolver(config.rcClient)
 	}
 
 	pinnedLibraries := getPinnedLibraries(config.Instrumentation.LibVersions, config.containerRegistry, true)
@@ -54,7 +49,7 @@ func NewNamespaceMutator(config *Config, wmeta workloadmeta.Component) (*Namespa
 		filter:          filter,
 		wmeta:           wmeta,
 		pinnedLibraries: pinnedLibraries,
-		core:            newMutatorCore(config, wmeta, filter, tagResolver),
+		core:            newMutatorCore(config, wmeta, filter, imageResolver),
 	}, nil
 }
 
@@ -121,18 +116,18 @@ func (m *NamespaceMutator) IsNamespaceEligible(ns string) bool {
 }
 
 type mutatorCore struct {
-	config      *Config
-	wmeta       workloadmeta.Component
-	filter      mutatecommon.MutationFilter
-	tagResolver *TagResolver
+	config        *Config
+	wmeta         workloadmeta.Component
+	filter        mutatecommon.MutationFilter
+	imageResolver ImageResolver
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, tagResolver *TagResolver) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver ImageResolver) *mutatorCore {
 	return &mutatorCore{
-		config:      config,
-		wmeta:       wmeta,
-		filter:      filter,
-		tagResolver: tagResolver,
+		config:        config,
+		wmeta:         wmeta,
+		filter:        filter,
+		imageResolver: imageResolver,
 	}
 }
 
@@ -141,18 +136,11 @@ func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator) 
 }
 
 func (m *mutatorCore) resolveLibraryImage(lib libInfo) libInfo {
-	if m.tagResolver == nil {
+	resolvedImage, resolved := m.imageResolver.Resolve(lib.image)
+	if !resolved {
+		log.Warnf("Failed to resolve image %s", lib.image)
 		return lib
 	}
-
-	// ERIKA: This feels gross
-	parts := strings.Split(lib.image, ":")
-	if len(parts) != 2 {
-		return lib
-	}
-
-	currentTag := parts[1]
-	resolvedImage := m.tagResolver.ResolveImageTag(m.config.containerRegistry, currentTag)
 
 	if resolvedImage != "" {
 		return libInfo{
@@ -337,8 +325,19 @@ func (m *mutatorCore) newInitContainerMutators(
 // newInjector creates an injector instance for this pod.
 func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
 	imageTag := m.config.Instrumentation.InjectorImageTag
-	if m.tagResolver != nil {
-		imageTag = m.tagResolver.ResolveImageTag(m.config.containerRegistry, m.config.Instrumentation.InjectorImageTag)
+	// Construct full image reference for the injector
+	fullImageRef := m.config.containerRegistry + "/dd-lib-init:" + m.config.Instrumentation.InjectorImageTag
+	resolvedImage, resolved := m.imageResolver.Resolve(fullImageRef)
+	if !resolved {
+		log.Warnf("Failed to resolve image %s", fullImageRef)
+		return nil
+	}
+
+	// Extract just the tag/digest part from the resolved image
+	if parts := strings.Split(resolvedImage, ":"); len(parts) >= 2 {
+		imageTag = parts[len(parts)-1]
+	} else if parts := strings.Split(resolvedImage, "@"); len(parts) >= 2 {
+		imageTag = "@" + parts[len(parts)-1]
 	}
 
 	opts := []injectorOption{
@@ -398,7 +397,7 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	}
 
 	if extracted.source.isSingleStep() {
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.core.tagResolver))
+		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.core.imageResolver))
 	}
 
 	// Get libraries to inject for Remote Instrumentation
@@ -412,7 +411,7 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
 		}
 
-		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.core.tagResolver))
+		return extracted.withLibs(getAllLatestDefaultLibraries(m.config.containerRegistry, m.core.imageResolver))
 	}
 
 	return extractedPodLibInfo{}

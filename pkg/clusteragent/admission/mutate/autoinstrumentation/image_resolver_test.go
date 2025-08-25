@@ -23,16 +23,16 @@ func TestNewImageResolver(t *testing.T) {
 		mockClient := (*rcclient.Client)(nil)
 		resolver := NewImageResolver(mockClient)
 
-		// Should return NoOpImageResolver since mockClient is nil
-		_, ok := resolver.(*NoOpImageResolver)
-		assert.True(t, ok, "Should return NoOpImageResolver when rcClient is nil")
+		// Should return noOpImageResolver since mockClient is nil
+		_, ok := resolver.(*noOpImageResolver)
+		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
 	})
 
 	t.Run("without_remote_config_client", func(t *testing.T) {
 		resolver := NewImageResolver(nil)
 
-		_, ok := resolver.(*NoOpImageResolver)
-		assert.True(t, ok, "Should return NoOpImageResolver when rcClient is nil")
+		_, ok := resolver.(*noOpImageResolver)
+		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
 	})
 }
 
@@ -145,7 +145,7 @@ func TestParseImageReference(t *testing.T) {
 
 func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 	// Create resolver without remote config client for testing
-	resolver := &RemoteConfigImageResolver{
+	resolver := &remoteConfigImageResolver{
 		imageMappings: make(map[string]map[string]ResolvedImage),
 	}
 
@@ -260,7 +260,7 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 }
 
 func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
-	resolver := &RemoteConfigImageResolver{
+	resolver := &remoteConfigImageResolver{
 		imageMappings: map[string]map[string]ResolvedImage{
 			"dd-lib-python-init": {
 				"latest": {
@@ -331,7 +331,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 
 	// Test empty cache
 	t.Run("empty_cache", func(t *testing.T) {
-		emptyResolver := &RemoteConfigImageResolver{
+		emptyResolver := &remoteConfigImageResolver{
 			imageMappings: make(map[string]map[string]ResolvedImage),
 		}
 		result, ok := emptyResolver.Resolve("gcr.io/datadoghq/dd-lib-python-init:latest")

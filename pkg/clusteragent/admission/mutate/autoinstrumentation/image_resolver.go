@@ -25,38 +25,38 @@ type ImageResolver interface {
 	Resolve(imageRef string) (string, bool)
 }
 
-// NoOpImageResolver is a simple implementation that returns the original image unchanged.
+// noOpImageResolver is a simple implementation that returns the original image unchanged.
 // This is used when no remote config client is available.
-type NoOpImageResolver struct{}
+type noOpImageResolver struct{}
 
-// NewNoOpImageResolver creates a new NoOpImageResolver.
+// NewNoOpImageResolver creates a new noOpImageResolver.
 func NewNoOpImageResolver() ImageResolver {
-	return &NoOpImageResolver{}
+	return &noOpImageResolver{}
 }
 
 // ResolveImage returns the original image reference.
-func (r *NoOpImageResolver) Resolve(imageRef string) (string, bool) {
+func (r *noOpImageResolver) Resolve(imageRef string) (string, bool) {
 	log.Debugf("No resolution available for %s", imageRef)
 	return "", false
 }
 
-// RemoteConfigImageResolver resolves image references using remote configuration data.
+// remoteConfigImageResolver resolves image references using remote configuration data.
 // It maintains a cache of image mappings received from the remote config service.
-type RemoteConfigImageResolver struct {
+type remoteConfigImageResolver struct {
 	rcClient *rcclient.Client
 
 	mu            sync.RWMutex
 	imageMappings map[string]map[string]ResolvedImage // repository -> tag -> resolved image
 }
 
-// NewRemoteConfigImageResolver creates a new RemoteConfigImageResolver.
+// NewRemoteConfigImageResolver creates a new remoteConfigImageResolver.
 func NewRemoteConfigImageResolver(rcClient *rcclient.Client) ImageResolver {
 	if rcClient == nil {
 		log.Debugf("No remote config client available to resolve images")
 		return NewNoOpImageResolver()
 	}
 
-	resolver := &RemoteConfigImageResolver{
+	resolver := &remoteConfigImageResolver{
 		rcClient:      rcClient,
 		imageMappings: make(map[string]map[string]ResolvedImage),
 	}
@@ -71,7 +71,38 @@ func NewRemoteConfigImageResolver(rcClient *rcclient.Client) ImageResolver {
 // If resolution fails or is not available, it returns the original image reference.
 // Input: "gcr.io/datadoghq/dd-lib-python-init:latest"
 // Output: "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123..."
-func (r *RemoteConfigImageResolver) Resolve(imageRef string) (string, bool) {
+func (r *remoteConfigImageResolver) ResolveImageRef(imageRef string) (string, bool) {
+	repository, tag, err := parseImageReference(imageRef)
+	if err != nil {
+		log.Debugf("Failed to parse image reference %s: %v", imageRef, err)
+		return "", false
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if len(r.imageMappings) == 0 {
+		log.Debugf("Cache empty, no resolution available for %s", imageRef)
+		return "", false
+	}
+
+	repoCache, exists := r.imageMappings[repository]
+	if !exists {
+		log.Debugf("No mapping found for repository %s", repository)
+		return "", false
+	}
+
+	resolved, exists := repoCache[tag]
+	if !exists {
+		log.Debugf("No mapping found for %s:%s", repository, tag)
+		return "", false
+	}
+
+	log.Debugf("Resolved %s -> %s", imageRef, resolved.FullImageRef)
+	return resolved.FullImageRef, true
+}
+
+func (r *remoteConfigImageResolver) Resolve(imageRef string) (string, bool) {
 	repository, tag, err := parseImageReference(imageRef)
 	if err != nil {
 		log.Debugf("Failed to parse image reference %s: %v", imageRef, err)
@@ -154,7 +185,7 @@ func (e *ImageParseError) Error() string {
 // - When processUpdate is called, it receives the complete current state via GetConfigs()
 // - If a repository is not in the update, it means it's no longer active
 // - Therefore, replacing the entire cache ensures we stay in sync with remote config
-func (r *RemoteConfigImageResolver) processUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (r *remoteConfigImageResolver) processUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	newCache := make(map[string]map[string]ResolvedImage)
 
 	for configKey, rawConfig := range update {

@@ -413,7 +413,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.expectedInstallType = "k8s_single_step"
 			}
 
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, nil)
 			require.NoError(t, err)
 
 			err = mutator.core.injectTracers(tt.pod, tt.libInfo)
@@ -548,7 +548,7 @@ func TestMutatorCoreNewInjector(t *testing.T) {
 	)
 	config, err := NewConfig(mockConfig)
 	require.NoError(t, err)
-	m, err := NewNamespaceMutator(config, wmeta)
+	m, err := NewNamespaceMutator(config, wmeta, nil)
 	require.NoError(t, err)
 	core := m.core
 
@@ -1034,7 +1034,7 @@ func TestExtractLibInfo(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, nil)
 			require.NoError(t, err)
 
 			if tt.expectedPodEligible != nil {
@@ -1757,7 +1757,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			// N.B. this is a bit hacky but consistent.
 			config.initSecurityContext = tt.secCtx
 
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, nil)
 			require.NoError(t, err)
 
 			c := tt.lang.libInfo("", tt.image).initContainers(config.version)[0]
@@ -3684,7 +3684,7 @@ func TestShouldInject(t *testing.T) {
 
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := NewNamespaceMutator(config, wmeta)
+			mutator, err := NewNamespaceMutator(config, wmeta, nil)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, mutator.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
@@ -3697,7 +3697,7 @@ func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Web
 		return nil, err
 	}
 
-	mutator, err := NewNamespaceMutator(config, wmeta)
+	mutator, err := NewNamespaceMutator(config, wmeta, nil)
 	if err != nil {
 		return nil, err
 	}
