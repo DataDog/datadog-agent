@@ -293,8 +293,33 @@ func handleSetsockopt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg
 	level := tracer.ReadArgUint32(regs, 1)
 	optname := tracer.ReadArgUint32(regs, 2)
 
+	fd := int32(tracer.ReadArgUint32(regs, 0))
+	socketInfo, ok := process.FdToSocket[fd]
+	var socketFamily uint16
+	var socketProtocol uint16
+	var socketType uint16
+
+	if !ok {
+		socketFamily = 0
+		socketProtocol = 0
+		socketType = 0
+	}
+	socketFamily = socketInfo.AddressFamily
+	socketProtocol = socketInfo.Protocol
+	socketType = socketInfo.SocketType
+
 	if optname != unix.SO_ATTACH_FILTER {
-		// not supported yet
+		// Send incomplete event because there is not filter
+		msg.Type = ebpfless.SyscallTypeSetsockopt
+		msg.Setsockopt = &ebpfless.SetsockoptSyscallMsg{
+			Level:          level,
+			OptName:        optname,
+			Filter:         nil,
+			FilterLen:      0,
+			SocketFamily:   socketFamily,
+			SocketProtocol: socketProtocol,
+			SocketType:     socketType,
+		}
 		return nil
 	}
 	// Read the sock_fprog header from argument 3 (optval)
@@ -306,20 +331,6 @@ func handleSetsockopt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg
 	fLen := binary.NativeEndian.Uint16(hdr[0:2])
 
 	ptrFilter := binary.NativeEndian.Uint64(hdr[8:16])
-	var socketFamily uint16
-	var socketProtocol uint16
-	var socketType uint16
-
-	fd := int32(tracer.ReadArgUint32(regs, 0))
-	socketInfo, ok := process.FdToSocket[fd]
-	if !ok {
-		socketFamily = 0
-		socketProtocol = 0
-		socketType = 0
-	}
-	socketFamily = socketInfo.AddressFamily
-	socketProtocol = socketInfo.Protocol
-	socketType = socketInfo.SocketType
 
 	// Nothing to do if no filters
 	if fLen == 0 || ptrFilter == 0 {
