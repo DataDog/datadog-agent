@@ -7,5 +7,8 @@
 
 package module
 
-// NewUnstartedModule exports newUnstartedModule for testing purposes.
-var NewUnstartedModule = newUnstartedModule
+type Dependencies = dependencies
+
+func EraseActuator[A Actuator[AT], AT ActuatorTenant](a A) Actuator[ActuatorTenant] {
+	return &erasedActuator[A, AT]{a: a}
+}

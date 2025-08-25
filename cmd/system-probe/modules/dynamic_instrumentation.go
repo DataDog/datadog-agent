@@ -33,13 +33,11 @@ var DynamicInstrumentation = &module.Factory{
 		if godiProcessEventConsumer == nil {
 			return nil, errors.New("process event consumer not initialized")
 		}
-
 		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
-		const processSyncEnabled = true
-		m, err := dimod.NewModule(config, godiProcessEventConsumer, processSyncEnabled)
+		m, err := dimod.NewModule(config, godiProcessEventConsumer)
 		if err != nil {
 			if errors.Is(err, ebpf.ErrNotImplemented) {
 				return nil, module.ErrNotEnabled

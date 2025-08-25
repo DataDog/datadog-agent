@@ -5,20 +5,16 @@
 
 //go:build linux_bpf
 
-package actuator
+package module
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
-type loadedProgram struct {
-	programID ir.ProgramID
-	tenantID  tenantID
-	loaded    LoadedProgram
-}
+// stackMachineCompiler is the default ProgramCompiler backed by compiler.GenerateProgram.
+type stackMachineCompiler struct{}
 
-type attachedProgram struct {
-	*loadedProgram
-	processID       ProcessID
-	attachedProgram AttachedProgram
+func (stackMachineCompiler) GenerateProgram(program *ir.Program) (compiler.Program, error) {
+	return compiler.GenerateProgram(program)
 }
