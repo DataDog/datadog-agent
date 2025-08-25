@@ -179,11 +179,8 @@ func (f *factory) createTracesExporter(
 	}
 	f.mclientwrapper.SetDelegate(otelmclient)
 
-	if cfg.HostMetadata.Enabled {
-		_, err = f.Reporter(set, cfg.HostMetadata.ReporterPeriod)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build host metadata reporter: %w", err)
-		}
+	if _, err = f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {
+		return nil, err
 	}
 
 	if cfg.OnlyMetadata {
@@ -221,11 +218,8 @@ func (f *factory) createMetricsExporter(
 	}
 	f.mclientwrapper.SetDelegate(otelmclient)
 
-	if cfg.HostMetadata.Enabled {
-		_, err = f.Reporter(set, cfg.HostMetadata.ReporterPeriod)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build host metadata reporter: %w", err)
-		}
+	if _, err = f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {
+		return nil, err
 	}
 
 	var wg sync.WaitGroup // waits for consumeStatsPayload to exit
@@ -297,11 +291,8 @@ func (f *factory) createLogsExporter(
 		logch = provider.NextPipelineChan()
 	}
 
-	if cfg.HostMetadata.Enabled {
-		_, err := f.Reporter(set, cfg.HostMetadata.ReporterPeriod)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build host metadata reporter: %w", err)
-		}
+	if _, err := f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {
+		return nil, err
 	}
 
 	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.reporter)
@@ -315,9 +306,17 @@ func (f *factory) createLogsExporter(
 }
 
 // Reporter builds and returns an *inframetadata.Reporter.
-func (f *factory) Reporter(params exporter.Settings, reporterPeriod time.Duration) (*inframetadata.Reporter, error) {
+func (f *factory) Reporter(params exporter.Settings, reporterPeriod time.Duration, enableHostMetadata bool) (*inframetadata.Reporter, error) {
+	if !enableHostMetadata {
+		return nil, nil
+	}
 	f.onceReporter.Do(func() {
-		f.reporter, f.reporterErr = inframetadata.NewReporter(params.Logger, serializerexporter.NewPusher(f.s), reporterPeriod)
+		r, err := inframetadata.NewReporter(params.Logger, serializerexporter.NewPusher(f.s), reporterPeriod)
+		if err != nil {
+			f.reporterErr = fmt.Errorf("failed to build host metadata reporter: %w", err)
+		} else {
+			f.reporter = r
+		}
 		// No need to do f.reporter.Run() in DDOT because DDOT only *pushes* host metadata from OTel resource attributes.
 		// DDOT should never periodically report host metadata from source providers, unlike in OSS.
 	})
