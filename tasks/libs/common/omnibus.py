@@ -73,6 +73,12 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'VSTUDIO_ROOT': 'For symbol inspector',
         'WINDIR': 'Windows operating system directory',
         'WINDOWS_BUILDER': 'Used to decide whether to assume a role for S3 access',
+        'WINDOWS_DDNPM_DRIVER': 'Windows Network Driver',
+        'WINDOWS_DDNPM_VERSION': 'Windows Network Driver Version',
+        'WINDOWS_DDNPM_SHASUM': 'Windows Network Driver Checksum',
+        'WINDOWS_DDPROCMON_DRIVER': 'Windows Kernel Procmon Driver',
+        'WINDOWS_DDPROCMON_VERSION': 'Windows Kernel Procmon Driver Version',
+        'WINDOWS_DDPROCMON_SHASUM': 'Windows Kernel Procmon Driver Checksum',
     },
     'linux': {
         'DEB_GPG_KEY': 'Used to sign packages',
