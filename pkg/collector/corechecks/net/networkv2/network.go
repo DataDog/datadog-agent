@@ -394,7 +394,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 		var keyName string
 		var prefix string
 
-		// the first element of the match is the string, so we need to start getting results from index 1
+		// the first element (index `0`) of the match is the full string
 		if queuematches := queueRegex.FindStringSubmatch(key); queuematches != nil && len(queuematches) == len(queueRegexParts) {
 			tag = "queue:" + queuematches[1]
 			keyName = queuematches[2]
