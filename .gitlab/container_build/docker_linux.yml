@@ -87,6 +87,7 @@
     - |
       if [[ "$FLATTEN_IMAGE" == "true" ]]; then
         crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
+        docker rmi ${TARGET_TAG} || true # Ignore errors for now
       fi
     - !reference [.static_quality_gate_docker]
   # Workaround for temporary network failures
