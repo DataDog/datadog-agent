@@ -3,8 +3,8 @@
 
 typedef struct
 {
-    char *Char;
-    int Len;
+    const char *data;
+    int len;
 } Result;
 
 extern void *open_library(char *library, const char **error);

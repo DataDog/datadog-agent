@@ -1,25 +1,19 @@
-use serde::Serialize;
-use std::alloc::{alloc, dealloc, Layout};
-use std::ffi::{c_char, CString};
+extern crate flatbuffers;
+
 use std::os::raw::c_int;
 use sysinfo::{Disks, System};
 
-#[derive(Serialize)]
-pub struct Metric {
-    r#type: String,
-    name: String,
-    value: f64,
-    tags: Vec<String>,
-}
+// import the generated code
+#[allow(dead_code, unused_imports)]
+#[path = "../../payload_generated.rs"]
+mod payload_generated;
+pub use payload_generated::integrations::{Metric, MetricArgs, Payload};
 
-#[derive(Serialize)]
-pub struct Payload {
-    metrics: Vec<Metric>,
-}
+use crate::payload_generated::integrations::PayloadArgs;
 
 #[repr(C)]
 pub struct Result {
-    message: *mut c_char,
+    data: *const u8,
     len: c_int,
 }
 
@@ -41,44 +35,55 @@ pub extern "C" fn Run() -> *mut Result {
         }
     }
 
-    let payload = Payload {
-        metrics: vec![Metric {
-            r#type: "gauge".into(),
-            name: "system.disk.total".into(),
+    let mut builder = flatbuffers::FlatBufferBuilder::with_capacity(1024);
+    let metric_type = builder.create_string("gauge");
+    let metric_name = builder.create_string("system.disk.total");
+    let tag_strings: Vec<_> = tags.iter().map(|tag| builder.create_string(tag)).collect();
+    let metric_tags = builder.create_vector(&tag_strings);
+
+    let metric = Metric::create(
+        &mut builder,
+        &MetricArgs {
+            type_: Some(metric_type),
+            name: Some(metric_name),
             value: value as f64,
-            tags,
-        }],
+            tags: Some(metric_tags),
+        },
+    );
+
+    let metrics = builder.create_vector(&[metric]);
+
+    let payload = Payload::create(
+        &mut builder,
+        &PayloadArgs {
+            metrics: Some(metrics),
+        },
+    );
+
+    builder.finish(payload, None);
+    let buf = builder.finished_data();
+
+    let buf_vec = buf.to_vec();
+    let result = Result {
+        data: buf_vec.as_ptr(),
+        len: buf_vec.len() as c_int,
     };
 
-    let json = serde_json::to_string(&payload).unwrap_or_default();
-    let len = json.len() as c_int;
-    let c_string = CString::new(json).unwrap();
-    let raw_string = c_string.into_raw();
+    // Keep the Vec alive by leaking it - Go will need to access this data
+    std::mem::forget(buf_vec);
 
-    unsafe {
-        let layout = Layout::new::<Result>();
-        let result_ptr = alloc(layout) as *mut Result;
-        if result_ptr.is_null() {
-            return std::ptr::null_mut();
-        }
-        (*result_ptr).message = raw_string;
-        (*result_ptr).len = len;
-        result_ptr
-    }
+    Box::into_raw(Box::new(result))
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn FreeResult(result: *mut Result) {
+pub unsafe extern "C" fn FreeResult(result: *mut Result) {
     if result.is_null() {
         return;
     }
 
     unsafe {
-        // Convert raw C string back to CString and drop it to free memory
-        let _ = CString::from_raw((*result).message);
-
-        // Free the struct itself
-        let layout = Layout::new::<Result>();
-        dealloc(result as *mut u8, layout);
+        // Take ownership of the Result to properly drop the Vec<u8>
+        let _ = Box::from_raw(result);
+        // The Vec<u8> will be automatically dropped when the Box goes out of scope
     }
 }

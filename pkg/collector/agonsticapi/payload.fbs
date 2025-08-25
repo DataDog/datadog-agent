@@ -1,0 +1,14 @@
+namespace Integrations;
+
+table Metric {
+  type:string;
+	name:string;
+	value:float64;
+	tags:[string];
+}
+
+table Payload {
+   metrics:[Metric];
+}
+
+root_type Payload;

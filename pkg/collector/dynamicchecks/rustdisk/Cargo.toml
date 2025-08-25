@@ -5,13 +5,12 @@ edition = "2024"
 
 [dependencies]
 sysinfo = "0.37.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+flatbuffers = "25.2.10"
 
 [lib]
 crate-type = ["dylib"]
 
-# Optimized lib size is 1.6M
+# Optimized lib size is 1.4M
 [profile.release]
 opt-level = "z"   # Optimize for size.
 lto = true        # Enable Link Time Optimization

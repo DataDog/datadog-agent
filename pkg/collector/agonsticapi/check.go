@@ -94,7 +94,6 @@ import "C"
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -105,22 +104,12 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/agonsticapi/Integrations"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
-
-type metric struct {
-	Type  string   `json:"type"`
-	Name  string   `json:"name"`
-	Value float64  `json:"value"`
-	Tags  []string `json:"tags"`
-}
-
-type payload struct {
-	Metrics []metric `json:"metrics"`
-}
 
 type agnosticCheck struct {
 	sendermanager sender.SenderManager
@@ -156,12 +145,56 @@ func (c *agnosticCheck) Run() error {
 		return fmt.Errorf("library %s execution did not returned any result", c.name)
 	}
 
-	// Extract the JSON string from the Result using the len attribute
-	jsonString := C.GoStringN(result.Char, result.Len)
+	// Extract the FlatBuffer bytes from the Result
+	bufferData := C.GoBytes(unsafe.Pointer(result.data), result.len)
 
-	var payload payload
-	if err := json.Unmarshal([]byte(jsonString), &payload); err != nil {
-		return fmt.Errorf("failed to unmarshal JSON from library %s: %v", c.name, err)
+	// Deserialize the FlatBuffer payload
+	payload := Integrations.GetRootAsPayload(bufferData, 0)
+
+	for i := 0; i < payload.MetricsLength(); i++ {
+		var metric Integrations.Metric
+		if payload.Metrics(&metric, i) {
+			name := string(metric.Name())
+			metrciType := string(metric.Type())
+			value := metric.Value()
+			hostn, _ := hostname.Get(context.TODO())
+			tags := []string{}
+
+			for i := range metric.TagsLength() {
+				tags = append(tags, string(metric.Tags(i)))
+			}
+
+			// We need to figure out what tags we need to fetch from the Agent
+			extraTags, err := c.tagger.GlobalTags(types.LowCardinality)
+			if err != nil {
+				fmt.Printf("failed to get global tags: %s\n", err.Error())
+			} else {
+				tags = append(tags, extraTags...)
+			}
+
+			fmt.Printf("Metric: %s = %f (type: %s, tags: %v)\n", name, value, metrciType, tags)
+			sender, err := c.sendermanager.GetSender(c.id)
+			if err != nil {
+				return fmt.Errorf("failed to get sender manager for shared library check %s: %v", c.name, err)
+			}
+
+			switch metrciType {
+			case "gauge":
+				sender.Gauge(name, value, hostn, tags)
+			case "rate":
+				sender.Rate(name, value, hostn, tags)
+			case "count":
+				sender.Count(name, value, hostn, tags)
+			case "monotonic_count":
+				sender.MonotonicCountWithFlushFirstValue(name, value, hostn, tags, false)
+			case "counter":
+				sender.Counter(name, value, hostn, tags)
+			case "histogram":
+				sender.Histogram(name, value, hostn, tags)
+			case "historate":
+				sender.Historate(name, value, hostn, tags)
+			}
+		}
 	}
 
 	C.free_result(c.libHandle, result, &cErr)
@@ -170,45 +203,6 @@ func (c *agnosticCheck) Run() error {
 		defer C.free(unsafe.Pointer(cErr))
 		// Log the error but don't fail the check since we already got the data
 		fmt.Printf("Warning: failed to free result from library %s: %s\n", c.name, errorString)
-	}
-
-	fmt.Printf("Received %d metrics from library %s\n", len(payload.Metrics), c.name)
-	for _, metric := range payload.Metrics {
-		fmt.Printf("Metric: %s = %f (type: %s, tags: %v)\n", metric.Name, metric.Value, metric.Type, metric.Tags)
-		sender, err := c.sendermanager.GetSender(c.id)
-		if err != nil {
-			return fmt.Errorf("failed to get sender manager for shared library check %s: %v", c.name, err)
-		}
-
-		name := metric.Name
-		value := metric.Value
-		hostn, _ := hostname.Get(context.TODO())
-		tags := metric.Tags
-
-		// We need to figure out what tags we need to fetch from the Agent
-		extraTags, err := c.tagger.GlobalTags(types.LowCardinality)
-		if err != nil {
-			fmt.Printf("failed to get global tags: %s\n", err.Error())
-		} else {
-			tags = append(tags, extraTags...)
-		}
-
-		switch metric.Type {
-		case "gauge":
-			sender.Gauge(name, value, hostn, tags)
-		case "rate":
-			sender.Rate(name, value, hostn, tags)
-		case "count":
-			sender.Count(name, value, hostn, tags)
-		case "monotonic_count":
-			sender.MonotonicCountWithFlushFirstValue(name, value, hostn, tags, false)
-		case "counter":
-			sender.Counter(name, value, hostn, tags)
-		case "histogram":
-			sender.Histogram(name, value, hostn, tags)
-		case "historate":
-			sender.Historate(name, value, hostn, tags)
-		}
 	}
 
 	return nil

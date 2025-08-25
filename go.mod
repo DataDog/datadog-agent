@@ -668,6 +668,7 @@ require (
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
 	github.com/godror/godror v0.37.0
 	github.com/google/cel-go v0.25.0
+	github.com/google/flatbuffers v25.2.10+incompatible
 	github.com/gorilla/handlers v1.5.2
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/jmoiron/sqlx v1.4.0
