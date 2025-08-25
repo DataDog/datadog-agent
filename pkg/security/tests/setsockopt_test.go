@@ -73,6 +73,16 @@ func TestSetSockOpt(t *testing.T) {
 			&& setsockopt.socket_protocol == IPPROTO_TCP
 			&& setsockopt.socket_family == AF_INET`,
 		},
+		{
+			ID: "test_rule_setsockopt_truncated_filter_ebpfless",
+			Expression: `setsockopt.level == SOL_SOCKET 
+			&& setsockopt.optname == SO_ATTACH_FILTER 
+			&& setsockopt.socket_type == SOCK_DGRAM 
+			&& setsockopt.socket_protocol == IPPROTO_UDP 
+			&& setsockopt.socket_family == AF_INET
+			&& setsockopt.is_filter_truncated == false
+			&& 12 in setsockopt.used_immediates`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -277,8 +287,6 @@ func TestSetSockOpt(t *testing.T) {
 		})
 	})
 	t.Run("setsockopt-TruncatedFilter", func(t *testing.T) {
-		SkipIfNotAvailable(t)
-		// skipped for eBPFLess because there is no possible truncation
 		var fd int
 
 		defer func() {}()
@@ -1285,7 +1293,11 @@ func TestSetSockOpt(t *testing.T) {
 
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_setsockopt_truncated_filter")
+			if ebpfLessEnabled {
+				assertTriggeredRule(t, rule, "test_rule_setsockopt_truncated_filter_ebpfless")
+			} else {
+				assertTriggeredRule(t, rule, "test_rule_setsockopt_truncated_filter")
+			}
 		})
 	})
 	t.Run("setsockopt-reuseaddr", func(t *testing.T) {
