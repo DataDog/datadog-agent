@@ -8,16 +8,44 @@
 package procmon
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestMain(m *testing.M) {
 	analysisFailureLogLimiter.SetLimit(rate.Inf)
-	dyninsttest.SetupLogging()
+	setupLogging()
 	os.Exit(m.Run())
+}
+
+// setupLogging is used to have a consistent logging setup for all tests.
+func setupLogging() {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "debug"
+	}
+	const defaultFormat = "%l %Date(15:04:05.000000000) @%File:%Line| %Msg%n"
+	var format string
+	switch formatFromEnv := os.Getenv("DD_LOG_FORMAT"); formatFromEnv {
+	case "":
+		format = defaultFormat
+	case "json":
+		format = `{"time":%Ns,"level":"%Level","msg":"%Msg","path":"%RelFile","func":"%Func","line":%Line}%n`
+	case "json-short":
+		format = `{"t":%Ns,"l":"%Lev","m":"%Msg"}%n`
+	default:
+		format = formatFromEnv
+	}
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
+		os.Stderr, log.TraceLvl, format,
+	)
+	if err != nil {
+		panic(fmt.Errorf("failed to create logger: %w", err))
+	}
+	log.SetupLogger(logger, logLevel)
 }

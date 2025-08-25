@@ -12,11 +12,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
 func TestMissingProbeIssue(t *testing.T) {

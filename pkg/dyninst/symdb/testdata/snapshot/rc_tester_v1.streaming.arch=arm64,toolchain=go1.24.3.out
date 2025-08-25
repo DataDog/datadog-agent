@@ -1,6 +1,6 @@
-Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+Main module: github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs
 Package: main
-	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [26:77]
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/rc_tester_v1/main.go [26:77]
 		Var: mux: *gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http/internal/wrap.ServeMux (declared at line 66, available: [63-77])
 		Var: port: int (declared at line 63, available: [64-64])
 		Var: stop: context.CancelFunc (declared at line 27, available: [28-33])
@@ -27,7 +27,7 @@ Package: main
 		Arg: b: []uint8 (declared at line 405, available: [405-406])
 		Arg: ~r0: []uint8 (declared at line 405, available: )
 		Var: v: []interface {} (declared at line 406, available: [406-406])
-	Function: HandleHTTP (main.HandleHTTP) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [79:88]
+	Function: HandleHTTP (main.HandleHTTP) in github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/rc_tester_v1/main.go [79:88]
 		Arg: w: net/http.ResponseWriter (declared at line 79, available: [79-88])
 		Arg: r: *net/http.Request (declared at line 79, available: [79-88])
 		Var: &buf: *bytes.Buffer (declared at line 85, available: [79-88])
@@ -38,14 +38,14 @@ Package: main
 		Arg: ~r0: []uint8 (declared at line 397, available: )
 		Var: format: string (declared at line 398, available: [398-398])
 		Var: v: []interface {} (declared at line 398, available: [398-398])
-	Function: LookAtTheRequest (main.LookAtTheRequest) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [91:93]
+	Function: LookAtTheRequest (main.LookAtTheRequest) in github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/rc_tester_v1/main.go [91:93]
 		Arg: path: string (declared at line 91, available: [91-92])
 	Function: LookAtTheRequest.Printf.func1 (main.LookAtTheRequest.Printf.func1) in log/log.go [397:398]
 		Arg: b: []uint8 (declared at line 397, available: [397-398])
 		Arg: ~r0: []uint8 (declared at line 397, available: )
 		Var: format: string (declared at line 398, available: [398-398])
 		Var: v: []interface {} (declared at line 398, available: [398-398])
-	Function: main.func1 (main.main.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [29:31]
+	Function: main.func1 (main.main.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest/testprogs/progs/rc_tester_v1/main.go [29:31]
 	Function: main.func1.Println.1 (main.main.func1.Println.1) in log/log.go [405:406]
 		Arg: b: []uint8 (declared at line 405, available: [405-406])
 		Arg: ~r0: []uint8 (declared at line 405, available: )
