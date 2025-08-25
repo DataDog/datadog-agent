@@ -117,6 +117,7 @@ func (cr *Resolver) removeCgroup(cgroup *cgroupModel.CacheEntry) {
 	}
 }
 
+// cgroup already locked
 func (cr *Resolver) syncOrDeleteCgroup(cgroup *cgroupModel.CacheEntry, deletedPid uint32) {
 	// check if the cgroup still contains pids
 	pids, err := cr.cgroupFS.GetCgroupPids(string(cgroup.CGroupContext.CGroupID))
@@ -144,11 +145,13 @@ func (cr *Resolver) syncOrDeleteCgroup(cgroup *cgroupModel.CacheEntry, deletedPi
 	cr.cleanupPidsWithMultipleCgroups(pids, cgroup)
 }
 
+// currentCgroup already locked
 func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup *cgroupModel.CacheEntry) {
 	for _, cgroup := range cr.containerWorkloads.Values() {
 		if cgroup.CGroupFile == currentCgroup.CGroupFile {
 			continue
 		}
+		cgroup.Lock()
 		for _, pid := range pids {
 			delete(cgroup.PIDs, pid)
 		}
@@ -158,12 +161,14 @@ func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup 
 			// No need to introduce a recursion here.
 			cr.removeCgroup(cgroup)
 		}
+		cgroup.Unlock()
 	}
 
 	for _, cgroup := range cr.hostWorkloads.Values() {
 		if cgroup.CGroupFile == currentCgroup.CGroupFile {
 			continue
 		}
+		cgroup.Lock()
 		for _, pid := range pids {
 			delete(cgroup.PIDs, pid)
 		}
@@ -173,6 +178,7 @@ func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup 
 			// No need to introduce a recursion here.
 			cr.removeCgroup(cgroup)
 		}
+		cgroup.Unlock()
 	}
 }
 
@@ -200,6 +206,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	found := false
 
 	for _, cgroup := range cr.hostWorkloads.Values() {
+		cgroup.Lock()
 		if cgroup.CGroupFile == process.CGroup.CGroupFile {
 			cgroup.PIDs[process.Pid] = true
 			found = true
@@ -209,9 +216,11 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 				cr.syncOrDeleteCgroup(cgroup, process.Pid)
 			}
 		}
+		cgroup.Unlock()
 	}
 
 	for _, cgroup := range cr.containerWorkloads.Values() {
+		cgroup.Lock()
 		if cgroup.CGroupFile == process.CGroup.CGroupFile {
 			cgroup.PIDs[process.Pid] = true
 			found = true
@@ -221,6 +230,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 				cr.syncOrDeleteCgroup(cgroup, process.Pid)
 			}
 		}
+		cgroup.Unlock()
 	}
 
 	if !found {
