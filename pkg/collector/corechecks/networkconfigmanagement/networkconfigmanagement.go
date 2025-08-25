@@ -13,6 +13,7 @@ import (
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -42,10 +43,8 @@ type Check struct {
 	sender       *ncmsender.NCMSender
 	agentConfig  config.Component
 	remoteClient ncmremote.Client
+	clock        clock.Clock
 }
-
-// TimeNow useful for mocking
-var TimeNow = time.Now
 
 // Run executes the check to retrieve network device configurations from a device
 func (c *Check) Run() error {
@@ -73,7 +72,7 @@ func (c *Check) Run() error {
 	tags := []string{
 		"device_ip:" + c.deviceConfig.IPAddress,
 	}
-	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.RUNNING, TimeNow().Unix(), tags, runningConfig))
+	configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.RUNNING, c.clock.Now().Unix(), tags, runningConfig))
 
 	if c.deviceConfig.CollectStartupConfig {
 		// TODO: validate the startup config to make sure it's valid, extract other information from it, etc.
@@ -81,10 +80,10 @@ func (c *Check) Run() error {
 		if checkErr != nil {
 			return checkErr
 		}
-		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.STARTUP, TimeNow().Unix(), tags, startupConfig))
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.deviceConfig.IPAddress, ncmreport.STARTUP, c.clock.Now().Unix(), tags, startupConfig))
 	}
 
-	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.deviceConfig.Namespace, "", configs, TimeNow().Unix()))
+	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.deviceConfig.Namespace, "", configs, c.clock.Now().Unix()))
 	if checkErr != nil {
 		return checkErr
 	}
@@ -148,6 +147,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 	// TODO: add check to see the device's credentials type (SSH/Telnet) and create appropriate client factory
 	c.remoteClient = ncmremote.NewSSHClient(c.deviceConfig)
+
+	// Initialize the clock
+	c.clock = clock.New()
 
 	return nil
 }

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -20,14 +21,6 @@ import (
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	"github.com/stretchr/testify/assert"
 )
-
-// mockTimeNow mocks time.Now
-var mockTimeNow = func() time.Time {
-	layout := "2006-01-02 15:04:05"
-	str := "2025-08-01 10:22:00"
-	t, _ := time.Parse(layout, str)
-	return t
-}
 
 // language=json
 var expectedEvent = []byte(`
@@ -39,12 +32,12 @@ var expectedEvent = []byte(`
       "device_id": "default:10.0.0.1",
       "device_ip": "10.0.0.1",
       "config_type": "running",
-      "timestamp": 1754043720,
+      "timestamp": 1754043600,
       "tags": ["device_ip:10.0.0.1"],
       "content": "version 15.1\nhostname Router1"
     }
   ],
-  "collect_timestamp": 1754043720
+  "collect_timestamp": 1754043600
 }
 `)
 
@@ -53,19 +46,22 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 	namespace := "default"
 	ncmSender := NewNCMSender(mockSender, namespace)
 
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
+
 	// Create test payload
 	configs := []ncmreport.NetworkDeviceConfig{
 		{
 			DeviceID:   "default:10.0.0.1",
 			DeviceIP:   "10.0.0.1",
 			ConfigType: string(ncmreport.RUNNING),
-			Timestamp:  mockTimeNow().Unix(),
+			Timestamp:  mockClock.Now().Unix(),
 			Tags:       []string{"device_ip:10.0.0.1"},
 			Content:    "version 15.1\nhostname Router1",
 		},
 	}
 
-	payload := ncmreport.ToNCMPayload(namespace, "", configs, mockTimeNow().Unix())
+	payload := ncmreport.ToNCMPayload(namespace, "", configs, mockClock.Now().Unix())
 
 	// Set up mock expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()

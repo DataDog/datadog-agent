@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -133,14 +134,6 @@ var invalidConfigMissingAuth = []byte(`
 ip_address: 10.0.0.1
 `)
 
-// mockTimeNow mocks time.Now
-var mockTimeNow = func() time.Time {
-	layout := "2006-01-02 15:04:05"
-	str := "2025-08-01 10:22:00"
-	t, _ := time.Parse(layout, str)
-	return t
-}
-
 // language=json
 var expectedEvent = []byte(`
 {
@@ -151,12 +144,12 @@ var expectedEvent = []byte(`
       "device_id": "default:10.0.0.1",
       "device_ip": "10.0.0.1",
       "config_type": "running",
-      "timestamp": 1754043720,
+      "timestamp": 1754043600,
       "tags": ["device_ip:10.0.0.1"],
       "content": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
     }
   ],
-  "collect_timestamp": 1754043720
+  "collect_timestamp": 1754043600
 }
 `)
 
@@ -213,8 +206,6 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 }
 
 func TestCheck_Run_Success(t *testing.T) {
-	TimeNow = mockTimeNow
-
 	check := createTestCheck(t)
 
 	id := checkid.BuildID(CheckName, integration.FakeConfigHash, validConfig, []byte(``))
@@ -228,6 +219,11 @@ func TestCheck_Run_Success(t *testing.T) {
 	// Configure the check
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
 	require.NoError(t, err)
+
+	// mock the time
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
+	check.clock = mockClock
 
 	// Set up mock remote client
 	mockClient := newMockRemoteClient()
