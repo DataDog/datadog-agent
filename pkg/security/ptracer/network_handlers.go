@@ -299,14 +299,11 @@ func handleSetsockopt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg
 	var socketProtocol uint16
 	var socketType uint16
 
-	if !ok {
-		socketFamily = 0
-		socketProtocol = 0
-		socketType = 0
+	if ok {
+		socketFamily = socketInfo.AddressFamily
+		socketProtocol = socketInfo.Protocol
+		socketType = socketInfo.SocketType
 	}
-	socketFamily = socketInfo.AddressFamily
-	socketProtocol = socketInfo.Protocol
-	socketType = socketInfo.SocketType
 
 	if optname != unix.SO_ATTACH_FILTER {
 		// Send incomplete event because there is not filter
