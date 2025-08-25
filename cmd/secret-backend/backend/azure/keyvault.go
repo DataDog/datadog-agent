@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -36,14 +35,15 @@ var getKeyvaultClient = func(keyVaultURL, clientID string) (keyvaultClient, erro
 	var cred azcore.TokenCredential
 	if clientID == "" {
 		cred, err = azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("clientID not provided, could not get credentials: %s", err)
+		}
 	} else {
 		opts := azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ClientID(clientID)}
 		cred, err = azidentity.NewManagedIdentityCredential(&opts)
-	}
-	if err != nil && clientID == "" {
-		return nil, fmt.Errorf("clientID not provided, could not get credentials: %s", err)
-	} else if err != nil {
-		return nil, fmt.Errorf("getting identity credentials: %s", err)
+		if err != nil {
+			return nil, fmt.Errorf("getting identity credentials: %s", err)
+		}
 	}
 
 	client, err := azsecrets.NewClient(keyVaultURL, cred, nil)
@@ -74,19 +74,7 @@ func NewKeyVaultBackend(bc map[string]interface{}) (*KeyVaultBackend, error) {
 		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
-	// Get clientID of the identity in this order:
-	// 1. clientID sent over stdin
-	// 2. from the env var AZURE_CLIENT_ID
-	// If neither is provided, we'll use the DefaultAzureCredential which sometimes
-	// picks up the Managed Identity attached to the running VM
-	clientID := backendConfig.ClientID
-	if clientID == "" {
-		if env, found := os.LookupEnv("AZURE_CLIENT_ID"); found {
-			clientID = env
-		}
-	}
-
-	client, err := getKeyvaultClient(backendConfig.KeyVaultURL, clientID)
+	client, err := getKeyvaultClient(backendConfig.KeyVaultURL, backendConfig.ClientID)
 	if err != nil {
 		return nil, err
 	}
