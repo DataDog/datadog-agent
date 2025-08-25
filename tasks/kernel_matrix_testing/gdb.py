@@ -100,16 +100,21 @@ def setup_gdb_debugging(ctx: Context, stack: str) -> None:
 
         for vm in instance.microvms:
             platinfo = platforms[arch][vm.tag]
-            os_id = platinfo['os_id']
-            os_version = platinfo['os_version']
+            os_id = platinfo.get('os_id')
+            os_version = platinfo.get('os_version')
             image_version = platinfo['image_version']
-            kernel = platinfo['kernel']
 
             if os_id not in gdb_provision:
                 raise Exit(f"{os_id} is currently not supported for kernel debugging")
 
             if os_version not in gdb_provision[os_id]:
                 raise Exit(f"{os_id}_{os_version} is currently not supported for kernel debugging")
+
+            if 'kernel' not in platinfo:
+                raise Exit(
+                    f"{vm.tag} is currently not supported for kernel debugging, no kernel version information in platform info"
+                )
+            kernel = platinfo['kernel']
 
             provisioner = gdb_provision[os_id][os_version](vm, image_version, kernel)
             info(f"[+] Provisioning {vm.tag} for debugging.")

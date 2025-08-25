@@ -246,6 +246,8 @@ type ProfilingProxyConfig struct {
 	DDURL string
 	// AdditionalEndpoints ...
 	AdditionalEndpoints map[string][]string
+	// ReceiverTimeout is the timeout in seconds for profile upload requests
+	ReceiverTimeout int
 }
 
 // EVPProxy contains the settings for the EVPProxy proxy.

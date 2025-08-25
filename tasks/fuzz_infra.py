@@ -83,7 +83,7 @@ def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=2, duration=360
             build_file = "fuzz.test"
 
             print(f'Building {pkgname}/{func} for {git_sha}...')
-            fuzz_build_cmd = f'go test . -c -fuzz={func}$ -o {build_file} -cover -tags=test'
+            fuzz_build_cmd = f'go test . -c -fuzz={func}$ -o {build_file} -cover -tags=test,linux_bpf'
             ctx.run(fuzz_build_cmd)
             build_full_path = directory + "/" + build_file
             if not os.path.exists(build_full_path):
