@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    If you are using a DDOT trace pipeline which includes a `datadog` exporter
+    but no `infraattributes` processor, container tags will no longer be added
+    to the traces. Please add an `infraattributes` processor to your pipeline to
+    enable this functionality.
+enhancements:
+  - |
+    The non-DDOT OTLP ingestion pipeline now includes the infraattributes processor
+    for logs and metrics pipelines, enabling container tag enrichment.
