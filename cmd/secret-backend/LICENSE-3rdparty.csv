@@ -288,7 +288,6 @@ core,github.com/jdkato/prose/internal/util,MIT,- Elliott Stoneham (<elliott.ston
 core,github.com/jdkato/prose/tag,MIT,- Elliott Stoneham (<elliott.stoneham@gmail.com>) | - Joseph Kato (<joseph@jdkato.io>) | Copyright (c) 2017 -2018 Joseph Kato
 core,github.com/jdkato/prose/tokenize,MIT,- Elliott Stoneham (<elliott.stoneham@gmail.com>) | - Joseph Kato (<joseph@jdkato.io>) | Copyright (c) 2017 -2018 Joseph Kato
 core,github.com/jessevdk/go-flags,BSD-3-Clause,Copyright (c) 2012 Jesse van den Kieboom. All rights reserved
-core,github.com/jmespath/go-jmespath,Apache-2.0,Copyright 2015 James Saryerwinnie
 core,github.com/kevinburke/ssh_config,MIT,"Copyright (c) 2013 - 2017 Thomas Pelletier, Eric Anderton | Copyright (c) 2017 Kevin Burke"
 core,github.com/kylelemons/godebug/diff,Apache-2.0,Copyright 2013 Google Inc.  All rights reserved.
 core,github.com/kylelemons/godebug/pretty,Apache-2.0,Copyright 2013 Google Inc.  All rights reserved.
